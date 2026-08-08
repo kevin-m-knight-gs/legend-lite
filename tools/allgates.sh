@@ -139,7 +139,10 @@ fi
 
 if want 8; then
   g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
-  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence test \
+  # -am is REQUIRED: without it Maven resolves legend-lite-core from ~/.m2,
+  # not the reactor, so GATES=8 alone silently A/Bs the previously installed
+  # jar. Relying on GATE2 having run first institutionalises hazard #1.
+  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am test \
       -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?; if skipped "$OUT/g8.out"; then

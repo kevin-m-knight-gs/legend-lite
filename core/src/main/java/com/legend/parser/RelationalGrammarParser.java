@@ -203,7 +203,19 @@ final class RelationalGrammarParser {
      */
     RelationalDataType parseColumnDataType() {
         String name = p.parseIdentifier();
-        String upper = name.toUpperCase();
+        // Locale.ROOT: a bare toUpperCase() is locale-sensitive — under tr_TR
+        // 'i' folds to dotted 'İ', so a lowercase-spelled `varchar`/`binary`/
+        // `decimal` would miss the switch below. Latent today (the corpus spells
+        // these upper-case), fixed for correctness; the two sibling case-folds in
+        // this package already pin the locale (DatabaseProtocolParser:344,
+        // ElementParser:3023), so this was the odd one out.
+        //
+        // NOT the cause of the gate's locale sensitivity: measured with and
+        // without this fix under -Duser.language=tr, DIFF stays 0 and MATCH stays
+        // 24,371. That 24,513 -> 24,371 drop is legend-ENGINE being locale-
+        // sensitive — it rejects 5 more files (REFERENCE_REJECTED 2,270 -> 2,275),
+        // removing their elements from the comparable set. Upstream bug, not ours.
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
         if (p.peek() == TokenType.PAREN_OPEN) {
             p.advance();
             int first = Integer.parseInt(p.consume(TokenType.INTEGER));

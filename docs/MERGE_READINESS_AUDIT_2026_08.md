@@ -227,12 +227,109 @@ pass condition is "no diff on what we choose to emit", not "we emit everything".
 `RejectionParityTest` gates **43 of 424 available pins**, excludes all non-Pure sections and all
 COMPILATION errors, and its own header says messages are "deliberately NOT compared".
 
-### 4.4 Fault sensitivity
+### 4.4 Fault sensitivity — 32 mutations, measured
 
-*(Mutation-testing results pending — the agent is running. This section will be completed with
-the kill rate and every surviving mutation explained from harness source. Until then, the gate's
-demonstrated property is that it accounts for every element it sees, not that it would catch a
-fault deliberately hidden from it.)*
+**The gate has real teeth.** 32 minimal, individually-applied faults across the parser surface —
+off-by-one positions (global and narrow), dropped optional fields, `_type` swaps, field
+reorderings, truncated collections, escape encode/decode faults, multiplicity flips, null-vs-omit,
+empty-vs-omit, keyword removals, numeric boundaries:
+
+| | killed |
+|---|---|
+| by the four parity gates | **27 / 32 (84.4%)** |
+| by the full build (incl. core's 1,656 unit tests) | **30 / 32 (93.8%)** |
+| survived everything | **2 / 32** |
+
+Sensitivity is genuinely fine-grained: one mutation produced **10 divergent elements out of
+24,513** and still went red; another produced 11. Build plumbing was verified before any result
+was trusted (a blatant mutation was confirmed to turn the gate red first).
+
+**The two total survivors are corpus-coverage gaps, not design flaws** — `\b` emitted as `\f`
+(the corpus contains **zero** U+0008 across both checkouts) and a `stripDoubleQuotes` boundary
+reachable only by the exact 2-character input `""` as a bare identifier.
+
+**But three survivors of the *parity gates* are structural, and one is the sharpest single
+finding in this audit:**
+
+- **`allVersionsInRange` removed from the keyword table survives all four gates.** It is not a
+  coverage gap — the construct appears in 6 `.pure` files and 5 upstream Java tests, and core's
+  own unit tests catch it. It survives because **the reference parser rejects every one of those
+  files** (`.allVersionsInRange(...) is not supported`), so `compare()` hits the catch at
+  `ParserEquivalence.java:97-101` and returns before comparing anything. **This is §4.1's 31.4%
+  made concrete: in those 2,270 files legend-lite's parser is entirely unconstrained by the byte
+  gate — it may emit anything, or nothing, and no ratchet moves.**
+- **`sectionIndex` and `importAware` `_type` discriminators are dead code under every gate.**
+  `referenceElements()` skips the reference's `SectionIndex` (`:497-506`), and the SPI bridge
+  builds an engine `ImportAwareCodeSection` directly, never routing through `ProtocolEmitter`.
+  `PSectionIndex` is constructed in exactly one place repo-wide: a hand-written golden in
+  `ProtocolEmitterTest.java:63`. The only evidence for that wire shape is precisely the kind of
+  evidence the harness exists to replace.
+
+**Two structural facts the mutations exposed:**
+
+1. **`assertEquals(0, diffs.size())` never fired — not once in 27 kills.** JUnit stops at the
+   first failed assertion, and `MIN_ELEMENTS_COMPARED`, `LITE_MISSED` and `MIN_MATCHES` all
+   precede it. Every kill reported as *"matches regressed"* or *"corpus shrank"*. **The real
+   teeth are `MIN_MATCHES` sitting at exactly zero headroom** — give it any slack and MATCH→WALL
+   degradation becomes silent, since a wall keeps DIFF at 0. One mutation proves the mechanism:
+   refusing to emit Measures gave `DIFF=0, WALL=33`, caught only by the MATCH floor.
+2. **`LITE_MISSED == 0` is defeated for four element kinds.** `ParserEquivalence.java:263-286`
+   relabels leftover reference elements as `WALL` rather than `LITE_MISSED` when any site of
+   kind runtime/connection/relational/mapping threw in that file. Demonstrated: removing the
+   `Otherwise` keyword produced **34 WALLs with `LITE_MISSED` reported as 0** — 17 reference
+   elements never compared, bidirectionality reporting clean.
+
+### 4.5 Ratchets: six score non-successes as progress
+
+Every constant currently sits exactly on its bound — zero headroom, deliberate, and the
+strongest posture available. But the *shape* of six of them rewards the wrong thing:
+
+| ratchet | gameable how |
+|---|---|
+| `MAX_LENIENT_ACCEPTS` / `MAX_PARSER_LENIENT_ACCEPTS` | lowered by **refusing more**, not parsing better; files moved into `bothReject` are free progress. `LegendLiteSectionParser:92-107` already blanket-throws on `native` and `DOC_STRING` |
+| `MAX_DROP_IN_DEFECTS` | drops **for free** when upstream changes so the reference rejects a file — it reclassifies to the uncapped `legalRefusals` |
+| `MIN_FILES_PARSED` | "parse COVERAGE, not parity — no bytes compared". A parser that swallows everything and returns an empty model scores 100% |
+| `MIN_LINE_AGREEMENT` / `MIN_COLUMN_EXACT` | `rejectMatch++` sits in a bare `catch (Throwable)` — **an NPE or StackOverflowError is scored as correct rejection** |
+| `MIN_PINS` | counts stale pins the engine now accepts, which are then skipped untested |
+| `MIN_ELEMENTS_COMPARED` / `MIN_MATCHES` | counted over an **unpinned** corpus — nothing verifies the upstream SHA, so pointing at a bigger checkout raises the floor for free |
+
+**And there is no ratchet at all on `WALL`, `PARSE_FAIL`, `OUT_OF_SCOPE`, `LITE_EXTRA` or
+`REFERENCE_REJECTED`.** Those 2,270 rejected files and 87 out-of-scope rows are unbounded.
+
+### 4.6 Drift is asymmetric — half of it is silent
+
+- Corpus **shrinks**, or an existing element degrades → **loud**, thanks to the zero-headroom floors.
+- Corpus **grows with grammar legend-lite does not support** → **silent**. Demonstrated: adding
+  one file with a `###Diagram` section raised MATCH 24,513 → 24,514, raised `OUT_OF_SCOPE`
+  87 → 88, printed **"coverage: 24514 of 24514 comparable (100.0%)"**, and stayed green.
+
+The "100% coverage" line is coverage of *what was compared*, not of what arrived.
+
+### 4.7 Reproducibility
+
+Byte-identical across runs, timezones and file encodings. **Not locale-safe**: under `tr_TR` the
+gate drops to 24,371 matches and fails — but the cause is **legend-engine**, which rejects 5 more
+files under that locale (`REFERENCE_REJECTED` 2,270 → 2,275). Measured with and without a fix to
+legend-lite's one unlocalised case-fold: `DIFF` stays 0 and `MATCH` stays 24,371 either way. That
+is an upstream bug (§10, item 1). The failure message — *"corpus shrank … an upstream pull likely
+introduced new grammar"* — gives a reviewer in a non-English locale an actively wrong diagnosis.
+
+### 4.8 Verdict on the instrument
+
+*Would a skeptical reviewer accept it as proof?* **Yes, for a narrowed claim; no, as stated.**
+
+Defensible: *for the 24,513 elements the live reference produces from the accepted 68.6% of this
+corpus, legend-lite emits byte-identical JSON, and it is not possible to break that in a small way
+without the gate going red.* An 84% adversarial kill rate is a strong instrument.
+
+Not proven: the 31.4% the reference rejects (unconstrained), whole wire shapes that are dead under
+every gate, bidirectionality for four element kinds, and drift in the growth direction.
+
+**What would close it:** a ceiling on `WALL + PARSE_FAIL + OUT_OF_SCOPE`; removing the
+WALL→LITE_MISSED relabelling; a second differential leg asserting legend-lite *also rejects* the
+2,270; asserting corpus identity (upstream SHAs) inside the test so the ratchets are falsifiable;
+and reordering the DIFF assertion ahead of the count ratchets so failures read as byte divergence
+rather than "corpus shrank".
 
 ---
 
@@ -440,6 +537,10 @@ findings are ready:
 - **The engine's own serialize/deserialize round-trip is not a fixed point** on 8 files — e.g.
   `ColSpec classInstance multiplicity` is dropped by the deserializer. Found by legend-lite's
   harness, independent of legend-lite's parser.
+- **The engine's parser is locale-sensitive.** Under `-Duser.language=tr -Duser.country=TR` it
+  rejects 5 files it accepts under the default locale (`REFERENCE_REJECTED` 2,270 → 2,275).
+  Isolated: legend-lite's own unlocalised case-fold is *not* the cause — with and without a
+  `Locale.ROOT` fix, `DIFF` stays 0 and `MATCH` stays 24,371 under `tr_TR`.
 
 **2. Contribute the differential harness.** The most valuable artifact here, and not a
 consolation prize. Upstream has **no differential parser oracle**. Cost: one test-scope module,
@@ -472,6 +573,13 @@ prefer it.
 | 9 | **Correct the six false compatibility claims in §8**; register the two unregistered quirks | §8 — trust |
 | 10 | **Restate the performance claim as 2.54×** | §9 |
 | 11 | **Paperwork**: DCO, `LICENSE`/`NOTICE`/`CONTRIBUTING`, headers on the 56 bare files, a provenance note on `TokenType` | §6 |
+| 12 | **Ceiling on `WALL + PARSE_FAIL + OUT_OF_SCOPE`**; drop the WALL→`LITE_MISSED` relabelling; assert corpus identity in-test; move the DIFF assertion ahead of the count ratchets | §4.4–4.6 |
+| 13 | **A second differential leg** asserting legend-lite also rejects the 2,270 reference-rejected files | §4.1, §4.4 — converts the largest blind spot into a measured signal |
+
+**Landed while writing this audit:** `RelationalGrammarParser.java:206` now pins `Locale.ROOT`
+(the one unlocalised case-fold in the parser surface), and `tools/allgates.sh` GATE8 now passes
+`-am` — it previously relied on GATE2 having installed core, so `GATES=8` alone silently tested
+the stale `~/.m2` jar.
 
 Fixes 1, 2, 8 and 9 are cheap and should land regardless of whether anything is ever proposed
 upstream — they are defects in legend-lite's own terms.
