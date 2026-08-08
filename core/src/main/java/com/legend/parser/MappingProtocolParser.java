@@ -306,25 +306,29 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String inc = Protocol.unquotePath(parseQualifiedName());
             String srcDb = null;
             String tgtDb = null;
+            List<Protocol.PStoreSubstitution> subs = new ArrayList<>();
             if (peek() == TokenType.BRACKET_OPEN) {
                 // include m[srcDb->tgtDb, ...] — MULTIPLE substitutions
                 // emit NEITHER key (probe include-multi-subst)
                 advance();
-                int pairs = 0;
                 while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
                     srcDb = Protocol.unquotePath(parseQualifiedName());
                     expect(TokenType.ARROW);
                     tgtDb = Protocol.unquotePath(parseQualifiedName());
                     match(TokenType.COMMA);
-                    pairs++;
+                    subs.add(new Protocol.PStoreSubstitution(srcDb, tgtDb));
                 }
                 expect(TokenType.BRACKET_CLOSE);
-                if (pairs > 1) {
+                if (subs.size() > 1) {
+                    // engine records NEITHER path when there is more than one
+                    // pair (CorePureGrammarParser:504-516). The emitted keys
+                    // follow it exactly; `subs` keeps what engine throws away
+                    // so the MODEL does not lose the substitution.
                     srcDb = null;
                     tgtDb = null;
                 }
             }
-            includes.add(new Protocol.PMappingInclude(inc, srcDb, tgtDb,
+            includes.add(new Protocol.PMappingInclude(inc, srcDb, tgtDb, subs,
                     spanOf(s, pos - 1)));
             return;
         }

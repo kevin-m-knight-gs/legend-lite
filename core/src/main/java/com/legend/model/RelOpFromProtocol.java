@@ -70,10 +70,18 @@ public final class RelOpFromProtocol {
         String db = t.database() != null && t.database().equals(enclosingDb)
                 ? null : t.database();
         // the wire splits schema from table; the model carries the name as
-        // written, which for a NAMED schema is "schema.table"
+        // written, which for a NAMED schema is "schema.table". A
+        // double-quoted relational identifier ("test table") reaches the
+        // wire WITH its quotes and the model stores it bare.
         String table = t.schema() == null || "default".equals(t.schema())
-                ? t.table() : t.schema() + "." + t.table();
+                ? unquote(t.table())
+                : unquote(t.schema()) + "." + unquote(t.table());
         return new RelationalOperation.ColumnRef(db, table, c.column());
+    }
+
+    private static String unquote(String s) {
+        return s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"'
+                ? s.substring(1, s.length() - 1) : s;
     }
 
     private static RelationalOperation joinNavigation(Protocol.PElemtWithJoins j,

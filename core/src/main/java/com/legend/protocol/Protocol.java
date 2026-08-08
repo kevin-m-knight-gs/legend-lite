@@ -504,7 +504,29 @@ public final class Protocol {
     public record PMappingInclude(String includedMapping,
                                   @com.legend.Nullable String sourceDatabasePath,
                                   @com.legend.Nullable String targetDatabasePath,
+                                  List<PStoreSubstitution> substitutions,
                                   com.legend.protocol.SourceInfo sourceInformation) {
+        public PMappingInclude {
+            substitutions = substitutions == null ? List.of()
+                    : List.copyOf(substitutions);
+        }
+    }
+
+    /**
+     * ALL {@code src->tgt} pairs of an {@code include m[a->b, c->d]}.
+     *
+     * <p>Deliberately NOT emitted, and that is the point. Engine's own walker
+     * keeps a substitution only when there is exactly ONE pair and sets both
+     * paths to null otherwise (`CorePureGrammarParser:504-516`), so
+     * {@code sourceDatabasePath}/{@code targetDatabasePath} above reproduce
+     * the wire byte for byte. legend-lite's model has always honoured every
+     * pair, which is a real superset — dropping it on the way through
+     * protocol would have silently changed which store a mapping resolves
+     * against. This field carries the superset THROUGH the protocol without
+     * putting it ON the wire.
+     */
+    public record PStoreSubstitution(String sourceDatabasePath,
+                                     String targetDatabasePath) {
     }
 
     public record PEnumerationMapping(@com.legend.Nullable String id,
