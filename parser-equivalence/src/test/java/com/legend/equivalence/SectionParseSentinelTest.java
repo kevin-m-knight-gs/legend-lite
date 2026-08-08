@@ -22,12 +22,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the lexed sections beyond ###Pure, which byte-parity owns) can silently poison the
  * corpus gate: the 2026-08-04 pull introduced {@code ~src}-style relation mappings and
  * gate 4 collapsed to 2/2567 with nobody watching. This test converts that failure mode
- * into a named, immediate signal: every corpus file containing those sections must parse
- * through the REAL pipeline entry ({@code ElementParser.parse}, the lenient dialect the
- * corpus runner uses), and the count of parsing files may not drop.
+ * into a named, immediate signal: every corpus file containing those sections goes through
+ * the REAL pipeline entry ({@code ElementParser.parse}, the lenient dialect the corpus
+ * runner uses) AND through the reference, and the two verdicts are compared.
  *
- * <p>This is parse COVERAGE, not parity — no bytes are compared. Failures are reported
- * by file with the parse error so a pull regression reads as "wall with a name".
+ * <p>The ratchet guards <b>agreement</b>, not throughput. It used to count "files that
+ * parse", which quietly made leniency look like coverage and correctness look like
+ * regression — refusing a file the engine ALSO refuses scored as a loss. Three buckets
+ * now: MATCHED (both accept or both refuse), LENIENT (we accept, the engine refuses) and
+ * DEFECT (the engine accepts, we refuse). MATCHED may not fall; LENIENT and DEFECT may
+ * only fall.
+ *
+ * <p>This is parse BEHAVIOUR, not byte parity — no bytes are compared here. Failures are
+ * reported by file with the parse error so a pull regression reads as "wall with a name".
  */
 class SectionParseSentinelTest {
 
@@ -45,7 +52,10 @@ class SectionParseSentinelTest {
         int parsed = 0;
         int defects = 0;
         int legalRefusals = 0;
+        int matched = 0;
+        int lenient = 0;
         PureGrammarParser reference = PureGrammarParser.newInstance();
+        List<String> lenientFiles = new ArrayList<>();
         List<String> failures = new ArrayList<>();
         Map<String, Integer> byMessage = new TreeMap<>();
         for (Corpus.Source src : sources) {
@@ -57,6 +67,20 @@ class SectionParseSentinelTest {
             try {
                 ElementParser.parse(src.text());
                 parsed++;
+                // ACCEPTING is only right when the reference accepts too. A file
+                // the reference REFUSES and we take is leniency — the divergence
+                // a raw parse count cannot see, and the one that made this gate
+                // punish correctness (rejecting legend-pure's ###Diagram dialect
+                // the way the engine does used to read here as a REGRESSION).
+                try {
+                    reference.parseModel(src.text());
+                    matched++;
+                } catch (Throwable referenceRefuses) {
+                    lenient++;
+                    lenientFiles.add(src.id() + " :: reference refuses: "
+                            + String.valueOf(referenceRefuses.getMessage())
+                                    .replaceAll("\\s+", " "));
+                }
             } catch (Throwable t) {
                 // THE ORACLE (implementation audit §3.4): a failure only counts
                 // as a drop-in DEFECT when the reference parser ACCEPTS the
@@ -70,6 +94,7 @@ class SectionParseSentinelTest {
                     kind = "DEFECT";
                 } catch (Throwable alsoRejected) {
                     legalRefusals++;
+                    matched++;                  // both refuse — matching behaviour
                     kind = "LEGAL-REFUSAL";
                 }
                 String msg = String.valueOf(t.getMessage()).replaceAll("\\s+", " ");
@@ -87,7 +112,21 @@ class SectionParseSentinelTest {
                 .append(String.format("parse failures        : %d%n", failures.size()))
                 .append(String.format("  reference ACCEPTS   : %d (drop-in DEFECTS)%n", defects))
                 .append(String.format("  reference rejects   : %d (legal refusals)%n",
-                        legalRefusals));
+                        legalRefusals))
+                .append(String.format("%nBEHAVIOUR vs the reference (what the ratchet"
+                        + " actually guards)%n"))
+                .append(String.format("  MATCHED             : %d"
+                        + " (both accept, or both refuse)%n", matched))
+                .append(String.format("  LENIENT             : %d"
+                        + " (we accept, reference REFUSES)%n", lenient))
+                .append(String.format("  DEFECT              : %d"
+                        + " (reference accepts, we refuse)%n", defects));
+        if (!lenientFiles.isEmpty()) {
+            report.append("\nLENIENT — files we take that the engine will not\n")
+                    .append("-".repeat(72)).append('\n');
+            lenientFiles.stream().limit(20).forEach(f ->
+                    report.append("  ").append(f).append('\n'));
+        }
         report.append("\nFAILURES by message (a NEW message after a pull = the drift)\n")
                 .append("-".repeat(72)).append('\n');
         byMessage.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue())
@@ -101,11 +140,17 @@ class SectionParseSentinelTest {
         System.out.println(report);
 
         assertTrue(inScope > 0, "sentinel matched no files: the corpus shape changed");
-        assertTrue(parsed >= MIN_FILES_PARSED,
-                "section parse coverage DROPPED: " + parsed + " < " + MIN_FILES_PARSED
-                        + " — an upstream pull likely introduced new grammar; see"
+        assertTrue(matched >= MIN_BEHAVIOUR_MATCHED,
+                "files whose accept/reject MATCHES the engine DROPPED: " + matched
+                        + " < " + MIN_BEHAVIOUR_MATCHED + " — an upstream pull likely"
+                        + " introduced new grammar; see"
                         + " target/section-sentinel-report.txt before running the"
                         + " corpus gates.");
+        assertTrue(lenient <= MAX_LENIENT,
+                "files we accept that the engine REFUSES grew: " + lenient + " > "
+                        + MAX_LENIENT + " — a drop-in that takes what the engine"
+                        + " rejects is not a drop-in; see"
+                        + " target/section-sentinel-report.txt");
         assertTrue(defects <= MAX_DROP_IN_DEFECTS,
                 "reference-accepted files we fail to parse GREW: " + defects + " > "
                         + MAX_DROP_IN_DEFECTS + " — a real drop-in gap opened; see"
@@ -117,8 +162,18 @@ class SectionParseSentinelTest {
      *  DOWN only; section parity burns it to zero. */
     private static final int MAX_DROP_IN_DEFECTS = 126;   // 146 - 20 AggregationAware-Pure
 
-    /** Baseline at introduction (2026-08-05). Bump when coverage grows; a drop is the
-     *  pull-drift signal this test exists for.
-     *  857 -> 877: AggregationAware ~mainMapping: Pure accepted (audit §3.4). */
-    private static final int MIN_FILES_PARSED = 877;
+    /**
+     * Files whose ACCEPT/REJECT decision matches the engine's — the property a
+     * drop-in actually has to hold, and the pull-drift signal this test exists
+     * for. It replaced a raw "files that parse" count, which silently rewarded
+     * LENIENCY: refusing a file the engine also refuses scored as a coverage
+     * regression, so every fix in the leniency programme (742 cases queued)
+     * would have had to fight its own gate. Bump when matching grows; a drop
+     * means a pull moved the grammar under us.
+     */
+    private static final int MIN_BEHAVIOUR_MATCHED = 840;
+
+    /** Files we accept that the engine REFUSES. Ratcheted DOWN only — this is
+     *  the leniency surface, and a drop-in's is zero. */
+    private static final int MAX_LENIENT = 148;
 }
