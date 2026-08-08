@@ -57,6 +57,91 @@ public final class MappingFromProtocol {
         }
     }
 
+    /**
+     * The element split, mirroring {@code MappingGrammarParser:105-120}: a
+     * CLEAN-SHEET body yields {@link MappingDefinition} (the function form),
+     * a legacy DSL body yields {@link LegacyMappingDefinition} (the surface
+     * tree {@code MappingNormalizer} rewrites). They are two independent
+     * axes and a mapping is all one or all the other.
+     */
+    public static com.legend.model.PackageableElement toMappingElement(
+            Protocol.PMapping m) {
+        boolean hasCleanSheet0 = m.classMappings().stream()
+                .anyMatch(cm -> cm instanceof Protocol.PClassMappingFunction);
+        boolean hasCleanSheet = hasCleanSheet0;
+        boolean hasCleanSheetAssoc = m.associationMappings().stream()
+                .anyMatch(am -> am instanceof Protocol.PFunctionAssociationMapping);
+        hasCleanSheet = hasCleanSheet || hasCleanSheetAssoc;
+        boolean hasLegacy = m.classMappings().stream()
+                .anyMatch(cm -> !(cm instanceof Protocol.PClassMappingFunction))
+                || m.associationMappings().stream()
+                        .anyMatch(am -> !(am instanceof Protocol.PFunctionAssociationMapping));
+        if (hasLegacy && hasCleanSheet) {
+            throw new UnsupportedMappingShape("Mapping '" + m.qualifiedName()
+                    + "' mixes legacy DSL bodies with function-form bindings;"
+                    + " a mapping must be all-legacy or all-clean-sheet"
+                    + " (convert the whole mapping)");
+        }
+        return hasCleanSheet ? toCleanSheetDefinition(m) : toMappingDefinition(m);
+    }
+
+    private static MappingDefinition toCleanSheetDefinition(Protocol.PMapping m) {
+        List<MappingDefinition.ClassBinding> bindings = new ArrayList<>();
+        for (Protocol.PClassMapping cm : m.classMappings()) {
+            Protocol.PClassMappingFunction fn = (Protocol.PClassMappingFunction) cm;
+            // Ref vs Inline is decided by the WIRE's mutually-exclusive
+            // pair, exactly as ElementParser.realizationOf decides it from
+            // the parsed body — a lone packageable-element pointer is a
+            // reference to an ordinary user function.
+            com.legend.protocol.Realization realization =
+                    realizationOf(fn.function(), fn.bodyLambda());
+            bindings.add(new MappingDefinition.ClassBinding(fn.className(),
+                    "PURE".equals(fn.kind()) ? MappingDefinition.Kind.PURE
+                            : MappingDefinition.Kind.RELATIONAL,
+                    fn.id(), fn.extendsClassMappingId(), fn.root(), realization));
+        }
+        List<EnumerationMapping> enums = new ArrayList<>();
+        for (Protocol.PEnumerationMapping em : m.enumerationMappings()) {
+            enums.add(enumerationMapping(em));
+        }
+        List<MappingDefinition.AssociationBinding> assocBindings = new ArrayList<>();
+        for (Protocol.PAssociationMapping am : m.associationMappings()) {
+            Protocol.PFunctionAssociationMapping fa =
+                    (Protocol.PFunctionAssociationMapping) am;
+            assocBindings.add(new MappingDefinition.AssociationBinding(
+                    fa.association().path(), realizationOf(fa.function(),
+                            fa.bodyLambda())));
+        }
+        List<MappingInclude> includes = includesOf(m);
+        return new MappingDefinition(m.qualifiedName(), includes, bindings,
+                assocBindings, enums, m.testSuitesSource());
+    }
+
+    /** The wire's mutually-exclusive pair becomes the model's sealed
+     *  Realization — the same Ref/Inline decision
+     *  {@code ElementParser.realizationOf} makes from a parsed body. */
+    private static com.legend.protocol.Realization realizationOf(
+            com.legend.protocol.spec.@com.legend.Nullable PackageableElementPtr fn,
+            com.legend.protocol.spec.@com.legend.Nullable LambdaFunction lambda) {
+        return fn != null
+                ? new com.legend.protocol.Realization.Ref(fn.fullPath(), fn)
+                : new com.legend.protocol.Realization.Inline(
+                        java.util.Objects.requireNonNull(lambda).body());
+    }
+
+    private static List<MappingInclude> includesOf(Protocol.PMapping m) {
+        List<MappingInclude> includes = new ArrayList<>();
+        for (Protocol.PMappingInclude inc : m.includedMappings()) {
+            List<MappingInclude.StoreSubstitution> subs = new ArrayList<>();
+            for (Protocol.PStoreSubstitution s : inc.substitutions()) {
+                subs.add(new MappingInclude.StoreSubstitution(
+                        s.sourceDatabasePath(), s.targetDatabasePath()));
+            }
+            includes.add(new MappingInclude(inc.includedMapping(), subs));
+        }
+        return includes;
+    }
+
     public static LegacyMappingDefinition toMappingDefinition(Protocol.PMapping m) {
         List<MappingInclude> includes = new ArrayList<>();
         for (Protocol.PMappingInclude inc : m.includedMappings()) {
@@ -115,6 +200,11 @@ public final class MappingFromProtocol {
     private static @com.legend.Nullable ClassMapping classMapping(Protocol.PClassMapping cm) {
         if (cm instanceof Protocol.PClassMappingRel rel) {
             return relational(rel);
+        }
+        if (cm instanceof Protocol.PClassMappingFunction) {
+            throw new UnsupportedMappingShape("a function-form binding has no"
+                    + " legacy surface-tree shape; it belongs to"
+                    + " MappingDefinition (use toMappingElement)");
         }
         if (cm instanceof Protocol.PClassMappingPure pure) {
             return pureInstance(pure, pure.id());

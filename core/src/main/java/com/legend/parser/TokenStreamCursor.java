@@ -325,6 +325,53 @@ public interface TokenStreamCursor {
      *  {@code isIdentifierToken(t)} unqualified. Code outside the
      *  cursor hierarchy (e.g. the IDE shallow scanner) checks
      *  {@code IDENTIFIER_TOKENS.contains(t)} directly. */
+    /**
+     * Whether the class-mapping body at the cursor is the CLEAN-SHEET
+     * function form rather than engine's legacy declarative DSL
+     * (CLEAN_SHEET_INVERSION §5.1). A legacy body opens with a
+     * {@code ~directive} or a {@code prop:} property mapping; anything else
+     * is a Pure expression — a function reference or an inline body.
+     *
+     * <p>Lives HERE, on the cursor, because BOTH mapping parsers need the
+     * same answer: {@code MappingProtocolParser} to pick the protocol shape
+     * and {@code MappingGrammarParser} to pick the model shape. Duplicating
+     * the disambiguator while deleting a duplicate parser would just move
+     * the drift down a level — the failure mode PARSER_COMPLETENESS_PLAN.md
+     * §1 exists to end. It dies with the legacy mapping parser.
+     */
+    default boolean isCleanSheetBody() {
+        if (peek() == TokenType.BRACE_CLOSE) {
+            return false;   // {} — empty LEGACY body (extends inherits all)
+        }
+        if (isLegacyMappingCommand(peek())) {
+            return false;   // ~mainTable / ~filter / ~src / ...
+        }
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
+            return false;   // prop: legacy property mapping
+        }
+        if (isIdentifierToken(peek()) && "scope".equals(safeText())
+                && peek(1) == TokenType.PAREN_OPEN) {
+            return false;   // scope([db]...)( legacy PMs )
+        }
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.PAREN_OPEN) {
+            return false;   // prop( embedded )
+        }
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.BRACKET_OPEN) {
+            return false;   // prop[setId]: / prop[setId](
+        }
+        return peek() != TokenType.PLUS;   // +localProp:
+    }
+
+    /** The {@code ~directive} keywords that open a legacy mapping body. */
+    static boolean isLegacyMappingCommand(TokenType t) {
+        return t == TokenType.MAIN_TABLE_CMD
+            || t == TokenType.FILTER_CMD
+            || t == TokenType.DISTINCT_CMD
+            || t == TokenType.GROUP_BY_CMD
+            || t == TokenType.PRIMARY_KEY_CMD
+            || t == TokenType.SRC_CMD;
+    }
+
     default boolean isIdentifierToken(TokenType t) {
         return t != null && IDENTIFIER_TOKENS.contains(t);
     }

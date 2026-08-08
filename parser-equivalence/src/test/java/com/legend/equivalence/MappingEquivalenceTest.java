@@ -83,13 +83,9 @@ class MappingEquivalenceTest {
                 if (ts.type(i) != TokenType.MAPPING || !declPos(ts, i)) {
                     continue;
                 }
-                LegacyMappingDefinition viaLegacy;
+                Object viaLegacyEl;
                 try {
-                    Object m = com.legend.parser.ElementParser.parseMappingAt(ts, i);
-                    if (!(m instanceof LegacyMappingDefinition legacy)) {
-                        continue;   // clean-sheet element — a different axis
-                    }
-                    viaLegacy = legacy;
+                    viaLegacyEl = com.legend.parser.ElementParser.parseMappingAt(ts, i);
                 } catch (Throwable t) {
                     legacyUnreadable++;
                     continue;
@@ -104,10 +100,10 @@ class MappingEquivalenceTest {
                     continue;
                 }
 
-                LegacyMappingDefinition viaProtocol;
+                Object viaProtocolEl;
                 try {
-                    viaProtocol = com.legend.model.MappingFromProtocol
-                            .toMappingDefinition(protocol.p);
+                    viaProtocolEl = com.legend.model.MappingFromProtocol
+                            .toMappingElement(protocol.p);
                 } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
                     unsupported++;
                     unsupportedWhy.merge(normalize(u.getMessage()), 1, Integer::sum);
@@ -121,6 +117,25 @@ class MappingEquivalenceTest {
                 }
 
                 compared++;
+                // The CLEAN-SHEET arm gets no corpus coverage at all (zero
+                // corpus mappings use the function form), so it is compared
+                // by plain record equality here rather than skipped — the
+                // inverse of everywhere else in this migration, and exactly
+                // where a silent gap would survive.
+                if (!(viaLegacyEl instanceof LegacyMappingDefinition viaLegacy)
+                        || !(viaProtocolEl instanceof LegacyMappingDefinition viaProtocol)) {
+                    if (viaLegacyEl.equals(viaProtocolEl)) {
+                        identical++;
+                    } else {
+                        mismatched++;
+                        String shape = viaLegacyEl.getClass().getSimpleName()
+                                + " vs " + viaProtocolEl.getClass().getSimpleName();
+                        mismatchShapes.merge(shape, 1, Integer::sum);
+                        examples.computeIfAbsent(shape, k -> "\n      LEGACY   = "
+                                + viaLegacyEl + "\n      PROTOCOL = " + viaProtocolEl);
+                    }
+                    continue;
+                }
                 String diff = firstDifference(viaLegacy, viaProtocol);
                 if (!"identical".equals(diff) && asWritten(viaLegacy, viaProtocol)) {
                     // A difference the WIRE CANNOT PRESERVE, verified against

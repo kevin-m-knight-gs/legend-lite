@@ -244,7 +244,7 @@ final class MappingGrammarParser {
             // (CLEAN_SHEET_INVERSION §5.1): a legacy body opens with a
             // `~directive` or a `prop:` property mapping; anything else is a
             // clean-sheet Pure expression (a function ref or an inline body).
-            if (isCleanSheetBody()) {
+            if (p.isCleanSheetBody()) {
                 accum.classBindings.add(new MappingDefinition.ClassBinding(
                         elementPath,
                         pure ? MappingDefinition.Kind.PURE : MappingDefinition.Kind.RELATIONAL,
@@ -724,27 +724,6 @@ final class MappingGrammarParser {
      * a clean-sheet expression (a function ref or an inline body, distinguished
      * after parsing by {@link #parseCleanSheetBody}).
      */
-    boolean isCleanSheetBody() {
-        if (p.peek() == TokenType.BRACE_CLOSE) return false;                 // {} — empty LEGACY body (extends inherits everything)
-        if (isLegacyMappingCommand(p.peek())) return false;                  // ~mainTable / ~filter / ~src / ...
-        if (p.isIdentifierToken(p.peek()) && p.peek(1) == TokenType.COLON) return false;  // prop: legacy PM
-        if (p.isIdentifierToken(p.peek()) && "scope".equals(p.text())
-                && p.peek(1) == TokenType.PAREN_OPEN) return false;          // scope([db]...)( legacy PMs )
-        if (p.isIdentifierToken(p.peek()) && p.peek(1) == TokenType.PAREN_OPEN) return false;  // prop( embedded )
-        if (p.isIdentifierToken(p.peek()) && p.peek(1) == TokenType.BRACKET_OPEN) return false;  // prop[setId]: / prop[setId](
-        if (p.peek() == TokenType.PLUS) return false;                        // +localProp:
-        return true;
-    }
-
-    /** The {@code ~command} p.tokens that open a legacy class-mapping body. */
-    static boolean isLegacyMappingCommand(TokenType t) {
-        return t == TokenType.MAIN_TABLE_CMD
-            || t == TokenType.FILTER_CMD
-            || t == TokenType.DISTINCT_CMD
-            || t == TokenType.GROUP_BY_CMD
-            || t == TokenType.PRIMARY_KEY_CMD
-            || t == TokenType.SRC_CMD;
-    }
 
     /**
      * Parse a clean-sheet kind-block body (the opening brace already consumed)

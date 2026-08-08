@@ -39,6 +39,7 @@ final class MappingEmitter {
             switch (m.classMappings().get(i)) {
                 case Protocol.PClassMappingRel r -> relClassMapping(b, r);
                 case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
+                case Protocol.PClassMappingFunction fi -> functionClassMapping(b, fi);
                 case Protocol.PClassMappingAggregationAware aa ->
                         aggregationAware(b, aa);
                 case Protocol.PClassMappingMergeOperation mo -> {
@@ -267,6 +268,23 @@ final class MappingEmitter {
     static void associationMapping(StringBuilder b,
             Protocol.PAssociationMapping am) {
         switch (am) {
+                // clean-sheet association binding — the same
+                // pointer-XOR-lambda fork as functionInstance
+                case Protocol.PFunctionAssociationMapping fa -> {
+                    b.append("{\"_type\":\"functionAssociation\",\"association\":");
+                    pointer(b, fa.association());
+                    if (fa.bodyLambda() != null) {
+                        b.append(",\"bodyLambda\":");
+                        valueSpec(b, fa.bodyLambda());
+                    }
+                    if (fa.function() != null) {
+                        b.append(",\"function\":");
+                        valueSpec(b, fa.function());
+                    }
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, fa.sourceInformation());
+                    b.append('}');
+                }
                 case Protocol.PRelAssociationMapping ra -> {
                     b.append("{\"_type\":\"relational\",\"association\":");
                     pointer(b, ra.association());
@@ -480,6 +498,41 @@ final class MappingEmitter {
         b.append('}');
     }
 
+
+    /** {@code _type:"functionInstance"} — the clean-sheet function form.
+     *  Keys alphabetical after the discriminator, as the sibling arms are;
+     *  `function` and `bodyLambda` are mutually exclusive by construction,
+     *  so exactly one appears. */
+    static void functionClassMapping(StringBuilder b,
+            Protocol.PClassMappingFunction cm) {
+        b.append("{\"_type\":\"functionInstance\"");
+        if (cm.bodyLambda() != null) {
+            b.append(",\"bodyLambda\":");
+            valueSpec(b, cm.bodyLambda());
+        }
+        b.append(",\"class\":");
+        str(b, cm.className());
+        b.append(",\"classSourceInformation\":");
+        srcInfo(b, cm.classSourceInformation());
+        if (cm.extendsClassMappingId() != null) {
+            b.append(",\"extendsClassMappingId\":");
+            str(b, cm.extendsClassMappingId());
+        }
+        if (cm.function() != null) {
+            b.append(",\"function\":");
+            valueSpec(b, cm.function());
+        }
+        if (cm.id() != null) {
+            b.append(",\"id\":");
+            str(b, cm.id());
+        }
+        b.append(",\"kind\":");
+        str(b, cm.kind());
+        b.append(",\"root\":").append(cm.root());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, cm.sourceInformation());
+        b.append('}');
+    }
 
     static void pureClassMapping(StringBuilder b,
             Protocol.PClassMappingPure cm) {
@@ -794,6 +847,7 @@ final class MappingEmitter {
         switch (cm) {
             case Protocol.PClassMappingRel r -> relClassMapping(b, r);
             case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
+            case Protocol.PClassMappingFunction fi -> functionClassMapping(b, fi);
             default -> throw new IllegalStateException(
                     "nested class-mapping kind unbuilt: " + cm.getClass());
         }

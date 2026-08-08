@@ -381,11 +381,22 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             enums.add(parseEnumerationMapping(target, targetStart, targetSpan));
             return;
         }
+        if (peek() == TokenType.ASSOCIATION_MAPPING && cleanSheetAheadAt(1)) {
+            advance();
+            assocMappings.add(parseFunctionAssociationMapping(target,
+                    memberStart, targetSpan));
+            return;
+        }
         if (peek() == TokenType.RELATIONAL) {
             advance();
             if (peekIsAssociationBody()) {
                 assocMappings.add(parseRelAssociationMapping(target,
                         memberStart, targetSpan, id));
+                return;
+            }
+            if (peek(1) != TokenType.BRACE_OPEN && cleanSheetAhead()) {
+                classMappings.add(parseFunctionClassMapping(target, memberStart,
+                        targetSpan, id, extendsId, root, "RELATIONAL"));
                 return;
             }
             classMappings.add(parseRelationalClassMapping(target, memberStart,
@@ -400,6 +411,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.PURE_MAPPING) {
             advance();
+            if (cleanSheetAhead()) {
+                classMappings.add(parseFunctionClassMapping(target, memberStart,
+                        targetSpan, id, extendsId, root, "PURE"));
+                return;
+            }
             classMappings.add(parsePureClassMapping(target, memberStart,
                     targetSpan, id, root, extendsId));
             return;
@@ -438,6 +454,120 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             throw error("'extends' on this class-mapping kind is unbuilt");
         }
         throw error("mapping member kind '" + kind + "' is unbuilt");
+    }
+
+    /** As {@link #cleanSheetAhead()} but the kind keyword is still
+     *  {@code ahead} tokens back from the body's brace. */
+    private boolean cleanSheetAheadAt(int ahead) {
+        int save = pos;
+        for (int i = 0; i < ahead; i++) {
+            advance();
+        }
+        boolean clean = cleanSheetAhead();
+        pos = save;
+        return clean;
+    }
+
+    /** {@code assoc: AssociationMapping { acme::funcs::personFirmMatch }} —
+     *  the clean-sheet association binding. */
+    private Protocol.PFunctionAssociationMapping parseFunctionAssociationMapping(
+            String target, int memberStart, SourceInfo targetSpan) {
+        expect(TokenType.BRACE_OPEN);
+        int bodyStart = pos;
+        int depth = 1;
+        while (!atEnd() && depth > 0) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.BRACE_CLOSE) {
+                depth--;
+            }
+            if (depth > 0) {
+                advance();
+            }
+        }
+        List<com.legend.protocol.spec.ValueSpecification> body =
+                SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        if (body.isEmpty()) {
+            throw error("clean-sheet association binding for '" + target
+                    + "' has an empty body");
+        }
+        com.legend.protocol.spec.PackageableElementPtr fnRef = null;
+        com.legend.protocol.spec.LambdaFunction lambda = null;
+        if (body.size() == 1
+                && body.get(0) instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
+            fnRef = ptr;
+        } else {
+            lambda = new com.legend.protocol.spec.LambdaFunction(
+                    List.of(), body, null);
+        }
+        return new Protocol.PFunctionAssociationMapping(
+                new Protocol.PPointer("ASSOCIATION", target, targetSpan),
+                fnRef, lambda, spanOf(memberStart, close));
+    }
+
+    /** The kind keyword has been consumed and the next token is the body's
+     *  opening brace; peek PAST it to ask the shared cursor whether this is
+     *  a clean-sheet body. */
+    private boolean cleanSheetAhead() {
+        if (peek() != TokenType.BRACE_OPEN) {
+            return false;
+        }
+        int save = pos;
+        advance();
+        boolean clean = isCleanSheetBody();
+        pos = save;
+        return clean;
+    }
+
+    /**
+     * {@code *cls[id] extends [p]: Relational { acme::funcs::personMapping }}
+     * — the CLEAN-SHEET function form. The body is parsed by the ordinary
+     * {@code SpecParser}, the same entry point every ###Pure function body
+     * goes through, and a body that is a single packageable-element pointer
+     * collapses to a function REFERENCE exactly as
+     * {@code ElementParser.realizationOf} decides it.
+     */
+    private Protocol.PClassMappingFunction parseFunctionClassMapping(
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id,
+            @com.legend.Nullable String extendsId, boolean root, String kind) {
+        expect(TokenType.BRACE_OPEN);
+        int bodyStart = pos;
+        int depth = 1;
+        while (!atEnd() && depth > 0) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.BRACE_CLOSE) {
+                depth--;
+            }
+            if (depth > 0) {
+                advance();
+            }
+        }
+        List<com.legend.protocol.spec.ValueSpecification> body =
+                SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        if (body.isEmpty()) {
+            throw error("clean-sheet mapping binding for '" + target
+                    + "' has an empty body");
+        }
+        com.legend.protocol.spec.PackageableElementPtr fnRef = null;
+        com.legend.protocol.spec.LambdaFunction lambda = null;
+        if (body.size() == 1
+                && body.get(0) instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
+            fnRef = ptr;
+        } else {
+            lambda = new com.legend.protocol.spec.LambdaFunction(
+                    List.of(), body, null);
+        }
+        return new Protocol.PClassMappingFunction(target, targetSpan, id,
+                extendsId, root, kind, fnRef, lambda,
+                spanOf(memberStart, close));
     }
 
     /** {@code [*]cls: Relational { ~mainTable [db]T ~primaryKey(...)

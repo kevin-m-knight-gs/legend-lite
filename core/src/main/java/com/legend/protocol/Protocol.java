@@ -96,7 +96,25 @@ public final class Protocol {
      *  xstore). */
     public sealed interface PAssociationMapping
             permits PRelAssociationMapping, PXStoreAssociationMapping,
-            PModelJoinAssociationMapping {
+            PModelJoinAssociationMapping, PFunctionAssociationMapping {
+    }
+
+    /** {@code assoc: AssociationMapping { acme::funcs::personFirmMatch }} —
+     *  the CLEAN-SHEET association binding. Same mutually-exclusive
+     *  pointer/lambda fork as {@link PClassMappingFunction}; the body is
+     *  typed {@code (Source[1], Target[1]) -> Boolean[1]}. */
+    public record PFunctionAssociationMapping(PPointer association,
+                                              com.legend.protocol.spec.@com.legend.Nullable PackageableElementPtr function,
+                                              com.legend.protocol.spec.@com.legend.Nullable LambdaFunction bodyLambda,
+                                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PAssociationMapping {
+        public PFunctionAssociationMapping {
+            if ((function == null) == (bodyLambda == null)) {
+                throw new IllegalArgumentException(
+                        "a function-form association binding is EITHER a"
+                                + " function reference or an inline body");
+            }
+        }
     }
 
     /** {@code assoc: ModelJoin { {x:T[1], y:U[1]|expr} }} — the join
@@ -141,7 +159,58 @@ public final class Protocol {
     public sealed interface PClassMapping
             permits PClassMappingRel, PClassMappingPure,
             PClassMappingOperation, PClassMappingRelation,
-            PClassMappingMergeOperation, PClassMappingAggregationAware {
+            PClassMappingMergeOperation, PClassMappingAggregationAware,
+            PClassMappingFunction {
+    }
+
+    /**
+     * {@code _type:"functionInstance"} — the CLEAN-SHEET function form,
+     * {@code *acme::Person: Relational { acme::funcs::personMapping }}.
+     *
+     * <p>Modelled on engine's {@code RelationFunctionClassMapping}, which
+     * solved the same problem for {@code ~func}: a
+     * {@code PackageableElementPtr} for the reference spelling and a
+     * {@code LambdaFunction} for the inline one, MUTUALLY EXCLUSIVE. The
+     * difference is where row&rarr;instance promotion lives. Engine's
+     * {@code relation} points at a function returning a {@code Relation}
+     * and binds properties to its COLUMNS through {@code propertyMappings};
+     * here the function is typed {@code (): Class[*]} and does the
+     * promotion itself with {@code ^Class(...)}, so there are no property
+     * mappings and no primary key — the construction is opaque to the
+     * mapping element.
+     *
+     * <p><b>{@code kind} is load-bearing and cannot be derived.</b> A
+     * {@code Relational} body and a {@code Pure} body are BOTH
+     * {@code (): Class[*]} (MAPPING_CLEAN_SHEET.md §1), so the return type
+     * cannot disambiguate them — the kind is a property of the mapping
+     * relationship, not of the function. One {@code _type} with a
+     * discriminating field rather than two types, following
+     * {@code OperationClassMapping.operation} rather than the
+     * relational/pureInstance split, because the SHAPES are identical.
+     *
+     * <p>This is a legend-lite surface: engine has no function-form mapping,
+     * so no corpus file exercises it and the byte-parity gate has no opinion
+     * on it. It rides the wire anyway, the way any non-core class mapping
+     * does through {@code PureProtocolExtension}.
+     */
+    public record PClassMappingFunction(String className,
+                                        com.legend.protocol.SourceInfo classSourceInformation,
+                                        @com.legend.Nullable String id,
+                                        @com.legend.Nullable String extendsClassMappingId,
+                                        boolean root,
+                                        String kind,
+                                        com.legend.protocol.spec.@com.legend.Nullable PackageableElementPtr function,
+                                        com.legend.protocol.spec.@com.legend.Nullable LambdaFunction bodyLambda,
+                                        com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
+        public PClassMappingFunction {
+            if ((function == null) == (bodyLambda == null)) {
+                throw new IllegalArgumentException(
+                        "a function-instance class mapping is EITHER a function"
+                                + " reference or an inline body, never both or"
+                                + " neither");
+            }
+        }
     }
 
     /** {@code cls[id]: AggregationAware { Views: [...], ~mainMapping:
