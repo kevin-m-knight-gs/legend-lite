@@ -4,10 +4,12 @@ import com.legend.model.ParsedModel;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Phase M step 1 pins: section routing is REGISTRY-adjudicated and an
- *  unclaimed section is DATA, never lexer silence. */
+/** Phase M step 1 pins: section routing is REGISTRY-adjudicated, and a
+ *  section NO grammar claims is REFUSED in the engine's own words — never
+ *  skipped in silence, which used to drop every element inside it. */
 class SectionGrammarRegistryTest {
 
     @Test
@@ -19,17 +21,35 @@ class SectionGrammarRegistryTest {
         assertTrue(SectionGrammarRegistry.lookup("Diagram").isEmpty());
     }
 
+    private static final String WITH_UNKNOWN_SECTION = """
+            Class my::A { a: String[1]; }
+
+            ###Diagram
+            Diagram my::D(width=1.0, height=2.0) {}
+
+            ###Pure
+            Class my::B { b: String[1]; }
+            """;
+
     @Test
-    void unclaimedSectionSurfacesOnTheParsedModel() {
-        ParsedModel m = ElementParser.parse("""
-                Class my::A { a: String[1]; }
+    void theDropInSurfaceRefusesAnUnclaimedSection() {
+        // engine parity (PureGrammarParser:160): a drop-in cannot accept a
+        // file whose sections it cannot read — my::B would vanish and any
+        // nonsense in the ###Diagram body would be swallowed.
+        ParseException e = assertThrows(ParseException.class,
+                () -> ElementParser.parseStrict(WITH_UNKNOWN_SECTION));
+        assertTrue(e.getMessage().contains(
+                        "'Diagram' is not a known section parser"),
+                e.getMessage());
+    }
 
-                ###Diagram
-                Diagram my::D(width=1.0, height=2.0) {}
-
-                ###Pure
-                Class my::B { b: String[1]; }
-                """);
+    @Test
+    void theInternalPipelineKeepsReadingAndRecordsTheSkip() {
+        // real Legend models mix ###Service/###DataSpace/###Persistence with
+        // the sections we implement; legend-lite has to load them to compile
+        // the parts it owns (refusing cost the relational corpus its whole
+        // library layer). The skip is DATA, not silence.
+        ParsedModel m = ElementParser.parse(WITH_UNKNOWN_SECTION);
         assertEquals(2, m.elements().size(), "both Pure classes parse");
         assertEquals(1, m.unclaimedSections().size());
         assertEquals("Diagram", m.unclaimedSections().get(0).name());
@@ -47,7 +67,6 @@ class SectionGrammarRegistryTest {
                 Toy my::toys::T1;
                 Toy my::toys::T2;
                 """);
-        assertTrue(m.unclaimedSections().isEmpty(), "Toy is CLAIMED");
         var opaques = m.elements().stream()
                 .filter(e -> e instanceof com.legend.model.OpaqueElementDefinition)
                 .map(e -> (com.legend.model.OpaqueElementDefinition) e)
@@ -63,9 +82,13 @@ class SectionGrammarRegistryTest {
     }
 
     @Test
-    void registeredSectionsAreNeverUnclaimed() {
-        ParsedModel m = ElementParser.parse(
-                "Class my::A { a: String[1]; }");
-        assertTrue(m.unclaimedSections().isEmpty());
+    void registeringAGrammarIsHowToleranceIsSpelled() {
+        // the escape hatch is EXPLICIT: ###Toy is accepted only because a
+        // grammar claims it (above), while ###Diagram is refused (below).
+        // There is no third state where we accept without reading.
+        assertTrue(SectionGrammarRegistry.lookup("Toy").isPresent());
+        assertTrue(SectionGrammarRegistry.lookup("Diagram").isEmpty());
+        assertEquals(1, ElementParser.parse("Class my::A { a: String[1]; }")
+                .elements().size(), "a section-free file is unaffected");
     }
 }

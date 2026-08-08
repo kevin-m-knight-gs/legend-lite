@@ -304,7 +304,7 @@ public final class Lexer {
                 pos++;
             }
             skippedSections.add(new TokenStream.SkippedSection(
-                    kind, skipStart, pos));
+                    kind, nameStart, skipStart, pos));
         }
     }
 

@@ -23,8 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * corpus gate: the 2026-08-04 pull introduced {@code ~src}-style relation mappings and
  * gate 4 collapsed to 2/2567 with nobody watching. This test converts that failure mode
  * into a named, immediate signal: every corpus file containing those sections goes through
- * the REAL pipeline entry ({@code ElementParser.parse}, the lenient dialect the corpus
- * runner uses) AND through the reference, and the two verdicts are compared.
+ * the DROP-IN surface ({@code ElementParser.parseStrict} — the parser that ships, not the
+ * deliberately broader internal dialect) AND through the reference, and the two verdicts
+ * are compared.
  *
  * <p>The ratchet guards <b>agreement</b>, not throughput. It used to count "files that
  * parse", which quietly made leniency look like coverage and correctness look like
@@ -119,7 +120,13 @@ class SectionParseSentinelTest {
             }
             inScope++;
             try {
-                ElementParser.parse(src.text());
+                // THE PARSER THAT SHIPS (audit fix #2). Measuring the internal
+                // dialect against the engine measures the wrong parser:
+                // parse() is DELIBERATELY broader (it must load real models
+                // whose ###Service/###DataSpace sections legend-lite does not
+                // implement). parseStrict() is the drop-in surface, and it is
+                // the only one whose accept/reject has to match.
+                ElementParser.parseStrict(src.text());
                 parsed++;
                 // ACCEPTING is only right when the reference accepts too. A file
                 // the reference REFUSES and we take is leniency — the divergence
@@ -232,7 +239,12 @@ class SectionParseSentinelTest {
     /** Failures on files the reference ACCEPTS — the honest defect count the
      *  coverage ratchet above cannot see (implementation audit §3.4). Ratcheted
      *  DOWN only; section parity burns it to zero. */
-    private static final int MAX_DROP_IN_DEFECTS = 126;   // 146 - 20 AggregationAware-Pure
+    private static final int MAX_DROP_IN_DEFECTS = 127;   // 146 - 20 AggregationAware-Pure
+    // 126 -> 127 is the ONE increment this ratchet has ever taken, and it is a
+    // gap becoming VISIBLE rather than a capability being lost: refusing
+    // unknown sections turned a silently-skipped ###Diagram that the engine
+    // ACCEPTS (TestDiagramCompilationFromGrammar.java#0) from invisible
+    // leniency into a named defect. The diagram leg takes it back down.
 
     /**
      * Files whose ACCEPT/REJECT decision matches the engine's — the property a
@@ -243,14 +255,14 @@ class SectionParseSentinelTest {
      * would have had to fight its own gate. Bump when matching grows; a drop
      * means a pull moved the grammar under us.
      */
-    private static final int MIN_BEHAVIOUR_MATCHED = 840;
+    private static final int MIN_BEHAVIOUR_MATCHED = 932;   // 840 -> 932: drop-in surface refuses unknown sections
 
     /** Files we accept that the engine REFUSES. Ratcheted DOWN only — this is
      *  the leniency surface, and a drop-in's is zero. */
-    private static final int MAX_LENIENT = 148;
+    private static final int MAX_LENIENT = 55;    // 148 -> 55: drop-in surface refuses unknown sections
 
     /** Leniency we CANNOT justify — files we take only because we skipped what
      *  we could not read, plus anything unexamined. Ratcheted DOWN only; this
      *  is the half of {@link #MAX_LENIENT} that is simply a bug. */
-    private static final int MAX_UNJUSTIFIED_LENIENCY = 127;
+    private static final int MAX_UNJUSTIFIED_LENIENCY = 37;   // 127 -> 37: the we-skipped-it bucket is GONE
 }

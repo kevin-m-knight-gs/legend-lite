@@ -325,14 +325,35 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
 
-        // sections the lexer raw-skipped, adjudicated by THE registry: a
-        // registered-but-opaque grammar is fine; an UNREGISTERED section is
-        // an explicit reportable row, never silence (Phase M step 1)
+        // Sections the lexer raw-skipped, adjudicated by THE registry — and
+        // the two surfaces answer DIFFERENTLY, on purpose.
+        //
+        // The DROP-IN surface refuses an unregistered section in the engine's
+        // own words (PureGrammarParser:160). It has to: accepting a file whose
+        // sections we cannot read is not tolerance, it is silence — the
+        // elements inside simply vanish, and arbitrary nonsense in that
+        // section is swallowed as happily as valid grammar.
+        //
+        // The INTERNAL pipeline keeps reading. Real Legend models routinely
+        // mix ###Service / ###DataSpace / ###Persistence with the sections we
+        // implement, and legend-lite has to load those models to compile the
+        // parts it DOES own — refusing them cost the relational corpus its
+        // whole library layer (296 verified -> 0). The skip is recorded on the
+        // model rather than silent, so a caller can surface it.
+        //
+        // Either way, the honest way to make a section acceptable is to
+        // REGISTER a grammar for it — the same escape hatch the engine offers.
         java.util.List<com.legend.model.ParsedModel.UnclaimedSection> unclaimed =
                 new java.util.ArrayList<>();
         for (var sk : tokens.skippedSections()) {
             var g = SectionGrammarRegistry.lookup(sk.name());
             if (g.isEmpty()) {
+                if (legendStrict) {
+                    throw new ParseException("'" + sk.name() + "' is not a known"
+                            + " section parser",
+                            tokens.lineOf(sk.nameOffset()),
+                            tokens.columnOf(sk.nameOffset()));
+                }
                 unclaimed.add(new com.legend.model.ParsedModel.UnclaimedSection(
                         sk.name(), sk.startOffset(), sk.endOffset()));
             } else if (!g.get().lexable()) {

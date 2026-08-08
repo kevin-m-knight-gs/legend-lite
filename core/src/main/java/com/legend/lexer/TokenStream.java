@@ -51,7 +51,8 @@ public final class TokenStream {
      *  Diagram color literals are unlexable Pure). Recorded, never silent:
      *  the parser surfaces these through the SectionGrammarRegistry as
      *  "no grammar registered" (GRAMMAR_EXTENSIBILITY.md step 1). */
-    public record SkippedSection(String name, int startOffset, int endOffset) {
+    public record SkippedSection(String name, int nameOffset,
+            int startOffset, int endOffset) {
     }
 
     /** Package-private constructor &mdash; only {@link Lexer} creates {@code TokenStream}s. */
