@@ -38,6 +38,41 @@ gate 2 first. This has already produced a phantom regression report
 (2026-08-06: four DIFFs and a collapsed column count that did not exist).
 
 Sequential, never parallel — concurrent heavy JVMs get killed on this machine.
+And do not BUILD while a chain runs: a `mvn install` underneath a running gate
+swaps the jar it loaded and produces a fake failure (2026-08-08: G8 reported
+MATCH 25,142 mid-chain; re-run clean it was 25,472, the baseline exactly).
+
+## The time budget: 5.5 minutes, locked
+
+Measured 2026-08-08, sequentially, nothing concurrent:
+
+| # | gate | time |
+|---|------|------|
+| 1 | core suite (clean, 1,658 tests) | 13s |
+| 2 | core install | 1s |
+| 3 | engine suite (2,729 tests) | 21s |
+| 4 | **DuckDB corpus sweep** | **92s** |
+| 5 | h2 corpus sweep | 41s |
+| 6 | **PCT full (1,109)** | **73s** |
+| 7 | PCT h2modern guard | 24s |
+| 8 | **parser equivalence** | **59s** |
+| | **total** | **324s — 5.4 min** |
+
+**The whole chain must stay at or under 5.5 minutes (330s).** Adding work that
+breaks that ceiling is an explicit decision to be argued and recorded HERE, not
+absorbed silently — a chain that creeps toward ten minutes stops being run, and
+a gate nobody runs is not a gate.
+
+Two things this table settles. G1 is 13 seconds, not the minute-plus it is
+usually assumed to be, so `clean` costs almost nothing and stays. And the
+33-grammar oracle added to G8 on 2026-08-08 cost about 20s (it was ~40s with
+three jars) — that is most of the current headroom, spent deliberately: three
+jars was what let 2,270 corpus files leave the denominator unnoticed.
+
+The cheapest cut available, if the ceiling is ever breached, is gate 5: it is
+the SAME sweep as gate 4 against a second backend, it does not write the
+scoreboard, and it is portability coverage rather than correctness. It is kept
+on every run by explicit decision (2026-08-08), not by inertia.
 
 ---
 
