@@ -553,10 +553,27 @@ final class MappingGrammarParser {
                 skipTypeArgsAndMultiplicity();
             }
         }
+        // ~primaryKey: [COL, ...] — the RELATION spelling: a colon and a
+        // bracketed list of bare column names, not the relational grammar's
+        // ~primaryKey ( [db]T.col ) parens. Read by the protocol parser since
+        // the relation leg (MappingProtocolParser:1204) and, until now, by
+        // nothing on the runner path.
+        List<String> primaryKey = new ArrayList<>();
+        if (p.peek() == TokenType.PRIMARY_KEY_CMD) {
+            p.advance();
+            p.expect(TokenType.COLON);
+            p.expect(TokenType.BRACKET_OPEN);
+            while (p.peek() != TokenType.BRACKET_CLOSE && !p.atEnd()) {
+                primaryKey.add(p.parseIdentifier());
+                p.match(TokenType.COMMA);
+            }
+            p.expect(TokenType.BRACKET_CLOSE);
+            p.match(TokenType.COMMA);
+        }
         List<ClassMapping.RelationFunction.Col> cols =
                 parseRelationCols(TokenType.BRACE_CLOSE);
         return new ClassMapping.RelationFunction(className, setId, extendsSetId,
-                root, ref, cols);
+                root, ref, cols, primaryKey);
     }
 
     /** Comma-separated Relation-mapping column bindings up to (not
@@ -1077,6 +1094,25 @@ final class MappingGrammarParser {
             p.expect(TokenType.BRACKET_CLOSE);
             return new PropertyMapping.InlineEmbedded(propName, setId);
         }
+        // An embedded body may declare its OWN identity columns before its
+        // sub-properties — `address ( ~primaryKey ( [db]T.postcode ) street:
+        // ... )`. The protocol parser has read this since the mapping leg
+        // (MappingProtocolParser:987); the runner parser never learned it, so
+        // 27 corpus files died on a construct half of legend-lite understood.
+        // Two parsers for one grammar is the drift PARSER_COMPLETENESS_PLAN.md
+        // §1 is about; until they are one, a fix to either is a fix to neither.
+        List<com.legend.model.RelationalOperation> primaryKey = new ArrayList<>();
+        if (p.peek() == TokenType.PRIMARY_KEY_CMD) {
+            p.advance();
+            p.expect(TokenType.PAREN_OPEN);
+            if (p.peek() != TokenType.PAREN_CLOSE) {
+                primaryKey.add(p.relationalGrammar.parseDbOperation(null));
+                while (p.match(TokenType.COMMA)) {
+                    primaryKey.add(p.relationalGrammar.parseDbOperation(null));
+                }
+            }
+            p.expect(TokenType.PAREN_CLOSE);
+        }
         // Non-empty body — parse sub-property mappings.
         List<PropertyMapping> subs = new ArrayList<>();
         subs.add(parsePropertyMapping(mainTable));
@@ -1098,7 +1134,7 @@ final class MappingGrammarParser {
             return new PropertyMapping.OtherwiseEmbedded(
                     propName, subs, fallbackSetId, fallback);
         }
-        return new PropertyMapping.Embedded(propName, subs);
+        return new PropertyMapping.Embedded(propName, subs, primaryKey);
     }
 
     /**

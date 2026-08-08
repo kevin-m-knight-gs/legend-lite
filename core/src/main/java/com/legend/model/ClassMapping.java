@@ -363,11 +363,22 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             @com.legend.Nullable String extendsSetId,
             boolean root,
             String funcRef,
-            List<Col> columns) implements ClassMapping {
+            List<Col> columns,
+            List<String> primaryKey) implements ClassMapping {
         public RelationFunction {
             Objects.requireNonNull(className, "Class name cannot be null");
             Objects.requireNonNull(funcRef, "funcRef cannot be null");
             columns = columns == null ? List.of() : List.copyOf(columns);
+            primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
+        }
+
+        /** A relation mapping with no {@code ~primaryKey} of its own. */
+        public RelationFunction(String className,
+                @com.legend.Nullable String setId,
+                @com.legend.Nullable String extendsSetId, boolean root,
+                String funcRef, List<Col> columns) {
+            this(className, setId, extendsSetId, root, funcRef, columns,
+                    List.of());
         }
 
         /** One {@code property: COLUMN} binding. */

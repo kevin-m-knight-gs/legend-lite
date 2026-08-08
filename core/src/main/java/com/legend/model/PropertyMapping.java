@@ -231,12 +231,19 @@ public sealed interface PropertyMapping
      * @param propertyName       Pure property name (the complex-typed field)
      * @param propertyMappings   per-sub-property bindings
      */
-    record Embedded(String propertyName, List<PropertyMapping> propertyMappings)
+    record Embedded(String propertyName, List<PropertyMapping> propertyMappings,
+            List<RelationalOperation> primaryKey)
             implements PropertyMapping {
         public Embedded {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(propertyMappings, "Embedded property mappings cannot be null");
             propertyMappings = List.copyOf(propertyMappings);
+            primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
+        }
+
+        /** An embedded block with no {@code ~primaryKey} of its own. */
+        public Embedded(String propertyName, List<PropertyMapping> propertyMappings) {
+            this(propertyName, propertyMappings, List.of());
         }
     }
 
