@@ -1298,7 +1298,7 @@ class MappingNormalizerTest {
                         + ") "
                         + "Mapping my::M ( "
                         + "  *model::Person: Relational { "
-                        + "    ~filter [db::DB] @Person_Firm | ActiveFirms "
+                        + "    ~filter [db::DB] @Person_Firm | [db::DB] ActiveFirms "
                         + "    ~mainTable [db::DB] T_PERSON "
                         + "    name: T_PERSON.NAME "
                         + "  } "

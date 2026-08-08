@@ -501,15 +501,12 @@ public final class ElementParser implements TokenStreamCursor {
                 pos = endOut[0];
                 yield com.legend.model.FromProtocol.toDatabaseDefinition(db);
             }
-            // M4 (the switch to MappingFromProtocol) is ATTEMPTED AND
-            // REVERTED TWICE, not undone. The transform is complete and
-            // agrees with this parser on all 1,448 corpus mappings AND on
-            // the clean-sheet arm the corpus cannot reach; flipping this
-            // line now leaves 24 core failures, named in
-            // PARSER_COMPLETENESS_PLAN.md §M4. The blocker is a LENIENCY
-            // decision, not a bug: 37 test fixtures write `~filter Name`
-            // with no [DB], which engine's mappingFilter grammar does not
-            // permit, and the protocol parser follows engine.
+            // The switch to MappingFromProtocol is ATTEMPTED AND REVERTED
+            // for now: 51 -> 11 core failures, each enumerated in
+            // PARSER_COMPLETENESS_PLAN.md §M4. What is left is a long tail
+            // of protocol-parser strictness and feature gaps, not a design
+            // question — every one needs its own check against engine's
+            // grammar before it is called leniency or a bug.
             case MAPPING -> mappingGrammar.parseMapping();
             // Primitive my::Ext extends Base [constraint]? — precise primitive
             case VALID_STRING -> {

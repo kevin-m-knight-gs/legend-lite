@@ -597,18 +597,16 @@ final class RelationalGrammarParser {
                 // table's column (engine ScopeInfo parity)
                 expr = new RelationalOperation.ColumnRef(
                         p.currentScopeBlock.db(), p.currentScopeBlock.path(), firstId);
-            } else if (p.currentMappingScope != null) {
-                // Bare identifier in mapping context: unambiguously the
-                // class mapping's main table's column. Both table AND
-                // database are known at parse time (FINOS engine parity
-                // via ScopeInfo). Eager resolution applies only here
-                // because this is the ONLY case where parse-time info
-                // determines the database without further lookup.
-                expr = new RelationalOperation.ColumnRef(
-                        p.currentMappingScope.database(),
-                        p.currentMappingScope.table(),
-                        firstId);
             } else {
+                // NOT scoped by ~mainTable. This branch used to resolve a
+                // bare identifier against the class mapping's main table and
+                // cited "FINOS engine parity via ScopeInfo" for it. Engine
+                // does no such thing: RelationalParseTreeWalker:1108 walks
+                // property mappings with NO scopeInfo —
+                //   visitPropertyMapping(ctx, rootRelationalClassMapping.id, _class)
+                // — under a literal `TODO? mainTable: we might not need this
+                // while parsing`. A `scope([db]T)( bareCol )` block IS a
+                // scope and still resolves, just above; ~mainTable is not.
                 // Database-context bare identifier (Filter / Join /
                 // MultiGrainFilter / view filter). FINOS engine rejects this
                 // at parse time with this exact message

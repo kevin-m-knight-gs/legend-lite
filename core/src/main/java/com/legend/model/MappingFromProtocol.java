@@ -601,7 +601,9 @@ public final class MappingFromProtocol {
                     jn.chain(), jn.terminal(), enumMappingId, enumMappingId != null);
         }
         if (op instanceof RelationalOperation.ColumnRef cr) {
-            String colDb = require(db, "column database");
+            String colDb = require(db, "a column reference requires a database"
+                    + " — either a ~mainTable directive or an explicit [DB]"
+                    + " qualifier");
             return enumMappingId == null
                     ? new PropertyMapping.Column(property, colDb, cr.table(), cr.column())
                     : new PropertyMapping.EnumeratedColumn(property, enumMappingId,

@@ -373,21 +373,38 @@ make it safe, which is the same lesson R3 paid for. What it found:
   ("requires a ~mainTable directive or an explicit [DB] qualifier") rather
   than the missing wire field ("the wire carries no column database").
 
-**THE REMAINING BLOCKER IS A LENIENCY DECISION, not a bug.** 37 test
-fixtures across 8 files write `~filter ActiveOnly` with NO database pointer.
-Engine's grammar does not permit it — `mappingFilter: FILTER_CMD
-databasePointer (joinSequence PIPE databasePointer)? identifier` — so the
-protocol parser refuses, and the legacy parser accepts. Two ways out:
+**LENIENCY RULE (2026-08-08, user):** never allow leniency on a construct
+Legend owns. If legend-engine or legend-pure require something, that is a
+HARD rule — the only defensible supersets are things neither defines (Pure
+features engine subsets away, e.g. function types).
 
-1. **Drop the leniency** and respell the 37 fixtures `~filter [db::DB] F`.
-   Consistent with the R3 call on `viewFilterJoinMediatedLocalTarget`, where
-   all 36 corpus uses already spelled the pointer so it cost nothing. Here it
-   costs 37 fixtures and narrows what legend-lite accepts.
-2. **Keep it as a documented superset** — the protocol parser accepts the
-   bare form and RESOLVES the database from the class mapping's `~mainTable`,
-   which is what the wire records anyway. Costs a second pass: engine's
-   grammar puts `mappingFilter` BEFORE `~mainTable`, so the database is not
-   known when the filter is read.
+Applying it closed the blocker and found two more of the same family. All
+three had been pinned by our OWN tests, which is why no corpus sweep found
+them: the corpus is engine's files, and engine never writes these forms.
+
+| leniency | engine's rule | verdict |
+|---|---|---|
+| `~filter F` bare on a CLASS MAPPING | `mappingFilter: FILTER_CMD databasePointer ...` — pointer required (a VIEW's is optional) | dropped, both parsers |
+| `~filter [db] @J \| F` bare target | same rule: a databasePointer follows the PIPE | dropped |
+| bare column under `~mainTable` | walker:1108 passes NO scopeInfo to property mappings, under a literal `TODO? mainTable: we might not need this while parsing` | dropped; `scope([db]T)( bareCol )` IS a scope and still resolves |
+
+The third had a comment claiming "FINOS engine parity via ScopeInfo". It was
+not parity; engine does the opposite. A cited justification is not a checked
+one.
+
+**The switch now stands at 51 -> 11**, and what remains is a long tail of
+protocol-parser strictness and feature gaps, each needing its own check
+against engine's grammar before it is called leniency or a bug:
+
+* accepts what legacy refuses (3): `*Enum: EnumerationMapping` leading star;
+  `~`-clause ORDER; duplicate `~`-clause.
+* feature gaps (4): the anonymous `prop: EnumerationMapping: expr` form needs
+  a carried flag (the wire cannot tell it from a plain column); `prop*:`
+  explosion heads on Pure property mappings; the `query:` test key; duplicate
+  `testSuites` detection.
+* as-written (1): `dbQualifiedColumnRefInsideFunctionArgs` pins
+  `FunctionCall("isNull")` for the call spelling — the same canonicalisation
+  R3 measured at zero SQL cost.
 
 Also open: **`MappingNormalizerTest.groupByKeyWithJoinNavigation`** — a real
 behavioural difference in group-by synthesis, the only failure that is

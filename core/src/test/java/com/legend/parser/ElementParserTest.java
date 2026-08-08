@@ -2274,7 +2274,7 @@ final class ElementParserTest {
         // ~filter precedes ~mainTable per legend-engine grammar.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Person: Relational { "
-                + "~filter [db::DB] @PersonFirm | ActiveFirm "
+                + "~filter [db::DB] @PersonFirm | [db::DB] ActiveFirm "
                 + "~mainTable [db::DB] PERSON "
                 + "} )");
         var jm = (FilterMapping.JoinMediated) cm.filter();
@@ -2298,19 +2298,27 @@ final class ElementParserTest {
     }
 
     @Test
-    void propertyMappingBareIdentifierResolvesToMainTable() {
-        // FIRST_NAME (no T.) — engine ScopeInfo parity: parse-time resolves
-        // to mainTable.FIRST_NAME, not a sentinel/null table.
-        var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
-                + "~mainTable [db::DB] PERSON "
-                + "firstName: FIRST_NAME "
-                + "} )");
-        var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
-        var ref = (ColumnRef) expr.expression();
-        assertEquals("db::DB", ref.databaseName());
-        assertEquals("PERSON", ref.table());
-        assertEquals("FIRST_NAME", ref.column());
+    void propertyMappingBareIdentifierIsRefusedWithoutAScope() {
+        // The comment this test used to carry claimed "engine ScopeInfo
+        // parity: parse-time resolves to mainTable.FIRST_NAME". Engine does
+        // NOT do that. RelationalParseTreeWalker:1108 walks property
+        // mappings with NO scopeInfo at all —
+        //   visitPropertyMapping(ctx, rootRelationalClassMapping.id, _class)
+        // — and carries a literal `TODO? mainTable: we might not need this
+        // while parsing`. A bare column therefore reaches generateTableAlias
+        // with no table and is refused in engine's own words.
+        //
+        // ~mainTable is NOT a scope. `scope([db]T)( bareCol )` IS one, and
+        // that form still resolves — see the scope-block tests.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse(
+                        "Mapping my::M ( *model::Person: Relational { "
+                        + "~mainTable [db::DB] PERSON "
+                        + "firstName: FIRST_NAME "
+                        + "} )"));
+        assertTrue(String.valueOf(ex.getMessage())
+                        .contains("Missing table or alias for column 'FIRST_NAME'"),
+                () -> "expected engine's own wording, got: " + ex.getMessage());
     }
 
     @Test

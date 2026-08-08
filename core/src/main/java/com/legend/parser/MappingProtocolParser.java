@@ -453,7 +453,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (extendsId != null) {
             throw error("'extends' on this class-mapping kind is unbuilt");
         }
-        throw error("mapping member kind '" + kind + "' is unbuilt");
+        throw error("unsupported class mapping type: '" + kind + "'");
     }
 
     /** As {@link #cleanSheetAhead()} but the kind keyword is still
@@ -741,8 +741,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             expect(TokenType.COLON);
             String enumId = null;
             if (peek() == TokenType.ENUMERATION_MAPPING) {
-                advance();                  // EnumerationMapping em: <expr>
-                enumId = parseIdentifier();
+                advance();                  // EnumerationMapping [em]: <expr>
+                if (peek() != TokenType.COLON) {
+                    enumId = parseIdentifier();
+                }
+                // the ANONYMOUS form `prop: EnumerationMapping: <expr>` names
+                // no mapping; the property's enum type resolves it at
+                // normalize time (corpus multi-source-enum shape)
                 expect(TokenType.COLON);
             }
             if (local) {
@@ -1037,6 +1042,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PFilterMapping parseFilterMapping() {
         int fS = pos;
         advance();                                  // '~filter'
+        if (peek() != TokenType.BRACKET_OPEN) {
+            // mappingFilter: FILTER_CMD databasePointer
+            //                (joinSequence PIPE databasePointer)? identifier
+            // — unlike viewFilterMapping, the pointer is NOT optional here
+            throw error("a class mapping's ~filter requires a [DB] pointer"
+                    + " (~filter [DB] FilterName); only a View's ~filter may"
+                    + " omit it");
+        }
         expect(TokenType.BRACKET_OPEN);
         String db = Protocol.unquotePath(parseQualifiedName());
         expect(TokenType.BRACKET_CLOSE);
@@ -1225,8 +1238,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         String enumId = null;
         if (peek() == TokenType.ENUMERATION_MAPPING) {
-            advance();                              // EnumerationMapping em:
-            enumId = parseIdentifier();
+            advance();                              // EnumerationMapping [em]:
+            if (peek() != TokenType.COLON) {
+                enumId = parseIdentifier();
+            }
+            // the ANONYMOUS form `prop: EnumerationMapping: <expr>` names no
+            // mapping; the property's enum type resolves it at normalize time
             expect(TokenType.COLON);
         }
         Protocol.PRelOp op = parseOpInCtx(scopeDb, scope);
