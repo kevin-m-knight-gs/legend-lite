@@ -152,7 +152,7 @@ public final class Lexer {
         Lexer lexer = new Lexer(source);
         lexer.run();
         return new TokenStream(source, lexer.count, lexer.types, lexer.starts,
-                lexer.ends, lexer.skippedSections);
+                lexer.ends, lexer.skippedSections, lexer.sectionHeaders);
     }
 
     private void run() {
@@ -279,6 +279,8 @@ public final class Lexer {
     /** Opaque sections raw-skipped by {@link #skipSectionHeader} — RECORDED,
      *  never silent (GRAMMAR_EXTENSIBILITY.md step 1): the parser surfaces
      *  each through the SectionGrammarRegistry as "no grammar registered". */
+    private final java.util.List<TokenStream.SectionHeader> sectionHeaders =
+            new java.util.ArrayList<>();
     private final java.util.List<TokenStream.SkippedSection> skippedSections =
             new java.util.ArrayList<>();
 
@@ -291,6 +293,9 @@ public final class Lexer {
         String kind = source.substring(nameStart, nameEnd);
         while (pos < length && source.charAt(pos) != '\n') pos++;
         if (pos < length) pos++;
+        // record EVERY header, lexable or not — a parser may need to know
+        // where its own section started (TokenStream.SectionHeader)
+        sectionHeaders.add(new TokenStream.SectionHeader(kind, nameStart, pos));
         if (!kind.isEmpty() && !LEXABLE_SECTIONS.contains(kind)) {
             // opaque section: raw-skip to the next line-anchored ### — a
             // lexing necessity (Diagram color literals are unlexable Pure),

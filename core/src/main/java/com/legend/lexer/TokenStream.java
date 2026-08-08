@@ -46,6 +46,7 @@ public final class TokenStream {
     private final int[] starts;
     private final int[] ends;
     private final java.util.List<SkippedSection> skippedSections;
+    private final java.util.List<SectionHeader> sectionHeaders;
 
     /** A section whose CONTENT the lexer raw-skipped (opaque DSL — e.g.
      *  Diagram color literals are unlexable Pure). Recorded, never silent:
@@ -55,19 +56,57 @@ public final class TokenStream {
             int startOffset, int endOffset) {
     }
 
+    /**
+     * EVERY {@code ###Section} header the lexer saw, skipped or not, in
+     * source order — name plus the offset where its CONTENT begins.
+     *
+     * <p>Recorded because a parser sometimes needs to know which section an
+     * element sits in and where that section started: engine anchors
+     * AggregationAware sub-parse spans to the section's first content line,
+     * so {@code MappingProtocolParser} must be told it. The alternative was
+     * scanning raw source for the header, which the drop-in surface rule
+     * forbids for exactly the right reason — the lexer already walked this
+     * text, so it should be the one to remember it.
+     */
+    public record SectionHeader(String name, int nameOffset,
+            int contentStartOffset) {
+    }
+
     /** Package-private constructor &mdash; only {@link Lexer} creates {@code TokenStream}s. */
     TokenStream(String source, int count, int[] types, int[] starts, int[] ends) {
-        this(source, count, types, starts, ends, java.util.List.of());
+        this(source, count, types, starts, ends, java.util.List.of(),
+                java.util.List.of());
     }
 
     TokenStream(String source, int count, int[] types, int[] starts, int[] ends,
             java.util.List<SkippedSection> skippedSections) {
+        this(source, count, types, starts, ends, skippedSections,
+                java.util.List.of());
+    }
+
+    TokenStream(String source, int count, int[] types, int[] starts, int[] ends,
+            java.util.List<SkippedSection> skippedSections,
+            java.util.List<SectionHeader> sectionHeaders) {
         this.source = source;
         this.count = count;
         this.types = types;
         this.starts = starts;
         this.ends = ends;
         this.skippedSections = java.util.List.copyOf(skippedSections);
+        this.sectionHeaders = java.util.List.copyOf(sectionHeaders);
+    }
+
+    /** The 1-based line on which the enclosing {@code ###name} section's
+     *  CONTENT begins, or {@code -1} when {@code offset} precedes every
+     *  header of that name. */
+    public int sectionContentLine(String name, int offset) {
+        int best = -1;
+        for (SectionHeader h : sectionHeaders) {
+            if (h.name().equals(name) && h.nameOffset() < offset) {
+                best = h.contentStartOffset();
+            }
+        }
+        return best < 0 ? -1 : lineOf(best);
     }
 
     /** Sections the lexer raw-skipped as opaque, in source order. Empty for

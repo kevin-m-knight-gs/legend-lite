@@ -347,28 +347,51 @@ carried on the protocol record but kept OFF the wire, because engine parses
 and drops it (`OperationClassMappingParseTreeWalker` TODO) — the same
 treatment as a multi-pair include substitution.
 
-### §M4 — the switch: attempted, reverted, 51 named failures
+### §M4 — the switch: 51 -> 24, and the last blocker is a LENIENCY call
 
 Flipping `ElementParser`'s `MAPPING` arm is a ONE-LINE change and it has been
 done and reverted once. Structural agreement over the whole corpus did NOT
 make it safe, which is the same lesson R3 paid for. What it found:
 
-* **The clean-sheet axis is the blocker, and it is a DESIGN question, not a
-  bug.** `MappingGrammarParser:105-120` returns `MappingDefinition` (the
-  function form) or `LegacyMappingDefinition` (the surface tree) PER ELEMENT.
-  Every corpus mapping is legacy-DSL, so the differential never saw the other
-  arm — but legend-lite's own tests use it, and the flipped arm forces every
-  mapping through the surface tree. The switch must DISPATCH on body shape,
-  which means the clean-sheet form needs protocol support, or the legacy
-  parser is retained for that arm alone. Decide before flipping.
-* **Exception type at the parser boundary.** `UnsupportedMappingShape` and a
-  bare `IllegalArgumentException` reach callers that catch `ParseException`.
-* **`MappingNormalizerTest.groupByKeyWithJoinNavigation`** — a real
-  behavioural difference in group-by synthesis, not a shape difference.
-* **The AggregationAware span shift needs the section's first content line**,
-  which `ElementParser` does not have: the lexer records only SKIPPED section
-  headers. Reading it out of the source violates the drop-in source-reread
-  rule, so the lexer should record `###Mapping` headers instead.
+**CLOSED since the first attempt:**
+
+* **The clean-sheet form now has a protocol shape** — `_type:
+  "functionInstance"` and `"functionAssociation"`, modelled on engine's
+  `RelationFunctionClassMapping`. It was never a question of whether to
+  DISPATCH around the protocol: engine has no function-form mapping, but
+  `com.legend.protocol` is our own record set and a non-core class mapping
+  rides the wire the way any `PureProtocolExtension` subtype does. Keeping it
+  off the protocol would have left legend-lite's own recommended surface
+  unserialisable and put two independent paths back into the model.
+* **Exception type** — the transform's refusals are translated to
+  `ParseException` at the parser boundary, where the position is known and
+  where `com.legend.model` need not depend on the parser's exception type.
+* **The AggregationAware section line** — the lexer now records EVERY
+  `###Section` header (`TokenStream.SectionHeader`), not just skipped ones,
+  so `ElementParser` asks the lexer instead of re-scanning source.
+* **Refusal wording** — messages name the missing SOURCE DIRECTIVE
+  ("requires a ~mainTable directive or an explicit [DB] qualifier") rather
+  than the missing wire field ("the wire carries no column database").
+
+**THE REMAINING BLOCKER IS A LENIENCY DECISION, not a bug.** 37 test
+fixtures across 8 files write `~filter ActiveOnly` with NO database pointer.
+Engine's grammar does not permit it — `mappingFilter: FILTER_CMD
+databasePointer (joinSequence PIPE databasePointer)? identifier` — so the
+protocol parser refuses, and the legacy parser accepts. Two ways out:
+
+1. **Drop the leniency** and respell the 37 fixtures `~filter [db::DB] F`.
+   Consistent with the R3 call on `viewFilterJoinMediatedLocalTarget`, where
+   all 36 corpus uses already spelled the pointer so it cost nothing. Here it
+   costs 37 fixtures and narrows what legend-lite accepts.
+2. **Keep it as a documented superset** — the protocol parser accepts the
+   bare form and RESOLVES the database from the class mapping's `~mainTable`,
+   which is what the wire records anyway. Costs a second pass: engine's
+   grammar puts `mappingFilter` BEFORE `~mainTable`, so the database is not
+   known when the filter is read.
+
+Also open: **`MappingNormalizerTest.groupByKeyWithJoinNavigation`** — a real
+behavioural difference in group-by synthesis, the only failure that is
+neither wording nor leniency.
 
 The switch stays on legacy until those close. A compiler pointed at a
 half-verified parser is worse than one pointed at an old one.

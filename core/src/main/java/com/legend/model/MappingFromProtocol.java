@@ -312,7 +312,7 @@ public final class MappingFromProtocol {
         }
         return new ClassMapping.Pure(pure.className(), ownerId,
                 pure.extendsClassMappingId(), pure.root(),
-                require(pure.srcClass(), "~src class"),
+                require(pure.srcClass(), "a Pure class mapping requires ~SRC"),
                 pure.filter() == null ? null
                         : single(pure.filter(), "pure class-mapping filter"),
                 bindings);
@@ -409,8 +409,8 @@ public final class MappingFromProtocol {
     private static com.legend.protocol.spec.ValueSpecification single(
             List<com.legend.protocol.spec.ValueSpecification> vs, String what) {
         if (vs == null || vs.size() != 1) {
-            throw new UnsupportedMappingShape("expected exactly one " + what
-                    + ", got " + (vs == null ? 0 : vs.size()));
+            throw new UnsupportedMappingShape("a " + what
+                    + " must have exactly one expression, got an empty body");
         }
         return vs.get(0);
     }
@@ -586,7 +586,9 @@ public final class MappingFromProtocol {
 
         if (op instanceof RelationalOperation.JoinNavigation jn) {
             String navDb = require(firstNonNull(db, jn.databaseName(), chainDb(jn)),
-                    "join navigation database");
+                    "a join navigation requires a database — either a"
+                            + " ~mainTable directive or an explicit [DB]"
+                            + " qualifier");
             if (jn.terminal() == null) {
                 if (enumMappingId != null) {
                     throw new UnsupportedMappingShape("EnumerationMapping on a"
@@ -632,10 +634,13 @@ public final class MappingFromProtocol {
         return s == null || s.isEmpty() ? null : s;
     }
 
+    /** Refusals name the missing SOURCE DIRECTIVE, not the missing wire
+     *  field: "the wire carries no column database" tells a user nothing,
+     *  "requires a ~mainTable directive or an explicit [DB] qualifier" tells
+     *  them what to type. The legacy parser's messages set that bar. */
     private static String require(@com.legend.Nullable String v, String what) {
         if (v == null) {
-            throw new UnsupportedMappingShape(
-                    "the wire carries no " + what + " here");
+            throw new UnsupportedMappingShape(what);
         }
         return v;
     }
