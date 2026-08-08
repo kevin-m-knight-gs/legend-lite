@@ -53,6 +53,9 @@ class CorpusCensusTest {
         int referenceRefuses = 0;
         int onlyWeCanRead = 0;
         int neitherReads = 0;
+        Map<String, Integer> onlyWeReadByOrigin = new TreeMap<>();
+        Map<String, Integer> onlyWeReadByEngineError = new TreeMap<>();
+        Map<String, Integer> neitherByOrigin = new TreeMap<>();
         Map<String, Integer> defectsByMessage = new TreeMap<>();
         Map<String, Integer> refusalsByReferenceMessage = new TreeMap<>();
         Map<String, Integer> defectsByTier = new TreeMap<>();
@@ -80,8 +83,11 @@ class CorpusCensusTest {
                 try {
                     com.legend.parser.ElementParser.parse(src.text());
                     onlyWeCanRead++;
+                    onlyWeReadByOrigin.merge(origin(src), 1, Integer::sum);
+                    onlyWeReadByEngineError.merge(referenceMessage, 1, Integer::sum);
                 } catch (Throwable neitherCanRead) {
                     neitherReads++;
+                    neitherByOrigin.merge(origin(src), 1, Integer::sum);
                 }
                 continue;
             }
@@ -140,6 +146,31 @@ class CorpusCensusTest {
                         bothParse, comparable,
                         comparable == 0 ? 0.0 : 100.0 * bothParse / comparable));
 
+        b.append("\nONLY-WE-READ-IT by ORIGIN — provenance is the evidence we have\n")
+                .append("  (a file living in legend-pure's tree is one legend-pure\n")
+                .append("   COMPILES in its own CI; we have not run its parser here —\n")
+                .append("   it has no standalone parse API, only a booted runtime)\n")
+                .append("-".repeat(72)).append('\n');
+        onlyWeReadByOrigin.entrySet().stream()
+                .sorted((x, y) -> y.getValue() - x.getValue())
+                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                        e.getValue(), e.getKey())));
+
+        b.append("\nONLY-WE-READ-IT by WHY THE ENGINE REFUSED\n")
+                .append("-".repeat(72)).append('\n');
+        onlyWeReadByEngineError.entrySet().stream()
+                .sorted((x, y) -> y.getValue() - x.getValue())
+                .limit(12)
+                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                        e.getValue(), e.getKey())));
+
+        b.append("\nNEITHER-READS-IT by ORIGIN\n")
+                .append("-".repeat(72)).append('\n');
+        neitherByOrigin.entrySet().stream()
+                .sorted((x, y) -> y.getValue() - x.getValue())
+                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                        e.getValue(), e.getKey())));
+
         b.append("\nREAD-BY-SKIPPING by the section we could not read\n")
                 .append("-".repeat(72)).append('\n');
         skipReasons.entrySet().stream()
@@ -172,6 +203,15 @@ class CorpusCensusTest {
         Files.writeString(Path.of("target", "corpus-census-defects.txt"),
                 String.join("\n", defectLines));
         System.out.println(b);
+    }
+
+    /** Which project SHIPS this source — the cheapest real evidence about a
+     *  file legend-lite reads and legend-engine refuses. */
+    private static String origin(Corpus.Source src) {
+        boolean pure = src.tier().contains("pure");
+        boolean inline = src.tier().contains("inline");
+        return (pure ? "legend-pure" : "legend-engine")
+                + (inline ? " (inline snippet)" : " (.pure file)");
     }
 
     private static String normalize(Throwable t) {
