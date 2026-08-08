@@ -478,6 +478,13 @@ public final class ElementParser implements TokenStreamCursor {
             case RUNTIME -> parseRuntime();
             case SINGLE_CONNECTION_RUNTIME -> parseSingleConnectionRuntime();
             case RELATIONAL_DATABASE_CONNECTION -> parseConnection();
+            // R3 (the switch to FromProtocol.toDatabaseDefinition) is
+            // ATTEMPTED AND REVERTED, not undone: with the BOOLEAN fix below
+            // it takes the core suite from 127 failures to 7, and those 7 are
+            // named in PARSER_COMPLETENESS_PLAN.md §R3. Flipping this line is
+            // the whole change; it stays on legacy until they are closed,
+            // because a compiler pointed at a half-verified parser is worse
+            // than one pointed at an old one.
             case DATABASE -> relationalGrammar.parseDatabase();
             case MAPPING -> mappingGrammar.parseMapping();
             // Primitive my::Ext extends Base [constraint]? — precise primitive

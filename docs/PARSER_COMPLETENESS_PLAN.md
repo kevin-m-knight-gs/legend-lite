@@ -193,6 +193,35 @@ version skew: jars are 5.88.1, the checkout is 5.92.1-SNAPSHOT.
 
 ---
 
+## §R3 — the switch: attempted, 7 named blockers
+
+Flipping `ElementParser`'s `DATABASE` arm to
+`FromProtocol.toDatabaseDefinition(DatabaseProtocolParser.parse(...))` is a
+ONE-LINE change and it has been done and reverted once (2026-08-08). What it
+found, in order:
+
+* **127 core-test failures, of which ~120 were one cause**: the protocol
+  parser had no `BOOLEAN` column type, though the model has had
+  `RelationalDataType.Bool` since the beginning. Invisible until the model was
+  built FROM protocol. **Fixed and kept** — that gap was real regardless of
+  the migration.
+* **7 remaining**, all pinning legacy behaviour the protocol path does not
+  reproduce. These are the entire cost of R3:
+  - `viewFilterJoinMediatedLocalTarget` and
+    `joinMediatedFilterRequiresSourceDbQualifier` — the `~filter [DB] @J | F`
+    form with a LOCAL filter. The engine grammar requires a db pointer after
+    the pipe, so the protocol parser refuses it; the legacy parser accepts it.
+    This is our leniency, and the test pins the lenient behaviour.
+  - `databaseTableMilestoningCapturesInclusivityAndInfinityDate` — the
+    transform loses inclusivity/infinity-date detail.
+  - `joinNavigationMultiHopWithTerminal` — join-chain shape.
+  - `multiGrainFilterTrackedSeparately` — the `filterType` discriminator split.
+  - `filterRejectsBareIdentifierMatchingEngine`, plus one in
+    `MappingNormalizerTest`.
+
+The switch stays on legacy until those close. A compiler pointed at a
+half-verified parser is worse than one pointed at an old one.
+
 ## §7 Order of attack
 
 1. **Phase 0** (§2) — lock the carrier, no new opaque uses. DONE.

@@ -102,8 +102,22 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     /** Parse one {@code Database qn ( ... )} at {@code tokenIndex}. */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex) {
+        return parse(ts, tokenIndex, null);
+    }
+
+    /** As {@link #parse(TokenStream, int)}, but reports where the element
+     *  ENDED in {@code endOut[0]} so a caller iterating elements can resume.
+     *  Needed by {@code ElementParser} now that the ###Relational model is
+     *  built from protocol rather than by a second parser
+     *  (PARSER_COMPLETENESS_PLAN.md §1). */
+    public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
+            int @com.legend.Nullable [] endOut) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex, "");
-        return p.parseDatabase();
+        Protocol.PDatabase db = p.parseDatabase();
+        if (endOut != null) {
+            endOut[0] = p.pos;
+        }
+        return db;
     }
 
     private Protocol.PDatabase parseDatabase() {
@@ -304,6 +318,10 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "FLOAT" -> "Float";
             case "REAL" -> "Real";
             case "BIT" -> "Bit";
+            // legacy-parser parity: the model has had Bool since the start,
+            // the protocol parser never learned it — invisible until the
+            // ###Relational model was built FROM protocol (migration R3)
+            case "BOOLEAN", "BOOL" -> "Boolean";
             case "DATE" -> "Date";
             case "TIMESTAMP" -> "Timestamp";
             case "SEMISTRUCTURED" -> "SemiStructured";
