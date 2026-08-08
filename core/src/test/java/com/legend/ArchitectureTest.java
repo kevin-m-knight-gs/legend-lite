@@ -376,6 +376,44 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /**
+     * THE OPAQUE CARRIER IS LOCKED. {@code OpaqueElementDefinition} exists for
+     * ONE situation: a section owned by an overlay grammar in someone else's
+     * jar, which core genuinely cannot open. It is not a hiding place for
+     * built-in sections we have not modelled yet — used that way it turns a
+     * loud parse failure into a silent hole, because an opaque element is
+     * invisible to {@code findConnection}, to the resolver and to every
+     * compiler phase. That happened once (###Data, and Measure and the
+     * non-relational connections nearly followed), which is why the
+     * construction sites are now pinned rather than merely discouraged.
+     *
+     * <p>{@link com.legend.parser.OverlayElementSink} is the only legitimate
+     * producer. {@code ElementParser} is a NAMED, TEMPORARY exemption for the
+     * ###Data crutch and dies with PARSER_COMPLETENESS_PLAN.md §3.1, which
+     * gives data elements a real model type — the same "whitelist ratcheted to
+     * empty" discipline the zero-regex gate uses.
+     *
+     * <p>KNOWN BLIND SPOT, verified by deliberately violating the rule: ArchUnit
+     * sees constructor calls, field and return types, but NOT pattern-matching
+     * switch cases ({@code case OpaqueElementDefinition oe ->} in NameResolver
+     * does not trip it). That is acceptable because abuse requires CONSTRUCTING
+     * a carrier, and construction is caught — but do not read this gate as
+     * proving nothing merely READS the type.
+     */
+    @Test
+    void opaqueCarrierIsLockedToTheOverlaySeam() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+            .that().resideOutsideOfPackages("com.legend.model..")
+            .and().haveSimpleNameNotContaining("OverlayElementSink")
+            .and().haveSimpleNameNotContaining("ElementParser")  // TEMPORARY: ###Data, plan §3.1
+            .should().dependOnClassesThat()
+                    .haveSimpleName("OpaqueElementDefinition")
+            .as("Invariant 12: only the OVERLAY seam mints opaque elements —"
+              + " a built-in section we cannot model is a LOUD failure, never"
+              + " a blob (PARSER_COMPLETENESS_PLAN.md §2)")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void execIsABackend() {
         noClasses()

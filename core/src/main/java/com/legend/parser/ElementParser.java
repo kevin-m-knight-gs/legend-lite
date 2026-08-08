@@ -365,9 +365,7 @@ public final class ElementParser implements TokenStreamCursor {
                                 tokens.source().substring(sk.startOffset(),
                                         sk.endOffset()),
                                 sk.startOffset(), sk.endOffset()),
-                        (fqn, json) -> elements.add(
-                                new com.legend.model.OpaqueElementDefinition(
-                                        fqn, sk.name(), json)));
+                        new OverlayElementSink(sk.name(), elements));
             }
         }
         return new ParsedModel(elements, imports.build(), tokens.source(),
