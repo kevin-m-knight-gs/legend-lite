@@ -47,11 +47,16 @@ class CorpusCensusTest {
 
         PureGrammarParser reference = PureGrammarParser.newInstance();
         int bothParse = 0;
+        int fullyParsed = 0;
+        int parsedOnlyBySkipping = 0;
         int ourDefect = 0;
         int referenceRefuses = 0;
+        int onlyWeCanRead = 0;
+        int neitherReads = 0;
         Map<String, Integer> defectsByMessage = new TreeMap<>();
         Map<String, Integer> refusalsByReferenceMessage = new TreeMap<>();
         Map<String, Integer> defectsByTier = new TreeMap<>();
+        Map<String, Integer> skipReasons = new TreeMap<>();
         List<String> defectLines = new ArrayList<>();
 
         for (Corpus.Source src : sources) {
@@ -67,12 +72,40 @@ class CorpusCensusTest {
             if (!referenceAccepts) {
                 referenceRefuses++;
                 refusalsByReferenceMessage.merge(referenceMessage, 1, Integer::sum);
+                // Do WE read it? The engine refusing a file does not settle
+                // whether legend-lite should: most of these are legend-pure
+                // PLATFORM sources, and legend-lite is a blend of the two.
+                // A file only we can read is the superset thesis with
+                // evidence; the alternative is that nobody can read it.
+                try {
+                    com.legend.parser.ElementParser.parse(src.text());
+                    onlyWeCanRead++;
+                } catch (Throwable neitherCanRead) {
+                    neitherReads++;
+                }
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                // FULLY read: parseStrict refuses a section no grammar claims,
+                // so this counts only files we actually read end to end.
+                com.legend.parser.ElementParser.parseStrict(src.text());
+                fullyParsed++;
                 bothParse++;
-            } catch (Throwable t) {
+            } catch (Throwable strictFailed) {
+                // ...but the internal pipeline may still load it by skipping
+                // the sections it cannot read. That is a real capability and
+                // a real limitation, so it gets its OWN row rather than being
+                // folded into either success or failure.
+                try {
+                    com.legend.parser.ElementParser.parse(src.text());
+                    parsedOnlyBySkipping++;
+                    bothParse++;
+                    skipReasons.merge(normalize(strictFailed), 1, Integer::sum);
+                    continue;
+                } catch (Throwable alsoFails) {
+                    // fall through to the defect path below
+                }
+                Throwable t = strictFailed;
                 ourDefect++;
                 String msg = normalize(t);
                 defectsByMessage.merge(msg, 1, Integer::sum);
@@ -87,16 +120,32 @@ class CorpusCensusTest {
                 .append("=".repeat(72)).append('\n')
                 .append(String.format("corpus sources          : %d%n", sources.size()))
                 .append(String.format("  BOTH-PARSE            : %d%n", bothParse))
+                .append(String.format("    fully read          : %d"
+                        + "  (every section parsed)%n", fullyParsed))
+                .append(String.format("    read by SKIPPING    : %d"
+                        + "  (loaded, but a section was ignored)%n",
+                        parsedOnlyBySkipping))
                 .append(String.format("  OUR-DEFECT            : %d"
                         + "  (reference accepts, we fail)%n", ourDefect))
                 .append(String.format("  REFERENCE-REFUSES     : %d"
                         + "  (never comparable, at any effort)%n", referenceRefuses))
+                .append(String.format("    of which WE read    : %d"
+                        + "  (legend-lite is broader here)%n", onlyWeCanRead))
+                .append(String.format("    neither reads       : %d%n",
+                        neitherReads))
                 .append(String.format("%nreachable population    : %d of %d sources (%.1f%%)%n",
                         comparable, sources.size(),
                         100.0 * comparable / sources.size()))
                 .append(String.format("we parse                : %d of %d reachable (%.1f%%)%n",
                         bothParse, comparable,
                         comparable == 0 ? 0.0 : 100.0 * bothParse / comparable));
+
+        b.append("\nREAD-BY-SKIPPING by the section we could not read\n")
+                .append("-".repeat(72)).append('\n');
+        skipReasons.entrySet().stream()
+                .sorted((x, y) -> y.getValue() - x.getValue())
+                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                        e.getValue(), e.getKey())));
 
         b.append("\nOUR-DEFECT by error — THE PARSE-MORE WORKLIST\n")
                 .append("-".repeat(72)).append('\n');
