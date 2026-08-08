@@ -386,6 +386,7 @@ public final class Protocol {
     public record PClassMappingOperation(String className,
                                          com.legend.protocol.SourceInfo classSourceInformation,
                                          @com.legend.Nullable String id,
+                                         @com.legend.Nullable String extendsClassMappingId,
                                          boolean root,
                                          @com.legend.Nullable String operation,
                                          List<String> parameters,

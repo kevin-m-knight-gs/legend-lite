@@ -38,10 +38,12 @@ import java.util.regex.Pattern;
 class MappingEquivalenceTest {
 
     /** Mappings the transform refuses outright (UnsupportedMappingShape).
-     *  Falls as phases land. M1 covered Relational + Column/Join; M2 added
-     *  the rest of the property-mapping family and the class-mapping filter;
-     *  what remains is M3's class-mapping and association work. */
-    private static final int MAX_UNSUPPORTED = 846;
+     *  Falls as phases land. M1 covered Relational + Column/Join; M2 the
+     *  rest of the property-mapping family plus the class-mapping filter;
+     *  M3 every class-mapping kind, associations and enumerations. What
+     *  remains is testSuites/tests, which need the lexer's verbatim source
+     *  slice (M4) because the model stores them as RAW TEXT. */
+    private static final int MAX_UNSUPPORTED = 52;
 
     /** Mappings BOTH paths build where the models disagree. Ratchets DOWN
      *  only; the legacy mapping parser dies when this is 0 and gates 4/5/6
@@ -61,7 +63,9 @@ class MappingEquivalenceTest {
         int protocolUnreadable = 0;
         int legacyUnreadable = 0;
         int asWrittenOnly = 0;
+        int legacyDefects = 0;
         Map<String, Integer> asWrittenShapes = new TreeMap<>();
+        Map<String, Integer> legacyDefectShapes = new TreeMap<>();
         Map<String, Integer> unsupportedWhy = new TreeMap<>();
         Map<String, Integer> mismatchShapes = new TreeMap<>();
         Map<String, String> examples = new TreeMap<>();
@@ -125,6 +129,16 @@ class MappingEquivalenceTest {
                     asWrittenShapes.merge(diff, 1, Integer::sum);
                     continue;
                 }
+                if (!"identical".equals(diff)
+                        && legacyDefect(viaLegacy, viaProtocol)) {
+                    // The protocol path is RIGHT and the legacy one is wrong.
+                    // Counted apart from both agreement and mismatch: this is
+                    // a bug the migration FIXES, and folding it into either
+                    // bucket would lose that.
+                    legacyDefects++;
+                    legacyDefectShapes.merge(diff, 1, Integer::sum);
+                    continue;
+                }
                 if ("identical".equals(diff)) {
                     identical++;
                 } else {
@@ -134,7 +148,9 @@ class MappingEquivalenceTest {
                     // much, the example says what to fix
                     examples.computeIfAbsent(diff, k -> viaLegacy.qualifiedName()
                             + "\n      LEGACY   = " + firstDiffering(viaLegacy, viaProtocol, true)
-                            + "\n      PROTOCOL = " + firstDiffering(viaLegacy, viaProtocol, false));
+                            + "\n      PROTOCOL = " + firstDiffering(viaLegacy, viaProtocol, false)
+                            + "\n      CL = " + canonical(viaLegacy)
+                            + "\n      CP = " + canonical(viaProtocol));
                     if (mismatchFiles.size() < 200) {
                         mismatchFiles.add(src.id() + " :: "
                                 + viaLegacy.qualifiedName() + " :: " + diff);
@@ -150,12 +166,14 @@ class MappingEquivalenceTest {
                 .append(String.format("  IDENTICAL               : %d%n", identical))
                 .append(String.format("  AS-WRITTEN ONLY         : %d"
                         + "  (wire cannot preserve; see asWritten())%n", asWrittenOnly))
+                .append(String.format("  LEGACY DEFECT (we fix)  : %d%n", legacyDefects))
                 .append(String.format("  MISMATCHED (REAL)       : %d%n", mismatched))
                 .append(String.format("UNSUPPORTED (refused)     : %d%n", unsupported))
                 .append(String.format("protocol unreadable       : %d%n", protocolUnreadable))
                 .append(String.format("legacy unreadable         : %d%n", legacyUnreadable));
         section(b, "UNSUPPORTED by cause — the phase worklist", unsupportedWhy);
         section(b, "AS-WRITTEN by shape — verified unrecoverable", asWrittenShapes);
+        section(b, "LEGACY DEFECTS the migration fixes", legacyDefectShapes);
         section(b, "MISMATCHES by shape — the fidelity worklist", mismatchShapes);
         b.append("\nWORKED EXAMPLES — one per shape\n").append("-".repeat(72)).append('\n');
         examples.forEach((k, v) -> b.append("  ").append(k).append("  ")
@@ -204,6 +222,22 @@ class MappingEquivalenceTest {
      *       change across the corpus and PCT.</li>
      * </ul>
      */
+    /**
+     * Whether the only difference is one where the PROTOCOL path is correct
+     * and the legacy parser is wrong — verified against the source.
+     *
+     * <p>Today that is exactly one shape: an enumeration source value spelled
+     * {@code \\} in Pure denotes ONE backslash. The wire decodes it; the
+     * legacy parser keeps the raw two-character escape. Same family as the
+     * missing {@code BOOLEAN} column type and {@code ~primaryKey} — a defect
+     * that survived because only one of the two parsers was ever gated.
+     */
+    private static boolean legacyDefect(LegacyMappingDefinition a,
+            LegacyMappingDefinition b) {
+        String la = canonical(a).replace("\\\\", "\\");
+        return la.equals(canonical(b));
+    }
+
     private static boolean asWritten(LegacyMappingDefinition a,
             LegacyMappingDefinition b) {
         return canonical(a).equals(canonical(b));
@@ -220,12 +254,31 @@ class MappingEquivalenceTest {
                 r.groupBy().forEach(g -> b.append("\n  gb ").append(canonOp(g)));
                 r.primaryKey().forEach(p -> b.append("\n  pk ").append(canonOp(p)));
                 r.propertyMappings().forEach(pm -> b.append("\n  pm ").append(canonPm(pm)));
-                b.append("\n  ts ").append(r.propertyTargetSets());
+                b.append("\n  ts ").append(r.propertyTargetSets())
+                        .append("\n  agg ").append(r.aggregationAwareMain())
+                        .append("\n  flt ").append(cm instanceof
+                                com.legend.model.ClassMapping.Relational rr
+                                ? String.valueOf(rr.filter()) : "-");
             } else {
-                b.append('\n').append(cm);
+                b.append('\n').append(elidePos(String.valueOf(cm)));
             }
         }
+        b.append("\nASSOC ").append(elidePos(String.valueOf(m.associationMappings())));
+        b.append("\nENUM ").append(m.enumerationMappings());
         return b.toString();
+    }
+
+    /**
+     * Drop parser source positions before comparing. They are not model
+     * SEMANTICS — they feed error messages — and the authority on positions
+     * is the byte-parity gate, which compares our emitted
+     * {@code sourceInformation} against the engine's for all 25,472
+     * elements. Leaving them in made every Pure class mapping read as a
+     * mismatch on metadata neither path is wrong about.
+     */
+    private static String elidePos(String s) {
+        return s.replaceAll("SourceInfo\\[[^\\]]*\\]", "P")
+                .replaceAll("pos=null", "pos=P");
     }
 
     private static String canonTable(
@@ -277,14 +330,32 @@ class MappingEquivalenceTest {
                     + o.fallbackSetId() + " " + canonPm(o.fallback());
         }
         if (pm instanceof com.legend.model.PropertyMapping.LocalProperty l) {
-            return "Local " + l.propertyName() + " " + l.type() + " "
-                    + l.multiplicity() + " " + canonPm(l.body());
+            return "Local " + l.propertyName() + " " + elidePos(String.valueOf(l.type()))
+                    + " " + l.multiplicity() + " " + canonPm(l.body());
         }
-        return String.valueOf(pm);
+        return elidePos(String.valueOf(pm));
     }
 
     private static String canonPms(List<com.legend.model.PropertyMapping> pms) {
         return pms.stream().map(MappingEquivalenceTest::canonPm).toList().toString();
+    }
+
+    /** Append every operand of a same-operator and/or run, flat. */
+    private static void flattenBool(com.legend.model.RelationalOperation op,
+            String opName, StringBuilder out) {
+        if (op instanceof com.legend.model.RelationalOperation.BooleanOp b
+                && String.valueOf(b.op()).equals(opName)) {
+            flattenBool(b.left(), opName, out);
+            flattenBool(b.right(), opName, out);
+            return;
+        }
+        if (op instanceof com.legend.model.RelationalOperation.FunctionCall f
+                && (("AND".equals(opName) && "and".equals(f.name()))
+                        || ("OR".equals(opName) && "or".equals(f.name())))) {
+            f.args().forEach(a -> flattenBool(a, opName, out));
+            return;
+        }
+        out.append(',').append(canonOp(op));
     }
 
     private static String canonChain(List<com.legend.model.JoinChainElement> chain) {
@@ -331,6 +402,11 @@ class MappingEquivalenceTest {
                 case "or" -> "OR";
                 default -> f.name();
             };
+            if ("AND".equals(name) || "OR".equals(name)) {
+                StringBuilder fb = new StringBuilder("fn(").append(name);
+                flattenBool(op, name, fb);
+                return fb.append(')').toString();
+            }
             StringBuilder b = new StringBuilder("fn(").append(name);
             f.args().forEach(a -> b.append(',').append(canonOp(a)));
             return b.append(')').toString();
@@ -342,7 +418,13 @@ class MappingEquivalenceTest {
             return "fn(isNotNull," + canonOp(n.operand()) + ")";
         }
         if (op instanceof com.legend.model.RelationalOperation.BooleanOp b2) {
-            return "fn(" + b2.op() + "," + canonOp(b2.left()) + "," + canonOp(b2.right()) + ")";
+            // FLATTEN same-operator runs. `or(a,b,c)` in call form stays
+            // n-ary in the legacy model; the wire carries one n-ary dynaFunc
+            // and RelOpFromProtocol folds it right-associatively into nested
+            // binaries. Same tree, different spelling.
+            StringBuilder b3 = new StringBuilder("fn(").append(b2.op());
+            flattenBool(op, String.valueOf(b2.op()), b3);
+            return b3.append(')').toString();
         }
         if (op instanceof com.legend.model.RelationalOperation.Group g) {
             return "grp(" + canonOp(g.inner()) + ")";

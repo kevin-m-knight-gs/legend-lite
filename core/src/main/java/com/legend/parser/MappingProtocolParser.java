@@ -400,10 +400,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.VALID_STRING && "Operation".equals(text())) {
             advance();
-            // the engine PARSES but DROPS extends on Operation mappings
-            // (OperationClassMappingParseTreeWalker TODO)
+            // The engine PARSES but DROPS extends on Operation mappings
+            // (OperationClassMappingParseTreeWalker TODO), so it is NOT
+            // emitted — see MappingEmitter's operation arm. legend-lite's
+            // model has always kept it, so it rides the protocol record
+            // WITHOUT going on the wire, exactly like a multi-pair include
+            // substitution. Byte parity untouched, capability kept.
             classMappings.add(parseOperationClassMapping(target, memberStart,
-                    targetSpan, id, root));
+                    targetSpan, id, extendsId, root));
             return;
         }
         if (extendsId != null) {
@@ -773,7 +777,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  differ, a contains-match would run the wrong one). */
     private Protocol.PClassMapping parseOperationClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root) {
+            @com.legend.Nullable String id,
+            @com.legend.Nullable String extendsId, boolean root) {
         expect(TokenType.BRACE_OPEN);
         int fqnTok = pos;
         String fqn = Protocol.unquotePath(parseQualifiedName());
@@ -859,7 +864,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingOperation(target, targetSpan, id,
-                root, operation, params, spanOf(memberStart, close));
+                extendsId, root, operation, params, spanOf(memberStart, close));
     }
 
     /** A set-implementation id — bare NUMBERS are legal ids (probe
@@ -1300,6 +1305,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 expect(TokenType.BRACKET_CLOSE);
                 lp = new Protocol.PLocalProp(type, lower, upper, propSpan);
                 expect(TokenType.COLON);
+            }
+            if (peek() == TokenType.ENUMERATION_MAPPING) {
+                // `prop: EnumerationMapping m: COL` inside a Relation class
+                // mapping. Neither this record nor the emitter carries an
+                // enumMappingId for relation columns, so the old code read
+                // "EnumerationMapping" AS the column name and then took the
+                // mapping id as the next property — two bogus columns, no
+                // error. Refuse loudly until the field exists on all three
+                // registries (§1: no "we read it" that means "we skipped it").
+                throw error("EnumerationMapping on a Relation class-mapping"
+                        + " column is unbuilt");
             }
             String col = parseIdentifier();
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,

@@ -77,20 +77,20 @@ public final class MappingFromProtocol {
 
         List<ClassMapping> classMappings = new ArrayList<>();
         for (Protocol.PClassMapping cm : m.classMappings()) {
-            classMappings.add(classMapping(cm));
+            ClassMapping built = classMapping(cm);
+            if (built != null) {
+                classMappings.add(built);
+            }
         }
 
-        if (!m.associationMappings().isEmpty()) {
-            throw new UnsupportedMappingShape(
-                    "association mappings are not ported yet (M3): "
-                            + m.associationMappings().size() + " on "
-                            + m.qualifiedName());
+        List<AssociationMapping> associations = new ArrayList<>();
+        for (Protocol.PAssociationMapping am : m.associationMappings()) {
+            associations.add(associationMapping(am));
         }
-        if (!m.enumerationMappings().isEmpty()) {
-            throw new UnsupportedMappingShape(
-                    "enumeration mappings are not ported yet (M3): "
-                            + m.enumerationMappings().size() + " on "
-                            + m.qualifiedName());
+
+        List<EnumerationMapping> enums = new ArrayList<>();
+        for (Protocol.PEnumerationMapping em : m.enumerationMappings()) {
+            enums.add(enumerationMapping(em));
         }
         // testSuites/tests: the model carries only the RAW TEXT
         // (LegacyMappingDefinition.testSuitesSource) and the wire has already
@@ -103,15 +103,225 @@ public final class MappingFromProtocol {
         }
 
         return new LegacyMappingDefinition(m.qualifiedName(), includes,
-                classMappings, List.of(), List.of(), null);
+                classMappings, associations, enums, null);
     }
 
-    private static ClassMapping classMapping(Protocol.PClassMapping cm) {
+    // The WIRE discriminators, not the router FQNs: MappingProtocolParser
+    // has already classified union_/special_union_/inheritance_ into these
+    // (:780-793) and emits NO discriminator for merge_ or any unknown
+    // function. Matching FQNs here instead would have silently dropped
+    // every Operation class mapping — it did, for 173 mappings, until the
+    // differential said so.
+    private static final String OP_INHERITANCE = "INHERITANCE";
+    private static final String OP_STORE_UNION = "STORE_UNION";
+    private static final String OP_ROUTER_UNION = "ROUTER_UNION";
+
+    /** {@code null} when the element is deliberately NOT modelled — see the
+     *  Operation and AggregationAware arms. */
+    private static @com.legend.Nullable ClassMapping classMapping(Protocol.PClassMapping cm) {
         if (cm instanceof Protocol.PClassMappingRel rel) {
             return relational(rel);
         }
+        if (cm instanceof Protocol.PClassMappingPure pure) {
+            return pureInstance(pure, pure.id());
+        }
+        if (cm instanceof Protocol.PClassMappingOperation op) {
+            return operation(op);
+        }
+        if (cm instanceof Protocol.PClassMappingRelation rel) {
+            return relationFunction(rel);
+        }
+        if (cm instanceof Protocol.PClassMappingAggregationAware agg) {
+            // FLATTENED BY DESIGN (§M0): the model keeps ~mainMapping flagged
+            // aggregationAwareMain and DROPS the aggregate Views, so a query
+            // asserting rewrite ACTIVITY fails honestly instead of silently
+            // claiming a rewrite happened (MappingGrammarParser:456-512).
+            ClassMapping main = classMapping(agg.mainSetImplementation());
+            if (main instanceof ClassMapping.Relational r) {
+                // the flattened main keeps the AGGREGATION-AWARE element's own
+                // set id and root flag: the legacy parser parses the
+                // ~mainMapping body with the OUTER id threaded in
+                // (MappingGrammarParser:487-495), while the wire mints a
+                // derived `<id>_Main` for it
+                return new ClassMapping.Relational(r.className(), agg.id(),
+                        r.extendsSetId(), agg.root(), r.mainTable(), r.filter(),
+                        r.distinct(), r.groupBy(), r.primaryKey(),
+                        r.propertyMappings(), r.sourceUrl(),
+                        r.propertyTargetSets(), true);
+            }
+            if (agg.mainSetImplementation() instanceof Protocol.PClassMappingPure pm) {
+                // a Pure main serves as-is (no rewrite machinery to flag),
+                // but the set id — and every property route measured against
+                // it — is the OUTER element's
+                return pureInstance(pm, agg.id());
+            }
+            if (main == null) {
+                throw new UnsupportedMappingShape(
+                        "AggregationAware mapping has no ~mainMapping");
+            }
+            return main;
+        }
+        // A MERGE operation is parse-and-SKIP in the legacy parser: it is
+        // consumed so the surrounding mapping still loads, and no class
+        // mapping is recorded, so a query against the class stays loud at
+        // resolution ("no mapping for class"). Reproduce that exactly —
+        // inventing a variant here would turn a loud wall into a silent one.
+        if (cm instanceof Protocol.PClassMappingMergeOperation) {
+            return null;
+        }
         throw new UnsupportedMappingShape("class mapping kind "
-                + cm.getClass().getSimpleName() + " is not ported yet (M3)");
+                + cm.getClass().getSimpleName() + " is not ported yet");
+    }
+
+    private static @com.legend.Nullable ClassMapping operation(
+            Protocol.PClassMappingOperation op) {
+        String fn = op.operation() == null ? "" : op.operation();
+        if (OP_INHERITANCE.equals(fn)) {
+            // members are IMPLICIT — the router resolves them from the
+            // class hierarchy
+            return new ClassMapping.Inheritance(op.className(), op.id(),
+                    op.extendsClassMappingId(), op.root());
+        }
+        if (!OP_STORE_UNION.equals(fn) && !OP_ROUTER_UNION.equals(fn)) {
+            return null;    // parse-and-skip, as above
+        }
+        if (op.parameters().isEmpty()) {
+            throw new UnsupportedMappingShape("Operation union for '"
+                    + op.className() + "' names no member sets");
+        }
+        // STORE_UNION = one SQL; ROUTER_UNION = per-member execution,
+        // results concatenated. Row CONTENT is identical, so both build the
+        // same member union here.
+        return new ClassMapping.Union(op.className(), op.id(),
+                op.extendsClassMappingId(), op.root(), op.parameters());
+    }
+
+    /** {@code ownerId} is the set id the MODEL will carry, which differs
+     *  from {@code pure.id()} when this is an AggregationAware ~mainMapping
+     *  (the wire mints a derived {@code <id>_Main}). The source-route
+     *  elision below has to compare against the owner, not the wire's id. */
+    private static ClassMapping pureInstance(Protocol.PClassMappingPure pure,
+            @com.legend.Nullable String ownerId) {
+        List<ClassMapping.Pure.PropertyBinding> bindings = new ArrayList<>();
+        for (Protocol.PPurePropertyMapping pm : pure.propertyMappings()) {
+            bindings.add(new ClassMapping.Pure.PropertyBinding(pm.property(),
+                    single(pm.transform(), "pure property transform"),
+                    // the wire RESOLVES sourceSetId to the class mapping's
+                    // own id; the model records only an explicitly-written
+                    // `prop[src, tgt]:` route, so an echo of the owning id
+                    // is not a route
+                    // the wire RESOLVES sourceSetId to the class mapping's
+                    // own id, and spells "absent" as the empty string; the
+                    // model records only an explicitly-written
+                    // `prop[src, tgt]:` route
+                    blankToNull(java.util.Objects.equals(pm.source(), ownerId)
+                            ? null : pm.source()),
+                    blankToNull(pm.target()), pm.explodeProperty(),
+                    pm.localMappingProperty() != null, pm.enumMappingId()));
+        }
+        return new ClassMapping.Pure(pure.className(), ownerId,
+                pure.extendsClassMappingId(), pure.root(),
+                require(pure.srcClass(), "~src class"),
+                pure.filter() == null ? null
+                        : single(pure.filter(), "pure class-mapping filter"),
+                bindings);
+    }
+
+    private static ClassMapping relationFunction(Protocol.PClassMappingRelation rel) {
+        List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
+        for (Protocol.PRelationFnPropertyMapping pm : rel.propertyMappings()) {
+            cols.add(relationCol(pm));
+        }
+        // the FQN identifies the function; a signature spelling
+        // `f():Relation<Any>[1]` carries redundant tokens the legacy parser
+        // skips (MappingGrammarParser:546-554)
+        String funcRef = rel.relationFunction();
+        int sig = funcRef.indexOf('(');
+        return new ClassMapping.RelationFunction(rel.className(), rel.id(), null,
+                rel.root(), sig < 0 ? funcRef : funcRef.substring(0, sig),
+                cols, rel.primaryKey());
+    }
+
+    private static ClassMapping.RelationFunction.Col relationCol(
+            Protocol.PRelationFnPropertyMapping pm) {
+        List<ClassMapping.RelationFunction.Col> nested = new ArrayList<>();
+        if (pm.nested() != null) {
+            for (Protocol.PRelationFnPropertyMapping sub : pm.nested()) {
+                nested.add(relationCol(sub));
+            }
+        }
+        return new ClassMapping.RelationFunction.Col(pm.property(), pm.column(),
+                pm.localMappingProperty() != null, null, nested, pm.inlineSetId());
+    }
+
+    private static AssociationMapping associationMapping(Protocol.PAssociationMapping am) {
+        if (am instanceof Protocol.PRelAssociationMapping rel) {
+            List<AssociationPropertyMapping> pms = new ArrayList<>();
+            for (Protocol.PRelAssocPropertyMapping pm : rel.propertyMappings()) {
+                // an association end names BOTH sets or neither
+                String src = pm.source();
+                String tgt = pm.target();
+                pms.add(new AssociationPropertyMapping(
+                        src == null || tgt == null ? null : src,
+                        src == null || tgt == null ? null : tgt,
+                        bodyOf(pm.property(), pm.relationalOperation(), null,
+                                null, null)));
+            }
+            return new AssociationMapping.Relational(rel.association().path(), pms);
+        }
+        if (am instanceof Protocol.PXStoreAssociationMapping xs) {
+            List<AssociationMapping.Cross.XStoreProperty> pms = new ArrayList<>();
+            for (Protocol.PXStorePropertyMapping pm : xs.propertyMappings()) {
+                pms.add(new AssociationMapping.Cross.XStoreProperty(pm.property(),
+                        blankToNull(pm.source()), blankToNull(pm.target()),
+                        single(pm.crossExpression(), "xstore cross expression")));
+            }
+            return new AssociationMapping.Cross(xs.association().path(), pms);
+        }
+        if (am instanceof Protocol.PModelJoinAssociationMapping mj) {
+            if (!(mj.joinCondition() instanceof com.legend.protocol.spec.LambdaFunction lf)) {
+                throw new UnsupportedMappingShape(
+                        "ModelJoin condition is not a lambda");
+            }
+            return new AssociationMapping.ModelJoin(mj.association().path(), lf);
+        }
+        throw new UnsupportedMappingShape("association mapping kind "
+                + am.getClass().getSimpleName() + " is not ported yet");
+    }
+
+    private static EnumerationMapping enumerationMapping(Protocol.PEnumerationMapping em) {
+        List<EnumerationMapping.EnumValueMapping> values = new ArrayList<>();
+        for (Protocol.PEnumValueMapping v : em.enumValueMappings()) {
+            List<EnumerationMapping.SourceValue> sources = new ArrayList<>();
+            for (Protocol.PEnumSourceValue sv : v.sourceValues()) {
+                sources.add(sourceValue(sv));
+            }
+            values.add(new EnumerationMapping.EnumValueMapping(v.enumValue(), sources));
+        }
+        return new EnumerationMapping(em.enumeration().path(), em.id(), values);
+    }
+
+    private static EnumerationMapping.SourceValue sourceValue(Protocol.PEnumSourceValue sv) {
+        if (sv.enumeration() != null) {
+            return new EnumerationMapping.SourceValue.EnumRef(sv.enumeration(),
+                    String.valueOf(sv.value()));
+        }
+        if (sv.value() instanceof Number n) {
+            return new EnumerationMapping.SourceValue.IntegerValue(n.longValue());
+        }
+        return new EnumerationMapping.SourceValue.StringValue(String.valueOf(sv.value()));
+    }
+
+
+
+    /** The wire wraps single expressions in a list; the model holds one. */
+    private static com.legend.protocol.spec.ValueSpecification single(
+            List<com.legend.protocol.spec.ValueSpecification> vs, String what) {
+        if (vs == null || vs.size() != 1) {
+            throw new UnsupportedMappingShape("expected exactly one " + what
+                    + ", got " + (vs == null ? 0 : vs.size()));
+        }
+        return vs.get(0);
     }
 
     private static ClassMapping relational(Protocol.PClassMappingRel rel) {
@@ -155,16 +365,24 @@ public final class MappingFromProtocol {
         if (f.joins().isEmpty()) {
             return new FilterMapping.Direct(new FilterPointer.Cross(f.db(), f.name()));
         }
+        // `~filter [DB] (INNER) @J | [DB] F` — engine's joinSequence puts the
+        // LEADING join type on the first pointer; the model hangs it on the
+        // FilterMapping itself (RelationalGrammarParser:341-357), and only a
+        // `> (INNER) @Next` type rides its own hop. Leaving it on hop 0 made
+        // the filter and the chain BOTH wrong at once.
         List<JoinChainElement> chain = new ArrayList<>();
-        for (Protocol.PJoinPtr p : f.joins()) {
+        List<Protocol.PJoinPtr> hops = f.joins();
+        String filterJoinType = hops.get(0).joinType();
+        for (int i = 0; i < hops.size(); i++) {
+            Protocol.PJoinPtr p = hops.get(i);
+            String hopType = i == 0 ? null : p.joinType();
             chain.add(new JoinChainElement(p.name(),
-                    p.joinType() == null ? null : JoinType.fromIdentifier(p.joinType()),
+                    hopType == null ? null : JoinType.fromIdentifier(hopType),
                     p.db(), false));
         }
-        String sourceDb = f.joins().get(0).db();
         return new FilterMapping.JoinMediated(
-                require(sourceDb, "join-mediated filter source database"), chain,
-                new FilterPointer.Cross(f.db(), f.name()));
+                require(hops.get(0).db(), "join-mediated filter source database"),
+                chain, new FilterPointer.Cross(f.db(), f.name()), filterJoinType);
     }
 
     /** The wire splits schema from table; the model carries the name as
@@ -316,6 +534,11 @@ public final class MappingFromProtocol {
             }
         }
         return null;
+    }
+
+    private static @com.legend.Nullable String blankToNull(
+            @com.legend.Nullable String s) {
+        return s == null || s.isEmpty() ? null : s;
     }
 
     private static String require(@com.legend.Nullable String v, String what) {
