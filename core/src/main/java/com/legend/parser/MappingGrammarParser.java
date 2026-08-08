@@ -813,7 +813,7 @@ final class MappingGrammarParser {
             // 1. Optional ~filter (pre-mainTable; null scope).
             if (p.peek() == TokenType.FILTER_CMD) {
                 p.advance();
-                filter = p.relationalGrammar.parseViewFilterClause(null);
+                filter = p.relationalGrammar.parseViewFilterClause(null, true);
             }
             // 2. Optional ~distinct.
             if (p.peek() == TokenType.DISTINCT_CMD) {

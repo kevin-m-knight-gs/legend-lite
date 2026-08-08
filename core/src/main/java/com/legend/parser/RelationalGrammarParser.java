@@ -331,6 +331,22 @@ final class RelationalGrammarParser {
      * filter reference.
      */
     FilterMapping parseViewFilterClause(@com.legend.Nullable String dbScope) {
+        return parseViewFilterClause(dbScope, false);
+    }
+
+    /**
+     * @param databasePointerRequired engine's two filter rules differ and the
+     *     difference is load-bearing:
+     *     <pre>
+     *     viewFilterMapping: FILTER_CMD (viewFilterMappingJoin | databasePointer)? identifier
+     *     mappingFilter:     FILTER_CMD databasePointer (joinSequence PIPE databasePointer)? identifier
+     *     </pre>
+     *     A VIEW may write {@code ~filter F} bare; a CLASS MAPPING may not.
+     *     We used to accept the bare form in both — leniency on a construct
+     *     Legend owns, which is not ours to grant.
+     */
+    FilterMapping parseViewFilterClause(@com.legend.Nullable String dbScope,
+            boolean databasePointerRequired) {
         String firstDb = null;
         if (p.peek() == TokenType.BRACKET_OPEN) {
             p.advance();
@@ -344,6 +360,11 @@ final class RelationalGrammarParser {
             p.advance();
             joinType = p.parseIdentifier();
             p.expect(TokenType.PAREN_CLOSE);
+        }
+        if (databasePointerRequired && firstDb == null) {
+            throw p.error("a class mapping's ~filter requires a [DB] pointer"
+                    + " (~filter [DB] FilterName); only a View's ~filter may"
+                    + " omit it");
         }
         if (p.peek() == TokenType.AT) {
             // Join-mediated form: firstDb is the source db (required by grammar)

@@ -2185,20 +2185,40 @@ final class ElementParserTest {
     }
 
     @Test
-    void relationalClassMappingFilterDirectLocal() {
-        // ~filter precedes ~mainTable per legend-engine grammar.
+    void relationalClassMappingFilterDirect() {
+        // ~filter precedes ~mainTable per legend-engine grammar, and the
+        // [DB] pointer is REQUIRED on a class mapping's filter:
+        //   mappingFilter: FILTER_CMD databasePointer
+        //                  (joinSequence PIPE databasePointer)? identifier
+        // A bare `~filter Name` used to be accepted here; that was our
+        // leniency on a construct Legend owns, and it is gone. The bare
+        // form remains legal in a VIEW, whose rule makes the pointer
+        // optional (viewFilterMapping) — see viewFilterDirectLocal.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Person: Relational { "
-                + "~filter ActivePersonFilter "
+                + "~filter [db::DB] ActivePersonFilter "
                 + "~mainTable [db::DB] PERSON "
                 + "} )");
         assertInstanceOf(FilterMapping.Direct.class, cm.filter(),
                 "~filter <Name> must produce Direct, not JoinMediated");
         var direct = (FilterMapping.Direct) cm.filter();
-        assertInstanceOf(FilterPointer.Local.class, direct.filter(),
-                "bare filter name must be Local (no cross-db prefix)");
-        var local = (FilterPointer.Local) direct.filter();
-        assertEquals("ActivePersonFilter", local.name());
+        var cross = assertInstanceOf(FilterPointer.Cross.class, direct.filter(),
+                "an explicitly [DB]-qualified filter is a Cross pointer");
+        assertEquals("db::DB", cross.db());
+        assertEquals("ActivePersonFilter", cross.name());
+    }
+
+    @Test
+    void classMappingFilterRequiresDatabasePointer() {
+        // the leniency this replaced: engine's mappingFilter has no bare form
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse(
+                        "Mapping my::M ( *model::Person: Relational { "
+                        + "~filter ActivePersonFilter "
+                        + "~mainTable [db::DB] PERSON "
+                        + "} )"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("[DB]"),
+                () -> "expected a [DB]-required error, got: " + ex.getMessage());
     }
 
     @Test
