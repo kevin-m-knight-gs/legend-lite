@@ -38,8 +38,10 @@ import java.util.regex.Pattern;
 class MappingEquivalenceTest {
 
     /** Mappings the transform refuses outright (UnsupportedMappingShape).
-     *  Falls as phases land; M1 covers Relational + Column/Join only. */
-    private static final int MAX_UNSUPPORTED = 969;
+     *  Falls as phases land. M1 covered Relational + Column/Join; M2 added
+     *  the rest of the property-mapping family and the class-mapping filter;
+     *  what remains is M3's class-mapping and association work. */
+    private static final int MAX_UNSUPPORTED = 846;
 
     /** Mappings BOTH paths build where the models disagree. Ratchets DOWN
      *  only; the legacy mapping parser dies when this is 0 and gates 4/5/6
@@ -254,7 +256,35 @@ class MappingEquivalenceTest {
         if (pm instanceof com.legend.model.PropertyMapping.Expression e) {
             return "Expr " + e.propertyName() + " " + canonOp(e.expression());
         }
+        if (pm instanceof com.legend.model.PropertyMapping.EnumeratedColumn c) {
+            return "EnumCol " + c.propertyName() + " " + c.enumMappingId() + " "
+                    + c.database() + " " + stripDefault(c.table()) + "." + c.column();
+        }
+        if (pm instanceof com.legend.model.PropertyMapping.EnumeratedExpression e) {
+            return "EnumExpr " + e.propertyName() + " " + e.enumMappingId() + " "
+                    + canonOp(e.expression());
+        }
+        // The nesting variants MUST recurse: falling back to toString() here
+        // made every as-written difference INSIDE an embedded block read as a
+        // real mismatch, which is a harness bug that looks like a transform bug.
+        if (pm instanceof com.legend.model.PropertyMapping.Embedded e) {
+            return "Emb " + e.propertyName() + " " + canonPms(e.propertyMappings())
+                    + " " + e.primaryKey().stream().map(
+                            MappingEquivalenceTest::canonOp).toList();
+        }
+        if (pm instanceof com.legend.model.PropertyMapping.OtherwiseEmbedded o) {
+            return "Oth " + o.propertyName() + " " + canonPms(o.embedded()) + " "
+                    + o.fallbackSetId() + " " + canonPm(o.fallback());
+        }
+        if (pm instanceof com.legend.model.PropertyMapping.LocalProperty l) {
+            return "Local " + l.propertyName() + " " + l.type() + " "
+                    + l.multiplicity() + " " + canonPm(l.body());
+        }
         return String.valueOf(pm);
+    }
+
+    private static String canonPms(List<com.legend.model.PropertyMapping> pms) {
+        return pms.stream().map(MappingEquivalenceTest::canonPm).toList().toString();
     }
 
     private static String canonChain(List<com.legend.model.JoinChainElement> chain) {
@@ -295,6 +325,10 @@ class MappingEquivalenceTest {
                 case "lessThanEqual" -> "LTE";
                 case "greaterThan" -> "GT";
                 case "greaterThanEqual" -> "GTE";
+                // and(a,b) / or(a,b) in CALL form vs the infix operator: one
+                // dynaFunc on the wire, FunctionCall vs BooleanOp in the model
+                case "and" -> "AND";
+                case "or" -> "OR";
                 default -> f.name();
             };
             StringBuilder b = new StringBuilder("fn(").append(name);

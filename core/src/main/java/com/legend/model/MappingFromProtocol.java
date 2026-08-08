@@ -122,10 +122,7 @@ public final class MappingFromProtocol {
                         tableName(rel.mainTable()));
         String mainDb = mainTable == null ? null : mainTable.database();
 
-        if (rel.filter() != null) {
-            throw new UnsupportedMappingShape(
-                    "class-mapping ~filter is not ported yet (M2)");
-        }
+        FilterMapping filter = rel.filter() == null ? null : filterMapping(rel.filter());
 
         List<RelationalOperation> groupBy = new ArrayList<>();
         for (Protocol.PRelOp op : rel.groupBy()) {
@@ -144,8 +141,30 @@ public final class MappingFromProtocol {
 
         return new ClassMapping.Relational(rel.className(), rel.id(),
                 rel.extendsClassMappingId(), rel.root(), mainTable,
-                null, rel.distinct(), groupBy, primaryKey, pms,
+                filter, rel.distinct(), groupBy, primaryKey, pms,
                 null, targetSets, false);
+    }
+
+    /**
+     * {@code ~filter [DB] F} and {@code ~filter [DB] @J | [DB] F}. The wire
+     * always carries the filter's own database, so an unmediated reference
+     * is Cross-or-Local by whether that database differs from the joins'
+     * — mirroring {@code MappingGrammarParser}'s split.
+     */
+    private static FilterMapping filterMapping(Protocol.PFilterMapping f) {
+        if (f.joins().isEmpty()) {
+            return new FilterMapping.Direct(new FilterPointer.Cross(f.db(), f.name()));
+        }
+        List<JoinChainElement> chain = new ArrayList<>();
+        for (Protocol.PJoinPtr p : f.joins()) {
+            chain.add(new JoinChainElement(p.name(),
+                    p.joinType() == null ? null : JoinType.fromIdentifier(p.joinType()),
+                    p.db(), false));
+        }
+        String sourceDb = f.joins().get(0).db();
+        return new FilterMapping.JoinMediated(
+                require(sourceDb, "join-mediated filter source database"), chain,
+                new FilterPointer.Cross(f.db(), f.name()));
     }
 
     /** The wire splits schema from table; the model carries the name as
@@ -179,46 +198,107 @@ public final class MappingFromProtocol {
 
     private static PropertyMapping propertyMapping(Protocol.PPropertyMapping pm,
             @com.legend.Nullable String mainDb, Map<String, String> targetSets) {
+        if (pm instanceof Protocol.PInlineEmbeddedPropertyMapping inl) {
+            return new PropertyMapping.InlineEmbedded(inl.property(),
+                    inl.setImplementationId());
+        }
+        if (pm instanceof Protocol.PEmbeddedPropertyMapping emb) {
+            List<PropertyMapping> subs = new ArrayList<>();
+            for (Protocol.PPropertyMapping sub : emb.propertyMappings()) {
+                subs.add(propertyMapping(sub, mainDb, targetSets));
+            }
+            List<RelationalOperation> pk = new ArrayList<>();
+            for (Protocol.PRelOp op : emb.primaryKey()) {
+                pk.add(RelOpFromProtocol.op(op, null));
+            }
+            return new PropertyMapping.Embedded(emb.property(), subs, pk);
+        }
+        if (pm instanceof Protocol.POtherwiseEmbeddedPropertyMapping oth) {
+            List<PropertyMapping> subs = new ArrayList<>();
+            for (Protocol.PPropertyMapping sub : oth.propertyMappings()) {
+                subs.add(propertyMapping(sub, mainDb, targetSets));
+            }
+            // the Otherwise arm is a property-mapping BODY (typically a
+            // join) whose own name is the outer property's
+            // targetSetId stays NULL on the fallback body: `otherwiseTarget`
+            // is the OtherwiseEmbedded's own fallbackSetId, not a per-property
+            // set route, and the legacy parser leaves the inner Join unrouted.
+            PropertyMapping fallback = bodyOf(oth.property(), oth.otherwiseOp(),
+                    mainDb, null, null);
+            return new PropertyMapping.OtherwiseEmbedded(oth.property(), subs,
+                    oth.otherwiseTarget(), fallback);
+        }
         if (!(pm instanceof Protocol.PRelPropertyMapping rel)) {
             throw new UnsupportedMappingShape("property mapping kind "
-                    + pm.getClass().getSimpleName() + " is not ported yet (M2)");
+                    + pm.getClass().getSimpleName() + " is not ported yet");
         }
         if (rel.localMappingProperty() != null) {
-            throw new UnsupportedMappingShape(
-                    "+local property mappings are not ported yet (M2)");
-        }
-        if (rel.enumMappingId() != null) {
-            throw new UnsupportedMappingShape(
-                    "EnumerationMapping property mappings are not ported yet (M2)");
+            Protocol.PLocalProp lp = rel.localMappingProperty();
+            return new PropertyMapping.LocalProperty(rel.property(),
+                    new com.legend.protocol.TypeExpression.NameRef(lp.type(), null),
+                    new com.legend.protocol.Multiplicity.Concrete(
+                            (int) lp.lowerBound(),
+                            lp.upperBound() == null ? null
+                                    : Integer.valueOf(lp.upperBound().intValue())),
+                    bodyOf(rel.property(), rel.relationalOperation(), mainDb,
+                            rel.enumMappingId(), rel.target()));
         }
         if (rel.target() != null) {
             targetSets.put(rel.property(), rel.target());
         }
 
+        return bodyOf(rel.property(), rel.relationalOperation(), mainDb,
+                rel.enumMappingId(), rel.target());
+    }
+
+    /**
+     * The dispatch itself: ONE wire operation becomes one of five model
+     * variants by its SHAPE, because they resolve down different paths — a
+     * {@code Join} yields an instance, a {@code JoinTerminalColumn} a
+     * primitive, an {@code Enumerated*} routes through a value table.
+     * Mirrors {@code MappingGrammarParser:1160-1277} arm for arm.
+     *
+     * <p>Shared by plain lines, {@code +local} bodies and the
+     * {@code Otherwise} arm, all of which the legacy parser routes through
+     * its own {@code parsePropertyMappingBody}.
+     */
+    private static PropertyMapping bodyOf(String property, Protocol.PRelOp rawOp,
+            @com.legend.Nullable String mainDb,
+            @com.legend.Nullable String enumMappingId,
+            @com.legend.Nullable String targetSetId) {
         // The PM's own database comes off the PROTOCOL node (always
         // resolved); the OPERATION is transformed under that database so
         // inner self-references elide exactly as the legacy parser left
         // them — `concat(personTable.FIRSTNAME, ...)` keeps a null
         // databaseName on the inner ColumnRef even though the wire
         // resolved it.
-        String db = firstNonNull(protocolDb(rel.relationalOperation()), mainDb);
-        RelationalOperation op = RelOpFromProtocol.op(rel.relationalOperation(), db);
+        String db = firstNonNull(protocolDb(rawOp), mainDb);
+        RelationalOperation op = RelOpFromProtocol.op(rawOp, db);
 
         if (op instanceof RelationalOperation.JoinNavigation jn) {
             String navDb = require(firstNonNull(db, jn.databaseName(), chainDb(jn)),
                     "join navigation database");
             if (jn.terminal() == null) {
-                return new PropertyMapping.Join(rel.property(), navDb, jn.chain(),
-                        rel.target());
+                if (enumMappingId != null) {
+                    throw new UnsupportedMappingShape("EnumerationMapping on a"
+                            + " join property mapping requires a terminal column");
+                }
+                return new PropertyMapping.Join(property, navDb, jn.chain(),
+                        targetSetId);
             }
-            return new PropertyMapping.JoinTerminalColumn(rel.property(), navDb,
-                    jn.chain(), jn.terminal());
+            return new PropertyMapping.JoinTerminalColumn(property, navDb,
+                    jn.chain(), jn.terminal(), enumMappingId, enumMappingId != null);
         }
         if (op instanceof RelationalOperation.ColumnRef cr) {
-            return new PropertyMapping.Column(rel.property(),
-                    require(db, "column database"), cr.table(), cr.column());
+            String colDb = require(db, "column database");
+            return enumMappingId == null
+                    ? new PropertyMapping.Column(property, colDb, cr.table(), cr.column())
+                    : new PropertyMapping.EnumeratedColumn(property, enumMappingId,
+                            colDb, cr.table(), cr.column());
         }
-        return new PropertyMapping.Expression(rel.property(), op);
+        return enumMappingId == null
+                ? new PropertyMapping.Expression(property, op)
+                : new PropertyMapping.EnumeratedExpression(property, enumMappingId, op);
     }
 
     /** A nav's own db may be absent while its FIRST hop carries one. */
