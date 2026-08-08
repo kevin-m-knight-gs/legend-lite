@@ -501,6 +501,15 @@ public final class ElementParser implements TokenStreamCursor {
                 pos = endOut[0];
                 yield com.legend.model.FromProtocol.toDatabaseDefinition(db);
             }
+            // M4 (the switch to MappingFromProtocol) is ATTEMPTED AND
+            // REVERTED, not undone: the transform is complete and agrees
+            // with this parser on all 1,448 corpus mappings, but flipping
+            // this line takes the core suite to 51 failures whose causes are
+            // named in PARSER_COMPLETENESS_PLAN.md §M4. The largest is
+            // structural: a CLEAN-SHEET function-form body must yield a
+            // MappingDefinition, and this arm would force every mapping
+            // through the legacy surface tree. Flipping this line is the
+            // whole change; it stays on legacy until those close.
             case MAPPING -> mappingGrammar.parseMapping();
             // Primitive my::Ext extends Base [constraint]? — precise primitive
             case VALID_STRING -> {

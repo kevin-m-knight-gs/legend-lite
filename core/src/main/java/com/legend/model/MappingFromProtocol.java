@@ -92,18 +92,12 @@ public final class MappingFromProtocol {
         for (Protocol.PEnumerationMapping em : m.enumerationMappings()) {
             enums.add(enumerationMapping(em));
         }
-        // testSuites/tests: the model carries only the RAW TEXT
-        // (LegacyMappingDefinition.testSuitesSource) and the wire has already
-        // parsed them, so the source text is unreconstructable from here.
-        // M4 keeps the lexer's verbatim slice; until then, refuse.
-        if (!m.testSuites().isEmpty() || !m.tests().isEmpty()) {
-            throw new UnsupportedMappingShape(
-                    "testSuites/tests need the verbatim source slice (M4): "
-                            + m.qualifiedName());
-        }
-
+        // The model carries testSuites as RAW TEXT — Phase C parses them
+        // lazily — so the protocol record keeps the verbatim slice alongside
+        // the parsed suites. `tests` (the LEGACY test block) has no model
+        // field at all and never had one; the legacy parser drops it too.
         return new LegacyMappingDefinition(m.qualifiedName(), includes,
-                classMappings, associations, enums, null);
+                classMappings, associations, enums, m.testSuitesSource());
     }
 
     // The WIRE discriminators, not the router FQNs: MappingProtocolParser
@@ -136,6 +130,13 @@ public final class MappingFromProtocol {
             // aggregationAwareMain and DROPS the aggregate Views, so a query
             // asserting rewrite ACTIVITY fails honestly instead of silently
             // claiming a rewrite happened (MappingGrammarParser:456-512).
+            // PClassMappingAggregationAware.id is NON-null on the wire: when
+            // the source writes no [id], engine DERIVES one from the class
+            // FQN (`demo::agg::Sale` -> `demo_agg_Sale`). The model records
+            // only a written id, so an id that is exactly that derivation is
+            // an absence, not a name.
+            String aggId = agg.id().equals(agg.className().replace("::", "_"))
+                    ? null : agg.id();
             ClassMapping main = classMapping(agg.mainSetImplementation());
             if (main instanceof ClassMapping.Relational r) {
                 // the flattened main keeps the AGGREGATION-AWARE element's own
@@ -143,7 +144,7 @@ public final class MappingFromProtocol {
                 // ~mainMapping body with the OUTER id threaded in
                 // (MappingGrammarParser:487-495), while the wire mints a
                 // derived `<id>_Main` for it
-                return new ClassMapping.Relational(r.className(), agg.id(),
+                return new ClassMapping.Relational(r.className(), aggId,
                         r.extendsSetId(), agg.root(), r.mainTable(), r.filter(),
                         r.distinct(), r.groupBy(), r.primaryKey(),
                         r.propertyMappings(), r.sourceUrl(),
@@ -153,7 +154,7 @@ public final class MappingFromProtocol {
                 // a Pure main serves as-is (no rewrite machinery to flag),
                 // but the set id — and every property route measured against
                 // it — is the OUTER element's
-                return pureInstance(pm, agg.id());
+                return pureInstance(pm, aggId);
             }
             if (main == null) {
                 throw new UnsupportedMappingShape(

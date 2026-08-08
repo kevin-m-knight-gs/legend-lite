@@ -219,6 +219,7 @@ public final class Protocol {
                            List<PMappingInclude> includedMappings,
                            List<PMappingTestSuite> testSuites,
                            List<PLegacyMappingTest> tests,
+                           @com.legend.Nullable String testSuitesSource,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {

@@ -52,9 +52,23 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  {@code memberLine - sectionStartLine + 2} (probe agg-off-A/B). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
             int sectionStartLine) {
+        return parse(ts, tokenIndex, sectionStartLine, null);
+    }
+
+    /** As above, but reports where the element ENDED in {@code endOut[0]} so
+     *  a caller iterating elements can resume — the twin of
+     *  {@code DatabaseProtocolParser.parse(ts, i, endOut)}, needed now that
+     *  the ###Mapping model is built from protocol rather than by a second
+     *  parser (PARSER_COMPLETENESS_PLAN.md §1). */
+    public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
+            int sectionStartLine, int @com.legend.Nullable [] endOut) {
         MappingProtocolParser p = new MappingProtocolParser(ts, tokenIndex);
         p.sectionStartLine = sectionStartLine;
-        return p.parseMapping();
+        Protocol.PMapping m = p.parseMapping();
+        if (endOut != null) {
+            endOut[0] = p.pos;
+        }
+        return m;
     }
 
     /** -1 = unknown (AggregationAware members then refuse loudly). */
@@ -256,6 +270,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
         List<Protocol.PMappingInclude> includes = new ArrayList<>();
         List<Protocol.PMappingTestSuite> suites = new ArrayList<>();
+        String testSuitesSource = null;
         List<Protocol.PLegacyMappingTest> legacyTests = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             if (peek() == TokenType.VALID_STRING
@@ -272,19 +287,28 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             if (peek() == TokenType.MAPPING_TESTABLE_SUITES) {
                 advance();
                 expect(TokenType.COLON);
+                int suitesOpen = pos;
                 expect(TokenType.BRACKET_OPEN);
                 while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
                     suites.add(parseTestSuite(qn));
                     match(TokenType.COMMA);
                 }
                 expect(TokenType.BRACKET_CLOSE);
+                // The MODEL stores testSuites as RAW TEXT (Phase C parses
+                // them lazily), and parsed protocol cannot be turned back
+                // into source. Capture the verbatim slice here, over the
+                // same span the legacy parser reconstructs
+                // (MappingGrammarParser:83-88). Carried on the record, never
+                // emitted — the wire has the PARSED suites.
+                testSuitesSource = tokens.source().substring(
+                        tokens.start(suitesOpen), tokens.end(pos - 1));
                 continue;
             }
             parseMember(assocMappings, classMappings, enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
         return new Protocol.PMapping(pkg, name, assocMappings, classMappings,
-                enums, includes, suites, legacyTests,
+                enums, includes, suites, legacyTests, testSuitesSource,
                 spanOf(declStart, pos - 1));
     }
 

@@ -325,6 +325,54 @@ property-mapping order, set-id ordering, embedded nesting order, and the
 `~mainTable` / source-table conventions. Structural equality will not catch
 these — gates 4/5/6 will.
 
+## §M1–M4 — the mapping transform is COMPLETE; the switch is costed
+
+`MappingFromProtocol` transforms **every** corpus mapping: 1,448 built by
+both paths, **1,351 IDENTICAL**, 96 as-written, 1 legacy defect, **0 real
+mismatches**, 0 refused. `MappingEquivalenceTest` is the safety net and it is
+ratcheted at zero.
+
+The harness carries THREE buckets, not one, because collapsing them hides
+work: **AS-WRITTEN** (96) is what the wire structurally cannot preserve, each
+verified against a named corpus source; **LEGACY DEFECT** (1) is where the
+protocol path is RIGHT — an enumeration source value spelled `\\` denotes ONE
+backslash, the wire decodes it, the legacy parser keeps the raw escape;
+**MISMATCHED** is everything else, and it is 0.
+
+Two protocol-parser gaps found and made honest rather than silently wrong:
+`prop: EnumerationMapping m: COL` in a Relation class mapping was read with
+`EnumerationMapping` AS the column name (it now refuses, pending the field on
+all three registries), and `extends` on an Operation class mapping is
+carried on the protocol record but kept OFF the wire, because engine parses
+and drops it (`OperationClassMappingParseTreeWalker` TODO) — the same
+treatment as a multi-pair include substitution.
+
+### §M4 — the switch: attempted, reverted, 51 named failures
+
+Flipping `ElementParser`'s `MAPPING` arm is a ONE-LINE change and it has been
+done and reverted once. Structural agreement over the whole corpus did NOT
+make it safe, which is the same lesson R3 paid for. What it found:
+
+* **The clean-sheet axis is the blocker, and it is a DESIGN question, not a
+  bug.** `MappingGrammarParser:105-120` returns `MappingDefinition` (the
+  function form) or `LegacyMappingDefinition` (the surface tree) PER ELEMENT.
+  Every corpus mapping is legacy-DSL, so the differential never saw the other
+  arm — but legend-lite's own tests use it, and the flipped arm forces every
+  mapping through the surface tree. The switch must DISPATCH on body shape,
+  which means the clean-sheet form needs protocol support, or the legacy
+  parser is retained for that arm alone. Decide before flipping.
+* **Exception type at the parser boundary.** `UnsupportedMappingShape` and a
+  bare `IllegalArgumentException` reach callers that catch `ParseException`.
+* **`MappingNormalizerTest.groupByKeyWithJoinNavigation`** — a real
+  behavioural difference in group-by synthesis, not a shape difference.
+* **The AggregationAware span shift needs the section's first content line**,
+  which `ElementParser` does not have: the lexer records only SKIPPED section
+  headers. Reading it out of the source violates the drop-in source-reread
+  rule, so the lexer should record `###Mapping` headers instead.
+
+The switch stays on legacy until those close. A compiler pointed at a
+half-verified parser is worse than one pointed at an old one.
+
 ## §7 Order of attack
 
 1. **Phase 0** (§2) — lock the carrier, no new opaque uses. DONE.
