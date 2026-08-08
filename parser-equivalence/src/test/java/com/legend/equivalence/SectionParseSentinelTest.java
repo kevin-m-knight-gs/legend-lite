@@ -38,6 +38,58 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SectionParseSentinelTest {
 
+    /**
+     * WHY we accepted a file the reference refused. legend-lite sits between
+     * legend-pure and legend-engine, so some leniency is the project working as
+     * intended — but "we are a superset" is a rationalisation magnet, so the
+     * split is made by EVIDENCE, never by our own say-so. The rule:
+     *
+     * <p><b>A leniency is justified only if we can NAME the construct we accept
+     * and we actually PARSED it. Accepting because we IGNORED something is a
+     * bug wearing a superset's clothes.</b>
+     *
+     * <ul>
+     *   <li>{@code JUSTIFIED-crash} — the engine did not refuse, it CRASHED
+     *       (NPE, "please notify developer"). Reproducing a crash was never a
+     *       compatibility property.</li>
+     *   <li>{@code JUSTIFIED-engine-subsets-pure} — the engine deliberately
+     *       refuses a construct that is legal Pure and says so ("not supported
+     *       yet", "not authorized in Legend Engine"). These files are the
+     *       engine's OWN platform sources, which legend-pure compiles in
+     *       production; parsing them is the blend thesis, working.</li>
+     *   <li>{@code UNJUSTIFIED-we-skipped-it} — the reference has no grammar
+     *       registered for a section and refuses the file; we take it only
+     *       because unknown {@code ###Section} headers are skipped in silence.
+     *       We do not support that section — we cannot see it, and we would
+     *       accept arbitrary nonsense inside it just as happily. This bucket
+     *       is the audit's "reject unknown sections loudly", and it is also
+     *       partly an artifact of which grammar jars the oracle loads.</li>
+     *   <li>{@code UNJUSTIFIED-unclassified} — everything else. Unexamined
+     *       leniency is not credited.</li>
+     * </ul>
+     */
+    private static String leniencyKind(Throwable referenceRefuses) {
+        Throwable root = referenceRefuses;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String msg = String.valueOf(referenceRefuses.getMessage());
+        if (root instanceof NullPointerException
+                || root instanceof IndexOutOfBoundsException
+                || root instanceof ClassCastException
+                || msg.contains("please notify developer")) {
+            return "JUSTIFIED-crash";
+        }
+        if (msg.contains("is not supported yet")
+                || msg.contains("not authorized in Legend Engine")) {
+            return "JUSTIFIED-engine-subsets-pure";
+        }
+        if (msg.contains("is not a known section parser")) {
+            return "UNJUSTIFIED-we-skipped-it";
+        }
+        return "UNJUSTIFIED-unclassified";
+    }
+
     /** The lexed sections beyond Pure (Lexer.LEXABLE_SECTIONS minus Pure). */
     private static final Pattern SENTINEL_SECTIONS =
             Pattern.compile("(?m)^###(Mapping|Relational|Connection|Runtime)\\b");
@@ -54,7 +106,9 @@ class SectionParseSentinelTest {
         int legalRefusals = 0;
         int matched = 0;
         int lenient = 0;
+        int unjustifiedLeniency = 0;
         PureGrammarParser reference = PureGrammarParser.newInstance();
+        Map<String, Integer> lenientByKind = new TreeMap<>();
         List<String> lenientFiles = new ArrayList<>();
         List<String> failures = new ArrayList<>();
         Map<String, Integer> byMessage = new TreeMap<>();
@@ -77,7 +131,12 @@ class SectionParseSentinelTest {
                     matched++;
                 } catch (Throwable referenceRefuses) {
                     lenient++;
-                    lenientFiles.add(src.id() + " :: reference refuses: "
+                    String why = leniencyKind(referenceRefuses);
+                    if (why.startsWith("UNJUSTIFIED")) {
+                        unjustifiedLeniency++;
+                    }
+                    lenientByKind.merge(why, 1, Integer::sum);
+                    lenientFiles.add(why + "  " + src.id() + " :: "
                             + String.valueOf(referenceRefuses.getMessage())
                                     .replaceAll("\\s+", " "));
                 }
@@ -122,6 +181,13 @@ class SectionParseSentinelTest {
                 .append(String.format("  DEFECT              : %d"
                         + " (reference accepts, we refuse)%n", defects));
         if (!lenientFiles.isEmpty()) {
+            report.append("\nLENIENT by JUSTIFICATION — see leniencyKind(): a superset"
+                            + " claim needs a NAMED construct we actually parsed\n")
+                    .append("-".repeat(72)).append('\n');
+            lenientByKind.entrySet().stream()
+                    .sorted((x, y) -> y.getValue() - x.getValue())
+                    .forEach(e -> report.append(String.format("  %5d  %s%n",
+                            e.getValue(), e.getKey())));
             report.append("\nLENIENT — files we take that the engine will not\n")
                     .append("-".repeat(72)).append('\n');
             lenientFiles.stream().limit(20).forEach(f ->
@@ -151,6 +217,12 @@ class SectionParseSentinelTest {
                         + MAX_LENIENT + " — a drop-in that takes what the engine"
                         + " rejects is not a drop-in; see"
                         + " target/section-sentinel-report.txt");
+        assertTrue(unjustifiedLeniency <= MAX_UNJUSTIFIED_LENIENCY,
+                "leniency we cannot justify grew: " + unjustifiedLeniency + " > "
+                        + MAX_UNJUSTIFIED_LENIENCY + " — accepting a file because we"
+                        + " SKIPPED what we could not read is a bug, not a superset;"
+                        + " see the LENIENT-by-justification table in"
+                        + " target/section-sentinel-report.txt");
         assertTrue(defects <= MAX_DROP_IN_DEFECTS,
                 "reference-accepted files we fail to parse GREW: " + defects + " > "
                         + MAX_DROP_IN_DEFECTS + " — a real drop-in gap opened; see"
@@ -176,4 +248,9 @@ class SectionParseSentinelTest {
     /** Files we accept that the engine REFUSES. Ratcheted DOWN only — this is
      *  the leniency surface, and a drop-in's is zero. */
     private static final int MAX_LENIENT = 148;
+
+    /** Leniency we CANNOT justify — files we take only because we skipped what
+     *  we could not read, plus anything unexamined. Ratcheted DOWN only; this
+     *  is the half of {@link #MAX_LENIENT} that is simply a bug. */
+    private static final int MAX_UNJUSTIFIED_LENIENCY = 127;
 }
