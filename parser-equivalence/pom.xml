@@ -51,6 +51,24 @@
             <version>${legend.engine.version}</version>
             <scope>test</scope>
         </dependency>
+        <!--
+            EVERY section grammar the engine ships (33 modules), not the three
+            we happened to list. With only core+relational+diagram on the
+            classpath the oracle REFUSED any file using ###Service,
+            ###Persistence, ###DataSpace and the rest — and a file the oracle
+            refuses produces no elements, so it left the denominator silently
+            instead of counting against us. That is how 2,270 files
+            disappeared, and why ###Diagram looked like the last unbuilt
+            section when it was merely the last one this pom could see.
+            The goal is to parse everything legend-engine parses, so the
+            oracle has to be the whole engine (audit fix #6).
+        -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-extensions-collection-generation</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>

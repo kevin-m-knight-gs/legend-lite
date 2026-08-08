@@ -207,8 +207,28 @@ class CorpusEquivalenceTest {
      * OUTSIDE double quotes, keeping the quotes in the value
      * (probes data-section, relational-csv, store-keyed, model-instances,
      * neg-literals, enum-refs, relation-quoted-cells). */
-    private static final int MIN_ELEMENTS_COMPARED = 24590;
-    private static final int MIN_MATCHES = 24590;
+    private static final int MIN_ELEMENTS_COMPARED = 25472;
+    private static final int MIN_MATCHES = 25472;
+
+    /**
+     * THE ORACLE IS NOW THE WHOLE ENGINE (audit fix #6). It used to hold
+     * three grammar jars, so every file using ###Service, ###Persistence,
+     * ###DataSpace and the other 30 sections was refused by the reference —
+     * and a refused file yields no elements, so it left the denominator
+     * instead of counting against us. 2,270 files vanished that way.
+     *
+     * <p>Loading all 33 grammars moved 263 files back into reach: 882 more
+     * elements now compare and MATCH (24,590 -> 25,472, still 0 DIFF), and
+     * the gaps that were hiding behind those refusals became visible —
+     * walls 0 -> 108, parse failures 0 -> 14, lite-missed 0 -> 19, and an
+     * OUT_OF_SCOPE worklist of 10 -> 440. None of that is new breakage; it
+     * is the same code measured against an honest reference.
+     *
+     * <p>All three ratchet DOWN only.
+     */
+    private static final int MAX_LITE_MISSED = 19;
+    private static final int MAX_WALLS = 108;
+    private static final int MAX_PARSE_FAILS = 14;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
@@ -266,10 +286,22 @@ class CorpusEquivalenceTest {
                 "corpus shrank: " + compared + " compared < baseline " + MIN_ELEMENTS_COMPARED
                         + ". A smaller corpus is a failure, not a quieter green.");
         // (5) the comparison is bidirectional: a reference element we never
-        // compared is a front-door disagreement, never background noise
-        assertEquals(0, (int) counts.get(Kind.LITE_MISSED),
-                "reference elements never compared (site discovery and the"
-                        + " reference disagree about what an element is)");
+        // compared is a front-door disagreement, never background noise.
+        // This was ASSERTED ZERO while the oracle held three grammar jars —
+        // a zero that only meant the blind spots were invisible. Against the
+        // whole engine it is 19, each one nameable (#SQL{} islands in Pure
+        // functions; Deephaven / MongoDB / ServiceStore connection flavours),
+        // and it ratchets DOWN only.
+        assertTrue(counts.get(Kind.LITE_MISSED) <= MAX_LITE_MISSED,
+                "reference elements never compared GREW: "
+                        + counts.get(Kind.LITE_MISSED) + " > " + MAX_LITE_MISSED
+                        + " (site discovery and the reference disagree about"
+                        + " what an element is)");
+        assertTrue(counts.get(Kind.WALL) <= MAX_WALLS,
+                "walls GREW: " + counts.get(Kind.WALL) + " > " + MAX_WALLS);
+        assertTrue(counts.get(Kind.PARSE_FAIL) <= MAX_PARSE_FAILS,
+                "parse failures GREW: " + counts.get(Kind.PARSE_FAIL)
+                        + " > " + MAX_PARSE_FAILS);
         assertTrue(counts.get(Kind.MATCH) >= MIN_MATCHES,
                 "byte-identical matches regressed: " + counts.get(Kind.MATCH) + " < " + MIN_MATCHES);
         // the actual gate
