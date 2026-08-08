@@ -11,31 +11,52 @@ whole 33-grammar oracle.
 
 ---
 
-## §1 The root cause: three registries that disagree
+## §1 The root cause: a HALF-FINISHED migration (corrected 2026-08-08)
 
-legend-lite decides "what is an element" in three places, and they have drifted
-apart. Every gap in §3 is a symptom of this.
+An earlier draft of this section called the duplication "two registries that
+drifted", as though legend-lite had chosen two parsers. That was wrong, and the
+codebase says so: `PARSER_DROP_IN_PLAN.md` §8 specifies a protocol-to-model
+adapter, `com.legend.model.FromProtocol` implements it, and
+`ArchitectureTest.java:368` already carries the note that `com.legend.model` is
+*"shrinking: dies with the last model-record output"*.
 
-| element | `Lexer.LEXABLE_SECTIONS` | `model.PackageableElement` | `protocol.Protocol.Element` |
-|---|---|---|---|
-| Class, Association, Enumeration, Profile, Function | yes | yes | yes |
-| Mapping, Relational, Runtime, Connection | yes | yes | yes |
-| **Measure** | yes (in Pure) | **NO** | yes |
-| **Data** | yes | **NO** — opaque crutch | yes |
-| **Service** | **NO** | yes | **NO** |
-| Diagram | no | no | no |
-| ServiceStore, Persistence, DataSpace, ExternalFormat, … | no | no | no |
+**The design is: parse ONCE into protocol, transform into the model.** It is
+fully landed for every `###Pure` element and never landed for the rest:
 
-`Service` is the clearest symptom: `ServiceDefinition` and
-`parseServiceDefinition` both exist, but the section never tokenizes and there
-is no protocol shape — so the code to read 184 files is half-written and
-unreachable.
+| element | model built by | status |
+|---|---|---|
+| Class, Enum, Profile, Association, Function | `FromProtocol.to*(parse*Protocol())` | migrated |
+| **Mapping** | `MappingGrammarParser` (1,614 lines) | **legacy dual parser** |
+| **Relational** | `RelationalGrammarParser` (807 lines) | **legacy dual parser** |
+| Runtime, Connection, Service | own parsers | legacy |
 
-**Exit criterion for §1:** one list. A section is either fully supported in all
-three registries, or it is explicitly unsupported and refused loudly. There is
-no third state.
+So the duplication is not architecture, it is **debt that was scheduled for
+deletion and never deleted** — and it is precisely where every gap found on
+2026-08-08 lives. `~primaryKey` had been readable by the protocol parser for
+months while the legacy parser the COMPILER depends on had never learned it.
 
----
+This also explains the element-set gaps without needing a separate theory:
+`Measure` and `Data` have protocol and no model because nothing has written
+their `FromProtocol` arm; `Service` has a legacy model parser and no protocol
+because it predates the migration entirely.
+
+**Consequences for this plan.** Unification is COMPLETION, not a rewrite, and
+it dissolves work rather than adding it:
+
+* the "fix every grammar gap twice" tax disappears;
+* Measure and Data need a `FromProtocol` arm, not bespoke model plumbing;
+* ~2,400 lines of legacy parser get deleted rather than maintained;
+* the parity gate (protocol parser) and the corpus/PCT gates (model parser)
+  stop testing different code, which is why neither noticed the drift.
+
+**Sizing it is the first task, not a guess.** Run both parsers over the corpus
+and count constructs each accepts that the other refuses, in BOTH directions.
+That says whether completing the migration is a cleanup or a project, before
+anything is committed to it.
+
+**Exit criterion for §1:** `MappingGrammarParser` and `RelationalGrammarParser`
+are deleted; the compiler consumes `FromProtocol` output only; one parse, one
+grammar, one place to fix.
 
 ## §2 Phase 0 — stop the abuse (do first, no exceptions)
 
@@ -174,8 +195,12 @@ version skew: jars are 5.88.1, the checkout is 5.92.1-SNAPSHOT.
 
 ## §7 Order of attack
 
-1. **Phase 0** (§2) — lock the carrier, no new opaque uses.
-2. **§3.3 grammar gaps** — 96 files, no architecture required, immediate.
+1. **Phase 0** (§2) — lock the carrier, no new opaque uses. DONE.
+2. **Size the migration gap** (§1) — both parsers over the corpus, both
+   directions. Cheap, and it decides everything after it.
+3. **§3.3 grammar gaps** — but land each fix on the PROTOCOL parser and let
+   `FromProtocol` carry it, so the work moves toward deleting the legacy
+   parser rather than deepening it.
 3. **§3.1 Measure + Data model** — removes the ###Data crutch in the same
    commit that replaces it.
 4. **§3.2 connection hierarchy** — 52 files, unblocks embedded connections.
