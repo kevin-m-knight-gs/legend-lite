@@ -105,16 +105,200 @@ public final class FromProtocol {
 
     /**
      * {@code PDatabase} &rarr; {@link DatabaseDefinition} — R1 of the
-     * protocol-first migration (PARSER_COMPLETENESS_PLAN.md §1). Filled in
-     * once R0 has taught the protocol side to carry a view filter's db and
-     * join chain; until then it refuses rather than returning a model that is
-     * quietly missing join-mediated filters.
+     * protocol-first migration (PARSER_COMPLETENESS_PLAN.md §1). Every
+     * expression rides {@link RelOpFromProtocol}; this method is only the
+     * structural half.
+     *
+     * <p>Correctness is established by {@code MigrationEquivalenceTest}, which
+     * requires this to agree with the legacy parser on every database in the
+     * corpus before that parser may be deleted.
      */
     public static DatabaseDefinition toDatabaseDefinition(
             com.legend.protocol.Protocol.PDatabase db) {
-        throw new UnsupportedOperationException(
-                "toDatabaseDefinition: pending migration R1 — the protocol view"
-                        + " filter cannot yet carry db + joins (R0)");
+        List<String> includes = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PPointer p : db.includedStores()) {
+            includes.add(p.path());
+        }
+        List<DatabaseDefinition.SchemaDefinition> schemas = new java.util.ArrayList<>();
+        List<DatabaseDefinition.TableDefinition> flatTables = new java.util.ArrayList<>();
+        List<DatabaseDefinition.ViewDefinition> flatViews = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PDbSchema s : db.schemas()) {
+            List<DatabaseDefinition.TableDefinition> st = new java.util.ArrayList<>();
+            List<DatabaseDefinition.ViewDefinition> sv = new java.util.ArrayList<>();
+            for (com.legend.protocol.Protocol.PDbTable tb : s.tables()) {
+                DatabaseDefinition.TableDefinition d = table(tb);
+                st.add(d);
+                flatTables.add(d);
+            }
+            for (com.legend.protocol.Protocol.PDbView vw : s.views()) {
+                DatabaseDefinition.ViewDefinition d = view(vw);
+                sv.add(d);
+                flatViews.add(d);
+            }
+            // EXPERIMENT (R2): the protocol wraps top-level tables in a
+            // synthetic "default" schema, exactly as the engine does; the
+            // legacy model records a SchemaDefinition only when the source
+            // WROTE one. The protocol cannot tell the two apart.
+            if (!"default".equals(s.name())) {
+                schemas.add(new DatabaseDefinition.SchemaDefinition(s.name(), st, sv));
+            }
+        }
+        List<DatabaseDefinition.JoinDefinition> joins = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PDbJoin j : db.joins()) {
+            joins.add(new DatabaseDefinition.JoinDefinition(j.name(),
+                    RelOpFromProtocol.op(j.operation(), db.qualifiedName())));
+        }
+        // one protocol list, split by the filterType discriminator the wire
+        // carries; the model keeps them in separate fields
+        List<DatabaseDefinition.FilterDefinition> filters = new java.util.ArrayList<>();
+        List<DatabaseDefinition.FilterDefinition> multiGrain = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PDbFilter f : db.filters()) {
+            DatabaseDefinition.FilterDefinition d =
+                    new DatabaseDefinition.FilterDefinition(f.name(),
+                            RelOpFromProtocol.op(f.operation(), db.qualifiedName()));
+            if ("multiGrain".equals(f.filterType())) {
+                multiGrain.add(d);
+            } else {
+                filters.add(d);
+            }
+        }
+        return new DatabaseDefinition(db.qualifiedName(), includes, schemas,
+                flatTables, flatViews, joins, filters, multiGrain);
+    }
+
+    private static DatabaseDefinition.TableDefinition table(
+            com.legend.protocol.Protocol.PDbTable t) {
+        List<DatabaseDefinition.ColumnDefinition> cols = new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PDbColumn c : t.columns()) {
+            cols.add(new DatabaseDefinition.ColumnDefinition(unquote(c.name()),
+                    dataType(c.type()), t.primaryKey().contains(c.name()),
+                    !c.nullable(), isQuoted(c.name())));
+        }
+        return new DatabaseDefinition.TableDefinition(unquote(t.name()), cols,
+                milestoning(t.milestoning()));
+    }
+
+    /** The wire carries a LIST of milestoning entries, one per dimension;
+     *  the model carries one record with a business and a processing slot. */
+    private static DatabaseDefinition.TableDefinition.@com.legend.Nullable Milestoning
+            milestoning(List<com.legend.protocol.Protocol.PMilestoning> ms) {
+        if (ms == null || ms.isEmpty()) {
+            return null;
+        }
+        DatabaseDefinition.TableDefinition.Milestoning.Business business = null;
+        DatabaseDefinition.TableDefinition.Milestoning.Processing processing = null;
+        for (com.legend.protocol.Protocol.PMilestoning m : ms) {
+            switch (m) {
+                case com.legend.protocol.Protocol.PBusinessMilestoning b ->
+                        business = new DatabaseDefinition.TableDefinition
+                                .Milestoning.Business(b.from(), b.thru(),
+                                b.thruIsInclusive(), null,
+                                b.infinityDate() == null ? null
+                                        : b.infinityDate().value());
+                case com.legend.protocol.Protocol.PBusinessSnapshotMilestoning b ->
+                        business = new DatabaseDefinition.TableDefinition
+                                .Milestoning.Business(null, null, false,
+                                b.snapshotDate(), null);
+                case com.legend.protocol.Protocol.PProcessingMilestoning pm ->
+                        processing = new DatabaseDefinition.TableDefinition
+                                .Milestoning.Processing(pm.in(), pm.out(),
+                                pm.outIsInclusive(), null,
+                                pm.infinityDate() == null ? null
+                                        : pm.infinityDate().value());
+                case com.legend.protocol.Protocol.PProcessingSnapshotMilestoning pm ->
+                        processing = new DatabaseDefinition.TableDefinition
+                                .Milestoning.Processing(null, null, false,
+                                pm.snapshotDate(), null);
+            }
+        }
+        return new DatabaseDefinition.TableDefinition.Milestoning(business,
+                processing);
+    }
+
+    private static DatabaseDefinition.ViewDefinition view(
+            com.legend.protocol.Protocol.PDbView v) {
+        List<DatabaseDefinition.ViewDefinition.ViewColumnMapping> cms =
+                new java.util.ArrayList<>();
+        for (com.legend.protocol.Protocol.PViewColumnMapping cm : v.columnMappings()) {
+            cms.add(new DatabaseDefinition.ViewDefinition.ViewColumnMapping(
+                    cm.name(), null, RelOpFromProtocol.op(cm.operation()),
+                    v.primaryKey().contains(cm.name())));
+        }
+        List<RelationalOperation> groupBy = new java.util.ArrayList<>();
+        if (v.groupBy() != null) {
+            for (com.legend.protocol.Protocol.PRelOp g : v.groupBy()) {
+                groupBy.add(RelOpFromProtocol.op(g));
+            }
+        }
+        return new DatabaseDefinition.ViewDefinition(v.name(), filterMapping(v.filter()),
+                groupBy, v.distinct(), cms);
+    }
+
+    private static @com.legend.Nullable FilterMapping filterMapping(
+            com.legend.protocol.Protocol.@com.legend.Nullable PViewFilter f) {
+        if (f == null) {
+            return null;
+        }
+        // Local vs Cross is exactly "did the source name a database?", which
+        // is what R0 taught the protocol record to remember
+        FilterPointer ptr = f.db() == null
+                ? new FilterPointer.Local(f.name())
+                : new FilterPointer.Cross(f.db(), f.name());
+        if (f.joins().isEmpty()) {
+            return new FilterMapping.Direct(ptr);
+        }
+        List<JoinChainElement> chain = new java.util.ArrayList<>();
+        String sourceDb = null;
+        for (com.legend.protocol.Protocol.PJoinPtr jp : f.joins()) {
+            if (sourceDb == null) {
+                sourceDb = jp.db();
+            }
+            chain.add(new JoinChainElement(jp.name(),
+                    jp.joinType() == null ? null : JoinType.fromIdentifier(jp.joinType()),
+                    jp.db(), false));
+        }
+        return new FilterMapping.JoinMediated(sourceDb, chain, ptr, null);
+    }
+
+    /** The wire keeps a quoted identifier's quotes; the model keeps the bare
+     *  name and remembers that it was quoted. */
+    private static String unquote(String name) {
+        return isQuoted(name) ? name.substring(1, name.length() - 1) : name;
+    }
+
+    private static boolean isQuoted(String name) {
+        return name.length() >= 2 && name.charAt(0) == '"'
+                && name.charAt(name.length() - 1) == '"';
+    }
+
+    private static RelationalDataType dataType(
+            com.legend.protocol.Protocol.PDbType t) {
+        int size = t.size() == null ? 0 : t.size().intValue();
+        return switch (t.kind()) {
+            case "Boolean" -> new RelationalDataType.Bool();
+            case "BigInt" -> new RelationalDataType.BigInt();
+            case "SmallInt" -> new RelationalDataType.SmallInt();
+            case "TinyInt" -> new RelationalDataType.TinyInt();
+            case "Integer" -> new RelationalDataType.Integer_();
+            case "Float" -> new RelationalDataType.Float_();
+            case "Double" -> new RelationalDataType.Double_();
+            case "Real" -> new RelationalDataType.Real();
+            case "Bit" -> new RelationalDataType.Bit();
+            case "Timestamp" -> new RelationalDataType.Timestamp();
+            case "Date" -> new RelationalDataType.Date_();
+            case "Distinct" -> new RelationalDataType.Distinct();
+            case "Other" -> new RelationalDataType.Other();
+            case "SemiStructured" -> new RelationalDataType.SemiStructured();
+            case "Varchar" -> new RelationalDataType.Varchar(size);
+            case "Char" -> new RelationalDataType.Char_(size);
+            case "Binary" -> new RelationalDataType.Binary(size);
+            case "Varbinary" -> new RelationalDataType.Varbinary(size);
+            case "Decimal" -> new RelationalDataType.Decimal(
+                    t.precision() == null ? 0 : t.precision().intValue(),
+                    t.scale() == null ? 0 : t.scale().intValue());
+            default -> throw new UnsupportedOperationException(
+                    "no model data type for protocol kind '" + t.kind() + "'");
+        };
     }
 
     public static ClassDefinition toClassDefinition(PClass c) {

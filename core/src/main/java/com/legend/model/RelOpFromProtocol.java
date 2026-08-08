@@ -36,28 +36,48 @@ public final class RelOpFromProtocol {
     }
 
     public static RelationalOperation op(Protocol.PRelOp p) {
+        return op(p, null);
+    }
+
+    /**
+     * @param enclosingDb the database whose body this operation appears in.
+     *     The wire ALWAYS resolves a table's database because the engine's
+     *     JSON must; the model records it as WRITTEN, so a reference to the
+     *     enclosing database is null there. Passing it here reproduces that
+     *     exactly instead of leaving every column ref self-qualified.
+     */
+    public static RelationalOperation op(Protocol.PRelOp p,
+            @com.legend.Nullable String enclosingDb) {
         return switch (p) {
-            case Protocol.PColumnRef c -> columnRef(c);
+            case Protocol.PColumnRef c -> columnRef(c, enclosingDb);
             case Protocol.PRelLiteral l -> new RelationalOperation.Literal(l.value());
             case Protocol.PRelLiteralList l -> new RelationalOperation.ArrayLiteral(
-                    l.values().stream().map(RelOpFromProtocol::op).toList());
-            case Protocol.PElemtWithJoins j -> joinNavigation(j);
-            case Protocol.PDynaFunc f -> dynaFunc(f);
+                    l.values().stream().map(v -> op(v, enclosingDb)).toList());
+            case Protocol.PElemtWithJoins j -> joinNavigation(j, enclosingDb);
+            case Protocol.PDynaFunc f -> dynaFunc(f, enclosingDb);
         };
     }
 
     /** {@code {target}.COL} arrives with the sentinel table alias the engine
      *  uses for a self-join's far side; everything else is a plain column. */
-    private static RelationalOperation columnRef(Protocol.PColumnRef c) {
-        if ("target".equals(c.tableAlias())) {
+    private static RelationalOperation columnRef(Protocol.PColumnRef c,
+            @com.legend.Nullable String enclosingDb) {
+        Protocol.PTablePtr t = c.table();
+        // a self-join's far side is spelled {target} in the TABLE position
+        if ("{target}".equals(t.table()) || "target".equals(c.tableAlias())) {
             return new RelationalOperation.TargetColumnRef(c.column());
         }
-        Protocol.PTablePtr t = c.table();
-        return new RelationalOperation.ColumnRef(t.database(), t.table(),
-                c.column());
+        String db = t.database() != null && t.database().equals(enclosingDb)
+                ? null : t.database();
+        // the wire splits schema from table; the model carries the name as
+        // written, which for a NAMED schema is "schema.table"
+        String table = t.schema() == null || "default".equals(t.schema())
+                ? t.table() : t.schema() + "." + t.table();
+        return new RelationalOperation.ColumnRef(db, table, c.column());
     }
 
-    private static RelationalOperation joinNavigation(Protocol.PElemtWithJoins j) {
+    private static RelationalOperation joinNavigation(Protocol.PElemtWithJoins j,
+            @com.legend.Nullable String enclosingDb) {
         List<JoinChainElement> chain = new ArrayList<>();
         String db = null;
         for (Protocol.PJoinPtr ptr : j.joins()) {
@@ -72,16 +92,18 @@ public final class RelOpFromProtocol {
                     ptr.db(), false));
         }
         return new RelationalOperation.JoinNavigation(db, chain,
-                j.relationalElement() == null ? null : op(j.relationalElement()));
+                j.relationalElement() == null ? null
+                        : op(j.relationalElement(), enclosingDb));
     }
 
     /**
      * The closed operator vocabulary. Anything not named here is a genuine
      * function call — the same fallback the legacy parser applied.
      */
-    private static RelationalOperation dynaFunc(Protocol.PDynaFunc f) {
+    private static RelationalOperation dynaFunc(Protocol.PDynaFunc f,
+            @com.legend.Nullable String enclosingDb) {
         List<RelationalOperation> args = f.parameters().stream()
-                .map(RelOpFromProtocol::op).toList();
+                .map(a -> op(a, enclosingDb)).toList();
         ComparisonOp cmp = comparison(f.funcName());
         if (cmp != null && args.size() == 2) {
             return new RelationalOperation.Comparison(args.get(0), cmp, args.get(1));
@@ -92,11 +114,12 @@ public final class RelOpFromProtocol {
                     LogicalOp lop = "and".equals(f.funcName())
                             ? LogicalOp.AND : LogicalOp.OR;
                     // the wire flattens a same-operator run into ONE n-ary
-                    // dynaFunc; the model is binary, so fold left to rebuild
-                    // the shape the legacy parser produced
-                    RelationalOperation acc = args.get(0);
-                    for (int i = 1; i < args.size(); i++) {
-                        acc = new RelationalOperation.BooleanOp(acc, lop, args.get(i));
+                    // dynaFunc. The model is binary and RIGHT-associative —
+                    // a AND (b AND c), matching how the legacy parser nests
+                    // them — so fold from the right, not the left.
+                    RelationalOperation acc = args.get(args.size() - 1);
+                    for (int i = args.size() - 2; i >= 0; i--) {
+                        acc = new RelationalOperation.BooleanOp(args.get(i), lop, acc);
                     }
                     return acc;
                 }
