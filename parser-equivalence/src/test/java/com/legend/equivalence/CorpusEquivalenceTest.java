@@ -189,9 +189,26 @@ class CorpusEquivalenceTest {
      * columns, non-explicit-schema) stretch their table pointer span
      * from the SCHEMA DECLARATION NAME to the local table token (probes
      * cross-schema-nav + testGrammarSerializationExtension). Every
-     * comparable element in the corpus is now byte-exact. */
-    private static final int MIN_ELEMENTS_COMPARED = 24513;
-    private static final int MIN_MATCHES = 24513;
+     * comparable element in the corpus is now byte-exact.
+     * 24,513 -> 24,590: ###Data OPENS AND CLOSES (leg 5) — the whole
+     * 77-element worklist, zero walls. The lexer stopped raw-skipping the
+     * section; PDataElement carries a SEALED body because the engine emits
+     * two disjoint envelopes (a single "data" value vs per-store
+     * "dataResolvers", never both). Body grammars: relationalCSVData
+     * (2-segment path, escape-decoded literal concatenation, span
+     * path..';'), relationAccessor, externalFormat, modelStore, reference.
+     * The engine's DATA walker builds instance data with its OWN shapes,
+     * not the ###Pure walker's: packageableElementPtr (not
+     * genericTypeInstance) + the literal name "dummy", a span-less
+     * instances collection, unary minus FOLDED into the literal (sign
+     * moves into a decimal's verbatim spelling too), and enum access as a
+     * real enumValue node spanning enumeration..value. Also fixed a shared
+     * wrong answer the leg exposed: Relation CSV cells now split on commas
+     * OUTSIDE double quotes, keeping the quotes in the value
+     * (probes data-section, relational-csv, store-keyed, model-instances,
+     * neg-literals, enum-refs, relation-quoted-cells). */
+    private static final int MIN_ELEMENTS_COMPARED = 24590;
+    private static final int MIN_MATCHES = 24590;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

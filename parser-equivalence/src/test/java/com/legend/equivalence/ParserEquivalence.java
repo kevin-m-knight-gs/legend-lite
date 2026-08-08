@@ -90,6 +90,7 @@ public final class ParserEquivalence {
         List<long[]> connectionRanges = sectionRanges(src.text(), "Connection", false);
         List<long[]> relationalRanges = sectionRanges(src.text(), "Relational", false);
         List<long[]> mappingRanges = sectionRanges(src.text(), "Mapping", false);
+        List<long[]> dataRanges = sectionRanges(src.text(), "Data", false);
 
         Ref ref;
         try {
@@ -112,6 +113,7 @@ public final class ParserEquivalence {
                 com.legend.lexer.TokenType.DATABASE, 8));
         sites.addAll(markerSites(ts, mappingRanges,
                 com.legend.lexer.TokenType.MAPPING, 9));
+        sites.addAll(textMarkerSites(ts, dataRanges, "Data", 10));
         // AggregationAware span emulation needs each mapping SECTION's
         // first content line (probe agg-off-A/B)
         for (int[] site : sites) {
@@ -129,6 +131,7 @@ public final class ParserEquivalence {
         boolean connectionWalled = false;
         boolean relationalWalled = false;
         boolean mappingWalled = false;
+        boolean dataWalled = false;
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -172,6 +175,11 @@ public final class ParserEquivalence {
                                     site.length > 2 ? site[2] : -1);
                     el = mp;
                     fqn = mp.qualifiedName();
+                } else if (site[1] == 10) {
+                    Protocol.PDataElement de = com.legend.parser
+                            .MappingProtocolParser.parseData(ts, site[0]);
+                    el = de;
+                    fqn = de.qualifiedName();
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -200,6 +208,10 @@ public final class ParserEquivalence {
                     mappingWalled = true;
                     out.add(new Verdict(Kind.WALL, src.id(), "?",
                             "mapping: " + root(t)));
+                } else if (site[1] == 10) {
+                    dataWalled = true;
+                    out.add(new Verdict(Kind.WALL, src.id(), "?",
+                            "data: " + root(t)));
                 } else {
                     out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 }
@@ -215,7 +227,7 @@ public final class ParserEquivalence {
                         + new String[]{"class", "Enumeration", "profile",
                                 "association", "function", "measure",
                                 "runtime", "connection", "relational",
-                                "mapping"}[site[1]]
+                                "mapping", "dataElement"}[site[1]]
                         + "\"";
                 int pick = 0;
                 for (int q = 0; q < queue.size(); q++) {
@@ -254,7 +266,7 @@ public final class ParserEquivalence {
                 boolean pureKind = false;
                 for (String t : new String[]{"class", "Enumeration", "profile",
                         "association", "function", "measure", "runtime",
-                        "connection", "relational", "mapping"}) {
+                        "connection", "relational", "mapping", "dataElement"}) {
                     if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
                         pureKind = true;
                         break;
@@ -282,6 +294,12 @@ public final class ParserEquivalence {
                         && leftover.startsWith("{\"_type\":\"mapping\"")) {
                     out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
                             "mapping: unbuilt sub-grammar (walled site)"));
+                    continue;
+                }
+                if (pureKind && dataWalled
+                        && leftover.startsWith("{\"_type\":\"dataElement\"")) {
+                    out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
+                            "data: unbuilt sub-grammar (walled site)"));
                     continue;
                 }
                 String sec = ref.sectionOf().getOrDefault(e.getKey(), "?");
@@ -398,6 +416,38 @@ public final class ParserEquivalence {
                 declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
                         || t == com.legend.lexer.TokenType.SEMI_COLON
                         || t == com.legend.lexer.TokenType.PAREN_CLOSE;
+            }
+        }
+        return sites;
+    }
+
+    /** Declaration sites whose header lexes as an IDENTIFIER rather than a
+     *  keyword ({@code Data}) — same per-range depth discipline as
+     *  {@link #markerSites}, matched by text. */
+    private static java.util.List<int[]> textMarkerSites(
+            com.legend.lexer.TokenStream ts, List<long[]> ranges,
+            String marker, int kind) {
+        java.util.List<int[]> sites = new ArrayList<>();
+        int cursor = 0;
+        for (long[] r : ranges) {
+            while (cursor < ts.count() && ts.start(cursor) < r[0]) {
+                cursor++;
+            }
+            int depth = 0;
+            boolean declPos = true;
+            for (; cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
+                com.legend.lexer.TokenType t = ts.type(cursor);
+                switch (t) {
+                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                    default -> {
+                        if (depth == 0 && declPos && marker.equals(ts.text(cursor))) {
+                            sites.add(new int[]{cursor, kind});
+                        }
+                    }
+                }
+                declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
+                        || t == com.legend.lexer.TokenType.SEMI_COLON;
             }
         }
         return sites;

@@ -64,6 +64,185 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  braceLine minus tildeLine (engine anchor quirk). */
     private int aggLambdaShift = 0;
 
+    /** Parse one {@code Data [decorations] qn { <body> }} at
+     *  {@code tokenIndex} (probe data-section). */
+    public static Protocol.PDataElement parseData(TokenStream ts,
+            int tokenIndex) {
+        return new MappingProtocolParser(ts, tokenIndex).parseDataElement();
+    }
+
+    private Protocol.PDataElement parseDataElement() {
+        int declStart = pos;
+        expectText("Data");
+        Decorations dec = parseDecorations();
+        String qn = Protocol.unquotePath(parseQualifiedName());
+        int cut = qn.lastIndexOf("::");
+        String pkg = cut < 0 ? "" : qn.substring(0, cut);
+        String name = cut < 0 ? qn : qn.substring(cut + 2);
+        expect(TokenType.BRACE_OPEN);
+        Protocol.PDataBody body = storeKeyed()
+                ? new Protocol.PDataResolverBody(parseDataResolvers())
+                : new Protocol.PDataValueBody(parseEmbeddedValue());
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PDataElement(pkg, name, body, dec.stereotypes(),
+                dec.taggedValues(), spanOf(declStart, close));
+    }
+
+    /** Which of the two ###Data envelopes this body is: a bare
+     *  {@code <Kind> #{...}#} value, or {@code store::S: <value>;} resolver
+     *  entries. Structural, not a keyword list — a qualified name followed
+     *  by {@code ':'} is a resolver, anything else is a value (probe
+     *  store-keyed). */
+    private boolean storeKeyed() {
+        int p = pos;
+        // the lookahead must use the parser's OWN qualified-name rule: store
+        // paths routinely open on a lexer KEYWORD ('store::S' — STORE is the
+        // connection grammar's token), which a VALID_STRING test would miss
+        while (p < tokens.count()
+                && (isFqnSegmentToken(tokens.type(p))
+                        || tokens.type(p) == TokenType.PATH_SEPARATOR)) {
+            p++;
+        }
+        return p > pos && p < tokens.count()
+                && tokens.type(p) == TokenType.COLON;
+    }
+
+    /** {@code store::S: <value>; ...} — each resolver's span runs the store
+     *  path through the value's close, EXCLUDING the trailing {@code ';'}
+     *  (probe store-keyed-multi). */
+    private List<Protocol.PDataResolver> parseDataResolvers() {
+        List<Protocol.PDataResolver> out = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            int pS = pos;
+            String store = Protocol.unquotePath(parseQualifiedName());
+            SourceInfo storeSpan = spanOf(pS, pos - 1);
+            expect(TokenType.COLON);
+            Protocol.PEmbeddedDataValue value = parseEmbeddedValue();
+            SourceInfo vSpan = embeddedSpan(value);
+            expect(TokenType.SEMI_COLON);
+            out.add(new Protocol.PDataResolver(
+                    new Protocol.PElementRef(store, storeSpan), value,
+                    new SourceInfo("", storeSpan.startLine(),
+                            storeSpan.startColumn(), vSpan.endLine(),
+                            vSpan.endColumn())));
+        }
+        return out;
+    }
+
+    /** ONE embedded-data value grammar — {@code ExternalFormat},
+     *  {@code Reference}, {@code Relation}, {@code Relational} and
+     *  {@code ModelStore} islands, shared by every site that admits an
+     *  EmbeddedData (###Data bodies, resolvers, ModelStore entries). */
+    private Protocol.PEmbeddedDataValue parseEmbeddedValue() {
+        // 'Relational' is a LEXER KEYWORD, the rest lex as identifiers
+        if (peek() == TokenType.RELATIONAL) {
+            return parseRelationalCsv();
+        }
+        String kind = text();
+        if ("ExternalFormat".equals(kind)) {
+            return parseExternalFormat();
+        }
+        if ("Reference".equals(kind)) {
+            int rTok = pos;
+            advance();
+            IslandBlock ri = readIsland();
+            MappingProtocolParser rp = new MappingProtocolParser(
+                    ri.tokens(), 0);
+            String dataPath = Protocol.unquotePath(rp.parseQualifiedName());
+            SourceInfo si = new SourceInfo("", tokens.startLine(rTok),
+                    tokens.startColumn(rTok), ri.endLine(), ri.endColumn());
+            return new Protocol.PDataReference(
+                    new Protocol.PPointer("DATA", dataPath, si), si);
+        }
+        if ("Relation".equals(kind)) {
+            advance();
+            IslandBlock ri = readIsland();
+            List<Protocol.PRelationElement> rels =
+                    parseRelationElements(ri, true);
+            // the accessor span starts at the FIRST element, not the
+            // keyword, and its end column overshoots the island close by 3
+            // (the engine's relation-data walker offset — probe relation-csv)
+            SourceInfo first = rels.isEmpty()
+                    ? spanOf(pos - 1, pos - 1)
+                    : rels.get(0).sourceInformation();
+            return new Protocol.PRelationData(rels,
+                    new SourceInfo("", first.startLine(), first.startColumn(),
+                            ri.endLine(), ri.endColumn() + 3));
+        }
+        if ("ModelStore".equals(kind)) {
+            int msTok = pos;
+            advance();
+            IslandBlock island = readIsland();
+            List<Protocol.PModelData> modelData = new ArrayList<>();
+            MappingProtocolParser inner = new MappingProtocolParser(
+                    island.tokens(), 0);
+            while (!inner.atEnd()) {
+                modelData.add(inner.parseModelEntry(island));
+                inner.match(TokenType.COMMA);
+            }
+            return new Protocol.PModelStoreData(modelData,
+                    new SourceInfo("", tokens.startLine(msTok),
+                            tokens.startColumn(msTok), island.endLine(),
+                            island.endColumn()));
+        }
+        throw error("embedded data kind '" + safeText() + "' is unbuilt");
+    }
+
+    /** {@code Relational #{ schema.table: 'csv' + 'csv'; ... }#} — the path
+     *  is exactly TWO segments and the value is the escape-decoded
+     *  concatenation of its literals; each table's span runs the schema
+     *  token through the terminating {@code ';'} (probe relational-csv). */
+    private Protocol.PRelationalCsvData parseRelationalCsv() {
+        int kwTok = pos;
+        expect(TokenType.RELATIONAL);
+        IslandBlock island = readIsland();
+        List<Protocol.PRelationalCsvTable> tables = new ArrayList<>();
+        MappingProtocolParser in = new MappingProtocolParser(
+                island.tokens(), 0);
+        while (!in.atEnd()) {
+            int tS = in.pos;
+            String schema = Protocol.unquotePath(in.parseIdentifier());
+            in.expect(TokenType.DOT);
+            String table = Protocol.unquotePath(in.parseIdentifier());
+            in.expect(TokenType.COLON);
+            StringBuilder values = new StringBuilder();
+            while (true) {
+                String quoted = in.text();
+                in.expect(TokenType.STRING);
+                values.append(TokenStreamCursor.unquoteAndUnescape(quoted, in));
+                if (!in.match(TokenType.PLUS)) {
+                    break;
+                }
+            }
+            int semi = in.pos;
+            in.expect(TokenType.SEMI_COLON);
+            tables.add(new Protocol.PRelationalCsvTable(schema, table,
+                    values.toString(), in.spanOf(tS, semi)));
+        }
+        return new Protocol.PRelationalCsvData(tables,
+                new SourceInfo("", tokens.startLine(kwTok),
+                        tokens.startColumn(kwTok), island.endLine(),
+                        island.endColumn()));
+    }
+
+    /** The span an embedded value contributes to its enclosing entry. */
+    private static SourceInfo embeddedSpan(Protocol.PEmbeddedDataValue v) {
+        return switch (v) {
+            case Protocol.PExternalFormatData e -> e.sourceInformation();
+            case Protocol.PDataReference r -> r.sourceInformation();
+            case Protocol.PModelStoreData m -> m.sourceInformation();
+            case Protocol.PRelationalCsvData c -> c.sourceInformation();
+            // the accessor's own end overshoots by the walker offset; a
+            // resolver anchors on the RAW island close (probe store-keyed)
+            case Protocol.PRelationData d -> new SourceInfo("",
+                    d.sourceInformation().startLine(),
+                    d.sourceInformation().startColumn(),
+                    d.sourceInformation().endLine(),
+                    d.sourceInformation().endColumn() - 3);
+        };
+    }
+
     private Protocol.PMapping parseMapping() {
         int declStart = pos;
         expect(TokenType.MAPPING);
@@ -1406,48 +1585,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int msTok = pos;
         advance();                                  // ModelStore
         IslandBlock island = readIsland();
-        List<Protocol.PModelEmbeddedData> modelData = new ArrayList<>();
+        List<Protocol.PModelData> modelData = new ArrayList<>();
         MappingProtocolParser inner = new MappingProtocolParser(
                 island.tokens(), 0);
         while (!inner.atEnd()) {
-            int mS = inner.pos;
-            String model = Protocol.unquotePath(inner.parseQualifiedName());
-            inner.expect(TokenType.COLON);
-            Protocol.PEmbeddedDataValue val;
-            if (inner.peek() == TokenType.VALID_STRING
-                    && "Reference".equals(inner.text())) {
-                int rTok = inner.pos;
-                inner.advance();
-                IslandBlock ri = inner.readIsland();
-                MappingProtocolParser rp = new MappingProtocolParser(
-                        ri.tokens(), 0);
-                String dataPath =
-                        Protocol.unquotePath(rp.parseQualifiedName());
-                val = new Protocol.PDataReference(
-                        new Protocol.PPointer("DATA", dataPath,
-                                new SourceInfo("",
-                                        inner.tokens().startLine(rTok),
-                                        inner.tokens().startColumn(rTok),
-                                        ri.endLine(), ri.endColumn())),
-                        new SourceInfo("",
-                                inner.tokens().startLine(rTok),
-                                inner.tokens().startColumn(rTok),
-                                ri.endLine(), ri.endColumn()));
-            } else if (inner.peek() == TokenType.VALID_STRING
-                    && "ExternalFormat".equals(inner.text())) {
-                val = inner.parseExternalFormat();
-            } else {
-                throw inner.error("embedded data kind '" + inner.safeText()
-                        + "' is unbuilt");
-            }
-            SourceInfo vSi = val instanceof Protocol.PExternalFormatData e2
-                    ? e2.sourceInformation()
-                    : ((Protocol.PDataReference) val).sourceInformation();
-            modelData.add(new Protocol.PModelEmbeddedData(model, val,
-                    new SourceInfo("",
-                            island.tokens().startLine(mS),
-                            island.tokens().startColumn(mS),
-                            vSi.endLine(), vSi.endColumn())));
+            modelData.add(inner.parseModelEntry(island));
             inner.match(TokenType.COMMA);
         }
         // modelStore span = the ModelStore token .. the island close
@@ -1460,6 +1602,69 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 new SourceInfo("", storeSpan.startLine(),
                         storeSpan.startColumn(), island.endLine(),
                         island.endColumn()));
+    }
+
+    /** One {@code path: <value>} entry inside a ModelStore island — an
+     *  embedded data value, or a {@code [ ^X(...) ]} INSTANCE collection
+     *  parsed by the ###Pure expression machinery (probes test-suites,
+     *  embedded-reference, data-section, model-instances). */
+    private Protocol.PModelData parseModelEntry(IslandBlock island) {
+        int mS = pos;
+        String model = Protocol.unquotePath(parseQualifiedName());
+        expect(TokenType.COLON);
+        if (peek() == TokenType.BRACKET_OPEN) {
+            int lS = pos;
+            skipBracketBlock();
+            int close = pos - 1;
+            List<com.legend.protocol.spec.ValueSpecification> vs =
+                    SpecParser.parseCodeBlock(
+                            island.tokens().slice(lS, pos), spanSourceId());
+            if (vs.size() != 1) {
+                throw error("model instance data must be ONE collection");
+            }
+            // the engine BUILDS this collection in its data walker rather
+            // than taking it from the parse tree, so the outer node carries
+            // no span — only the leaf literals do (probe model-instances)
+            com.legend.protocol.spec.ValueSpecification instances =
+                    vs.get(0) instanceof com.legend.protocol.spec.PureCollection c
+                            ? new com.legend.protocol.spec.PureCollection(c.values())
+                            : vs.get(0);
+            return new Protocol.PModelInstanceData(model, instances,
+                    new SourceInfo("", island.tokens().startLine(mS),
+                            island.tokens().startColumn(mS),
+                            island.tokens().endLine(close),
+                            island.tokens().endColumn(close)));
+        }
+        Protocol.PEmbeddedDataValue val = parseEmbeddedValue();
+        SourceInfo vSi = embeddedSpan(val);
+        return new Protocol.PModelEmbeddedData(model, val,
+                new SourceInfo("", island.tokens().startLine(mS),
+                        island.tokens().startColumn(mS),
+                        vSi.endLine(), vSi.endColumn()));
+    }
+
+    /** Skip a bracket-balanced block starting AT the open bracket. */
+    private void skipBracketBlock() {
+        expect(TokenType.BRACKET_OPEN);
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.BRACKET_OPEN || t == TokenType.PAREN_OPEN
+                    || t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACE_CLOSE) {
+                depth--;
+            } else if (t == TokenType.BRACKET_CLOSE) {
+                if (depth == 0) {
+                    advance();
+                    return;
+                }
+                depth--;
+            }
+            advance();
+        }
+        throw error("unterminated instance collection");
     }
 
     /** {@code id: EqualToJson #{ expected: ExternalFormat #{...}#; }#}. */
@@ -1906,7 +2111,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             int eol = lineEnd(src, p, end);
             List<String> columns = new ArrayList<>();
-            splitOn(src.substring(p, eol).strip(), ',', columns);
+            splitCells(src.substring(p, eol).strip(), columns);
             p = eol + 1;
             List<List<String>> rows = new ArrayList<>();
             int semiPos = -1;
@@ -1923,7 +2128,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     line = line.substring(0, line.length() - 1);
                 }
                 List<String> row = new ArrayList<>();
-                splitOn(line, ',', row);
+                splitCells(line, row);
                 rows.add(row);
                 p = rEol + 1;
                 if (last) {
@@ -1948,6 +2153,23 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             i++;
         }
         return i;
+    }
+
+    /** One CSV line into cells. A {@code "} groups commas — but the engine's
+     *  reader KEEPS the quotes in the value, so {@code "Doe, Jr"} is ONE cell
+     *  whose text is still {@code "Doe, Jr"} (probe relation-quoted-cells).
+     *  Trimming applies to the raw cell, hence never inside the quotes. */
+    private static void splitCells(String s, List<String> out) {
+        int start = 0;
+        boolean quoted = false;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i < s.length() && s.charAt(i) == '"') {
+                quoted = !quoted;
+            } else if (i == s.length() || (s.charAt(i) == ',' && !quoted)) {
+                out.add(s.substring(start, i).strip());
+                start = i + 1;
+            }
+        }
     }
 
     private static void splitOn(String s, char sep, List<String> out) {

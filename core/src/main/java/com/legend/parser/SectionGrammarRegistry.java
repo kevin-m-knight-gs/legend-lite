@@ -51,7 +51,7 @@ public final class SectionGrammarRegistry {
     private static Map<String, com.legend.spi.SectionGrammar> build() {
         Map<String, com.legend.spi.SectionGrammar> m = new LinkedHashMap<>();
         for (String s : new String[]{"Pure", "Mapping", "Relational",
-                "Connection", "Runtime"}) {
+                "Connection", "Runtime", "Data"}) {
             m.put(s, new BuiltIn(s));
         }
         // ServiceLoader overlays — registered LAST so an extension claiming

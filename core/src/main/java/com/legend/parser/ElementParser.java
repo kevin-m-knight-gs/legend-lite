@@ -360,6 +360,25 @@ public final class ElementParser implements TokenStreamCursor {
      * so the elements around them load (previously each sank its whole
      * file's parse). Returns false (nothing consumed) for anything else.
      */
+    /**
+     * A {@code ###Data} element on the RUNNER path. It is fully parsed —
+     * the same grammar the byte-parity harness proves — and carried as the
+     * sealed opaque element with its protocol JSON: legend-lite's compile
+     * model has no data-element concept, so nothing here can be opened, but
+     * the element is still indexed and named rather than silently dropped.
+     */
+    private PackageableElement parseDataElement() {
+        int start = pos;
+        com.legend.protocol.Protocol.PDataElement de =
+                MappingProtocolParser.parseData(tokens, start);
+        advance();                                  // 'Data'
+        parseDecorations();
+        parseQualifiedName();
+        mappingGrammar.skipBalancedBlock();         // { <body> }
+        return new com.legend.model.OpaqueElementDefinition(de.qualifiedName(),
+                "Data", com.legend.protocol.ProtocolEmitter.emitElement(de));
+    }
+
     private boolean skipTopLevelNonElement() {
         if (isIdentifierToken(peek()) && "Diagram".equals(text())) {
             advance();
@@ -432,6 +451,9 @@ public final class ElementParser implements TokenStreamCursor {
             case VALID_STRING -> {
                 if ("Primitive".equals(safeText())) {
                     yield parsePrimitiveExtension();
+                }
+                if ("Data".equals(safeText())) {
+                    yield parseDataElement();
                 }
                 throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
             }

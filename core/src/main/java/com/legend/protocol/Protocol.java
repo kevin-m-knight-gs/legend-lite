@@ -40,7 +40,51 @@ public final class Protocol {
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
-            PMapping {
+            PMapping, PDataElement {
+    }
+
+    /** {@code ###Data Data [decorations] qn { <body> }} — {@code _type:
+     *  "dataElement"} (probe data-section). */
+    public record PDataElement(String pkg, String name,
+                               PDataBody body,
+                               List<PStereotype> stereotypes,
+                               List<PTaggedValue> taggedValues,
+                               com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** The TWO ###Data envelope forms, which the engine emits as different
+     *  key sets rather than a nullable one (probes data-section,
+     *  store-keyed): a single {@code data} value, or per-store
+     *  {@code dataResolvers}. Sealed so the emitter never sees a null. */
+    public sealed interface PDataBody permits PDataValueBody, PDataResolverBody {
+    }
+
+    /** {@code Data qn { ExternalFormat #{...}# }} — one {@code data} key. */
+    public record PDataValueBody(PEmbeddedDataValue value) implements PDataBody {
+    }
+
+    /** {@code Data qn { store::S: <value>; ... }} — {@code dataResolvers},
+     *  and NO {@code data} key at all (probe store-keyed). */
+    public record PDataResolverBody(List<PDataResolver> resolvers)
+            implements PDataBody {
+    }
+
+    /** One {@code store::S: <value>;} entry: {@code _type:"baseDataResolver"}.
+     *  Its span runs the store path through the value's island close — the
+     *  trailing {@code ';'} is NOT included (probe store-keyed). */
+    public record PDataResolver(PElementRef elementPointer,
+                                PEmbeddedDataValue data,
+                                com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A typeless element pointer — {@code path} + span only, unlike
+     *  {@link PPointer}, which carries the {@code type} discriminator. */
+    public record PElementRef(String path,
+                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"mapping"} — a ###Mapping element (ZMappingProbe):
@@ -201,7 +245,7 @@ public final class Protocol {
     /** {@code Store: ModelStore #{...}#} or {@code Store: Reference
      *  #{ my::DataElement }#} (probe reference-data). */
     public record PStoreTestData(PPointer store,
-                                 @com.legend.Nullable List<PModelEmbeddedData> modelData,
+                                 @com.legend.Nullable List<PModelData> modelData,
                                  @com.legend.Nullable com.legend.protocol.SourceInfo modelStoreSourceInformation,
                                  @com.legend.Nullable PPointer dataElement,
                                  @com.legend.Nullable List<PRelationElement> relationElements,
@@ -212,7 +256,37 @@ public final class Protocol {
     /** Model-entry payload: ExternalFormat or a Reference (probe
      *  embedded-reference). */
     public sealed interface PEmbeddedDataValue
-            permits PExternalFormatData, PDataReference {
+            permits PExternalFormatData, PDataReference, PModelStoreData,
+            PRelationData, PRelationalCsvData {
+    }
+
+    /** {@code Relational #{ schema.table: 'csv' + 'csv'; }#} —
+     *  {@code _type:"relationalCSVData"}. The path is exactly TWO segments
+     *  (the engine rejects one and three) and the value is the escape-decoded
+     *  concatenation of its string literals (probe relational-csv). */
+    public record PRelationalCsvData(List<PRelationalCsvTable> tables,
+                                     com.legend.protocol.SourceInfo sourceInformation)
+            implements PEmbeddedDataValue {
+    }
+
+    /** One {@code schema.table: 'csv';} row — span runs the schema token
+     *  through the terminating {@code ';'} (probe relational-multi). */
+    public record PRelationalCsvTable(String schema, String table,
+                                      String values,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ModelStore #{ path: <value>, ... }#} as a first-class data
+     *  body (probe data-section). */
+    public record PModelStoreData(List<PModelData> modelData,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PEmbeddedDataValue {
+    }
+
+    /** {@code Relation #{ schema.table: CSV; }#} as a data body. */
+    public record PRelationData(List<PRelationElement> relationElements,
+                                com.legend.protocol.SourceInfo sourceInformation)
+            implements PEmbeddedDataValue {
     }
 
     public record PDataReference(PPointer dataElement,
@@ -220,8 +294,27 @@ public final class Protocol {
             implements PEmbeddedDataValue {
     }
 
+    /** One {@code path: <payload>} entry of a ModelStore island — the engine
+     *  has TWO node types for it, so this is sealed rather than a record with
+     *  a null arm (probe model-instances). */
+    public sealed interface PModelData permits PModelEmbeddedData, PModelInstanceData {
+        String model();
+
+        com.legend.protocol.SourceInfo sourceInformation();
+    }
+
     public record PModelEmbeddedData(String model, PEmbeddedDataValue data,
-                                     com.legend.protocol.SourceInfo sourceInformation) {
+                                     com.legend.protocol.SourceInfo sourceInformation)
+            implements PModelData {
+    }
+
+    /** {@code my::P: [ ^my::P(...) ]} — {@code _type:"modelInstanceData"},
+     *  whose {@code instances} is the ###Pure value-expression collection
+     *  (probe model-instances). */
+    public record PModelInstanceData(String model,
+                                     com.legend.protocol.spec.ValueSpecification instances,
+                                     com.legend.protocol.SourceInfo sourceInformation)
+            implements PModelData {
     }
 
     /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —

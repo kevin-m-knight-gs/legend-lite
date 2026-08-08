@@ -89,6 +89,13 @@ public final class Corpus {
         out.addAll(InlineSnippets.extract(engineRoot(), "C4 engine-inline"));
         out.addAll(InlineSnippets.extract(pureRoot(), "C5 pure-inline"));
         out.removeIf(s -> s.id().toLowerCase(Locale.ROOT).endsWith("grammar/m3.pure"));
+        String only = System.getProperty("legend.corpus.containing");
+        if (only != null) {
+            // ITERATION ONLY — a section leg's inner loop. The ratchet gate is
+            // the FULL sweep; a filtered run cannot raise it (the test's own
+            // MIN_ELEMENTS_COMPARED floor fails long before it could).
+            out.removeIf(s -> !s.text().contains(only));
+        }
         return out;
     }
 }

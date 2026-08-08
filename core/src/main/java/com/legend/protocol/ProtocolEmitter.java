@@ -78,6 +78,36 @@ public final class ProtocolEmitter {
             case Protocol.PConnection c -> connection(b, c);
             case Protocol.PDatabase d -> database(b, d);
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
+            case Protocol.PDataElement de -> {
+                b.append("{\"_type\":\"dataElement\"");
+                switch (de.body()) {
+                    case Protocol.PDataValueBody v -> {
+                        b.append(",\"data\":");
+                        MappingEmitter.embeddedDataValue(b, v.value());
+                    }
+                    case Protocol.PDataResolverBody r -> {
+                        b.append(",\"dataResolvers\":[");
+                        for (int i = 0; i < r.resolvers().size(); i++) {
+                            if (i > 0) {
+                                b.append(',');
+                            }
+                            dataResolver(b, r.resolvers().get(i));
+                        }
+                        b.append(']');
+                    }
+                }
+                b.append(",\"name\":");
+                str(b, de.name());
+                b.append(",\"package\":");
+                str(b, de.pkg());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, de.sourceInformation());
+                b.append(",\"stereotypes\":");
+                stereotypes(b, de.stereotypes());
+                b.append(",\"taggedValues\":");
+                taggedValues(b, de.taggedValues());
+                b.append('}');
+            }
         }
     }
 
@@ -156,6 +186,20 @@ public final class ProtocolEmitter {
             b.append('}');
         }
         b.append("]}");
+    }
+
+    /** {@code _type:"baseDataResolver"} — one {@code store::S: <value>;}
+     *  entry of a store-keyed ###Data element (probe store-keyed). */
+    private static void dataResolver(StringBuilder b, Protocol.PDataResolver r) {
+        b.append("{\"_type\":\"baseDataResolver\",\"data\":");
+        MappingEmitter.embeddedDataValue(b, r.data());
+        b.append(",\"elementPointer\":{\"path\":");
+        str(b, r.elementPointer().path());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, r.elementPointer().sourceInformation());
+        b.append("},\"sourceInformation\":");
+        srcInfo(b, r.sourceInformation());
+        b.append('}');
     }
 
     static void pointer(StringBuilder b, Protocol.PPointer p) {
@@ -2553,11 +2597,14 @@ public final class ProtocolEmitter {
     /** {@code {"_type":"collection","multiplicity":{n,n},"sourceInformation":…,"values":[…]}} */
     private static void collection(StringBuilder b,
                                    List<com.legend.protocol.spec.ValueSpecification> values,
-                                   SourceInfo pos) {
+                                   @com.legend.Nullable SourceInfo pos) {
         b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
                 .append(values.size()).append(",\"upperBound\":").append(values.size())
-                .append("},\"sourceInformation\":");
-        srcInfo(b, pos);
+                .append('}');
+        if (pos != null) {
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, pos);
+        }
         b.append(",\"values\":[");
         for (int i = 0; i < values.size(); i++) {
             if (i > 0) {
@@ -2566,6 +2613,160 @@ public final class ProtocolEmitter {
             valueSpec(b, values.get(i));
         }
         b.append("]}");
+    }
+
+    /** A ModelStore {@code instances} collection. The engine BUILDS this node
+     *  in its data walker instead of lifting it off the parse tree, so it
+     *  carries no span while its leaves keep theirs — a deliberate emission
+     *  rule, NOT a relaxation of {@link #valueSpec}'s collection guard
+     *  (probe model-instances). */
+    static void instancesCollection(StringBuilder b,
+            com.legend.protocol.spec.ValueSpecification instances) {
+        if (instances instanceof com.legend.protocol.spec.PureCollection c
+                && c.pos() == null) {
+            b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
+                    .append(c.values().size()).append(",\"upperBound\":")
+                    .append(c.values().size()).append("},\"values\":[");
+            for (int i = 0; i < c.values().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                dataInstance(b, c.values().get(i));
+            }
+            b.append("]}");
+            return;
+        }
+        dataInstance(b, instances);
+    }
+
+    /** A non-instance leaf inside ModelStore data, where the engine's data
+     *  walker diverges from the ###Pure walker on two shapes: unary minus
+     *  folds into the literal, and an enum access becomes a real
+     *  {@code enumValue} node rather than a {@code property} on a
+     *  packageableElementPtr (probes neg-literals, enum-refs). */
+    private static void dataLeaf(StringBuilder b,
+            com.legend.protocol.spec.ValueSpecification v) {
+        switch (v) {
+            // the node's span runs the ENUMERATION path through the value —
+            // our two carriers hold those halves separately (probe enum-refs)
+            case com.legend.protocol.spec.EnumValue e ->
+                    enumValueNode(b, e.fullPath(), e.value(),
+                            joinSpans(requirePos(e.enumerationPos(),
+                                            "enum ptr " + e.fullPath()),
+                                    requirePos(e.pos(), "enum value " + e.value())));
+            case com.legend.protocol.spec.AppliedProperty p
+                    when p.receiver() instanceof com.legend.protocol.spec
+                            .PackageableElementPtr ptr ->
+                    enumValueNode(b, ptr.fullPath(), p.property(),
+                            joinSpans(requirePos(ptr.pos(),
+                                            "enum ptr " + ptr.fullPath()),
+                                    requirePos(p.pos(),
+                                            "enum value " + p.property())));
+            default -> valueSpec(b, foldNegation(v));
+        }
+    }
+
+    /** One span running from {@code from}'s start to {@code to}'s end. */
+    private static SourceInfo joinSpans(SourceInfo from, SourceInfo to) {
+        return new SourceInfo(from.sourceId(), from.startLine(),
+                from.startColumn(), to.endLine(), to.endColumn());
+    }
+
+    private static void enumValueNode(StringBuilder b, String fullPath,
+            String value, SourceInfo span) {
+        b.append("{\"_type\":\"enumValue\",\"fullPath\":");
+        str(b, fullPath);
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, span);
+        b.append(",\"value\":");
+        str(b, value);
+        b.append('}');
+    }
+
+    /** {@code -1} inside instance data. The ###Pure walker keeps unary minus
+     *  as a one-parameter {@code minus} call; the DATA walker FOLDS it into a
+     *  negative literal whose span covers the operator AND the digits (probe
+     *  neg-literals). Anything else passes through untouched. */
+    private static com.legend.protocol.spec.ValueSpecification foldNegation(
+            com.legend.protocol.spec.ValueSpecification v) {
+        if (!(v instanceof com.legend.protocol.spec.AppliedFunction f)
+                || !"minus".equals(f.function()) || f.parameters().size() != 1
+                || f.pos() == null) {
+            return v;
+        }
+        com.legend.protocol.spec.ValueSpecification operand = f.parameters().get(0);
+        SourceInfo end = switch (operand) {
+            case com.legend.protocol.spec.CInteger c -> c.pos();
+            case com.legend.protocol.spec.CFloat c -> c.pos();
+            case com.legend.protocol.spec.CDecimal c -> c.pos();
+            default -> null;
+        };
+        if (end == null) {
+            return v;
+        }
+        SourceInfo span = new SourceInfo(end.sourceId(), f.pos().startLine(),
+                f.pos().startColumn(), end.endLine(), end.endColumn());
+        return switch (operand) {
+            case com.legend.protocol.spec.CInteger c ->
+                    new com.legend.protocol.spec.CInteger(
+                            -c.value().longValue(), span);
+            case com.legend.protocol.spec.CFloat c ->
+                    new com.legend.protocol.spec.CFloat(-c.value(), span);
+            // a decimal goes on the wire in its VERBATIM source digits, so the
+            // sign has to move into the spelling too, not just the value
+            case com.legend.protocol.spec.CDecimal c ->
+                    new com.legend.protocol.spec.CDecimal(c.value().negate(),
+                            c.written() == null ? null : "-" + c.written(), span);
+            default -> v;
+        };
+    }
+
+    /** One instance inside ModelStore data. The engine's DATA walker builds
+     *  the {@code new} call itself, so its shape differs from the ###Pure
+     *  walker's {@link #newInstance}: the class arrives as a
+     *  {@code packageableElementPtr} (not a {@code genericTypeInstance}),
+     *  the name argument is the literal {@code "dummy"} (not {@code ""}),
+     *  and every key's expression is wrapped in a span-less collection
+     *  (probe model-instances). */
+    private static void dataInstance(StringBuilder b,
+            com.legend.protocol.spec.ValueSpecification v) {
+        com.legend.protocol.spec.ValueSpecification node = v;
+        if (node instanceof com.legend.protocol.spec.AppliedFunction f
+                && "new".equals(f.function()) && !f.parameters().isEmpty()
+                && f.parameters().get(f.parameters().size() - 1)
+                        instanceof com.legend.protocol.spec.NewInstance) {
+            node = f.parameters().get(f.parameters().size() - 1);
+        }
+        if (!(node instanceof com.legend.protocol.spec.NewInstance ni)) {
+            dataLeaf(b, node);
+            return;
+        }
+        b.append("{\"_type\":\"func\",\"function\":\"new\",\"parameters\":"
+                + "[{\"_type\":\"packageableElementPtr\",\"fullPath\":");
+        str(b, ni.className());
+        b.append("},{\"_type\":\"string\",\"value\":\"dummy\"},"
+                + "{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
+                .append(ni.properties().size()).append(",\"upperBound\":")
+                .append(ni.properties().size()).append("},\"values\":[");
+        boolean first = true;
+        for (java.util.Map.Entry<String, com.legend.protocol.spec.KeyExpression> e
+                : ni.properties().entrySet()) {
+            if (!first) {
+                b.append(',');
+            }
+            first = false;
+            require(!e.getValue().isLocal(), "local key expression", e.getKey());
+            b.append("{\"_type\":\"keyExpression\",\"add\":")
+                    .append(e.getValue().isAdd()).append(",\"expression\":");
+            com.legend.protocol.spec.ValueSpecification kv = e.getValue().value();
+            instancesCollection(b, new com.legend.protocol.spec.PureCollection(
+                    kv instanceof com.legend.protocol.spec.PureCollection kc
+                            ? kc.values() : List.of(kv)));
+            b.append(",\"key\":{\"_type\":\"string\",\"value\":");
+            str(b, e.getKey());
+            b.append("}}");
+        }
+        b.append("]}]}");
     }
 
     private static SourceInfo requirePos(@com.legend.Nullable SourceInfo pos, String what) {

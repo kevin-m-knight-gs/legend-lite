@@ -763,7 +763,7 @@ final class MappingEmitter {
                     b.append('}');
                     continue;
                 }
-                List<Protocol.PModelEmbeddedData> mdl =
+                List<Protocol.PModelData> mdl =
                         java.util.Objects.requireNonNull(sd.modelData());
                 SourceInfo msSi = java.util.Objects.requireNonNull(
                         sd.modelStoreSourceInformation());
@@ -773,14 +773,7 @@ final class MappingEmitter {
                     if (k > 0) {
                         b.append(',');
                     }
-                    Protocol.PModelEmbeddedData md = mdl.get(k);
-                    b.append("{\"_type\":\"modelEmbeddedData\",\"data\":");
-                    embeddedDataValue(b, md.data());
-                    b.append(",\"model\":");
-                    str(b, md.model());
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, md.sourceInformation());
-                    b.append('}');
+                    modelDataEntry(b, mdl.get(k));
                 }
                 b.append("],\"sourceInformation\":");
                 srcInfo(b, msSi);
@@ -882,10 +875,77 @@ final class MappingEmitter {
         b.append('}');
     }
 
+    /** ONE {@code path: <payload>} ModelStore entry — an embedded value or a
+     *  {@code [ ^X(...) ]} instance collection (probe model-instances). */
+    private static void modelDataEntry(StringBuilder b, Protocol.PModelData md) {
+        switch (md) {
+            case Protocol.PModelEmbeddedData e -> {
+                b.append("{\"_type\":\"modelEmbeddedData\",\"data\":");
+                embeddedDataValue(b, e.data());
+            }
+            case Protocol.PModelInstanceData i -> {
+                b.append("{\"_type\":\"modelInstanceData\",\"instances\":");
+                ProtocolEmitter.instancesCollection(b, i.instances());
+            }
+        }
+        b.append(",\"model\":");
+        str(b, md.model());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, md.sourceInformation());
+        b.append('}');
+    }
+
     static void embeddedDataValue(StringBuilder b,
             Protocol.PEmbeddedDataValue v) {
         switch (v) {
             case Protocol.PExternalFormatData ef -> externalFormatData(b, ef);
+            case Protocol.PModelStoreData ms -> {
+                b.append("{\"_type\":\"modelStore\",\"modelData\":[");
+                for (int i = 0; i < ms.modelData().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    modelDataEntry(b, ms.modelData().get(i));
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, ms.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PRelationData rd -> {
+                b.append("{\"_type\":\"relationAccessor\","
+                        + "\"relationElements\":[");
+                for (int i = 0; i < rd.relationElements().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relationElement(b, rd.relationElements().get(i));
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, rd.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PRelationalCsvData rc -> {
+                b.append("{\"_type\":\"relationalCSVData\","
+                        + "\"sourceInformation\":");
+                srcInfo(b, rc.sourceInformation());
+                b.append(",\"tables\":[");
+                for (int i = 0; i < rc.tables().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PRelationalCsvTable t = rc.tables().get(i);
+                    b.append("{\"schema\":");
+                    str(b, t.schema());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, t.sourceInformation());
+                    b.append(",\"table\":");
+                    str(b, t.table());
+                    b.append(",\"values\":");
+                    str(b, t.values());
+                    b.append('}');
+                }
+                b.append("]}");
+            }
             case Protocol.PDataReference dr -> {
                 b.append("{\"_type\":\"reference\",\"dataElement\":");
                 pointer(b, dr.dataElement());

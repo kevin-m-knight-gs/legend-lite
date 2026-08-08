@@ -109,7 +109,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     private Protocol.PDatabase parseDatabase() {
         int declStart = pos;
         expect(TokenType.DATABASE);
-        Decorations dbDec = parseDecorations();
+        TokenStreamCursor.Decorations dbDec = parseDecorations();
         String qn = Protocol.unquotePath(parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
@@ -190,61 +190,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 filters, dbStereotypes, dbSpan);
     }
 
-    private record Decorations(List<Protocol.PStereotype> stereotypes,
-            List<Protocol.PTaggedValue> taggedValues) {
-    }
-
-    /** {@code <<p::P.v, ...>>} and/or {@code {p::P.t = 'v', ...}} before a
-     *  schema/table/view name — VALUE-only stereotype spans (probe
-     *  decorated-schema-table). */
-    private Decorations parseDecorations() {
-        List<Protocol.PStereotype> stereos = new ArrayList<>();
-        List<Protocol.PTaggedValue> tags = new ArrayList<>();
-        if (peek() == TokenType.LESS_THAN) {
-            advance();
-            expect(TokenType.LESS_THAN);
-            while (!atEnd() && peek() != TokenType.GREATER_THAN) {
-                int pS = pos;
-                String profile = Protocol.unquotePath(parseQualifiedName());
-                SourceInfo pSpan = spanOf(pS, pos - 1);
-                expect(TokenType.DOT);
-                int vS = pos;
-                String value = parseIdentifier();
-                stereos.add(new Protocol.PStereotype(profile, value, pSpan,
-                        spanOf(vS, vS)));
-                match(TokenType.COMMA);
-            }
-            expect(TokenType.GREATER_THAN);
-            expect(TokenType.GREATER_THAN);
-        }
-        if (peek() == TokenType.BRACE_OPEN) {
-            advance();
-            while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                int tS = pos;
-                String profile = Protocol.unquotePath(parseQualifiedName());
-                SourceInfo pSpan = spanOf(tS, pos - 1);
-                expect(TokenType.DOT);
-                int vS = pos;
-                String tagName = parseIdentifier();
-                expect(TokenType.EQUAL);
-                String quoted = text();
-                expect(TokenType.STRING);
-                String value = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-                tags.add(new Protocol.PTaggedValue(
-                        new Protocol.PTag(profile, tagName, pSpan,
-                                spanOf(vS, vS)),
-                        value, spanOf(tS, pos - 1)));
-                match(TokenType.COMMA);
-            }
-            expect(TokenType.BRACE_CLOSE);
-        }
-        return new Decorations(stereos, tags);
-    }
 
     private Protocol.PDbSchema parseSchema() {
         int s = pos;
         expect(TokenType.SCHEMA);
-        Decorations dec = parseDecorations();
+        TokenStreamCursor.Decorations dec = parseDecorations();
         int nameTok = pos;
         String name = parseIdentifier();
         currentSchemaDeclSpan = spanOf(nameTok, nameTok);
@@ -299,7 +249,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     private Protocol.PDbTable parseTable() {
         int s = pos;
         expect(TokenType.TABLE);
-        Decorations dec = parseDecorations();
+        TokenStreamCursor.Decorations dec = parseDecorations();
         String name = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PDbColumn> columns = new ArrayList<>();
@@ -476,7 +426,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     private Protocol.PDbView parseView(String schemaCtx) {
         int s = pos;
         expect(TokenType.VIEW);
-        Decorations dec = parseDecorations();
+        TokenStreamCursor.Decorations dec = parseDecorations();
         String name = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
         boolean distinct = false;

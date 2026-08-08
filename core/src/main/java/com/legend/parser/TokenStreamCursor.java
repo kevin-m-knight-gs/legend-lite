@@ -615,6 +615,57 @@ public interface TokenStreamCursor {
 
     /** A {@link com.legend.protocol.SourceInfo} covering an inclusive token range,
      *  in the engine's 1-based / inclusive-end convention. */
+    record Decorations(java.util.List<com.legend.protocol.Protocol.PStereotype> stereotypes,
+            java.util.List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {
+    }
+
+    /** {@code <<p::P.v, ...>>} and/or {@code {p::P.t = 'v', ...}} before a
+     *  schema/table/view name — VALUE-only stereotype spans (probe
+     *  decorated-schema-table). */
+    default Decorations parseDecorations() {
+        java.util.List<com.legend.protocol.Protocol.PStereotype> stereos = new java.util.ArrayList<>();
+        java.util.List<com.legend.protocol.Protocol.PTaggedValue> tags = new java.util.ArrayList<>();
+        if (peek() == TokenType.LESS_THAN) {
+            advance();
+            expect(TokenType.LESS_THAN);
+            while (!atEnd() && peek() != TokenType.GREATER_THAN) {
+                int pS = pos();
+                String profile = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
+                com.legend.protocol.SourceInfo pSpan = spanOf(pS, pos() - 1);
+                expect(TokenType.DOT);
+                int vS = pos();
+                String value = parseIdentifier();
+                stereos.add(new com.legend.protocol.Protocol.PStereotype(profile, value, pSpan,
+                        spanOf(vS, vS)));
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.GREATER_THAN);
+            expect(TokenType.GREATER_THAN);
+        }
+        if (peek() == TokenType.BRACE_OPEN) {
+            advance();
+            while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                int tS = pos();
+                String profile = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
+                com.legend.protocol.SourceInfo pSpan = spanOf(tS, pos() - 1);
+                expect(TokenType.DOT);
+                int vS = pos();
+                String tagName = parseIdentifier();
+                expect(TokenType.EQUAL);
+                String quoted = text();
+                expect(TokenType.STRING);
+                String value = unquoteAndUnescape(quoted, this);
+                tags.add(new com.legend.protocol.Protocol.PTaggedValue(
+                        new com.legend.protocol.Protocol.PTag(profile, tagName, pSpan,
+                                spanOf(vS, vS)),
+                        value, spanOf(tS, pos() - 1)));
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.BRACE_CLOSE);
+        }
+        return new Decorations(stereos, tags);
+    }
+
     default com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
         TokenStream ts = tokens();
         return new com.legend.protocol.SourceInfo(spanSourceId(),
