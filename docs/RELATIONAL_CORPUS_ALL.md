@@ -85,7 +85,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 30 | 26 | 2 | 2 | 0 | 9 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 52 | 43 | 2 | 7 | 0 | 10 |
+| tests/mapping/modelJoin | 52 | 44 | 2 | 6 | 0 | 11 |
 | tests/mapping/multigrain | 6 | 5 | 0 | 1 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation | 109 | 103 | 5 | 0 | 1 | 0 |
@@ -100,7 +100,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2798 | **2398** | 133 | 153 | 114 | 263 |
+| **total** | 2798 | **2399** | 133 | 152 | 114 | 264 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1273,8 +1273,8 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testGraphFetch [graphFetch/domain]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::function::FunctionDefinition has no property 'expressionSequence'
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: from() argument 2 must be a mapping or runtime reference, got TypedCopyInstance
-- SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:3] expected COLON but found VALID_STRING ('test')
-- SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:3] expected COLON but found VALID_STRING ('test')
+- SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [190:24] expected type name, got BRACKET_OPEN
+- SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [190:24] expected type name, got BRACKET_OPEN
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - ERROR testEmbeddedMappingQualifiedPropertyAccess2 [graphFetch/tests]: derived graph leaf 'maxEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testEmbeddedMappingQualifiedPropertyAccessWithArgs [graphFetch/tests]: derived graph leaf 'employeeByLastNameFirstName' body node TypedPropertyAccess referencing $this is not inlinable yet
@@ -1482,7 +1482,6 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - FAIL testChainedTwoHops [tests/mapping/modelJoin]: assertEquals: expected [Apple, null, Apple, ProjectY, Apple, ProjectX, Google, ProjectZ], got [Apple, ProjectY, Apple, ProjectX, Apple, null, Google, ProjectZ]
-- ERROR testFilterWithInnerJoinOnTarget [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::FilterWithInnerJoinOnTargetMapping' (Join 'PersonProfile' references multiple non-source tables [personTable, profileTable]; multi-table joins not supp
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testRelationalSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
@@ -1511,8 +1510,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
-- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
-- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
+- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
+- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: expected at most one value, got many ([*])
