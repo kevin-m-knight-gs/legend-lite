@@ -29,16 +29,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EngineSectionRosterTest {
 
-    /** Sections engine registered at the pinned oracle version (5.88.1).
-     *  A pull that ADDS one should widen the census, not pass in silence. */
-    private static final int MIN_SECTIONS = 22;
+    /** Sections engine can parse at the pinned oracle version (5.88.1):
+     *  21 extension + 4 core. A pull that ADDS one should widen the census,
+     *  not pass in silence. */
+    private static final int MIN_SECTIONS = 25;
 
     @Test
     void listEverySectionEngineCanParse() {
-        // Walk every registered extension and ask IT for its section
-        // parsers. PureGrammarParserExtensions indexes BY NAME
-        // (getExtraSectionParser(type)) and cannot be enumerated, so the
-        // ServiceLoader is the way in.
+        // TWO registries, and missing the second is how a denominator ends
+        // up wrong. EXTENSION sections implement `SectionParser` and are
+        // ServiceLoader-discovered. The four CORE sections implement
+        // `DEPRECATED_SectionGrammarParser` instead — DomainParser "Pure",
+        // MappingParser "Mapping", ConnectionParser "Connection",
+        // RuntimeParser "Runtime" — and are wired in by hand, so they appear
+        // in NEITHER a ServiceLoader walk nor a grep for section literals.
+        // PureGrammarParser dispatches every `###X` through one lookup
+        // (PureGrammarParser:153), so the roster is the union.
         List<String> names = new ArrayList<>();
         for (PureGrammarParserExtension ext
                 : java.util.ServiceLoader.load(PureGrammarParserExtension.class)) {
@@ -46,9 +52,20 @@ class EngineSectionRosterTest {
                 names.add(p.getSectionTypeName());
             }
         }
-        // ###Pure is the implicit default section and has no extension
+        for (Class<?> core : List.of(
+                org.finos.legend.engine.language.pure.grammar.from.domain.DomainParser.class,
+                org.finos.legend.engine.language.pure.grammar.from.mapping.MappingParser.class,
+                org.finos.legend.engine.language.pure.grammar.from.connection.ConnectionParser.class,
+                org.finos.legend.engine.language.pure.grammar.from.runtime.RuntimeParser.class)) {
+            try {
+                names.add((String) core.getField("name").get(null));
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("core section parser "
+                        + core.getSimpleName() + " no longer exposes `name`"
+                        + " — the roster would silently shrink", e);
+            }
+        }
         TreeSet<String> sorted = new TreeSet<>(names);
-        sorted.add("Pure");
 
         System.out.println("[engine-sections] " + sorted.size()
                 + " sections engine can parse:");

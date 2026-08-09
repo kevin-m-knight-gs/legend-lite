@@ -27,40 +27,57 @@ call. Two of those helpers were one-line wrappers over the protocol path that
 read exactly like the un-migrated arms — which is how a reader (this one)
 concluded that eight arms were un-migrated when the real number was four.
 
-## The denominator: all 22 sections legend-engine can parse
+## The denominator: all 25 sections legend-engine can parse
 
-Asked of engine's own extension registry by `EngineSectionRosterTest`, not
-grepped — section names live behind constants, so grepping finds four and
-misses eighteen. The test fails if the roster shrinks, so an upstream pull
-that adds a section widens this table instead of passing in silence.
+Asked of engine's own registries by `EngineSectionRosterTest`, not grepped.
+There are **TWO** registries and missing the second is how a denominator ends
+up wrong: extension sections implement `SectionParser` and are
+ServiceLoader-discovered, while the four CORE sections implement
+`DEPRECATED_SectionGrammarParser` and are wired in by hand — so `Pure`,
+`Mapping`, `Connection` and `Runtime` appear in NEITHER a ServiceLoader walk
+nor a grep for section literals. `PureGrammarParser:153` dispatches every
+`###X` through one lookup, so the roster is the union: **21 + 4 = 25**.
+
+(A first cut of this table said 22, listed 25 names, and collapsed twelve of
+them into two "1 each" rows. Every part of that was wrong.)
 
 **Defects are attributed to the SECTION they occur in**, not to the section
-their error message happens to name. That distinction matters: a first cut
-counted only messages of the form `'X' is not a known section parser` and so
-reported `###Pure: 0` while 37 of its files were failing on `Measure`. A
-section is not done because its name stopped appearing in error text.
+their error message happens to name — a first cut counted only
+`'X' is not a known section parser` and so reported `###Pure: 0` while 37 of
+its files were failing on `Measure`. A section is not done because its name
+stopped appearing in error text.
 
-| section | defects | walls | oos | state |
-|---|---:|---:|---:|---|
-| **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3), nothing outstanding |
-| **Connection** | **51** | **30** | 0 | DUAL-PATH; protocol side exists and is better than the live one |
-| **Pure** | **37** | 0 | 0 | mostly protocol-first; **Measure**, **native function**, **Primitive** are not |
-| **Service** | **27** | 0 | **135** | straight-to-model, no protocol side |
-| **Mapping** | **25** | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
-| DataSpace | 13 | 0 | 51 | no section parser |
-| Snowflake | 6 | 0 | 31 | no section parser |
-| Diagram | 5 | 0 | 17 | carried opaque |
-| Runtime | 3 | 0 | 0 | DUAL-PATH; protocol side exists |
-| FileGeneration | 3 | 0 | 7 | no section parser |
-| ExternalFormat | 2 | 0 | 77 | no section parser; 2nd biggest oos |
-| Persistence | 0 | 0 | 53 | no section parser; 3rd biggest oos |
-| ServiceStore | 1 | 0 | 32 | no section parser |
-| BigQuery · DataQualityValidation · FunctionJar · GenerationSpecification · HostedService · MemSql · MongoDB · Text | 1 each | 0 | 3–7 each | no section parser |
-| Deephaven · Elasticsearch · QueryPostProcessor · Data | 0 | 0 | 0–5 | Data is claimed (opaque); the rest unbuilt |
+| # | section | defects | walls | oos | state |
+|--:|---|---:|---:|---:|---|
+| 1 | **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3) |
+| 2 | **Connection** | **51** | **30** | 0 | DUAL-PATH; protocol side exists and is better than the live one |
+| 3 | **Pure** | **37** | 0 | 0 | mostly protocol-first; **Measure**, **native function**, **Primitive** are not |
+| 4 | **Service** | **27** | 0 | **135** | straight-to-model, no protocol side |
+| 5 | **Mapping** | **25** | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
+| 6 | DataSpace | 13 | 0 | 51 | no section parser |
+| 7 | Snowflake | 6 | 0 | 31 | no section parser |
+| 8 | Diagram | 5 | 0 | 17 | carried opaque |
+| 9 | Runtime | 3 | 0 | 0 | DUAL-PATH; protocol side exists |
+| 10 | FileGeneration | 3 | 0 | 7 | no section parser |
+| 11 | ExternalFormat | 2 | 0 | 77 | no section parser; 2nd biggest oos |
+| 12 | ServiceStore | 1 | 0 | 32 | no section parser |
+| 13 | MemSql | 1 | 0 | 7 | no section parser |
+| 14 | BigQuery | 1 | 0 | 5 | no section parser |
+| 15 | GenerationSpecification | 1 | 0 | 5 | no section parser |
+| 16 | HostedService | 1 | 0 | 4 | no section parser |
+| 17 | DataQualityValidation | 1 | 0 | 3 | no section parser |
+| 18 | FunctionJar | 1 | 0 | 3 | no section parser |
+| 19 | MongoDB | 1 | 0 | 3 | no section parser |
+| 20 | Text | 1 | 0 | 1 | no section parser |
+| 21 | Persistence | 0 | 0 | 53 | no section parser; 3rd biggest oos |
+| 22 | Deephaven | 0 | 0 | 5 | no section parser |
+| 23 | Elasticsearch | 0 | 0 | 1 | no section parser |
+| 24 | QueryPostProcessor | 0 | 0 | 0 | no section parser; not seen in the corpus |
+| 25 | **Data** | 0 | 0 | 0 | claimed, carried opaque |
 
-**Only ONE section is actually finished.** `###Relational` has zero defects and
-zero walls. `###Pure` and `###Mapping` are commonly described as done — they
-are protocol-first, which is a different and weaker claim.
+**We claim 5 of 25 sections and only ONE is finished.** `###Relational` has
+zero defects and zero walls. `###Pure` and `###Mapping` are routinely called
+done — they are protocol-first, which is a different and weaker claim.
 
 ## The element arms inside the sections we claim
 
