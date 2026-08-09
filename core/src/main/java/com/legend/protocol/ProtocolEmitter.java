@@ -734,6 +734,10 @@ public final class ProtocolEmitter {
                     }
                     b.append(']');
                 }
+                if (rc.quoteIdentifiers() != null) {
+                    b.append(",\"quoteIdentifiers\":")
+                            .append(rc.quoteIdentifiers());
+                }
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, rc.sourceInformation());
                 if (rc.timeZone() != null) {
@@ -801,6 +805,39 @@ public final class ProtocolEmitter {
                 srcInfo(b, k.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PSnowflakePublic s -> {
+                b.append("{\"_type\":\"snowflakePublic\","
+                        + "\"passPhraseVaultReference\":");
+                str(b, s.passPhraseVaultReference());
+                b.append(",\"privateKeyVaultReference\":");
+                str(b, s.privateKeyVaultReference());
+                b.append(",\"publicUserName\":");
+                str(b, s.publicUserName());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PGCPApplicationDefaultCredentials g -> {
+                b.append("{\"_type\":\"gcpApplicationDefaultCredentials\","
+                        + "\"sourceInformation\":");
+                srcInfo(b, g.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PApiToken a2 -> {
+                b.append("{\"_type\":\"apiToken\",\"apiToken\":");
+                str(b, a2.apiToken());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, a2.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PMiddleTierUserNamePassword m -> {
+                b.append("{\"_type\":\"middleTierUserNamePassword\","
+                        + "\"sourceInformation\":");
+                srcInfo(b, m.sourceInformation());
+                b.append(",\"vaultReference\":");
+                str(b, m.vaultReference());
+                b.append('}');
+            }
             case Protocol.PNoAuth n -> require(false,
                     "lite-extension NoAuth strategy (no engine wire shape)",
                     "connection");
@@ -866,6 +903,72 @@ public final class ProtocolEmitter {
                 b.append(",\"port\":").append(st.port());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, st.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PSnowflakeSpec s -> {
+                b.append("{\"_type\":\"snowflake\",\"accountName\":");
+                str(b, s.accountName());
+                if (s.accountType() != null) {
+                    b.append(",\"accountType\":");
+                    str(b, s.accountType());
+                }
+                if (s.cloudType() != null) {
+                    b.append(",\"cloudType\":");
+                    str(b, s.cloudType());
+                }
+                b.append(",\"databaseName\":");
+                str(b, s.databaseName());
+                if (s.enableQueryTags() != null) {
+                    b.append(",\"enableQueryTags\":")
+                            .append(s.enableQueryTags());
+                }
+                if (s.organization() != null) {
+                    b.append(",\"organization\":");
+                    str(b, s.organization());
+                }
+                b.append(",\"region\":");
+                str(b, s.region());
+                if (s.role() != null) {
+                    b.append(",\"role\":");
+                    str(b, s.role());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append(",\"warehouseName\":");
+                str(b, s.warehouseName());
+                b.append('}');
+            }
+            case Protocol.PSpannerSpec s -> {
+                b.append("{\"_type\":\"spanner\",\"databaseId\":");
+                str(b, s.databaseId());
+                b.append(",\"instanceId\":");
+                str(b, s.instanceId());
+                b.append(",\"projectId\":");
+                str(b, s.projectId());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PDatabricksSpec s -> {
+                b.append("{\"_type\":\"databricks\",\"hostname\":");
+                str(b, s.hostname());
+                b.append(",\"httpPath\":");
+                str(b, s.httpPath());
+                b.append(",\"port\":");
+                str(b, s.port());
+                b.append(",\"protocol\":");
+                str(b, s.protocol());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PBigQuerySpec s -> {
+                b.append("{\"_type\":\"bigQuery\",\"defaultDataset\":");
+                str(b, s.defaultDataset());
+                b.append(",\"projectId\":");
+                str(b, s.projectId());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
                 b.append('}');
             }
             case Protocol.PInMemory im -> require(false,

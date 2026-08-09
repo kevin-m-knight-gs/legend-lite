@@ -11,7 +11,11 @@ public sealed interface ConnectionSpecification
         permits ConnectionSpecification.InMemory,
                 ConnectionSpecification.LocalFile,
                 ConnectionSpecification.LocalH2,
-                ConnectionSpecification.StaticDatasource {
+                ConnectionSpecification.StaticDatasource,
+                ConnectionSpecification.Snowflake,
+                ConnectionSpecification.Spanner,
+                ConnectionSpecification.Databricks,
+                ConnectionSpecification.BigQuery {
 
     /**
      * In-memory database connection (DuckDB / SQLite / H2). No configuration.
@@ -47,4 +51,26 @@ public sealed interface ConnectionSpecification
      * Pure: {@code specification: Static { host: '...'; port: 5432; database: '...'; };}.
      */
     record StaticDatasource(String host, int port, String database) implements ConnectionSpecification {}
+
+    /** Engine's Snowflake datasource; carried for parse coverage — dialect
+     *  selection refuses Snowflake execution loudly. */
+    record Snowflake(String databaseName, String accountName, String warehouseName,
+            String region, @com.legend.Nullable String accountType,
+            @com.legend.Nullable String cloudType,
+            @com.legend.Nullable Boolean enableQueryTags,
+            @com.legend.Nullable String organization,
+            @com.legend.Nullable String role)
+            implements ConnectionSpecification {}
+
+    /** Engine's GCP Spanner datasource; carried for parse coverage. */
+    record Spanner(String projectId, String instanceId, String databaseId)
+            implements ConnectionSpecification {}
+
+    /** Engine's Databricks datasource; carried for parse coverage. */
+    record Databricks(String hostname, String port, String protocol,
+            String httpPath) implements ConnectionSpecification {}
+
+    /** Engine's BigQuery datasource; carried for parse coverage. */
+    record BigQuery(String projectId, String defaultDataset)
+            implements ConnectionSpecification {}
 }

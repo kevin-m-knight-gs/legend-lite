@@ -86,9 +86,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 
 | metric | value | meaning |
 |---|---:|---|
-| MATCH (byte-equal) | **25,474** | elements whose JSON is byte-identical to engine's |
+| MATCH (byte-equal) | **25,489** | elements whose JSON is byte-identical to engine's (+15 from the connection widening) |
 | DIFF | **0** | a non-zero here is a BUG, not a gap |
-| WALL | 104 | elements we REFUSE to produce (loud, named) |
+| WALL | 74 | elements we REFUSE to produce (loud, named) — was 104; the connection cluster cleared |
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
@@ -203,7 +203,7 @@ Defects attributed to the section they OCCUR in; sums to 184.
 |--:|---|---:|---:|---:|---|
 | 1 | **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3) |
 | 2 | **Pure** | **1** (+5 islands) | 0 | 0 | one element short: **Measure** |
-| 3 | **Connection** | 14 | **30** | 0 | **first real `SectionGrammar`** (2026-08-09); twin deleted; left: spec/auth widening 11 (Snowflake 7, Spanner/Databricks/BigQuery 1 each, MiddleTierUserNamePassword 1) + foreign flavors 3 (Deephaven 2, MongoDB 1) |
+| 3 | **Connection** | 3 | 0 | 0 | **first real `SectionGrammar`** (2026-08-09); twin deleted; widening LANDED (Snowflake/Spanner/Databricks/BigQuery specs, SnowflakePublic/GCP/ApiToken/MiddleTier auths, quoteIdentifiers — probed byte-exact, +15 MATCH, −30 WALL); left: foreign flavors only (Deephaven 2, MongoDB 1) |
 | 4 | **Service** | 27 | 0 | **135** | straight-to-model, no protocol side |
 | 5 | **Mapping** | 25 | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
 | 6 | DataSpace | 13 | 0 | 51 | unbuilt |
@@ -442,15 +442,15 @@ A section that satisfies (1) alone is "protocol-first", which is what
    store (`Map<String, List<String>>`), non-json embedded islands hoist to
    anonymous `$`-sigil elements registered by `ModelBuilder.ingestRuntime`,
    `connectionStores` parses; all three runtime twins deleted.
-3. **Connection spec/auth widening — 11 defects + 30 walls.** Add
-   corpus-censused `PDatasourceSpec`/`PAuthStrategy` flavors (Snowflake 7,
-   Spanner/Databricks/BigQuery, MiddleTierUserNamePassword). Wire shapes must
-   be PROBED first (ZConnectionProbe pattern) — each new record needs an
-   emitter arm proven byte-exact.
+3. ~~**Connection spec/auth widening**~~ — **LANDED 2026-08-09** (probe:
+   `ZConnWidenProbe`): +15 MATCH, WALL 104 → 74, every spec/auth defect
+   bucket at zero. DEFECT stayed 142 — those files' NEXT gap is an
+   unregistered section (`'X' is not a known section parser` grew 97 → 108),
+   which is worklist items 5–6's territory.
 4. **Measure** — protocol parse EXISTS and NOTHING calls it. Needs a model
    type, a transform, one arm. Finishes `###Pure`.
-5. **Service — 135 oos + a large share of the 85 section-refusal files.**
-   Biggest single section and the only one genuinely from scratch.
+5. **Service — 135 oos + the biggest share of the 108 section-refusal
+   files.** Biggest single section and the only one genuinely from scratch.
 6. **DataSpace** (51 oos), **ExternalFormat** (77 oos), **Persistence**
    (53 oos), **ServiceStore** (32 oos), **Snowflake** (31 oos), then the tail.
 

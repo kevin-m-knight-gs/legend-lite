@@ -503,6 +503,18 @@ public final class FromProtocol {
             case Protocol.PInMemory im -> new ConnectionSpecification.InMemory();
             case Protocol.PLocalFile lf ->
                     new ConnectionSpecification.LocalFile(lf.path());
+            case Protocol.PSnowflakeSpec s -> new ConnectionSpecification
+                    .Snowflake(s.databaseName(), s.accountName(),
+                            s.warehouseName(), s.region(), s.accountType(),
+                            s.cloudType(), s.enableQueryTags(),
+                            s.organization(), s.role());
+            case Protocol.PSpannerSpec s -> new ConnectionSpecification
+                    .Spanner(s.projectId(), s.instanceId(), s.databaseId());
+            case Protocol.PDatabricksSpec s -> new ConnectionSpecification
+                    .Databricks(s.hostname(), s.port(), s.protocol(),
+                            s.httpPath());
+            case Protocol.PBigQuerySpec s -> new ConnectionSpecification
+                    .BigQuery(s.projectId(), s.defaultDataset());
         };
         AuthenticationSpec auth = switch (r.authenticationStrategy()) {
             case Protocol.PH2Default d -> new AuthenticationSpec.DefaultH2();
@@ -517,7 +529,21 @@ public final class FromProtocol {
             case Protocol.PPlainUserPassword p ->
                     new AuthenticationSpec.UsernamePassword(p.username(),
                             p.passwordVaultRef());
+            case Protocol.PSnowflakePublic s ->
+                    new AuthenticationSpec.SnowflakePublic(s.publicUserName(),
+                            s.privateKeyVaultReference(),
+                            s.passPhraseVaultReference());
+            case Protocol.PGCPApplicationDefaultCredentials g ->
+                    new AuthenticationSpec.GCPApplicationDefaultCredentials();
+            case Protocol.PApiToken a ->
+                    new AuthenticationSpec.ApiToken(a.apiToken());
+            case Protocol.PMiddleTierUserNamePassword m ->
+                    new AuthenticationSpec.MiddleTierUserNamePassword(
+                            m.vaultReference());
         };
+        // quoteIdentifiers rides the PROTOCOL record only (wire parity);
+        // lite's SQL renderers decide quoting themselves, so the model
+        // deliberately does not carry it
         return new ConnectionDefinition(qualifiedName, r.element(), type, spec,
                 auth);
     }

@@ -230,6 +230,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         Protocol.PDatasourceSpec spec = null;
         Protocol.PAuthStrategy auth = null;
         List<Protocol.PMapperPostProcessor> posts = new ArrayList<>();
+        Boolean quoteIdentifiers = null;
         String timeZone = null;
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int kS = c.pos();
@@ -249,6 +250,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 case "specification" -> spec = parseDatasourceSpec(c, kS);
                 case "auth" -> auth = parseAuthStrategy(c, kS);
                 case "postProcessors" -> parseMapperPostProcessors(c, posts);
+                case "quoteIdentifiers" -> {
+                    quoteIdentifiers = parseBoolean(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
                 case "timezone" -> {
                     // the VALUE keeps its quotes on the wire (probe timezone)
                     timeZone = c.text();
@@ -278,8 +283,27 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             auth = new Protocol.PNoAuth(c.spanOf(declStart, c.pos() - 1));
         }
         return new Protocol.PRelationalDatabaseConnection(
-                auth, dbType, spec, element, elementSpan, posts, timeZone,
-                c.spanOf(declStart, c.pos() - 1));
+                auth, dbType, spec, element, elementSpan, posts,
+                quoteIdentifiers, timeZone, c.spanOf(declStart, c.pos() - 1));
+    }
+
+    private static Boolean parseBoolean(TokenStreamCursor c) {
+        if (c.peek() == TokenType.TRUE) {
+            c.advance();
+            return Boolean.TRUE;
+        }
+        if (c.peek() == TokenType.FALSE) {
+            c.advance();
+            return Boolean.FALSE;
+        }
+        throw c.error("expected true or false, got " + c.safeText());
+    }
+
+    /** One {@code key: 'string';} value. */
+    private static String stringValue(TokenStreamCursor c) {
+        String quoted = c.text();
+        c.expect(TokenType.STRING);
+        return TokenStreamCursor.unquoteAndUnescape(quoted, c);
     }
 
     /** {@code postProcessors: [ mapper { mappers: [ table {...}, schema
@@ -468,6 +492,124 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PLocalFile(path,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
+            case "Snowflake" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String name = null;
+                String account = null;
+                String warehouse = null;
+                String region = null;
+                String accountType = null;
+                String cloudType = null;
+                Boolean enableQueryTags = null;
+                String organization = null;
+                String role = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "name" -> name = stringValue(c);
+                        case "account" -> account = stringValue(c);
+                        case "warehouse" -> warehouse = stringValue(c);
+                        case "region" -> region = stringValue(c);
+                        // a BARE enum identifier (VPS / MultiTenant)
+                        case "accountType" -> accountType = c.parseIdentifier();
+                        case "cloudType" -> cloudType = stringValue(c);
+                        case "enableQueryTags" ->
+                                enableQueryTags = parseBoolean(c);
+                        case "organization" -> organization = stringValue(c);
+                        case "role" -> role = stringValue(c);
+                        default -> throw c.error("unknown Snowflake key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (name == null || account == null || warehouse == null
+                        || region == null) {
+                    throw c.error("Snowflake needs name, account, warehouse"
+                            + " and region");
+                }
+                yield new Protocol.PSnowflakeSpec(account, accountType,
+                        cloudType, name, enableQueryTags, organization, region,
+                        role, warehouse, c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "Spanner" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String projectId = null;
+                String instanceId = null;
+                String databaseId = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "projectId" -> projectId = stringValue(c);
+                        case "instanceId" -> instanceId = stringValue(c);
+                        case "databaseId" -> databaseId = stringValue(c);
+                        default -> throw c.error("unknown Spanner key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (projectId == null || instanceId == null
+                        || databaseId == null) {
+                    throw c.error("Spanner needs projectId, instanceId and"
+                            + " databaseId");
+                }
+                yield new Protocol.PSpannerSpec(databaseId, instanceId,
+                        projectId, c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "Databricks" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String hostname = null;
+                String port = null;
+                String protocol = null;
+                String httpPath = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "hostname" -> hostname = stringValue(c);
+                        // port is a quoted STRING in source and on the wire
+                        case "port" -> port = stringValue(c);
+                        case "protocol" -> protocol = stringValue(c);
+                        case "httpPath" -> httpPath = stringValue(c);
+                        default -> throw c.error("unknown Databricks key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (hostname == null || port == null || protocol == null
+                        || httpPath == null) {
+                    throw c.error("Databricks needs hostname, port, protocol"
+                            + " and httpPath");
+                }
+                yield new Protocol.PDatabricksSpec(hostname, httpPath, port,
+                        protocol, c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "BigQuery" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String projectId = null;
+                String defaultDataset = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "projectId" -> projectId = stringValue(c);
+                        case "defaultDataset" -> defaultDataset = stringValue(c);
+                        default -> throw c.error("unknown BigQuery key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (projectId == null || defaultDataset == null) {
+                    throw c.error("BigQuery needs projectId and defaultDataset");
+                }
+                yield new Protocol.PBigQuerySpec(defaultDataset, projectId,
+                        c.spanOf(keywordTok, c.pos() - 1));
+            }
             default -> throw c.error("unsupported datasource specification: "
                     + kind + " (corpus-censused shapes only)");
         };
@@ -580,6 +722,87 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             + " passwordVaultRef");
                 }
                 yield new Protocol.PPlainUserPassword(username, passRef,
+                        c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "SnowflakePublic" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String publicUserName = null;
+                String privateKey = null;
+                String passPhrase = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "publicUserName" -> publicUserName = stringValue(c);
+                        case "privateKeyVaultReference" ->
+                                privateKey = stringValue(c);
+                        case "passPhraseVaultReference" ->
+                                passPhrase = stringValue(c);
+                        default -> throw c.error(
+                                "unknown SnowflakePublic key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (publicUserName == null || privateKey == null
+                        || passPhrase == null) {
+                    throw c.error("SnowflakePublic needs publicUserName,"
+                            + " privateKeyVaultReference and"
+                            + " passPhraseVaultReference");
+                }
+                yield new Protocol.PSnowflakePublic(passPhrase, privateKey,
+                        publicUserName, c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "GCPApplicationDefaultCredentials" -> {
+                if (c.peek() == TokenType.BRACE_OPEN) {
+                    c.advance();                // optional EMPTY body
+                    c.expect(TokenType.BRACE_CLOSE);
+                }
+                c.expect(TokenType.SEMI_COLON);
+                yield new Protocol.PGCPApplicationDefaultCredentials(
+                        c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "ApiToken" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String apiToken = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    if (!"apiToken".equals(key)) {
+                        throw c.error("unknown ApiToken key: " + key);
+                    }
+                    apiToken = stringValue(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (apiToken == null) {
+                    throw c.error("ApiToken needs apiToken");
+                }
+                yield new Protocol.PApiToken(apiToken,
+                        c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "MiddleTierUserNamePassword" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String vaultReference = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    if (!"vaultReference".equals(key)) {
+                        throw c.error(
+                                "unknown MiddleTierUserNamePassword key: " + key);
+                    }
+                    vaultReference = stringValue(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (vaultReference == null) {
+                    throw c.error("MiddleTierUserNamePassword needs"
+                            + " vaultReference");
+                }
+                yield new Protocol.PMiddleTierUserNamePassword(vaultReference,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             default -> throw c.error("unsupported auth strategy: " + kind

@@ -12,7 +12,11 @@ public sealed interface AuthenticationSpec
                 AuthenticationSpec.UsernamePassword,
                 AuthenticationSpec.TestAuth,
                 AuthenticationSpec.DelegatedKerberos,
-                AuthenticationSpec.VaultUserNamePassword {
+                AuthenticationSpec.VaultUserNamePassword,
+                AuthenticationSpec.SnowflakePublic,
+                AuthenticationSpec.GCPApplicationDefaultCredentials,
+                AuthenticationSpec.ApiToken,
+                AuthenticationSpec.MiddleTierUserNamePassword {
 
     /** No authentication. Used for in-memory databases and local development. */
     record NoAuth() implements AuthenticationSpec {}
@@ -40,5 +44,20 @@ public sealed interface AuthenticationSpec
      *  {@link UsernamePassword}'s literal username. */
     record VaultUserNamePassword(@com.legend.Nullable String baseVaultReference,
             String userNameVaultReference, String passwordVaultReference)
+            implements AuthenticationSpec {}
+
+    /** Engine's Snowflake public-key auth; carried for parse coverage. */
+    record SnowflakePublic(String publicUserName,
+            String privateKeyVaultReference, String passPhraseVaultReference)
+            implements AuthenticationSpec {}
+
+    /** Engine's bodyless GCP application-default-credentials auth. */
+    record GCPApplicationDefaultCredentials() implements AuthenticationSpec {}
+
+    /** Engine's API-token auth (Databricks). */
+    record ApiToken(String apiToken) implements AuthenticationSpec {}
+
+    /** Engine's middle-tier vault-reference auth. */
+    record MiddleTierUserNamePassword(String vaultReference)
             implements AuthenticationSpec {}
 }

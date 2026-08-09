@@ -952,6 +952,7 @@ public final class Protocol {
             @com.legend.Nullable String element,
             @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
             List<PMapperPostProcessor> postProcessors,
+            @com.legend.Nullable Boolean quoteIdentifiers,
             @com.legend.Nullable String timeZone,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
@@ -979,7 +980,46 @@ public final class Protocol {
      *  DuckDB-first operation. The extension flavors have NO engine wire
      *  shape — {@link ProtocolEmitter} refuses them loudly. */
     public sealed interface PDatasourceSpec
-            permits PH2Local, PStaticSpec, PInMemory, PLocalFile {
+            permits PH2Local, PStaticSpec, PInMemory, PLocalFile,
+            PSnowflakeSpec, PSpannerSpec, PDatabricksSpec, PBigQuerySpec {
+    }
+
+    /** {@code _type:"snowflake"} — source keys rename on the wire:
+     *  {@code name}&rarr;databaseName, {@code account}&rarr;accountName,
+     *  {@code warehouse}&rarr;warehouseName; optional fields omitted when
+     *  absent (probe ZConnWidenProbe). */
+    public record PSnowflakeSpec(String accountName,
+                                 @com.legend.Nullable String accountType,
+                                 @com.legend.Nullable String cloudType,
+                                 String databaseName,
+                                 @com.legend.Nullable Boolean enableQueryTags,
+                                 @com.legend.Nullable String organization,
+                                 String region,
+                                 @com.legend.Nullable String role,
+                                 String warehouseName,
+                                 com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"spanner"} (probe ZConnWidenProbe). */
+    public record PSpannerSpec(String databaseId, String instanceId,
+                               String projectId,
+                               com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"databricks"} — port stays a STRING on the wire
+     *  (probe ZConnWidenProbe). */
+    public record PDatabricksSpec(String hostname, String httpPath,
+                                  String port, String protocol,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"bigQuery"} (probe ZConnWidenProbe). */
+    public record PBigQuerySpec(String defaultDataset, String projectId,
+                                com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
     }
 
     /** {@code _type:"h2Local"}; testDataSetupCsv/Sqls omitted when absent
@@ -1020,7 +1060,36 @@ public final class Protocol {
      *  {@link PPlainUserPassword}); the extensions refuse to emit. */
     public sealed interface PAuthStrategy
             permits PH2Default, PTestAuth, PDelegatedKerberos,
-            PUserNamePassword, PNoAuth, PPlainUserPassword {
+            PUserNamePassword, PNoAuth, PPlainUserPassword,
+            PSnowflakePublic, PGCPApplicationDefaultCredentials, PApiToken,
+            PMiddleTierUserNamePassword {
+    }
+
+    /** {@code _type:"snowflakePublic"} (probe ZConnWidenProbe). */
+    public record PSnowflakePublic(String passPhraseVaultReference,
+                                   String privateKeyVaultReference,
+                                   String publicUserName,
+                                   com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
+    /** {@code _type:"gcpApplicationDefaultCredentials"} — bodyless
+     *  (probe ZConnWidenProbe). */
+    public record PGCPApplicationDefaultCredentials(
+            com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
+    /** {@code _type:"apiToken"} (probe ZConnWidenProbe). */
+    public record PApiToken(String apiToken,
+                            com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
+    /** {@code _type:"middleTierUserNamePassword"} (probe ZConnWidenProbe). */
+    public record PMiddleTierUserNamePassword(String vaultReference,
+                                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
     }
 
     /** legend-lite extension: {@code NoAuth {}}. No engine wire shape. */
