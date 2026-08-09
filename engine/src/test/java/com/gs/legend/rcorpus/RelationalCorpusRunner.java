@@ -427,7 +427,10 @@ public class RelationalCorpusRunner {
                     // Relation class-mapping arm of the protocol parser now
                     // reads `~func <fqn>` with no signature spelling, so one
                     // more tests/mapping/modelJoin test compiles and reaches
-                    // H2 replay (that family went 41 -> 42). Every census row
+                    // H2 replay (that family went 42 -> 43 against the REAL
+                    // checkout; re-verified by reverting to 10 and watching
+                    // it fail, so this is not a stale-corpus artifact).
+                    // Every census row
                     // here is a `golden execution` failure — it is ENGINE's
                     // own golden that selects a name twice, not our SQL — so
                     // this is one more instance of the registered gap, not a
