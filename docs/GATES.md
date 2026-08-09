@@ -123,7 +123,7 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | `MAX_ENGINE_JSON_ASYMMETRY` | 8 | `SpiSeamProofTest.java:189` |
 | `MIN_FILES_PARSED` | 877 | `SectionParseSentinelTest.java:123` |
 | `MAX_DROP_IN_DEFECTS` | 126 | `SectionParseSentinelTest.java:118` |
-| `MAX_LENIENCY` | 268 | `FixtureAdjudicationTest.java:91` |
+| `MAX_LENIENCY_KINDS` | 21 | `FixtureAdjudicationTest.java` (distinct kinds, not fixtures) |
 | `MAX_OVER_STRICTNESS` | 6 | `FixtureAdjudicationTest.java:92` |
 
 > **`FixtureAdjudicationTest` is the only tier pointed at OUR OWN fixtures.**
