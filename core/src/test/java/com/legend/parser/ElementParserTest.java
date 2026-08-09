@@ -3060,6 +3060,20 @@ final class ElementParserTest {
     }
 
     @Test
+    void emptyEnumIsAccepted() {
+        // The value list is OPTIONAL in engine's rule —
+        // `BRACE_OPEN (enumValue (COMMA enumValue)*)? BRACE_CLOSE`
+        // (DomainParserGrammar.g4:118-121) — and engine's corpus writes one
+        // (dataSpace-emptyEnum.pure). A type with an empty extent is
+        // useless, not malformed; we refused it in two places.
+        var el = ElementParser.parse("Enum model::EmptyEnum { }")
+                .elements().get(0);
+        var e = (com.legend.model.EnumDefinition) el;
+        assertEquals("model::EmptyEnum", e.qualifiedName());
+        assertTrue(e.values().isEmpty());
+    }
+
+    @Test
     void pureClassMappingWithoutSrcIsAccepted() {
         // ~src is OPTIONAL in Legend. Engine's rule is
         // `(mappingSrc | mappingFilter)*`, its walker calls

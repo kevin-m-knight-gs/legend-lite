@@ -27,9 +27,12 @@ public record EnumDefinition(String qualifiedName, List<String> values) implemen
     public EnumDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(values, "Values cannot be null");
-        if (values.isEmpty()) {
-            throw new IllegalArgumentException("Enum must have at least one value");
-        }
+        // An EMPTY enum is legal Legend: the whole value list is optional
+        // in engine's rule — `BRACE_OPEN (enumValue (COMMA enumValue)*)?
+        // BRACE_CLOSE` (DomainParserGrammar.g4:118-121) — and engine's own
+        // corpus writes one (dataSpace-emptyEnum.pure, whose class then
+        // types a property with it at [0..1], so the property can only ever
+        // be empty). A type with an empty extent is useless, not malformed.
         values = List.copyOf(values);
     }
 }

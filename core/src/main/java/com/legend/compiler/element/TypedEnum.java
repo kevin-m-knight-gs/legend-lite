@@ -20,9 +20,9 @@ public record TypedEnum(String qualifiedName, List<String> values) implements Ty
     public TypedEnum {
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         Objects.requireNonNull(values, "values");
-        if (values.isEmpty()) {
-            throw new IllegalArgumentException("Enum must have at least one value: " + qualifiedName);
-        }
+        // An EMPTY enum is legal Legend — see EnumDefinition. The compiled
+        // type mirrors the model: an enum with no values, whose extent is
+        // empty and whose typed properties can therefore only be empty.
         values = List.copyOf(values);
     }
 }
