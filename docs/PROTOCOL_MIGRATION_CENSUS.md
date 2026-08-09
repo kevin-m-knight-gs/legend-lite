@@ -50,8 +50,8 @@ stopped appearing in error text.
 | # | section | defects | walls | oos | state |
 |--:|---|---:|---:|---:|---|
 | 1 | **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3) |
-| 2 | **Connection** | **51** | **30** | 0 | DUAL-PATH; protocol side exists and is better than the live one |
-| 3 | **Pure** | **37** | 0 | 0 | mostly protocol-first; **Measure**, **native function**, **Primitive** are not |
+| 2 | **Connection** | **85** | **30** | 0 | DUAL-PATH; protocol side exists and is better than the live one |
+| 3 | **Pure** | **1** (+5 islands) | 0 | 0 | essentially done; **Measure** is the one gap, plus **native function**/**Primitive** un-migrated |
 | 4 | **Service** | **27** | 0 | **135** | straight-to-model, no protocol side |
 | 5 | **Mapping** | **25** | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
 | 6 | DataSpace | 13 | 0 | 51 | no section parser |
@@ -75,9 +75,24 @@ stopped appearing in error text.
 | 24 | QueryPostProcessor | 0 | 0 | 0 | no section parser; not seen in the corpus |
 | 25 | **Data** | 0 | 0 | 0 | claimed, carried opaque |
 
-**We claim 5 of 25 sections and only ONE is finished.** `###Relational` has
-zero defects and zero walls. `###Pure` and `###Mapping` are routinely called
-done — they are protocol-first, which is a different and weaker claim.
+**We claim 5 of 25 sections. `###Relational` is finished (0/0) and `###Pure`
+is within one element of it.** `###Mapping` is protocol-first but carries 25
+defects and 62 walls, and MOST OF WHAT IT IS WAITING ON IS `###Connection` —
+which is also the single biggest cluster on the board at 85.
+
+Reproduce this attribution rather than trusting it:
+
+```
+grep "^  DEFECT" parser-equivalence/target/section-sentinel-report.txt \
+  | sed 's/.* :: //' | sed 's/\[[0-9]*:[0-9]*\] //'
+```
+
+then bucket by cause. It must total exactly 184. Two earlier attributions did
+NOT total, and both were wrong in ways that flattered different sections: one
+reported `###Pure: 37` by lumping every `unsupported top-level keyword` into
+Pure when 34 of 35 name CONNECTION element types (`JsonModelConnection`,
+`ModelChainConnection`, `DeephavenConnection`, `MongoDBConnection`). **If your
+buckets do not sum to the reported total, they are wrong.**
 
 ## The element arms inside the sections we claim
 
