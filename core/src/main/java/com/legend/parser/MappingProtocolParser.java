@@ -642,6 +642,60 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private static final int BODY_LEGACY_TESTS = 3;
     private static final int BODY_TEST_SUITES = 4;
 
+    /** A Relation binding's right-hand side: a column NAME, or a row
+     *  expression when it is richer than one. */
+    private record RelationBinding(@com.legend.Nullable String column,
+            @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+    }
+
+    /**
+     * The RHS of a Relation class-mapping binding, up to (not consuming)
+     * {@code stop} at depth 0.
+     *
+     * <p>It is a full ROW EXPRESSION, not just a column name: a bare
+     * {@code COL} and a quoted {@code 'COL'} are plain column bindings,
+     * {@code $src.COL} is the same binding in row-lambda spelling, and
+     * anything richer ({@code $src.city_REGION->toOne()}) is a real spec
+     * that rides {@code expr}. Mirrors MappingGrammarParser:626-661, which
+     * is the behaviour the corpus was read with.
+     */
+    private RelationBinding relationBinding(TokenType stop) {
+        int exprStart = pos;
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (depth == 0 && (t == TokenType.COMMA || t == stop)) {
+                break;
+            }
+            if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                    || t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACKET_CLOSE
+                    || t == TokenType.BRACE_CLOSE) {
+                depth--;
+                if (depth < 0) {
+                    break;                  // the enclosing block's close
+                }
+            }
+            advance();
+        }
+        com.legend.protocol.spec.ValueSpecification rhs =
+                SpecParser.parse(tokens.slice(exprStart, pos));
+        if (rhs instanceof com.legend.protocol.spec.AppliedProperty ap
+                && ap.receiver() instanceof com.legend.protocol.spec.Variable) {
+            return new RelationBinding(ap.property(), null);
+        }
+        if (rhs instanceof com.legend.protocol.spec.CString cs) {
+            return new RelationBinding(cs.value(), null);
+        }
+        if (rhs instanceof com.legend.protocol.spec.PackageableElementPtr ptr
+                && !ptr.fullPath().contains("::")) {
+            return new RelationBinding(ptr.fullPath(), null);
+        }
+        return new RelationBinding(null, rhs);
+    }
+
     /** Consume {@code <...>} type arguments and a {@code [..]} multiplicity,
      *  if present — the tail of a {@code ~func} signature spelling. */
     private void skipTypeArgsAndMultiplicity() {
@@ -917,6 +971,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         || t == TokenType.BRACE_CLOSE)) {
                     break;
                 }
+                if (depth == 0 && t == TokenType.SEMI_COLON) {
+                    throw error("a property mapping binds ONE expression and"
+                            + " is separated by ',' — ';' is not a mapping"
+                            + " separator");
+                }
                 if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
                         || t == TokenType.BRACE_OPEN) {
                     depth++;
@@ -927,8 +986,24 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 advance();
             }
+            // A property mapping's RHS is ONE expression, not a code block:
+            // engine's rule is `... COLON combinedExpression` with COMMA
+            // between mappings and no statement terminator anywhere
+            // (PureInstanceClassMappingParserGrammar.g4:34). Reading it with
+            // parseCodeBlock means a stray `;` is silently accepted as a
+            // statement separator — which the legacy parser refused
+            // ("trailing tokens after expression") and the reference parser
+            // refuses too. Caught by SectionParseSentinelTest's LENIENT
+            // ratchet when the switch exposed it (57 -> 59).
             List<com.legend.protocol.spec.ValueSpecification> body =
                     SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
+            if (body.isEmpty()) {
+                throw error("a property mapping has an empty body");
+            }
+            if (body.size() != 1) {
+                throw error("a property mapping binds ONE expression; got "
+                        + body.size());
+            }
             props.add(new Protocol.PPurePropertyMapping(
                     local ? null : target, prop, propSpan, enumId, explode,
                     localProp, body, srcId, tgtId, spanOf(pS, pos - 1)));
@@ -1499,13 +1574,21 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String target, int memberStart, SourceInfo targetSpan,
             @com.legend.Nullable String id, boolean root) {
         expect(TokenType.BRACE_OPEN);
-        if (!(peek() == TokenType.TILDE
+        // `~func <ref>` is canonical; `~src <ref>()` is the row-source
+        // ALIAS and names the same extent function
+        // (MappingGrammarParser:536-546 accepted both, and
+        // tests/mapping/relation writes `~src ...personFunctionTyped()`).
+        if (peek() == TokenType.SRC_CMD) {
+            advance();                              // '~src' is ONE token
+        } else if (peek() == TokenType.TILDE
                 && "func".equals(tokens.text(
-                        Math.min(pos + 1, tokens.count() - 1))))) {
-            throw error("Relation class mapping must open with ~func");
+                        Math.min(pos + 1, tokens.count() - 1)))) {
+            advance();
+            advance();                              // func
+        } else {
+            throw error("Relation class mapping must open with ~func"
+                    + " (or its ~src alias)");
         }
-        advance();
-        advance();                                  // func
         int dS = pos;
         // The descriptor is `<fqn>` with an OPTIONAL signature spelling
         // `f():Relation<Any>[1]` — parsed structurally, exactly as
@@ -1575,10 +1658,16 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     String nProp = parseIdentifier();
                     SourceInfo nSpan = spanOf(nS, pos - 1);
                     expect(TokenType.COLON);
-                    String nCol = parseIdentifier();
+                    // a NESTED binding's RHS is a full row expression too —
+                    // `legalName: $src.firmName->toOne()` in
+                    // tests/mapping/union/relation. Reading only a bare
+                    // identifier here is the same gap the outer arm had.
+                    String nEnum = enumerationMappingId();
+                    RelationBinding nb = relationBinding(
+                            TokenType.PAREN_CLOSE);
                     nested.add(new Protocol.PRelationFnPropertyMapping(null,
-                            nProp, nSpan, nCol, null, null, null, null,
-                            null, null, spanOf(nS, pos - 1)));
+                            nProp, nSpan, nb.column(), null, null, null, null,
+                            nEnum, nb.expr(), spanOf(nS, pos - 1)));
                     match(TokenType.COMMA);
                 }
                 int pClose = pos;
@@ -1641,48 +1730,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // `prop: EnumerationMapping <id>: <rhs>` — the id is required,
             // exactly as everywhere else (see #enumerationMappingId).
             String enumId = enumerationMappingId();
-            // The RHS is a full ROW EXPRESSION, not just a column name:
-            // a bare COL and a quoted 'COL' are plain column bindings,
-            // `$src.COL` is the same binding in row-lambda spelling, and
-            // anything richer (`$src.city_REGION->toOne()`) is a real spec
-            // that rides `expr`. Mirrors MappingGrammarParser:626-661, which
-            // is the behaviour the corpus was read with.
-            int exprStart = pos;
-            int depth = 0;
-            while (!atEnd()) {
-                TokenType t = peek();
-                if (depth == 0 && (t == TokenType.COMMA
-                        || t == TokenType.BRACE_CLOSE)) {
-                    break;
-                }
-                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
-                        || t == TokenType.BRACE_OPEN) {
-                    depth++;
-                } else if (t == TokenType.PAREN_CLOSE
-                        || t == TokenType.BRACKET_CLOSE
-                        || t == TokenType.BRACE_CLOSE) {
-                    depth--;
-                }
-                advance();
-            }
-            com.legend.protocol.spec.ValueSpecification rhs =
-                    SpecParser.parse(tokens.slice(exprStart, pos));
-            String col = null;
-            com.legend.protocol.spec.ValueSpecification expr = null;
-            if (rhs instanceof com.legend.protocol.spec.AppliedProperty ap
-                    && ap.receiver() instanceof com.legend.protocol.spec.Variable) {
-                col = ap.property();
-            } else if (rhs instanceof com.legend.protocol.spec.CString cs) {
-                col = cs.value();
-            } else if (rhs instanceof com.legend.protocol.spec.PackageableElementPtr ptr
-                    && !ptr.fullPath().contains("::")) {
-                col = ptr.fullPath();
-            } else {
-                expr = rhs;
-            }
+            RelationBinding rb = relationBinding(TokenType.BRACE_CLOSE);
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
-                    propSpan, col, null, null, lp, id, enumId, expr,
-                    spanOf(pS, pos - 1)));
+                    propSpan, rb.column(), null, null, lp, id, enumId,
+                    rb.expr(), spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;

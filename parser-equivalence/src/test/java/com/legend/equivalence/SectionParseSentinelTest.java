@@ -197,7 +197,11 @@ class SectionParseSentinelTest {
                             e.getValue(), e.getKey())));
             report.append("\nLENIENT — files we take that the engine will not\n")
                     .append("-".repeat(72)).append('\n');
-            lenientFiles.stream().limit(20).forEach(f ->
+            // NOT truncated: this is the bucket MAX_LENIENT guards, and a
+            // capped list makes a +2 growth impossible to diagnose — you
+            // cannot diff two truncated lists, though you can waste time
+            // trying (2026-08-08). It is bounded by the ratchet anyway.
+            lenientFiles.stream().forEach(f ->
                     report.append("  ").append(f).append('\n'));
         }
         report.append("\nFAILURES by message (a NEW message after a pull = the drift)\n")
@@ -264,8 +268,19 @@ class SectionParseSentinelTest {
 
     /** Files we accept that the engine REFUSES. Ratcheted DOWN only — this is
      *  the leniency surface, and a drop-in's is zero. */
-    private static final int MAX_LENIENT = 57;
-    // 55 -> 57, and this increment is NAMED rather than absorbed. Teaching the
+    private static final int MAX_LENIENT = 55;
+    // 57 -> 55 (2026-08-08, ###Mapping protocol switch). The switch first
+    // pushed this to 59: the protocol parser read a Pure property mapping's
+    // RHS with `parseCodeBlock`, so a stray `;` passed as a statement
+    // separator where engine's rule is `... COLON combinedExpression` with
+    // COMMA between mappings and no terminator at all. The legacy parser had
+    // refused it ("trailing tokens after expression") and deleting that
+    // parser removed the refusal — a leniency INHERITED by the migration, not
+    // authored by it, and invisible to every corpus sweep because the walls
+    // it hides behind are in files engine also rejects. Refusing the `;` at
+    // the scan took 59 -> 55, below where main stood.
+    //
+    // (historical) 55 -> 57, and that increment was NAMED rather than absorbed. Teaching the
     // runner parser `~primaryKey: [COL]` in a Relation class mapping made three
     // of legend-engine's OWN relation-emit-models parse — and the pinned 4.133.0
     // oracle refuses them, because the corpus is 4.137.0-36 and the syntax is

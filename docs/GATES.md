@@ -11,6 +11,25 @@ they move.
 
 ---
 
+## The root flag is a SYSTEM PROPERTY, and the fallback is silent
+
+`rcorpus/Corpus.java:47` reads `-Dlegend.engine.root`, defaulting to
+`$HOME/legend/legend-engine`. It does **not** read the `LEGEND_ENGINE_ROOT`
+environment variable — that name exists only for `tools/allgates.sh`, which
+converts it into the `-D` flag for you (`allgates.sh:17-20`). Export the env
+var and run `mvn` BY HAND and you get the default checkout with no warning.
+
+On this machine that default is a stale July tag with 2,759 test functions
+against the real checkout's 2,798, so a hand-run sweep reports a plausible
+seven-family "regression" that does not exist. It cost an hour and a false
+"main is red" report on 2026-08-08.
+
+**The tells, in the order they appear:** `census: 2759` instead of `2798`;
+`h2-exec 0 verified` (the goldens do not match, so nothing verifies); and a
+~320s runtime instead of ~90s. Any one of them means the wrong checkout —
+check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
+which cannot make this mistake.
+
 ## Read this before trusting a green
 
 Three ways this chain reports success without having checked anything:
@@ -81,8 +100,8 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | 1 | Core suite | `mvn -pl core **clean** test` | 0 failures. **`clean` is load-bearing** — NullAway runs only on `default-compile`, so a warm `target/` silently no-ops the null gate. |
 | 2 | Core install | `mvn -pl core install -DskipTests` | — (required before 3–8) |
 | 3 | Engine suite (corpus excluded — gate 4 owns it) | `mvn -pl engine test '-Dtest=!RelationalCorpusRunner'` | 0 failures (~21s). Note `engine/pom.xml` excludes the `heavy` group, so this is the default suite, not everything. |
-| 4 | DuckDB corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner` | scoreboard vs `docs/RELATIONAL_CORPUS.md`; `M1_VERIFIED` floor (~115s) |
-| 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2` | portability sweep; scoreboard not written (~45s) |
+| 4 | DuckDB corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Dlegend.engine.root=<engine checkout>` | scoreboard vs `docs/RELATIONAL_CORPUS.md`; `M1_VERIFIED` floor (~115s) |
+| 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 -Dlegend.engine.root=<engine checkout>` | portability sweep; scoreboard not written (~45s) |
 | 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | 1,109 run, 0 failures, 36 ledgered expected failures, nothing skipped (~30–80s) |
 | 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | see the warning below (~25s) |
 | 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | all six ratchets below (~90s) |
