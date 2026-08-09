@@ -127,6 +127,14 @@ public final class ModelBuilder {
     private final ArrayList<ServiceDefinition>     services      = new ArrayList<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
     private final ArrayList<ConnectionDefinition>  connections   = new ArrayList<>();
+    /** Named model-store connections (Json/Xml/ModelChain) — indexed so a
+     *  runtime binding to one is distinguishable from an undefined name;
+     *  execution semantics (cross-baking a POINTED-AT model connection)
+     *  arrive with the Runtime migration. */
+    private final Map<String, com.legend.model.ModelConnectionDefinition>
+            modelConnections = new HashMap<>();
+    private final Map<String, com.legend.model.ModelChainConnectionDefinition>
+            modelChainConnections = new HashMap<>();
 
     /**
      * Functions are overload sets keyed by FQN. Each slot holds the
@@ -249,6 +257,10 @@ public final class ModelBuilder {
                 case MappingDefinition md -> mb.ingestCanonicalMapping(md);
                 case ServiceDefinition sd -> putAtId(mb.services, mb.intern(sd.qualifiedName()), sd);
                 case ConnectionDefinition cd -> putAtId(mb.connections, mb.intern(cd.qualifiedName()), cd);
+                case com.legend.model.ModelConnectionDefinition mc ->
+                        mb.modelConnections.put(mc.qualifiedName(), mc);
+                case com.legend.model.ModelChainConnectionDefinition mcc ->
+                        mb.modelChainConnections.put(mcc.qualifiedName(), mcc);
                 case FunctionDefinition fd -> mb.appendFunction(fd);
                 case NativeFunctionDefinition nfd -> mb.appendFunction(nfd);
                 default -> { /* phase 2 or phase 3b */ }
@@ -817,6 +829,13 @@ public final class ModelBuilder {
     /** O(1). Returns {@link ConnectionDefinition} for {@code fqn}, if any. */
     public Optional<ConnectionDefinition> findConnection(String fqn) {
         return Optional.ofNullable(idGet(connections, symbols.resolveId(fqn)));
+    }
+
+    /** Whether {@code fqn} names a MODEL-store connection (Json/Xml/
+     *  ModelChain) — a defined connection that carries no database type. */
+    public boolean isModelConnection(String fqn) {
+        return modelConnections.containsKey(fqn)
+                || modelChainConnections.containsKey(fqn);
     }
 
     /**

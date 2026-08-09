@@ -116,18 +116,9 @@ public final class ElementParser implements TokenStreamCursor {
 
     @Override
     public com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
-        com.legend.protocol.SourceInfo sp =
-                TokenStreamCursor.super.spanOf(fromTok, toTok);
-        if (islandLineOffset == 0 && islandColOffset == 0) {
-            return sp;
-        }
-        return new com.legend.protocol.SourceInfo("",
-                sp.startLine() + islandLineOffset,
-                sp.startLine() == 1 ? sp.startColumn() + islandColOffset
-                        : sp.startColumn(),
-                sp.endLine() + islandLineOffset,
-                sp.endLine() == 1 ? sp.endColumn() + islandColOffset
-                        : sp.endColumn());
+        return TokenStreamCursor.shiftIsland(
+                TokenStreamCursor.super.spanOf(fromTok, toTok),
+                islandLineOffset, islandColOffset);
     }
 
     // ============================================================
@@ -302,7 +293,23 @@ public final class ElementParser implements TokenStreamCursor {
         ImportScope.Builder sectionImports = new ImportScope.Builder();
         boolean sawElementSinceImport = false;
 
+        // Registry-routed section dispatch (§2.6): a LEXABLE section whose
+        // registered grammar is REAL (not the BuiltIn stub) parses as a
+        // WHOLE through that grammar — the same routing an overlay gets —
+        // instead of element-by-element through this switch.
+        java.util.List<ClaimedSection> claimed = claimedSections();
+        int nextClaimed = 0;
+
         while (!atEnd()) {
+            while (nextClaimed < claimed.size() && tokens.start(pos)
+                    >= claimed.get(nextClaimed).contentStart()) {
+                parseClaimedSection(claimed.get(nextClaimed++), elements,
+                        offsets, elementImports, imports);
+                sawElementSinceImport = true;   // a section is a scope boundary
+            }
+            if (atEnd()) {
+                break;
+            }
             if (peek() == TokenType.IMPORT) {
                 if (sawElementSinceImport) {
                     sectionImports = new ImportScope.Builder();
@@ -321,6 +328,11 @@ public final class ElementParser implements TokenStreamCursor {
                 offsets.putIfAbsent(e.qualifiedName(), at);
                 elements.add(e);
             }
+        }
+        // claimed sections the token walk never reached (empty, or at EOF)
+        while (nextClaimed < claimed.size()) {
+            parseClaimedSection(claimed.get(nextClaimed++), elements, offsets,
+                    elementImports, imports);
         }
 
         // Sections the lexer raw-skipped, adjudicated by THE registry — and
@@ -368,6 +380,63 @@ public final class ElementParser implements TokenStreamCursor {
         }
         return new ParsedModel(elements, imports.build(), tokens.source(),
                 offsets, elementImports, java.util.Map.of(), unclaimed);
+    }
+
+    /** A lexable section owned by a REAL registered grammar: its whole token
+     *  range parses through the registry, never this file's switch. {@code
+     *  end} is the char offset of the next {@code ###} header (or EOF). */
+    private record ClaimedSection(
+            com.legend.parser.section.LexableSectionGrammar grammar,
+            int contentStart, int end) {
+    }
+
+    private java.util.List<ClaimedSection> claimedSections() {
+        var headers = tokens.sectionHeaders();
+        if (headers.isEmpty()) {
+            return java.util.List.of();
+        }
+        var out = new java.util.ArrayList<ClaimedSection>();
+        for (int i = 0; i < headers.size(); i++) {
+            var h = headers.get(i);
+            var g = SectionGrammarRegistry.lookup(h.name()).orElse(null);
+            if (g instanceof com.legend.parser.section.LexableSectionGrammar lg) {
+                // a FILE-final section runs to EOF — every remaining token
+                // is inside it, so an unbounded end needs no source re-read
+                int end = i + 1 < headers.size()
+                        ? headers.get(i + 1).nameOffset() - 3   // its '###'
+                        : Integer.MAX_VALUE;
+                out.add(new ClaimedSection(lg, h.contentStartOffset(), end));
+            }
+        }
+        return out;
+    }
+
+    /** One claimed section through its grammar: protocol elements out, the
+     *  transform on the {@code FromProtocol} side, section-scoped imports
+     *  (engine's built-in sections are import-aware). */
+    private void parseClaimedSection(ClaimedSection c,
+            List<PackageableElement> elements, Map<String, Integer> offsets,
+            Map<String, ImportScope> elementImports,
+            ImportScope.Builder fileImports) {
+        var parsed = c.grammar().parseSection(this, c.end());
+        ImportScope.Builder scope = new ImportScope.Builder();
+        for (String imp : parsed.imports()) {
+            scope.add(imp);
+            fileImports.add(imp);
+        }
+        ImportScope sectionScope = scope.build();
+        for (var pe : parsed.elements()) {
+            PackageableElement el;
+            try {
+                el = c.grammar().toModel(pe.protocol());
+            } catch (com.legend.parser.section.LexableSectionGrammar
+                    .UnsupportedElementShape u) {
+                throw error(u.reason());
+            }
+            elements.add(el);
+            offsets.putIfAbsent(el.qualifiedName(), pe.startOffset());
+            elementImports.putIfAbsent(el.qualifiedName(), sectionScope);
+        }
     }
 
     /**
@@ -2371,395 +2440,22 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /**
-     * PROTOCOL-path ###Connection element parse (section-parity leg 2):
-     * {@code <Flavor> qn { body }} — the BODY grammar is shared with
-     * embedded runtime islands ({@link #parseConnectionValue}), so there is
-     * one connection grammar. Envelope and value share one span
-     * (ZConnectionProbe).
+     * PROTOCOL-path ###Connection element parse — a delegator kept for the
+     * per-element callers (the equivalence harness, probes). THE grammar
+     * lives in {@link com.legend.parser.section.ConnectionSectionGrammar};
+     * this cursor is just its shared-stream feed.
      */
     public com.legend.protocol.Protocol.PConnection parseConnectionProtocol() {
-        int declStart = pos;
-        String flavor = safeText();
-        advance();
-        String qn = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
-        int cut = qn.lastIndexOf("::");
-        String pkg = cut < 0 ? "" : qn.substring(0, cut);
-        String name = cut < 0 ? qn : qn.substring(cut + 2);
-        com.legend.protocol.Protocol.PConnectionValue value =
-                parseConnectionValue(flavor, declStart, true);
-        return new com.legend.protocol.Protocol.PConnection(pkg, name, value,
-                spanOf(declStart, pos - 1));
+        return com.legend.parser.section.ConnectionSectionGrammar
+                .parseElement(this);
     }
 
-    /**
-     * One connection VALUE body {@code { key: ...; }} for {@code flavor}.
-     * {@code standalone} controls the model-connection {@code element}
-     * field ({@code "ModelStore"} for section elements, absent embedded).
-     * Corpus-censused shapes only; anything else refuses loudly.
-     */
-    com.legend.protocol.Protocol.PConnectionValue parseConnectionValue(
-            String flavor, int declStart, boolean standalone) {
-        return switch (flavor) {
-            case "JsonModelConnection", "XmlModelConnection" -> {
-                ModelConnBody body = parseModelConnectionBody();
-                com.legend.protocol.SourceInfo span =
-                        spanOf(declStart, pos - 1);
-                yield "JsonModelConnection".equals(flavor)
-                        ? new com.legend.protocol.Protocol.PJsonModelConnection(
-                                body.cls(), body.clsSpan(),
-                                standalone ? "ModelStore" : null, body.url(), span)
-                        : new com.legend.protocol.Protocol.PXmlModelConnection(
-                                body.cls(), body.clsSpan(),
-                                standalone ? "ModelStore" : null, body.url(), span);
-            }
-            case "ModelChainConnection" -> parseModelChainBody(declStart,
-                    standalone);
-            case "RelationalDatabaseConnection" ->
-                    parseRelationalConnectionBody(declStart);
-            default -> throw error("unsupported connection flavor: " + flavor);
-        };
-    }
 
-    private record ModelConnBody(String cls,
-            com.legend.protocol.SourceInfo clsSpan, String url) {
-    }
-
-    private ModelConnBody parseModelConnectionBody() {
-        expect(TokenType.BRACE_OPEN);
-        String cls = null;
-        com.legend.protocol.SourceInfo clsSpan = null;
-        String url = null;
-        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            String key = parseIdentifier();
-            expect(TokenType.COLON);
-            if ("class".equals(key)) {
-                int cS = pos;
-                cls = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
-                clsSpan = spanOf(cS, pos - 1);
-            } else if ("url".equals(key)) {
-                String quoted = text();
-                expect(TokenType.STRING);
-                url = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-            } else {
-                throw error("unknown model-connection key: " + key);
-            }
-            expect(TokenType.SEMI_COLON);
-        }
-        expect(TokenType.BRACE_CLOSE);
-        if (cls == null || clsSpan == null || url == null) {
-            throw error("model connection needs class and url");
-        }
-        return new ModelConnBody(cls, clsSpan, url);
-    }
-
-    private com.legend.protocol.Protocol.PModelChainConnection
-            parseModelChainBody(int declStart, boolean standalone) {
-        expect(TokenType.BRACE_OPEN);
-        List<String> mappings = new ArrayList<>();
-        com.legend.protocol.SourceInfo mapSpan = null;
-        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            int kS = pos;
-            String key = safeText();
-            if (peek() != TokenType.MAPPINGS) {
-                throw error("unknown ModelChainConnection key: " + key);
-            }
-            advance();
-            expect(TokenType.COLON);
-            expect(TokenType.BRACKET_OPEN);
-            while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
-                mappings.add(com.legend.protocol.Protocol
-                        .unquotePath(parseQualifiedName()));
-                match(TokenType.COMMA);
-            }
-            expect(TokenType.BRACKET_CLOSE);
-            match(TokenType.SEMI_COLON);        // span INCLUDES the ';' (probe)
-            mapSpan = spanOf(kS, pos - 1);
-        }
-        expect(TokenType.BRACE_CLOSE);
-        if (mapSpan == null) {
-            throw error("ModelChainConnection needs mappings");
-        }
-        return new com.legend.protocol.Protocol.PModelChainConnection(
-                standalone ? "ModelStore" : null, mappings, mapSpan,
-                spanOf(declStart, pos - 1));
-    }
-
-    private com.legend.protocol.Protocol.PRelationalDatabaseConnection
-            parseRelationalConnectionBody(int declStart) {
-        expect(TokenType.BRACE_OPEN);
-        String element = null;
-        com.legend.protocol.SourceInfo elementSpan = null;
-        String dbType = null;
-        com.legend.protocol.Protocol.PDatasourceSpec spec = null;
-        com.legend.protocol.Protocol.PAuthStrategy auth = null;
-        List<com.legend.protocol.Protocol.PMapperPostProcessor> posts =
-                new ArrayList<>();
-        String timeZone = null;
-        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            int kS = pos;
-            String key = parseIdentifier();
-            expect(TokenType.COLON);
-            switch (key) {
-                case "store" -> {
-                    int eS = pos;
-                    element = com.legend.protocol.Protocol
-                            .unquotePath(parseQualifiedName());
-                    elementSpan = spanOf(eS, pos - 1);
-                    expect(TokenType.SEMI_COLON);
-                }
-                case "type" -> {
-                    dbType = parseIdentifier();
-                    expect(TokenType.SEMI_COLON);
-                }
-                case "specification" -> spec = parseDatasourceSpec(kS);
-                case "auth" -> auth = parseAuthStrategy(kS);
-                case "postProcessors" -> parseMapperPostProcessors(posts);
-                case "timezone" -> {
-                    // the VALUE keeps its quotes on the wire (probe timezone)
-                    timeZone = text();
-                    expect(TokenType.STRING);
-                    expect(TokenType.SEMI_COLON);
-                }
-                default -> throw error(
-                        "unknown RelationalDatabaseConnection key: " + key);
-            }
-        }
-        expect(TokenType.BRACE_CLOSE);
-        if (dbType == null || spec == null || auth == null) {
-            // store: is OPTIONAL (probe test-auth-empty-body-no-store —
-            // element+span omitted from the wire entirely)
-            throw error("RelationalDatabaseConnection needs type,"
-                    + " specification and auth");
-        }
-        return new com.legend.protocol.Protocol.PRelationalDatabaseConnection(
-                auth, dbType, spec, element, elementSpan, posts, timeZone,
-                spanOf(declStart, pos - 1));
-    }
-
-    /** {@code postProcessors: [ mapper { mappers: [ table {...}, schema
-     *  {...} ]; } ]} — only the mapper flavor exists in the corpus; table
-     *  mappers carry from/to/schemaFrom/schemaTo (probe post-processors). */
-    private void parseMapperPostProcessors(
-            List<com.legend.protocol.Protocol.PMapperPostProcessor> out) {
-        expect(TokenType.BRACKET_OPEN);
-        while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
-            String kind = parseIdentifier();
-            if (!"mapper".equals(kind)) {
-                throw error("unsupported postProcessor flavor: " + kind);
-            }
-            expect(TokenType.BRACE_OPEN);
-            List<com.legend.protocol.Protocol.PMapper> mappers = new ArrayList<>();
-            while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                String key = parseIdentifier();
-                expect(TokenType.COLON);
-                if (!"mappers".equals(key)) {
-                    throw error("unknown mapper key: " + key);
-                }
-                expect(TokenType.BRACKET_OPEN);
-                while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
-                    mappers.add(parseOneMapper());
-                    match(TokenType.COMMA);
-                }
-                expect(TokenType.BRACKET_CLOSE);
-                expect(TokenType.SEMI_COLON);
-            }
-            expect(TokenType.BRACE_CLOSE);
-            out.add(new com.legend.protocol.Protocol.PMapperPostProcessor(mappers));
-            match(TokenType.COMMA);
-        }
-        expect(TokenType.BRACKET_CLOSE);
-        expect(TokenType.SEMI_COLON);
-    }
-
-    private com.legend.protocol.Protocol.PMapper parseOneMapper() {
-        String flavor = parseIdentifier();
-        expect(TokenType.BRACE_OPEN);
-        java.util.Map<String, String> kv = new java.util.HashMap<>();
-        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            String key = parseIdentifier();
-            expect(TokenType.COLON);
-            String quoted = text();
-            expect(TokenType.STRING);
-            kv.put(key, TokenStreamCursor.unquoteAndUnescape(quoted, this));
-            expect(TokenType.SEMI_COLON);
-        }
-        expect(TokenType.BRACE_CLOSE);
-        String from = kv.get("from");
-        String to = kv.get("to");
-        if (from == null || to == null) {
-            throw error("mapper needs from and to");
-        }
-        return switch (flavor) {
-            case "table" -> {
-                String sf = kv.get("schemaFrom");
-                String st = kv.get("schemaTo");
-                if (sf == null || st == null) {
-                    throw error("table mapper needs schemaFrom and schemaTo");
-                }
-                yield new com.legend.protocol.Protocol.PTableMapper(from, to, sf, st);
-            }
-            case "schema" -> new com.legend.protocol.Protocol.PSchemaMapper(from, to);
-            default -> throw error("unsupported mapper flavor: " + flavor);
-        };
-    }
-
-    /** Spec span runs the {@code specification} KEYWORD through the closing
-     *  token of the body (probes: LocalH2 one-line and Static multi-line). */
-    private com.legend.protocol.Protocol.PDatasourceSpec parseDatasourceSpec(
-            int keywordTok) {
-        String kind = parseIdentifier();
-        return switch (kind) {
-            case "LocalH2" -> {
-                List<String> sqls = null;
-                String csv = null;
-                expect(TokenType.BRACE_OPEN);
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String key = parseIdentifier();
-                    expect(TokenType.COLON);
-                    if ("testDataSetupSqls".equals(key)) {
-                        sqls = new ArrayList<>();
-                        expect(TokenType.BRACKET_OPEN);
-                        while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
-                            String quoted = text();
-                            expect(TokenType.STRING);
-                            sqls.add(TokenStreamCursor.unquoteAndUnescape(quoted, this));
-                            match(TokenType.COMMA);
-                        }
-                        expect(TokenType.BRACKET_CLOSE);
-                    } else if ("testDataSetupCSV".equals(key)) {
-                        // wire spelling flips case: testDataSetupCsv (probe)
-                        String quoted = text();
-                        expect(TokenType.STRING);
-                        csv = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-                    } else {
-                        throw error("unknown LocalH2 key: " + key);
-                    }
-                    match(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);   // span INCLUDES the ';' (probe)
-                yield new com.legend.protocol.Protocol.PH2Local(csv, sqls,
-                        spanOf(keywordTok, pos - 1));
-            }
-            case "Static" -> {
-                expect(TokenType.BRACE_OPEN);
-                String name = null;
-                String host = null;
-                Long port = null;
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String key = parseIdentifier();
-                    expect(TokenType.COLON);
-                    switch (key) {
-                        case "name" -> {
-                            String quoted = text();
-                            expect(TokenType.STRING);
-                            name = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-                        }
-                        case "host" -> {
-                            String quoted = text();
-                            expect(TokenType.STRING);
-                            host = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-                        }
-                        case "port" -> {
-                            port = Long.parseLong(text());
-                            expect(TokenType.INTEGER);
-                        }
-                        default -> throw error("unknown Static key: " + key);
-                    }
-                    expect(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);   // span INCLUDES the ';' (probe)
-                if (name == null || host == null || port == null) {
-                    throw error("Static needs name, host and port");
-                }
-                yield new com.legend.protocol.Protocol.PStaticSpec(name, host,
-                        port, spanOf(keywordTok, pos - 1));
-            }
-            default -> throw error("unsupported datasource specification: "
-                    + kind + " (corpus-censused shapes only)");
-        };
-    }
-
-    /** Auth span runs the {@code auth} KEYWORD through the last body token
-     *  (bodyless: through the kind identifier). */
-    private com.legend.protocol.Protocol.PAuthStrategy parseAuthStrategy(
-            int keywordTok) {
-        String kind = parseIdentifier();
-        return switch (kind) {
-            case "DefaultH2" -> {
-                expect(TokenType.SEMI_COLON);   // span INCLUDES the ';' (probe)
-                yield new com.legend.protocol.Protocol.PH2Default(
-                        spanOf(keywordTok, pos - 1));
-            }
-            case "Test" -> {
-                if (peek() == TokenType.BRACE_OPEN) {
-                    advance();                  // optional EMPTY body (probe)
-                    expect(TokenType.BRACE_CLOSE);
-                }
-                expect(TokenType.SEMI_COLON);
-                yield new com.legend.protocol.Protocol.PTestAuth(
-                        spanOf(keywordTok, pos - 1));
-            }
-            case "DelegatedKerberos" -> {
-                String principal = null;
-                if (peek() == TokenType.BRACE_OPEN) {
-                    advance();
-                    while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                        String key = parseIdentifier();
-                        expect(TokenType.COLON);
-                        if (!"serverPrincipal".equals(key)) {
-                            throw error("unknown DelegatedKerberos key: " + key);
-                        }
-                        String quoted = text();
-                        expect(TokenType.STRING);
-                        principal = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-                        expect(TokenType.SEMI_COLON);
-                    }
-                    expect(TokenType.BRACE_CLOSE);
-                }
-                expect(TokenType.SEMI_COLON);
-                yield new com.legend.protocol.Protocol.PDelegatedKerberos(
-                        principal, spanOf(keywordTok, pos - 1));
-            }
-            case "UserNamePassword" -> {
-                expect(TokenType.BRACE_OPEN);
-                String base = null;
-                String user = null;
-                String pass = null;
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String key = parseIdentifier();
-                    expect(TokenType.COLON);
-                    String quoted = text();
-                    expect(TokenType.STRING);
-                    String v = TokenStreamCursor.unquoteAndUnescape(quoted, this);
-                    switch (key) {
-                        case "baseVaultReference" -> base = v;
-                        case "userNameVaultReference" -> user = v;
-                        case "passwordVaultReference" -> pass = v;
-                        default -> throw error(
-                                "unknown UserNamePassword key: " + key);
-                    }
-                    expect(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);
-                if (user == null || pass == null) {
-                    throw error("UserNamePassword needs userNameVaultReference"
-                            + " and passwordVaultReference");
-                }
-                yield new com.legend.protocol.Protocol.PUserNamePassword(base,
-                        user, pass, spanOf(keywordTok, pos - 1));
-            }
-            default -> throw error("unsupported auth strategy: " + kind
-                    + " (corpus-censused shapes only)");
-        };
-    }
-
-    /** Embedded {@code #{ JsonModelConnection {...} }#} island — the engine
-     *  reparses the content through the Connection grammar with walker
-     *  offsets, so spans stay file-absolute. Only JsonModelConnection has a
-     *  probed wire shape; other flavors WALL loudly. */
+    /** Embedded {@code #{ <Flavor> {...} }#} island — the engine reparses
+     *  the content through the Connection grammar with walker offsets, so
+     *  spans stay file-absolute. The grammar is
+     *  {@link com.legend.parser.section.ConnectionSectionGrammar}; this
+     *  method only extracts the island text. */
     private com.legend.protocol.Protocol.PConnectionValue
             parseEmbeddedConnectionProtocol() {
         advance();                                  // ISLAND_OPEN
@@ -2769,18 +2465,11 @@ public final class ElementParser implements TokenStreamCursor {
         }
         int embEnd = pos;
         expect(TokenType.ISLAND_END);
-        // island content arrives as COARSE chunks — reconstruct and RE-LEX,
-        // then map spans through walker offsets (line offset every line,
-        // column offset FIRST line only — the engine's own reparse rule)
+        // island content arrives as COARSE chunks — reconstruct and RE-LEX
         String emb = reconstructText(embStart, embEnd);
-        int baseLine = tokens.startLine(embStart);
-        int baseCol = tokens.startColumn(embStart);
-        ElementParser p = new ElementParser(Lexer.tokenize(emb),
-                baseLine - 1, baseCol - 1);
-        String flavor = p.safeText();
-        int fStart = p.pos;
-        p.advance();
-        return p.parseConnectionValue(flavor, fStart, false);
+        return com.legend.parser.section.ConnectionSectionGrammar
+                .parseIslandValue(emb, tokens.startLine(embStart),
+                        tokens.startColumn(embStart));
     }
 
     /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
@@ -2916,164 +2605,21 @@ public final class ElementParser implements TokenStreamCursor {
     // RelationalDatabaseConnection
     // ============================================================
 
-    /**
-     * {@code RelationalDatabaseConnection qualifiedName { store: ...; type: ...;
-     * specification: ...; auth: ...; }}.
-     * Unknown keys throw (strict mode; D-2).
-     */
-    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
-    private ConnectionDefinition connectionElement() {
-        expect(TokenType.RELATIONAL_DATABASE_CONNECTION);
-        String qualifiedName = parseQualifiedName();
-        expect(TokenType.BRACE_OPEN);
-
-        String storeName = null;
-        ConnectionDefinition.DatabaseType dbType = null;
-        ConnectionSpecification specification = null;
-        AuthenticationSpec authentication = null;
-
-        while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-            TokenType key = peek();   // minted token, not a re-read string (audit H2)
-            String keyText = safeText();
-            advance();
-            expect(TokenType.COLON);
-            switch (key) {
-                case STORE -> {
-                    storeName = parseQualifiedName();
-                    expect(TokenType.SEMI_COLON);
-                }
-                case TYPE -> {
-                    String typeStr = parseIdentifier();
-                    try {
-                        dbType = ConnectionDefinition.DatabaseType.valueOf(typeStr);
-                    } catch (IllegalArgumentException ex) {
-                        throw error("unknown database type '" + typeStr + "' (expected one of "
-                                + java.util.Arrays.toString(ConnectionDefinition.DatabaseType.values()) + ")");
-                    }
-                    expect(TokenType.SEMI_COLON);
-                }
-                case RELATIONAL_DATASOURCE_SPEC -> {
-                    String specType = parseIdentifier();
-                    expect(TokenType.BRACE_OPEN);
-                    Map<String, String> props = parseKeyValueBlock();
-                    expect(TokenType.BRACE_CLOSE);
-                    specification = switch (specType) {
-                        case "InMemory" -> new ConnectionSpecification.InMemory();
-                        case "LocalFile" -> new ConnectionSpecification.LocalFile(java.util.Objects.requireNonNull(
-                                props.get("path"),
-                                "LocalFile connection requires 'path'"));
-                        case "Static" -> new ConnectionSpecification.StaticDatasource(
-                                java.util.Objects.requireNonNull(props.get("host"),
-                                        "Static datasource requires 'host'"),
-                                props.containsKey("port") ? Integer.parseInt(
-                                        java.util.Objects.requireNonNull(props.get("port"))) : 0,
-                                java.util.Objects.requireNonNull(props.get("database"),
-                                        "Static datasource requires"
-                                        + " 'database'"));
-                        // no url is the engine's own shape (LocalH2
-                        // DatasourceSpecification has no url field — the
-                        // engine synthesizes an in-memory database)
-                        case "LocalH2" -> new ConnectionSpecification.LocalH2(
-                                props.get("url"));
-                        default -> throw error("unknown specification flavor '" + specType
-                                + "' (expected InMemory / LocalFile / LocalH2 / Static)");
-                    };
-                    expect(TokenType.SEMI_COLON);
-                }
-                case RELATIONAL_AUTH_STRATEGY -> {
-                    String authType = parseIdentifier();
-                    Map<String, String> props = Map.of();
-                    if (match(TokenType.BRACE_OPEN)) {
-                        props = parseKeyValueBlock();
-                        expect(TokenType.BRACE_CLOSE);
-                    }
-                    authentication = switch (authType) {
-                        case "NoAuth" -> new AuthenticationSpec.NoAuth();
-                        case "DefaultH2" -> new AuthenticationSpec.DefaultH2();
-                        case "UsernamePassword" -> new AuthenticationSpec.UsernamePassword(
-                                java.util.Objects.requireNonNull(props.get("username"),
-                                        "UsernamePassword auth requires"
-                                        + " 'username'"),
-                                java.util.Objects.requireNonNull(props.get("passwordVaultRef"),
-                                        "UsernamePassword auth requires"
-                                        + " 'passwordVaultRef'"));
-                        default -> throw error("unknown auth flavor '" + authType
-                                + "' (expected NoAuth / DefaultH2 / UsernamePassword)");
-                    };
-                    expect(TokenType.SEMI_COLON);
-                }
-                default -> throw error("unknown key '" + keyText
-                        + "' inside RelationalDatabaseConnection '" + qualifiedName
-                        + "' (Phase B.3 strict mode; see D-2)");
-            }
+    /** PROTOCOL-FIRST — THE Connection grammar is the registered
+     *  {@link com.legend.parser.section.ConnectionSectionGrammar}; this arm
+     *  is its internal-dialect feed for BARE connection elements (no
+     *  {@code ###Connection} header: mixed fixtures, IDE slices). Sectioned
+     *  files never reach it — {@link #parseModel} dispatches the whole
+     *  section through the registry. */
+    private PackageableElement connectionElement() {
+        com.legend.protocol.Protocol.PConnection pc =
+                com.legend.parser.section.ConnectionSectionGrammar
+                        .parseElement(this);
+        try {
+            return com.legend.model.FromProtocol.toConnectionElement(pc);
+        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
+            throw error(u.reason());
         }
-        expect(TokenType.BRACE_CLOSE);
-
-        if (dbType == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'type:' key");
-        if (specification == null) error("RelationalDatabaseConnection '" + qualifiedName + "' missing required 'specification:' key");
-        // auth: defaults to NoAuth for LOCAL specs only (LocalFile /
-        // InMemory / LocalH2 — the engine's 'mode: local' shape); a Static
-        // (remote) connection without auth stays the loud error the real
-        // engine gives (audit).
-        if (authentication == null) {
-            if (specification instanceof ConnectionSpecification.StaticDatasource) {
-                error("RelationalDatabaseConnection '" + qualifiedName
-                        + "' missing required 'auth:' key");
-            }
-            authentication = new AuthenticationSpec.NoAuth();
-        }
-
-        return new ConnectionDefinition(qualifiedName, storeName,
-                java.util.Objects.requireNonNull(dbType, "RelationalDatabaseConnection '"
-                        + qualifiedName + "' missing 'type:'"),
-                java.util.Objects.requireNonNull(specification, "RelationalDatabaseConnection '"
-                        + qualifiedName + "' missing 'specification:'"),
-                authentication);
-    }
-
-    // ============================================================
-    // Shared key/value-block + balanced-content helpers
-    // ============================================================
-
-    /**
-     * Parse a sequence of {@code key: value;} pairs inside an already-opened
-     * brace block, stopping at (but not consuming) the closing {@code }}.
-     * Values are either {@code STRING}, {@code INTEGER}, identifiers, or
-     * qualified names; all are stored as their raw text.
-     */
-    private Map<String, String> parseKeyValueBlock() {
-        // HashMap: connection properties are looked up by key, never iterated
-        // positionally; JDBC URL construction doesn't depend on order either.
-        Map<String, String> props = new HashMap<>();
-        while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-            String key = parseIdentifier();
-            expect(TokenType.COLON);
-            String value;
-            if (peek() == TokenType.STRING) {
-                value = unquoteString(consume(TokenType.STRING));
-            } else if (peek() == TokenType.QUOTED_STRING) {
-                // Double-quoted values appear in connection specs
-                // (path: "/tmp/db.duckdb") — same string payload, the
-                // OTHER quote character.
-                String raw = consume(TokenType.QUOTED_STRING);
-                value = raw.length() >= 2 && raw.charAt(0) == '"'
-                        && raw.charAt(raw.length() - 1) == '"'
-                        ? raw.substring(1, raw.length() - 1) : raw;
-            } else if (peek() == TokenType.INTEGER) {
-                value = consume(TokenType.INTEGER);
-            } else {
-                value = parseQualifiedName();
-            }
-            if (props.put(key, value) != null) {
-                throw error("duplicate key '" + key + "' in property block");
-            }
-            // The last pair's semicolon is optional in corpus sources
-            // (LocalH2 { url: '...' }); a following key still needs one.
-            if (peek() != TokenType.BRACE_CLOSE) {
-                expect(TokenType.SEMI_COLON);
-            }
-        }
-        return props;
     }
 
     /**

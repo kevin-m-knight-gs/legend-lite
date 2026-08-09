@@ -305,6 +305,11 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public boolean isModelConnection(String fqn) {
+        return model.isModelConnection(fqn);
+    }
+
+    @Override
     public java.util.Optional<com.legend.model.AssociationDefinition> findAssociationOf(
             String ownerClassFqn, String propName) {
         return model.findAssociationOf(ownerClassFqn, propName);

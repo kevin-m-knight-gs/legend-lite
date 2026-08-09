@@ -33,6 +33,8 @@ public sealed interface PackageableElement
                 ServiceDefinition,
                 RuntimeDefinition,
                 ConnectionDefinition,
+                ModelConnectionDefinition,
+                ModelChainConnectionDefinition,
                 DatabaseDefinition,
                 MappingDefinition,
                 LegacyMappingDefinition,

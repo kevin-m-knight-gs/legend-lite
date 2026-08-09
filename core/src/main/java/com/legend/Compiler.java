@@ -379,6 +379,11 @@ public final class Compiler {
                 rt.get().connectionBindings().values())) {
             var conn = ctx.findConnection(connFqn);
             if (conn.isEmpty()) {
+                // a MODEL-store connection is defined but carries no
+                // database type — it cannot vote on the dialect
+                if (ctx.isModelConnection(connFqn)) {
+                    continue;
+                }
                 throw new com.legend.error.MappingResolutionException(
                         "connection '" + connFqn + "' of runtime '" + runtimeFqn
                                 + "' is not defined", runtimeFqn);

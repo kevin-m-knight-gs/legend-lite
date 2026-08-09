@@ -43,13 +43,19 @@ public record ConnectionDefinition(
         Objects.requireNonNull(authentication, "Authentication cannot be null");
     }
 
-    /** Supported relational dialects. Drives downstream SQL dialect selection. */
+    /** Supported relational dialects. Drives downstream SQL dialect selection.
+     *  Corpus-censused types beyond the executable set (Spanner, MemSQL,
+     *  Databricks) parse and carry; dialect selection refuses them loudly at
+     *  execution time ({@code Compiler.dialectOf}). */
     public enum DatabaseType {
         DuckDB,
         SQLite,
         H2,
         Postgres,
         Snowflake,
-        BigQuery
+        BigQuery,
+        Spanner,
+        MemSQL,
+        Databricks
     }
 }

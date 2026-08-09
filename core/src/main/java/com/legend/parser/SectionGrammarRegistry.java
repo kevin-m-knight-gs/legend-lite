@@ -51,9 +51,15 @@ public final class SectionGrammarRegistry {
     private static Map<String, com.legend.spi.SectionGrammar> build() {
         Map<String, com.legend.spi.SectionGrammar> m = new LinkedHashMap<>();
         for (String s : new String[]{"Pure", "Mapping", "Relational",
-                "Connection", "Runtime", "Data"}) {
+                "Runtime", "Data"}) {
             m.put(s, new BuiltIn(s));
         }
+        // the first REAL built-in grammar (§2.6): ###Connection routes
+        // through the seam — ElementParser.parseModel dispatches the whole
+        // section to it, and the remaining BuiltIn stubs shrink as each
+        // section migrates
+        m.put("Connection",
+                com.legend.parser.section.ConnectionSectionGrammar.INSTANCE);
         // ServiceLoader overlays — registered LAST so an extension claiming
         // a built-in name WINS (the engine's own shadowing rule: that is
         // exactly what lets legend-lite drop into the engine's ###Pure)

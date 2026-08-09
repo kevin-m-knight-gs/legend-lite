@@ -315,6 +315,25 @@ public final class NameResolver {
             case RuntimeDefinition rd -> resolveRuntime(rd, scope);
             case ServiceDefinition sd -> resolveService(sd, scope);
             case ConnectionDefinition cd -> resolveConnection(cd, scope);
+            case com.legend.model.ModelConnectionDefinition mc -> {
+                String cls = resolveName(mc.className(), scope);
+                yield cls.equals(mc.className()) ? mc
+                        : new com.legend.model.ModelConnectionDefinition(
+                                mc.qualifiedName(), mc.kind(), cls, mc.url());
+            }
+            case com.legend.model.ModelChainConnectionDefinition mcc -> {
+                java.util.List<String> resolved = new java.util.ArrayList<>();
+                boolean changed = false;
+                for (String m : mcc.mappings()) {
+                    String r = resolveName(m, scope);
+                    changed |= !r.equals(m);
+                    resolved.add(r);
+                }
+                yield changed ? new com.legend.model
+                        .ModelChainConnectionDefinition(mcc.qualifiedName(),
+                                resolved)
+                        : mcc;
+            }
             // Explicit pass-through so adding a new PackageableElement variant
             // surfaces as an unhandled-case compile error rather than silently
             // skipping resolution.

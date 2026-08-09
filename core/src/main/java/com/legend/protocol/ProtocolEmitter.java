@@ -801,6 +801,13 @@ public final class ProtocolEmitter {
                 srcInfo(b, k.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PNoAuth n -> require(false,
+                    "lite-extension NoAuth strategy (no engine wire shape)",
+                    "connection");
+            case Protocol.PPlainUserPassword p -> require(false,
+                    "lite-extension UsernamePassword strategy (no engine wire"
+                            + " shape)",
+                    "connection");
         }
     }
 
@@ -830,6 +837,9 @@ public final class ProtocolEmitter {
     private static void datasourceSpec(StringBuilder b, Protocol.PDatasourceSpec d) {
         switch (d) {
             case Protocol.PH2Local h -> {
+                require(h.url() == null,
+                        "lite-extension LocalH2 url key (no engine wire shape)",
+                        "connection");
                 b.append("{\"_type\":\"h2Local\",\"sourceInformation\":");
                 srcInfo(b, h.sourceInformation());
                 if (h.testDataSetupCsv() != null) {
@@ -858,6 +868,12 @@ public final class ProtocolEmitter {
                 srcInfo(b, st.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PInMemory im -> require(false,
+                    "lite-extension InMemory datasource (no engine wire shape)",
+                    "connection");
+            case Protocol.PLocalFile lf -> require(false,
+                    "lite-extension LocalFile datasource (no engine wire shape)",
+                    "connection");
         }
     }
 

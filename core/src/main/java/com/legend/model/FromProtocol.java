@@ -362,4 +362,83 @@ public final class FromProtocol {
                 c.isNative());
     }
 
+    /** A parsed connection whose shape the model cannot represent yet (e.g.
+     *  an un-censused database type). The parser converts these into
+     *  positioned {@code ParseException}s at the element site. */
+    public static final class UnsupportedConnectionShape extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        private final String reason;
+
+        public UnsupportedConnectionShape(String message) {
+            super(message);
+            this.reason = message;
+        }
+
+        public String reason() {
+            return reason;
+        }
+    }
+
+    /** {@code ###Connection} element to its model form — one of the three
+     *  packageable connection kinds. Positions drop here like everywhere
+     *  else in this class. */
+    public static PackageableElement toConnectionElement(Protocol.PConnection c) {
+        return switch (c.value()) {
+            case Protocol.PJsonModelConnection j -> new ModelConnectionDefinition(
+                    c.qualifiedName(), ModelConnectionDefinition.Kind.JSON,
+                    j.className(), j.url());
+            case Protocol.PXmlModelConnection x -> new ModelConnectionDefinition(
+                    c.qualifiedName(), ModelConnectionDefinition.Kind.XML,
+                    x.className(), x.url());
+            case Protocol.PModelChainConnection m ->
+                    new ModelChainConnectionDefinition(c.qualifiedName(),
+                            m.mappings());
+            case Protocol.PRelationalDatabaseConnection r ->
+                    toRelationalConnection(c.qualifiedName(), r);
+            case Protocol.PConnectionPointer p -> throw new IllegalStateException(
+                    "a connection pointer cannot be a standalone element: "
+                            + c.qualifiedName());
+        };
+    }
+
+    private static ConnectionDefinition toRelationalConnection(String qualifiedName,
+            Protocol.PRelationalDatabaseConnection r) {
+        ConnectionDefinition.DatabaseType type;
+        try {
+            type = ConnectionDefinition.DatabaseType.valueOf(r.databaseType());
+        } catch (IllegalArgumentException e) {
+            throw new UnsupportedConnectionShape("unknown database type '"
+                    + r.databaseType() + "' (expected one of "
+                    + java.util.Arrays.toString(
+                            ConnectionDefinition.DatabaseType.values()) + ")");
+        }
+        ConnectionSpecification spec = switch (r.datasourceSpecification()) {
+            case Protocol.PH2Local h -> new ConnectionSpecification.LocalH2(
+                    h.url(), h.testDataSetupCsv(), h.testDataSetupSqls());
+            // engine's name: IS the database name (wire field databaseName)
+            case Protocol.PStaticSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(), s.databaseName());
+            case Protocol.PInMemory im -> new ConnectionSpecification.InMemory();
+            case Protocol.PLocalFile lf ->
+                    new ConnectionSpecification.LocalFile(lf.path());
+        };
+        AuthenticationSpec auth = switch (r.authenticationStrategy()) {
+            case Protocol.PH2Default d -> new AuthenticationSpec.DefaultH2();
+            case Protocol.PTestAuth t -> new AuthenticationSpec.TestAuth();
+            case Protocol.PDelegatedKerberos k ->
+                    new AuthenticationSpec.DelegatedKerberos(k.serverPrincipal());
+            case Protocol.PUserNamePassword u ->
+                    new AuthenticationSpec.VaultUserNamePassword(
+                            u.baseVaultReference(), u.userNameVaultReference(),
+                            u.passwordVaultReference());
+            case Protocol.PNoAuth n -> new AuthenticationSpec.NoAuth();
+            case Protocol.PPlainUserPassword p ->
+                    new AuthenticationSpec.UsernamePassword(p.username(),
+                            p.passwordVaultRef());
+        };
+        return new ConnectionDefinition(qualifiedName, r.element(), type, spec,
+                auth);
+    }
+
 }

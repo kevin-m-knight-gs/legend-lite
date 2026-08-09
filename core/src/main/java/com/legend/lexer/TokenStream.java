@@ -109,6 +109,12 @@ public final class TokenStream {
         return best < 0 ? -1 : lineOf(best);
     }
 
+    /** EVERY section header seen, in source order (lexable or not). The
+     *  parser's registry-routed section dispatch walks these. */
+    public java.util.List<SectionHeader> sectionHeaders() {
+        return sectionHeaders;
+    }
+
     /** Sections the lexer raw-skipped as opaque, in source order. Empty for
      *  slices — a sub-parse owns no section routing. */
     public java.util.List<SkippedSection> skippedSections() {

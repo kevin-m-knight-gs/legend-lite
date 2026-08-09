@@ -29,10 +29,18 @@ public sealed interface ConnectionSpecification
      *  {@code LocalH2 { url: '...' }}). The engine's
      *  LocalH2DatasourceSpecification carries NO url at all (it
      *  synthesizes an in-memory database) — a bare {@code LocalH2 {}}
-     *  is the common grammar form; an explicit url is carried verbatim
-     *  when present. */
-    record LocalH2(@com.legend.Nullable String url)
-            implements ConnectionSpecification {}
+     *  is the common grammar form; an explicit url is a legend-lite
+     *  extension carried verbatim when present. Engine's
+     *  {@code testDataSetupCSV} / {@code testDataSetupSqls} keys are
+     *  carried as data for the test-seeding path. */
+    record LocalH2(@com.legend.Nullable String url,
+            @com.legend.Nullable String testDataSetupCsv,
+            java.util.@com.legend.Nullable List<String> testDataSetupSqls)
+            implements ConnectionSpecification {
+        public LocalH2(@com.legend.Nullable String url) {
+            this(url, null, null);
+        }
+    }
 
     /**
      * Static datasource with explicit host/port/database. Used for remote servers.

@@ -120,6 +120,13 @@ public interface ModelContext {
      */
     Optional<com.legend.model.ConnectionDefinition> findConnection(String fqn);
 
+    /** Whether {@code fqn} names a MODEL-store connection (Json/Xml/
+     *  ModelChain) — defined, but carrying no database type, so dialect
+     *  selection skips rather than refuses it. */
+    default boolean isModelConnection(String fqn) {
+        return false;
+    }
+
     /**
      * Classify an FQN into a kinded {@link Type}: <strong>primitive &rarr; class
      * &rarr; enum</strong> (engine {@code findType} parity), FQN-only. The single

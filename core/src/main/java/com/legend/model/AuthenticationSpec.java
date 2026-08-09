@@ -9,7 +9,10 @@ package com.legend.model;
 public sealed interface AuthenticationSpec
         permits AuthenticationSpec.NoAuth,
                 AuthenticationSpec.DefaultH2,
-                AuthenticationSpec.UsernamePassword {
+                AuthenticationSpec.UsernamePassword,
+                AuthenticationSpec.TestAuth,
+                AuthenticationSpec.DelegatedKerberos,
+                AuthenticationSpec.VaultUserNamePassword {
 
     /** No authentication. Used for in-memory databases and local development. */
     record NoAuth() implements AuthenticationSpec {}
@@ -24,4 +27,18 @@ public sealed interface AuthenticationSpec
      * reference at execution time.
      */
     record UsernamePassword(String username, String passwordVaultRef) implements AuthenticationSpec {}
+
+    /** Engine's {@code auth: Test;} test authentication. */
+    record TestAuth() implements AuthenticationSpec {}
+
+    /** Engine's {@code auth: DelegatedKerberos;}, optional server principal. */
+    record DelegatedKerberos(@com.legend.Nullable String serverPrincipal)
+            implements AuthenticationSpec {}
+
+    /** Engine's {@code auth: UserNamePassword { ...VaultReference... };} —
+     *  ALL THREE fields are vault references, unlike
+     *  {@link UsernamePassword}'s literal username. */
+    record VaultUserNamePassword(@com.legend.Nullable String baseVaultReference,
+            String userNameVaultReference, String passwordVaultReference)
+            implements AuthenticationSpec {}
 }

@@ -110,7 +110,7 @@ buckets do not sum to the reported total, they are wrong.**
 | Data | ✓ `parseData` | opaque | ✓ | — |
 | **Measure** | ✓ `parseMeasureDefinition`:1207 | **—** | **—** | — |
 | **Runtime** | ✓ `parseRuntimeProtocol`:2198 | **—** | **—** | **`parseRuntimeBody`:2758, 31 lines** |
-| **Connection** | ✓ `parseConnectionProtocol`:2333 | **—** | **—** | **`connectionElement`, 104 lines** |
+| **Connection** | ✓ `ConnectionSectionGrammar` (2026-08-09) | ✓ | ✓ | — (§2.6 migration deleted it) |
 | **Service** | **—** | **—** | **—** | **`serviceElement`, 126 lines** |
 | Native Function | partial | partial | model | 10 lines |
 | Primitive | **—** | **—** | model | 15 lines |
@@ -161,12 +161,12 @@ switch someone has to find.
 By section, because that is the unit of both the architecture and the
 completeness question. Element-level work sits inside its section.
 
-1. **Connection** (51 defects + 30 walls) — the biggest, and the protocol side
-   already EXISTS and is better than the live model path. Transform, arm,
-   −104 lines, and widen `PDatasourceSpec` (it permits only
-   `PH2Local | PStaticSpec` while the model knows four and the corpus wants
-   Snowflake/BigQuery/Databricks) to clear the walls. Ends a divergence that
-   is actively producing wrong diagnostics.
+1. ~~**Connection**~~ — **LANDED 2026-08-09** as the first real
+   `SectionGrammar` (`com.legend.parser.section.ConnectionSectionGrammar`);
+   the straight-to-model twin and `parseKeyValueBlock` are deleted. The
+   spec/auth WIDENING (Snowflake/Spanner/Databricks/BigQuery,
+   MiddleTierUserNamePassword) remains open — see
+   `docs/SECTION_PROGRAM_HANDOFF.md` §3.3 for the live worklist.
 2. **Pure — Measure** (~34 of Pure's 37) — protocol parse EXISTS and nothing
    calls it. Needs a model type, a transform, one arm.
 3. **Runtime** (3 defects) — protocol parse EXISTS. Transform, arm, −31 lines.

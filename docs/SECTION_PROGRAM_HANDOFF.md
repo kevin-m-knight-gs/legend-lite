@@ -9,8 +9,11 @@ sections** and **41 packageable element types** parses through legend-lite's
 PROTOCOL path, is transformed into the model, is routed through
 `SectionGrammarRegistry`, and has **no straight-to-model twin left anywhere**.
 
-Today: **5 of 25 sections claimed, 1 finished. 10 of 41 element types have a
-protocol record. 8 straight-to-model parsers still live, 3 of them DUAL.**
+Today (updated 2026-08-09, Connection migration landed): **5 of 25 sections
+claimed, 1 finished. `###Connection` is the FIRST section behind a real
+`SectionGrammar` — parsed through the registry, straight-to-model twin
+deleted. 10 of 41 element types have a protocol record. 6 straight-to-model
+parsers still live, 2 of them DUAL (both Runtime's).**
 
 Both denominators are pinned by gate 8 (`EngineSectionRosterTest`,
 `EngineElementRosterTest`) so they cannot quietly drift when the oracle jars
@@ -88,8 +91,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
+| MATCHED | 897 | was 875 before the Connection migration |
 | LENIENT | 55 | we accept, reference refuses |
-| DEFECT | 184 | reference accepts, we refuse — **the coverage debt** |
+| DEFECT | **162** | reference accepts, we refuse — **the coverage debt** (was 184; −22 files from the Connection migration) |
 
 ## 1.4 How to read those numbers without fooling yourself
 
@@ -198,7 +202,7 @@ Defects attributed to the section they OCCUR in; sums to 184.
 |--:|---|---:|---:|---:|---|
 | 1 | **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3) |
 | 2 | **Pure** | **1** (+5 islands) | 0 | 0 | one element short: **Measure** |
-| 3 | **Connection** | **85** | **30** | 0 | **DUAL-PATH**; biggest item on the board |
+| 3 | **Connection** | 14 | **30** | 0 | **first real `SectionGrammar`** (2026-08-09); twin deleted; left: spec/auth widening 11 (Snowflake 7, Spanner/Databricks/BigQuery 1 each, MiddleTierUserNamePassword 1) + foreign flavors 3 (Deephaven 2, MongoDB 1) |
 | 4 | **Service** | 27 | 0 | **135** | straight-to-model, no protocol side |
 | 5 | **Mapping** | 25 | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
 | 6 | DataSpace | 13 | 0 | 51 | unbuilt |
@@ -223,8 +227,20 @@ Defects attributed to the section they OCCUR in; sums to 184.
 | 25 | **Data** | 0 | 0 | 0 | claimed, carried opaque |
 
 **`###Pure` and `###Relational` are effectively finished. `###Mapping` is
-protocol-first but blocked largely on OTHER sections. `###Connection` is 46%
-of all remaining defects.**
+protocol-first but blocked largely on OTHER sections.**
+
+**2026-08-09 re-census after the Connection migration (sums to 162):** the
+per-section defect attribution above predates the migration — clearing a
+file's connection gap surfaces its NEXT gap, so the buckets moved: `'X' is
+not a known section parser` 85 (Service/DataSpace/Snowflake/Diagram files),
+`unsupported class mapping type` 19 (Mapping), **Runtime-twin causes 32**
+(embedded `RelationalDatabaseConnection`/`ModelChainConnection` islands 14,
+`duplicate connection binding for store` 12 — engine allows several
+connections per store, the model twin's `Map` cannot —, unknown Runtime keys
+6, incl. `connectionStores`), connection spec/auth widening 11, foreign
+connection flavors 3, DSL islands 3, embedded data kinds 3,
+`include dataspace` 2, misc 4 (`expected type name, got PAREN_OPEN` 2, one
+top-level keyword, one column-reference).
 
 ## 2.3 Element arms inside claimed sections
 
@@ -241,7 +257,7 @@ ever disagree.
 | Data | ✓ `parseData` | opaque | ✓ | — |
 | **Measure** | ✓ `parseMeasureDefinition`:1207 | — | — | — |
 | **Runtime** | ✓ `parseRuntimeProtocol`:2198 | — | — | `parseRuntimeBody`:2758, 31 lines |
-| **Connection** | ✓ `parseConnectionProtocol`:2333 | — | — | `connectionElement`, 104 lines |
+| **Connection** | ✓ `ConnectionSectionGrammar` (all 4 flavors) | ✓ `FromProtocol.toConnectionElement` | ✓ (+ section dispatch) | **deleted 2026-08-09** |
 | **Service** | — | — | — | `serviceElement`, 126 lines |
 | Native Function | partial | partial | model | 10 lines |
 | Primitive | — | — | model | 15 lines |
@@ -274,10 +290,11 @@ contain round-trips. Our protocol coverage of the 41:
 |---|---|
 | Class · Enumeration · Profile · Association · Function · **Measure** · Database · Mapping · DataElement · SectionIndex | **PackageableConnection** · **PackageableRuntime** · Diagram · Text · Service · Binding · DataSpace · Persistence · PersistenceContext · ServiceStore · MongoDatabase · DeephavenStore · Elasticsearch7Store · SnowflakeApp · SnowflakeM2MUdf · HostedService · FunctionJar · BigQueryFunction · MemSqlFunction · DataQuality (+ variants) · ExternalFormatSchemaSet · FileGenerationSpecification · GenerationSpecification · ExecutionEnvironmentInstance · RelationalMapper · AuthenticationDemo · DeephavenApp · BigQueryFunctionDeploymentConfiguration · MemSqlFunctionDeploymentConfiguration |
 
-**10 of 41.** Note `Measure` HAS a protocol record and is unwired, and
-`PackageableConnection`/`PackageableRuntime` have protocol PARSERS
-(`parseConnectionProtocol`, `parseRuntimeProtocol`) but no `P*` record in
-`Protocol.java` reachable from the emitter — verify before assuming either.
+**10 of 41.** Note `Measure` HAS a protocol record and is unwired.
+(Verified 2026-08-09: `PConnection` and `PRuntime` ARE `Protocol.Element`
+records with emitter arms — the earlier "no P* record reachable from the
+emitter" caveat was wrong. `PackageableConnection` is now fully wired;
+`PackageableRuntime` still lacks its transform/arm.)
 
 ## 2.5 EVERY dual parser, and the deletion list
 
@@ -286,21 +303,23 @@ read by a protocol parser. They are the migration's actual debt: while two
 exist they diverge, silently, and the divergence surfaces as a nonsense error
 somewhere else entirely.
 
-Verified inventory (`ElementParser`, line numbers at HEAD `584a34eb`):
+Verified inventory (updated 2026-08-09 after the Connection migration —
+`connectionElement` and `parseModelConnectionBody` are GONE; recheck line
+numbers with the greps below):
 
 | # | straight-to-model | lines | protocol twin | status |
 |--:|---|---:|---|---|
-| 1 | `connectionElement`:2925 | 104 | `parseConnectionProtocol`:2380 | **DUAL — already diverged** |
-| 2 | `parseRuntimeBody`:2807 (via `runtimeElement`:2787) | 31 | `parseRuntimeProtocol`:2245 | **DUAL** |
-| 3 | `singleConnectionRuntimeElement`:2799 | 7 | `parseRuntimeProtocol`:2245 | **DUAL** |
-| 4 | `serviceElement`:2100 | 126 | — none | straight-to-model only |
-| 5 | `nativeFunctionElement`:2025 | 10 | partial | straight-to-model only |
-| 6 | `primitiveElement`:966 | 15 | — none | straight-to-model only |
-| 7 | `parseModelConnectionBody`:2427 | — | — | helper of (1) |
-| 8 | `parseEmbeddedJsonModelConnection`:2882 | — | — | helper of (1) |
+| 1 | `parseRuntimeBody` (via `runtimeElement`) | 31 | `parseRuntimeProtocol` | **DUAL** |
+| 2 | `singleConnectionRuntimeElement` | 7 | `parseRuntimeProtocol` | **DUAL** |
+| 3 | `serviceElement` | 126 | — none | straight-to-model only |
+| 4 | `nativeFunctionElement` | 10 | partial | straight-to-model only |
+| 5 | `primitiveElement` | 15 | — none | straight-to-model only |
+| 6 | `parseEmbeddedJsonModelConnection` | 31 | `ConnectionSectionGrammar.parseIslandValue` | **DUAL** — helper of (1)'s connections walk; dies with the Runtime migration |
 
-**All eight must go.** 1–3 are deletions the moment their transform exists.
-4–6 need a protocol parser first. 7–8 die with (1).
+**All six must go.** 1–2 and 6 are deletions the moment Runtime's transform
+exists (the 2026-08-08 census mis-attributed 6 as a Connection helper — it
+is the RUNTIME model path's island parser). 3–5 need a protocol parser
+first.
 
 Outside core: `engine/src/main/java/com/gs/legend/parser/PureModelParser.java`
 (2,573 lines) is a THIRD full parser with its own `parseMapping`,
@@ -355,12 +374,15 @@ pipeline.
 
 ### What does NOT exist
 
-`SectionGrammarRegistry.BuiltIn.parse` **THROWS**
-(`"built-in section parses through the main pipeline, not the SPI"`). So the
-seam is real for third parties and bypassed by us — the inverse of the
-dogfooding rule the registry's own javadoc states. Built-ins are also only
-six names (`Pure, Mapping, Relational, Connection, Runtime, Data`) against a
-denominator of 25.
+**Updated 2026-08-09: `###Connection` is now a REAL registered grammar** —
+`com.legend.parser.section.ConnectionSectionGrammar`, routed by
+`ElementParser.parseModel`'s claimed-section dispatch (a LEXABLE section
+whose registered grammar implements the core-internal
+`LexableSectionGrammar` parses as a WHOLE through it, from the shared token
+stream; the SPI `parse(SectionSource, ElementSink)` surface re-lexes and
+drives the SAME methods). The remaining FIVE built-ins
+(`Pure, Mapping, Relational, Runtime, Data`) are still `BuiltIn` stubs whose
+`parse` THROWS — the bypass shrinks one section at a time.
 
 ### Migrating ONE section to the seam — the recipe
 
@@ -413,22 +435,26 @@ A section that satisfies (1) alone is "protocol-first", which is what
 
 ## 3.3 Ranked worklist
 
-1. **Connection — 85 defects + 30 walls.** Biggest by far, dual-path, and the
-   protocol side already EXISTS and is BETTER than the live one. Needs a
-   transform, an arm, −104 lines. Widen `PDatasourceSpec` (it permits only
-   `PH2Local | PStaticSpec` while the model knows four and the corpus wants
-   Snowflake/BigQuery/Databricks) to clear the 30 walls. Also unblocks much of
-   `###Mapping`. **Strong candidate to be the FIRST real `SectionGrammar`** —
-   doing it section-first lands the migration and proves the architecture in
-   one move, instead of migrating into the switch and re-doing it later.
-2. **Measure** — protocol parse EXISTS (`:1207`) and NOTHING calls it. Needs a
-   model type, a transform, one arm. Finishes `###Pure`.
-3. **Runtime — 3 defects.** Protocol parse EXISTS. Transform, arm, −31 lines.
-   Cheap; retires the third dual-path section.
-4. **Service — 27 defects + 135 oos.** Biggest single section and the only one
-   genuinely from scratch.
-5. **DataSpace** (13+51), **ExternalFormat** (2+77), **Persistence** (0+53),
-   **ServiceStore** (1+32), **Snowflake** (6+31), then the tail.
+1. ~~**Connection**~~ — **LANDED 2026-08-09** as the first real
+   `SectionGrammar`: DEFECT 184 → 162, byte parity untouched, twin deleted.
+   The §2.6 recipe is now PROVEN — reuse it verbatim.
+2. **Runtime — 32 defects, the new biggest cluster.** Protocol parse EXISTS
+   (`parseRuntimeProtocol`). Needs: `PRuntime` → model transform (must hold
+   SEVERAL connections per store — the twin's `Map<String,String>` loses
+   them, 12 files —, embedded relational/model-chain islands 14, and
+   `connectionStores` 6), a `RuntimeSectionGrammar` per the recipe, and the
+   deletion of dual parsers 1–2 and 6 in §2.5.
+3. **Connection spec/auth widening — 11 defects + 30 walls.** Add
+   corpus-censused `PDatasourceSpec`/`PAuthStrategy` flavors (Snowflake 7,
+   Spanner/Databricks/BigQuery, MiddleTierUserNamePassword). Wire shapes must
+   be PROBED first (ZConnectionProbe pattern) — each new record needs an
+   emitter arm proven byte-exact.
+4. **Measure** — protocol parse EXISTS and NOTHING calls it. Needs a model
+   type, a transform, one arm. Finishes `###Pure`.
+5. **Service — 135 oos + a large share of the 85 section-refusal files.**
+   Biggest single section and the only one genuinely from scratch.
+6. **DataSpace** (51 oos), **ExternalFormat** (77 oos), **Persistence**
+   (53 oos), **ServiceStore** (32 oos), **Snowflake** (31 oos), then the tail.
 
 ## 3.4 Conventions you must not break
 
