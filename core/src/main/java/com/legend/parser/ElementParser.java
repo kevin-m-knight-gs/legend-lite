@@ -160,8 +160,6 @@ public final class ElementParser implements TokenStreamCursor {
     @com.legend.Nullable ScopeBlock currentScopeBlock;
 
     /** Grammar-section parsers sharing this parser's cursor and scope state. */
-    final MappingGrammarParser mappingGrammar = new MappingGrammarParser(this);
-    final RelationalGrammarParser relationalGrammar = new RelationalGrammarParser(this);
 
     ElementParser(TokenStream tokens) {
         this(tokens, 0, 0);
@@ -238,33 +236,6 @@ public final class ElementParser implements TokenStreamCursor {
      * incremental client touches) is provided by the dormant IDE layer in
      * {@code com.legend.ide}; it is not used by the batch compiler.
      */
-    /**
-     * Parse ONE database at {@code tokenIndex} through the LEGACY model
-     * parser. Exists so {@code MigrationEquivalenceTest} can run both paths
-     * over the same tokens and require identical models; it dies with
-     * {@code RelationalGrammarParser} (PARSER_COMPLETENESS_PLAN.md §1).
-     */
-    public static com.legend.model.DatabaseDefinition parseDatabaseAt(
-            TokenStream tokens, int tokenIndex) {
-        ElementParser p = new ElementParser(tokens);
-        p.pos = tokenIndex;
-        p.legendStrict = true;
-        return p.relationalGrammar.parseDatabase();
-    }
-
-    /**
-     * Parse ONE mapping at {@code tokenIndex} through the LEGACY model
-     * parser — the Mapping-side twin of {@link #parseDatabaseAt}, for the
-     * M0 census. Dies with {@code MappingGrammarParser}.
-     */
-    public static PackageableElement parseMappingAt(
-            TokenStream tokens, int tokenIndex) {
-        ElementParser p = new ElementParser(tokens);
-        p.pos = tokenIndex;
-        p.legendStrict = true;
-        return p.mappingGrammar.parseMapping();
-    }
-
     public static ParsedModel parse(String source) {
         return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")));
     }
@@ -420,7 +391,7 @@ public final class ElementParser implements TokenStreamCursor {
         advance();                                  // 'Data'
         parseDecorations();
         parseQualifiedName();
-        mappingGrammar.skipBalancedBlock();         // { <body> }
+        skipBalancedBlock();         // { <body> }
         return new com.legend.model.OpaqueElementDefinition(de.qualifiedName(),
                 "Data", com.legend.protocol.ProtocolEmitter.emitElement(de));
     }
@@ -432,10 +403,10 @@ public final class ElementParser implements TokenStreamCursor {
                                         // after it is a parse error, never an
                                         // unbounded token skip (audit 8 S9)
             if (peek() == TokenType.PAREN_OPEN) {
-                mappingGrammar.skipBalancedBlock();    // (width=..., height=...)
+                skipBalancedBlock();    // (width=..., height=...)
             }
             if (peek() == TokenType.BRACE_OPEN) {
-                mappingGrammar.skipBalancedBlock();    // { TypeView ... }
+                skipBalancedBlock();    // { TypeView ... }
             }
             return true;
         }
@@ -445,7 +416,7 @@ public final class ElementParser implements TokenStreamCursor {
             if (peek() != TokenType.PAREN_OPEN) {
                 throw error("top-level ^Instance must be followed by (...)");
             }
-            mappingGrammar.skipBalancedBlock();
+            skipBalancedBlock();
             return true;
         }
         // a STRAY top-level closer: the corpus\u0027s own
@@ -584,7 +555,7 @@ public final class ElementParser implements TokenStreamCursor {
             advance();
             parseQualifiedName();      // the projected source class
             if (peek() == TokenType.BRACE_OPEN) {
-                mappingGrammar.skipBalancedBlock();
+                skipBalancedBlock();
             }
             String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
             return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, List.of(),
@@ -956,11 +927,11 @@ public final class ElementParser implements TokenStreamCursor {
         String base = parseQualifiedName();
         // optional (args) on the base (e.g. Decimal(10,2)) — dropped
         if (peek() == TokenType.PAREN_OPEN) {
-            mappingGrammar.skipBalancedBlock();
+            skipBalancedBlock();
         }
         // optional [constraints] — instantiation-time; dropped
         if (peek() == TokenType.BRACKET_OPEN) {
-            mappingGrammar.skipBalancedBlock();
+            skipBalancedBlock();
         }
         return new com.legend.model.PrimitiveExtensionDefinition(fqn, base);
     }

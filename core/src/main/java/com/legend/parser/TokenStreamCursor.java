@@ -372,6 +372,35 @@ public interface TokenStreamCursor {
             || t == TokenType.SRC_CMD;
     }
 
+    /**
+     * Consume one balanced {@code {...}}, {@code (...)} or {@code [...]}
+     * block, balancing every bracket kind (the lexer already skipped
+     * strings). Used wherever a section body is carried verbatim rather
+     * than modelled.
+     *
+     * <p>Lived on {@code MappingGrammarParser} until that parser was
+     * deleted; it never had anything to do with mappings.
+     */
+    default void skipBalancedBlock() {
+        int depth = 0;
+        boolean started = false;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN || t == TokenType.PAREN_OPEN
+                    || t == TokenType.BRACKET_OPEN) {
+                depth++;
+                started = true;
+            } else if (t == TokenType.BRACE_CLOSE || t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACKET_CLOSE) {
+                depth--;
+            }
+            advance();
+            if (started && depth == 0) {
+                return;
+            }
+        }
+    }
+
     default boolean isIdentifierToken(TokenType t) {
         return t != null && IDENTIFIER_TOKENS.contains(t);
     }
