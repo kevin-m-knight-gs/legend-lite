@@ -70,9 +70,11 @@ class CodeShapeGuardrailTest {
             // DatabaseProtocolParser: the same parser-cursor shape
             "DatabaseProtocolParser.pos",
             "MappingProtocolParser.pos",
-            // ConnectionSectionGrammar.Cursor: the re-lex feed's parser
-            // cursor — same shape, scoped to one island/SPI parse
+            // ConnectionSectionGrammar.Cursor / RuntimeSectionGrammar
+            // .SliceCursor: the re-lex feeds' parser cursors — same shape,
+            // scoped to one island/SPI parse
             "ConnectionSectionGrammar.pos",
+            "RuntimeSectionGrammar.pos",
             // parse-surface MODE, set once at construction by the factory that owns
             // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
             "ElementParser.legendStrict",

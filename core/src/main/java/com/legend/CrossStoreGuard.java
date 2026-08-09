@@ -54,12 +54,18 @@ final class CrossStoreGuard {
     }
 
     private static void collect(TypedSpec n,
-            java.util.Map<String, String> bindings,
+            java.util.Map<String, java.util.List<String>> bindings,
             TreeMap<String, String> conns) {
         if (n instanceof TypedTableReference t) {
-            String bound = bindings.get(t.store());
+            java.util.List<String> bound = bindings.get(t.store());
             if (bound != null) {
-                conns.put(t.store(), bound);
+                // a store bound to SEVERAL connections is itself the
+                // multi-connection shape the distinct-check below refuses,
+                // so record each under a keyed name
+                for (int i = 0; i < bound.size(); i++) {
+                    conns.put(i == 0 ? t.store() : t.store() + "#" + i,
+                            bound.get(i));
+                }
             }
         }
         for (TypedSpec c : n.children()) {

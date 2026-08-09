@@ -109,7 +109,7 @@ buckets do not sum to the reported total, they are wrong.**
 | Mapping | ✓ `MappingProtocolParser` | ✓ | ✓ | — (M4 deleted it) |
 | Data | ✓ `parseData` | opaque | ✓ | — |
 | **Measure** | ✓ `parseMeasureDefinition`:1207 | **—** | **—** | — |
-| **Runtime** | ✓ `parseRuntimeProtocol`:2198 | **—** | **—** | **`parseRuntimeBody`:2758, 31 lines** |
+| **Runtime** | ✓ `RuntimeSectionGrammar` (2026-08-09) | ✓ | ✓ | — (§2.6 migration deleted it) |
 | **Connection** | ✓ `ConnectionSectionGrammar` (2026-08-09) | ✓ | ✓ | — (§2.6 migration deleted it) |
 | **Service** | **—** | **—** | **—** | **`serviceElement`, 126 lines** |
 | Native Function | partial | partial | model | 10 lines |

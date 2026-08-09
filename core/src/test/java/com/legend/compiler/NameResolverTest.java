@@ -620,7 +620,8 @@ class NameResolverTest {
                 List.of());
         var r = (RuntimeDefinition) resolveOne(rd, imp, FQNS);
         assertEquals(List.of("mapping::PersonMapping"), r.mappings());
-        assertEquals(Map.of("store::DB", "connection::DBConn"), r.connectionBindings());
+        assertEquals(Map.of("store::DB", List.of("connection::DBConn")),
+                r.connectionBindings());
     }
 
     @Test

@@ -336,8 +336,9 @@ public final class Compiler {
         if (runtimeFqn != null) {
             var rt = ctx.findRuntime(runtimeFqn);
             if (rt.isPresent()) {
-                for (String connFqn : new java.util.TreeSet<>(
-                        rt.get().connectionBindings().values())) {
+                var bound = new java.util.TreeSet<String>();
+                rt.get().connectionBindings().values().forEach(bound::addAll);
+                for (String connFqn : bound) {
                     var decl = ctx.findConnection(connFqn);
                     if (decl.isPresent() && decl.get().databaseType()
                             != com.legend.model.ConnectionDefinition
@@ -375,8 +376,9 @@ public final class Compiler {
         // was nondeterministic AND skipped later unsupported types (audit).
         var types = new java.util.TreeMap<String,
                 com.legend.model.ConnectionDefinition.DatabaseType>();
-        for (String connFqn : new java.util.TreeSet<>(
-                rt.get().connectionBindings().values())) {
+        var bound = new java.util.TreeSet<String>();
+        rt.get().connectionBindings().values().forEach(bound::addAll);
+        for (String connFqn : bound) {
             var conn = ctx.findConnection(connFqn);
             if (conn.isEmpty()) {
                 // a MODEL-store connection is defined but carries no

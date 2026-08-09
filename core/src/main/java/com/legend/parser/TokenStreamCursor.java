@@ -749,6 +749,20 @@ public interface TokenStreamCursor {
                 ts.endLine(toTok), ts.endColumn(toTok));
     }
 
+    /** The raw text spanned by tokens {@code [startToken, endToken)} —
+     *  island content arrives as COARSE chunks, so reconstructing the
+     *  original characters for a re-lex is the engine's own island
+     *  mechanism (see DropInSurfaceTextRuleTest's source whitelist). */
+    default String reconstructText(int startToken, int endToken) {
+        if (startToken >= endToken) {
+            return "";
+        }
+        // spelled tokens().source() so DropInSurfaceTextRuleTest's census
+        // SEES this site — hiding it behind a local would evade the audit
+        return tokens().source().substring(tokens().start(startToken),
+                tokens().end(endToken - 1));
+    }
+
     /** Walker-offset shift for EMBEDDED-island reparses (engine rule: line
      *  offset applies to every line, column offset to line 1 only). Identity
      *  when both offsets are zero. */

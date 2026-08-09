@@ -1134,12 +1134,30 @@ public final class NameResolver {
     private static RuntimeDefinition resolveRuntime(
             RuntimeDefinition rd, Scope scope) {
         List<String> mappings = resolveFqnList(rd.mappings(), scope);
-        Map<String, String> bindings = resolveFqnMapKeysAndValues(
-                rd.connectionBindings(), scope);
         // jsonConnections (List<JsonModelConnection>) carry only literal
         // JSON payloads; no element FQN inside the public record shape.
-        if (mappings == rd.mappings() && bindings == rd.connectionBindings()) return rd;
-        return new RuntimeDefinition(rd.qualifiedName(), mappings, bindings, rd.jsonConnections());
+        Map<String, List<String>> bindings = new java.util.LinkedHashMap<>();
+        boolean bindingsChanged = false;
+        for (Map.Entry<String, List<String>> e
+                : rd.connectionBindings().entrySet()) {
+            String store = resolveName(e.getKey(), scope);
+            List<String> conns = resolveFqnList(e.getValue(), scope);
+            bindingsChanged |= !store.equals(e.getKey())
+                    || conns != e.getValue();
+            bindings.put(store, conns);
+        }
+        List<PackageableElement> inline = new java.util.ArrayList<>();
+        boolean inlineChanged = false;
+        for (PackageableElement el : rd.inlineConnections()) {
+            PackageableElement r = resolveElement(el, scope);
+            inlineChanged |= r != el;
+            inline.add(r);
+        }
+        if (mappings == rd.mappings() && !bindingsChanged && !inlineChanged) {
+            return rd;
+        }
+        return new RuntimeDefinition(rd.qualifiedName(), mappings, bindings,
+                rd.jsonConnections(), inline);
     }
 
     private static ServiceDefinition resolveService(
@@ -1632,20 +1650,6 @@ public final class NameResolver {
     /** Resolve every entry in a list of FQN strings (e.g. db includes). */
     private static List<String> resolveFqnList(List<String> fqns, Scope scope) {
         return resolveList(fqns, NameResolver::resolveName, scope);
-    }
-
-    private static Map<String, String> resolveFqnMapKeysAndValues(
-            Map<String, String> map, Scope scope) {
-        if (map.isEmpty()) return map;
-        boolean changed = false;
-        Map<String, String> out = new LinkedHashMap<>(map.size());
-        for (Map.Entry<String, String> e : map.entrySet()) {
-            String k = resolveName(e.getKey(), scope);
-            String v = resolveName(e.getValue(), scope);
-            if (!k.equals(e.getKey()) || !v.equals(e.getValue())) changed = true;
-            out.put(k, v);
-        }
-        return changed ? Map.copyOf(out) : map;
     }
 
     // =================================================================

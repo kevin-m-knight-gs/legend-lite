@@ -1384,7 +1384,8 @@ final class ElementParserTest {
         RuntimeDefinition r = assertInstanceOf(RuntimeDefinition.class, m.elements().get(0));
         assertEquals(List.of("my::M1", "my::M2"), r.mappings());
         assertEquals(
-                Map.of("store::DbA", "store::ConnA", "store::DbB", "store::ConnB"),
+                Map.of("store::DbA", List.of("store::ConnA"),
+                        "store::DbB", List.of("store::ConnB")),
                 r.connectionBindings());
         assertEquals(List.of(), r.jsonConnections());
     }
@@ -1409,14 +1410,25 @@ final class ElementParserTest {
     }
 
     @Test
-    void singleConnectionRuntimeAcceptsEmptyBody() {
-        // Engine's stub behavior: build a minimal runtime, body is skipped.
+    void singleConnectionRuntimeParsesMappingsAndConnection() {
+        // The old twin SKIPPED the body (accepting garbage); the protocol
+        // grammar parses it for real — mappings kept, the storeless
+        // connection pointer binds nothing.
         ParsedModel m = ElementParser.parse(
-                "SingleConnectionRuntime my::SCR { whatever: foo; }");
+                "SingleConnectionRuntime my::SCR { mappings: [my::M];"
+                        + " connection: my::C; }");
         RuntimeDefinition r = (RuntimeDefinition) m.elements().get(0);
         assertEquals("my::SCR", r.qualifiedName());
-        assertEquals(List.of(), r.mappings());
+        assertEquals(List.of("my::M"), r.mappings());
         assertEquals(Map.of(), r.connectionBindings());
+    }
+
+    @Test
+    void singleConnectionRuntimeRejectsUnknownKey() {
+        // Engine's grammar refuses unknown keys; the twin's body-skip that
+        // accepted garbage here died with the Runtime migration.
+        assertThrows(ParseException.class, () -> ElementParser.parse(
+                "SingleConnectionRuntime my::SCR { whatever: foo; }"));
     }
 
     // ===============================================================

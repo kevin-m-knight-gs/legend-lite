@@ -479,6 +479,22 @@ public final class ModelBuilder {
      */
     private void ingestRuntime(RuntimeDefinition rd) {
         putAtId(runtimes, intern(rd.qualifiedName()), rd);
+        // Anonymous embedded connections (names carry the reserved '$'
+        // sigil) register like their standalone twins, so the runtime's
+        // bindings to them resolve in findConnection / isModelConnection.
+        for (PackageableElement inline : rd.inlineConnections()) {
+            switch (inline) {
+                case ConnectionDefinition cd ->
+                        putAtId(connections, intern(cd.qualifiedName()), cd);
+                case com.legend.model.ModelConnectionDefinition mc ->
+                        modelConnections.put(mc.qualifiedName(), mc);
+                case com.legend.model.ModelChainConnectionDefinition mcc ->
+                        modelChainConnections.put(mcc.qualifiedName(), mcc);
+                default -> throw new IllegalStateException(
+                        "unexpected inline connection kind: "
+                                + inline.getClass().getSimpleName());
+            }
+        }
         if (rd.jsonConnections().isEmpty()) return;
 
         for (JsonModelConnection jmc : rd.jsonConnections()) {

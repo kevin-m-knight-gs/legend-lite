@@ -56,7 +56,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         Cursor c = new Cursor(Lexer.tokenize(src.text()), 0, 0);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
-                parseImport(c);
+                SectionImports.parseImport(c);
                 continue;
             }
             Protocol.PConnection pc = parseElement(c);
@@ -72,7 +72,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         while (!host.atEnd()
                 && host.tokens().start(host.pos()) < sectionEndOffset) {
             if (host.peek() == TokenType.IMPORT) {
-                imports.add(parseImport(host));
+                imports.add(SectionImports.parseImport(host));
                 continue;
             }
             int at = host.tokens().start(host.pos());
@@ -89,25 +89,6 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
             throw new UnsupportedElementShape(u.reason());
         }
-    }
-
-    /** {@code import path::*;} inside the section — engine's ConnectionParser
-     *  builds an ImportAwareCodeSection, so the grammar accepts and records
-     *  them (the corpus contains none today). */
-    private static String parseImport(TokenStreamCursor c) {
-        c.expect(TokenType.IMPORT);
-        StringBuilder sb = new StringBuilder();
-        sb.append(c.parseIdentifier());
-        while (c.match(TokenType.PATH_SEPARATOR)) {
-            sb.append("::");
-            if (c.match(TokenType.STAR)) {
-                sb.append("*");
-                break;
-            }
-            sb.append(c.parseIdentifier());
-        }
-        c.expect(TokenType.SEMI_COLON);
-        return sb.toString();
     }
 
     // ============================================================

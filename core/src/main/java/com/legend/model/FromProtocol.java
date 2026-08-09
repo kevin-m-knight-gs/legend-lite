@@ -402,6 +402,87 @@ public final class FromProtocol {
         };
     }
 
+    /**
+     * {@code Runtime | SingleConnectionRuntime} to its model form. Pointer
+     * bindings keep declaration order and allow SEVERAL connections per
+     * store (engine semantics — the old model twin's {@code Map} refused
+     * duplicates). Embedded islands split three ways: Json islands feed the
+     * cross-bake list (execution parity with the twin); every other flavor
+     * hoists to an anonymous element named with the reserved {@code $}
+     * sigil, registered by {@code ModelBuilder.ingestRuntime} and BOUND to
+     * its store, so dialect selection sees an inline relational
+     * connection's database type.
+     */
+    public static RuntimeDefinition toRuntimeElement(Protocol.PRuntime r) {
+        String qn = r.qualifiedName();
+        java.util.List<String> mappings = new ArrayList<>(r.mappings().size());
+        for (Protocol.PPointer p : r.mappings()) {
+            mappings.add(p.path());
+        }
+        java.util.Map<String, java.util.List<String>> bindings =
+                new java.util.LinkedHashMap<>();
+        java.util.List<JsonModelConnection> jsonConnections = new ArrayList<>();
+        java.util.List<PackageableElement> inline = new ArrayList<>();
+        for (Protocol.PStoreConnections sc : r.connections()) {
+            String store = sc.store().path();
+            for (Protocol.PIdentifiedConnection ic : sc.storeConnections()) {
+                switch (ic.connection()) {
+                    case Protocol.PConnectionPointer p -> bindings
+                            .computeIfAbsent(store, k -> new ArrayList<>())
+                            .add(p.connection());
+                    case Protocol.PJsonModelConnection j -> jsonConnections
+                            .add(new JsonModelConnection(j.className(), j.url()));
+                    case Protocol.PXmlModelConnection x -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        inline.add(new ModelConnectionDefinition(synth,
+                                ModelConnectionDefinition.Kind.XML,
+                                x.className(), x.url()));
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                    case Protocol.PModelChainConnection m -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        inline.add(new ModelChainConnectionDefinition(synth,
+                                m.mappings()));
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                    case Protocol.PRelationalDatabaseConnection rc -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        ConnectionDefinition cd =
+                                toRelationalConnection(synth, rc);
+                        if (cd.storeName() == null) {
+                            // an inline island may omit store: — the OUTER
+                            // binding names it
+                            cd = new ConnectionDefinition(synth, store,
+                                    cd.databaseType(), cd.specification(),
+                                    cd.authentication());
+                        }
+                        inline.add(cd);
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                }
+            }
+        }
+        // connectionStores: [conn: [stores...]] — the REVERSE direction; a
+        // SingleConnectionRuntime's storeless entry binds nothing
+        for (Protocol.PConnectionStores cs : r.connectionStores()) {
+            if (!(cs.connectionPointer()
+                    instanceof Protocol.PConnectionPointer p)) {
+                throw new IllegalStateException(
+                        "connectionStores entries are pointers by grammar: "
+                                + qn);
+            }
+            for (Protocol.PStorePointer sp : cs.storePointers()) {
+                bindings.computeIfAbsent(sp.path(), k -> new ArrayList<>())
+                        .add(p.connection());
+            }
+        }
+        return new RuntimeDefinition(qn, mappings, bindings, jsonConnections,
+                inline);
+    }
+
     private static ConnectionDefinition toRelationalConnection(String qualifiedName,
             Protocol.PRelationalDatabaseConnection r) {
         ConnectionDefinition.DatabaseType type;
