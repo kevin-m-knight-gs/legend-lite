@@ -760,7 +760,7 @@ class EnumIntegrationTest {
 
                     Mapping model::TaskMapping
                     (
-                        model::TaskStatus: EnumerationMapping
+                        model::TaskStatus: EnumerationMapping TaskStatusMap
                         {
                             PENDING: ['P', 'PEND', 'WAITING'],
                             IN_PROGRESS: ['IP', 'WORKING'],
@@ -772,7 +772,7 @@ class EnumIntegrationTest {
                             ~mainTable [store::TaskDB] TASKS
                             id: [store::TaskDB]TASKS.ID,
                             name: [store::TaskDB]TASKS.NAME,
-                            status: EnumerationMapping: [store::TaskDB]TASKS.STATUS_CODE
+                            status: EnumerationMapping TaskStatusMap: [store::TaskDB]TASKS.STATUS_CODE
                         }
                     )
 

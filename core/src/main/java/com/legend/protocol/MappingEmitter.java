@@ -802,6 +802,17 @@ final class MappingEmitter {
                     b.append('}');
                     continue;
                 }
+                if (sd.embedded() != null) {
+                    // a plain embedded-data value under the store pointer
+                    b.append("{\"data\":");
+                    embeddedDataValue(b, sd.embedded());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sd.sourceInformation());
+                    b.append(",\"store\":");
+                    pointer(b, sd.store());
+                    b.append('}');
+                    continue;
+                }
                 if (sd.dataElement() != null) {
                     // Reference #{ path }# (probe reference-data)
                     b.append("{\"data\":{\"_type\":\"reference\","

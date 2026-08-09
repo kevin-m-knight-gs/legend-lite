@@ -1132,17 +1132,20 @@ final class MappingGrammarParser {
             LegacyMappingDefinition.@com.legend.Nullable TableReference mainTable) {
         // Optional EnumerationMapping prefix:
         //   prop: EnumerationMapping enumId : ...
-        //   prop: EnumerationMapping : ...        (ANONYMOUS — resolved by
-        //                                          the property's enum type)
+        // The id is REQUIRED once the keyword is written — the ANONYMOUS form
+        // `prop: EnumerationMapping: ...` is not Legend grammar and the real
+        // engine parser refuses it. See
+        // MappingProtocolParser#enumerationMappingId.
         String enumMappingId = null;
         boolean anonymousEnumMapping = false;
         if (p.peek() == TokenType.ENUMERATION_MAPPING) {
             p.advance();
             if (p.peek() == TokenType.COLON) {
-                anonymousEnumMapping = true;
-            } else {
-                enumMappingId = p.parseIdentifier();
+                throw p.error("EnumerationMapping on a property mapping"
+                        + " requires an enumeration mapping id (prop:"
+                        + " EnumerationMapping <id>: <expr>)");
             }
+            enumMappingId = p.parseIdentifier();
             p.expect(TokenType.COLON);
         }
 

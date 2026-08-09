@@ -635,6 +635,17 @@ public final class ProtocolEmitter {
                 }
                 b.append('}');
             }
+            // legend-lite EXTENSION (Protocol.PRelTypeRef): engine's
+            // relational operations have no type-reference node, so there is
+            // no engine spelling to match. `packageableType` is Pure's own
+            // wire name for a type in value position.
+            case Protocol.PRelTypeRef t -> {
+                b.append("{\"_type\":\"packageableType\",\"fullPath\":");
+                str(b, t.typeName());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, t.sourceInformation());
+                b.append('}');
+            }
         }
     }
 

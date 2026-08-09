@@ -501,13 +501,25 @@ public final class ElementParser implements TokenStreamCursor {
                 pos = endOut[0];
                 yield com.legend.model.FromProtocol.toDatabaseDefinition(db);
             }
-            // The switch to MappingFromProtocol is ATTEMPTED AND REVERTED
-            // for now: 51 -> 11 core failures, each enumerated in
-            // PARSER_COMPLETENESS_PLAN.md §M4. What is left is a long tail
-            // of protocol-parser strictness and feature gaps, not a design
-            // question — every one needs its own check against engine's
-            // grammar before it is called leniency or a bug.
-            case MAPPING -> mappingGrammar.parseMapping();
+            // M4: the ###Mapping model is a TRANSFORM on protocol too. One
+            // parse, one grammar (PARSER_COMPLETENESS_PLAN.md §M4).
+            case MAPPING -> {
+                int[] endOut = new int[1];
+                int sectionLine = tokens.sectionContentLine(
+                        "Mapping", tokens.start(pos));
+                com.legend.protocol.Protocol.PMapping m;
+                try {
+                    m = MappingProtocolParser.parse(tokens, pos, sectionLine, endOut);
+                } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
+                    throw error(u.reason());
+                }
+                pos = endOut[0];
+                try {
+                    yield com.legend.model.MappingFromProtocol.toMappingElement(m);
+                } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
+                    throw error(u.reason());
+                }
+            }
             // Primitive my::Ext extends Base [constraint]? — precise primitive
             case VALID_STRING -> {
                 if ("Primitive".equals(safeText())) {

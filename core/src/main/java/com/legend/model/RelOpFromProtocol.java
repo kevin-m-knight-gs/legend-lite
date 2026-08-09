@@ -55,6 +55,8 @@ public final class RelOpFromProtocol {
                     l.values().stream().map(v -> op(v, enclosingDb)).toList());
             case Protocol.PElemtWithJoins j -> joinNavigation(j, enclosingDb);
             case Protocol.PDynaFunc f -> dynaFunc(f, enclosingDb);
+            case Protocol.PRelTypeRef t ->
+                    new RelationalOperation.TypeRef(t.typeName());
         };
     }
 
@@ -99,6 +101,16 @@ public final class RelOpFromProtocol {
                             : JoinType.fromIdentifier(ptr.joinType()),
                     ptr.db(), false));
         }
+        // The TERMINAL is written relative to the NAV's own root database,
+        // not to whatever encloses the nav: `[db::DB] @J | T_FIRM.NAME`
+        // spells the terminal bare because the join already named db::DB.
+        // Inside a property mapping the two coincide (the PM record carries
+        // the same db), but a `~groupBy` / `~primaryKey` key has no PM record
+        // to lift the qualifier onto, so it arrives with no enclosing db at
+        // all — and passing that down left the terminal carrying `db::DB`
+        // where the legacy parser recorded null, which is enough to stop
+        // GroupBySynthesis#groupByOpsMatch recognising the key.
+        String navDb = db != null ? db : enclosingDb;
         // SAME as-written rule columnRef applies: a nav rooted in the
         // ENCLOSING database is written bare, so the model's db is null.
         // The CHAIN elements keep their resolved db either way — that is
@@ -108,7 +120,7 @@ public final class RelOpFromProtocol {
         }
         return new RelationalOperation.JoinNavigation(db, chain,
                 j.relationalElement() == null ? null
-                        : op(j.relationalElement(), enclosingDb));
+                        : op(j.relationalElement(), navDb));
     }
 
     /**

@@ -52,8 +52,18 @@ public final class MappingFromProtocol {
     public static final class UnsupportedMappingShape extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
+        private final String reason;
+
         public UnsupportedMappingShape(String message) {
             super(message);
+            this.reason = message;
+        }
+
+        /** The refusal text. {@link #getMessage()} is {@code @Nullable} by
+         *  its inherited contract; this one is not — the constructor is the
+         *  only way in and it always carries a reason. */
+        public String reason() {
+            return reason;
         }
     }
 
@@ -342,7 +352,8 @@ public final class MappingFromProtocol {
             }
         }
         return new ClassMapping.RelationFunction.Col(pm.property(), pm.column(),
-                pm.localMappingProperty() != null, null, nested, pm.inlineSetId());
+                pm.localMappingProperty() != null, pm.enumMappingId(), nested,
+                pm.inlineSetId(), pm.expr());
     }
 
     private static AssociationMapping associationMapping(Protocol.PAssociationMapping am) {

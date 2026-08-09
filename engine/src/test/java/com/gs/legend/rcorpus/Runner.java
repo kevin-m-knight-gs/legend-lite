@@ -1518,8 +1518,13 @@ public final class Runner {
             }
         }
         List<String> parseWalls = new ArrayList<>();
+        java.util.Map<String, String> byName = new java.util.HashMap<>();
+        for (com.legend.Compiler.ModelSource src : sources) {
+            byName.put(src.name(), src.text());
+        }
         globalParsed = com.legend.Compiler.parseSources(sources,
-                (name, err) -> parseWalls.add(name + " => " + err));
+                (name, err) -> parseWalls.add(name + " => " + err
+                        + wallContext(byName.get(name), err)));
         if (!parseWalls.isEmpty()) {
             throw new IllegalStateException(
                     "corpus parse walls (expected ZERO): " + parseWalls);
@@ -2277,5 +2282,27 @@ public final class Runner {
             }
         }
         Files.writeString(out, sb.toString());
+    }
+
+    /** The source line a parse wall points at. A wall names a SYNTHESISED
+     *  file ("family/setup-1.pure"), so the line number alone cannot be
+     *  looked up by hand — printing the line turns a guessing game into a
+     *  reading. */
+    private static String wallContext(@com.legend.Nullable String text,
+            String err) {
+        if (text == null) {
+            return "";
+        }
+        java.util.regex.Matcher m =
+                java.util.regex.Pattern.compile("\\[(\\d+):(\\d+)\\]").matcher(err);
+        if (!m.find()) {
+            return "";
+        }
+        String[] lines = text.split("\n", -1);
+        int ln = Integer.parseInt(m.group(1));
+        if (ln < 1 || ln > lines.length) {
+            return "";
+        }
+        return "  |" + lines[ln - 1].strip() + "|";
     }
 }

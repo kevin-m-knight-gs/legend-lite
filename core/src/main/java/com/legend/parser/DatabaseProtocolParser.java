@@ -593,7 +593,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     }
 
     private Protocol.PRelOp parseComparison(String schemaCtx) {
-        Protocol.PRelOp left = parseAtom(schemaCtx);
+        Protocol.PRelOp left = arrowChain(parseAtom(schemaCtx), schemaCtx);
         // postfix null tests bind tighter than comparisons
         while (peek() == TokenType.IS_NULL || peek() == TokenType.IS_NOT_NULL) {
             String nf = peek() == TokenType.IS_NULL ? "isNull" : "isNotNull";
@@ -629,6 +629,54 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         // end; the comparison NODE spans operator..right
         left = withSpanEnd(left, compSpan);
         return new Protocol.PDynaFunc(fn, List.of(left, right), compSpan);
+    }
+
+    /**
+     * Postfix ARROW chain: {@code DATA->get('price', @Float)} is the
+     * dynafunction with the receiver as its FIRST argument — the same shape
+     * {@code RelationalGrammarParser#parseArrowChain} built, so the model is
+     * unchanged by the migration.
+     *
+     * <p>Binds tighter than the null tests and the comparisons below it.
+     * See {@link Protocol.PRelTypeRef} for why this is an extension rather
+     * than a leniency.
+     */
+    private Protocol.PRelOp arrowChain(Protocol.PRelOp receiver,
+            String schemaCtx) {
+        Protocol.PRelOp expr = receiver;
+        while (!atEnd() && peek() == TokenType.ARROW) {
+            int s = pos;
+            advance();
+            String fn = parseIdentifier();
+            expect(TokenType.PAREN_OPEN);
+            List<Protocol.PRelOp> args = new ArrayList<>();
+            args.add(expr);
+            while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
+                args.add(chainArg(schemaCtx));
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.PAREN_CLOSE);
+            expr = new Protocol.PDynaFunc(fn, args, spanOf(s, pos - 1));
+        }
+        return expr;
+    }
+
+    /** {@code @Type} in argument position is a TYPE REFERENCE; a bare join
+     *  navigation never terminates at ',' or ')', which is what tells the
+     *  two apart. */
+    private Protocol.PRelOp chainArg(String schemaCtx) {
+        if (peek() == TokenType.AT) {
+            int save = pos;
+            int s = pos;
+            advance();
+            String name = parseQualifiedName();
+            if (!atEnd() && (peek() == TokenType.COMMA
+                    || peek() == TokenType.PAREN_CLOSE)) {
+                return new Protocol.PRelTypeRef(name, spanOf(s, pos - 1));
+            }
+            pos = save;
+        }
+        return parseOperation(schemaCtx);
     }
 
     /** One operation under an active {@code scope(...)} header with a
@@ -760,6 +808,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case Protocol.PElemtWithJoins ej -> ej;   // nav spans stay put
             case Protocol.PRelLiteralList ll -> new Protocol.PRelLiteralList(
                     ll.values(), stretch(ll.sourceInformation(), end));
+            // a type reference is a leaf token; nothing swallows it
+            case Protocol.PRelTypeRef t -> t;
         };
     }
 

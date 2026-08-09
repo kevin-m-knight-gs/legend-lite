@@ -270,6 +270,20 @@ public final class Protocol {
     /** {@code prop: col} inside a Relation mapping — span prop..col;
      *  {@code prop () Inline [set]} rides inlineSetId (probe
      *  relation-inline). */
+    /**
+     * A column binding in a {@code : Relation} class mapping.
+     *
+     * <p>{@code enumMappingId} and {@code expr} are CARRIED, NOT EMITTED —
+     * the same treatment an Operation mapping's {@code extends} gets. Both
+     * spell constructs legend-PURE writes and legend-engine's grammar has no
+     * production for ({@code prop: EnumerationMapping <id>: COL} is refused
+     * outright by the engine parser), so engine's
+     * {@code relationFunctionPropertyMapping} JSON has no field to put them
+     * in and inventing one would break wire parity for every Relation
+     * mapping in the corpus. The corpus needs them read
+     * ({@code tests/mapping/relation}, {@code tests/mapping/union/relation});
+     * nothing needs them serialised.
+     */
     public record PRelationFnPropertyMapping(@com.legend.Nullable String ownerClass,
                                              String property,
                                              com.legend.protocol.SourceInfo propertySourceInformation,
@@ -278,6 +292,8 @@ public final class Protocol {
                                              @com.legend.Nullable List<PRelationFnPropertyMapping> nested,
                                              @com.legend.Nullable PLocalProp localMappingProperty,
                                              @com.legend.Nullable String source,
+                                             @com.legend.Nullable String enumMappingId,
+                                             @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
                                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -320,6 +336,7 @@ public final class Protocol {
                                  @com.legend.Nullable PPointer dataElement,
                                  @com.legend.Nullable List<PRelationElement> relationElements,
                                  @com.legend.Nullable com.legend.protocol.SourceInfo relationAccessorSourceInformation,
+                                 @com.legend.Nullable PEmbeddedDataValue embedded,
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -716,8 +733,25 @@ public final class Protocol {
     /** A relational OPERATION node (join/filter/view expressions). */
     public sealed interface PRelOp
             permits PDynaFunc, PColumnRef, PRelLiteral, PRelLiteralList,
-            PElemtWithJoins {
+            PElemtWithJoins, PRelTypeRef {
         com.legend.protocol.SourceInfo sourceInformation();
+    }
+
+    /**
+     * {@code @String} in an operation's ARGUMENT position, as written by
+     * legend-lite's Variant accessor: {@code DATA->get('price', @Float)}.
+     *
+     * <p>A legend-lite EXTENSION, and deliberately so. Engine's
+     * `relationalPropertyMapping` admits no postfix arrow at all, so the
+     * whole shape — chain and type argument alike — is additive rather than
+     * a relaxation of anything engine requires: the underlying capability is
+     * legend-pure's Variant plus {@code get}, which engine's relational
+     * mapping grammar subsets away. Nothing engine emits carries this node,
+     * so it cannot disturb wire parity.
+     */
+    public record PRelTypeRef(String typeName,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
     }
 
     /** {@code [1,2,3]} — items emit the NESTED literal form

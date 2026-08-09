@@ -272,9 +272,21 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PMappingTestSuite> suites = new ArrayList<>();
         String testSuitesSource = null;
         List<Protocol.PLegacyMappingTest> legacyTests = new ArrayList<>();
+        // The mapping BODY is an ordered prefix too:
+        //   mapping: MAPPING qualifiedName PAREN_OPEN (includeMapping)*
+        //            (mappingElement)* (tests)? (mappingTestableDefinition)?
+        //            PAREN_CLOSE
+        // (MappingParserGrammar.g4:33-40). Includes and elements repeat;
+        // MappingTests and testSuites appear at most once and only at the
+        // end. Adjudicated: an element before an include, an element after
+        // testSuites, MappingTests after testSuites and a repeat of either
+        // all REJECT (ZM4FixtureOracle4).
+        int bodyRank = 0;
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             if (peek() == TokenType.VALID_STRING
                     && "MappingTests".equals(text())) {
+                bodyRank = bodySection(bodyRank, BODY_LEGACY_TESTS,
+                        "MappingTests");
                 advance();
                 expect(TokenType.BRACKET_OPEN);
                 while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
@@ -285,6 +297,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if (peek() == TokenType.MAPPING_TESTABLE_SUITES) {
+                bodyRank = bodySection(bodyRank, BODY_TEST_SUITES,
+                        "testSuites");
                 advance();
                 expect(TokenType.COLON);
                 int suitesOpen = pos;
@@ -304,6 +318,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         tokens.start(suitesOpen), tokens.end(pos - 1));
                 continue;
             }
+            bodyRank = bodySection(bodyRank,
+                    peek() == TokenType.INCLUDE ? BODY_INCLUDE : BODY_ELEMENT,
+                    peek() == TokenType.INCLUDE ? "include" : "a mapping element");
             parseMember(assocMappings, classMappings, enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
@@ -570,6 +587,114 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 spanOf(memberStart, close));
     }
 
+    // A relational class mapping's ~clauses are a FIXED, STRICTLY ASCENDING
+    // prefix, each at most once, all before the property list —
+    // `RelationalParserGrammar.g4:249` spells it out as
+    //     classMapping: mappingFilter? DISTINCT_CMD? mappingGroupBy?
+    //                   mappingPrimaryKey? mappingMainTable?
+    //                   (propertyMapping (COMMA propertyMapping)*)? EOF
+    // so ANTLR refuses a repeat and a swap alike, and refuses any ~clause
+    // after a property line. Adjudicated against the real engine parser, not
+    // read off the grammar alone (ZM4FixtureOracle: five REJECT verdicts).
+    private static final int RANK_FILTER = 1;
+    private static final int RANK_DISTINCT = 2;
+    private static final int RANK_GROUP_BY = 3;
+    private static final int RANK_PRIMARY_KEY = 4;
+    private static final int RANK_MAIN_TABLE = 5;
+    private static final int RANK_PROPERTIES = 6;
+
+    /**
+     * The optional {@code EnumerationMapping <id>:} head of a property
+     * mapping, or {@code null} when the property line has none.
+     *
+     * <p>The id is NOT optional once the keyword is written. Both grammars
+     * spell the head the same way —
+     * {@code (ENUMERATION_MAPPING identifier COLON)?}
+     * (`PureInstanceClassMappingParserGrammar.g4:34`) and
+     * {@code ENUMERATION_MAPPING identifier COLON} inside
+     * `relationalPropertyMapping` — so the ANONYMOUS form
+     * {@code prop: EnumerationMapping: <expr>} is not Legend grammar. Both of
+     * our parsers used to accept it on the theory that the property's enum
+     * type resolves the mapping at normalize time; the real engine parser
+     * refuses it (`Unexpected token ':'. Valid alternatives: [',']`,
+     * ZM4FixtureOracle). EnumerationMapping is a construct Legend owns, so
+     * there is no defensible superset here.
+     */
+    private @com.legend.Nullable String enumerationMappingId() {
+        if (peek() != TokenType.ENUMERATION_MAPPING) {
+            return null;
+        }
+        advance();                                  // 'EnumerationMapping'
+        if (peek() == TokenType.COLON) {
+            throw error("EnumerationMapping on a property mapping requires an"
+                    + " enumeration mapping id (prop: EnumerationMapping"
+                    + " <id>: <expr>)");
+        }
+        String enumId = parseIdentifier();
+        expect(TokenType.COLON);
+        return enumId;
+    }
+
+    /** Mapping-body sections, in the one order the grammar allows. The first
+     *  two repeat; the last two are singletons. */
+    private static final int BODY_INCLUDE = 1;
+    private static final int BODY_ELEMENT = 2;
+    private static final int BODY_LEGACY_TESTS = 3;
+    private static final int BODY_TEST_SUITES = 4;
+
+    /** Consume {@code <...>} type arguments and a {@code [..]} multiplicity,
+     *  if present — the tail of a {@code ~func} signature spelling. */
+    private void skipTypeArgsAndMultiplicity() {
+        if (peek() == TokenType.LESS_THAN) {
+            int depth = 0;
+            while (!atEnd()) {
+                if (peek() == TokenType.LESS_THAN) {
+                    depth++;
+                } else if (peek() == TokenType.GREATER_THAN) {
+                    depth--;
+                    if (depth == 0) {
+                        advance();
+                        break;
+                    }
+                }
+                advance();
+            }
+        }
+        if (peek() == TokenType.BRACKET_OPEN) {
+            while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                advance();
+            }
+            match(TokenType.BRACKET_CLOSE);
+        }
+    }
+
+    /** Admit one mapping-body section, or refuse the swap / the duplicate;
+     *  returns the new high-water rank. */
+    private int bodySection(int seen, int rank, String what) {
+        if (rank < seen) {
+            throw error(what + " is out of order: a mapping body holds its"
+                    + " includes, then its elements, then MappingTests, then"
+                    + " testSuites");
+        }
+        if (rank == seen && rank >= BODY_LEGACY_TESTS) {
+            throw error("duplicate " + what + ": a mapping declares it at"
+                    + " most once");
+        }
+        return rank;
+    }
+
+    /** Admit one ~clause, or refuse it as a repeat / a swap. */
+    private void clause(int[] seen, int rank, String name) {
+        if (rank <= seen[0]) {
+            throw error(name + " is out of order: a relational class"
+                    + " mapping's directives appear at most once each, in"
+                    + " the order ~filter ~distinct ~groupBy ~primaryKey"
+                    + " ~mainTable, and all of them before the first"
+                    + " property mapping");
+        }
+        seen[0] = rank;
+    }
+
     /** {@code [*]cls: Relational { ~mainTable [db]T ~primaryKey(...)
      *  prop: <op>, ... }} — spans and shapes per probe
      *  relational-class-mapping; unsupported directives wall by name. */
@@ -584,10 +709,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PRelOp> groupBy = new ArrayList<>();
         boolean distinct = false;
         List<Protocol.PPropertyMapping> props = new ArrayList<>();
+        int[] clauseRank = {0};
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             if (peek() == TokenType.MAIN_TABLE_CMD
                     || (peek() == TokenType.TILDE && "mainTable".equals(
                             tokens.text(Math.min(pos + 1, tokens.count() - 1))))) {
+                clause(clauseRank, RANK_MAIN_TABLE, "~mainTable");
                 if (peek() == TokenType.TILDE) {
                     advance();
                 }
@@ -608,6 +735,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if (peek() == TokenType.PRIMARY_KEY_CMD) {
+                clause(clauseRank, RANK_PRIMARY_KEY, "~primaryKey");
                 advance();
                 expect(TokenType.PAREN_OPEN);
                 while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
@@ -618,11 +746,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if (peek() == TokenType.DISTINCT_CMD) {
+                clause(clauseRank, RANK_DISTINCT, "~distinct");
                 advance();
                 distinct = true;
                 continue;
             }
             if (peek() == TokenType.GROUP_BY_CMD) {
+                clause(clauseRank, RANK_GROUP_BY, "~groupBy");
                 advance();
                 expect(TokenType.PAREN_OPEN);
                 while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
@@ -633,6 +763,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if (peek() == TokenType.FILTER_CMD) {
+                clause(clauseRank, RANK_FILTER, "~filter");
                 filter = parseFilterMapping();
                 continue;
             }
@@ -640,6 +771,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 throw error("class-mapping directive '" + safeText()
                         + "' is unbuilt");
             }
+            // Every ~clause precedes every property mapping; entering the
+            // property list closes the clause prefix for good.
+            clauseRank[0] = RANK_PROPERTIES;
             if (peek() == TokenType.VALID_STRING && "scope".equals(text())
                     && tokens.type(Math.min(pos + 1, tokens.count() - 1))
                             == TokenType.PAREN_OPEN) {
@@ -722,7 +856,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int identTok = pos;
             String prop = parseIdentifier();
             SourceInfo propSpan = spanOf(identTok, pos - 1);
-            boolean explode = match(TokenType.STAR);
             String srcId = id != null ? id : "";
             String tgtId = null;
             if (peek() == TokenType.BRACKET_OPEN) {
@@ -737,19 +870,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 expect(TokenType.BRACKET_CLOSE);
             }
+            // The explosion marker sits AFTER the [set] group, not before it:
+            //   propertyMapping: ... qualifiedName (sourceAndTargetMappingId)?
+            //                    STAR? COLON ...
+            // (PureInstanceClassMappingParserGrammar.g4:34). `d[setB]*:`
+            // parses; `d*[setB]:` does not (ZM4FixtureOracle2).
+            boolean explode = match(TokenType.STAR);
             Protocol.PLocalProp localProp = null;
             expect(TokenType.COLON);
-            String enumId = null;
-            if (peek() == TokenType.ENUMERATION_MAPPING) {
-                advance();                  // EnumerationMapping [em]: <expr>
-                if (peek() != TokenType.COLON) {
-                    enumId = parseIdentifier();
-                }
-                // the ANONYMOUS form `prop: EnumerationMapping: <expr>` names
-                // no mapping; the property's enum type resolves it at
-                // normalize time (corpus multi-source-enum shape)
-                expect(TokenType.COLON);
-            }
+            String enumId = enumerationMappingId();
             if (local) {
                 // +prop: Type[m]: <expr> — the local prop's span is the
                 // IDENT (probe pure-decorations, unlike relational)
@@ -907,6 +1036,16 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         || t == TokenType.BRACE_CLOSE)) {
                     break;
                 }
+                // ...or the head of the NEXT entry, when the comma that
+                // should separate them is missing. See the drain below.
+                if (depth == 0 && pos > exprStart && isIdentifierToken(t)
+                        && (tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                                    == TokenType.BRACKET_OPEN
+                                || tokens.type(Math.min(pos + 1,
+                                        tokens.count() - 1))
+                                    == TokenType.COLON)) {
+                    break;
+                }
                 if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
                         || t == TokenType.BRACE_OPEN) {
                     depth++;
@@ -921,7 +1060,24 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
             props.add(new Protocol.PXStorePropertyMapping(target, prop,
                     propSpan, body, srcId, tgtId, spanOf(pS, pos - 1)));
-            match(TokenType.COMMA);
+            if (!match(TokenType.COMMA) && peek() != TokenType.BRACE_CLOSE) {
+                // A MISSING COMMA ends the entry list and DISCARDS the rest.
+                //
+                // legend-pure and legend-engine disagree here, and the
+                // corpus is legend-pure's. Engine's ANTLR rule anchors on
+                // EOF —  `(xStorePropertyMapping (COMMA xStorePropertyMapping)*)? EOF`
+                // (XStoreAssociationMappingParserGrammar.g4:12-14) — so the
+                // engine parser REJECTS this text. legend-pure's compiler
+                // completes the rule and ignores what follows, and
+                // `tests/mft/xStore/testMappingCrossStore.pure:238` is
+                // written that way: two of its four entries never reach the
+                // model, and the family's golden encodes their absence.
+                // Reading the corpus at all requires legend-pure's reading.
+                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                    advance();
+                }
+                break;
+            }
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
@@ -1236,16 +1392,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             colonTok = pos;                         // PM span = SECOND colon
             expect(TokenType.COLON);
         }
-        String enumId = null;
-        if (peek() == TokenType.ENUMERATION_MAPPING) {
-            advance();                              // EnumerationMapping [em]:
-            if (peek() != TokenType.COLON) {
-                enumId = parseIdentifier();
-            }
-            // the ANONYMOUS form `prop: EnumerationMapping: <expr>` names no
-            // mapping; the property's enum type resolves it at normalize time
-            expect(TokenType.COLON);
-        }
+        String enumId = enumerationMappingId();
         Protocol.PRelOp op = parseOpInCtx(scopeDb, scope);
         props.add(new Protocol.PRelPropertyMapping(
                 localProp != null ? null : target, prop, propSpan, enumId,
@@ -1307,6 +1454,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     new Protocol.PRelLiteral(l.value(), w);
             case Protocol.PRelLiteralList ll ->
                     new Protocol.PRelLiteralList(ll.values(), w);
+            // a type reference is a leaf token; its span is its own
+            case Protocol.PRelTypeRef t -> t;
         };
     }
 
@@ -1358,26 +1507,38 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         advance();
         advance();                                  // func
         int dS = pos;
+        // The descriptor is `<fqn>` with an OPTIONAL signature spelling
+        // `f():Relation<Any>[1]` — parsed structurally, exactly as
+        // MappingGrammarParser:546-554 does.
+        //
+        // This used to be a scan that ran until it saw a `]`, on the
+        // assumption that every descriptor ends in a `[m]` multiplicity.
+        // Most corpus spellings do; `~func my::personFunction__Relation_1_`
+        // does not, and the scan then swallowed the property lines whole
+        // and stopped at the first `]` it could find — the `Integer[1]` of a
+        // later `+local` binding — leaving the parse mid-line
+        // (relationMappingSetup.pure:434).
+        parseQualifiedName();
+        if (peek() == TokenType.PAREN_OPEN) {
+            int parens = 0;
+            do {
+                if (peek() == TokenType.PAREN_OPEN) {
+                    parens++;
+                } else if (peek() == TokenType.PAREN_CLOSE) {
+                    parens--;
+                }
+                advance();
+            } while (!atEnd() && parens > 0);
+            if (match(TokenType.COLON)) {
+                parseQualifiedName();
+                skipTypeArgsAndMultiplicity();
+            }
+        }
+        // the record's path is the CANONICAL text: the descriptor's tokens
+        // joined with NO spaces
         StringBuilder desc = new StringBuilder();
-        int parens = 0;
-        int angles = 0;
-        while (!atEnd()) {
-            TokenType t = peek();
-            if (t == TokenType.PAREN_OPEN) {
-                parens++;
-            } else if (t == TokenType.PAREN_CLOSE) {
-                parens--;
-            } else if (t == TokenType.LESS_THAN) {
-                angles++;
-            } else if (t == TokenType.GREATER_THAN) {
-                angles--;
-            }
-            desc.append(text());
-            advance();
-            if (parens == 0 && angles == 0
-                    && tokens.type(pos - 1) == TokenType.BRACKET_CLOSE) {
-                break;                              // ...[m] descriptor end
-            }
+        for (int i = dS; i < pos; i++) {
+            desc.append(tokens.text(i));
         }
         SourceInfo fnSpan = spanOf(dS, pos - 1);
         List<String> pk = new ArrayList<>();
@@ -1417,14 +1578,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     String nCol = parseIdentifier();
                     nested.add(new Protocol.PRelationFnPropertyMapping(null,
                             nProp, nSpan, nCol, null, null, null, null,
-                            spanOf(nS, pos - 1)));
+                            null, null, spanOf(nS, pos - 1)));
                     match(TokenType.COMMA);
                 }
                 int pClose = pos;
                 expect(TokenType.PAREN_CLOSE);
                 props.add(new Protocol.PRelationFnPropertyMapping(target,
                         prop, propSpan, null, null, nested, null, id,
-                        spanOf(pS, pClose)));
+                        null, null, spanOf(pS, pClose)));
                 match(TokenType.COMMA);
                 continue;
             }
@@ -1442,7 +1603,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 expect(TokenType.BRACKET_CLOSE);
                 props.add(new Protocol.PRelationFnPropertyMapping(target,
                         prop, propSpan, null, setId, null, null, id,
-                        spanOf(pS, bClose)));
+                        null, null, spanOf(pS, bClose)));
                 match(TokenType.COMMA);
                 continue;
             }
@@ -1477,20 +1638,50 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 lp = new Protocol.PLocalProp(type, lower, upper, propSpan);
                 expect(TokenType.COLON);
             }
-            if (peek() == TokenType.ENUMERATION_MAPPING) {
-                // `prop: EnumerationMapping m: COL` inside a Relation class
-                // mapping. Neither this record nor the emitter carries an
-                // enumMappingId for relation columns, so the old code read
-                // "EnumerationMapping" AS the column name and then took the
-                // mapping id as the next property — two bogus columns, no
-                // error. Refuse loudly until the field exists on all three
-                // registries (§1: no "we read it" that means "we skipped it").
-                throw error("EnumerationMapping on a Relation class-mapping"
-                        + " column is unbuilt");
+            // `prop: EnumerationMapping <id>: <rhs>` — the id is required,
+            // exactly as everywhere else (see #enumerationMappingId).
+            String enumId = enumerationMappingId();
+            // The RHS is a full ROW EXPRESSION, not just a column name:
+            // a bare COL and a quoted 'COL' are plain column bindings,
+            // `$src.COL` is the same binding in row-lambda spelling, and
+            // anything richer (`$src.city_REGION->toOne()`) is a real spec
+            // that rides `expr`. Mirrors MappingGrammarParser:626-661, which
+            // is the behaviour the corpus was read with.
+            int exprStart = pos;
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (depth == 0 && (t == TokenType.COMMA
+                        || t == TokenType.BRACE_CLOSE)) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.PAREN_CLOSE
+                        || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                }
+                advance();
             }
-            String col = parseIdentifier();
+            com.legend.protocol.spec.ValueSpecification rhs =
+                    SpecParser.parse(tokens.slice(exprStart, pos));
+            String col = null;
+            com.legend.protocol.spec.ValueSpecification expr = null;
+            if (rhs instanceof com.legend.protocol.spec.AppliedProperty ap
+                    && ap.receiver() instanceof com.legend.protocol.spec.Variable) {
+                col = ap.property();
+            } else if (rhs instanceof com.legend.protocol.spec.CString cs) {
+                col = cs.value();
+            } else if (rhs instanceof com.legend.protocol.spec.PackageableElementPtr ptr
+                    && !ptr.fullPath().contains("::")) {
+                col = ptr.fullPath();
+            } else {
+                expr = rhs;
+            }
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
-                    propSpan, col, null, null, lp, id,
+                    propSpan, col, null, null, lp, id, enumId, expr,
                     spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
@@ -1744,7 +1935,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             refIsland.endColumn()));
             return new Protocol.PStoreTestData(
                     new Protocol.PPointer("STORE", storePath, storeSpan),
-                    null, null, de, null, null,
+                    null, null, de, null, null, null,
                     new SourceInfo("", storeSpan.startLine(),
                             storeSpan.startColumn(), refIsland.endLine(),
                             refIsland.endColumn()));
@@ -1763,15 +1954,29 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     first.startColumn(), ri.endLine(), ri.endColumn() + 3);
             return new Protocol.PStoreTestData(
                     new Protocol.PPointer("STORE", storePath, storeSpan),
-                    null, null, null, rels, accessor,
+                    null, null, null, rels, accessor, null,
                     new SourceInfo("", storeSpan.startLine(),
                             storeSpan.startColumn(), ri.endLine(),
                             ri.endColumn()));
         }
         if (!(peek() == TokenType.VALID_STRING
                 && "ModelStore".equals(text()))) {
-            throw error("store test data kind '" + safeText()
-                    + "' is unbuilt");
+            // Any OTHER kind is a plain embedded-data value. Engine's rule
+            // is `mappingTestDataContent: qualifiedName COLON embeddedData`
+            // with `embeddedData: identifier ISLAND_OPEN ...`
+            // (MappingParserGrammar.g4:94-97), so the kind is open-ended and
+            // `ModelStore: ExternalFormat #{...}#` is as legal as the three
+            // shapes above — which are themselves just embedded-data kinds
+            // that carry extra span detail. Refusing here was a gap, not a
+            // rule.
+            Protocol.PEmbeddedDataValue v = parseEmbeddedValue();
+            SourceInfo vSi = embeddedSpan(v);
+            return new Protocol.PStoreTestData(
+                    new Protocol.PPointer("STORE", storePath, storeSpan),
+                    null, null, null, null, null, v,
+                    new SourceInfo("", storeSpan.startLine(),
+                            storeSpan.startColumn(), vSi.endLine(),
+                            vSi.endColumn()));
         }
         int msTok = pos;
         advance();                                  // ModelStore
@@ -1789,7 +1994,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 island.endLine(), island.endColumn());
         return new Protocol.PStoreTestData(
                 new Protocol.PPointer("STORE", storePath, storeSpan),
-                modelData, msSpan, null, null, null,
+                modelData, msSpan, null, null, null, null,
                 new SourceInfo("", storeSpan.startLine(),
                         storeSpan.startColumn(), island.endLine(),
                         island.endColumn()));
@@ -2447,6 +2652,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
                     sources.add(parseSourceValue());
                     match(TokenType.COMMA);
+                }
+                if (sources.isEmpty()) {
+                    // `X: []`. Engine's enumerationMapping rule requires a
+                    // sourceValue inside the brackets and fails on the ']'.
+                    // Refuse HERE, where the position is known, rather than
+                    // letting EnumValueMapping's constructor invariant fire
+                    // an unpositioned IllegalArgumentException at build time.
+                    throw error("enum value '" + enumValue + "' must list at"
+                            + " least one source value");
                 }
                 expect(TokenType.BRACKET_CLOSE);
             } else {

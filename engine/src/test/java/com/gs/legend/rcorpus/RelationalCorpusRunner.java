@@ -422,8 +422,17 @@ public class RelationalCorpusRunner {
         if (onlyFilters.isEmpty()) {
             java.util.Map<String, Integer> registry = java.util.Map.of(
                     // forked-H2 leniency: the engine's own 2.1.214 fork
-                    // relaxes duplicate result columns; stock H2 rejects
-                    "Duplicate column name", 10,
+                    // relaxes duplicate result columns; stock H2 rejects.
+                    // 10 -> 11 (2026-08-08, ###Mapping protocol switch): the
+                    // Relation class-mapping arm of the protocol parser now
+                    // reads `~func <fqn>` with no signature spelling, so one
+                    // more tests/mapping/modelJoin test compiles and reaches
+                    // H2 replay (that family went 41 -> 42). Every census row
+                    // here is a `golden execution` failure — it is ENGINE's
+                    // own golden that selects a name twice, not our SQL — so
+                    // this is one more instance of the registered gap, not a
+                    // new one.
+                    "Duplicate column name", 11,
                     // engine plan-level temp-table for IN lists — a
                     // machinery gap, not a rendering one
                     "tempTableForIn", 6,

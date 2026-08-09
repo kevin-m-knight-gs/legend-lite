@@ -2415,33 +2415,80 @@ final class ElementParserTest {
         // The dynafunction corpus qualifies each ARGUMENT with its own
         // [db] bracket: isNull([store::DB] TN1.VAL). The bracket must
         // parse as a database qualifier on the column ref — an
-        // array-literal reading dies at 'store::'.
+        // array-literal reading dies at 'store::'. That is what this test
+        // is for, and it is unchanged.
+        //
+        // TWO as-written conventions ride along and are pinned here rather
+        // than left implicit:
+        //   1. the operand is canonicalised to the IsNull node instead of
+        //      FunctionCall("isNull") — the wire does not carry the call
+        //      spelling, and R3 measured the canonicalisation at zero SQL
+        //      cost;
+        //   2. a qualifier naming the ENCLOSING database elides to null, the
+        //      same convention the model has always used for a bare ref.
+        //      The cross-database case below is what proves the bracket is
+        //      read as a qualifier at all.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "missing: isNull([db::DB] PERSON.VAL) "
                 + "} )");
         var expr = (PropertyMapping.Expression) cm.propertyMappings().get(0);
-        var fn = (FunctionCall) expr.expression();
-        assertEquals("isNull", fn.name());
-        var arg = (ColumnRef) fn.args().get(0);
-        assertEquals("db::DB", arg.databaseName());
+        var isNull = (RelationalOperation.IsNull) expr.expression();
+        var arg = (ColumnRef) isNull.operand();
+        assertNull(arg.databaseName(), "enclosing db elides");
         assertEquals("PERSON", arg.table());
         assertEquals("VAL", arg.column());
+
+        // A FOREIGN database is carried, which is the assertion that would
+        // fail outright if '[store::DB]' were read as an array literal.
+        var cm2 = firstRelationalClassMapping(
+                "Mapping my::M ( *model::Person: Relational { "
+                + "~mainTable [db::DB] PERSON "
+                + "missing: isNull([store::DB] TN1.VAL) "
+                + "} )");
+        var arg2 = (ColumnRef) ((RelationalOperation.IsNull)
+                ((PropertyMapping.Expression) cm2.propertyMappings().get(0))
+                        .expression()).operand();
+        assertEquals("store::DB", arg2.databaseName());
+        assertEquals("TN1", arg2.table());
+        assertEquals("VAL", arg2.column());
     }
 
     @Test
-    void anonymousEnumerationMappingReference() {
-        // prop: EnumerationMapping: [db]T.COL — no mapping id; resolved by
-        // the property's enum type at normalize time (the corpus's
-        // multi-source-enum shape).
+    void anonymousEnumerationMappingRejected() {
+        // `prop: EnumerationMapping: [db]T.COL` with no mapping id is NOT
+        // Legend grammar. Both grammars require the identifier —
+        // `(ENUMERATION_MAPPING identifier COLON)?` in
+        // PureInstanceClassMappingParserGrammar.g4:34, and the same head in
+        // relationalPropertyMapping — and the real engine parser refuses it
+        // with `Unexpected token ':'`. This test used to pin the OPPOSITE,
+        // justified by "resolved by the property's enum type at normalize
+        // time"; that was a reading of our own normalizer, not of engine.
+        // EnumerationMapping is a construct Legend owns, so there is no
+        // defensible superset.
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( *model::Task: Relational { "
+                        + "~mainTable [db::DB] TASKS "
+                        + "status: EnumerationMapping: [db::DB] TASKS.STATUS_CODE "
+                        + "} )"));
+        assertTrue(String.valueOf(e.getMessage()).contains(
+                        "requires an enumeration mapping id"),
+                () -> "want the id-required diagnostic, got: " + e.getMessage());
+    }
+
+    @Test
+    void namedEnumerationMappingReferenceStillParses() {
+        // The engine-legal spelling — `EnumerationMapping <id>:` — is what
+        // the corpus writes and what must keep working.
         var cm = firstRelationalClassMapping(
                 "Mapping my::M ( *model::Task: Relational { "
                 + "~mainTable [db::DB] TASKS "
-                + "status: EnumerationMapping: [db::DB] TASKS.STATUS_CODE "
+                + "status: EnumerationMapping StatusMap: [db::DB] TASKS.STATUS_CODE "
                 + "} )");
         var ec = (PropertyMapping.EnumeratedColumn) cm.propertyMappings().get(0);
-        assertNull(ec.enumMappingId(), "anonymous reference carries no id");
+        assertEquals("StatusMap", ec.enumMappingId());
         assertEquals("TASKS", ec.table());
         assertEquals("STATUS_CODE", ec.column());
     }
@@ -2618,12 +2665,23 @@ final class ElementParserTest {
 
     @Test
     void xstoreMissingCommaDropsRemainingEntries() {
-        // ENGINE PARITY (audit 21a §4b): the engine's XStore mapping rule
-        // (`mappingLine (COMMA mappingLine)*`, no EOF anchor) completes at a
-        // missing comma and silently DISCARDS the remaining entries — the
-        // corpus's crossStoreUnionTestMapping golden corroborates (TDSNull
-        // rows for the dropped pair's branch). The compiled model must
-        // match: keep the entries before the gap, drop the rest.
+        // The two Legends DISAGREE here, and this pins legend-PURE's reading
+        // because the corpus is legend-pure's source.
+        //
+        // The old justification for this test was false: it claimed engine's
+        // rule is `mappingLine (COMMA mappingLine)*` with NO EOF ANCHOR. It
+        // has one —
+        //   xStoreAssociationMapping: (xStorePropertyMapping
+        //                              (COMMA xStorePropertyMapping)*)? EOF
+        // (XStoreAssociationMappingParserGrammar.g4:12-14) — and the real
+        // engine parser REJECTS this source outright (verified, not read).
+        //
+        // But legend-pure's compiler completes the rule and ignores the rest,
+        // and `core_relational/relational/tests/mft/xStore/
+        // testMappingCrossStore.pure:238` is written exactly this way: the
+        // `firm[person2,firm2]`/`employees[firm2,person2]` pair never reaches
+        // the model and the family's golden encodes their absence. A parser
+        // that refused it could not read the corpus at all.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( my::A: XStore { "
                 + "  employees[firm1, person1]: $this.a == $that.b, "
@@ -2633,9 +2691,25 @@ final class ElementParserTest {
                 + "} )").elements().get(0);
         var cross = (AssociationMapping.Cross) md.associationMappings().get(0);
         assertEquals(2, cross.propertyMappings2().size(),
-                "entries after the missing comma are discarded, engine-identically");
+                "entries after the missing comma are discarded, legend-pure-identically");
         assertEquals("firm1", cross.propertyMappings2().get(0).sourceSetId());
         assertEquals("firm1", cross.propertyMappings2().get(1).targetSetId());
+    }
+
+    @Test
+    void xstoreAllEntriesParseWhenCommasArePresent() {
+        // The same fixture, comma-complete: all four entries survive.
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+                "Mapping my::M ( my::A: XStore { "
+                + "  employees[firm1, person1]: $this.a == $that.b, "
+                + "  firm[person1, firm1]: $this.a == $that.b, "
+                + "  employees[firm2, person2]: $this.a == $that.b, "
+                + "  firm[person2, firm2]: $this.a == $that.b "
+                + "} )").elements().get(0);
+        var cross = (AssociationMapping.Cross) md.associationMappings().get(0);
+        assertEquals(4, cross.propertyMappings2().size());
+        assertEquals("firm1", cross.propertyMappings2().get(0).sourceSetId());
+        assertEquals("firm2", cross.propertyMappings2().get(3).targetSetId());
     }
 
     @Test
@@ -2803,12 +2877,22 @@ final class ElementParserTest {
     }
 
     @Test
-    void enumerationMappingRejectsLeadingStar() {
-        ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
-                        "Mapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("enumeration"),
-                () -> "expected enumeration-related error, got: " + e.getMessage());
+    void enumerationMappingAcceptsAndIgnoresLeadingStar() {
+        // OUR OVER-STRICTNESS, overturned by the engine oracle. The star is
+        // part of the shared mappingElement rule —
+        // `mappingElement: (STAR)? qualifiedName ... COLON parserName ...`
+        // (MappingParserGrammar.g4:59) — so it is grammatical on ANY mapping
+        // element, and engine's `parseEnumerationMapping`
+        // (CorePureGrammarParser:200-212) never reads `ctx.STAR()`: the root
+        // marker is a CLASS-mapping notion and is simply dropped here. The
+        // real parser accepts this source; we refused it.
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+                "Mapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )")
+                .elements().get(0);
+        var em = md.enumerationMappings().get(0);
+        assertEquals("Mid", em.mappingId());
+        assertEquals(1, em.valueMappings().size());
+        assertEquals("X", em.valueMappings().get(0).enumValue());
     }
 
     @Test
@@ -3198,18 +3282,31 @@ final class ElementParserTest {
         assertNull(md.testSuitesSource());
     }
 
+    /** A testSuites block shaped like the corpus's own (personMapping.pure):
+     *  a suite is doc|function|tests and a test is doc|asserts|data — the
+     *  only keys MappingParserGrammar.g4:83-114 admits. The fixtures below
+     *  used to write a 'query:' key inside a test, which the real engine
+     *  parser refuses ("Valid alternatives: ['data', 'doc', 'asserts']"). */
+    private static final String PERSON_SUITE =
+            "testSuites: [ "
+            + "  PersonSuite: { "
+            + "    function: |model::P.all()->graphFetch(#{ model::P { x } }#); "
+            + "    tests: [ "
+            + "      Test1: { "
+            + "        asserts: [ shouldPass: EqualToJson #{ expected: "
+            + "          ExternalFormat #{ contentType: 'application/json'; "
+            + "          data: '[1, 2, 3]'; }#; }# ]; "
+            + "      } "
+            + "    ]; "
+            + "  } "
+            + "] ";
+
     @Test
     void mappingTestSuitesBlockCapturedVerbatim() {
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
-                + "testSuites: [ "
-                + "  PersonSuite: { "
-                + "    tests: [ "
-                + "      Test1: { query: |model::P.all()->graphFetch(#{ x }#) } "
-                + "    ] "
-                + "  } "
-                + "] "
+                + PERSON_SUITE
                 + ")").elements().get(0);
         assertNotNull(md.testSuitesSource());
         assertTrue(md.testSuitesSource().contains("PersonSuite"));
@@ -3222,18 +3319,31 @@ final class ElementParserTest {
     @Test
     void mappingTestSuitesInteriorBracesBalanced() {
         // Nested braces and brackets must balance correctly inside capture.
+        // testSuites is the LAST thing in a mapping body — engine's rule is
+        // `(mappingElement)* (tests)? (mappingTestableDefinition)?`, so the
+        // class mapping goes before it, not after.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
                 "Mapping my::M ( "
-                + "testSuites: [ "
-                + "  S1: { tests: [ T1: { q: |[1, 2, 3]->size() } ] } "
-                + "] "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
+                + PERSON_SUITE
                 + ")").elements().get(0);
         assertNotNull(md.testSuitesSource());
         assertTrue(md.testSuitesSource().contains("[1, 2, 3]"),
                 () -> "captured: " + md.testSuitesSource());
-        // Class mapping after testSuites still parsed.
         assertEquals(1, md.classMappings().size());
+    }
+
+    @Test
+    void mappingClassMappingAfterTestSuitesRejected() {
+        ParseException e = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "Mapping my::M ( "
+                        + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
+                        + PERSON_SUITE
+                        + "*model::Q: Relational { ~mainTable [db::DB] T  y: T.Y } "
+                        + ")"));
+        assertTrue(String.valueOf(e.getMessage()).contains("out of order"),
+                () -> "expected an ordering error, got: " + e.getMessage());
     }
 
     @Test
@@ -3241,8 +3351,9 @@ final class ElementParserTest {
         ParseException e = assertThrows(ParseException.class, () ->
                 ElementParser.parse(
                         "Mapping my::M ( "
-                        + "testSuites: [ A: {} ] "
-                        + "testSuites: [ B: {} ] "
+                        + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
+                        + PERSON_SUITE
+                        + PERSON_SUITE
                         + ")"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("duplicate"),
                 () -> "expected duplicate-testSuites error, got: " + e.getMessage());
