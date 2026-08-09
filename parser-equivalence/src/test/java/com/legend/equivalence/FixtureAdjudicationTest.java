@@ -178,10 +178,20 @@ class FixtureAdjudicationTest {
             }
         }
 
-        System.out.println("[fixture-oracle] " + files + " test files, "
-                + runs + " literal runs, " + fixtures.size()
-                + " adjudicable, " + unadjudicable + " not (no single"
-                + " top-level keyword to place in a section)");
+        // Say WHOSE files and WHAT is being counted. An earlier wording put
+        // a bare "24802 not" next to CorpusEquivalenceTest's "25472
+        // MATCH" in the same gate, and the two read as the same quantity —
+        // they are not remotely: that one counts legend-engine ELEMENTS
+        // byte-compared, this one counts JAVA STRING LITERALS in
+        // legend-lite's own test tree that are not Pure source at all.
+        System.out.println("[fixture-oracle] scanned " + files
+                + " of OUR OWN test files: " + fixtures.size()
+                + " Pure fixtures adjudicable"
+                + " (of " + runs + " java string literals, " + unadjudicable
+                + " are not Pure source — prose, SQL, JSON, fragments)");
+        System.out.println("[fixture-oracle] NB these are legend-lite test"
+                + " fixtures, NOT corpus elements — CorpusEquivalenceTest"
+                + " owns the element counts");
         System.out.println("[fixture-oracle] agree " + agree
                 + " | OUR LENIENCY " + leniency.size() + " fixtures in "
                 + kinds.size() + " KINDS"
