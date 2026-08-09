@@ -104,7 +104,7 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 -Dlegend.engine.root=<engine checkout>` | portability sweep; scoreboard not written (~45s) |
 | 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | 1,109 run, 0 failures, 36 ledgered expected failures, nothing skipped (~30–80s) |
 | 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | see the warning below (~25s) |
-| 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | all six ratchets below (~90s) |
+| 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | all six ratchets below (~90s) |
 
 > **Gate 7 is one-directional and goes RED on improvement.** `allgates.sh:53`
 > judges it with `grep -qE "Tests run: 348, Failures: 1, Errors: 22"` — a
@@ -125,6 +125,8 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | `MAX_DROP_IN_DEFECTS` | 184 | `SectionParseSentinelTest.java` (was recorded here as 126 while the source said 266 — the source is the authority) |
 | `MAX_LENIENCY_KINDS` | 21 | `FixtureAdjudicationTest.java` (distinct kinds, not fixtures) |
 | `MAX_OVER_STRICTNESS` | 6 | `FixtureAdjudicationTest.java:92` |
+| `MIN_SECTIONS` | 25 | `EngineSectionRosterTest.java` — DENOMINATOR: 21 extension + 4 core sections engine can parse |
+| `MIN_ELEMENTS` | 41 | `EngineElementRosterTest.java` — DENOMINATOR: packageable element types engine can produce |
 
 > **`FixtureAdjudicationTest` is the only tier pointed at OUR OWN fixtures.**
 > Every other tier reads legend-engine's and legend-pure's files, and a

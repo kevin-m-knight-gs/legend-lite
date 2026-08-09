@@ -1,12 +1,20 @@
-# Section program — handoff (2026-08-09, HEAD `d5d67630`)
+# Section program — handoff (2026-08-09)
 
 For a clean session. **Validate first, then work.** Everything below is
 reproducible; nothing needs to be taken on trust, and several numbers in this
 repo's history were wrong precisely because they were.
 
-The goal: **every one of legend-engine's 25 sections parses through
-legend-lite's protocol path, transformed into the model, with no second
-parser anywhere.** Today 5 sections are claimed, 1 is finished.
+**THE GOAL, stated as a burn-down:** every one of legend-engine's **25
+sections** and **41 packageable element types** parses through legend-lite's
+PROTOCOL path, is transformed into the model, is routed through
+`SectionGrammarRegistry`, and has **no straight-to-model twin left anywhere**.
+
+Today: **5 of 25 sections claimed, 1 finished. 10 of 41 element types have a
+protocol record. 8 straight-to-model parsers still live, 3 of them DUAL.**
+
+Both denominators are pinned by gate 8 (`EngineSectionRosterTest`,
+`EngineElementRosterTest`) so they cannot quietly drift when the oracle jars
+move.
 
 ---
 
@@ -251,28 +259,135 @@ reason ~22 corpus files report the nonsense `expected type name, got
 BRACKET_OPEN` **from a connection block**. Divergence is the running cost of
 keeping a twin.
 
-## 2.4 Architecture target
+## 2.4 The element denominator: 41 element types
+
+`EngineElementRosterTest` (gate 8) reads
+`PureProtocolExtension.getExtraProtocolToClassifierPathMap()` — the same map
+the JSON layer uses, so it cannot drift from what engine can serialise — and
+pins **41**.
+
+**The burn-down is 25 sections x the element types each contains.** A section
+is not done because its header parses; it is done when every element it can
+contain round-trips. Our protocol coverage of the 41:
+
+| we have a protocol record | we do NOT |
+|---|---|
+| Class · Enumeration · Profile · Association · Function · **Measure** · Database · Mapping · DataElement · SectionIndex | **PackageableConnection** · **PackageableRuntime** · Diagram · Text · Service · Binding · DataSpace · Persistence · PersistenceContext · ServiceStore · MongoDatabase · DeephavenStore · Elasticsearch7Store · SnowflakeApp · SnowflakeM2MUdf · HostedService · FunctionJar · BigQueryFunction · MemSqlFunction · DataQuality (+ variants) · ExternalFormatSchemaSet · FileGenerationSpecification · GenerationSpecification · ExecutionEnvironmentInstance · RelationalMapper · AuthenticationDemo · DeephavenApp · BigQueryFunctionDeploymentConfiguration · MemSqlFunctionDeploymentConfiguration |
+
+**10 of 41.** Note `Measure` HAS a protocol record and is unwired, and
+`PackageableConnection`/`PackageableRuntime` have protocol PARSERS
+(`parseConnectionProtocol`, `parseRuntimeProtocol`) but no `P*` record in
+`Protocol.java` reachable from the emitter — verify before assuming either.
+
+## 2.5 EVERY dual parser, and the deletion list
+
+A **dual parser** is a straight-to-model parse method whose grammar is also
+read by a protocol parser. They are the migration's actual debt: while two
+exist they diverge, silently, and the divergence surfaces as a nonsense error
+somewhere else entirely.
+
+Verified inventory (`ElementParser`, line numbers at HEAD `584a34eb`):
+
+| # | straight-to-model | lines | protocol twin | status |
+|--:|---|---:|---|---|
+| 1 | `connectionElement`:2925 | 104 | `parseConnectionProtocol`:2380 | **DUAL — already diverged** |
+| 2 | `parseRuntimeBody`:2807 (via `runtimeElement`:2787) | 31 | `parseRuntimeProtocol`:2245 | **DUAL** |
+| 3 | `singleConnectionRuntimeElement`:2799 | 7 | `parseRuntimeProtocol`:2245 | **DUAL** |
+| 4 | `serviceElement`:2100 | 126 | — none | straight-to-model only |
+| 5 | `nativeFunctionElement`:2025 | 10 | partial | straight-to-model only |
+| 6 | `primitiveElement`:966 | 15 | — none | straight-to-model only |
+| 7 | `parseModelConnectionBody`:2427 | — | — | helper of (1) |
+| 8 | `parseEmbeddedJsonModelConnection`:2882 | — | — | helper of (1) |
+
+**All eight must go.** 1–3 are deletions the moment their transform exists.
+4–6 need a protocol parser first. 7–8 die with (1).
+
+Outside core: `engine/src/main/java/com/gs/legend/parser/PureModelParser.java`
+(2,573 lines) is a THIRD full parser with its own `parseMapping`,
+`parseDatabase`, `parseConnection`, `parseRuntime`, `parseService`. It is live
+(24 test files, plus `BuiltinClassRegistry`/`JavaCodeGenerator`/
+`PureModelBuilder`). **User decision 2026-08-09: the whole `engine` module is
+being deleted, so leave it.** Do not spend effort retiring it.
+
+Recheck the inventory rather than trusting it:
+
+```bash
+grep -nE "^\s+private [A-Z][A-Za-z]*(Definition|Element)? [a-z][A-Za-z]*\(" \
+  core/src/main/java/com/legend/parser/ElementParser.java
+grep -nE "Protocol\.P[A-Za-z]+ parse[A-Za-z]*\(" \
+  core/src/main/java/com/legend/parser/ElementParser.java
+```
+
+Anything in the first list whose grammar appears in the second is a dual
+parser. **A green build is not evidence they agree** — Connection's twins were
+both green and disagreed about arrays for months.
+
+## 2.6 Architecture: split by section, route through the registry
 
 `docs/GRAMMAR_EXTENSIBILITY.md`: **"the engine's parser is a section
-dispatcher, not a grammar."** One parser per section, registered by name,
-raw section text in, protocol elements out.
+dispatcher, not a grammar."** That is the target, and the machinery already
+exists — built-ins just bypass it.
 
-Where it stands:
-- `SectionGrammarRegistry` EXISTS, routes `###Name` → owner, with
-  `ServiceLoader` overlays consulted after built-ins so an extension can
-  shadow a built-in (engine's own rule).
-- `com.legend.spi.SectionGrammar` declares `parse(SectionSource, ElementSink)`.
-- **`BuiltIn.parse` THROWS.** Built-ins bypass the seam and go through the
-  monolithic switch. The seam is real for third parties and unused by us —
-  the inverse of the dogfooding rule its own javadoc states.
+### What exists
 
-Finishing it: `PureSectionGrammar`, `RelationalSectionGrammar`,
-`MappingSectionGrammar`, `ConnectionSectionGrammar`… each owning its elements,
-`ElementParser` shrinking to the dispatcher. Then "is section X done?" is
-answered by opening one class, and adding `###Persistence` is a new class
-rather than a new arm in a switch someone has to find.
+`SectionGrammarRegistry` routes `###Name` → owner. Built-ins are registered
+first, then `ServiceLoader` overlays, **so an extension claiming a built-in
+name WINS** — engine's own shadowing rule, and precisely what lets
+legend-lite's `LegendLiteSectionParser` take over `###Pure` inside a real
+engine. An unknown section becomes a reportable
+`ParsedModel.unclaimedSections()` entry rather than lexer silence.
 
----
+`com.legend.spi` is the future `legend-lite-spi` artifact and is THREE types
+only — keep it that way, and never let an implementation reach into core:
+
+```java
+public interface SectionGrammar {
+    String name();                                   // the ###Name it owns
+    default boolean lexable() { return false; }      // may the SHARED lexer tokenise it?
+    void parse(SectionSource src, ElementSink out);  // raw text in, elements out
+}
+```
+
+`lexable()` is the important one: a foreign grammar (Diagram colour literals,
+an opaque DSL) must return `false` and receive raw text, because it never
+adopts our lexer. Built-ins return `true` and flow through the main token
+pipeline.
+
+### What does NOT exist
+
+`SectionGrammarRegistry.BuiltIn.parse` **THROWS**
+(`"built-in section parses through the main pipeline, not the SPI"`). So the
+seam is real for third parties and bypassed by us — the inverse of the
+dogfooding rule the registry's own javadoc states. Built-ins are also only
+six names (`Pure, Mapping, Relational, Connection, Runtime, Data`) against a
+denominator of 25.
+
+### Migrating ONE section to the seam — the recipe
+
+Do this per section; it is the same shape every time.
+
+1. **New class** `XSectionGrammar implements SectionGrammar` in
+   `com.legend.parser.section`, `name()` = `"X"`, `lexable()` = true for
+   built-ins.
+2. **Move**, do not copy, the section's element parsing into it. The protocol
+   parser for each element moves too, or is called from it.
+3. `parse(SectionSource, ElementSink)` emits PROTOCOL elements to the sink;
+   the model transform stays on the `FromProtocol` side of the seam.
+4. **Register** it in `SectionGrammarRegistry.build()` in place of the
+   `BuiltIn(name)` stub, so built-ins and overlays go through ONE path.
+5. **Delete** the corresponding `ElementParser` arm and any straight-to-model
+   twin from §2.5.
+6. **Gate.** Byte parity (`MATCH`, `DIFF 0`) must not move; `DEFECT`/`LENIENT`
+   must not rise.
+
+**Do it for `###Connection` first.** It is the biggest cluster (85), it is
+dual-path, and its protocol side already exists and is better than the live
+one — so section-first lands the migration AND proves the architecture in one
+move, instead of migrating it into the switch and re-doing it later.
+
+When every built-in is a `SectionGrammar`, `ElementParser` is a dispatcher,
+"is section X done?" is answered by opening one class, and adding
+`###Persistence` is a new class rather than a new arm in a switch.
 
 # PART 3 — THE WORK
 
@@ -286,7 +401,17 @@ rather than a new arm in a switch someone has to find.
 6. **Emitter** arm if the record is new — but see §3.3 on carried-not-emitted.
 7. **Gate**: `allgates.sh` green; DEFECT/LENIENT ratchets DESCEND.
 
-## 3.2 Ranked worklist
+## 3.2 Definition of DONE (all three, per section)
+
+1. every element type the section can contain has a protocol record, a
+   transform and a wired arm;
+2. the section is a registered `SectionGrammar`, not an `ElementParser` arm;
+3. **no straight-to-model parser for it exists anywhere** (§2.5).
+
+A section that satisfies (1) alone is "protocol-first", which is what
+`###Pure` and `###Mapping` are. It is not done.
+
+## 3.3 Ranked worklist
 
 1. **Connection — 85 defects + 30 walls.** Biggest by far, dual-path, and the
    protocol side already EXISTS and is BETTER than the live one. Needs a
@@ -305,7 +430,7 @@ rather than a new arm in a switch someone has to find.
 5. **DataSpace** (13+51), **ExternalFormat** (2+77), **Persistence** (0+53),
    **ServiceStore** (1+32), **Snowflake** (6+31), then the tail.
 
-## 3.3 Conventions you must not break
+## 3.4 Conventions you must not break
 
 **Carried-not-emitted.** Some fields ride the protocol record and are
 deliberately NOT emitted, because engine's JSON has no slot and inventing one
@@ -330,7 +455,7 @@ version counted fixtures and turned red for *writing tests* of an
 already-counted construct. Its top actionable finding is **13× bare `VARCHAR`
 with no size**, which engine requires a parameter for.
 
-## 3.4 Corrections made this session (do not re-derive)
+## 3.5 Corrections made this session (do not re-derive)
 
 | claim | reality |
 |---|---|
@@ -349,7 +474,7 @@ Every defect introduced this session was caught by a gate once the gates were
 run correctly. That is evidence for the gates, not for the author — the errors
 were overwhelmingly in REPORTING, not in the parser.
 
-## 3.5 Related documents
+## 3.6 Related documents
 
 - `docs/PROTOCOL_MIGRATION_CENSUS.md` — the census this handoff summarises
 - `docs/GATES.md` — the chain, the ratchet table, the root-flag trap
