@@ -347,71 +347,83 @@ carried on the protocol record but kept OFF the wire, because engine parses
 and drops it (`OperationClassMappingParseTreeWalker` TODO) — the same
 treatment as a multi-pair include substitution.
 
-### §M4 — the switch: 51 -> 24, and the last blocker is a LENIENCY call
+### §M4 — the switch: LANDED (2026-08-08)
 
-Flipping `ElementParser`'s `MAPPING` arm is a ONE-LINE change and it has been
-done and reverted once. Structural agreement over the whole corpus did NOT
-make it safe, which is the same lesson R3 paid for. What it found:
+`ElementParser`'s `MAPPING` arm builds the model by transforming protocol.
+`MappingGrammarParser` and `RelationalGrammarParser` are DELETED — 2,422
+lines — along with the four differential harnesses whose only purpose was to
+A/B them against the protocol path. One parse, one grammar, one place to fix.
 
-**CLOSED since the first attempt:**
+**The leniency rule did most of the work, and the ORACLE decided each case.**
+Eight of the eleven failures were adjudicated by running the fixture through
+the real engine parser rather than by reading grammar files, and it overturned
+calls in BOTH directions:
 
-* **The clean-sheet form now has a protocol shape** — `_type:
-  "functionInstance"` and `"functionAssociation"`, modelled on engine's
-  `RelationFunctionClassMapping`. It was never a question of whether to
-  DISPATCH around the protocol: engine has no function-form mapping, but
-  `com.legend.protocol` is our own record set and a non-core class mapping
-  rides the wire the way any `PureProtocolExtension` subtype does. Keeping it
-  off the protocol would have left legend-lite's own recommended surface
-  unserialisable and put two independent paths back into the model.
-* **Exception type** — the transform's refusals are translated to
-  `ParseException` at the parser boundary, where the position is known and
-  where `com.legend.model` need not depend on the parser's exception type.
-* **The AggregationAware section line** — the lexer now records EVERY
-  `###Section` header (`TokenStream.SectionHeader`), not just skipped ones,
-  so `ElementParser` asks the lexer instead of re-scanning source.
-* **Refusal wording** — messages name the missing SOURCE DIRECTIVE
-  ("requires a ~mainTable directive or an explicit [DB] qualifier") rather
-  than the missing wire field ("the wire carries no column database").
-
-**LENIENCY RULE (2026-08-08, user):** never allow leniency on a construct
-Legend owns. If legend-engine or legend-pure require something, that is a
-HARD rule — the only defensible supersets are things neither defines (Pure
-features engine subsets away, e.g. function types).
-
-Applying it closed the blocker and found two more of the same family. All
-three had been pinned by our OWN tests, which is why no corpus sweep found
-them: the corpus is engine's files, and engine never writes these forms.
-
-| leniency | engine's rule | verdict |
+| fixture | verdict | why |
 |---|---|---|
-| `~filter F` bare on a CLASS MAPPING | `mappingFilter: FILTER_CMD databasePointer ...` — pointer required (a VIEW's is optional) | dropped, both parsers |
-| `~filter [db] @J \| F` bare target | same rule: a databasePointer follows the PIPE | dropped |
-| bare column under `~mainTable` | walker:1108 passes NO scopeInfo to property mappings, under a literal `TODO? mainTable: we might not need this while parsing` | dropped; `scope([db]T)( bareCol )` IS a scope and still resolves |
+| `*Enum: EnumerationMapping` | OUR OVER-STRICTNESS | the star is on the shared `mappingElement` rule (`MappingParserGrammar.g4:59`) and `parseEnumerationMapping` never reads `ctx.STAR()` — engine accepts and drops it |
+| `prop: EnumerationMapping: expr` | OUR LENIENCY, both parsers | both grammars require the id; the plan had filed this as a FEATURE GAP needing a carried flag. It needed deleting, not building. |
+| `~clause` order / duplicates | protocol parser too lenient | `RelationalParserGrammar.g4:249` is a fixed ascending prefix, all before the property list |
+| mapping-body section order | protocol parser too lenient | `MappingParserGrammar.g4:33-40`: includes, elements, `MappingTests?`, `testSuites?` |
+| `testSuites` `query:` key | fixture was never Legend | a test admits only `doc`/`asserts`/`data` |
+| `dbQualifiedColumnRefInsideFunctionArgs` | as-written | `IsNull` canonicalisation, plus the enclosing-db elision |
+| `groupByKeyWithJoinNavigation` | real bug | a nav's TERMINAL is relative to the NAV's own root db, not to whatever encloses it; `~groupBy` keys have no PM record to lift the qualifier onto, so they arrived with none and the terminal kept a `db::DB` the legacy parser elided — enough to stop `GroupBySynthesis#groupByOpsMatch` recognising the key |
 
-The third had a comment claiming "FINOS engine parity via ScopeInfo". It was
-not parity; engine does the opposite. A cited justification is not a checked
-one.
+**Where the oracle was WRONG, and what that taught.** `xstoreMissingComma`:
+engine's rule HAS the EOF anchor the old comment denied, so the engine parser
+rejects it — and the corpus contains it anyway
+(`tests/mft/xStore/testMappingCrossStore.pure:238`), because legend-PURE's
+compiler completes the rule and discards the rest. **legend-engine is not the
+only Legend.** The reference parser answers "what does engine's Pure grammar
+do", which is not the same question as "what must legend-lite read". The old
+test's conclusion was right and its cited reason was false — both halves worth
+remembering.
 
-**The switch now stands at 51 -> 11**, and what remains is a long tail of
-protocol-parser strictness and feature gaps, each needing its own check
-against engine's grammar before it is called leniency or a bug:
+**Gaps the CORPUS proved were load-bearing** (all invisible until the switch
+was live, because §8 compiles one global model and a single unreadable setup
+file zeroes every family):
 
-* accepts what legacy refuses (3): `*Enum: EnumerationMapping` leading star;
-  `~`-clause ORDER; duplicate `~`-clause.
-* feature gaps (4): the anonymous `prop: EnumerationMapping: expr` form needs
-  a carried flag (the wire cannot tell it from a plain column); `prop*:`
-  explosion heads on Pure property mappings; the `query:` test key; duplicate
-  `testSuites` detection.
-* as-written (1): `dbQualifiedColumnRefInsideFunctionArgs` pins
-  `FunctionCall("isNull")` for the call spelling — the same canonicalisation
-  R3 measured at zero SQL cost.
+* the `Relation` class-mapping arm read only bare column names — no row
+  expressions, no `EnumerationMapping <id>:` head. Both now mirror the legacy
+  `parseRelationCols`, CARRIED on the record and NOT emitted (engine's
+  `relationFunctionPropertyMapping` JSON has no field for either, and
+  inventing one would break wire parity for every Relation mapping);
+* `~func <fqn>` with no signature spelling ran a scan hunting for a `]`,
+  swallowed the property lines whole and stopped at a later `Integer[1]`;
+* postfix `->get('k', @Type)` in a relational property mapping — a legend-lite
+  Variant extension, 10 engine tests, `PRelTypeRef` carried on our own record
+  set.
 
-Also open: **`MappingNormalizerTest.groupByKeyWithJoinNavigation`** — a real
-behavioural difference in group-by synthesis, the only failure that is
-neither wording nor leniency.
+**Gate 4 is red on HEAD and was before this work.** The committed ledger and
+the local checkout have drifted (census 2,759 vs the ledger's 2,798; seven
+families below baseline). The proof here is therefore DIFFERENTIAL: family for
+family identical to HEAD except `tests/mapping/modelJoin` 41 -> 42, h2-exec
+315 verified / **0 diverged**, corpus parse walls ZERO. The ledger is left
+untouched rather than regenerated — regenerating it would bless a 103 -> 90
+drop on `tests/mapping/relation` and hide whatever caused it.
 
-The switch stays on legacy until those close. A compiler pointed at a
-half-verified parser is worse than one pointed at an old one.
+### §M5 — the fixture oracle (2026-08-08)
+
+`FixtureAdjudicationTest` points the reference parser at LEGEND-LITE'S OWN
+test tree, split by `assertThrows` context: a negative fixture engine accepts
+is our over-strictness, a positive one it refuses is our leniency. This is the
+only tier that can see a disagreement about a form the corpus never contains,
+which is exactly how three leniencies survived for months pinned by our own
+tests. It costs ~1s and is now part of gate 8.
+
+First measurement: **974 adjudicable fixtures, 700 agree, 268 lenient, 6
+over-strict.** The 268 cluster by the reference's own message (see the test's
+Javadoc); the one to chase is **13x bare `VARCHAR` without a size** — a
+construct engine owns and requires a parameter for, so no carve-out applies.
+The `Type/multiplicity parameters are not authorized in Legend Engine` rows
+are the opposite and are FINE: legend-pure defines them, engine subsets them
+away.
+
+Two limits, stated so the next reader does not chase phantoms: the oracle jars
+are 5.88.1 against a 5.92.1-SNAPSHOT checkout, so some apparent leniency is
+version skew; and `parseModel` PARSES without compiling, so a fixture we refuse
+at parse time and engine accepts at parse time is usually refused by engine a
+phase later — all six over-strict rows have that shape.
 
 ## §7 Order of attack
 

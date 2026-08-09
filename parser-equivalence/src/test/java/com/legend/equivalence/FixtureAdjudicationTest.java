@@ -1,0 +1,468 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.equivalence;
+
+import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * OUR OWN FIXTURES, ADJUDICATED BY THE REAL ENGINE PARSER.
+ *
+ * <p>Every other tier points the reference parser at legend-engine's and
+ * legend-pure's files. This one points it at OURS. That matters because a
+ * corpus sweep structurally cannot find a disagreement about a form the
+ * corpus never contains: engine's files never write a bare {@code ~filter}
+ * on a class mapping, an anonymous {@code EnumerationMapping:}, or a bare
+ * column under {@code ~mainTable}, so all three of those leniencies lived
+ * for months PINNED BY OUR OWN TESTS with no sweep able to see them. The
+ * only oracle that can is the reference parser reading our fixtures.
+ *
+ * <p><b>The report splits by assertThrows context, because the two halves
+ * mean opposite things:</b>
+ * <ul>
+ *   <li>a NEGATIVE fixture (inside {@code assertThrows}) that engine
+ *       ACCEPTS is OUR OVER-STRICTNESS — we refuse valid Legend;</li>
+ *   <li>a POSITIVE fixture that engine REFUSES is OUR LENIENCY — we accept
+ *       what Legend does not define.</li>
+ * </ul>
+ *
+ * <p><b>Two things this cannot settle, and does not pretend to.</b> The
+ * oracle jars are 5.88.1 against a 5.92.1-SNAPSHOT checkout, so some
+ * apparent leniency is version skew — a form the newer grammar added.
+ * And legend-engine is not the only Legend: legend-PURE's compiler accepts
+ * things engine's ANTLR grammar rejects (a missing comma in an xStore
+ * mapping is the live example, and the corpus depends on the lenient
+ * reading). So a row here is a QUESTION TO ADJUDICATE, not a verdict —
+ * which is why the ratchets below bound the counts rather than requiring
+ * zero.
+ */
+class FixtureAdjudicationTest {
+
+    /**
+     * Ratchets — DEBT CEILINGS measured at introduction (2026-08-08), not
+     * targets. Lower them; do not raise them without naming the cluster.
+     *
+     * <p><b>What the 268 lenient rows actually are</b>, clustered by the
+     * reference parser's own message, so the next person starts from the
+     * analysis rather than the number:
+     * <pre>
+     *   105  Unsupported Data Source Specification type   InMemory &c —
+     *          legend-lite test connection specs engine has no extension for
+     *    39  Unexpected token (bare)                      mixed; needs eyes
+     *    33  Unexpected token, 8 alternatives             mixed
+     *    18  Unexpected token, 3 alternatives             mixed
+     *    13  Column data type VARCHAR requires 1 parameter (size)
+     *    12  no viable alternative at input
+     *    12  Type/multiplicity parameters not authorized in Legend Engine
+     *     8  Field 'X' is required                        walker-level
+     *     5  Unsupported column data type
+     *     2  The type {T[1]->U[1]} is not supported yet
+     *     2  No parser for AssociationMapping             our clean-sheet form
+     * </pre>
+     *
+     * <p><b>The one to chase first is VARCHAR.</b> Bare {@code VARCHAR}
+     * without a size is a construct legend-engine owns and requires a
+     * parameter for — no carve-out applies, so those 13 are the same family
+     * as the three leniencies this test exists to have caught. The
+     * {@code Type/multiplicity parameters} and {@code {T[1]->U[1]}} rows are
+     * the OPPOSITE: legend-pure defines them and engine subsets them away,
+     * which is the defensible superset.
+     *
+     * <p><b>Why over-strictness is only 6, and why they may all be fine.</b>
+     * {@code parseModel} PARSES; it does not compile. Engine defers a great
+     * deal to its compiler — a duplicate element, a derived property naming
+     * a missing function, a column with no reachable database — so a fixture
+     * we refuse at parse time and engine accepts at parse time is usually
+     * refused by engine a phase later, not accepted. All six current rows
+     * have that shape. Treat this direction as a prompt to check WHERE the
+     * rejection happens, not as evidence we refuse valid Legend.
+     */
+    private static final int MAX_LENIENCY = 268;
+    private static final int MAX_OVER_STRICTNESS = 6;
+
+    /** The section a top-level keyword belongs to. */
+    private static String sectionOf(String keyword) {
+        return switch (keyword) {
+            case "Mapping" -> "Mapping";
+            case "Database" -> "Relational";
+            case "Runtime", "SingleConnectionRuntime" -> "Runtime";
+            case "Service" -> "Service";
+            case "Data" -> "Data";
+            case "RelationalDatabaseConnection", "JsonModelConnection",
+                 "XmlModelConnection", "ModelChainConnection" -> "Connection";
+            case "Class", "Enum", "Association", "Profile", "Measure",
+                 "function", "native", "Primitive", "import" -> "Pure";
+            default -> null;
+        };
+    }
+
+    private record Fixture(String id, String source, boolean negative) {
+    }
+
+    @Test
+    void adjudicateOurFixturesAgainstTheReferenceParser() {
+        List<Fixture> fixtures = new ArrayList<>();
+        int files = 0;
+        int runs = 0;
+        int unadjudicable = 0;
+        for (Path p : liteTestSources()) {
+            files++;
+            String text;
+            try {
+                text = Files.readString(p);
+            } catch (Exception e) {
+                continue;               // non-UTF8; visible in the counters
+            }
+            for (Run r : literalRuns(text)) {
+                runs++;
+                String wrapped = withSectionHeaders(r.text());
+                if (wrapped == null) {
+                    unadjudicable++;
+                    continue;
+                }
+                fixtures.add(new Fixture(p.getFileName() + "#" + r.line(),
+                        wrapped, isNegativeContext(text, r.start())));
+            }
+        }
+
+        PureGrammarParser reference = PureGrammarParser.newInstance();
+        List<String> leniency = new ArrayList<>();
+        List<String> overStrict = new ArrayList<>();
+        int agree = 0;
+        for (Fixture f : fixtures) {
+            boolean engineAccepts;
+            String why = "";
+            try {
+                reference.parseModel(f.source());
+                engineAccepts = true;
+            } catch (Exception e) {
+                engineAccepts = false;
+                why = String.valueOf(e.getMessage());
+            }
+            if (f.negative() && engineAccepts) {
+                overStrict.add(f.id() + " :: " + oneLine(f.source()));
+            } else if (!f.negative() && !engineAccepts) {
+                leniency.add(f.id() + " :: " + oneLine(why)
+                        + " :: " + oneLine(f.source()));
+            } else {
+                agree++;
+            }
+        }
+
+        System.out.println("[fixture-oracle] " + files + " test files, "
+                + runs + " literal runs, " + fixtures.size()
+                + " adjudicable, " + unadjudicable + " not (no single"
+                + " top-level keyword to place in a section)");
+        System.out.println("[fixture-oracle] agree " + agree
+                + " | OUR LENIENCY " + leniency.size()
+                + " | OUR OVER-STRICTNESS " + overStrict.size());
+        System.out.println("[fixture-oracle] --- OUR LENIENCY (positive"
+                + " fixtures the reference REFUSES) ---");
+        leniency.forEach(s ->
+                System.out.println("[fixture-oracle][lenient] " + s));
+        System.out.println("[fixture-oracle] --- OUR OVER-STRICTNESS"
+                + " (assertThrows fixtures the reference ACCEPTS) ---");
+        overStrict.forEach(s ->
+                System.out.println("[fixture-oracle][strict] " + s));
+
+        assertTrue(leniency.size() <= MAX_LENIENCY,
+                "fixture leniency grew: " + leniency.size() + " > "
+                        + MAX_LENIENCY);
+        assertTrue(overStrict.size() <= MAX_OVER_STRICTNESS,
+                "fixture over-strictness grew: " + overStrict.size() + " > "
+                        + MAX_OVER_STRICTNESS);
+    }
+
+    /** legend-lite's own test tree — this module's parent, per Corpus's
+     *  root convention. */
+    private static List<Path> liteTestSources() {
+        Path root = Path.of(System.getProperty("legend.lite.root",
+                Path.of("").toAbsolutePath().getParent() == null
+                        ? "." : Path.of("").toAbsolutePath().getParent()
+                                .toString()));
+        List<Path> out = new ArrayList<>();
+        for (String mod : List.of("core", "engine")) {
+            Path dir = root.resolve(mod).resolve("src/test/java");
+            if (!Files.isDirectory(dir)) {
+                continue;
+            }
+            try (Stream<Path> s = Files.walk(dir)) {
+                s.filter(f -> f.toString().endsWith(".java"))
+                        .filter(f -> !f.toString().contains("/target/"))
+                        .sorted().forEach(out::add);
+            } catch (IOException e) {
+                throw new IllegalStateException("cannot walk " + dir, e);
+            }
+        }
+        return out;
+    }
+
+    private record Run(String text, int start, int line) {
+    }
+
+    /**
+     * String-literal RUNS: ordinary literals {@code +}-joined across lines,
+     * and text blocks. Tolerant by design — the reference parser adjudicates
+     * every candidate, so a garbled extraction contributes nothing rather
+     * than a false row.
+     */
+    private static List<Run> literalRuns(String src) {
+        List<Run> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        int runStart = -1;
+        int i = 0;
+        while (i < src.length()) {
+            char c = src.charAt(i);
+            if (c == '/' && i + 1 < src.length() && src.charAt(i + 1) == '/') {
+                while (i < src.length() && src.charAt(i) != '\n') {
+                    i++;
+                }
+                continue;
+            }
+            if (c == '/' && i + 1 < src.length() && src.charAt(i + 1) == '*') {
+                int end = src.indexOf("*/", i + 2);
+                i = end < 0 ? src.length() : end + 2;
+                continue;
+            }
+            if (c == '"' && src.startsWith("\"\"\"", i)) {
+                int end = src.indexOf("\"\"\"", i + 3);
+                if (end < 0) {
+                    break;
+                }
+                if (runStart < 0) {
+                    runStart = i;
+                }
+                cur.append(src, i + 3, end);
+                int afterBlock = end + 3;
+                int cont = skipJoin(src, afterBlock);
+                if (cont < 0 || !isLiteralStart(src, cont)) {
+                    flush(out, cur, runStart, src);
+                    runStart = -1;
+                    i = afterBlock;         // NEVER rewind — that is an
+                } else {                    // infinite loop, not a re-scan
+                    i = cont;
+                }
+                continue;
+            }
+            if (c == '"') {
+                int j = i + 1;
+                StringBuilder lit = new StringBuilder();
+                while (j < src.length() && src.charAt(j) != '"') {
+                    if (src.charAt(j) == '\\' && j + 1 < src.length()) {
+                        char n = src.charAt(j + 1);
+                        lit.append(switch (n) {
+                            case 'n' -> "\n";
+                            case 't' -> "\t";
+                            case '"' -> "\"";
+                            case '\\' -> "\\";
+                            default -> "";
+                        });
+                        j += 2;
+                        continue;
+                    }
+                    lit.append(src.charAt(j));
+                    j++;
+                }
+                if (runStart < 0) {
+                    runStart = i;
+                }
+                cur.append(lit);
+                i = j + 1;
+                int after = skipJoin(src, i);
+                if (after < 0 || !isLiteralStart(src, after)) {
+                    flush(out, cur, runStart, src);
+                    runStart = -1;
+                } else {
+                    i = after;
+                }
+                continue;
+            }
+            i++;
+        }
+        flush(out, cur, runStart, src);
+        return out;
+    }
+
+    /** Past whitespace and a {@code +} continuation; -1 if neither. */
+    private static int skipJoin(String src, int i) {
+        int j = i;
+        while (j < src.length() && Character.isWhitespace(src.charAt(j))) {
+            j++;
+        }
+        if (j < src.length() && src.charAt(j) == '+') {
+            j++;
+            while (j < src.length() && Character.isWhitespace(src.charAt(j))) {
+                j++;
+            }
+            return j;
+        }
+        return -1;
+    }
+
+    private static boolean isLiteralStart(String src, int i) {
+        return i >= 0 && i < src.length() && src.charAt(i) == '"';
+    }
+
+    private static void flush(List<Run> out, StringBuilder cur, int start,
+            String src) {
+        if (start >= 0 && !cur.isEmpty()) {
+            out.add(new Run(cur.toString(), start, lineOf(src, start)));
+        }
+        cur.setLength(0);
+    }
+
+    private static int lineOf(String src, int offset) {
+        int line = 1;
+        for (int i = 0; i < offset && i < src.length(); i++) {
+            if (src.charAt(i) == '\n') {
+                line++;
+            }
+        }
+        return line;
+    }
+
+    /**
+     * Is this literal an assertThrows argument? Scans back to the statement
+     * boundary — a literal inside {@code assertThrows(X.class, () -> ...)}
+     * is a fixture we EXPECT to be rejected.
+     */
+    private static boolean isNegativeContext(String src, int start) {
+        int from = Math.max(0, start - 600);
+        String before = src.substring(from, start);
+        int stmt = Math.max(Math.max(before.lastIndexOf(';'),
+                before.lastIndexOf('{')), before.lastIndexOf('}'));
+        String window = stmt < 0 ? before : before.substring(stmt + 1);
+        return window.contains("assertThrows");
+    }
+
+    /**
+     * Prefix each run of same-section elements with its {@code ###} header,
+     * so a section-less fixture fragment becomes a source the reference
+     * parser can read. Returns {@code null} when the text has no top-level
+     * keyword to place — counted as unadjudicable rather than guessed at.
+     */
+    private static @com.legend.Nullable String withSectionHeaders(String raw) {
+        String t = raw.strip();
+        if (!looksLikeSource(t)) {
+            return null;
+        }
+        if (t.startsWith("###")) {
+            return t + "\n";
+        }
+        // element starts, at brace/paren depth 0
+        Map<Integer, String> starts = new LinkedHashMap<>();
+        int depth = 0;
+        boolean atElementStart = true;
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (c == '{' || c == '(' || c == '[') {
+                depth++;
+            } else if (c == '}' || c == ')' || c == ']') {
+                depth--;
+                atElementStart = depth == 0;
+                continue;
+            } else if (c == ';' && depth == 0) {
+                atElementStart = true;      // `import x::*;` ends an element
+                continue;                   // without ever opening a bracket
+            }
+            if (depth != 0) {
+                continue;
+            }
+            if (atElementStart && Character.isLetter(c)) {
+                int j = i;
+                while (j < t.length() && (Character.isLetterOrDigit(t.charAt(j))
+                        || t.charAt(j) == '_')) {
+                    j++;
+                }
+                String kw = t.substring(i, j);
+                String section = sectionOf(kw);
+                if (section == null) {
+                    return null;        // an unknown head — do not guess
+                }
+                starts.put(i, section);
+                atElementStart = false;
+                i = j - 1;
+            }
+        }
+        if (starts.isEmpty()) {
+            return null;
+        }
+        StringBuilder b = new StringBuilder();
+        String open = null;
+        int prev = 0;
+        for (Map.Entry<Integer, String> e : starts.entrySet()) {
+            if (e.getKey() > prev) {
+                b.append(t, prev, e.getKey());
+            }
+            if (!e.getValue().equals(open)) {
+                b.append("\n###").append(e.getValue()).append('\n');
+                open = e.getValue();
+            }
+            prev = e.getKey();
+        }
+        b.append(t.substring(prev));
+        return b.append('\n').toString();
+    }
+
+    /**
+     * Is this literal plausibly Pure SOURCE rather than prose or a fragment?
+     *
+     * <p>Without this the report is ~95% noise: an error-message string like
+     * "native class FQN outside expected packages:" starts with a top-level
+     * keyword, and a deliberately-truncated fixture ("Database test::DB (
+     * Table (BROKEN") is a NEGATIVE fixture that lives outside any
+     * assertThrows. Both would be filed as leniency. A row nobody can act on
+     * is worse than no row.
+     *
+     * <p>So: brackets must BALANCE and there must be at least one, quotes
+     * must pair, and the text must end where an element ends.
+     */
+    private static boolean looksLikeSource(String t) {
+        if (t.length() < 12) {
+            return false;
+        }
+        char last = t.charAt(t.length() - 1);
+        if (last != '}' && last != ')' && last != ';') {
+            return false;
+        }
+        int braces = 0;
+        int parens = 0;
+        int brackets = 0;
+        int opened = 0;
+        int quotes = 0;
+        for (int i = 0; i < t.length(); i++) {
+            switch (t.charAt(i)) {
+                case '{' -> { braces++; opened++; }
+                case '}' -> braces--;
+                case '(' -> { parens++; opened++; }
+                case ')' -> parens--;
+                case '[' -> { brackets++; opened++; }
+                case ']' -> brackets--;
+                case '\'' -> quotes++;
+                default -> { }
+            }
+            if (braces < 0 || parens < 0 || brackets < 0) {
+                return false;               // closes before it opens
+            }
+        }
+        return braces == 0 && parens == 0 && brackets == 0
+                && opened > 0 && quotes % 2 == 0;
+    }
+
+    private static String oneLine(String s) {
+        String x = s.replaceAll("\\s+", " ").strip();
+        return x.length() > 150 ? x.substring(0, 150) + "…" : x;
+    }
+}
