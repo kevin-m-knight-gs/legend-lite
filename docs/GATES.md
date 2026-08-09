@@ -122,7 +122,7 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | `MAX_PARSER_LENIENT_ACCEPTS` | 742 | `SpiSeamProofTest.java:183` |
 | `MAX_ENGINE_JSON_ASYMMETRY` | 8 | `SpiSeamProofTest.java:189` |
 | `MIN_FILES_PARSED` | 877 | `SectionParseSentinelTest.java:123` |
-| `MAX_DROP_IN_DEFECTS` | 126 | `SectionParseSentinelTest.java:118` |
+| `MAX_DROP_IN_DEFECTS` | 184 | `SectionParseSentinelTest.java` (was recorded here as 126 while the source said 266 — the source is the authority) |
 | `MAX_LENIENCY_KINDS` | 21 | `FixtureAdjudicationTest.java` (distinct kinds, not fixtures) |
 | `MAX_OVER_STRICTNESS` | 6 | `FixtureAdjudicationTest.java:92` |
 

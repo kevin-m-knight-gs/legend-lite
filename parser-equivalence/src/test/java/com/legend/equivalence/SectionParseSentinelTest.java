@@ -246,7 +246,13 @@ class SectionParseSentinelTest {
     /** Failures on files the reference ACCEPTS — the honest defect count the
      *  coverage ratchet above cannot see (implementation audit §3.4). Ratcheted
      *  DOWN only; section parity burns it to zero. */
-    private static final int MAX_DROP_IN_DEFECTS = 266;   // 146 - 20 AggregationAware-Pure
+    // 266 -> 184 (2026-08-09). ~src is OPTIONAL in Legend and we required it
+    // on every Pure class mapping, which cost 17 files; making it optional
+    // closed 14 outright and moved 3 on to their NEXT gap (unbuilt sections),
+    // which is why the total falls by 14 rather than 17. The ceiling had been
+    // sitting 82 above the actual count, so it could not have caught a
+    // regression of any size worth catching.
+    private static final int MAX_DROP_IN_DEFECTS = 184;
     // 126 -> 127 is the ONE increment this ratchet has ever taken, and it is a
     // gap becoming VISIBLE rather than a capability being lost: refusing
     // unknown sections turned a silently-skipped ###Diagram that the engine

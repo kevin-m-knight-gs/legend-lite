@@ -1011,6 +1011,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
+        if (srcClass == null && filterBody != null) {
+            // A ~filter reads $src, so the mapping must declare its type.
+            // Engine agrees in intent and enforces it by CRASHING: the
+            // implicit $src is built as `new PackageableType(srcClass)` with
+            // no null check (ClassMappingFirstPassBuilder:127). Refuse here,
+            // where the position is known.
+            throw error("a ~filter needs a ~src: the filter reads $src, so"
+                    + " the mapping must declare its type");
+        }
         return new Protocol.PClassMappingPure(target, targetSpan, extendsId,
                 id, root, srcClass, srcSpan, filterBody, props,
                 spanOf(memberStart, close));

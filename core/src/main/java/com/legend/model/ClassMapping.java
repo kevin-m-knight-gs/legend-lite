@@ -234,13 +234,41 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             @com.legend.Nullable String setId,
             @com.legend.Nullable String extendsSetId,
             boolean root,
-            String sourceClass,
+            /**
+             * The {@code ~src} class, or {@code null} when the mapping
+             * declares none.
+             *
+             * <p>{@code ~src} is OPTIONAL in Legend — engine's rule is
+             * {@code (mappingSrc | mappingFilter)*}, its walker calls
+             * {@code validateAndExtractOptionalField}, and its compiler
+             * writes {@code _srcClass(null)} without complaint. Its purpose
+             * is to declare the TYPE of {@code $src} inside the property
+             * lambdas, so a mapping whose bindings never read {@code $src}
+             * (constants, say) has nothing to declare.
+             *
+             * <p>Such a mapping has no source EXTENT, so there is nothing to
+             * iterate and it cannot produce rows — see
+             * {@code MappingNormalizer#synthM2M}, which refuses it. It is
+             * still meaningful to parse, compile and analyse, which is why
+             * engine's own corpus contains them.
+             */
+            @com.legend.Nullable String sourceClass,
             @com.legend.Nullable ValueSpecification filter,
             List<PropertyBinding> propertyBindings) implements ClassMapping {
 
         public Pure {
             Objects.requireNonNull(className, "Class name cannot be null");
-            Objects.requireNonNull(sourceClass, "Source class (~src) cannot be null");
+            if (sourceClass == null && filter != null) {
+                // engine builds the implicit `$src` for a parameterless
+                // filter as `new PackageableType(srcClass)` with NO null
+                // check (ClassMappingFirstPassBuilder:127), so this shape
+                // crashes there rather than being refused. A filter reads
+                // the source by definition; refusing it is what engine
+                // means, stated instead of thrown.
+                throw new IllegalArgumentException(
+                        "a ~filter needs a ~src: the filter reads $src, so"
+                                + " the mapping must declare its type");
+            }
             propertyBindings = propertyBindings == null
                     ? List.of()
                     : List.copyOf(propertyBindings);

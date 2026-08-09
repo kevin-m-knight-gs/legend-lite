@@ -322,7 +322,8 @@ public final class MappingFromProtocol {
         }
         return new ClassMapping.Pure(pure.className(), ownerId,
                 pure.extendsClassMappingId(), pure.root(),
-                require(pure.srcClass(), "a Pure class mapping requires ~SRC"),
+                // ~src is OPTIONAL (see ClassMapping.Pure#sourceClass)
+                pure.srcClass(),
                 pure.filter() == null ? null
                         : single(pure.filter(), "pure class-mapping filter"),
                 bindings);

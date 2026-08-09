@@ -623,7 +623,10 @@ public final class ScanRelations {
             for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
                 for (com.legend.model.ClassMapping cm : m.classMappings()) {
                     if (cm instanceof ClassMapping.Pure pm
-                            && typeMatches(pm.className(), classFqn)) {
+                            && typeMatches(pm.className(), classFqn)
+                            // no ~src = no upstream to chase; the chain
+                            // simply ends here rather than being unknown
+                            && pm.sourceClass() != null) {
                         String[] up = rootImplOrNull(ctx, mappingFqn,
                                 pm.sourceClass(), depth + 1, chainMappings);
                         for (int i = 0; up == null

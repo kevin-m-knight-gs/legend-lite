@@ -3047,13 +3047,51 @@ final class ElementParserTest {
     }
 
     @Test
-    void pureClassMappingRequiresSrc() {
+    void pureClassMappingReadingSrcWithoutDeclaringItStillParses() {
+        // OVERTURNED: this used to demand ~src for EVERY Pure class mapping,
+        // which cost us 17 corpus files. ~src is optional, so this parses —
+        // a binding that reads $src without a declared type is engine's
+        // business to reject later (it has no type to resolve $src.name
+        // against), not the parser's.
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+                "Mapping my::M ( *model::P: Pure { name: $src.name } )")
+                .elements().get(0);
+        assertNull(((ClassMapping.Pure) md.classMappings().get(0)).sourceClass());
+    }
+
+    @Test
+    void pureClassMappingWithoutSrcIsAccepted() {
+        // ~src is OPTIONAL in Legend. Engine's rule is
+        // `(mappingSrc | mappingFilter)*`, its walker calls
+        // validateAndExtractOptionalField, and its compiler writes
+        // _srcClass(null) without complaint. Its job is to declare the TYPE
+        // of $src in the property lambdas, so a mapping whose bindings never
+        // read $src has nothing to declare — engine's own corpus contains
+        // these (dataSpaceWithSubstantialMapping.pure binds a constant).
+        // We used to refuse all 17 such files.
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "*model::Mammal: Pure { noOfLegs: '41231' } "
+                + ")").elements().get(0);
+        var pcm = (ClassMapping.Pure) md.classMappings().get(0);
+        assertNull(pcm.sourceClass(), "no ~src was written, so none is recorded");
+        assertEquals(1, pcm.propertyBindings().size());
+    }
+
+    @Test
+    void pureClassMappingFilterWithoutSrcRejected() {
+        // A ~filter reads $src by definition, so it needs the type. Engine
+        // agrees in intent but enforces it by CRASHING: it builds the
+        // implicit $src as `new PackageableType(srcClass)` with no null
+        // check (ClassMappingFirstPassBuilder:127). We refuse in words.
         ParseException e = assertThrows(ParseException.class, () ->
                 ElementParser.parse(
-                        "Mapping my::M ( *model::P: Pure { "
-                        + "name: $src.name } )"));
-        assertTrue(String.valueOf(e.getMessage()).contains("SRC"),
-                () -> "expected ~src required error, got: " + e.getMessage());
+                        "Mapping my::M ( "
+                        + "*model::Mammal: Pure { ~filter $src.alive "
+                        + "  noOfLegs: '4' } "
+                        + ")"));
+        assertTrue(String.valueOf(e.getMessage()).contains("~filter needs a ~src"),
+                () -> "want the filter/src diagnostic, got: " + e.getMessage());
     }
 
     @Test

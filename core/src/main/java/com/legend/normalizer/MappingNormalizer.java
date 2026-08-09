@@ -1304,8 +1304,23 @@ public final class MappingNormalizer {
         cycleStack.add(pcm.className());
         try {
             // Source: SourceClass.all() — emitted as getAll(SourceClass).
+            String srcFqn = pcm.sourceClass();
+            if (srcFqn == null) {
+                // A Pure mapping with no ~src is legal to WRITE and legal to
+                // compile (engine leaves _srcClass null), but the M2M
+                // pipeline is "every instance of the source, mapped" — with
+                // no source there is no extent to iterate, so there is
+                // nothing this could execute. Refuse where the meaning runs
+                // out, not where the syntax does.
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "Pure class mapping for '" + pcm.className()
+                        + "' in mapping '" + md.qualifiedName()
+                        + "' declares no ~src, so it has no source extent to"
+                        + " map from — such a mapping can be compiled and"
+                        + " analysed but cannot produce rows");
+            }
             ValueSpecification source = new AppliedFunction("getAll",
-                    List.of(new PackageableElementPtr(pcm.sourceClass())));
+                    List.of(new PackageableElementPtr(srcFqn)));
             if (pcm.filter() != null) {
                 source = new AppliedFunction("filter", List.of(source,
                         new LambdaFunction(List.of(new Variable("src")),
