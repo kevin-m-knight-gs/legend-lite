@@ -1869,14 +1869,54 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                                 + "' is unbuilt");
                     }
                     expect(TokenType.COMMA);
-                    String inputType = parseIdentifier();
-                    expect(TokenType.COMMA);
-                    String targetPath =
-                            Protocol.unquotePath(parseQualifiedName());
-                    expect(TokenType.COMMA);
-                    String data = TokenStreamCursor.unquoteAndUnescape(
-                            text(), this);
-                    advance();
+                    // testInputElement: LESS_THAN testInputType
+                    //   (COMMA testInputFormat)? COMMA testInputSrc
+                    //   COMMA testInputDataContent GREATER_THAN
+                    // The FORMAT is optional, so the components before the
+                    // data are either [src] or [format, src]. The data is
+                    // always last and always starts with a STRING, which is
+                    // what tells them apart without lookahead games.
+                    List<String> heads = new ArrayList<>();
+                    while (!atEnd() && peek() != TokenType.STRING) {
+                        heads.add(Protocol.unquotePath(parseQualifiedName()));
+                        expect(TokenType.COMMA);
+                    }
+                    // The grammar makes the FORMAT optional, but BOTH
+                    // walkers then refuse a missing one
+                    // (RelationalGrammarParserExtension:325-330,
+                    // CorePureGrammarParser:338-341), so it is mandatory in
+                    // practice and we refuse it in the same words rather
+                    // than inventing a wire shape we cannot observe.
+                    if (heads.size() != 2) {
+                        throw error("Mapping test "
+                                + (relational ? "relational" : "object")
+                                + " 'input type' is missing");
+                    }
+                    String inputType = heads.get(0);
+                    String targetPath = heads.get(1);
+                    // testInputDataContent: STRING ('+' STRING)* — the parts
+                    // CONCATENATE. Engine decodes each part and joins with
+                    // "" (RelationalGrammarParserExtension:339,
+                    // CorePureGrammarParser:349), and the two kinds decode
+                    // DIFFERENTLY: Relational unescapes, Object does not.
+                    StringBuilder dataBuf = new StringBuilder();
+                    do {
+                        String raw = text();
+                        if (peek() != TokenType.STRING) {
+                            throw error("expected a quoted string in the test"
+                                    + " input data, got " + peek());
+                        }
+                        dataBuf.append(relational
+                                // the `\;` guard is engine's, and it is
+                                // load-bearing: our unescape drops the
+                                // backslash of an unrecognised escape, so
+                                // without it `\;` would decode to `;`
+                                ? TokenStreamCursor.unquoteAndUnescape(
+                                        raw.replace("\\;", "\\\\;"), this)
+                                : raw.substring(1, raw.length() - 1));
+                        advance();
+                    } while (match(TokenType.PLUS));
+                    String data = dataBuf.toString();
                     int dE = pos;
                     expect(TokenType.GREATER_THAN);
                     inputData.add(new Protocol.PLegacyInputData(relational,

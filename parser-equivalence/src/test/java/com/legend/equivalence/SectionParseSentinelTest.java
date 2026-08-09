@@ -211,7 +211,10 @@ class SectionParseSentinelTest {
                 .forEach(e -> report.append(String.format("  %5d  %s%n",
                         e.getValue(), e.getKey())));
         report.append('\n');
-        failures.stream().limit(40).forEach(f -> report.append("  ").append(f).append('\n'));
+        // NOT truncated, same reason the LENIENT list is not: DEFECT is the
+        // "engine accepts, we refuse" bucket — the coverage debt — and a
+        // capped list means you can quote 198 without ever seeing 198.
+        failures.forEach(f -> report.append("  ").append(f).append('\n'));
         Files.writeString(Path.of("target", "section-sentinel-report.txt"),
                 report.toString());
         System.out.println(report);
