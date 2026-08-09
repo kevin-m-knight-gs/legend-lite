@@ -384,7 +384,8 @@ public final class ElementParser implements TokenStreamCursor {
      * model has no data-element concept, so nothing here can be opened, but
      * the element is still indexed and named rather than silently dropped.
      */
-    private PackageableElement parseDataElement() {
+    /** PROTOCOL-FIRST. */
+    private PackageableElement dataElement() {
         int start = pos;
         com.legend.protocol.Protocol.PDataElement de =
                 MappingProtocolParser.parseData(tokens, start);
@@ -438,71 +439,112 @@ public final class ElementParser implements TokenStreamCursor {
      * ({@code com.legend.ide.ModelIndexer}) has sliced one element out of a
      * larger stream.
      */
+    /**
+     * THE ONE SHAPE. Every arm is {@code case X -> xElement();} and nothing
+     * else — no transform spelled inline, no {@code yield} block, no
+     * exception plumbing. Each {@code xElement()} does exactly one thing:
+     * parse the PROTOCOL, then transform it into the model.
+     *
+     * <p>This switch previously carried five different shapes for the same
+     * operation — a bare transform call, a transform wrapped in a helper, a
+     * {@code yield} block threading {@code endOut}, the same plus a
+     * section-line lookup and two catch clauses, and a straight-to-model
+     * call — which made it impossible to tell by reading which elements had
+     * been migrated. Two of them were one-line wrappers over the protocol
+     * path that read exactly like the un-migrated ones.
+     *
+     * <p>So the STATE is now written down where the work is: every
+     * {@code xElement()} is tagged PROTOCOL-FIRST or STRAIGHT-TO-MODEL. The
+     * ranked worklist is {@code docs/PROTOCOL_MIGRATION_CENSUS.md}; this
+     * switch is its index.
+     */
     private PackageableElement parseSingleElement() {
         TokenType t = peek();
         return switch (t) {
-            case CLASS -> com.legend.model.FromProtocol.toClassDefinition(
-                    parseClassDefinition(false));
-            case NATIVE -> {
-                advance(); // consume 'native'
-                yield switch (peek()) {
-                    case CLASS -> com.legend.model.FromProtocol.toClassDefinition(
-                            parseClassDefinition(true));
-                    case FUNCTION -> parseNativeFunction();
-                    default -> throw error("expected 'Class' or 'function' after 'native', got "
-                            + peek() + " ('" + safeText() + "')");
-                };
-            }
-            case ASSOCIATION -> parseAssociation();
-            case ENUM -> com.legend.model.FromProtocol.toEnumDefinition(parseEnumDefinition());
-            case PROFILE -> com.legend.model.FromProtocol.toProfileDefinition(
-                    parseProfileDefinition());
-            case FUNCTION -> parseFunctionDefinition();
-            case SERVICE -> parseServiceDefinition();
-            case RUNTIME -> parseRuntime();
-            case SINGLE_CONNECTION_RUNTIME -> parseSingleConnectionRuntime();
-            case RELATIONAL_DATABASE_CONNECTION -> parseConnection();
-            // R3: the ###Relational model is a TRANSFORM on protocol, not a
-            // second parse (PARSER_COMPLETENESS_PLAN.md §1). One parse, one
-            // grammar, one place to fix.
-            case DATABASE -> {
-                int[] endOut = new int[1];
-                com.legend.protocol.Protocol.PDatabase db =
-                        DatabaseProtocolParser.parse(tokens, pos, endOut);
-                pos = endOut[0];
-                yield com.legend.model.FromProtocol.toDatabaseDefinition(db);
-            }
-            // M4: the ###Mapping model is a TRANSFORM on protocol too. One
-            // parse, one grammar (PARSER_COMPLETENESS_PLAN.md §M4).
-            case MAPPING -> {
-                int[] endOut = new int[1];
-                int sectionLine = tokens.sectionContentLine(
-                        "Mapping", tokens.start(pos));
-                com.legend.protocol.Protocol.PMapping m;
-                try {
-                    m = MappingProtocolParser.parse(tokens, pos, sectionLine, endOut);
-                } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
-                    throw error(u.reason());
-                }
-                pos = endOut[0];
-                try {
-                    yield com.legend.model.MappingFromProtocol.toMappingElement(m);
-                } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
-                    throw error(u.reason());
-                }
-            }
-            // Primitive my::Ext extends Base [constraint]? — precise primitive
-            case VALID_STRING -> {
-                if ("Primitive".equals(safeText())) {
-                    yield parsePrimitiveExtension();
-                }
-                if ("Data".equals(safeText())) {
-                    yield parseDataElement();
-                }
-                throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
-            }
-            default -> throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
+            case CLASS -> classElement(false);
+            case NATIVE -> nativeElement();
+            case ASSOCIATION -> associationElement();
+            case ENUM -> enumElement();
+            case PROFILE -> profileElement();
+            case FUNCTION -> functionElement();
+            case SERVICE -> serviceElement();
+            case RUNTIME -> runtimeElement();
+            case SINGLE_CONNECTION_RUNTIME -> singleConnectionRuntimeElement();
+            case RELATIONAL_DATABASE_CONNECTION -> connectionElement();
+            case DATABASE -> databaseElement();
+            case MAPPING -> mappingElement();
+            case VALID_STRING -> keywordElement(t);
+            default -> throw error("unsupported top-level keyword: " + t
+                    + " ('" + safeText() + "')");
         };
+    }
+
+    /** PROTOCOL-FIRST. */
+    private PackageableElement classElement(boolean isNative) {
+        return com.legend.model.FromProtocol.toClassDefinition(
+                parseClassDefinition(isNative));
+    }
+
+    /** PROTOCOL-FIRST for {@code native Class}; the function arm is not. */
+    private PackageableElement nativeElement() {
+        advance();                                  // consume 'native'
+        return switch (peek()) {
+            case CLASS -> classElement(true);
+            case FUNCTION -> nativeFunctionElement();
+            default -> throw error("expected 'Class' or 'function' after"
+                    + " 'native', got " + peek() + " ('" + safeText() + "')");
+        };
+    }
+
+    /** PROTOCOL-FIRST. */
+    private PackageableElement enumElement() {
+        return com.legend.model.FromProtocol.toEnumDefinition(
+                parseEnumDefinition());
+    }
+
+    /** PROTOCOL-FIRST. */
+    private PackageableElement profileElement() {
+        return com.legend.model.FromProtocol.toProfileDefinition(
+                parseProfileDefinition());
+    }
+
+    /** PROTOCOL-FIRST (R3) — the ###Relational model is a TRANSFORM on
+     *  protocol, not a second parse. */
+    private PackageableElement databaseElement() {
+        int[] endOut = new int[1];
+        com.legend.protocol.Protocol.PDatabase db =
+                DatabaseProtocolParser.parse(tokens, pos, endOut);
+        pos = endOut[0];
+        return com.legend.model.FromProtocol.toDatabaseDefinition(db);
+    }
+
+    /** PROTOCOL-FIRST (M4) — one parse, one grammar. */
+    private PackageableElement mappingElement() {
+        int[] endOut = new int[1];
+        int sectionLine = tokens.sectionContentLine("Mapping", tokens.start(pos));
+        try {
+            com.legend.protocol.Protocol.PMapping m =
+                    MappingProtocolParser.parse(tokens, pos, sectionLine, endOut);
+            pos = endOut[0];
+            return com.legend.model.MappingFromProtocol.toMappingElement(m);
+        } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
+            // the transform's refusals become ParseExceptions HERE, where the
+            // position is known and where com.legend.model need not depend on
+            // the parser's exception type
+            throw error(u.reason());
+        }
+    }
+
+    /** Elements whose keyword is not a reserved token. */
+    private PackageableElement keywordElement(TokenType t) {
+        if ("Primitive".equals(safeText())) {
+            return primitiveElement();
+        }
+        if ("Data".equals(safeText())) {
+            return dataElement();
+        }
+        throw error("unsupported top-level keyword: " + t
+                + " ('" + safeText() + "')");
     }
 
     // ============================================================
@@ -920,7 +962,8 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** {@code Primitive fqn extends Base} with an optional dropped constraint block. */
-    private PackageableElement parsePrimitiveExtension() {
+    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
+    private PackageableElement primitiveElement() {
         advance();   // 'Primitive'
         String fqn = parseQualifiedName();
         expect(TokenType.EXTENDS);
@@ -941,7 +984,8 @@ public final class ElementParser implements TokenStreamCursor {
     // ============================================================
 
     /** {@code Association <<stereos>> {tags} qualifiedName { end1; end2; }} */
-    private PackageableElement parseAssociation() {
+    /** PROTOCOL-FIRST. */
+    private PackageableElement associationElement() {
         int declStart = pos;
         expect(TokenType.ASSOCIATION);
         // CAPTURED, not dropped: the wire carries association annotations
@@ -1170,7 +1214,8 @@ public final class ElementParser implements TokenStreamCursor {
                 stereotypes, taggedValues);
     }
 
-    private FunctionDefinition parseFunctionDefinition() {
+    /** PROTOCOL-FIRST. */
+    private FunctionDefinition functionElement() {
         return com.legend.model.FromProtocol.toFunctionDefinition(parseFunctionProtocol());
     }
 
@@ -1967,7 +2012,7 @@ public final class ElementParser implements TokenStreamCursor {
      * Parse a {@code native function ...;} declaration. {@code native} has
      * already been consumed by the caller. Mirrors Pure's
      * {@code nativeFunction} grammar rule: same signature shape as
-     * {@link #parseFunctionDefinition()}, but no body block &mdash; the
+     * {@link #functionElement()}, but no body block &mdash; the
      * declaration is terminated by a semicolon.
      *
      * <p>Pure syntax:
@@ -1976,7 +2021,8 @@ public final class ElementParser implements TokenStreamCursor {
      *       my::pkg::fn&lt;T,V|m,n&gt;(p1:T1[m1], p2:T2[m2]):R[m];
      * </pre>
      */
-    private NativeFunctionDefinition parseNativeFunction() {
+    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
+    private NativeFunctionDefinition nativeFunctionElement() {
         FunctionSignature sig = parseFunctionSignature();
         expect(TokenType.SEMI_COLON);
         return new NativeFunctionDefinition(
@@ -2050,7 +2096,8 @@ public final class ElementParser implements TokenStreamCursor {
      * {@code testSuites} block is still captured as raw text (D-3),
      * pending a test-suite grammar.
      */
-    private ServiceDefinition parseServiceDefinition() {
+    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
+    private ServiceDefinition serviceElement() {
         expect(TokenType.SERVICE);
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
@@ -2736,7 +2783,8 @@ public final class ElementParser implements TokenStreamCursor {
         return p.parseConnectionValue(flavor, fStart, false);
     }
 
-    private RuntimeDefinition parseRuntime() {
+    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
+    private RuntimeDefinition runtimeElement() {
         expect(TokenType.RUNTIME);
         String qualifiedName = parseQualifiedName();
         return parseRuntimeBody(qualifiedName);
@@ -2747,7 +2795,8 @@ public final class ElementParser implements TokenStreamCursor {
      * implementation skips the body and returns an empty runtime. We match
      * that here pending real grammar support.
      */
-    private RuntimeDefinition parseSingleConnectionRuntime() {
+    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
+    private RuntimeDefinition singleConnectionRuntimeElement() {
         expect(TokenType.SINGLE_CONNECTION_RUNTIME);
         String qualifiedName = parseQualifiedName();
         // skipBalancedContent consumes the opening '{' itself, then closing '}'.
@@ -2872,7 +2921,8 @@ public final class ElementParser implements TokenStreamCursor {
      * specification: ...; auth: ...; }}.
      * Unknown keys throw (strict mode; D-2).
      */
-    private ConnectionDefinition parseConnection() {
+    /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
+    private ConnectionDefinition connectionElement() {
         expect(TokenType.RELATIONAL_DATABASE_CONNECTION);
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);

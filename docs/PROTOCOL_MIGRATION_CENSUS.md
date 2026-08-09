@@ -12,99 +12,152 @@ Walls, drop-in defects, out-of-scope sections and "migration legs" are four
 names for gaps in that one pipeline; they differ only in which report
 surfaces them. This file is the single ranked worklist.
 
-## The element arms
+## THE ONE SHAPE
 
-`✓` built · `—` absent · `DELETE` a straight-to-model parser still live
+`ElementParser.parseSingleElement` is now a pure dispatch table — every arm is
+`case X -> xElement();`, nothing else — and every `xElement()` is tagged
+**PROTOCOL-FIRST** or **STRAIGHT-TO-MODEL** in its javadoc. So the migration
+state is readable at the work, and this document is its index rather than its
+only record.
 
-| element | protocol parse | transform | arm wired | straight-to-model to DELETE |
+It previously carried FIVE shapes for the same operation: a bare transform
+call, a transform behind a helper, a `yield` block threading `endOut`, the
+same plus a section-line lookup and two catch clauses, and a straight-to-model
+call. Two of those helpers were one-line wrappers over the protocol path that
+read exactly like the un-migrated arms — which is how a reader (this one)
+concluded that eight arms were un-migrated when the real number was four.
+
+## The denominator: all 22 sections legend-engine can parse
+
+Asked of engine's own extension registry by `EngineSectionRosterTest`, not
+grepped — section names live behind constants, so grepping finds four and
+misses eighteen. The test fails if the roster shrinks, so an upstream pull
+that adds a section widens this table instead of passing in silence.
+
+**Defects are attributed to the SECTION they occur in**, not to the section
+their error message happens to name. That distinction matters: a first cut
+counted only messages of the form `'X' is not a known section parser` and so
+reported `###Pure: 0` while 37 of its files were failing on `Measure`. A
+section is not done because its name stopped appearing in error text.
+
+| section | defects | walls | oos | state |
+|---|---:|---:|---:|---|
+| **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3), nothing outstanding |
+| **Connection** | **51** | **30** | 0 | DUAL-PATH; protocol side exists and is better than the live one |
+| **Pure** | **37** | 0 | 0 | mostly protocol-first; **Measure**, **native function**, **Primitive** are not |
+| **Service** | **27** | 0 | **135** | straight-to-model, no protocol side |
+| **Mapping** | **25** | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
+| DataSpace | 13 | 0 | 51 | no section parser |
+| Snowflake | 6 | 0 | 31 | no section parser |
+| Diagram | 5 | 0 | 17 | carried opaque |
+| Runtime | 3 | 0 | 0 | DUAL-PATH; protocol side exists |
+| FileGeneration | 3 | 0 | 7 | no section parser |
+| ExternalFormat | 2 | 0 | 77 | no section parser; 2nd biggest oos |
+| Persistence | 0 | 0 | 53 | no section parser; 3rd biggest oos |
+| ServiceStore | 1 | 0 | 32 | no section parser |
+| BigQuery · DataQualityValidation · FunctionJar · GenerationSpecification · HostedService · MemSql · MongoDB · Text | 1 each | 0 | 3–7 each | no section parser |
+| Deephaven · Elasticsearch · QueryPostProcessor · Data | 0 | 0 | 0–5 | Data is claimed (opaque); the rest unbuilt |
+
+**Only ONE section is actually finished.** `###Relational` has zero defects and
+zero walls. `###Pure` and `###Mapping` are commonly described as done — they
+are protocol-first, which is a different and weaker claim.
+
+## The element arms inside the sections we claim
+
+`✓` built · `—` absent · **DELETE** = a straight-to-model parser still live
+
+| element | protocol parse | transform | arm | straight-to-model to DELETE |
 |---|---|---|---|---|
-| Class | ✓ `parseClassDefinition` | ✓ `toClassDefinition` | ✓ | — |
-| Native Class | ✓ | ✓ | ✓ | — |
-| Enum | ✓ `parseEnumDefinition` | ✓ `toEnumDefinition` | ✓ | — |
-| Profile | ✓ `parseProfileDefinition` | ✓ `toProfileDefinition` | ✓ | — |
-| Association | ✓ `parseAssociationDefinition` | ✓ `toAssociationDefinition` | ✓ | — |
-| Function | ✓ `parseFunctionProtocol` | ✓ `toFunctionDefinition` | ✓ | — |
-| Database | ✓ `DatabaseProtocolParser` | ✓ `toDatabaseDefinition` | ✓ | — (R3 deleted it) |
-| Mapping | ✓ `MappingProtocolParser` | ✓ `toMappingElement` | ✓ | — (M4 deleted it) |
+| Class · Native Class | ✓ | ✓ | ✓ | — |
+| Enum | ✓ | ✓ | ✓ | — |
+| Profile | ✓ | ✓ | ✓ | — |
+| Association | ✓ | ✓ | ✓ | — |
+| Function | ✓ | ✓ | ✓ | — |
+| Database | ✓ `DatabaseProtocolParser` | ✓ | ✓ | — (R3 deleted it) |
+| Mapping | ✓ `MappingProtocolParser` | ✓ | ✓ | — (M4 deleted it) |
+| Data | ✓ `parseData` | opaque | ✓ | — |
 | **Measure** | ✓ `parseMeasureDefinition`:1207 | **—** | **—** | — |
 | **Runtime** | ✓ `parseRuntimeProtocol`:2198 | **—** | **—** | **`parseRuntimeBody`:2758, 31 lines** |
-| **Connection** | ✓ `parseConnectionProtocol`:2333 | **—** | **—** | **`parseConnection`:2875, 104 lines** |
-| **Service** | **—** | **—** | **—** | **`parseServiceDefinition`, 126 lines** |
-| Native Function | partial (`toFunctionParams`) | partial | builds model | `parseNativeFunction`, 10 lines |
-| Primitive | **—** | **—** | builds model | `parsePrimitiveExtension`, 15 lines |
-| Data | ✓ `MappingProtocolParser.parseData` | n/a — carried opaque | ✓ (opaque) | — |
+| **Connection** | ✓ `parseConnectionProtocol`:2333 | **—** | **—** | **`connectionElement`, 104 lines** |
+| **Service** | **—** | **—** | **—** | **`serviceElement`, 126 lines** |
+| Native Function | partial | partial | model | 10 lines |
+| Primitive | **—** | **—** | model | 15 lines |
 
-### What that table says
+**Three sections are DUAL-PATH today** — a protocol parser and a
+straight-to-model parser over the same grammar, in the same file. That is what
+`###Mapping` was before M4; it stayed invisible because the twins are
+co-located rather than in separate classes, so grepping for shadow *parsers*
+found nothing.
 
-**Three sections are DUAL-PATH right now** — a protocol parser and a
-straight-to-model parser over the same grammar, in the same file. This is
-exactly the shape `###Mapping` was in before M4; it did not show up when
-grepping for "shadow parsers" only because the twins are co-located rather
-than in separate classes.
+Connection's twins have already **diverged**: `parseConnectionProtocol` reads
+`testDataSetupSqls`, while the model twin routes through a stringly-typed
+`parseKeyValueBlock` that cannot represent an array, falls through to
+`parseQualifiedName`, and dies in the TYPE parser — which is the whole reason
+22 corpus files report `expected type name, got BRACKET_OPEN` from a
+connection block. Divergence is the running cost of keeping a twin.
 
-* **Connection** — and the twins have already DIVERGED. `parseConnectionProtocol`
-  reads `testDataSetupSqls`; `parseConnection` routes through a stringly-typed
-  `parseKeyValueBlock` that cannot represent an array, falls through to
-  `parseQualifiedName`, and dies in the TYPE parser — which is why 22 corpus
-  files report `expected type name, got BRACKET_OPEN` from a connection block.
-  Divergence between twins is the cost of keeping them.
-* **Runtime** — same pair, no known divergence yet.
-* **Measure** — the protocol parser is already written and nothing calls it.
-  A model type, a transform and one arm are missing. 34 corpus files report
-  `unsupported top-level keyword` for it.
+## The architecture this is converging on
 
-**Service is the only large element with NO protocol side at all** (126 lines
-of straight-to-model), and it is simultaneously the biggest out-of-scope
-section (135 elements) and the biggest unknown-section defect (27 files).
+`docs/GRAMMAR_EXTENSIBILITY.md` already states the target: **"the engine's
+parser is a section dispatcher, not a grammar."** One parser per section,
+registered by name, each taking raw section text and emitting protocol
+elements.
 
-## The section arms (`###X`)
+We are half-way there and it is worth being precise about which half:
 
-Ranked by drop-in defects. Every row is "no protocol parser exists":
+* `SectionGrammarRegistry` EXISTS and routes `###Name` → owner, with
+  `ServiceLoader` overlays consulted after built-ins so an extension can
+  shadow a built-in — the same rule engine uses.
+* `com.legend.spi.SectionGrammar` declares the real surface,
+  `parse(SectionSource, ElementSink)`.
+* **But built-ins do not use it.** `SectionGrammarRegistry.BuiltIn.parse`
+  throws — built-in sections parse through the monolithic `ElementParser`
+  switch instead. So the seam is real for third parties and bypassed by us,
+  which is the reverse of the dogfooding rule the registry's own javadoc
+  states.
 
-| files | section | note |
-|---:|---|---|
-| 27 | Service | also 135 OUT_OF_SCOPE elements — the single biggest item anywhere |
-| 13 | DataSpace | also 51 OUT_OF_SCOPE |
-| 6 | Snowflake | app/M2M UDF sections |
-| 5 | Diagram | 17 OUT_OF_SCOPE; we carry it opaque today |
-| 3 | FileGeneration | |
-| 2 | ExternalFormat | 77 OUT_OF_SCOPE |
-| 1 each | Text · ServiceStore · MongoDB · MemSql · HostedService · GenerationSpecification | |
+Finishing it means each built-in section becomes a `SectionGrammar` that owns
+its elements — `PureSectionGrammar`, `RelationalSectionGrammar`,
+`MappingSectionGrammar`, `ConnectionSectionGrammar`, … — and `ElementParser`
+shrinks to the dispatcher. Then "is section X done?" is answerable by looking
+at one class, the census below stops being a document that can drift from the
+code, and adding `###Persistence` is a new class rather than a new arm in a
+switch someone has to find.
 
 ## Ranked worklist
 
-Ordered by (files closed) ÷ (work), with the two "already half-built" items
-first because they are the cheapest real wins on the board.
+By section, because that is the unit of both the architecture and the
+completeness question. Element-level work sits inside its section.
 
-1. **Measure** — protocol parse EXISTS. Needs a model type, a transform, one
-   arm. Touches ~34 defect files.
-2. **Connection** — protocol parse EXISTS and is BETTER than the live model
-   path. Needs a transform, one arm, and the deletion of 104 lines. Closes the
-   22 `testDataSetupSqls` files, and ends a divergence that is actively
-   producing wrong error messages. Widening the protocol's datasource
-   vocabulary (`PDatasourceSpec` permits only `PH2Local | PStaticSpec`, while
-   the model path knows four, and the corpus wants Snowflake/BigQuery/
-   Databricks) also clears the **30 connection walls**.
-3. **Runtime** — protocol parse EXISTS. Needs a transform, one arm, −31 lines.
-4. **Service** — the biggest item and the only one that is genuinely from
-   scratch: protocol parser, transform, arm, −126 lines. 27 defect files plus
-   135 out-of-scope elements.
-5. **The remaining sections** in the table above, in element order.
+1. **Connection** (51 defects + 30 walls) — the biggest, and the protocol side
+   already EXISTS and is better than the live model path. Transform, arm,
+   −104 lines, and widen `PDatasourceSpec` (it permits only
+   `PH2Local | PStaticSpec` while the model knows four and the corpus wants
+   Snowflake/BigQuery/Databricks) to clear the walls. Ends a divergence that
+   is actively producing wrong diagnostics.
+2. **Pure — Measure** (~34 of Pure's 37) — protocol parse EXISTS and nothing
+   calls it. Needs a model type, a transform, one arm.
+3. **Runtime** (3 defects) — protocol parse EXISTS. Transform, arm, −31 lines.
+   Cheap, and finishes the third dual-path section.
+4. **Service** (27 defects + 135 oos) — biggest single item and the only one
+   genuinely from scratch.
+5. **Mapping's walls** (62) — mostly OTHER STORES (ServiceStore 26, MongoDB 1)
+   and `include dataspace`, so this largely resolves as those sections land.
+6. **DataSpace** (13 + 51), **ExternalFormat** (2 + 77), **Persistence**
+   (0 + 53), **ServiceStore** (1 + 32), **Snowflake** (6 + 31), then the tail.
 
 ## Reading the numbers without fooling yourself
 
 **`DEFECT` counts FILES, not causes.** A file leaves the list only when its
 LAST gap closes. Closing a cause outright can move the total by zero — the
-empty-enum fix closed 100% of its cause and moved 184 → 184, because both
-files immediately blocked on their next gap. The `~src` fix moved it 198 →
-184 rather than 198 → 181 for the same reason.
-
-So: **cause counts measure progress; the file count measures coverage.** Quote
-both or neither.
+empty-enum fix closed 100% of its cause and moved 184 → 184 because both files
+immediately blocked on their next gap. The `~src` fix moved 198 → 184 rather
+than → 181 for the same reason. **Cause counts measure progress; the file
+count measures coverage. Quote both or neither.**
 
 **`OUT_OF_SCOPE` (440) is not a defect** — it is sections we have not claimed.
 It becomes defect-shaped only once we claim them.
 
 **The oracle is version-skewed.** Jars are 5.88.1 against a 5.92.1-SNAPSHOT
 checkout, so a handful of `LENIENT` rows are the reference being older than
-the corpus, not us being wrong.
+the corpus rather than us being wrong.
