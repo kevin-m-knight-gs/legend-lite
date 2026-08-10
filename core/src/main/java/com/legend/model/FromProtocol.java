@@ -483,6 +483,50 @@ public final class FromProtocol {
                 inline);
     }
 
+    /** A {@code ###Service} section element (Service or
+     *  ExecutionEnvironment) to its model form. Envelope decorations ride
+     *  the protocol record only — the model's service record predates them
+     *  and nothing compiles them yet. */
+    public static PackageableElement toServiceSectionElement(Protocol.Element e) {
+        return switch (e) {
+            case Protocol.PService s -> toServiceDefinition(s);
+            case Protocol.PExecutionEnvironment ee ->
+                    new ExecutionEnvironmentDefinition(ee.qualifiedName(),
+                            keyedExecutions(ee.executions()));
+            default -> throw new IllegalStateException(
+                    "not a service-section element: " + e.getClass());
+        };
+    }
+
+    private static ServiceDefinition toServiceDefinition(Protocol.PService s) {
+        String pattern = s.pattern() != null ? s.pattern() : "/";
+        return switch (s.execution()) {
+            case Protocol.PSingleExecution single -> new ServiceDefinition(
+                    s.qualifiedName(), pattern, single.query(),
+                    s.documentation(), single.mapping(), single.runtime(),
+                    s.testSuitesSource(), s.owners(),
+                    s.autoActivateUpdates(), null, s.testSource());
+            case Protocol.PMultiExecution multi -> new ServiceDefinition(
+                    s.qualifiedName(), pattern, multi.query(),
+                    s.documentation(), null, null, s.testSuitesSource(),
+                    s.owners(), s.autoActivateUpdates(),
+                    new ServiceDefinition.MultiExecution(multi.executionKey(),
+                            keyedExecutions(multi.executions())),
+                    s.testSource());
+        };
+    }
+
+    private static java.util.List<ServiceDefinition.KeyedExecution>
+            keyedExecutions(java.util.List<Protocol.PKeyedExecution> ks) {
+        java.util.List<ServiceDefinition.KeyedExecution> out =
+                new ArrayList<>(ks.size());
+        for (Protocol.PKeyedExecution k : ks) {
+            out.add(new ServiceDefinition.KeyedExecution(k.keyValue(),
+                    k.mapping(), k.runtime()));
+        }
+        return out;
+    }
+
     private static ConnectionDefinition toRelationalConnection(String qualifiedName,
             Protocol.PRelationalDatabaseConnection r) {
         ConnectionDefinition.DatabaseType type;

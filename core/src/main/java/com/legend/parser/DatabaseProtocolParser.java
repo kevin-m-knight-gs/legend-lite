@@ -763,6 +763,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     // > (INNER) @Next — the TYPE rides the NEXT pointer
                     advance();
                     pendingType = parseIdentifier();
+                    validateJoinType(pendingType);
                     expect(TokenType.PAREN_CLOSE);
                 }
                 if (peek() == TokenType.BRACKET_OPEN) {

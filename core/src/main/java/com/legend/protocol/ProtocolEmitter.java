@@ -77,6 +77,16 @@ public final class ProtocolEmitter {
             case Protocol.PRuntime r -> runtime(b, r);
             case Protocol.PConnection c -> connection(b, c);
             case Protocol.PDatabase d -> database(b, d);
+            // ###Service records exist for the parse/transform seam; their
+            // engine wire shape is NOT claimed yet (the parity harness keeps
+            // Service files OUT_OF_SCOPE), so emission walls loudly
+            case Protocol.PService sv -> require(false,
+                    "service wire emission (harness scope not claimed)",
+                    sv.qualifiedName());
+            case Protocol.PExecutionEnvironment ee -> require(false,
+                    "execution-environment wire emission (harness scope not"
+                            + " claimed)",
+                    ee.qualifiedName());
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");

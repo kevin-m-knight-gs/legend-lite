@@ -35,6 +35,7 @@ public sealed interface PackageableElement
                 ConnectionDefinition,
                 ModelConnectionDefinition,
                 ModelChainConnectionDefinition,
+                ExecutionEnvironmentDefinition,
                 DatabaseDefinition,
                 MappingDefinition,
                 LegacyMappingDefinition,

@@ -75,6 +75,7 @@ class CodeShapeGuardrailTest {
             // scoped to one island/SPI parse
             "ConnectionSectionGrammar.pos",
             "RuntimeSectionGrammar.pos",
+            "ServiceSectionGrammar.pos",
             // parse-surface MODE, set once at construction by the factory that owns
             // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
             "ElementParser.legendStrict",

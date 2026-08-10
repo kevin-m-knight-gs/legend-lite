@@ -1301,6 +1301,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // ~filter [db] (INNER)@J | ... (probe filter-jointype)
             advance();
             firstType = parseIdentifier();
+            validateJoinType(firstType);
             expect(TokenType.PAREN_CLOSE);
         }
         if (peek() == TokenType.AT) {
@@ -1319,6 +1320,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 if (peek() == TokenType.PAREN_OPEN) {
                     advance();
                     pendingType = parseIdentifier();
+                    validateJoinType(pendingType);
                     expect(TokenType.PAREN_CLOSE);
                 }
                 if (peek() == TokenType.BRACKET_OPEN) {
@@ -1902,6 +1904,20 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                                 + " 'input type' is missing");
                     }
                     String inputType = heads.get(0);
+                    // engine validates the format at PARSE
+                    // (RelationalGrammarParserExtension:334 /
+                    // CorePureGrammarParser:346); 'FUNK_UNKNOWN_FORMAT' is
+                    // engine's own negative fixture
+                    boolean knownFormat = relational
+                            ? "SQL".equals(inputType) || "CSV".equals(inputType)
+                            : "JSON".equals(inputType) || "XML".equals(inputType);
+                    if (!knownFormat) {
+                        throw error("Mapping test "
+                                + (relational ? "relational" : "object")
+                                + " input data does not support format '"
+                                + inputType + "'. Possible values: "
+                                + (relational ? "SQL, CSV" : "JSON, XML"));
+                    }
                     String targetPath = heads.get(1);
                     // testInputDataContent: STRING ('+' STRING)* — the parts
                     // CONCATENATE. Engine decodes each part and joins with

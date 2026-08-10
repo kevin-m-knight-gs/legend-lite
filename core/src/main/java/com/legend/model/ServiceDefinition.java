@@ -61,12 +61,49 @@ public record ServiceDefinition(
         @com.legend.Nullable String documentation,
         @com.legend.Nullable String mappingRef,
         @com.legend.Nullable String runtimeRef,
-        @com.legend.Nullable String testSuitesSource)
+        @com.legend.Nullable String testSuitesSource,
+        List<String> owners,
+        @com.legend.Nullable Boolean autoActivateUpdates,
+        @com.legend.Nullable MultiExecution multiExecution,
+        @com.legend.Nullable String testSource)
         implements PackageableElement {
 
     public ServiceDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         Objects.requireNonNull(pattern, "Pattern cannot be null");
         Objects.requireNonNull(functionBody, "Function body cannot be null");
+        owners = owners == null ? List.of() : List.copyOf(owners);
+    }
+
+    /** The single-execution shape most callers build. */
+    public ServiceDefinition(String qualifiedName, String pattern,
+            ValueSpecification functionBody,
+            @com.legend.Nullable String documentation,
+            @com.legend.Nullable String mappingRef,
+            @com.legend.Nullable String runtimeRef,
+            @com.legend.Nullable String testSuitesSource) {
+        this(qualifiedName, pattern, functionBody, documentation, mappingRef,
+                runtimeRef, testSuitesSource, List.of(), null, null, null);
+    }
+
+    /** {@code execution: Multi} — one shared query, an execution-key
+     *  parameter, and per-key mapping/runtime environments. When set,
+     *  {@link #mappingRef()}/{@link #runtimeRef()} are null; execution
+     *  machinery selects the environment by key at request time (not yet
+     *  wired — services with a multi execution parse and carry). */
+    public record MultiExecution(String key, List<KeyedExecution> executions) {
+        public MultiExecution {
+            Objects.requireNonNull(key, "Execution key cannot be null");
+            executions = List.copyOf(executions);
+        }
+    }
+
+    /** One keyed environment: {@code executions['QA']: { mapping; runtime; }}. */
+    public record KeyedExecution(String keyValue,
+            @com.legend.Nullable String mapping,
+            @com.legend.Nullable String runtime) {
+        public KeyedExecution {
+            Objects.requireNonNull(keyValue, "Key value cannot be null");
+        }
     }
 }

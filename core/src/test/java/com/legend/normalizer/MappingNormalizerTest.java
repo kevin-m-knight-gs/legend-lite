@@ -1667,10 +1667,13 @@ class MappingNormalizerTest {
     void joinTypeAnnotation_acceptedAndProducesSameASTAsNoAnnotation() {
         // Property-mapping joins ALWAYS lower to LEFT OUTER JOIN -- a Person
         // with no matching firm should still appear with firmName = null,
-        // not drop out. So the parser's (LEFT) annotation is informational
+        // not drop out. So the parser's (OUTER) annotation is informational
         // (captured for engine grammar fidelity) but the normalizer's AST
-        // doesn't differentiate. Two mappings differing ONLY in a (LEFT)
-        // annotation produce structurally-equal synth bodies.
+        // doesn't differentiate. Two mappings differing ONLY in an (OUTER)
+        // annotation produce structurally-equal synth bodies. Engine admits
+        // exactly INNER | OUTER (RelationalParseTreeWalker:101) -- the
+        // (LEFT) this fixture once used is engine-refused, and now refuses
+        // here too (see joinTypeAnnotation_unknownTypeRefuses).
         String shared =
                 "Class model::Person { orgName: String[1]; } "
                         + "Database db::DB ( "
@@ -1687,22 +1690,31 @@ class MappingNormalizerTest {
                         + "    orgName: [db::DB] @Person_Firm > @Firm_Org | T_ORG.NAME "
                         + "  } "
                         + ")";
-        String mappingWithLeftAnnotation =
+        String mappingWithOuterAnnotation =
                 "Mapping a::M ( "
                         + "  *model::Person: Relational { "
                         + "    ~mainTable [db::DB] T_PERSON "
-                        + "    orgName: [db::DB] @Person_Firm > (LEFT) @Firm_Org | T_ORG.NAME "
+                        + "    orgName: [db::DB] @Person_Firm > (OUTER) @Firm_Org | T_ORG.NAME "
                         + "  } "
                         + ")";
 
         FunctionDefinition fnWithout = soleSynth(normalizeViaPipeline(
                 ElementParser.parse(shared + mappingWithoutAnnotation)));
         FunctionDefinition fnWith = soleSynth(normalizeViaPipeline(
-                ElementParser.parse(shared + mappingWithLeftAnnotation)));
+                ElementParser.parse(shared + mappingWithOuterAnnotation)));
 
         assertEquals(fnWithout.body(), fnWith.body(),
-                "(LEFT) annotation must not affect the synth function's AST -- "
+                "(OUTER) annotation must not affect the synth function's AST -- "
                         + "join type is a Phase H concern, defaults to LEFT OUTER");
+
+        // and the engine-refused spelling refuses HERE too, in engine's words
+        String mappingWithLeftAnnotation =
+                mappingWithOuterAnnotation.replace("(OUTER)", "(LEFT)");
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.parser.ParseException.class,
+                () -> ElementParser.parse(shared + mappingWithLeftAnnotation));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                ex.getMessage().contains("Unsupported join type 'LEFT'"));
     }
 
     @Test

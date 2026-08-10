@@ -314,6 +314,24 @@ public final class NameResolver {
             case DatabaseDefinition db -> resolveDatabase(db, scope);
             case RuntimeDefinition rd -> resolveRuntime(rd, scope);
             case ServiceDefinition sd -> resolveService(sd, scope);
+            case com.legend.model.ExecutionEnvironmentDefinition ee -> {
+                java.util.List<ServiceDefinition.KeyedExecution> ks =
+                        new java.util.ArrayList<>(ee.executions().size());
+                boolean changed = false;
+                for (ServiceDefinition.KeyedExecution k : ee.executions()) {
+                    String m = k.mapping() == null ? null
+                            : resolveName(k.mapping(), scope);
+                    String r = k.runtime() == null ? null
+                            : resolveName(k.runtime(), scope);
+                    changed |= !Objects.equals(m, k.mapping())
+                            || !Objects.equals(r, k.runtime());
+                    ks.add(new ServiceDefinition.KeyedExecution(
+                            k.keyValue(), m, r));
+                }
+                yield changed ? new com.legend.model
+                        .ExecutionEnvironmentDefinition(ee.qualifiedName(), ks)
+                        : ee;
+            }
             case ConnectionDefinition cd -> resolveConnection(cd, scope);
             case com.legend.model.ModelConnectionDefinition mc -> {
                 String cls = resolveName(mc.className(), scope);
@@ -1167,13 +1185,34 @@ public final class NameResolver {
                 ? null : resolveName(sd.mappingRef(), scope);
         String runtimeRef = sd.runtimeRef() == null
                 ? null : resolveName(sd.runtimeRef(), scope);
+        ServiceDefinition.MultiExecution multi = sd.multiExecution();
+        if (multi != null) {
+            java.util.List<ServiceDefinition.KeyedExecution> ks =
+                    new java.util.ArrayList<>(multi.executions().size());
+            boolean changed = false;
+            for (ServiceDefinition.KeyedExecution k : multi.executions()) {
+                String m = k.mapping() == null ? null
+                        : resolveName(k.mapping(), scope);
+                String r = k.runtime() == null ? null
+                        : resolveName(k.runtime(), scope);
+                changed |= !Objects.equals(m, k.mapping())
+                        || !Objects.equals(r, k.runtime());
+                ks.add(new ServiceDefinition.KeyedExecution(k.keyValue(), m, r));
+            }
+            if (changed) {
+                multi = new ServiceDefinition.MultiExecution(multi.key(), ks);
+            }
+        }
         if (body == sd.functionBody()
                 && Objects.equals(mappingRef, sd.mappingRef())
-                && Objects.equals(runtimeRef, sd.runtimeRef())) {
+                && Objects.equals(runtimeRef, sd.runtimeRef())
+                && multi == sd.multiExecution()) {
             return sd;
         }
         return new ServiceDefinition(sd.qualifiedName(), sd.pattern(), nn(body),
-                sd.documentation(), mappingRef, runtimeRef, sd.testSuitesSource());
+                sd.documentation(), mappingRef, runtimeRef,
+                sd.testSuitesSource(), sd.owners(), sd.autoActivateUpdates(),
+                multi, sd.testSource());
     }
 
     private static ConnectionDefinition resolveConnection(

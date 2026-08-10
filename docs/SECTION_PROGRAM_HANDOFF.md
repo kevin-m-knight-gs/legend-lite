@@ -92,9 +92,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
-| MATCHED | 917 | was 875 before the Connection+Runtime migrations |
-| LENIENT | 55 | we accept, reference refuses |
-| DEFECT | **142** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime) |
+| MATCHED | 924 | was 875 before the Connection+Runtime+Service migrations |
+| LENIENT | 68 | we accept, reference refuses — rose 55 → 68 with the Service claim, ADJUDICATED: oracle-version-skew rows (5.88.1 jars vs 5.92.1 corpus) now visible instead of masked behind section refusals; the two genuinely-ours unmasked leniencies (join-type case, mapping-test input format) were FIXED, not absorbed |
+| DEFECT | **122** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime, −20 Service) |
 
 ## 1.4 How to read those numbers without fooling yourself
 
@@ -204,7 +204,7 @@ Defects attributed to the section they OCCUR in; sums to 184.
 | 1 | **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3) |
 | 2 | **Pure** | **1** (+5 islands) | 0 | 0 | one element short: **Measure** |
 | 3 | **Connection** | 3 | 0 | 0 | **first real `SectionGrammar`** (2026-08-09); twin deleted; widening LANDED (Snowflake/Spanner/Databricks/BigQuery specs, SnowflakePublic/GCP/ApiToken/MiddleTier auths, quoteIdentifiers — probed byte-exact, +15 MATCH, −30 WALL); left: foreign flavors only (Deephaven 2, MongoDB 1) |
-| 4 | **Service** | 27 | 0 | **135** | straight-to-model, no protocol side |
+| 4 | **Service** | 0 | 0 | **135** | **real `SectionGrammar`** (2026-08-09): Single AND Multi executions, embedded anonymous runtimes (raw), owners/title/ownership/postValidations, ExecutionEnvironment elements; twin deleted; oos stays (no wire shape claimed — `PService` emission walls) |
 | 5 | **Mapping** | 25 | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
 | 6 | DataSpace | 13 | 0 | 51 | unbuilt |
 | 7 | Snowflake | 6 | 0 | 31 | unbuilt |
@@ -309,16 +309,16 @@ migrations — every dual parser is GONE; recheck with the greps below):
 
 | # | straight-to-model | lines | protocol twin | status |
 |--:|---|---:|---|---|
-| 1 | `serviceElement` | 126 | — none | straight-to-model only |
-| 2 | `nativeFunctionElement` | 10 | partial | straight-to-model only |
-| 3 | `primitiveElement` | 15 | — none | straight-to-model only |
+| 1 | `nativeFunctionElement` | 10 | partial | straight-to-model only |
+| 2 | `primitiveElement` | 15 | — none | straight-to-model only |
 
-**All three must go**, and each needs a protocol parser first. Deleted this
+**Both must go**, and each needs a protocol parser first. Deleted this
 session: `connectionElement`, `parseModelConnectionBody`,
 `parseKeyValueBlock`, `parseRuntimeBody`, `singleConnectionRuntimeElement`,
 `parseRuntimeConnections`, `parseEmbeddedJsonModelConnection` (the
 2026-08-08 census mis-attributed the last as a Connection helper — it was
-the RUNTIME model path's island parser).
+the RUNTIME model path's island parser), and `serviceElement` (126 lines,
+replaced by `ServiceSectionGrammar`).
 
 Outside core: `engine/src/main/java/com/gs/legend/parser/PureModelParser.java`
 (2,573 lines) is a THIRD full parser with its own `parseMapping`,

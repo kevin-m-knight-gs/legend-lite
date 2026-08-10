@@ -749,6 +749,18 @@ public interface TokenStreamCursor {
                 ts.endLine(toTok), ts.endColumn(toTok));
     }
 
+    /** Engine rule (RelationalParseTreeWalker:1036): a join-pointer TYPE
+     *  annotation {@code (X)@join} admits exactly INNER | OUTER,
+     *  case-sensitive — {@code (inner)} is one of engine's own negative
+     *  fixtures. Shared by every parser that reads join pointers, so the
+     *  leniency cannot survive in one grammar after dying in another. */
+    default void validateJoinType(String joinType) {
+        if (!"INNER".equals(joinType) && !"OUTER".equals(joinType)) {
+            throw error("Unsupported join type '" + joinType
+                    + "'. The supported join types are: [INNER, OUTER]");
+        }
+    }
+
     /** The raw text spanned by tokens {@code [startToken, endToken)} —
      *  island content arrives as COARSE chunks, so reconstructing the
      *  original characters for a re-lex is the engine's own island

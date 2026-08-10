@@ -40,6 +40,7 @@ public final class Protocol {
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
+            PService, PExecutionEnvironment,
             PMapping, PDataElement {
     }
 
@@ -843,6 +844,75 @@ public final class Protocol {
      *  value share ONE span (ZConnectionProbe). */
     public record PConnection(String pkg, String name, PConnectionValue value,
                               com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /**
+     * A {@code ###Service} Service element, corpus-censused scope: envelope
+     * decorations, pattern/owners/documentation/autoActivateUpdates, a
+     * Single or Multi execution, and RAW-captured legacy-test / testSuites
+     * payloads. NO engine wire shape is claimed yet — the emitter walls —
+     * so the parity harness keeps Service files OUT_OF_SCOPE; the record
+     * exists for the parse/transform seam.
+     */
+    public record PService(String pkg, String name,
+                           List<PStereotype> stereotypes,
+                           List<PTaggedValue> taggedValues,
+                           @com.legend.Nullable String pattern,
+                           @com.legend.Nullable String title,
+                           List<String> owners,
+                           @com.legend.Nullable String ownershipSource,
+                           @com.legend.Nullable String documentation,
+                           @com.legend.Nullable Boolean autoActivateUpdates,
+                           PServiceExecution execution,
+                           @com.legend.Nullable String testSource,
+                           @com.legend.Nullable String testSuitesSource,
+                           @com.legend.Nullable String postValidationsSource,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** {@code execution: Single | Multi}. */
+    public sealed interface PServiceExecution
+            permits PSingleExecution, PMultiExecution {
+    }
+
+    /** {@code runtime:} is a POINTER or an embedded anonymous runtime
+     *  island ({@code #{ connections: [...] }#}) — the island rides RAW;
+     *  exactly one of {@code runtime} / {@code embeddedRuntimeSource} is
+     *  set when the source spells a runtime at all. */
+    public record PSingleExecution(
+            com.legend.protocol.spec.ValueSpecification query,
+            @com.legend.Nullable String mapping,
+            @com.legend.Nullable String runtime,
+            @com.legend.Nullable String embeddedRuntimeSource)
+            implements PServiceExecution {
+    }
+
+    public record PMultiExecution(
+            com.legend.protocol.spec.ValueSpecification query,
+            String executionKey,
+            List<PKeyedExecution> executions)
+            implements PServiceExecution {
+    }
+
+    /** {@code executions['QA']: { mapping; runtime; }} — also the entry
+     *  shape of an {@code ExecutionEnvironment}. */
+    public record PKeyedExecution(String keyValue,
+                                  @com.legend.Nullable String mapping,
+                                  @com.legend.Nullable String runtime) {
+    }
+
+    /** An {@code ExecutionEnvironment} element (###Service section). */
+    public record PExecutionEnvironment(String pkg, String name,
+                                        List<PKeyedExecution> executions,
+                                        com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
