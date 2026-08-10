@@ -345,15 +345,27 @@ public final class Protocol {
      *  embedded-reference). */
     public sealed interface PEmbeddedDataValue
             permits PExternalFormatData, PDataReference, PModelStoreData,
-            PRelationData, PRelationalCsvData, PForeignEmbeddedData {
+            PRelationData, PRelationalCsvData, PServiceStoreData {
     }
 
-    /** A corpus-censused FOREIGN embedded-data kind (ServiceStore) — the
-     *  island rides RAW; its structured wire shape (ZTailProbe
-     *  "servicestore-data") is not claimed, so emission WALLS. */
-    public record PForeignEmbeddedData(String kind, String raw,
-                                       com.legend.protocol.SourceInfo sourceInformation)
+    /** {@code ServiceStore #{ [ {request; response;} ] }#} —
+     *  {@code _type:"serviceStore"} with serviceStubMappings (ZTailProbe
+     *  "servicestore-data"). */
+    public record PServiceStoreData(List<PServiceStub> stubs,
+                                    com.legend.protocol.SourceInfo sourceInformation)
             implements PEmbeddedDataValue {
+        public PServiceStoreData {
+            stubs = List.copyOf(stubs);
+        }
+    }
+
+    /** One stub: requestPattern (method + url) and a responseDefinition
+     *  whose body is an externalFormat blob. */
+    public record PServiceStub(String method, String url,
+                               com.legend.protocol.SourceInfo requestSpan,
+                               PExternalFormatData body,
+                               com.legend.protocol.SourceInfo responseSpan,
+                               com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code Relational #{ schema.table: 'csv' + 'csv'; }#} —

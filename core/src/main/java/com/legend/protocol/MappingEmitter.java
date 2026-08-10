@@ -973,11 +973,33 @@ final class MappingEmitter {
     static void embeddedDataValue(StringBuilder b,
             Protocol.PEmbeddedDataValue v) {
         switch (v) {
-            case Protocol.PForeignEmbeddedData fd ->
-                    throw new UnsupportedOperationException(
-                            "MappingEmitter has no rule for foreign embedded"
-                                    + " data kind '" + fd.kind()
-                                    + "'. Add the emit rule — do not drop it.");
+            case Protocol.PServiceStoreData ss -> {
+                // ZTailProbe "servicestore-data"
+                b.append("{\"_type\":\"serviceStore\","
+                        + "\"serviceStubMappings\":[");
+                for (int i = 0; i < ss.stubs().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PServiceStub st = ss.stubs().get(i);
+                    b.append("{\"requestPattern\":{\"method\":");
+                    str(b, st.method());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, st.requestSpan());
+                    b.append(",\"url\":");
+                    str(b, st.url());
+                    b.append("},\"responseDefinition\":{\"body\":");
+                    externalFormatData(b, st.body());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, st.responseSpan());
+                    b.append("},\"sourceInformation\":");
+                    srcInfo(b, st.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, ss.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PExternalFormatData ef -> externalFormatData(b, ef);
             case Protocol.PModelStoreData ms -> {
                 b.append("{\"_type\":\"modelStore\",\"modelData\":[");

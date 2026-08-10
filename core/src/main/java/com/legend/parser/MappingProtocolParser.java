@@ -201,17 +201,24 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             island.endColumn()));
         }
         if ("ServiceStore".equals(kind)) {
-            // corpus-censused FOREIGN kind carried RAW — its structured wire
-            // shape (ZTailProbe "servicestore-data") is not claimed; the
-            // emitter WALLS it
-            int fTok = pos;
+            // ServiceStore #{ [ { request: {...}; response: {...}; } ] }# —
+            // _type:"serviceStore" (ZTailProbe "servicestore-data")
+            int kTok = pos;
             advance();
-            IslandBlock fi = readIsland();
-            return new Protocol.PForeignEmbeddedData(kind,
-                    fi.tokens().source(),
-                    new SourceInfo("", tokens.startLine(fTok),
-                            tokens.startColumn(fTok), fi.endLine(),
-                            fi.endColumn()));
+            IslandBlock si = readIsland();
+            MappingProtocolParser inner = new MappingProtocolParser(
+                    si.tokens(), 0);
+            List<Protocol.PServiceStub> stubs = new ArrayList<>();
+            inner.expect(TokenType.BRACKET_OPEN);
+            while (inner.peek() != TokenType.BRACKET_CLOSE && !inner.atEnd()) {
+                stubs.add(inner.parseServiceStub());
+                inner.match(TokenType.COMMA);
+            }
+            inner.expect(TokenType.BRACKET_CLOSE);
+            return new Protocol.PServiceStoreData(stubs,
+                    new SourceInfo("", tokens.startLine(kTok),
+                            tokens.startColumn(kTok), si.endLine(),
+                            si.endColumn()));
         }
         throw error("embedded data kind '" + safeText() + "' is unbuilt");
     }
@@ -260,7 +267,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             case Protocol.PDataReference r -> r.sourceInformation();
             case Protocol.PModelStoreData m -> m.sourceInformation();
             case Protocol.PRelationalCsvData c -> c.sourceInformation();
-            case Protocol.PForeignEmbeddedData f -> f.sourceInformation();
+            case Protocol.PServiceStoreData ss -> ss.sourceInformation();
             // the accessor's own end overshoots by the walker offset; a
             // resolver anchors on the RAW island close (probe store-keyed)
             case Protocol.PRelationData d -> new SourceInfo("",
@@ -2258,6 +2265,70 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 new SourceInfo("", tokens.startLine(eqTok),
                         tokens.startColumn(eqTok), island.endLine(),
                         island.endColumn()));
+    }
+
+    /** One {@code { request: { method; url; }; response: { body:
+     *  ExternalFormat #{...}#; }; }} service stub. Spans probed (ZTailProbe
+     *  "servicestore-data" + the corpus DIFF that corrected it):
+     *  request/response run their KEYWORD through the closing {@code ;};
+     *  the stub spans its braces exactly. */
+    private Protocol.PServiceStub parseServiceStub() {
+        int sTok = pos;
+        expect(TokenType.BRACE_OPEN);
+        String method = null;
+        String url = null;
+        SourceInfo requestSpan = null;
+        Protocol.PExternalFormatData body = null;
+        SourceInfo responseSpan = null;
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            int keyTok = pos;
+            String key = parseIdentifier();
+            expect(TokenType.COLON);
+            if ("request".equals(key)) {
+                expect(TokenType.BRACE_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                    String rk = parseIdentifier();
+                    expect(TokenType.COLON);
+                    if ("method".equals(rk)) {
+                        method = parseIdentifier();
+                    } else if ("url".equals(rk)) {
+                        url = TokenStreamCursor.unquoteAndUnescape(text(), this);
+                        advance();
+                    } else {
+                        throw error("unknown service-stub request key: " + rk);
+                    }
+                    expect(TokenType.SEMI_COLON);
+                }
+                expect(TokenType.BRACE_CLOSE);
+                expect(TokenType.SEMI_COLON);
+                requestSpan = spanOf(keyTok, pos - 1);
+            } else if ("response".equals(key)) {
+                expect(TokenType.BRACE_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                    String rk = parseIdentifier();
+                    expect(TokenType.COLON);
+                    if (!"body".equals(rk)) {
+                        throw error("unknown service-stub response key: " + rk);
+                    }
+                    body = parseExternalFormat();
+                    expect(TokenType.SEMI_COLON);
+                }
+                expect(TokenType.BRACE_CLOSE);
+                expect(TokenType.SEMI_COLON);
+                responseSpan = spanOf(keyTok, pos - 1);
+            } else {
+                throw error("unknown service-stub key: " + key);
+            }
+        }
+        int closeTok = pos;
+        expect(TokenType.BRACE_CLOSE);
+        if (method == null || url == null || requestSpan == null
+                || body == null || responseSpan == null) {
+            throw error("a service stub needs request {method; url;} and"
+                    + " response {body;}");
+        }
+        return new Protocol.PServiceStub(method, url, requestSpan, body,
+                responseSpan, spanOf(sTok, closeTok));
     }
 
     /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —
