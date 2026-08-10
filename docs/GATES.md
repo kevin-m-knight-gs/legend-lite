@@ -61,6 +61,33 @@ And do not BUILD while a chain runs: a `mvn install` underneath a running gate
 swaps the jar it loaded and produces a fake failure (2026-08-08: G8 reported
 MATCH 25,142 mid-chain; re-run clean it was 25,472, the baseline exactly).
 
+## Budget decision, 2026-08-10 — gate 8 grew by ~28s
+
+**Four `parser-equivalence` test classes were in no gate and no workflow**, including
+the two that pin the programme's flagship claims:
+
+| class | time | in gate 8 now? |
+|---|---:|---|
+| `PmcdEquivalenceTest` — whole-document parity, the "8,186/8,186" claim | 27s | **yes, added** |
+| `ViewFilterParityTest` | 0.8s | **yes, added** |
+| `LeniencyCatalogTest` — the total refusal-row classifier | 42s | **no — decide** |
+| `StrictDialectParityTest` — the "dialect quarantine is TOTAL" claim | **722s** | **no — see below** |
+
+Per this file's own rule, that is recorded rather than absorbed. The chain moves
+**324s → ~352s**, which is over the 330s ceiling. Two ways to settle it, both explicit
+decisions for a human:
+
+1. **Raise the ceiling to 360s.** The two additions gate claims that were previously
+   pinned by nothing automated — `DEEP_AUDIT_HANDOFF.md` calls `PmcdEquivalenceTest`
+   "the audit's strongest regression net", and it ran in no gate at all.
+2. **Take the documented cheapest cut** — gate 5 (41s, the same sweep as gate 4 against
+   a second backend, scoreboard not written). That lands the chain at ~311s, under budget.
+
+**`StrictDialectParityTest` cannot go in as-is at 722s** — it is 2.2× the entire current
+chain. It pins "dialect quarantine goes TOTAL", so it should be gated somehow: either
+optimise it, sample it in the chain and run it whole nightly, or accept a longer chain
+explicitly. **`LeniencyCatalogTest` at 42s is affordable and should probably just go in.**
+
 ## The time budget: 5.5 minutes, locked
 
 Measured 2026-08-08, sequentially, nothing concurrent:
@@ -104,7 +131,7 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 -Dlegend.engine.root=<engine checkout>` | portability sweep; scoreboard not written (~45s) |
 | 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | 1,109 run, 0 failures, 36 ledgered expected failures, nothing skipped (~30–80s) |
 | 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | see the warning below (~25s) |
-| 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | all six ratchets below (~90s) |
+| 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,PmcdEquivalenceTest,ViewFilterParityTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | all six ratchets below (~90s) |
 
 > **Gate 7 is one-directional and goes RED on improvement.** `allgates.sh:53`
 > judges it with `grep -qE "Tests run: 348, Failures: 1, Errors: 22"` — a
