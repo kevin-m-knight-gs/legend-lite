@@ -142,12 +142,21 @@ public final class MappingFromProtocol {
     private static List<MappingInclude> includesOf(Protocol.PMapping m) {
         List<MappingInclude> includes = new ArrayList<>();
         for (Protocol.PMappingInclude inc : m.includedMappings()) {
+            if (inc.includedDataSpace() != null) {
+                // include dataspace rides the PROTOCOL record only: its
+                // compile semantic (splice the dataspace's default-context
+                // mapping) needs dataspace resolution the compiler does not
+                // do yet, and a dataspace path in the model include list
+                // would mis-resolve as a mapping name
+                continue;
+            }
             List<MappingInclude.StoreSubstitution> subs = new ArrayList<>();
             for (Protocol.PStoreSubstitution s : inc.substitutions()) {
                 subs.add(new MappingInclude.StoreSubstitution(
                         s.sourceDatabasePath(), s.targetDatabasePath()));
             }
-            includes.add(new MappingInclude(inc.includedMapping(), subs));
+            includes.add(new MappingInclude(java.util.Objects.requireNonNull(
+                    inc.includedMapping()), subs));
         }
         return includes;
     }
@@ -155,6 +164,9 @@ public final class MappingFromProtocol {
     public static LegacyMappingDefinition toMappingDefinition(Protocol.PMapping m) {
         List<MappingInclude> includes = new ArrayList<>();
         for (Protocol.PMappingInclude inc : m.includedMappings()) {
+            if (inc.includedDataSpace() != null) {
+                continue;   // protocol-carried only — see toCanonical above
+            }
             // Read the FULL list, not the emitted pair: engine keeps only a
             // lone substitution and nulls both paths when there are several
             // (CorePureGrammarParser:504-516). legend-lite has always
@@ -167,7 +179,8 @@ public final class MappingFromProtocol {
                 subs.add(new MappingInclude.StoreSubstitution(
                         s.sourceDatabasePath(), s.targetDatabasePath()));
             }
-            includes.add(new MappingInclude(inc.includedMapping(), subs));
+            includes.add(new MappingInclude(java.util.Objects.requireNonNull(
+                    inc.includedMapping()), subs));
         }
 
         List<ClassMapping> classMappings = new ArrayList<>();

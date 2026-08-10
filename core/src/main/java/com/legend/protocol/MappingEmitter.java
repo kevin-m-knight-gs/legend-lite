@@ -382,9 +382,19 @@ final class MappingEmitter {
     static void mappingInclude(StringBuilder b,
             Protocol.PMappingInclude inc) {
 
+            if (inc.includedDataSpace() != null) {
+                // include dataspace (ZTailProbe "include-dataspace")
+                b.append("{\"_type\":\"mappingIncludeDataSpace\","
+                        + "\"includedDataSpace\":");
+                str(b, inc.includedDataSpace());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, inc.sourceInformation());
+                b.append('}');
+                return;
+            }
             b.append("{\"_type\":\"mappingIncludeMapping\","
                     + "\"includedMapping\":");
-            str(b, inc.includedMapping());
+            str(b, java.util.Objects.requireNonNull(inc.includedMapping()));
             if (inc.sourceDatabasePath() != null) {
                 b.append(",\"sourceDatabasePath\":");
                 str(b, inc.sourceDatabasePath());
@@ -963,6 +973,11 @@ final class MappingEmitter {
     static void embeddedDataValue(StringBuilder b,
             Protocol.PEmbeddedDataValue v) {
         switch (v) {
+            case Protocol.PForeignEmbeddedData fd ->
+                    throw new UnsupportedOperationException(
+                            "MappingEmitter has no rule for foreign embedded"
+                                    + " data kind '" + fd.kind()
+                                    + "'. Add the emit rule — do not drop it.");
             case Protocol.PExternalFormatData ef -> externalFormatData(b, ef);
             case Protocol.PModelStoreData ms -> {
                 b.append("{\"_type\":\"modelStore\",\"modelData\":[");

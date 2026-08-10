@@ -884,6 +884,20 @@ public final class ProtocolEmitter {
         }
     }
 
+    /** {@code #SQL{ ... }#} — a classInstance of type SQL whose value is
+     *  {@code {"sql": content}} (ZTailProbe "sql-island"). */
+    private static void sqlIsland(StringBuilder b,
+            com.legend.protocol.spec.SqlIsland si,
+            @com.legend.Nullable SourceInfo span) {
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, span != null ? span
+                : java.util.Objects.requireNonNull(si.pos(),
+                        "SqlIsland always parses with a span"));
+        b.append(",\"type\":\"SQL\",\"value\":{\"sql\":");
+        str(b, si.sql());
+        b.append("}}");
+    }
+
     private static void datasourceSpec(StringBuilder b, Protocol.PDatasourceSpec d) {
         switch (d) {
             case Protocol.PH2Local h -> {
@@ -1077,6 +1091,12 @@ public final class ProtocolEmitter {
             str(b, d.storePath());
             b.append(",\"sourceInformation\":");
             srcInfo(b, d.storeSpan());
+            if (d.pointerType() != null) {
+                // only the MARKED form spells a type (ZTailProbe
+                // "dataspace-testref"); plain store pointers omit the key
+                b.append(",\"type\":");
+                str(b, d.pointerType());
+            }
             b.append("},\"sourceInformation\":");
             srcInfo(b, d.sourceInformation());
             b.append('}');
@@ -1165,7 +1185,9 @@ public final class ProtocolEmitter {
                 str(b, r.path());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, r.sourceInformation());
-                b.append(",\"type\":\"DATA\"},\"sourceInformation\":");
+                b.append(",\"type\":");
+                str(b, r.refType() != null ? r.refType() : "DATA");
+                b.append("},\"sourceInformation\":");
                 srcInfo(b, r.sourceInformation());
                 b.append('}');
             }
@@ -1896,6 +1918,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs);
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
+            case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, null);
             // %10:10:10 -> strictTime, value VERBATIM without the '%' (probe "time literal")
             case com.legend.protocol.spec.CTime t -> literal(b, "strictTime",
                     quotedWritten(t.written(), "time literal"), t.pos());
@@ -2020,6 +2043,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf, span);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl, span);
+            case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, span);
             case com.legend.protocol.spec.LambdaFunction lam ->
                     valueSpec(b, new com.legend.protocol.spec.LambdaFunction(
                             lam.parameters(), lam.body(), span));

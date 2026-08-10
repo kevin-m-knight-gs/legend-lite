@@ -221,8 +221,15 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
                     }
                     case "title" -> title = stringValue(c);
                     case "description" -> description = stringValue(c);
-                    case "executable" -> executable =
-                            Protocol.unquotePath(c.parseQualifiedName());
+                    case "executable" -> {
+                        executable = Protocol.unquotePath(c.parseQualifiedName());
+                        if (c.peek() == TokenType.PAREN_OPEN) {
+                            // a FUNCTION POINTER with its full signature —
+                            // executable: fn():TabularDataSet[1]; — kept as
+                            // written
+                            executable += rawToSemicolon(c);
+                        }
+                    }
                     case "query" -> querySource = rawToSemicolon(c);
                     case "executionContextKey" -> contextKey = stringValue(c);
                     default -> throw c.error("unknown executables key: " + key);
@@ -273,17 +280,20 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
         c.expect(TokenType.SEMI_COLON);
     }
 
-    /** Raw token text up to (not consuming) the next top-level {@code ;}. */
+    /** Raw token text up to (not consuming) the next top-level {@code ;} —
+     *  depth-aware across ALL bracket kinds (brace-lambda queries carry
+     *  inner semicolons). */
     private static String rawToSemicolon(TokenStreamCursor c) {
         int bs = c.pos();
         int d = 0;
         while (!c.atEnd()) {
             TokenType tk = c.peek();
-            if (tk == TokenType.PAREN_OPEN) {
-                d++;
-            } else if (tk == TokenType.PAREN_CLOSE) {
-                d--;
-            } else if (tk == TokenType.SEMI_COLON && d <= 0) {
+            switch (tk) {
+                case PAREN_OPEN, BRACE_OPEN, BRACKET_OPEN -> d++;
+                case PAREN_CLOSE, BRACE_CLOSE, BRACKET_CLOSE -> d--;
+                default -> { }
+            }
+            if (tk == TokenType.SEMI_COLON && d <= 0) {
                 break;
             }
             c.advance();

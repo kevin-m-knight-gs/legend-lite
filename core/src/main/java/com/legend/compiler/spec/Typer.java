@@ -128,6 +128,11 @@ final class Typer {
             // its desugared lambda.
             case PathLiteral pl -> synth(pl.desugared(), env);
             case com.legend.protocol.spec.GraphFetchLiteral gf -> synth(gf.desugared(), env);
+            case com.legend.protocol.spec.SqlIsland si ->
+                    throw new com.legend.error.NotImplementedException(
+                            "#SQL{...}# expression islands are not compilable —"
+                                    + " an inline SQL string bypasses the typed"
+                                    + " lowering pipeline");
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));

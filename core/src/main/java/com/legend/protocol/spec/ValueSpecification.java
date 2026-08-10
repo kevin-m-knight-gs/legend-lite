@@ -53,6 +53,7 @@ public sealed interface ValueSpecification permits
         CLatestDate,
         GraphFetchLiteral,
         PathLiteral,
+        SqlIsland,
         CString,
         CTime,
         ColumnInstance,
@@ -93,6 +94,7 @@ public sealed interface ValueSpecification permits
             case PackageableElementPtr ignored -> java.util.List.of();
             case Variable ignored -> java.util.List.of();
             case TypeAnnotation ignored -> java.util.List.of();
+            case SqlIsland ignored -> java.util.List.of();
             case AppliedFunction af -> af.parameters();
             case AppliedProperty ap -> java.util.List.of(ap.receiver());
             case LambdaFunction lf -> lf.body();
@@ -142,6 +144,7 @@ public sealed interface ValueSpecification permits
             case PackageableElementPtr ignored -> this;
             case Variable ignored -> this;
             case TypeAnnotation ignored -> this;
+            case SqlIsland ignored -> this;
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     cs, af.candidateFqns());
             case AppliedProperty ap ->

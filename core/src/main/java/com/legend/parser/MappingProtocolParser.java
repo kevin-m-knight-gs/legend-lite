@@ -200,6 +200,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             tokens.startColumn(msTok), island.endLine(),
                             island.endColumn()));
         }
+        if ("ServiceStore".equals(kind)) {
+            // corpus-censused FOREIGN kind carried RAW — its structured wire
+            // shape (ZTailProbe "servicestore-data") is not claimed; the
+            // emitter WALLS it
+            int fTok = pos;
+            advance();
+            IslandBlock fi = readIsland();
+            return new Protocol.PForeignEmbeddedData(kind,
+                    fi.tokens().source(),
+                    new SourceInfo("", tokens.startLine(fTok),
+                            tokens.startColumn(fTok), fi.endLine(),
+                            fi.endColumn()));
+        }
         throw error("embedded data kind '" + safeText() + "' is unbuilt");
     }
 
@@ -247,6 +260,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             case Protocol.PDataReference r -> r.sourceInformation();
             case Protocol.PModelStoreData m -> m.sourceInformation();
             case Protocol.PRelationalCsvData c -> c.sourceInformation();
+            case Protocol.PForeignEmbeddedData f -> f.sourceInformation();
             // the accessor's own end overshoots by the walker offset; a
             // resolver anchors on the RAW island close (probe store-keyed)
             case Protocol.PRelationData d -> new SourceInfo("",
@@ -342,7 +356,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 advance();                          // 'include mapping qn'
             } else if (peek() == TokenType.VALID_STRING
                     && "dataspace".equals(text())) {
-                throw error("include dataspace is unbuilt");
+                // include dataspace my::DS — _type mappingIncludeDataSpace
+                // (ZTailProbe "include-dataspace")
+                advance();
+                String ds = Protocol.unquotePath(parseQualifiedName());
+                includes.add(new Protocol.PMappingInclude(null, ds, null,
+                        null, List.of(), spanOf(s, pos - 1)));
+                return;
             }
             String inc = Protocol.unquotePath(parseQualifiedName());
             String srcDb = null;

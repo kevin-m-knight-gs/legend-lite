@@ -345,7 +345,15 @@ public final class Protocol {
      *  embedded-reference). */
     public sealed interface PEmbeddedDataValue
             permits PExternalFormatData, PDataReference, PModelStoreData,
-            PRelationData, PRelationalCsvData {
+            PRelationData, PRelationalCsvData, PForeignEmbeddedData {
+    }
+
+    /** A corpus-censused FOREIGN embedded-data kind (ServiceStore) — the
+     *  island rides RAW; its structured wire shape (ZTailProbe
+     *  "servicestore-data") is not claimed, so emission WALLS. */
+    public record PForeignEmbeddedData(String kind, String raw,
+                                       com.legend.protocol.SourceInfo sourceInformation)
+            implements PEmbeddedDataValue {
     }
 
     /** {@code Relational #{ schema.table: 'csv' + 'csv'; }#} —
@@ -589,8 +597,13 @@ public final class Protocol {
     }
 
     /** {@code include [mapping] my::Other} — {@code _type:
-     *  "mappingIncludeMapping"}, span keyword..path (probe include-plain). */
-    public record PMappingInclude(String includedMapping,
+     *  "mappingIncludeMapping"}, span keyword..path (probe include-plain).
+     *  {@code include dataspace my::DS} — {@code _type:
+     *  "mappingIncludeDataSpace"} with {@code includedDataSpace} instead
+     *  (ZTailProbe "include-dataspace"); exactly one of the two paths is
+     *  set. */
+    public record PMappingInclude(@com.legend.Nullable String includedMapping,
+                                  @com.legend.Nullable String includedDataSpace,
                                   @com.legend.Nullable String sourceDatabasePath,
                                   @com.legend.Nullable String targetDatabasePath,
                                   List<PStoreSubstitution> substitutions,
@@ -598,6 +611,16 @@ public final class Protocol {
         public PMappingInclude {
             substitutions = substitutions == null ? List.of()
                     : List.copyOf(substitutions);
+        }
+
+        /** The mapping-include shape every pre-dataspace caller builds. */
+        public PMappingInclude(String includedMapping,
+                @com.legend.Nullable String sourceDatabasePath,
+                @com.legend.Nullable String targetDatabasePath,
+                List<PStoreSubstitution> substitutions,
+                com.legend.protocol.SourceInfo sourceInformation) {
+            this(includedMapping, null, sourceDatabasePath, targetDatabasePath,
+                    substitutions, sourceInformation);
         }
     }
 
@@ -1298,11 +1321,21 @@ public final class Protocol {
     }
 
     /** One {@code store: <payload>;} entry in a test block (probe "pf test store data"
-     *  and friends). */
+     *  and friends). {@code pointerType} is non-null only for the marked
+     *  form {@code (dataspace) my::DS: ...} — the wire gains
+     *  {@code "type":"DATASPACE"} on the pointer (ZTailProbe
+     *  "dataspace-testref"); the plain store form emits no type key. */
     public record PTestData(String storePath,
                             com.legend.protocol.SourceInfo storeSpan,
                             PTestPayload data,
+                            @com.legend.Nullable String pointerType,
                             com.legend.protocol.SourceInfo sourceInformation) {
+        /** The plain store form every pre-dataspace caller builds. */
+        public PTestData(String storePath,
+                com.legend.protocol.SourceInfo storeSpan, PTestPayload data,
+                com.legend.protocol.SourceInfo sourceInformation) {
+            this(storePath, storeSpan, data, null, sourceInformation);
+        }
     }
 
     /** A test-data payload / format-prefixed assertion payload. */
@@ -1313,9 +1346,17 @@ public final class Protocol {
                 implements PTestPayload {
         }
 
-        /** {@code some::DataElement} — a reference, {@code type} fixed to {@code DATA}. */
-        record Reference(String path, com.legend.protocol.SourceInfo sourceInformation)
+        /** {@code some::DataElement} — a reference; {@code refType} null
+         *  spells {@code DATA} on the wire, {@code DATASPACE} for the
+         *  {@code DataspaceTestData #{...}#} island form (ZTailProbe
+         *  "dataspace-testref"). */
+        record Reference(String path, @com.legend.Nullable String refType,
+                         com.legend.protocol.SourceInfo sourceInformation)
                 implements PTestPayload {
+            public Reference(String path,
+                    com.legend.protocol.SourceInfo sourceInformation) {
+                this(path, null, sourceInformation);
+            }
         }
 
         /** {@code Relation #{ path: cols rows }#} — a relationAccessor. */

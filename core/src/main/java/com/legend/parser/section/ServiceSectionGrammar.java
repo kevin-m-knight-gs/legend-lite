@@ -330,11 +330,14 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
         int d = 0;
         while (!c.atEnd()) {
             TokenType tk = c.peek();
-            if (tk == TokenType.PAREN_OPEN) {
-                d++;
-            } else if (tk == TokenType.PAREN_CLOSE) {
-                d--;
-            } else if (tk == TokenType.SEMI_COLON && d <= 0) {
+            switch (tk) {
+                // ALL bracket kinds count — a {|let x; expr;} brace-lambda
+                // query carries ';' INSIDE braces (powerbi dataspaces)
+                case PAREN_OPEN, BRACE_OPEN, BRACKET_OPEN -> d++;
+                case PAREN_CLOSE, BRACE_CLOSE, BRACKET_CLOSE -> d--;
+                default -> { }
+            }
+            if (tk == TokenType.SEMI_COLON && d <= 0) {
                 break;
             }
             c.advance();

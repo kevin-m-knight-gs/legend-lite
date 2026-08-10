@@ -1238,7 +1238,10 @@ public final class NameResolver {
         var executables = new java.util.ArrayList<com.legend.model
                 .DataSpaceDefinition.Executable>(ds.executables().size());
         for (var e : ds.executables()) {
-            String ex = e.executable() == null ? null
+            // a function-pointer executable keeps its full signature text
+            // and is not a resolvable FQN
+            String ex = e.executable() == null
+                    || e.executable().indexOf('(') >= 0 ? e.executable()
                     : resolveName(e.executable(), scope);
             changed |= !Objects.equals(ex, e.executable());
             executables.add(new com.legend.model.DataSpaceDefinition
@@ -1455,6 +1458,8 @@ public final class NameResolver {
             // A path literal dissolves into its desugared lambda at resolution — nothing
             // downstream of the resolver ever sees the wire-facing node.
             case PathLiteral pl -> resolveVs(pl.desugared(), scope);
+            // an inline SQL island has no names to resolve; the typer refuses it
+            case com.legend.protocol.spec.SqlIsland si -> si;
             case com.legend.protocol.spec.GraphFetchLiteral gf ->
                     resolveVs(gf.desugared(), scope);
             case PackageableElementPtr ptr -> {

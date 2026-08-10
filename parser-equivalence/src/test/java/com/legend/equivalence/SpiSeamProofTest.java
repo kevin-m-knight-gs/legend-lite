@@ -172,7 +172,13 @@ class SpiSeamProofTest {
      *  'Unknown embedded data type') that a production engine classpath accepts. None
      *  can be stored through a vanilla engine, so accepting them cannot change drop-in
      *  behavior. Ratcheted DOWN only. */
-    private static final int MAX_LENIENT_ACCEPTS = 170;
+    private static final int MAX_LENIENT_ACCEPTS = 176;
+    // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
+    // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
+    // incremental fixtures, '>' accessor islands) parse further once the
+    // tail causes ((dataspace) test refs, #SQL islands, ServiceStore data)
+    // cleared — the blend thesis reaching more of legend-pure, not new
+    // acceptance the vanilla engine could ever store.
 
     /** THE PARSER'S OWN leniency bound (implementation audit §3.3) — files the
      *  extension-less vanilla engine rejects that raw {@code parseStrict}
@@ -180,12 +186,15 @@ class SpiSeamProofTest {
      *  BRIDGE (a site scanner that skips unrecognised tokens); this bounds the
      *  strict parser surface itself. Ratcheted DOWN only; the two converge as
      *  the bridge goes total. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 743;
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 749;
     // 742 -> 743 (2026-08-09, Measure element wired): m2m/tests/legend/
     // unitMeasure.pure — an engine PLATFORM source legend-pure compiles in
     // production — now parses to its Measure instead of dying there; the
     // vanilla engine still refuses the file at its 'Primitive' (the
     // engine-subsets-pure category, same as shared.pure beside it).
+    // 743 -> 749 (2026-08-09, burn-to-zero batch A): the raw-surface twin
+    // of MAX_LENIENT_ACCEPTS's 170 -> 176 — the SAME six legend-pure
+    // fixtures, adjudicated there.
 
     /** Files where the delta is the engine's OWN serialize-only field (proven: the
      *  engine's readTree -> protocol -> serialize round-trip of ITS OWN output equals

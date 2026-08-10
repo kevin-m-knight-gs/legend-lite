@@ -1486,6 +1486,16 @@ public final class ElementParser implements TokenStreamCursor {
             List<com.legend.protocol.Protocol.PTestData> data,
             List<com.legend.protocol.Protocol.PFunctionTest> tests) {
         int entryStart = pos;
+        String pointerType = null;
+        if (peek() == TokenType.PAREN_OPEN) {
+            // (dataspace) my::DS: DataspaceTestData #{...}# — the marker
+            // types the pointer (ZTailProbe "dataspace-testref"); the
+            // pointer span still starts at the '('
+            advance();
+            pointerType = parseIdentifier()
+                    .toUpperCase(java.util.Locale.ROOT);
+            expect(TokenType.PAREN_CLOSE);
+        }
         String head = parseQualifiedName();
         int headEnd = pos - 1;
         if (peek() == TokenType.COLON) {
@@ -1506,9 +1516,13 @@ public final class ElementParser implements TokenStreamCursor {
                                 tokens.endLine(pos - 1), tokens.endColumn(pos - 1) + 2));
             }
             data.add(new com.legend.protocol.Protocol.PTestData(head,
-                    spanOf(entryStart, headEnd), payload,
+                    spanOf(entryStart, headEnd), payload, pointerType,
                     spanOf(entryStart, pos - 1)));
             return;
+        }
+        if (pointerType != null) {
+            throw error("a (" + pointerType.toLowerCase(java.util.Locale.ROOT)
+                    + ") marker introduces test DATA, not a test");
         }
         tests.add(parseFunctionTest(sig, entryStart, head));
     }
@@ -1531,6 +1545,24 @@ public final class ElementParser implements TokenStreamCursor {
                     formatContentType(fmt),
                     TokenStreamCursor.unquoteAndUnescape(raw, this),
                     spanOf(fmtStart, pos - 1));
+        }
+        if ("DataspaceTestData".equals(text())
+                && peek(1) == TokenType.ISLAND_OPEN) {
+            // DataspaceTestData #{ my::Ref }# — a DATASPACE-typed reference;
+            // the dataElement span runs the KIND keyword through the island
+            // close (ZTailProbe "dataspace-testref")
+            int kindTok = pos;
+            advance();                              // 'DataspaceTestData'
+            advance();                              // ISLAND_OPEN
+            int embStart = pos;
+            while (peek() != TokenType.ISLAND_END && !atEnd()) {
+                advance();
+            }
+            String refPath = reconstructText(embStart, pos).trim();
+            expect(TokenType.ISLAND_END);
+            return new com.legend.protocol.Protocol.PTestPayload.Reference(
+                    com.legend.protocol.Protocol.unquotePath(refPath),
+                    "DATASPACE", spanOf(kindTok, pos - 1));
         }
         if ("Relation".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
             advance();                              // 'Relation'

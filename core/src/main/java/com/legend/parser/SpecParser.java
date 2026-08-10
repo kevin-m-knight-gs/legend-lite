@@ -2920,6 +2920,13 @@ public final class SpecParser implements TokenStreamCursor {
             // Engine convention (ProbeWireShapes "burn zoo 2" tref): the classInstance
             // spans the whole #>{...}# literal.
             case ">" -> parseTableReference(contentText, spanOf(islandStart, pos - 1));
+            // #SQL{ select ... }# — the sql-expression extension; carried
+            // as its wire classInstance (ZTailProbe "sql-island"), refused
+            // by the compiler. The sql value is the UNTRIMMED inner text —
+            // engine keeps trailing whitespace (corpus byte diff caught the
+            // trim on 2026-08-09)
+            case "SQL" -> new com.legend.protocol.spec.SqlIsland(
+                    content.toString(), spanOf(islandStart, pos - 1));
             default -> throw error(
                     "unknown DSL island type: '#" + dslType + "{'");
         };
