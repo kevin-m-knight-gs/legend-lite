@@ -9,12 +9,17 @@ sections** and **41 packageable element types** parses through legend-lite's
 PROTOCOL path, is transformed into the model, is routed through
 `SectionGrammarRegistry`, and has **no straight-to-model twin left anywhere**.
 
-Today (updated 2026-08-09, Connection AND Runtime migrations landed): **5 of
-25 sections claimed, 1 finished. `###Connection` and `###Runtime` are behind
-real `SectionGrammar`s — parsed through the registry, straight-to-model twins
-deleted. 10 of 41 element types have a protocol record. 3 straight-to-model
-parsers still live (`serviceElement`, `nativeFunctionElement`,
-`primitiveElement`), NONE of them dual.**
+Today (final update 2026-08-09, **DEFECT ZERO**): **24 of 25 sections are
+claimed by REGISTERED grammars** (only QueryPostProcessor — no grammar, no
+corpus presence — remains a BuiltIn-less name): dedicated `SectionGrammar`s
+for Connection, Runtime, Service, DataSpace, Persistence, Snowflake, the
+shared `GenericKeyedSectionGrammar` for twelve small sections, and the RAW
+`DiagramSectionGrammar` for the unlexable one. **The drop-in surface reads
+everything the 5.88.1 reference reads.** Remaining program: the WIRE ledger
+(WALL 33 + OUT_OF_SCOPE — byte-exact emission for the newly claimed
+sections), `nativeFunctionElement`/`primitiveElement` (the last two
+straight-to-model arms, neither dual), and the oracle-version-skew LENIENT
+rows a jar upgrade retires.
 
 Both denominators are pinned by gate 8 (`EngineSectionRosterTest`,
 `EngineElementRosterTest`) so they cannot quietly drift when the oracle jars
@@ -86,9 +91,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 
 | metric | value | meaning |
 |---|---:|---|
-| MATCH (byte-equal) | **25,489** | elements whose JSON is byte-identical to engine's (+15 from the connection widening) |
+| MATCH (byte-equal) | **25,510** | elements whose JSON is byte-identical to engine's |
 | DIFF | **0** | a non-zero here is a BUG, not a gap |
-| WALL | 74 | elements we REFUSE to produce (loud, named) — was 104; the connection cluster cleared |
+| WALL | 33 | elements we REFUSE to produce (loud, named) — was 104 at session start |
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
