@@ -305,7 +305,17 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
     private static String rawIsland(TokenStreamCursor c) {
         c.advance();                                // ISLAND_OPEN
         int bs = c.pos();
-        while (c.peek() != TokenType.ISLAND_END && !c.atEnd()) {
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;                // a NESTED #...{ island opened
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
             c.advance();
         }
         String raw = c.reconstructText(bs, c.pos());

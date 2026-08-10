@@ -93,7 +93,8 @@ public final class SectionGrammarRegistry {
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
                         "DataQualityValidation",
                         java.util.Set.of("DataQualityValidation",
-                                "DataQualityRelationValidation")),
+                                "DataQualityRelationValidation",
+                                "DataQualityRelationComparison")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
                         "ServiceStore", java.util.Set.of("ServiceStore")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(

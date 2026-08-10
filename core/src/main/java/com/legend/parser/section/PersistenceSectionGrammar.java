@@ -126,12 +126,13 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "trigger" -> {
+                    // the OLD grammar omits the ';' after a block value
                     triggerSource = kindWithRawBody(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 case "persister" -> {
-                    persisterSource = kindWithRawBody(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    persisterSource = parsePersisterValidated(c);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceOutputTargets" -> {
                     serviceOutputTargetsSource = rawBalanced(c);
@@ -142,7 +143,7 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "tests" -> {
-                    testsSource = rawBalanced(c);
+                    testsSource = parseTestsValidated(c);
                     c.match(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error("unknown key '" + key
@@ -182,15 +183,15 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                 }
                 case "platform" -> {
                     platformSource = kindWithRawBody(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceParameters" -> {
                     serviceParametersSource = rawBalanced(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 case "sinkConnection" -> {
                     sinkConnectionSource = kindWithRawBody(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error("unknown key '" + key
                         + "' inside PersistenceContext '" + qn + "'");
@@ -207,6 +208,166 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                 c.spanOf(declStart, c.pos() - 1));
     }
 
+    /**
+     * {@code Batch | Streaming { sink: ...; targetShape: ...; ingestMode:
+     * ...; }} — parsed one level for the engine's PARSE-TIME validations
+     * (its negative fixtures pin them), carried as written. The sink's
+     * required field is per kind: {@code Relational} needs {@code
+     * database}, {@code ObjectStorage} needs {@code binding}
+     * (PersistenceParserGrammar.g4:406-417 + the walker's
+     * validateAndExtractRequiredField).
+     */
+    private static String parsePersisterValidated(TokenStreamCursor c) {
+        int start = c.pos();
+        String kind = c.parseIdentifier();
+        if (c.peek() == TokenType.BRACE_OPEN) {
+            c.advance();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                String key = c.parseIdentifier();
+                c.expect(TokenType.COLON);
+                if ("sink".equals(key)) {
+                    String sinkKind = c.parseIdentifier();
+                    c.expect(TokenType.BRACE_OPEN);
+                    java.util.Set<String> seen = new java.util.HashSet<>();
+                    while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                        String sk = c.parseIdentifier();
+                        c.expect(TokenType.COLON);
+                        c.parseQualifiedName();
+                        c.expect(TokenType.SEMI_COLON);
+                        seen.add(sk);
+                    }
+                    c.expect(TokenType.BRACE_CLOSE);
+                    if ("Relational".equals(sinkKind)
+                            && !seen.contains("database")) {
+                        throw c.error("Field 'database' is required");
+                    }
+                    if ("ObjectStorage".equals(sinkKind)
+                            && !seen.contains("binding")) {
+                        throw c.error("Field 'binding' is required");
+                    }
+                } else {
+                    // targetShape / ingestMode / deduplication / ... —
+                    // kind + raw body, carried
+                    kindWithRawBody(c);
+                }
+                c.match(TokenType.SEMI_COLON);
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+        }
+        return kind.isEmpty() ? "" : c.reconstructText(start, c.pos());
+    }
+
+    /**
+     * {@code tests: [ name: { testBatches: [ id: { data: { connection:
+     * {...} } asserts: [...] } ] } ]} — structured to the batch level for
+     * the engine's parse-time validations: {@code data} needs a
+     * {@code connection} (the grammar itself), a batch needs non-empty
+     * test data, and {@code asserts} is required (walker rules 828+).
+     */
+    private static String parseTestsValidated(TokenStreamCursor c) {
+        int start = c.pos();
+        c.expect(TokenType.BRACKET_OPEN);
+        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+            c.parseIdentifier();                    // test name
+            c.expect(TokenType.COLON);
+            c.expect(TokenType.BRACE_OPEN);
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                String key = c.parseIdentifier();
+                c.expect(TokenType.COLON);
+                if ("testBatches".equals(key)) {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                        parseTestBatch(c);
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                } else {
+                    // isTestDataFromServiceOutput / graphFetchPath
+                    rawToSemi(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return c.reconstructText(start, c.pos());
+    }
+
+    private static void parseTestBatch(TokenStreamCursor c) {
+        c.parseIdentifier();                        // batch id
+        c.expect(TokenType.COLON);
+        c.expect(TokenType.BRACE_OPEN);
+        boolean sawData = false;
+        boolean sawAsserts = false;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            if ("data".equals(key)) {
+                c.expect(TokenType.BRACE_OPEN);
+                boolean sawConnection = false;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String dk = c.parseIdentifier();
+                    if (!"connection".equals(dk)) {
+                        throw c.error("Unexpected token '" + dk
+                                + "'. Valid alternatives: ['connection']");
+                    }
+                    c.expect(TokenType.COLON);
+                    c.expect(TokenType.BRACE_OPEN);
+                    c.parseIdentifier();            // embedded data kind
+                    rawIsland(c);
+                    c.expect(TokenType.BRACE_CLOSE);
+                    sawConnection = true;
+                }
+                if (!sawConnection) {
+                    throw c.error("Unexpected token '}'. Valid alternatives:"
+                            + " ['connection']");
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                sawData = true;
+            } else if ("asserts".equals(key)) {
+                c.expect(TokenType.BRACKET_OPEN);
+                while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                    c.parseIdentifier();            // assert id
+                    c.expect(TokenType.COLON);
+                    c.parseIdentifier();            // assertion kind
+                    rawIsland(c);
+                    c.match(TokenType.COMMA);
+                }
+                c.expect(TokenType.BRACKET_CLOSE);
+                sawAsserts = true;
+            } else {
+                throw c.error("unknown test-batch key: " + key);
+            }
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        if (!sawData) {
+            // walker rule (PersistenceParseTreeWalker:828)
+            throw c.error("TestData cannot be empty or null within"
+                    + " Persistence TestBatch");
+        }
+        if (!sawAsserts) {
+            throw c.error("Field 'asserts' is required");
+        }
+    }
+
+    /** Raw value to the next top-level {@code ;} (not consumed). */
+    private static void rawToSemi(TokenStreamCursor c) {
+        int d = 0;
+        while (!c.atEnd()) {
+            TokenType tk = c.peek();
+            switch (tk) {
+                case PAREN_OPEN, BRACE_OPEN, BRACKET_OPEN -> d++;
+                case PAREN_CLOSE, BRACE_CLOSE, BRACKET_CLOSE -> d--;
+                default -> { }
+            }
+            if (tk == TokenType.SEMI_COLON && d <= 0) {
+                return;
+            }
+            c.advance();
+        }
+    }
+
     /** {@code Kind} or {@code Kind { ... }} or a bare {@code #{...}#}
      *  island (sinkConnection can be an embedded connection) — kept as
      *  written. */
@@ -214,11 +375,17 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
         if (c.peek() == TokenType.ISLAND_OPEN) {
             return "#{" + rawIsland(c) + "}#";
         }
-        String kind = c.parseIdentifier();
+        // a POINTER value (sinkConnection: test::Conn) parses the same way
+        // a kind does — qualified, then no body follows
+        String kind = Protocol.unquotePath(c.parseQualifiedName());
         if (c.peek() == TokenType.BRACE_OPEN) {
             int bs = c.pos();
             skipBalanced(c, TokenType.BRACE_OPEN, TokenType.BRACE_CLOSE);
             return kind + " " + c.reconstructText(bs, c.pos());
+        }
+        if (c.peek() == TokenType.ISLAND_OPEN) {
+            // platform: AwsGlue #{ ... }# — kind + ISLAND body
+            return kind + " #{" + rawIsland(c) + "}#";
         }
         return kind;
     }
@@ -238,7 +405,17 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
     private static String rawIsland(TokenStreamCursor c) {
         c.advance();                                // ISLAND_OPEN
         int bs = c.pos();
-        while (c.peek() != TokenType.ISLAND_END && !c.atEnd()) {
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;                // a NESTED #...{ island opened
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
             c.advance();
         }
         String raw = c.reconstructText(bs, c.pos());
