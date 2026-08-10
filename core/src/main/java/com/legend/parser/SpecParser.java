@@ -2819,11 +2819,22 @@ public final class SpecParser implements TokenStreamCursor {
      * a type-discriminator that the stdlib's {@code tds} function
      * uses to distinguish bag-of-values overloads.
      */
-    private AppliedFunction parseTdsLiteral() {
+    private ValueSpecification parseTdsLiteral() {
         String raw = text();
+        int tok = pos;
         pos++;
-        return new AppliedFunction("tds",
-                List.of(new CString("TDS"), new CString(raw)));
+        // the wire's tdsString is the INNER text — after the '{', before
+        // the '}#', UNTRIMMED (ZTailProbe "tds-accessor"); the desugared
+        // tds(...) application keeps the verbatim token text the compiler
+        // has always consumed
+        int open = raw.indexOf('{');
+        int close = raw.lastIndexOf('}');
+        String inner = open >= 0 && close > open
+                ? raw.substring(open + 1, close) : raw;
+        return new com.legend.protocol.spec.TdsLiteral(inner,
+                new AppliedFunction("tds",
+                        List.of(new CString("TDS"), new CString(raw))),
+                spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------

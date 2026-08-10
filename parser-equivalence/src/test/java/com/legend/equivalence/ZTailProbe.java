@@ -27,6 +27,265 @@ class ZTailProbe {
     }
 
     @Test
+    void tdsShape() throws Exception {
+        probe("tds-accessor", """
+                function my::f(): String[1]
+                {
+                  let x = #TDS{
+                      val, more
+                      1, a
+                      2, b
+                  }#;
+                  'ok';
+                }
+                """);
+    }
+
+    @Test
+    void foreignMappingShape() throws Exception {
+        probe("servicestore-mapping", """
+                Class my::Person { name: String[1]; }
+
+                ###ServiceStore
+                ServiceStore my::Store
+                (
+                  ServiceGroup G
+                  (
+                    path : '/g';
+                    Service S
+                    (
+                      path : '/s';
+                      method : GET;
+                      response : [my::Person <- my::B];
+                      security : [];
+                    )
+                  )
+                )
+
+                ###Mapping
+                Mapping my::M
+                (
+                  *my::Person[p_set]: ServiceStore
+                  {
+                    ~service [my::Store] G.S
+                  }
+                )
+                """);
+    }
+
+    @Test
+    void foreignMappingRichShape() throws Exception {
+        probe("servicestore-mapping-rich", """
+                Class my::Person { name: String[1]; }
+
+                ###ServiceStore
+                ServiceStore my::Store
+                (
+                  ServiceGroup G
+                  (
+                    path : '/g';
+                    Service S
+                    (
+                      path : '/s';
+                      method : GET;
+                      parameters :
+                      (
+                        q : String (location = query)
+                      );
+                      response : [my::Person <- my::B];
+                      security : [];
+                    )
+                  )
+                )
+
+                ###Mapping
+                Mapping my::M
+                (
+                  *my::Person[p_set]: ServiceStore
+                  {
+                    ~service [my::Store] G.S
+                    (
+                      ~request
+                      (
+                        parameters
+                        (
+                          q = $this.name
+                        )
+                      )
+                    )
+                  }
+                )
+                """);
+    }
+
+    @Test
+    void foreignMappingBodyShape() throws Exception {
+        probe("servicestore-mapping-body", """
+                Class my::Person { name: String[1]; }
+                Class my::Syn { name: String[1]; }
+
+                ###ServiceStore
+                ServiceStore my::Store
+                (
+                  ServiceGroup G
+                  (
+                    path : '/g';
+                    Service S
+                    (
+                      path : '/s';
+                      method : POST;
+                      requestBody : [my::Syn <- my::B];
+                      response : [my::Person <- my::B];
+                      security : [];
+                    )
+                  )
+                )
+
+                ###Mapping
+                Mapping my::M
+                (
+                  *my::Person[p_set]: ServiceStore
+                  {
+                    ~service [my::Store] G.S
+                    (
+                      ~request
+                      (
+                        body = ^my::Syn(name = 'x')
+                      )
+                    )
+                  }
+                )
+                """);
+    }
+
+    @Test
+    void mongoMappingShape() throws Exception {
+        probe("mongodb-mapping", """
+                Class my::SomeClass { name: String[1]; }
+
+                ###MongoDB
+                Database my::db
+                (
+                )
+
+                ###Mapping
+                Mapping my::M
+                (
+                  *my::SomeClass[id1]: MongoDB
+                  {
+                    ~mainCollection [my::db] PersonRecord
+                  }
+                )
+                """);
+    }
+
+    @Test
+    void foreignConnShapes() throws Exception {
+        probe("servicestore-conn", """
+                ###ServiceStore
+                ServiceStore my::Store
+                (
+                )
+
+                ###Connection
+                ServiceStoreConnection my::C
+                {
+                  store: my::Store;
+                  baseUrl: 'https://prodUrl.com';
+                }
+                """);
+        probe("deephaven-conn", """
+                ###Deephaven
+                Deephaven my::DStore
+                (
+                    Table t
+                    (
+                        C1: INT
+                    )
+                )
+
+                ###Connection
+                DeephavenConnection my::DC
+                {
+                    store: my::DStore;
+                    serverUrl: 'http://localhost:10000'
+                    authentication: # PSK {
+                        psk: 'myStaticPSK';
+                    }#;
+                }
+                """);
+        probe("mongodb-conn", """
+                ###MongoDB
+                Database my::mdb
+                (
+                )
+
+                ###Connection
+                MongoDBConnection my::MC
+                {
+                  database: legend_db;
+                  store: my::mdb;
+                  serverURLs: [localhost:27071];
+                  authentication: # UserPassword {
+                    username: 'lgnd_usr';
+                    password: SystemPropertiesSecret
+                    {
+                      systemPropertyName: 'sys.prop.name';
+                    };
+                  }#;
+                }
+                """);
+    }
+
+    @Test
+    void richServiceStoreMappingShapes() throws Exception {
+        probe("servicestore-mapping-rich2", """
+                Class my::Person { name: String[1]; }
+
+                ###ServiceStore
+                ServiceStore my::Store
+                (
+                  ServiceGroup G
+                  (
+                    path : '/g';
+                    Service S
+                    (
+                      path : '/s';
+                      method : GET;
+                      parameters :
+                      (
+                        "q param" : String (location = query)
+                      );
+                      response : [my::Person <- my::B];
+                      security : [];
+                    )
+                  )
+                )
+
+                ###Mapping
+                Mapping my::M
+                (
+                  *my::Person[p_set]: ServiceStore
+                  {
+                    +localName: String[1];
+
+                    ~service [my::Store] G.S
+                    (
+                      ~path $service.response.name
+                      ~request
+                      (
+                        parameters
+                        (
+                          "q param" = $this.name
+                        )
+                      )
+                    )
+                  }
+                )
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

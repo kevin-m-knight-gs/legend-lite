@@ -54,6 +54,7 @@ public sealed interface ValueSpecification permits
         GraphFetchLiteral,
         PathLiteral,
         SqlIsland,
+        TdsLiteral,
         CString,
         CTime,
         ColumnInstance,
@@ -95,6 +96,7 @@ public sealed interface ValueSpecification permits
             case Variable ignored -> java.util.List.of();
             case TypeAnnotation ignored -> java.util.List.of();
             case SqlIsland ignored -> java.util.List.of();
+            case TdsLiteral tl -> java.util.List.of(tl.desugared());
             case AppliedFunction af -> af.parameters();
             case AppliedProperty ap -> java.util.List.of(ap.receiver());
             case LambdaFunction lf -> lf.body();
@@ -145,6 +147,8 @@ public sealed interface ValueSpecification permits
             case Variable ignored -> this;
             case TypeAnnotation ignored -> this;
             case SqlIsland ignored -> this;
+            case TdsLiteral tl -> new TdsLiteral(tl.tdsString(),
+                    (AppliedFunction) cs.get(0), tl.pos());
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     cs, af.candidateFqns());
             case AppliedProperty ap ->

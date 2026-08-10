@@ -37,12 +37,10 @@ final class MappingEmitter {
                 b.append(',');
             }
             switch (m.classMappings().get(i)) {
-                case Protocol.PClassMappingForeign f ->
-                        throw new UnsupportedOperationException(
-                                "MappingEmitter has no rule for foreign class"
-                                        + " mapping kind '" + f.kind()
-                                        + "'. Add the emit rule — do not"
-                                        + " drop it.");
+                case Protocol.PServiceStoreClassMapping ss ->
+                        serviceStoreClassMapping(b, ss);
+                case Protocol.PClassMappingMongoDb mg ->
+                        mongoDbClassMapping(b, mg);
                 case Protocol.PClassMappingRel r -> relClassMapping(b, r);
                 case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
                 case Protocol.PClassMappingFunction fi -> functionClassMapping(b, fi);
@@ -338,6 +336,10 @@ final class MappingEmitter {
                 case Protocol.PXStoreAssociationMapping xa -> {
                     b.append("{\"_type\":\"xStore\",\"association\":");
                     pointer(b, xa.association());
+                    if (xa.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, xa.id());
+                    }
                     b.append(",\"propertyMappings\":[");
                     for (int j = 0; j < xa.propertyMappings().size(); j++) {
                         if (j > 0) {
@@ -384,6 +386,182 @@ final class MappingEmitter {
             }
             }
 
+
+    /** {@code _type:"MongoDB"} class mapping — NO spans on this wire
+     *  (ZTailProbe "mongodb-mapping"). */
+    private static void mongoDbClassMapping(StringBuilder b,
+            Protocol.PClassMappingMongoDb mg) {
+        b.append("{\"_type\":\"MongoDB\",\"class\":");
+        str(b, mg.className());
+        if (mg.id() != null) {
+            b.append(",\"id\":");
+            str(b, mg.id());
+        }
+        b.append(",\"mainCollectionName\":");
+        str(b, mg.mainCollectionName());
+        b.append(",\"root\":").append(mg.root());
+        b.append(",\"storePath\":");
+        str(b, mg.storePath());
+        b.append('}');
+    }
+
+    /** {@code _type:"serviceStore"} class mapping (ZTailProbe
+     *  "servicestore-mapping" / "-rich" / "-body"): dotted service pointers
+     *  nest parent group objects; transforms wrap as parameterless lambdas
+     *  spanning their expression. */
+    private static void serviceStoreClassMapping(StringBuilder b,
+            Protocol.PServiceStoreClassMapping ss) {
+        b.append("{\"_type\":\"serviceStore\",\"class\":");
+        str(b, ss.className());
+        b.append(",\"classSourceInformation\":");
+        srcInfo(b, ss.classSpan());
+        if (ss.id() != null) {
+            b.append(",\"id\":");
+            str(b, ss.id());
+        }
+        b.append(",\"localMappingProperties\":[");
+        for (int i = 0; i < ss.localProps().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PServiceStoreLocalProp lp = ss.localProps().get(i);
+            b.append("{\"multiplicity\":{\"lowerBound\":")
+                    .append(lp.lowerBound());
+            if (lp.upperBound() != null) {
+                b.append(",\"upperBound\":").append(lp.upperBound());
+            }
+            b.append("},\"name\":");
+            str(b, lp.name());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, lp.sourceInformation());
+            b.append(",\"type\":");
+            str(b, lp.type());
+            b.append('}');
+        }
+        b.append("],\"root\":").append(ss.root());
+        b.append(",\"servicesMapping\":[");
+        for (int i = 0; i < ss.services().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PServiceMapping sm = ss.services().get(i);
+            b.append('{');
+            if (sm.pathOffset() != null) {
+                b.append("\"pathOffset\":{\"path\":[");
+                var segs = sm.pathOffset().propertyPath();
+                for (int k = 0; k < segs.size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"_type\":\"propertyPath\","
+                            + "\"parameters\":[],\"property\":");
+                    str(b, segs.get(k));
+                    b.append('}');
+                }
+                b.append("],\"startType\":");
+                str(b, sm.pathOffset().startType());
+                b.append("},");
+            }
+            if (sm.request() != null) {
+                Protocol.PRequestBuildInfo req = sm.request();
+                b.append("\"requestBuildInfo\":{");
+                boolean first = true;
+                if (req.body() != null) {
+                    b.append("\"requestBodyBuildInfo\":{\"sourceInformation\":");
+                    srcInfo(b, req.body().sourceInformation());
+                    b.append(",\"transform\":");
+                    transformLambda(b, req.body().transform(),
+                            req.body().transformSpan());
+                    b.append('}');
+                    first = false;
+                }
+                if (req.parameters() != null) {
+                    if (!first) {
+                        b.append(',');
+                    }
+                    b.append("\"requestParametersBuildInfo\":{"
+                            + "\"parameterBuildInfoList\":[");
+                    var entries = req.parameters().entries();
+                    for (int k = 0; k < entries.size(); k++) {
+                        if (k > 0) {
+                            b.append(',');
+                        }
+                        b.append("{\"serviceParameter\":");
+                        str(b, entries.get(k).serviceParameter());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, entries.get(k).sourceInformation());
+                        b.append(",\"transform\":");
+                        transformLambda(b, entries.get(k).transform(),
+                                entries.get(k).transformSpan());
+                        b.append('}');
+                    }
+                    b.append("],\"sourceInformation\":");
+                    srcInfo(b, req.parameters().sourceInformation());
+                    b.append('}');
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, req.sourceInformation());
+                b.append("},");
+            }
+            b.append("\"service\":");
+            servicePtr(b, sm.service());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, sm.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, ss.sourceInformation());
+        b.append('}');
+    }
+
+    /** The nested group/service pointer chain: leading segments are
+     *  GROUPS (outermost first), the last is the service. */
+    private static void servicePtr(StringBuilder b, Protocol.PServicePtr ptr) {
+        var segs = ptr.segments();
+        int last = segs.size() - 1;
+        b.append('{');
+        if (last > 0) {
+            b.append("\"parent\":");
+            groupPtr(b, ptr, last - 1);
+            b.append(',');
+        }
+        b.append("\"service\":");
+        str(b, segs.get(last).name());
+        b.append(",\"serviceStore\":");
+        str(b, ptr.serviceStore());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, segs.get(last).sourceInformation());
+        b.append('}');
+    }
+
+    private static void groupPtr(StringBuilder b, Protocol.PServicePtr ptr,
+            int idx) {
+        b.append('{');
+        if (idx > 0) {
+            b.append("\"parent\":");
+            groupPtr(b, ptr, idx - 1);
+            b.append(',');
+        }
+        b.append("\"serviceGroup\":");
+        str(b, ptr.segments().get(idx).name());
+        b.append(",\"serviceStore\":");
+        str(b, ptr.serviceStore());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, ptr.segments().get(idx).sourceInformation());
+        b.append('}');
+    }
+
+    /** A transform expression wraps as a parameterless lambda whose span is
+     *  the EXPRESSION's own token range, threaded from the parse. */
+    private static void transformLambda(StringBuilder b,
+            com.legend.protocol.spec.ValueSpecification expr,
+            com.legend.protocol.SourceInfo span) {
+        b.append("{\"_type\":\"lambda\",\"body\":[");
+        valueSpec(b, expr);
+        b.append("],\"parameters\":[],\"sourceInformation\":");
+        srcInfo(b, span);
+        b.append('}');
+    }
 
     static void mappingInclude(StringBuilder b,
             Protocol.PMappingInclude inc) {

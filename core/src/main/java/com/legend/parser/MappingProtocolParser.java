@@ -450,7 +450,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (peek() == TokenType.VALID_STRING && "XStore".equals(text())) {
             advance();
             assocMappings.add(parseXStoreAssociationMapping(target,
-                    memberStart, targetSpan));
+                    memberStart, targetSpan, id));
             return;
         }
         if (peek() == TokenType.PURE_MAPPING) {
@@ -494,34 +494,220 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     targetSpan, id, extendsId, root));
             return;
         }
-        if (peek() == TokenType.VALID_STRING
-                && ("ServiceStore".equals(kind) || "MongoDB".equals(kind))) {
-            // censused FOREIGN store class mappings — kind + RAW body,
-            // carried; the emitter WALLS them (no wire claim) and the model
-            // transform SKIPS them (the class is simply not mapped in a
-            // store lite executes)
+        if (peek() == TokenType.VALID_STRING && "ServiceStore".equals(kind)) {
             advance();
-            int bs = pos;
-            expect(TokenType.BRACE_OPEN);
-            int depth = 1;
-            while (!atEnd() && depth > 0) {
-                TokenType t = peek();
-                if (t == TokenType.BRACE_OPEN) {
-                    depth++;
-                } else if (t == TokenType.BRACE_CLOSE) {
-                    depth--;
-                }
-                advance();
-            }
-            classMappings.add(new Protocol.PClassMappingForeign(kind, target,
-                    id, root, reconstructText(bs, pos),
-                    spanOf(memberStart, pos - 1)));
+            classMappings.add(parseServiceStoreClassMapping(target,
+                    memberStart, targetSpan, id, root));
+            return;
+        }
+        if (peek() == TokenType.VALID_STRING && "MongoDB".equals(kind)) {
+            advance();
+            classMappings.add(parseMongoDbClassMapping(target, id, root));
             return;
         }
         if (extendsId != null) {
             throw error("'extends' on this class-mapping kind is unbuilt");
         }
         throw error("unsupported class mapping type: '" + kind + "'");
+    }
+
+    /**
+     * {@code *Class[id]: ServiceStore { ~service [store] G.S (~request
+     * (...))* }} — structured to the wire (ZTailProbe probes): dotted
+     * segments keep per-segment spans, parameter/body transforms are
+     * SPEC-parsed expressions whose lambda wrapper spans the expression.
+     */
+    private Protocol.PServiceStoreClassMapping parseServiceStoreClassMapping(
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id, boolean root) {
+        expect(TokenType.BRACE_OPEN);
+        List<Protocol.PServiceStoreLocalProp> localProps = new ArrayList<>();
+        List<Protocol.PServiceMapping> services = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            if (peek() == TokenType.PLUS) {
+                // +name: Type[mult]; — a LOCAL mapping property
+                int lpStart = pos;
+                advance();
+                String lpName = parseIdentifier();
+                expect(TokenType.COLON);
+                String lpType = parseIdentifier();
+                // parseMultiplicity consumes its own brackets
+                var mult = (com.legend.protocol.Multiplicity.Concrete)
+                        parseMultiplicity();
+                expect(TokenType.SEMI_COLON);
+                // the span INCLUDES the ';' (corpus DIFF pinned it)
+                localProps.add(new Protocol.PServiceStoreLocalProp(lpName,
+                        lpType, mult.lowerBound(), mult.upperBound(),
+                        spanOf(lpStart, pos - 1)));
+                continue;
+            }
+            int svcStart = pos;
+            expect(TokenType.TILDE);
+            String kw = parseIdentifier();
+            if (!"service".equals(kw)) {
+                throw error("unknown ServiceStore mapping directive: ~" + kw);
+            }
+            expect(TokenType.BRACKET_OPEN);
+            String store = Protocol.unquotePath(parseQualifiedName());
+            expect(TokenType.BRACKET_CLOSE);
+            List<Protocol.PServiceSegment> segments = new ArrayList<>();
+            while (true) {
+                int segStart = pos;
+                String seg = parseIdentifier();
+                segments.add(new Protocol.PServiceSegment(seg,
+                        spanOf(segStart, pos - 1)));
+                if (!match(TokenType.DOT)) {
+                    break;
+                }
+            }
+            Protocol.PPathOffset pathOffset = null;
+            Protocol.PRequestBuildInfo request = null;
+            if (peek() == TokenType.PAREN_OPEN) {
+                advance();
+                while (peek() == TokenType.TILDE
+                        && "path".equals(tokens.text(
+                                Math.min(pos + 1, tokens.count() - 1)))) {
+                    // ~path $service.response.a.b — NO spans on the wire
+                    advance();
+                    parseIdentifier();              // 'path'
+                    expect(TokenType.DOLLAR);
+                    String v = parseIdentifier();
+                    if (!"service".equals(v)) {
+                        throw error("~path must start at $service");
+                    }
+                    expect(TokenType.DOT);
+                    String r = parseIdentifier();
+                    if (!"response".equals(r)) {
+                        throw error("~path must start at $service.response");
+                    }
+                    List<String> segs = new ArrayList<>();
+                    while (match(TokenType.DOT)) {
+                        segs.add(parseIdentifier());
+                    }
+                    pathOffset = new Protocol.PPathOffset("$service.response",
+                            segs);
+                }
+                if (peek() == TokenType.PAREN_CLOSE) {
+                    // a (~path ...) block with no ~request
+                    int outerEnd0 = pos;
+                    advance();
+                    services.add(new Protocol.PServiceMapping(
+                            new Protocol.PServicePtr(store, segments),
+                            pathOffset, null, spanOf(svcStart, outerEnd0)));
+                    continue;
+                }
+                int reqStart = pos;
+                expect(TokenType.TILDE);
+                String rkw = parseIdentifier();
+                if (!"request".equals(rkw)) {
+                    throw error("unknown service-mapping block: ~" + rkw);
+                }
+                expect(TokenType.PAREN_OPEN);
+                Protocol.PParametersBuildInfo params = null;
+                Protocol.PBodyBuildInfo body = null;
+                while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                    int keyStart = pos;
+                    String key = parseIdentifier();
+                    if ("parameters".equals(key)) {
+                        expect(TokenType.PAREN_OPEN);
+                        List<Protocol.PParameterBuildInfo> entries =
+                                new ArrayList<>();
+                        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                            int eStart = pos;
+                            String pname;
+                            if (peek() == TokenType.QUOTED_STRING) {
+                                // "q param" = ... — a quoted parameter name
+                                pname = TokenStreamCursor
+                                        .stripDoubleQuotes(text());
+                                advance();
+                            } else {
+                                pname = parseIdentifier();
+                            }
+                            expect(TokenType.EQUAL);
+                            int exprStart = pos;
+                            var expr = parseTransformExpr();
+                            entries.add(new Protocol.PParameterBuildInfo(pname,
+                                    expr, spanOf(exprStart, pos - 1),
+                                    spanOf(eStart, pos - 1)));
+                            match(TokenType.COMMA);
+                        }
+                        int pEnd = pos;
+                        expect(TokenType.PAREN_CLOSE);
+                        params = new Protocol.PParametersBuildInfo(entries,
+                                spanOf(keyStart, pEnd));
+                    } else if ("body".equals(key)) {
+                        expect(TokenType.EQUAL);
+                        int exprStart = pos;
+                        var expr = parseTransformExpr();
+                        body = new Protocol.PBodyBuildInfo(expr,
+                                spanOf(exprStart, pos - 1),
+                                spanOf(keyStart, pos - 1));
+                    } else {
+                        throw error("unknown ~request key: " + key);
+                    }
+                }
+                int reqEnd = pos;
+                expect(TokenType.PAREN_CLOSE);
+                int outerEnd = pos;
+                expect(TokenType.PAREN_CLOSE);
+                request = new Protocol.PRequestBuildInfo(params, body,
+                        spanOf(reqStart, reqEnd));
+                services.add(new Protocol.PServiceMapping(
+                        new Protocol.PServicePtr(store, segments), pathOffset,
+                        request, spanOf(svcStart, outerEnd)));
+            } else {
+                services.add(new Protocol.PServiceMapping(
+                        new Protocol.PServicePtr(store, segments), null, null,
+                        spanOf(svcStart, pos - 1)));
+            }
+        }
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PServiceStoreClassMapping(target, targetSpan, id,
+                root, localProps, services, spanOf(memberStart, pos - 1));
+    }
+
+    /** One transform expression up to the next top-level {@code ,} or
+     *  {@code )} — spec-parsed on a slice of the SHARED stream so spans
+     *  stay file-absolute. */
+    private com.legend.protocol.spec.ValueSpecification parseTransformExpr() {
+        int bs = pos;
+        int d = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                    || t == TokenType.BRACE_OPEN) {
+                d++;
+            } else if (t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACKET_CLOSE
+                    || t == TokenType.BRACE_CLOSE) {
+                if (d == 0) {
+                    break;
+                }
+                d--;
+            } else if (t == TokenType.COMMA && d == 0) {
+                break;
+            }
+            advance();
+        }
+        return com.legend.parser.SpecParser.parse(tokens.slice(bs, pos));
+    }
+
+    /** {@code *Class[id]: MongoDB { ~mainCollection [db] Coll }} — the wire
+     *  carries NO spans (ZTailProbe "mongodb-mapping"). */
+    private Protocol.PClassMappingMongoDb parseMongoDbClassMapping(
+            String target, @com.legend.Nullable String id, boolean root) {
+        expect(TokenType.BRACE_OPEN);
+        expect(TokenType.TILDE);
+        String kw = parseIdentifier();
+        if (!"mainCollection".equals(kw)) {
+            throw error("unknown MongoDB mapping directive: ~" + kw);
+        }
+        expect(TokenType.BRACKET_OPEN);
+        String store = Protocol.unquotePath(parseQualifiedName());
+        expect(TokenType.BRACKET_CLOSE);
+        String coll = parseIdentifier();
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PClassMappingMongoDb(target, id, root, store, coll);
     }
 
     /** As {@link #cleanSheetAhead()} but the kind keyword is still
@@ -1140,7 +1326,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** {@code assoc: XStore { side: <cross expr>, ... }} — cross
      *  expressions are Pure lambdas via SpecParser (probe xstore). */
     private Protocol.PXStoreAssociationMapping parseXStoreAssociationMapping(
-            String target, int memberStart, SourceInfo targetSpan) {
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id) {
         expect(TokenType.BRACE_OPEN);
         List<Protocol.PXStorePropertyMapping> props = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
@@ -1218,7 +1405,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PXStoreAssociationMapping(
                 new Protocol.PPointer("ASSOCIATION", target, targetSpan),
-                props, spanOf(memberStart, close));
+                id, props, spanOf(memberStart, close));
     }
 
     /** {@code cls[id]: Operation { fqn(p1, p2) }} — the called FQN maps to

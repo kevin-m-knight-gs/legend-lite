@@ -128,6 +128,7 @@ final class Typer {
             // its desugared lambda.
             case PathLiteral pl -> synth(pl.desugared(), env);
             case com.legend.protocol.spec.GraphFetchLiteral gf -> synth(gf.desugared(), env);
+            case com.legend.protocol.spec.TdsLiteral tl -> synth(tl.desugared(), env);
             case com.legend.protocol.spec.SqlIsland si ->
                     throw new com.legend.error.NotImplementedException(
                             "#SQL{...}# expression islands are not compilable —"

@@ -221,11 +221,12 @@ public final class MappingFromProtocol {
     /** {@code null} when the element is deliberately NOT modelled — see the
      *  Operation and AggregationAware arms. */
     private static @com.legend.Nullable ClassMapping classMapping(Protocol.PClassMapping cm) {
-        if (cm instanceof Protocol.PClassMappingForeign) {
-            // a FOREIGN store class mapping (ServiceStore / MongoDB) rides
-            // the protocol only — the class is simply not mapped in a store
-            // lite executes, so the model skips it (a query against it
-            // fails loudly at resolution, engine-consistent)
+        if (cm instanceof Protocol.PServiceStoreClassMapping
+                || cm instanceof Protocol.PClassMappingMongoDb) {
+            // a FOREIGN store class mapping rides the protocol only — the
+            // class is simply not mapped in a store lite executes, so the
+            // model skips it (a query against it fails loudly at
+            // resolution, engine-consistent)
             return null;
         }
         if (cm instanceof Protocol.PClassMappingRel rel) {

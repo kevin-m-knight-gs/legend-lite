@@ -154,26 +154,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     standalone);
             case "RelationalDatabaseConnection" ->
                     parseRelationalConnectionBody(c, declStart);
-            // censused FOREIGN flavors — kind + RAW body, carried; the
-            // emitter WALLS them
-            case "ServiceStoreConnection", "DeephavenConnection",
-                    "MongoDBConnection" -> {
-                int bs = c.pos();
-                c.expect(TokenType.BRACE_OPEN);
-                int depth = 1;
-                while (!c.atEnd() && depth > 0) {
-                    TokenType t = c.peek();
-                    if (t == TokenType.BRACE_OPEN) {
-                        depth++;
-                    } else if (t == TokenType.BRACE_CLOSE) {
-                        depth--;
-                    }
-                    c.advance();
-                }
-                yield new Protocol.PForeignConnection(flavor,
-                        c.reconstructText(bs, c.pos()),
-                        c.spanOf(declStart, c.pos() - 1));
-            }
+            case "ServiceStoreConnection" ->
+                    parseServiceStoreConnectionBody(c, declStart);
+            case "DeephavenConnection" -> parseDeephavenConnectionBody(c);
+            case "MongoDBConnection" -> parseMongoConnectionBody(c, declStart);
             default -> throw c.error("unsupported connection flavor: " + flavor);
         };
     }
@@ -239,6 +223,262 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         return new Protocol.PModelChainConnection(
                 standalone ? "ModelStore" : null, mappings, mapSpan,
                 c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** {@code { store: qn; baseUrl: 'url'; }} (ZTailProbe
+     *  "servicestore-conn"). */
+    private static Protocol.PServiceStoreConnection
+            parseServiceStoreConnectionBody(TokenStreamCursor c, int declStart) {
+        c.expect(TokenType.BRACE_OPEN);
+        String element = null;
+        com.legend.protocol.SourceInfo elementSpan = null;
+        String baseUrl = null;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "store" -> {
+                    int eS = c.pos();
+                    element = Protocol.unquotePath(c.parseQualifiedName());
+                    elementSpan = c.spanOf(eS, c.pos() - 1);
+                }
+                case "baseUrl" -> baseUrl = stringValue(c);
+                default -> throw c.error(
+                        "unknown ServiceStoreConnection key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        if (baseUrl == null) {
+            throw c.error("ServiceStoreConnection needs baseUrl");
+        }
+        return new Protocol.PServiceStoreConnection(baseUrl, element,
+                elementSpan, c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** {@code { store: qn; serverUrl: 'url' authentication: # PSK { psk:
+     *  'v'; }#; }} — serverUrl takes NO semicolon in the corpus spelling;
+     *  the value span runs the FIRST body key through the island close
+     *  (ZTailProbe "deephaven-conn"). */
+    private static Protocol.PDeephavenConnection
+            parseDeephavenConnectionBody(TokenStreamCursor c) {
+        c.expect(TokenType.BRACE_OPEN);
+        int bodyStart = c.pos();
+        String element = null;
+        com.legend.protocol.SourceInfo elementSpan = null;
+        String serverUrl = null;
+        String psk = null;
+        int islandEndTok = -1;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "store" -> {
+                    int eS = c.pos();
+                    element = Protocol.unquotePath(c.parseQualifiedName());
+                    elementSpan = c.spanOf(eS, c.pos() - 1);
+                }
+                case "serverUrl" -> serverUrl = stringValue(c);
+                case "authentication" -> {
+                    if (c.peek() != TokenType.ISLAND_OPEN) {
+                        throw c.error("DeephavenConnection authentication"
+                                + " must be a # PSK {...}# island");
+                    }
+                    String kind = islandKind(c);
+                    if (!"PSK".equals(kind)) {
+                        throw c.error("unsupported Deephaven auth kind: "
+                                + kind);
+                    }
+                    IslandParse ip = reLexIsland(c);
+                    islandEndTok = ip.endTok();
+                    Cursor ic = ip.cursor();
+                    while (!ic.atEnd()) {
+                        String ik = ic.parseIdentifier();
+                        ic.expect(TokenType.COLON);
+                        if (!"psk".equals(ik)) {
+                            throw ic.error("unknown PSK key: " + ik);
+                        }
+                        psk = stringValue(ic);
+                        ic.expect(TokenType.SEMI_COLON);
+                    }
+                }
+                default -> throw c.error(
+                        "unknown DeephavenConnection key: " + key);
+            }
+            c.match(TokenType.SEMI_COLON);
+        }
+        int closeTok = c.pos();
+        c.expect(TokenType.BRACE_CLOSE);
+        if (serverUrl == null || psk == null) {
+            throw c.error("DeephavenConnection needs serverUrl and"
+                    + " authentication");
+        }
+        // engine's walker composes the value span END from TWO nodes: the
+        // LINE of the connection's closing brace and the COLUMN of the
+        // island's '}' (corpus DIFF pinned the cross-product)
+        var sp = c.spanOf(bodyStart, closeTok);
+        com.legend.protocol.SourceInfo vSpan = islandEndTok >= 0
+                ? new com.legend.protocol.SourceInfo("", sp.startLine(),
+                        sp.startColumn(), sp.endLine(),
+                        c.tokens().startColumn(islandEndTok))
+                : sp;
+        return new Protocol.PDeephavenConnection(serverUrl, psk, element,
+                elementSpan, vSpan);
+    }
+
+    /** {@code { database: id; store: qn; serverURLs: [host:port,...];
+     *  authentication: # UserPassword {...}#; }} (ZTailProbe
+     *  "mongodb-conn"). */
+    private static Protocol.PMongoDbConnection parseMongoConnectionBody(
+            TokenStreamCursor c, int declStart) {
+        c.expect(TokenType.BRACE_OPEN);
+        String database = null;
+        String element = null;
+        com.legend.protocol.SourceInfo elementSpan = null;
+        List<Protocol.PMongoServerUrl> urls = new ArrayList<>();
+        Protocol.PMongoAuth auth = null;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            int keyTok = c.pos();
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "database" -> database = c.parseIdentifier();
+                case "store" -> {
+                    int eS = c.pos();
+                    element = Protocol.unquotePath(c.parseQualifiedName());
+                    elementSpan = c.spanOf(eS, c.pos() - 1);
+                }
+                case "serverURLs" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                        String host = c.parseIdentifier();
+                        c.expect(TokenType.COLON);
+                        long port = Long.parseLong(c.text());
+                        c.expect(TokenType.INTEGER);
+                        urls.add(new Protocol.PMongoServerUrl(host, port));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
+                case "authentication" -> {
+                    if (c.peek() != TokenType.ISLAND_OPEN) {
+                        throw c.error("MongoDBConnection authentication must"
+                                + " be a # UserPassword {...}# island");
+                    }
+                    String kind = islandKind(c);
+                    if (!"UserPassword".equals(kind)) {
+                        throw c.error("unsupported MongoDB auth kind: " + kind);
+                    }
+                    IslandParse ip = reLexIsland(c);
+                    Cursor ic = ip.cursor();
+                    String username = null;
+                    Protocol.PMongoSecret secret = null;
+                    while (!ic.atEnd()) {
+                        String ik = ic.parseIdentifier();
+                        ic.expect(TokenType.COLON);
+                        if ("username".equals(ik)) {
+                            username = stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                        } else if ("password".equals(ik)) {
+                            int vS = ic.pos();
+                            String sk = ic.parseIdentifier();
+                            String wireKind;
+                            String wireField;
+                            switch (sk) {
+                                case "PropertiesFileSecret" -> {
+                                    wireKind = "properties";
+                                    wireField = "propertyName";
+                                }
+                                case "SystemPropertiesSecret" -> {
+                                    wireKind = "systemproperties";
+                                    wireField = "systemPropertyName";
+                                }
+                                default -> throw ic.error(
+                                        "unsupported secret kind: " + sk);
+                            }
+                            ic.expect(TokenType.BRACE_OPEN);
+                            String fieldKey = ic.parseIdentifier();
+                            ic.expect(TokenType.COLON);
+                            String v = stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                            ic.expect(TokenType.BRACE_CLOSE);
+                            if (!wireField.equals(fieldKey)) {
+                                throw ic.error("unknown " + sk + " key: "
+                                        + fieldKey);
+                            }
+                            secret = new Protocol.PMongoSecret(wireKind,
+                                    wireField, v, ic.spanOf(vS, ic.pos() - 1));
+                            ic.expect(TokenType.SEMI_COLON);
+                        } else {
+                            throw ic.error("unknown UserPassword key: " + ik);
+                        }
+                    }
+                    if (username == null || secret == null) {
+                        throw c.error("UserPassword needs username and"
+                                + " password");
+                    }
+                    // the auth span is the island CONTENT region: it
+                    // STARTS at the first content token and its end
+                    // overshoots the island close by 3 — the reparse quirk
+                    // family PRelationData pins
+                    var aSp = c.spanOf(keyTok, ip.endTok());
+                    var firstTok = ip.cursor().spanOf(0, 0);
+                    auth = new Protocol.PMongoAuth(username, secret,
+                            new com.legend.protocol.SourceInfo("",
+                                    firstTok.startLine(),
+                                    firstTok.startColumn(),
+                                    aSp.endLine(), aSp.endColumn() + 3));
+                }
+                default -> throw c.error(
+                        "unknown MongoDBConnection key: " + key);
+            }
+            c.match(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        if (database == null || auth == null) {
+            throw c.error("MongoDBConnection needs database and"
+                    + " authentication");
+        }
+        return new Protocol.PMongoDbConnection(database, urls, auth, element,
+                elementSpan, c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** The DSL type between {@code #} and {@code {} of the island opener at
+     *  the cursor (e.g. {@code # PSK {} → "PSK"}), NOT consumed. */
+    private static String islandKind(TokenStreamCursor c) {
+        String t = c.text();
+        int brace = t.indexOf('{');
+        return t.substring(1, brace < 0 ? t.length() : brace).trim();
+    }
+
+    /** Consume the island at the cursor and re-lex its content with walker
+     *  offsets so inner spans stay file-absolute. */
+    private record IslandParse(Cursor cursor, int endTok) {
+    }
+
+    private static IslandParse reLexIsland(TokenStreamCursor c) {
+        c.advance();                                // ISLAND_OPEN
+        int embStart = c.pos();
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
+            c.advance();
+        }
+        String emb = c.reconstructText(embStart, c.pos());
+        int endTok = c.pos();
+        c.expect(TokenType.ISLAND_END);
+        Cursor ic = new Cursor(Lexer.tokenize(emb),
+                c.tokens().startLine(embStart) - 1,
+                c.tokens().startColumn(embStart) - 1);
+        return new IslandParse(ic, endTok);
     }
 
     private static Protocol.PRelationalDatabaseConnection

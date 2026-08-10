@@ -2692,11 +2692,15 @@ final class SpecParserTest {
         // Assertion on the structural shape rather than the full
         // raw text (which contains the entire source chunk); the
         // first argument 'TDS' is the discriminator.
-        assertTrue(result instanceof AppliedFunction af
-                        && af.function().equals("tds")
-                        && af.parameters().size() == 2
-                        && af.parameters().get(0).equals(new CString("TDS")),
-                () -> "want tds() call, got: " + result);
+        // since the wire claim (2026-08-10), the node is a TdsLiteral
+        // carrying BOTH the wire's tdsString and the desugared tds() call
+        // the compiler consumes (the resolver dissolves it, like PathLiteral)
+        assertTrue(result instanceof com.legend.protocol.spec.TdsLiteral tl
+                        && tl.desugared().function().equals("tds")
+                        && tl.desugared().parameters().size() == 2
+                        && tl.desugared().parameters().get(0)
+                                .equals(new CString("TDS")),
+                () -> "want TdsLiteral over tds() call, got: " + result);
     }
 
     // ----- C.7b: DSL islands (graph-fetch + table reference) -----------

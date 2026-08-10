@@ -1483,6 +1483,9 @@ public final class NameResolver {
             case PathLiteral pl -> resolveVs(pl.desugared(), scope);
             // an inline SQL island has no names to resolve; the typer refuses it
             case com.legend.protocol.spec.SqlIsland si -> si;
+            // a TDS literal dissolves into its desugared tds(...) call
+            case com.legend.protocol.spec.TdsLiteral tl ->
+                    resolveVs(tl.desugared(), scope);
             case com.legend.protocol.spec.GraphFetchLiteral gf ->
                     resolveVs(gf.desugared(), scope);
             case PackageableElementPtr ptr -> {

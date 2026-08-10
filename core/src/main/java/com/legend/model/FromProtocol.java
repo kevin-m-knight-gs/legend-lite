@@ -396,10 +396,19 @@ public final class FromProtocol {
                             m.mappings());
             case Protocol.PRelationalDatabaseConnection r ->
                     toRelationalConnection(c.qualifiedName(), r);
-            case Protocol.PForeignConnection f ->
-                    new GenericSectionElementDefinition("Connection", f.kind(),
-                            c.qualifiedName(), java.util.Map.of(),
-                            f.bodySource());
+            case Protocol.PServiceStoreConnection sc ->
+                    new GenericSectionElementDefinition("Connection",
+                            "ServiceStoreConnection", c.qualifiedName(),
+                            java.util.Map.of("baseUrl", sc.baseUrl()), null);
+            case Protocol.PDeephavenConnection dc ->
+                    new GenericSectionElementDefinition("Connection",
+                            "DeephavenConnection", c.qualifiedName(),
+                            java.util.Map.of("serverUrl", dc.serverUrl()), null);
+            case Protocol.PMongoDbConnection mgc ->
+                    new GenericSectionElementDefinition("Connection",
+                            "MongoDBConnection", c.qualifiedName(),
+                            java.util.Map.of("database", mgc.databaseName()),
+                            null);
             case Protocol.PConnectionPointer p -> throw new IllegalStateException(
                     "a connection pointer cannot be a standalone element: "
                             + c.qualifiedName());
@@ -466,11 +475,30 @@ public final class FromProtocol {
                         bindings.computeIfAbsent(store, k -> new ArrayList<>())
                                 .add(synth);
                     }
-                    case Protocol.PForeignConnection fc -> {
+                    case Protocol.PServiceStoreConnection scv -> {
                         String synth = qn + "$" + store + "$" + ic.id();
                         inline.add(new GenericSectionElementDefinition(
-                                "Connection", fc.kind(), synth,
-                                java.util.Map.of(), fc.bodySource()));
+                                "Connection", "ServiceStoreConnection", synth,
+                                java.util.Map.of("baseUrl", scv.baseUrl()),
+                                null));
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                    case Protocol.PDeephavenConnection dcv -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        inline.add(new GenericSectionElementDefinition(
+                                "Connection", "DeephavenConnection", synth,
+                                java.util.Map.of("serverUrl", dcv.serverUrl()),
+                                null));
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                    case Protocol.PMongoDbConnection mcv -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        inline.add(new GenericSectionElementDefinition(
+                                "Connection", "MongoDBConnection", synth,
+                                java.util.Map.of("database",
+                                        mcv.databaseName()), null));
                         bindings.computeIfAbsent(store, k -> new ArrayList<>())
                                 .add(synth);
                     }

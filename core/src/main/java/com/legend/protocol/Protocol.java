@@ -146,9 +146,16 @@ public final class Protocol {
     }
 
     public record PXStoreAssociationMapping(PPointer association,
+                                            @com.legend.Nullable String id,
                                             List<PXStorePropertyMapping> propertyMappings,
                                             com.legend.protocol.SourceInfo sourceInformation)
             implements PAssociationMapping {
+        /** The id-less shape earlier callers built. */
+        public PXStoreAssociationMapping(PPointer association,
+                List<PXStorePropertyMapping> propertyMappings,
+                com.legend.protocol.SourceInfo sourceInformation) {
+            this(association, null, propertyMappings, sourceInformation);
+        }
     }
 
     public record PXStorePropertyMapping(String ownerClass, String property,
@@ -163,16 +170,98 @@ public final class Protocol {
             permits PClassMappingRel, PClassMappingPure,
             PClassMappingOperation, PClassMappingRelation,
             PClassMappingMergeOperation, PClassMappingAggregationAware,
-            PClassMappingFunction, PClassMappingForeign {
+            PClassMappingFunction, PServiceStoreClassMapping,
+            PClassMappingMongoDb {
     }
 
-    /** A censused FOREIGN store class mapping (ServiceStore / MongoDB) —
-     *  kind + RAW body; no wire claim (emission walls), and the model
-     *  transform skips it. */
-    public record PClassMappingForeign(String kind, String className,
+    /** {@code *Class[id]: ServiceStore { ~service [store] G.S (~request
+     *  (...))* }} — {@code _type:"serviceStore"} (ZTailProbe
+     *  "servicestore-mapping" / "-rich" / "-body"). The model transform
+     *  SKIPS it (the class is not mapped in a store lite executes). */
+    public record PServiceStoreClassMapping(String className,
+                                            com.legend.protocol.SourceInfo classSpan,
+                                            @com.legend.Nullable String id,
+                                            boolean root,
+                                            List<PServiceStoreLocalProp> localProps,
+                                            List<PServiceMapping> services,
+                                            com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
+    }
+
+    /** One {@code +name: Type[mult];} local mapping property; span runs
+     *  the {@code +} through the multiplicity close. */
+    public record PServiceStoreLocalProp(String name, String type,
+                                         int lowerBound,
+                                         @com.legend.Nullable Integer upperBound,
+                                         com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code ~service [store] Seg.….Svc (~path ... ~request(...))?}
+     *  entry. */
+    public record PServiceMapping(PServicePtr service,
+                                  @com.legend.Nullable PPathOffset pathOffset,
+                                  @com.legend.Nullable PRequestBuildInfo request,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ~path $service.response.a.b} — startType is the fixed
+     *  {@code $service.response} head, the rest are propertyPath entries;
+     *  NO spans on this wire (ZTailProbe "servicestore-mapping-rich2"). */
+    public record PPathOffset(String startType, List<String> propertyPath) {
+        public PPathOffset {
+            propertyPath = List.copyOf(propertyPath);
+        }
+    }
+
+    /** A dotted service pointer: leading segments are GROUPS, the last is
+     *  the service; each segment keeps its own span. */
+    public record PServicePtr(String serviceStore, List<PServiceSegment> segments) {
+        public PServicePtr {
+            segments = List.copyOf(segments);
+        }
+    }
+
+    /** One dotted-path segment with its span. */
+    public record PServiceSegment(String name,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ~request ( parameters(...)? body = ...? )}. */
+    public record PRequestBuildInfo(
+            @com.legend.Nullable PParametersBuildInfo parameters,
+            @com.legend.Nullable PBodyBuildInfo body,
+            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code parameters ( name = expr, ... )}. */
+    public record PParametersBuildInfo(List<PParameterBuildInfo> entries,
+                                       com.legend.protocol.SourceInfo sourceInformation) {
+        public PParametersBuildInfo {
+            entries = List.copyOf(entries);
+        }
+    }
+
+    /** One {@code name = expr}; the transform lambda's span is the EXPR's
+     *  own token range ({@code transformSpan}). */
+    public record PParameterBuildInfo(String serviceParameter,
+                                      com.legend.protocol.spec.ValueSpecification transform,
+                                      com.legend.protocol.SourceInfo transformSpan,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code body = expr}. */
+    public record PBodyBuildInfo(com.legend.protocol.spec.ValueSpecification transform,
+                                 com.legend.protocol.SourceInfo transformSpan,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code *Class[id]: MongoDB { ~mainCollection [db] Coll }} —
+     *  {@code _type:"MongoDB"}, NO spans on the wire (ZTailProbe
+     *  "mongodb-mapping"). Model transform skips it. */
+    public record PClassMappingMongoDb(String className,
                                        @com.legend.Nullable String id,
-                                       boolean root, String bodySource,
-                                       com.legend.protocol.SourceInfo sourceInformation)
+                                       boolean root, String storePath,
+                                       String mainCollectionName)
             implements PClassMapping {
     }
 
@@ -1141,15 +1230,63 @@ public final class Protocol {
     public sealed interface PConnectionValue
             permits PConnectionPointer, PJsonModelConnection,
             PXmlModelConnection, PModelChainConnection,
-            PRelationalDatabaseConnection, PForeignConnection {
+            PRelationalDatabaseConnection, PServiceStoreConnection,
+            PDeephavenConnection, PMongoDbConnection {
     }
 
-    /** A censused FOREIGN connection flavor (ServiceStoreConnection /
-     *  DeephavenConnection / MongoDBConnection) — kind + RAW body; no wire
-     *  claim (emission walls), model carries it generically. */
-    public record PForeignConnection(String kind, String bodySource,
+    /** {@code ServiceStoreConnection { store; baseUrl; }} —
+     *  {@code _type:"serviceStore"} (ZTailProbe "servicestore-conn"). */
+    public record PServiceStoreConnection(String baseUrl,
+                                          @com.legend.Nullable String element,
+                                          @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+                                          com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
+    }
+
+    /** {@code DeephavenConnection { store; serverUrl; authentication:
+     *  # PSK {...}#; }} — {@code _type:"deephavenConnection"} (ZTailProbe
+     *  "deephaven-conn"); the value's span runs the first body key through
+     *  the island close. */
+    public record PDeephavenConnection(String serverUrl, String psk,
+                                       @com.legend.Nullable String element,
+                                       @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+                                       com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
+    }
+
+    /** {@code MongoDBConnection { database; store; serverURLs;
+     *  authentication: # UserPassword {...}#; }} —
+     *  {@code _type:"MongoDBConnection"} with {@code type:"MongoDb"}
+     *  (ZTailProbe "mongodb-conn"). */
+    public record PMongoDbConnection(String databaseName,
+                                     List<PMongoServerUrl> serverUrls,
+                                     PMongoAuth auth,
+                                     @com.legend.Nullable String element,
+                                     @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
                                      com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
+        public PMongoDbConnection {
+            serverUrls = List.copyOf(serverUrls);
+        }
+    }
+
+    /** One {@code host:port} server URL. */
+    public record PMongoServerUrl(String baseUrl, long port) {
+    }
+
+    /** {@code # UserPassword { username; password: <Kind>Secret {...}; }#} —
+     *  {@code _type:"userPassword"}; span = the {@code authentication} key
+     *  through the island close. */
+    public record PMongoAuth(String username, PMongoSecret password,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A secret reference: {@code kind} is the wire discriminator
+     *  ({@code properties} / {@code systemproperties}), {@code fieldKey}
+     *  the wire field name, {@code value} its content; span = the secret
+     *  VALUE region. */
+    public record PMongoSecret(String kind, String fieldKey, String value,
+                               com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"connectionPointer"}. */

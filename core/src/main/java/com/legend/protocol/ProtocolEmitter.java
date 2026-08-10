@@ -731,9 +731,86 @@ public final class ProtocolEmitter {
                 srcInfo(b, mc.sourceInformation());
                 b.append('}');
             }
-            case Protocol.PForeignConnection fc ->
-                    require(false, "foreign connection flavor '" + fc.kind()
-                            + "' wire emission (no claim)", "connection");
+            case Protocol.PServiceStoreConnection sc -> {
+                b.append("{\"_type\":\"serviceStore\",\"baseUrl\":");
+                str(b, sc.baseUrl());
+                if (sc.element() != null
+                        && sc.elementSourceInformation() != null) {
+                    b.append(",\"element\":");
+                    str(b, sc.element());
+                    b.append(",\"elementSourceInformation\":");
+                    srcInfo(b, sc.elementSourceInformation());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, sc.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PDeephavenConnection dc -> {
+                b.append("{\"_type\":\"deephavenConnection\",\"authSpec\":"
+                        + "{\"_type\":\"PSK\",\"psk\":");
+                str(b, dc.psk());
+                b.append('}');
+                if (dc.element() != null
+                        && dc.elementSourceInformation() != null) {
+                    b.append(",\"element\":");
+                    str(b, dc.element());
+                    b.append(",\"elementSourceInformation\":");
+                    srcInfo(b, dc.elementSourceInformation());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, dc.sourceInformation());
+                b.append(",\"sourceSpec\":{\"url\":");
+                str(b, dc.serverUrl());
+                b.append("}}");
+            }
+            case Protocol.PMongoDbConnection mc2 -> {
+                b.append("{\"_type\":\"MongoDBConnection\","
+                        + "\"authenticationSpecification\":"
+                        + "{\"_type\":\"userPassword\",\"password\":{"
+                        + "\"_type\":");
+                Protocol.PMongoSecret sec = mc2.auth().password();
+                str(b, sec.kind());
+                // wire fields sit alphabetically around sourceInformation
+                if ("properties".equals(sec.kind())) {
+                    b.append(",\"").append(sec.fieldKey()).append("\":");
+                    str(b, sec.value());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sec.sourceInformation());
+                } else {
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sec.sourceInformation());
+                    b.append(",\"").append(sec.fieldKey()).append("\":");
+                    str(b, sec.value());
+                }
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, mc2.auth().sourceInformation());
+                b.append(",\"username\":");
+                str(b, mc2.auth().username());
+                b.append("},\"dataSourceSpecification\":{\"databaseName\":");
+                str(b, mc2.databaseName());
+                b.append(",\"serverURLs\":[");
+                for (int i = 0; i < mc2.serverUrls().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"baseUrl\":");
+                    str(b, mc2.serverUrls().get(i).baseUrl());
+                    b.append(",\"port\":")
+                            .append(mc2.serverUrls().get(i).port());
+                    b.append('}');
+                }
+                b.append("]}");
+                if (mc2.element() != null
+                        && mc2.elementSourceInformation() != null) {
+                    b.append(",\"element\":");
+                    str(b, mc2.element());
+                    b.append(",\"elementSourceInformation\":");
+                    srcInfo(b, mc2.elementSourceInformation());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, mc2.sourceInformation());
+                b.append(",\"type\":\"MongoDb\"}");
+            }
             case Protocol.PRelationalDatabaseConnection rc -> {
                 b.append("{\"_type\":\"RelationalDatabaseConnection\","
                         + "\"authenticationStrategy\":");
@@ -916,6 +993,20 @@ public final class ProtocolEmitter {
                         "SqlIsland always parses with a span"));
         b.append(",\"type\":\"SQL\",\"value\":{\"sql\":");
         str(b, si.sql());
+        b.append("}}");
+    }
+
+    /** {@code #TDS{ ... }#} — a classInstance of type TDS whose value is
+     *  {@code {"tdsString": inner-untrimmed}} (ZTailProbe "tds-accessor"). */
+    private static void tdsLiteral(StringBuilder b,
+            com.legend.protocol.spec.TdsLiteral tl,
+            @com.legend.Nullable SourceInfo span) {
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, span != null ? span
+                : java.util.Objects.requireNonNull(tl.pos(),
+                        "TdsLiteral always parses with a span"));
+        b.append(",\"type\":\"TDS\",\"value\":{\"tdsString\":");
+        str(b, tl.tdsString());
         b.append("}}");
     }
 
@@ -1940,6 +2031,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
             case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, null);
+            case com.legend.protocol.spec.TdsLiteral tl -> tdsLiteral(b, tl, null);
             // %10:10:10 -> strictTime, value VERBATIM without the '%' (probe "time literal")
             case com.legend.protocol.spec.CTime t -> literal(b, "strictTime",
                     quotedWritten(t.written(), "time literal"), t.pos());
@@ -2065,6 +2157,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf, span);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl, span);
             case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, span);
+            case com.legend.protocol.spec.TdsLiteral tl -> tdsLiteral(b, tl, span);
             case com.legend.protocol.spec.LambdaFunction lam ->
                     valueSpec(b, new com.legend.protocol.spec.LambdaFunction(
                             lam.parameters(), lam.body(), span));

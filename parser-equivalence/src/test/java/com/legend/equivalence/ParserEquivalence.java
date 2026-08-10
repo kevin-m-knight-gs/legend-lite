@@ -461,7 +461,8 @@ public final class ParserEquivalence {
         java.util.List<int[]> sites = new ArrayList<>();
         java.util.Set<String> flavors = java.util.Set.of("JsonModelConnection",
                 "XmlModelConnection", "ModelChainConnection",
-                "RelationalDatabaseConnection");
+                "RelationalDatabaseConnection", "ServiceStoreConnection",
+                "DeephavenConnection", "MongoDBConnection");
         int cursor = 0;
         for (long[] r : ranges) {
             while (cursor < ts.count() && ts.start(cursor) < r[0]) {

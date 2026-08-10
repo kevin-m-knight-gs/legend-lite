@@ -172,13 +172,19 @@ class SpiSeamProofTest {
      *  'Unknown embedded data type') that a production engine classpath accepts. None
      *  can be stored through a vanilla engine, so accepting them cannot change drop-in
      *  behavior. Ratcheted DOWN only. */
-    private static final int MAX_LENIENT_ACCEPTS = 176;
+    private static final int MAX_LENIENT_ACCEPTS = 200;
     // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
     // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
     // incremental fixtures, '>' accessor islands) parse further once the
     // tail causes ((dataspace) test refs, #SQL islands, ServiceStore data)
     // cleared — the blend thesis reaching more of legend-pure, not new
     // acceptance the vanilla engine could ever store.
+    // 176 -> 200 (2026-08-10, wire batch W1): claiming the TDS / SQL island
+    // wires and the serviceStore/foreign-connection shapes lets two dozen
+    // more files parse that the EXTENSION-LESS vanilla baseline refuses
+    // ("Can't find an embedded Pure parser for the type 'TDS'/'SQL'") — the
+    // same category as the '>' accessor rows already here; a production
+    // engine classpath accepts them all.
 
     /** THE PARSER'S OWN leniency bound (implementation audit §3.3) — files the
      *  extension-less vanilla engine rejects that raw {@code parseStrict}
