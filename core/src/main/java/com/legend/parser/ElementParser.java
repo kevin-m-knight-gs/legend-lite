@@ -366,6 +366,33 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 unclaimed.add(new com.legend.model.ParsedModel.UnclaimedSection(
                         sk.name(), sk.startOffset(), sk.endOffset()));
+            } else if (g.get() instanceof com.legend.parser.section
+                    .RawSectionGrammar raw) {
+                // a BUILT-IN raw grammar (Diagram): typed elements from raw
+                // text — the same claimed-seam routing lexable sections get
+                var parsed = raw.parseRaw(new com.legend.spi.SectionSource(
+                        sk.name(), tokens.source().substring(sk.startOffset(),
+                                sk.endOffset()),
+                        sk.startOffset(), sk.endOffset()));
+                ImportScope.Builder scope = new ImportScope.Builder();
+                for (String imp : parsed.imports()) {
+                    scope.add(imp);
+                    imports.add(imp);
+                }
+                ImportScope sectionScope = scope.build();
+                for (var pe : parsed.elements()) {
+                    PackageableElement el;
+                    try {
+                        el = raw.toModel(pe.protocol());
+                    } catch (com.legend.parser.section.LexableSectionGrammar
+                            .UnsupportedElementShape u) {
+                        throw error(u.reason());
+                    }
+                    elements.add(el);
+                    offsets.putIfAbsent(el.qualifiedName(),
+                            sk.startOffset() + pe.startOffset());
+                    elementImports.putIfAbsent(el.qualifiedName(), sectionScope);
+                }
             } else if (!g.get().lexable()) {
                 // an OVERLAY grammar owns this opaque section: hand it the
                 // raw text (foreign grammars never adopt our lexer); its

@@ -2546,12 +2546,19 @@ final class ElementParserTest {
     }
 
     @Test
-    void mappingMissingMainTableThrows() {
-        ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
-                        "Mapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("~maintable"),
-                () -> "expected error about missing ~mainTable, got: " + e.getMessage());
+    void mappingMissingMainTableSkipsTheClassMapping() {
+        // The PRE-~mainTable legend-pure shape: dotted refs with NO database
+        // anywhere. Engine's parser accepts it (the store is inferred at
+        // compile); lite's database-inference leg is unbuilt, so since
+        // 2026-08-09 the class mapping is SKIPPED (carried on protocol)
+        // instead of refusing the file — a query against the class still
+        // fails loudly at resolution.
+        ParsedModel m = ElementParser.parse(
+                "Mapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )");
+        var md = assertInstanceOf(com.legend.model.LegacyMappingDefinition.class,
+                m.elements().get(0));
+        assertEquals(0, md.classMappings().size(),
+                "the db-less class mapping is skipped, not silently kept");
     }
 
     @Test

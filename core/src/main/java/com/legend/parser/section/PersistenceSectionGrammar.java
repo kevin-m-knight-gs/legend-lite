@@ -136,11 +136,11 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                 }
                 case "serviceOutputTargets" -> {
                     serviceOutputTargetsSource = rawBalanced(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 case "notifier" -> {
                     notifierSource = rawBalanced(c);
-                    c.expect(TokenType.SEMI_COLON);
+                    c.match(TokenType.SEMI_COLON);
                 }
                 case "tests" -> {
                     testsSource = parseTestsValidated(c);

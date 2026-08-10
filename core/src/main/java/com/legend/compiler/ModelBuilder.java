@@ -135,6 +135,10 @@ public final class ModelBuilder {
             modelConnections = new HashMap<>();
     private final Map<String, com.legend.model.ModelChainConnectionDefinition>
             modelChainConnections = new HashMap<>();
+    /** Foreign-flavor connections (ServiceStore/Deephaven/Mongo) — defined,
+     *  carrying no database type; dialect selection skips them. */
+    private final java.util.Set<String> foreignConnections =
+            new java.util.HashSet<>();
 
     /**
      * Functions are overload sets keyed by FQN. Each slot holds the
@@ -490,6 +494,8 @@ public final class ModelBuilder {
                         modelConnections.put(mc.qualifiedName(), mc);
                 case com.legend.model.ModelChainConnectionDefinition mcc ->
                         modelChainConnections.put(mcc.qualifiedName(), mcc);
+                case com.legend.model.GenericSectionElementDefinition ge ->
+                        foreignConnections.add(ge.qualifiedName());
                 default -> throw new IllegalStateException(
                         "unexpected inline connection kind: "
                                 + inline.getClass().getSimpleName());
@@ -851,7 +857,8 @@ public final class ModelBuilder {
      *  ModelChain) — a defined connection that carries no database type. */
     public boolean isModelConnection(String fqn) {
         return modelConnections.containsKey(fqn)
-                || modelChainConnections.containsKey(fqn);
+                || modelChainConnections.containsKey(fqn)
+                || foreignConnections.contains(fqn);
     }
 
     /**

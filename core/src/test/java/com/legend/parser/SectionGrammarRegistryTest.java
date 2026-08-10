@@ -15,17 +15,21 @@ class SectionGrammarRegistryTest {
     @Test
     void builtInsRegisterThroughTheRegistry() {
         for (String s : new String[]{"Pure", "Mapping", "Relational",
-                "Connection", "Runtime"}) {
+                "Connection", "Runtime", "Diagram", "Service", "DataSpace",
+                "Persistence"}) {
             assertTrue(SectionGrammarRegistry.lookup(s).isPresent(), s);
         }
-        assertTrue(SectionGrammarRegistry.lookup("Diagram").isEmpty());
+        assertTrue(SectionGrammarRegistry.lookup("QueryPostProcessor").isEmpty());
     }
 
+    // QueryPostProcessor is the one roster section with no grammar (and no
+    // corpus presence) — the honest stand-in for "unclaimed" now that
+    // Diagram is a registered RAW grammar (2026-08-09).
     private static final String WITH_UNKNOWN_SECTION = """
             Class my::A { a: String[1]; }
 
-            ###Diagram
-            Diagram my::D(width=1.0, height=2.0) {}
+            ###QueryPostProcessor
+            Whatever my::D;
 
             ###Pure
             Class my::B { b: String[1]; }
@@ -39,7 +43,7 @@ class SectionGrammarRegistryTest {
         ParseException e = assertThrows(ParseException.class,
                 () -> ElementParser.parseStrict(WITH_UNKNOWN_SECTION));
         assertTrue(e.getMessage().contains(
-                        "'Diagram' is not a known section parser"),
+                        "'QueryPostProcessor' is not a known section parser"),
                 e.getMessage());
     }
 
@@ -52,7 +56,7 @@ class SectionGrammarRegistryTest {
         ParsedModel m = ElementParser.parse(WITH_UNKNOWN_SECTION);
         assertEquals(2, m.elements().size(), "both Pure classes parse");
         assertEquals(1, m.unclaimedSections().size());
-        assertEquals("Diagram", m.unclaimedSections().get(0).name());
+        assertEquals("QueryPostProcessor", m.unclaimedSections().get(0).name());
     }
 
     @Test
@@ -84,10 +88,10 @@ class SectionGrammarRegistryTest {
     @Test
     void registeringAGrammarIsHowToleranceIsSpelled() {
         // the escape hatch is EXPLICIT: ###Toy is accepted only because a
-        // grammar claims it (above), while ###Diagram is refused (below).
+        // grammar claims it (above), while ###QueryPostProcessor is refused.
         // There is no third state where we accept without reading.
         assertTrue(SectionGrammarRegistry.lookup("Toy").isPresent());
-        assertTrue(SectionGrammarRegistry.lookup("Diagram").isEmpty());
+        assertTrue(SectionGrammarRegistry.lookup("QueryPostProcessor").isEmpty());
         assertEquals(1, ElementParser.parse("Class my::A { a: String[1]; }")
                 .elements().size(), "a section-free file is unaffected");
     }

@@ -98,9 +98,16 @@ public final class SectionGrammarRegistry {
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
                         "ServiceStore", java.util.Set.of("ServiceStore")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "MongoDB", java.util.Set.of("Database"))}) {
+                        "MongoDB", java.util.Set.of("Database")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "Deephaven", java.util.Set.of("Deephaven",
+                                "DeephavenApp"))}) {
             m.put(g.name(), g);
         }
+        // the first RAW built-in: Diagram content never reaches the shared
+        // lexer; the grammar walks characters
+        m.put("Diagram",
+                com.legend.parser.section.DiagramSectionGrammar.INSTANCE);
         // ServiceLoader overlays — registered LAST so an extension claiming
         // a built-in name WINS (the engine's own shadowing rule: that is
         // exactly what lets legend-lite drop into the engine's ###Pure)

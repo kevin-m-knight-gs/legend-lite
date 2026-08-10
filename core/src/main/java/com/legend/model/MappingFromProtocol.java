@@ -49,7 +49,7 @@ public final class MappingFromProtocol {
 
     /** A protocol shape this transform has not yet learned. Carries the
      *  wire's own vocabulary so the census and the caller agree on names. */
-    public static final class UnsupportedMappingShape extends RuntimeException {
+    public static class UnsupportedMappingShape extends RuntimeException {
         private static final long serialVersionUID = 1L;
 
         private final String reason;
@@ -447,7 +447,17 @@ public final class MappingFromProtocol {
         return vs.get(0);
     }
 
-    private static ClassMapping relational(Protocol.PClassMappingRel rel) {
+    private static @com.legend.Nullable ClassMapping relational(
+            Protocol.PClassMappingRel rel) {
+        try {
+            return relationalInner(rel);
+        } catch (MissingDatabase md) {
+            // database inference (legend-pure) is unbuilt — skip, carried
+            return null;
+        }
+    }
+
+    private static ClassMapping relationalInner(Protocol.PClassMappingRel rel) {
         LegacyMappingDefinition.TableReference mainTable = rel.mainTable() == null
                 ? null
                 : new LegacyMappingDefinition.TableReference(
@@ -674,8 +684,22 @@ public final class MappingFromProtocol {
      *  them what to type. The legacy parser's messages set that bar. */
     private static String require(@com.legend.Nullable String v, String what) {
         if (v == null) {
-            throw new UnsupportedMappingShape(what);
+            throw what.contains("requires a database")
+                    ? new MissingDatabase(what)
+                    : new UnsupportedMappingShape(what);
         }
         return v;
+    }
+
+    /** The PRE-{@code ~mainTable} legend-pure shape: dotted column refs
+     *  with NO database anywhere — legend-pure infers the store at compile;
+     *  lite's database-inference leg is unbuilt, so the class mapping is
+     *  SKIPPED (carried on protocol) rather than refusing the file. */
+    static final class MissingDatabase extends UnsupportedMappingShape {
+        private static final long serialVersionUID = 1L;
+
+        MissingDatabase(String message) {
+            super(message);
+        }
     }
 }

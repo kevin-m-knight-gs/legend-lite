@@ -105,6 +105,9 @@ public final class ProtocolEmitter {
                     "###" + ge.section() + " wire emission (harness scope not"
                             + " claimed)",
                     ge.qualifiedName());
+            case Protocol.PDiagram dg -> require(false,
+                    "diagram wire emission (harness scope not claimed)",
+                    dg.qualifiedName());
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");
@@ -728,6 +731,9 @@ public final class ProtocolEmitter {
                 srcInfo(b, mc.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PForeignConnection fc ->
+                    require(false, "foreign connection flavor '" + fc.kind()
+                            + "' wire emission (no claim)", "connection");
             case Protocol.PRelationalDatabaseConnection rc -> {
                 b.append("{\"_type\":\"RelationalDatabaseConnection\","
                         + "\"authenticationStrategy\":");

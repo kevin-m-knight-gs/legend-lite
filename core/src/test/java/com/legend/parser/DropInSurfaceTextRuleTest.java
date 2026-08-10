@@ -72,7 +72,11 @@ class DropInSurfaceTextRuleTest {
             // section is raw-skipped by the lexer, so its SectionSource text
             // has no token form to read from — the raw slice IS the SPI
             // contract (Phase M step 2)
-            "parser/ElementParser.java", 5,
+            // 5 -> 6 (2026-08-09, Diagram RAW grammar): a raw-skipped
+            // section's text has no token form — the SectionSource handoff
+            // to a RawSectionGrammar is the same necessity as the OVERLAY
+            // handoff above.
+            "parser/ElementParser.java", 6,
             // reconstructText itself — MOVED here from ElementParser
             // (2026-08-09, Runtime migration) so section grammars outside
             // com.legend.parser can extract island chunks; the one source

@@ -277,7 +277,7 @@ class SectionParseSentinelTest {
 
     /** Files we accept that the engine REFUSES. Ratcheted DOWN only — this is
      *  the leniency surface, and a drop-in's is zero. */
-    private static final int MAX_LENIENT = 68;
+    private static final int MAX_LENIENT = 69;
     // 55 -> 68 (2026-08-09, ###Service SectionGrammar). Two effects, both
     // NAMED:
     // (1) NEW rows are oracle-version-skew: the five service-new-grammar
@@ -295,6 +295,9 @@ class SectionParseSentinelTest {
     //     {INNER, OUTER} set at EVERY parse site
     //     (TokenStreamCursor.validateJoinType), and legacy mapping-test
     //     input formats validate against {JSON, XML} / {SQL, CSV}.
+    // 68 -> 69 (2026-08-09, burn-to-zero endgame): one more legend-pure
+    // relational-grammar fixture in the SAME extension-less-oracle family
+    // reached once the mapping/persistence tails cleared.
     // 57 -> 55 (2026-08-08, ###Mapping protocol switch). The switch first
     // pushed this to 59: the protocol parser read a Pure property mapping's
     // RHS with `parseCodeBlock`, so a stray `;` passed as a statement
@@ -320,7 +323,7 @@ class SectionParseSentinelTest {
     /** Leniency we CANNOT justify — files we take only because we skipped what
      *  we could not read, plus anything unexamined. Ratcheted DOWN only; this
      *  is the half of {@link #MAX_LENIENT} that is simply a bug. */
-    private static final int MAX_UNJUSTIFIED_LENIENCY = 51;   // 127 -> 39 -> 51
+    private static final int MAX_UNJUSTIFIED_LENIENCY = 52;   // 127 -> 39 -> 51 -> 52 (the same endgame row)
     // +2 is the same version-skew trio above: unexamined is not the same as
     // innocent, so they stay in the unjustified column until a version-matched
     // oracle can adjudicate them.

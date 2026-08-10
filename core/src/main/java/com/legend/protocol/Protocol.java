@@ -42,7 +42,7 @@ public final class Protocol {
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
             PService, PExecutionEnvironment, PDataSpace,
             PPersistence, PPersistenceContext, PSnowflakeActivator,
-            PGenericSectionElement,
+            PGenericSectionElement, PDiagram,
             PMapping, PDataElement {
     }
 
@@ -1047,6 +1047,17 @@ public final class Protocol {
         }
     }
 
+    /** A {@code ###Diagram} Diagram element — envelope + RAW body (a
+     *  diagram is presentation metadata; its content never reaches the
+     *  shared lexer). No wire shape claimed; emission walls. */
+    public record PDiagram(String pkg, String name, String bodySource,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
     /** An element from one of the small keyed sections (see
      *  {@code GenericKeyedSectionGrammar}) — keyed field values or a raw
      *  paren body, as written. No wire shape claimed; emission walls. */
@@ -1130,7 +1141,15 @@ public final class Protocol {
     public sealed interface PConnectionValue
             permits PConnectionPointer, PJsonModelConnection,
             PXmlModelConnection, PModelChainConnection,
-            PRelationalDatabaseConnection {
+            PRelationalDatabaseConnection, PForeignConnection {
+    }
+
+    /** A censused FOREIGN connection flavor (ServiceStoreConnection /
+     *  DeephavenConnection / MongoDBConnection) — kind + RAW body; no wire
+     *  claim (emission walls), model carries it generically. */
+    public record PForeignConnection(String kind, String bodySource,
+                                     com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
     }
 
     /** {@code _type:"connectionPointer"}. */

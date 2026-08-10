@@ -154,6 +154,26 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     standalone);
             case "RelationalDatabaseConnection" ->
                     parseRelationalConnectionBody(c, declStart);
+            // censused FOREIGN flavors — kind + RAW body, carried; the
+            // emitter WALLS them
+            case "ServiceStoreConnection", "DeephavenConnection",
+                    "MongoDBConnection" -> {
+                int bs = c.pos();
+                c.expect(TokenType.BRACE_OPEN);
+                int depth = 1;
+                while (!c.atEnd() && depth > 0) {
+                    TokenType t = c.peek();
+                    if (t == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (t == TokenType.BRACE_CLOSE) {
+                        depth--;
+                    }
+                    c.advance();
+                }
+                yield new Protocol.PForeignConnection(flavor,
+                        c.reconstructText(bs, c.pos()),
+                        c.spanOf(declStart, c.pos() - 1));
+            }
             default -> throw c.error("unsupported connection flavor: " + flavor);
         };
     }
