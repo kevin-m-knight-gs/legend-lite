@@ -76,6 +76,7 @@ class CodeShapeGuardrailTest {
             "ConnectionSectionGrammar.pos",
             "RuntimeSectionGrammar.pos",
             "ServiceSectionGrammar.pos",
+            "DataSpaceSectionGrammar.pos",
             // parse-surface MODE, set once at construction by the factory that owns
             // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
             "ElementParser.legendStrict",

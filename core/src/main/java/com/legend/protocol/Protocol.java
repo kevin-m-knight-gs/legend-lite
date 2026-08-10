@@ -40,7 +40,7 @@ public final class Protocol {
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
-            PService, PExecutionEnvironment,
+            PService, PExecutionEnvironment, PDataSpace,
             PMapping, PDataElement {
     }
 
@@ -917,6 +917,52 @@ public final class Protocol {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
         }
+    }
+
+    /**
+     * A {@code ###DataSpace} DataSpace element, corpus-censused scope. Like
+     * {@link PService}: exists for the parse/transform seam; NO wire shape
+     * claimed, emission walls.
+     */
+    public record PDataSpace(String pkg, String name,
+                             List<PStereotype> stereotypes,
+                             List<PTaggedValue> taggedValues,
+                             List<PDataSpaceContext> executionContexts,
+                             @com.legend.Nullable String defaultExecutionContext,
+                             @com.legend.Nullable String title,
+                             @com.legend.Nullable String description,
+                             List<PDataSpaceExecutable> executables,
+                             List<PDataSpaceDiagram> diagrams,
+                             @com.legend.Nullable String supportInfoSource,
+                             List<String> elements,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One dataspace execution context. */
+    public record PDataSpaceContext(String name,
+                                    @com.legend.Nullable String title,
+                                    @com.legend.Nullable String description,
+                                    String mapping, String defaultRuntime,
+                                    @com.legend.Nullable String testDataSource) {
+    }
+
+    /** One dataspace executable (path form or inline-query form). */
+    public record PDataSpaceExecutable(@com.legend.Nullable String id,
+                                       String title,
+                                       @com.legend.Nullable String description,
+                                       @com.legend.Nullable String executable,
+                                       @com.legend.Nullable String querySource,
+                                       @com.legend.Nullable String executionContextKey) {
+    }
+
+    /** One dataspace diagram reference. */
+    public record PDataSpaceDiagram(String title,
+                                    @com.legend.Nullable String description,
+                                    String diagram) {
     }
 
     /**

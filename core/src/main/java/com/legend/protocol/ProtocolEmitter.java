@@ -87,6 +87,9 @@ public final class ProtocolEmitter {
                     "execution-environment wire emission (harness scope not"
                             + " claimed)",
                     ee.qualifiedName());
+            case Protocol.PDataSpace ds -> require(false,
+                    "dataspace wire emission (harness scope not claimed)",
+                    ds.qualifiedName());
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");

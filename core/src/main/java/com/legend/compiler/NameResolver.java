@@ -333,6 +333,8 @@ public final class NameResolver {
                         : ee;
             }
             case ConnectionDefinition cd -> resolveConnection(cd, scope);
+            case com.legend.model.DataSpaceDefinition ds ->
+                    resolveDataSpace(ds, scope);
             case com.legend.model.ModelConnectionDefinition mc -> {
                 String cls = resolveName(mc.className(), scope);
                 yield cls.equals(mc.className()) ? mc
@@ -1213,6 +1215,45 @@ public final class NameResolver {
                 sd.documentation(), mappingRef, runtimeRef,
                 sd.testSuitesSource(), sd.owners(), sd.autoActivateUpdates(),
                 multi, sd.testSource());
+    }
+
+    private static com.legend.model.DataSpaceDefinition resolveDataSpace(
+            com.legend.model.DataSpaceDefinition ds, Scope scope) {
+        var contexts = new java.util.ArrayList<com.legend.model
+                .DataSpaceDefinition.ExecutionContext>(
+                        ds.executionContexts().size());
+        boolean changed = false;
+        for (var ctx : ds.executionContexts()) {
+            String m = resolveName(ctx.mapping(), scope);
+            String r = resolveName(ctx.defaultRuntime(), scope);
+            changed |= !m.equals(ctx.mapping())
+                    || !r.equals(ctx.defaultRuntime());
+            contexts.add(new com.legend.model.DataSpaceDefinition
+                    .ExecutionContext(ctx.name(), ctx.title(),
+                            ctx.description(), m, r, ctx.testDataSource()));
+        }
+        var executables = new java.util.ArrayList<com.legend.model
+                .DataSpaceDefinition.Executable>(ds.executables().size());
+        for (var e : ds.executables()) {
+            String ex = e.executable() == null ? null
+                    : resolveName(e.executable(), scope);
+            changed |= !Objects.equals(ex, e.executable());
+            executables.add(new com.legend.model.DataSpaceDefinition
+                    .Executable(e.id(), e.title(), e.description(), ex,
+                            e.querySource(), e.executionContextKey()));
+        }
+        var diagrams = new java.util.ArrayList<com.legend.model
+                .DataSpaceDefinition.Diagram>(ds.diagrams().size());
+        for (var g : ds.diagrams()) {
+            String d = resolveName(g.diagram(), scope);
+            changed |= !d.equals(g.diagram());
+            diagrams.add(new com.legend.model.DataSpaceDefinition
+                    .Diagram(g.title(), g.description(), d));
+        }
+        return changed ? new com.legend.model.DataSpaceDefinition(
+                ds.qualifiedName(), contexts, ds.defaultExecutionContext(),
+                ds.title(), ds.description(), executables, diagrams,
+                ds.supportInfoSource(), ds.elements()) : ds;
     }
 
     private static ConnectionDefinition resolveConnection(

@@ -92,9 +92,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
-| MATCHED | 924 | was 875 before the Connection+Runtime+Service migrations |
+| MATCHED | 944 | was 875 before the Connection+Runtime+Service+DataSpace migrations |
 | LENIENT | 68 | we accept, reference refuses — rose 55 → 68 with the Service claim, ADJUDICATED: oracle-version-skew rows (5.88.1 jars vs 5.92.1 corpus) now visible instead of masked behind section refusals; the two genuinely-ours unmasked leniencies (join-type case, mapping-test input format) were FIXED, not absorbed |
-| DEFECT | **122** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime, −20 Service) |
+| DEFECT | **102** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime, −20 Service, −20 DataSpace) |
 
 ## 1.4 How to read those numbers without fooling yourself
 
@@ -206,7 +206,7 @@ Defects attributed to the section they OCCUR in; sums to 184.
 | 3 | **Connection** | 3 | 0 | 0 | **first real `SectionGrammar`** (2026-08-09); twin deleted; widening LANDED (Snowflake/Spanner/Databricks/BigQuery specs, SnowflakePublic/GCP/ApiToken/MiddleTier auths, quoteIdentifiers — probed byte-exact, +15 MATCH, −30 WALL); left: foreign flavors only (Deephaven 2, MongoDB 1) |
 | 4 | **Service** | 0 | 0 | **135** | **real `SectionGrammar`** (2026-08-09): Single AND Multi executions, embedded anonymous runtimes (raw), owners/title/ownership/postValidations, ExecutionEnvironment elements; twin deleted; oos stays (no wire shape claimed — `PService` emission walls) |
 | 5 | **Mapping** | 25 | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
-| 6 | DataSpace | 13 | 0 | 51 | unbuilt |
+| 6 | DataSpace | 0 | 0 | 51 | **real `SectionGrammar`** (2026-08-09): contexts/executables/diagrams typed, testData+supportInfo raw; no wire shape claimed |
 | 7 | Snowflake | 6 | 0 | 31 | unbuilt |
 | 8 | Diagram | 5 | 0 | 17 | carried opaque |
 | 9 | Runtime | 0 | 0 | 0 | **real `SectionGrammar`** (2026-08-09); twins deleted; multi-binding + embedded islands + connectionStores all parse |

@@ -527,6 +527,34 @@ public final class FromProtocol {
         return out;
     }
 
+    /** A {@code ###DataSpace} element to its model form. Decorations ride
+     *  the protocol record only. */
+    public static DataSpaceDefinition toDataSpaceDefinition(Protocol.PDataSpace d) {
+        java.util.List<DataSpaceDefinition.ExecutionContext> contexts =
+                new ArrayList<>(d.executionContexts().size());
+        for (Protocol.PDataSpaceContext ctx : d.executionContexts()) {
+            contexts.add(new DataSpaceDefinition.ExecutionContext(ctx.name(),
+                    ctx.title(), ctx.description(), ctx.mapping(),
+                    ctx.defaultRuntime(), ctx.testDataSource()));
+        }
+        java.util.List<DataSpaceDefinition.Executable> executables =
+                new ArrayList<>(d.executables().size());
+        for (Protocol.PDataSpaceExecutable e : d.executables()) {
+            executables.add(new DataSpaceDefinition.Executable(e.id(),
+                    e.title(), e.description(), e.executable(),
+                    e.querySource(), e.executionContextKey()));
+        }
+        java.util.List<DataSpaceDefinition.Diagram> diagrams =
+                new ArrayList<>(d.diagrams().size());
+        for (Protocol.PDataSpaceDiagram g : d.diagrams()) {
+            diagrams.add(new DataSpaceDefinition.Diagram(g.title(),
+                    g.description(), g.diagram()));
+        }
+        return new DataSpaceDefinition(d.qualifiedName(), contexts,
+                d.defaultExecutionContext(), d.title(), d.description(),
+                executables, diagrams, d.supportInfoSource(), d.elements());
+    }
+
     private static ConnectionDefinition toRelationalConnection(String qualifiedName,
             Protocol.PRelationalDatabaseConnection r) {
         ConnectionDefinition.DatabaseType type;

@@ -62,6 +62,8 @@ public final class SectionGrammarRegistry {
                 com.legend.parser.section.RuntimeSectionGrammar.INSTANCE);
         m.put("Service",
                 com.legend.parser.section.ServiceSectionGrammar.INSTANCE);
+        m.put("DataSpace",
+                com.legend.parser.section.DataSpaceSectionGrammar.INSTANCE);
         // ServiceLoader overlays — registered LAST so an extension claiming
         // a built-in name WINS (the engine's own shadowing rule: that is
         // exactly what lets legend-lite drop into the engine's ###Pure)
