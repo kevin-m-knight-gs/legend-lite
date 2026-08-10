@@ -180,6 +180,31 @@ public interface TokenStreamCursor {
         return tokens().text(pos());
     }
 
+    /**
+     * ENGINE-STRICT mode: the drop-in surface refuses the pure-dialect
+     * constructs engine's PureGrammarParser refuses (generics, function-type
+     * literals, {@code native function}, {@code .allVersionsInRange}, m2
+     * forms), each with the engine's own message. {@code false} — the
+     * pure-mode default — keeps legend-lite's full dialect: the internal
+     * pipeline and the legend-pure corpora parse the superset. Overridden
+     * by parsers that carry the mode ({@code ElementParser.at/parseStrict}
+     * and the parsers they construct).
+     */
+    default boolean legendStrict() {
+        return false;
+    }
+
+    /** Token texts {@code [fromTok, toTok]} joined with NO separators —
+     *  the same rendering as ANTLR's {@code ctx.getText()}, which the
+     *  engine uses to compose its refusal messages. */
+    default String compactText(int fromTok, int toTok) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = fromTok; i <= toTok && i < tokens().count(); i++) {
+            sb.append(tokens().text(i));
+        }
+        return sb.toString();
+    }
+
     /** Source text of the token under the cursor, or {@code "<EOF>"}
      *  if the cursor is past end. Used in error messages. */
     default String safeText() {
@@ -923,6 +948,7 @@ public interface TokenStreamCursor {
 
     /** {@code {Type[mult], ... -> Type[mult]}}. */
     private TypeExpression parseFunctionType() {
+        int startTok = pos();
         expect(TokenType.BRACE_OPEN);
         List<TypeExpression.TypedParameter> params = new ArrayList<>();
         if (peek() != TokenType.ARROW) {
@@ -935,6 +961,12 @@ public interface TokenStreamCursor {
         TypeExpression resultType = parseType();
         Multiplicity resultMult = parseMultiplicity();
         expect(TokenType.BRACE_CLOSE);
+        if (legendStrict()) {
+            // engine-verbatim refusal (dialect quarantine): function-type
+            // literals are pure-dialect only
+            throw error("The type " + compactText(startTok, pos() - 1)
+                    + " is not supported yet");
+        }
         return new TypeExpression.FunctionType(
                 params,
                 new TypeExpression.TypedParameter(resultType, resultMult));

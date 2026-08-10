@@ -180,6 +180,11 @@ public final class ElementParser implements TokenStreamCursor {
      *  internal pipeline. */
     private boolean legendStrict;
 
+    @Override
+    public boolean legendStrict() {
+        return legendStrict;
+    }
+
     public static ElementParser at(TokenStream tokens, int tokenIndex) {
         ElementParser p = new ElementParser(tokens);
         p.pos = tokenIndex;
@@ -374,7 +379,7 @@ public final class ElementParser implements TokenStreamCursor {
                         sk.name(), tokens.source().substring(sk.startOffset(),
                                 sk.endOffset()),
                         sk.startOffset(), sk.endOffset(),
-                        tokens.lineOf(sk.startOffset())));
+                        tokens.lineOf(sk.startOffset())), legendStrict);
                 ImportScope.Builder scope = new ImportScope.Builder();
                 for (String imp : parsed.imports()) {
                     scope.add(imp);
@@ -486,7 +491,7 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement dataElement() {
         int start = pos;
         com.legend.protocol.Protocol.PDataElement de =
-                MappingProtocolParser.parseData(tokens, start);
+                MappingProtocolParser.parseData(tokens, start, legendStrict);
         advance();                                  // 'Data'
         parseDecorations();
         parseQualifiedName();
@@ -584,6 +589,11 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** PROTOCOL-FIRST for {@code native Class}; the function arm is not. */
     private PackageableElement nativeElement() {
+        if (legendStrict) {
+            // engine-verbatim (dialect quarantine): `native` declarations
+            // are pure-dialect only — the engine grammar has no arm for them
+            throw error("Unsupported syntax");
+        }
         advance();                                  // consume 'native'
         return switch (peek()) {
             case CLASS -> classElement(true);
@@ -621,7 +631,8 @@ public final class ElementParser implements TokenStreamCursor {
         int sectionLine = tokens.sectionContentLine("Mapping", tokens.start(pos));
         try {
             com.legend.protocol.Protocol.PMapping m =
-                    MappingProtocolParser.parse(tokens, pos, sectionLine, endOut);
+                    MappingProtocolParser.parse(tokens, pos, sectionLine,
+                            endOut, legendStrict);
             pos = endOut[0];
             return com.legend.model.MappingFromProtocol.toMappingElement(m);
         } catch (com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
@@ -692,8 +703,9 @@ public final class ElementParser implements TokenStreamCursor {
 
         List<String> typeParams = parseClassTypeParams();
         if (legendStrict && !typeParams.isEmpty()) {
-            throw error("Type and/or multiplicity parameters are not authorized in Legend"
-                    + " (rejection corpus; legend-lite's own dialect keeps them)");
+            // engine-verbatim (dialect quarantine): pure mode keeps them
+            throw error("Type and/or multiplicity parameters are not"
+                    + " authorized in Legend Engine");
         }
 
         // PROJECTION class: `Class X projects Y { > name [expr] | +[props]
@@ -844,7 +856,7 @@ public final class ElementParser implements TokenStreamCursor {
                 else if (t == TokenType.BRACE_CLOSE) depth--;
                 if (depth > 0) advance();
             }
-            body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
+            body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), legendStrict);
             expect(TokenType.BRACE_CLOSE);
         }
 
@@ -974,7 +986,7 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 advance();
             }
-            ValueSpecification fn = SpecParser.parse(tokens.slice(fnStart, pos));
+            ValueSpecification fn = SpecParser.parse(tokens.slice(fnStart, pos), legendStrict);
             // trailing ~key: value sections — ~message (an EXPRESSION over
             // $this) and ~enforcementLevel feed the validation projection
             // (#45); others parse and drop (engine: instantiation concerns)
@@ -1005,10 +1017,10 @@ public final class ElementParser implements TokenStreamCursor {
                     advance();
                 }
                 if (kw2.equals("message")) {
-                    message = SpecParser.parse(tokens.slice(vStart, pos));
+                    message = SpecParser.parse(tokens.slice(vStart, pos), legendStrict);
                 } else if (kw2.equals("enforcementLevel")) {
                     ValueSpecification lv =
-                            SpecParser.parse(tokens.slice(vStart, pos));
+                            SpecParser.parse(tokens.slice(vStart, pos), legendStrict);
                     level = enforcementLevelName(lv);
                 }
             }
@@ -1041,7 +1053,7 @@ public final class ElementParser implements TokenStreamCursor {
         if (pos == bodyStart) {
             throw error("empty constraint expression for '" + name + "'");
         }
-        ValueSpecification expression = SpecParser.parse(tokens.slice(bodyStart, pos));
+        ValueSpecification expression = SpecParser.parse(tokens.slice(bodyStart, pos), legendStrict);
         // Door 4: `[name: some::fn]` binds the constraint to a predicate
         // function; any other expression is the sugar (inline) predicate.
         // Engine convention: the span covers `name: expr`, name inclusive.
@@ -1302,8 +1314,9 @@ public final class ElementParser implements TokenStreamCursor {
         List<String> multParams = new ArrayList<>();
         parseTypeAndMultiplicityParameters(typeParams, multParams);
         if (legendStrict && (!typeParams.isEmpty() || !multParams.isEmpty())) {
-            throw error("Type and/or multiplicity parameters are not authorized in Legend"
-                    + " (rejection corpus; legend-lite's own dialect keeps them)");
+            // engine-verbatim (dialect quarantine): pure mode keeps them
+            throw error("Type and/or multiplicity parameters are not"
+                    + " authorized in Legend Engine");
         }
         expect(TokenType.PAREN_OPEN);
         List<com.legend.protocol.ParameterDefinition> params = new ArrayList<>();
@@ -1403,7 +1416,7 @@ public final class ElementParser implements TokenStreamCursor {
                     }
                     advance();
                 }
-                body = SpecParser.parse(tokens.slice(bodyStart, pos));
+                body = SpecParser.parse(tokens.slice(bodyStart, pos), legendStrict);
             }
             expect(TokenType.SEMI_COLON);
             if (starred) {
@@ -1451,7 +1464,7 @@ public final class ElementParser implements TokenStreamCursor {
             else if (t == TokenType.BRACE_CLOSE) depth--;
             if (depth > 0) advance();
         }
-        List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
+        List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), legendStrict);
         expect(TokenType.BRACE_CLOSE);
 
         // Optional TEST-SUITE block: `function f(...) { body } { suite... }` (legend-testable).
@@ -1888,7 +1901,7 @@ public final class ElementParser implements TokenStreamCursor {
             int idx = params.size();
             params.add(new com.legend.protocol.Protocol.PTestParam(
                     idx < sig.params().size() ? sig.params().get(idx).name() : null,
-                    SpecParser.parse(tokens.slice(vStart, pos)),
+                    SpecParser.parse(tokens.slice(vStart, pos), legendStrict),
                     spanOf(vStart, pos - 1)));
         }
         expect(TokenType.PAREN_CLOSE);
@@ -1927,7 +1940,7 @@ public final class ElementParser implements TokenStreamCursor {
                 advance();
             }
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualTo(
-                    SpecParser.parse(tokens.slice(eStart, pos)), spanOf(eStart, pos - 1));
+                    SpecParser.parse(tokens.slice(eStart, pos), legendStrict), spanOf(eStart, pos - 1));
         }
         expect(TokenType.SEMI_COLON);
         return new com.legend.protocol.Protocol.PFunctionTest(testId,
@@ -2388,7 +2401,7 @@ public final class ElementParser implements TokenStreamCursor {
             }
             ValueSpecification value;
             try {
-                value = SpecParser.parse(tokens.slice(defStart, pos));
+                value = SpecParser.parse(tokens.slice(defStart, pos), legendStrict);
             } catch (ParseException unsupportedExpression) {
                 value = null;   // parser stays total; the emitter walls on the null, loudly
             }

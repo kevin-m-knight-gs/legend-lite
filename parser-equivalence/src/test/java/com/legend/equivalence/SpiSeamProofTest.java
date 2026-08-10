@@ -191,8 +191,11 @@ class SpiSeamProofTest {
      *  accepts. Distinct from {@code MAX_LENIENT_ACCEPTS}: that bounds the SPI
      *  BRIDGE (a site scanner that skips unrecognised tokens); this bounds the
      *  strict parser surface itself. Ratcheted DOWN only; the two converge as
-     *  the bridge goes total. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 749;
+     *  the bridge goes total. 749 -> 302 when the dialect quarantine landed
+     *  (StrictDialectParityTest): every DIALECT row now refuses on the strict
+     *  surface; the remainder is EXTENSION/VERSION-SKEW/ORACLE-DEFECT rows,
+     *  which the oracle-jar upgrade re-adjudicates. */
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 302;
     // 742 -> 743 (2026-08-09, Measure element wired): m2m/tests/legend/
     // unitMeasure.pure — an engine PLATFORM source legend-pure compiles in
     // production — now parses to its Measure instead of dying there; the

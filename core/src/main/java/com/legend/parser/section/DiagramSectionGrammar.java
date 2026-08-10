@@ -46,6 +46,12 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     @Override
     public LexableSectionGrammar.ParsedSection parseRaw(
             com.legend.spi.SectionSource src) {
+        return parseRaw(src, false);
+    }
+
+    @Override
+    public LexableSectionGrammar.ParsedSection parseRaw(
+            com.legend.spi.SectionSource src, boolean legendStrict) {
         Raw r = new Raw(src.text(), src.startLine());
         List<LexableSectionGrammar.ParsedElement> elements = new ArrayList<>();
         List<String> imports = new ArrayList<>();
@@ -60,7 +66,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             }
             int elOffset = r.i;
             elements.add(new LexableSectionGrammar.ParsedElement(
-                    parseDiagram(r), elOffset));
+                    parseDiagram(r, legendStrict), elOffset));
         }
         return new LexableSectionGrammar.ParsedSection(elements, imports);
     }
@@ -72,7 +78,8 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 "Diagram", d.qualifiedName(), java.util.Map.of(), null);
     }
 
-    private static Protocol.PDiagram parseDiagram(Raw r) {
+    private static Protocol.PDiagram parseDiagram(Raw r,
+            boolean legendStrict) {
         int[] start = r.mark();
         r.expectWord("Diagram");
         r.skipWs();
@@ -108,6 +115,11 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 // need acceptance)
                 case "TypeView", "AssociationView", "PropertyView",
                         "GeneralizationView" -> {
+                    if (legendStrict) {
+                        // dialect quarantine: the engine grammar has no m2
+                        // view arms — the strict surface refuses like it does
+                        throw r.fail("Unexpected token '" + kw + "'");
+                    }
                     r.skipWs();
                     r.segment();
                     r.skipWs();

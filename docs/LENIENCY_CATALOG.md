@@ -20,13 +20,31 @@ VERSION-SKEW-grammar=79`. Per-class prose below keeps the sub-construct
 evidence; where prose counts differ slightly from the classifier's
 (message-keyed) buckets, the classifier is authoritative.
 
+## The two surfaces (dialect quarantine, 2026-08-10)
+
+legend-lite parses through TWO modes on one parser
+(`TokenStreamCursor.legendStrict()`):
+
+- **ENGINE-STRICT** (`ElementParser.at`/`parseStrict` — the drop-in
+  surface, all user code): refuses every DIALECT construct below with the
+  engine's own message. Rejection parity is EXECUTABLE:
+  `StrictDialectParityTest` re-parses the corpus and asserts every
+  DIALECT-classified row ALSO refuses here (707 rows, 0 leaks), and
+  `SpiSeamProofTest` ratchets the strict surface's residual leniency
+  (302 = EXTENSION + VERSION-SKEW + ORACLE-DEFECT rows only).
+- **PURE MODE** (`ElementParser.parse` — the internal pipeline and the
+  legend-pure corpora): the superset dialect. The DIALECT rows below are
+  therefore NOT leniency on the product surface; they are pure-mode
+  features — legend-lite's reimplemented legend-pure (Pure.java natives,
+  typer/lowerer semantics), whose parsing the corpus gates exercise.
+
 ## Classes
 
-### DIALECT-GAP — engine subsets legend-pure (~660 rows)
+### DIALECT-GAP — pure-mode features, strict-refused (~707 rows)
 The engine's own grammar explicitly refuses constructs that legend-pure
-requires and compiles in production. legend-lite sits between the two
-dialects (the blend thesis); the corpus decides acceptance. Sub-classes,
-each keyed by the ENGINE'S OWN refusal message:
+requires and compiles in production. Pure mode accepts them; the strict
+surface refuses each with the ENGINE'S OWN message (the classifier keys
+below). Sub-classes:
 - **Generics** (~300): `Type and/or multiplicity parameters are not
   authorized in Legend Engine` — `Class A<T>` etc. The engine names its
   own subset.
@@ -103,5 +121,8 @@ validation and five persistence negatives (pre-W2).
 - A row may only enter DIALECT-GAP/VERSION-SKEW on the engine's own
   message or a verified construct; "we are a superset" is never accepted
   as a justification by itself.
+- Every DIALECT row must REFUSE on the strict surface
+  (`StrictDialectParityTest`) — a dialect construct reachable from
+  `parseStrict` is a quarantine leak and fails the build.
 - When the oracle is upgraded past 5.88.1, VERSION-SKEW must shrink to
   zero; rows that remain get re-adjudicated.

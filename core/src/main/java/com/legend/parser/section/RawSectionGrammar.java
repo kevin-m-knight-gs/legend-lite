@@ -22,8 +22,17 @@ public interface RawSectionGrammar extends com.legend.spi.SectionGrammar {
     }
 
     /** Parse one raw section occurrence into protocol elements with
-     *  SECTION-RELATIVE start offsets. */
+     *  SECTION-RELATIVE start offsets — the PURE-MODE entry (full dialect). */
     LexableSectionGrammar.ParsedSection parseRaw(com.legend.spi.SectionSource src);
+
+    /** As {@link #parseRaw(com.legend.spi.SectionSource)} with the parse
+     *  mode ({@code TokenStreamCursor#legendStrict()}): strict refuses
+     *  pure-dialect-only forms (m2 diagram views). The default ignores the
+     *  mode — for grammars whose section has no dialect split. */
+    default LexableSectionGrammar.ParsedSection parseRaw(
+            com.legend.spi.SectionSource src, boolean legendStrict) {
+        return parseRaw(src);
+    }
 
     /** Transform one parsed element into the model. */
     com.legend.model.PackageableElement toModel(Protocol.Element element);

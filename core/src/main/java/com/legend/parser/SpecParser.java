@@ -211,13 +211,21 @@ public final class SpecParser implements TokenStreamCursor {
     private final TokenStream tokens;
     private int pos;
 
-    private SpecParser(TokenStream tokens) {
-        this(tokens, "");
+    /** See {@link TokenStreamCursor#legendStrict()} — body-level dialect
+     *  constructs ({@code .allVersionsInRange}, function-type literals)
+     *  gate on it. */
+    private final boolean legendStrict;
+
+    @Override
+    public boolean legendStrict() {
+        return legendStrict;
     }
 
-    private SpecParser(TokenStream tokens, String spanSourceId) {
+    private SpecParser(TokenStream tokens, String spanSourceId,
+            boolean legendStrict) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.spanSourceId = spanSourceId;
+        this.legendStrict = legendStrict;
     }
 
     /** Mapping test-suite query lambdas carry the MAPPING's path as the
@@ -245,7 +253,14 @@ public final class SpecParser implements TokenStreamCursor {
      * source location.
      */
     public static ValueSpecification parse(TokenStream tokens) {
-        SpecParser parser = new SpecParser(tokens);
+        return parse(tokens, false);
+    }
+
+    /** As {@link #parse(TokenStream)} with the parse mode carried through
+     *  ({@link TokenStreamCursor#legendStrict()}). */
+    public static ValueSpecification parse(TokenStream tokens,
+            boolean legendStrict) {
+        SpecParser parser = new SpecParser(tokens, "", legendStrict);
         ValueSpecification result = parser.parseProgramLine();
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after expression: "
@@ -277,13 +292,20 @@ public final class SpecParser implements TokenStreamCursor {
      * statement raise a fail-fast error.
      */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
-        return parseCodeBlock(tokens, "");
+        return parseCodeBlock(tokens, "", false);
     }
 
-    /** As {@link #parseCodeBlock(TokenStream)} with a span source id. */
+    /** As {@link #parseCodeBlock(TokenStream)} with the parse mode carried
+     *  through ({@link TokenStreamCursor#legendStrict()}). */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
-            String spanSourceId) {
-        SpecParser parser = new SpecParser(tokens, spanSourceId);
+            boolean legendStrict) {
+        return parseCodeBlock(tokens, "", legendStrict);
+    }
+
+    /** As above with a span source id (mapping test-suite lambdas). */
+    public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
+            String spanSourceId, boolean legendStrict) {
+        SpecParser parser = new SpecParser(tokens, spanSourceId, legendStrict);
         List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after code block: "
@@ -1120,11 +1142,18 @@ public final class SpecParser implements TokenStreamCursor {
 
     private AppliedFunction parseAllVersionsInRangeCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
+        int argsStart = pos;
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersionsInRange'");
         ValueSpecification start = parseMilestoningExpression();
         expect(TokenType.COMMA, "expected ',' between range endpoints in '.allVersionsInRange'");
         ValueSpecification end = parseMilestoningExpression();
         expect(TokenType.PAREN_CLOSE, "expected ')' to close '.allVersionsInRange(...)'");
+        if (legendStrict()) {
+            // engine-verbatim refusal (dialect quarantine): the range sweep
+            // is pure-dialect only
+            throw error(".allVersionsInRange" + compactText(argsStart, pos - 1)
+                    + " is not supported");
+        }
         return new AppliedFunction("getAllVersionsInRange",
                 List.of(new PackageableElementPtr(fqn, fqnSpan), start, end),
                 java.util.List.of(), spanOf(dotTok, pos - 1));
@@ -3317,7 +3346,7 @@ public final class SpecParser implements TokenStreamCursor {
 
     private ValueSpecification parseGraphFetchTree(String content) {
         TokenStream innerTokens = Lexer.tokenize(content);
-        SpecParser inner = new SpecParser(innerTokens);
+        SpecParser inner = new SpecParser(innerTokens, "", legendStrict);
         inner.parseQualifiedName();          // skip root class name
         ValueSpecification tree = inner.parseGraphDefinition(0);
         if (!inner.atEnd()) {
