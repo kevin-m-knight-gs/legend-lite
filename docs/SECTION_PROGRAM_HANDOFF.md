@@ -92,9 +92,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
-| MATCHED | 945 | was 875 at session start (Connection, Runtime, Service, DataSpace, Measure all landed 2026-08-09) |
-| LENIENT | 68 | we accept, reference refuses — rose 55 → 68 with the Service claim, ADJUDICATED: oracle-version-skew rows (5.88.1 jars vs 5.92.1 corpus) now visible instead of masked behind section refusals; the two genuinely-ours unmasked leniencies (join-type case, mapping-test input format) were FIXED, not absorbed |
-| DEFECT | **101** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime, −20 Service, −20 DataSpace, −1 Measure) |
+| MATCHED | 1,045 | was 875 at program start |
+| LENIENT | 69 | we accept, reference refuses — ADJUDICATED rows only: oracle-version-skew (5.88.1 jars vs 5.92.1 corpus) and engine-subsets-pure, each named next to the re-frozen ratchets; every genuinely-lite leniency found on the way to zero was FIXED, not absorbed (join-type case, mapping-test formats, five negative persistence fixtures) |
+| DEFECT | **0** | **ZERO (2026-08-09): the drop-in reads everything the reference reads.** Was 184 at session start. The burn-down is DONE; what remains is the WIRE-fidelity ledger (WALL 33 + OUT_OF_SCOPE) and the oracle-version-skew LENIENT rows that a jar upgrade retires. |
 
 ## 1.4 How to read those numbers without fooling yourself
 
