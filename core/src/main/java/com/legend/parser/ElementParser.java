@@ -373,7 +373,8 @@ public final class ElementParser implements TokenStreamCursor {
                 var parsed = raw.parseRaw(new com.legend.spi.SectionSource(
                         sk.name(), tokens.source().substring(sk.startOffset(),
                                 sk.endOffset()),
-                        sk.startOffset(), sk.endOffset()));
+                        sk.startOffset(), sk.endOffset(),
+                        tokens.lineOf(sk.startOffset())));
                 ImportScope.Builder scope = new ImportScope.Builder();
                 for (String imp : parsed.imports()) {
                     scope.add(imp);
@@ -401,7 +402,8 @@ public final class ElementParser implements TokenStreamCursor {
                 g.get().parse(new com.legend.spi.SectionSource(sk.name(),
                                 tokens.source().substring(sk.startOffset(),
                                         sk.endOffset()),
-                                sk.startOffset(), sk.endOffset()),
+                                sk.startOffset(), sk.endOffset(),
+                                tokens.lineOf(sk.startOffset())),
                         new OverlayElementSink(sk.name(), elements));
             }
         }

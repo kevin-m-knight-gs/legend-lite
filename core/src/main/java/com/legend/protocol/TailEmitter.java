@@ -510,6 +510,107 @@ final class TailEmitter {
         }
     }
 
+    static void diagram(StringBuilder b, Protocol.PDiagram d) {
+        b.append("{\"_type\":\"diagram\",\"classViews\":[");
+        for (int i = 0; i < d.classViews().size(); i++) {
+            Protocol.PClassView v = d.classViews().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"class\":");
+            ProtocolEmitter.str(b, v.classPath());
+            b.append(",\"classSourceInformation\":");
+            ProtocolEmitter.srcInfo(b, v.classSpan());
+            if (v.hideProperties() != null) {
+                b.append(",\"hideProperties\":").append(v.hideProperties());
+            }
+            if (v.hideStereotypes() != null) {
+                b.append(",\"hideStereotypes\":").append(v.hideStereotypes());
+            }
+            if (v.hideTaggedValues() != null) {
+                b.append(",\"hideTaggedValues\":")
+                        .append(v.hideTaggedValues());
+            }
+            b.append(",\"id\":");
+            ProtocolEmitter.str(b, v.id());
+            b.append(",\"position\":{\"x\":").append(v.x())
+                    .append(",\"y\":").append(v.y())
+                    .append("},\"rectangle\":{\"height\":").append(v.height())
+                    .append(",\"width\":").append(v.width())
+                    .append("},\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, v.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"generalizationViews\":[");
+        for (int i = 0; i < d.generalizationViews().size(); i++) {
+            Protocol.PGeneralizationView v = d.generalizationViews().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append('{');
+            diagramLine(b, v.points());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, v.sourceInformation());
+            diagramEnds(b, v.sourceView(), v.sourceViewSpan(),
+                    v.targetView(), v.targetViewSpan());
+            b.append('}');
+        }
+        b.append("],\"name\":");
+        ProtocolEmitter.str(b, d.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, d.pkg());
+        b.append(",\"propertyViews\":[");
+        for (int i = 0; i < d.propertyViews().size(); i++) {
+            Protocol.PPropertyView v = d.propertyViews().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append('{');
+            diagramLine(b, v.points());
+            b.append(",\"property\":{\"class\":");
+            ProtocolEmitter.str(b, v.propertyClass());
+            b.append(",\"property\":");
+            ProtocolEmitter.str(b, v.propertyName());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, v.propertySpan());
+            b.append("},\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, v.sourceInformation());
+            diagramEnds(b, v.sourceView(), v.sourceViewSpan(),
+                    v.targetView(), v.targetViewSpan());
+            b.append('}');
+        }
+        b.append("],\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, d.sourceInformation());
+        b.append('}');
+    }
+
+    private static void diagramLine(StringBuilder b,
+            List<Protocol.PDiagramPoint> points) {
+        b.append("\"line\":{\"points\":[");
+        for (int i = 0; i < points.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"x\":").append(points.get(i).x())
+                    .append(",\"y\":").append(points.get(i).y())
+                    .append('}');
+        }
+        b.append("]}");
+    }
+
+    private static void diagramEnds(StringBuilder b, String sourceView,
+            SourceInfo sourceViewSpan, String targetView,
+            SourceInfo targetViewSpan) {
+        b.append(",\"sourceView\":");
+        ProtocolEmitter.str(b, sourceView);
+        b.append(",\"sourceViewSourceInformation\":");
+        ProtocolEmitter.srcInfo(b, sourceViewSpan);
+        b.append(",\"targetView\":");
+        ProtocolEmitter.str(b, targetView);
+        b.append(",\"targetViewSourceInformation\":");
+        ProtocolEmitter.srcInfo(b, targetViewSpan);
+    }
+
     static void dataQualityValidation(StringBuilder b,
             Protocol.PDataQualityValidation v) {
         b.append("{\"_type\":\"dataQualityValidation\",\"context\":");

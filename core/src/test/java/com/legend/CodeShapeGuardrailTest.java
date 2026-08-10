@@ -81,6 +81,11 @@ class CodeShapeGuardrailTest {
             "FunctionActivatorSectionGrammar.pos",
             // the SHARED SliceCursor (ElementwiseSectionGrammar's SPI feed)
             "SliceCursor.pos",
+            // DiagramSectionGrammar.Raw: the RAW section's char walker —
+            // a parser cursor (position + its own line/col tracking, since
+            // diagram content never reaches the shared lexer)
+            "DiagramSectionGrammar.i", "DiagramSectionGrammar.line",
+            "DiagramSectionGrammar.col",
             // parse-surface MODE, set once at construction by the factory that owns
             // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
             "ElementParser.legendStrict",

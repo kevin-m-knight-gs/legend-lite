@@ -10,13 +10,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * THE {@code ###Diagram} grammar — the first RAW built-in: diagram content
+ * THE {@code ###Diagram} grammar — the RAW built-in: diagram content
  * (color literals like {@code #FFFFCC}) is unlexable Pure, so the shared
- * lexer skips the section and this grammar walks the CHARACTERS. Elements
- * parse to their envelope (name, optional {@code (width=..,height=..)}
- * attributes) with the body carried as written — a diagram is presentation
- * metadata; nothing in lite opens it, but it is now a NAMED, indexed,
- * typed element instead of lexer silence.
+ * lexer skips the section and this grammar walks the CHARACTERS with its
+ * own line/column tracking (file-absolute via the section's
+ * {@code startLine}). Views parse structurally; wire shapes probed
+ * (ZTailProbe "diagram") — hide flags only when spelled, class paths
+ * unquoted on the wire, property spans covering the class portion only.
  */
 public final class DiagramSectionGrammar implements RawSectionGrammar {
 
@@ -32,8 +32,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         return "Diagram";
     }
 
-    /** The SPI feed — same raw parse, protocol JSON out (walls: no wire
-     *  shape is claimed for diagrams). */
+    /** The SPI feed — same raw parse, protocol JSON out. */
     @Override
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
@@ -47,59 +46,21 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     @Override
     public LexableSectionGrammar.ParsedSection parseRaw(
             com.legend.spi.SectionSource src) {
-        String t = src.text();
+        Raw r = new Raw(src.text(), src.startLine());
         List<LexableSectionGrammar.ParsedElement> elements = new ArrayList<>();
         List<String> imports = new ArrayList<>();
-        int i = 0;
-        int n = t.length();
         while (true) {
-            i = skipWsAndComments(t, i);
-            if (i >= n) {
+            r.skipWs();
+            if (r.atEnd()) {
                 break;
             }
-            if (t.startsWith("import ", i)) {
-                int semi = t.indexOf(';', i);
-                if (semi < 0) {
-                    throw fail(src, i, "unterminated import");
-                }
-                imports.add(t.substring(i + 7, semi).trim());
-                i = semi + 1;
+            if (r.startsWith("import ")) {
+                imports.add(r.toSemicolon().substring(7).trim());
                 continue;
             }
-            int elStart = i;
-            if (!t.startsWith("Diagram", i)) {
-                throw fail(src, i, "unsupported ###Diagram element");
-            }
-            i += "Diagram".length();
-            i = skipWsAndComments(t, i);
-            int nameStart = i;
-            while (i < n && (Character.isLetterOrDigit(t.charAt(i))
-                    || t.charAt(i) == '_' || t.charAt(i) == '$'
-                    || t.startsWith("::", i))) {
-                i += t.startsWith("::", i) ? 2 : 1;
-            }
-            if (i == nameStart) {
-                throw fail(src, i, "Diagram needs a qualified name");
-            }
-            String qn = t.substring(nameStart, i);
-            i = skipWsAndComments(t, i);
-            if (i < n && t.charAt(i) == '(') {
-                i = skipBalanced(src, t, i, '(', ')');
-                i = skipWsAndComments(t, i);
-            }
-            if (i >= n || t.charAt(i) != '{') {
-                throw fail(src, i, "Diagram '" + qn + "' needs a body");
-            }
-            int bodyStart = i;
-            i = skipBalanced(src, t, i, '{', '}');
-            String body = t.substring(bodyStart, i);
-            int cut = qn.lastIndexOf("::");
+            int elOffset = r.i;
             elements.add(new LexableSectionGrammar.ParsedElement(
-                    new Protocol.PDiagram(
-                            cut < 0 ? "" : qn.substring(0, cut),
-                            cut < 0 ? qn : qn.substring(cut + 2),
-                            body, spanOf(t, elStart, i)),
-                    elStart));
+                    parseDiagram(r), elOffset));
         }
         return new LexableSectionGrammar.ParsedSection(elements, imports);
     }
@@ -108,85 +69,447 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
         Protocol.PDiagram d = (Protocol.PDiagram) element;
         return new com.legend.model.GenericSectionElementDefinition("Diagram",
-                "Diagram", d.qualifiedName(), java.util.Map.of(),
-                d.bodySource());
+                "Diagram", d.qualifiedName(), java.util.Map.of(), null);
     }
 
-    private static int skipWsAndComments(String t, int i) {
-        int n = t.length();
-        while (i < n) {
-            char c = t.charAt(i);
-            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
-                i++;
-            } else if (t.startsWith("//", i)) {
-                int nl = t.indexOf('\n', i);
-                i = nl < 0 ? n : nl + 1;
-            } else if (t.startsWith("/*", i)) {
-                int end = t.indexOf("*/", i + 2);
-                i = end < 0 ? n : end + 2;
-            } else {
+    private static Protocol.PDiagram parseDiagram(Raw r) {
+        int[] start = r.mark();
+        r.expectWord("Diagram");
+        r.skipWs();
+        String qn = r.path();
+        r.skipWs();
+        if (r.peek() == '(') {
+            r.skipBalanced('(', ')');
+            r.skipWs();
+        }
+        r.expect('{');
+        List<Protocol.PClassView> classViews = new ArrayList<>();
+        List<Protocol.PPropertyView> propertyViews = new ArrayList<>();
+        List<Protocol.PGeneralizationView> generalizationViews =
+                new ArrayList<>();
+        while (true) {
+            r.skipWs();
+            if (r.peek() == '}') {
                 break;
             }
-        }
-        return i;
-    }
-
-    /** Balanced skip from the opener at {@code i}; returns the index PAST
-     *  the matching closer. Diagram bodies carry no string literals that
-     *  could hide braces (geometry, colors, names). */
-    private static int skipBalanced(com.legend.spi.SectionSource src,
-            String t, int i, char open, char close) {
-        int depth = 0;
-        int n = t.length();
-        do {
-            char c = t.charAt(i);
-            if (c == open) {
-                depth++;
-            } else if (c == close) {
-                depth--;
-            }
-            i++;
-        } while (i < n && depth > 0);
-        if (depth > 0) {
-            throw fail(src, i, "unbalanced '" + open + "'");
-        }
-        return i;
-    }
-
-    /** Section-relative line/column span for a carried element. */
-    private static SourceInfo spanOf(String t, int from, int toExclusive) {
-        int line = 1;
-        int col = 1;
-        int endLine = 1;
-        int endCol = 1;
-        for (int i = 0; i < toExclusive && i < t.length(); i++) {
-            if (i == from) {
-                line = endLine;
-                col = endCol;
-            }
-            if (t.charAt(i) == '\n') {
-                endLine++;
-                endCol = 1;
-            } else {
-                endCol++;
+            int[] viewStart = r.mark();
+            String kw = r.word();
+            switch (kw) {
+                case "classView" -> classViews.add(parseClassView(r, viewStart));
+                case "propertyView" ->
+                        propertyViews.add(parsePropertyView(r, viewStart));
+                case "generalizationView" -> generalizationViews.add(
+                        parseGeneralizationView(r, viewStart));
+                // the M2 dialect (legend-pure fixtures): capitalized view
+                // kinds with paren attribute bodies. Parse-ACCEPTED, not
+                // modeled — a diagram is presentation metadata nothing in
+                // lite opens, and the modern oracle rejects the dialect so
+                // there is no wire shape to claim (corpus setup files only
+                // need acceptance)
+                case "TypeView", "AssociationView", "PropertyView",
+                        "GeneralizationView" -> {
+                    r.skipWs();
+                    r.segment();
+                    r.skipWs();
+                    r.skipBalanced('(', ')');
+                }
+                default -> throw r.fail("unknown diagram view '" + kw + "'");
             }
         }
-        return new SourceInfo("", line, col, endLine, Math.max(1, endCol - 1));
+        r.expect('}');
+        SourceInfo span = r.spanFrom(start);
+        int cut = qn.lastIndexOf("::");
+        return new Protocol.PDiagram(cut < 0 ? "" : qn.substring(0, cut),
+                cut < 0 ? qn : qn.substring(cut + 2), classViews,
+                propertyViews, generalizationViews, span);
     }
 
-    private static RuntimeException fail(com.legend.spi.SectionSource src,
-            int at, String message) {
-        int line = 1;
-        int col = 1;
-        String t = src.text();
-        for (int i = 0; i < at && i < t.length(); i++) {
+    private static Protocol.PClassView parseClassView(Raw r, int[] start) {
+        r.skipWs();
+        String id = r.word();
+        r.skipWs();
+        r.expect('{');
+        String classPath = null;
+        SourceInfo classSpan = null;
+        Boolean hideProperties = null;
+        Boolean hideStereotypes = null;
+        Boolean hideTaggedValues = null;
+        double[] position = null;
+        double[] rectangle = null;
+        while (true) {
+            r.skipWs();
+            if (r.peek() == '}') {
+                break;
+            }
+            String key = r.word();
+            r.skipWs();
+            r.expect(':');
+            r.skipWs();
+            switch (key) {
+                case "class" -> {
+                    int[] ps = r.mark();
+                    classPath = r.path();
+                    classSpan = r.spanFrom(ps);
+                }
+                case "position" -> position = r.pair();
+                case "rectangle" -> rectangle = r.pair();
+                case "hideProperties" -> hideProperties = r.bool();
+                case "hideTaggedValue" -> hideTaggedValues = r.bool();
+                case "hideStereotype" -> hideStereotypes = r.bool();
+                default -> throw r.fail("unknown classView key '" + key + "'");
+            }
+            r.skipWs();
+            r.expect(';');
+        }
+        r.expect('}');
+        if (classPath == null || classSpan == null || position == null
+                || rectangle == null) {
+            throw r.fail("classView '" + id + "' needs class, position and"
+                    + " rectangle");
+        }
+        return new Protocol.PClassView(id, classPath, classSpan,
+                hideProperties, hideStereotypes, hideTaggedValues,
+                position[0], position[1], rectangle[0], rectangle[1],
+                r.spanFrom(start));
+    }
+
+    private static Protocol.PPropertyView parsePropertyView(Raw r,
+            int[] start) {
+        r.skipWs();
+        r.expect('{');
+        String propClass = null;
+        String propName = null;
+        SourceInfo propSpan = null;
+        String sourceView = null;
+        SourceInfo sourceViewSpan = null;
+        String targetView = null;
+        SourceInfo targetViewSpan = null;
+        List<Protocol.PDiagramPoint> points = null;
+        while (true) {
+            r.skipWs();
+            if (r.peek() == '}') {
+                break;
+            }
+            String key = r.word();
+            r.skipWs();
+            r.expect(':');
+            r.skipWs();
+            switch (key) {
+                case "property" -> {
+                    // the wire span covers the CLASS portion only
+                    int[] ps = r.mark();
+                    propClass = r.path();
+                    propSpan = r.spanFrom(ps);
+                    r.expect('.');
+                    propName = r.segment();
+                }
+                case "source" -> {
+                    int[] ps = r.mark();
+                    sourceView = r.word();
+                    sourceViewSpan = r.spanFrom(ps);
+                }
+                case "target" -> {
+                    int[] ps = r.mark();
+                    targetView = r.word();
+                    targetViewSpan = r.spanFrom(ps);
+                }
+                case "points" -> points = r.points();
+                default -> throw r.fail("unknown propertyView key '" + key
+                        + "'");
+            }
+            r.skipWs();
+            r.expect(';');
+        }
+        r.expect('}');
+        if (propClass == null || propName == null || sourceView == null
+                || targetView == null || points == null) {
+            throw r.fail("propertyView needs property, source, target and"
+                    + " points");
+        }
+        return new Protocol.PPropertyView(propClass, propName,
+                java.util.Objects.requireNonNull(propSpan), sourceView,
+                java.util.Objects.requireNonNull(sourceViewSpan), targetView,
+                java.util.Objects.requireNonNull(targetViewSpan), points,
+                r.spanFrom(start));
+    }
+
+    private static Protocol.PGeneralizationView parseGeneralizationView(
+            Raw r, int[] start) {
+        r.skipWs();
+        r.expect('{');
+        String sourceView = null;
+        SourceInfo sourceViewSpan = null;
+        String targetView = null;
+        SourceInfo targetViewSpan = null;
+        List<Protocol.PDiagramPoint> points = null;
+        while (true) {
+            r.skipWs();
+            if (r.peek() == '}') {
+                break;
+            }
+            String key = r.word();
+            r.skipWs();
+            r.expect(':');
+            r.skipWs();
+            switch (key) {
+                case "source" -> {
+                    int[] ps = r.mark();
+                    sourceView = r.word();
+                    sourceViewSpan = r.spanFrom(ps);
+                }
+                case "target" -> {
+                    int[] ps = r.mark();
+                    targetView = r.word();
+                    targetViewSpan = r.spanFrom(ps);
+                }
+                case "points" -> points = r.points();
+                default -> throw r.fail("unknown generalizationView key '"
+                        + key + "'");
+            }
+            r.skipWs();
+            r.expect(';');
+        }
+        r.expect('}');
+        if (sourceView == null || targetView == null || points == null) {
+            throw r.fail("generalizationView needs source, target and"
+                    + " points");
+        }
+        return new Protocol.PGeneralizationView(sourceView,
+                java.util.Objects.requireNonNull(sourceViewSpan), targetView,
+                java.util.Objects.requireNonNull(targetViewSpan), points,
+                r.spanFrom(start));
+    }
+
+    /** THE character walker: tracks 1-based file-absolute line/column. */
+    private static final class Raw {
+
+        private final String t;
+        private int i;
+        private int line;
+        private int col;
+
+        Raw(String t, int startLine) {
+            this.t = t;
+            this.line = startLine;
+            this.col = 1;
+        }
+
+        boolean atEnd() {
+            return i >= t.length();
+        }
+
+        char peek() {
+            if (atEnd()) {
+                throw fail("unexpected end of ###Diagram section");
+            }
+            return t.charAt(i);
+        }
+
+        boolean startsWith(String s) {
+            return t.startsWith(s, i);
+        }
+
+        private void step() {
             if (t.charAt(i) == '\n') {
                 line++;
                 col = 1;
             } else {
                 col++;
             }
+            i++;
         }
-        return new com.legend.parser.ParseException(message, line, col);
+
+        void skipWs() {
+            while (!atEnd()) {
+                char c = t.charAt(i);
+                if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+                    step();
+                } else if (startsWith("//")) {
+                    while (!atEnd() && t.charAt(i) != '\n') {
+                        step();
+                    }
+                } else if (startsWith("/*")) {
+                    while (!atEnd() && !startsWith("*/")) {
+                        step();
+                    }
+                    if (!atEnd()) {
+                        step();
+                        step();
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        /** {@code [i, line, col]} for span starts. */
+        int[] mark() {
+            return new int[]{i, line, col};
+        }
+
+        /** File-absolute span from {@code mark} to the LAST consumed char. */
+        SourceInfo spanFrom(int[] mark) {
+            return new SourceInfo("", mark[1], mark[2], line,
+                    col == 1 ? 1 : col - 1);
+        }
+
+        String word() {
+            int s = i;
+            while (!atEnd()) {
+                char c = t.charAt(i);
+                if (Character.isLetterOrDigit(c) || c == '_' || c == '$'
+                        || c == '-') {
+                    step();
+                } else {
+                    break;
+                }
+            }
+            if (i == s) {
+                throw fail("expected an identifier");
+            }
+            return t.substring(s, i);
+        }
+
+        /** One path segment, UNQUOTED at the source: a word, or a quoted
+         *  string with its quotes stripped here — never re-split later
+         *  (a quoted segment may itself contain {@code ::}). */
+        String segment() {
+            if (peek() == '\'') {
+                step();
+                int s = i;
+                while (!atEnd() && t.charAt(i) != '\'') {
+                    step();
+                }
+                String seg = t.substring(s, i);
+                expect('\'');
+                return seg;
+            }
+            return word();
+        }
+
+        /** {@code seg(::seg)*}, assembled from already-unquoted segments —
+         *  the wire form directly. */
+        String path() {
+            StringBuilder b = new StringBuilder(segment());
+            while (startsWith("::")) {
+                step();
+                step();
+                b.append("::").append(segment());
+            }
+            return b.toString();
+        }
+
+        void expect(char c) {
+            if (atEnd() || t.charAt(i) != c) {
+                throw fail("expected '" + c + "'");
+            }
+            step();
+        }
+
+        void expectWord(String w) {
+            if (!startsWith(w)) {
+                throw fail("expected '" + w + "'");
+            }
+            for (int k = 0; k < w.length(); k++) {
+                step();
+            }
+        }
+
+        boolean bool() {
+            if (startsWith("true")) {
+                expectWord("true");
+                return true;
+            }
+            expectWord("false");
+            return false;
+        }
+
+        double number() {
+            int s = i;
+            while (!atEnd()) {
+                char c = t.charAt(i);
+                if (Character.isDigit(c) || c == '-' || c == '+' || c == '.'
+                        || c == 'E' || c == 'e') {
+                    step();
+                } else {
+                    break;
+                }
+            }
+            if (i == s) {
+                throw fail("expected a number");
+            }
+            return Double.parseDouble(t.substring(s, i));
+        }
+
+        /** {@code (x,y)}. */
+        double[] pair() {
+            expect('(');
+            skipWs();
+            double x = number();
+            skipWs();
+            expect(',');
+            skipWs();
+            double y = number();
+            skipWs();
+            expect(')');
+            return new double[]{x, y};
+        }
+
+        /** {@code [(x,y),...]}. */
+        List<Protocol.PDiagramPoint> points() {
+            List<Protocol.PDiagramPoint> out = new ArrayList<>();
+            expect('[');
+            skipWs();
+            while (peek() != ']') {
+                double[] p = pair();
+                out.add(new Protocol.PDiagramPoint(p[0], p[1]));
+                skipWs();
+                if (peek() == ',') {
+                    step();
+                    skipWs();
+                }
+            }
+            expect(']');
+            return out;
+        }
+
+        String toSemicolon() {
+            int s = i;
+            while (!atEnd() && t.charAt(i) != ';') {
+                step();
+            }
+            expect(';');
+            return t.substring(s, i - 1);
+        }
+
+        /** Balanced skip, blind to bracket chars inside '...' strings
+         *  (m2 attribute values may carry parens). */
+        void skipBalanced(char open, char close) {
+            int depth = 0;
+            do {
+                char c = peek();
+                if (c == '\'') {
+                    step();
+                    while (!atEnd() && t.charAt(i) != '\'') {
+                        step();
+                    }
+                    expect('\'');
+                    continue;
+                }
+                if (c == open) {
+                    depth++;
+                } else if (c == close) {
+                    depth--;
+                }
+                step();
+            } while (!atEnd() && depth > 0);
+            if (depth > 0) {
+                throw fail("unbalanced '" + open + "'");
+            }
+        }
+
+        RuntimeException fail(String message) {
+            return new com.legend.parser.ParseException(message, line, col);
+        }
     }
 }

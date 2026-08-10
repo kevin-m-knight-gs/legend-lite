@@ -116,9 +116,7 @@ public final class ProtocolEmitter {
             case Protocol.PBinding bd -> TailEmitter.binding(b, bd);
             case Protocol.PServiceStoreDefinition sd ->
                     TailEmitter.serviceStore(b, sd);
-            case Protocol.PDiagram dg -> require(false,
-                    "diagram wire emission (harness scope not claimed)",
-                    dg.qualifiedName());
+            case Protocol.PDiagram dg -> TailEmitter.diagram(b, dg);
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");

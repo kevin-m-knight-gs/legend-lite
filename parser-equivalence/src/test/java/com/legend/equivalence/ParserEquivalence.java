@@ -103,6 +103,8 @@ public final class ParserEquivalence {
                 tailRanges.put(s, r);
             }
         }
+        List<long[]> diagramRanges = sectionRanges(src.text(), "Diagram",
+                false);
 
         Ref ref;
         try {
@@ -298,6 +300,62 @@ public final class ParserEquivalence {
                     ? new Verdict(Kind.MATCH, src.id(), fqn, "")
                     : new Verdict(Kind.DIFF, src.id(), fqn, firstDivergence(expected, actual)));
         }
+        // DIAGRAM sites: the section is RAW (no tokens in its ranges), so
+        // the grammar's own parseRaw runs directly over the char range
+        for (long[] r : diagramRanges) {
+            int startLine = 1;
+            for (int k = 0; k < r[0]; k++) {
+                if (src.text().charAt(k) == '\n') {
+                    startLine++;
+                }
+            }
+            com.legend.parser.section.LexableSectionGrammar.ParsedSection
+                    parsed;
+            try {
+                parsed = com.legend.parser.section.DiagramSectionGrammar
+                        .INSTANCE.parseRaw(new com.legend.spi.SectionSource(
+                                "Diagram",
+                                src.text().substring((int) r[0], (int) r[1]),
+                                (int) r[0], (int) r[1], startLine));
+            } catch (Throwable t) {
+                walledTailSections.add("Diagram");
+                out.add(new Verdict(Kind.WALL, src.id(), "?",
+                        "Diagram: " + root(t)));
+                continue;
+            }
+            for (var pe : parsed.elements()) {
+                Protocol.PDiagram el = (Protocol.PDiagram) pe.protocol();
+                String fqn = el.qualifiedName();
+                List<String> queue = referenceBytes.get(fqn);
+                String expected = null;
+                if (queue != null && !queue.isEmpty()) {
+                    int pick = 0;
+                    for (int q = 0; q < queue.size(); q++) {
+                        if (queue.get(q).startsWith("{\"_type\":\"diagram\"")) {
+                            pick = q;
+                            break;
+                        }
+                    }
+                    expected = queue.remove(pick);
+                }
+                if (expected == null) {
+                    out.add(new Verdict(Kind.LITE_EXTRA, src.id(), fqn,
+                            "no reference element"));
+                    continue;
+                }
+                String actual;
+                try {
+                    actual = ProtocolEmitter.emitElement(el);
+                } catch (Throwable t) {
+                    out.add(new Verdict(Kind.WALL, src.id(), fqn, root(t)));
+                    continue;
+                }
+                out.add(expected.equals(actual)
+                        ? new Verdict(Kind.MATCH, src.id(), fqn, "")
+                        : new Verdict(Kind.DIFF, src.id(), fqn,
+                                firstDivergence(expected, actual)));
+            }
+        }
         // DRAIN: every reference element we never looked up is a named row —
         // the comparison was one-directional and this is the other direction.
         // An element the SectionIndex places in an unclaimed section is the
@@ -461,7 +519,8 @@ public final class ParserEquivalence {
                             "DataQualityValidation"),
                     Map.entry("externalFormatSchemaSet", "ExternalFormat"),
                     Map.entry("binding", "ExternalFormat"),
-                    Map.entry("serviceStore", "ServiceStore"));
+                    Map.entry("serviceStore", "ServiceStore"),
+                    Map.entry("diagram", "Diagram"));
 
     /** The wire {@code _type} a tail/activator element will emit — the
      *  site-12 dequeue prefix, computed BEFORE emission. */

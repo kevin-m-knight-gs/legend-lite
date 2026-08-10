@@ -1141,10 +1141,50 @@ public final class Protocol {
         }
     }
 
-    /** A {@code ###Diagram} Diagram element — envelope + RAW body (a
-     *  diagram is presentation metadata; its content never reaches the
-     *  shared lexer). No wire shape claimed; emission walls. */
-    public record PDiagram(String pkg, String name, String bodySource,
+    /** One diagram geometry point. */
+    public record PDiagramPoint(double x, double y) {
+    }
+
+    /** {@code classView id { class: ...; position/rectangle; hide*; }} —
+     *  hide flags only when spelled; class path unquoted on the wire but
+     *  its span covers the text AS WRITTEN (ZTailProbe "diagram"). */
+    public record PClassView(String id, String classPath,
+                             com.legend.protocol.SourceInfo classSpan,
+                             @com.legend.Nullable Boolean hideProperties,
+                             @com.legend.Nullable Boolean hideStereotypes,
+                             @com.legend.Nullable Boolean hideTaggedValues,
+                             double x, double y, double width, double height,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code propertyView { property: Class.prop; source/target; points }}
+     *  — the property's span covers the CLASS portion only. */
+    public record PPropertyView(String propertyClass, String propertyName,
+                                com.legend.protocol.SourceInfo propertySpan,
+                                String sourceView,
+                                com.legend.protocol.SourceInfo sourceViewSpan,
+                                String targetView,
+                                com.legend.protocol.SourceInfo targetViewSpan,
+                                List<PDiagramPoint> points,
+                                com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code generalizationView { source/target; points }}. */
+    public record PGeneralizationView(String sourceView,
+                                      com.legend.protocol.SourceInfo sourceViewSpan,
+                                      String targetView,
+                                      com.legend.protocol.SourceInfo targetViewSpan,
+                                      List<PDiagramPoint> points,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A {@code ###Diagram} Diagram element — {@code _type:"diagram"}
+     *  (ZTailProbe "diagram"): structured views with file-absolute spans
+     *  even though the section content never reaches the shared lexer. */
+    public record PDiagram(String pkg, String name,
+                           List<PClassView> classViews,
+                           List<PPropertyView> propertyViews,
+                           List<PGeneralizationView> generalizationViews,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {

@@ -793,6 +793,51 @@ class ZTailProbe {
     }
 
     @Test
+    void diagramShapes() throws Exception {
+        probe("diagram", """
+                ###Diagram
+                Diagram meta::pure::MyDiagram
+                {
+                  classView 1a0ac401-d443-4388-8ade-08a458f735e9
+                  {
+                    class: any::'thing goes';
+                    position: (123.123,23.23);
+                    rectangle: (123.123,23.23);
+                    hideProperties: true;
+                  }
+                  classView cv2
+                  {
+                    class: my::Person;
+                    position: (-123.123,23.0);
+                    rectangle: (12.23,-90.0);
+                    hideProperties: true;
+                    hideTaggedValue: true;
+                    hideStereotype: true;
+                  }
+                  classView cv3
+                  {
+                    class: my::Person;
+                    position: (-123.123,23);
+                    rectangle: (12.23,-90);
+                  }
+                  propertyView
+                  {
+                    property: any::'thing goes'.'on Monday';
+                    source: 1a0ac401-d443-4388-8ade-08a458f735e9;
+                    target: cv2;
+                    points: [(0.3,2.23E-8),(2.23E10,23.23)];
+                  }
+                  generalizationView
+                  {
+                    source: cv2;
+                    target: cv3;
+                    points: [];
+                  }
+                }
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping
