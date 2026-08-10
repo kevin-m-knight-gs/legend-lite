@@ -478,7 +478,7 @@ public final class ParserEquivalence {
     private static final List<String> TAIL_SECTIONS = List.of("Text",
             "GenerationSpecification", "FileGeneration", "Deephaven",
             "MongoDB", "DataQualityValidation", "Elasticsearch",
-            "ExternalFormat", "ServiceStore");
+            "ExternalFormat", "ServiceStore", "DataSpace");
 
     private static final Map<String,
             com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
@@ -499,7 +499,9 @@ public final class ParserEquivalence {
                     "ExternalFormat", com.legend.parser.section
                             .ExternalFormatSectionGrammar.INSTANCE,
                     "ServiceStore", com.legend.parser.section
-                            .ServiceStoreSectionGrammar.INSTANCE);
+                            .ServiceStoreSectionGrammar.INSTANCE,
+                    "DataSpace", com.legend.parser.section
+                            .DataSpaceSectionGrammar.INSTANCE);
 
     /** Tail wire {@code _type} &rarr; owning section, for the drain. */
     private static final Map<String, String> TAIL_WIRE_SECTIONS =
@@ -520,7 +522,8 @@ public final class ParserEquivalence {
                     Map.entry("externalFormatSchemaSet", "ExternalFormat"),
                     Map.entry("binding", "ExternalFormat"),
                     Map.entry("serviceStore", "ServiceStore"),
-                    Map.entry("diagram", "Diagram"));
+                    Map.entry("diagram", "Diagram"),
+                    Map.entry("dataSpace", "DataSpace"));
 
     /** The wire {@code _type} a tail/activator element will emit — the
      *  site-12 dequeue prefix, computed BEFORE emission. */
@@ -541,6 +544,7 @@ public final class ParserEquivalence {
             case Protocol.PSchemaSet s -> "externalFormatSchemaSet";
             case Protocol.PBinding bd -> "binding";
             case Protocol.PServiceStoreDefinition sd -> "serviceStore";
+            case Protocol.PDataSpace dsp -> "dataSpace";
             case Protocol.PFunctionActivator a -> java.util.Objects
                     .requireNonNull(ACTIVATOR_WIRE_TYPES.get(a.kind()));
             default -> throw new IllegalStateException(
@@ -720,9 +724,19 @@ public final class ParserEquivalence {
                         }
                     }
                     default -> {
+                        // a decl-position identifier followed by '::' is a
+                        // NAME continuing as a path (the head after a
+                        // decoration block whose '}' restarted declPos),
+                        // never an element kind — same rule as pureSites.
+                        // A kind followed directly by a tagged-value '{'
+                        // (DataSpace {tags} x::y) IS a real site.
                         if (depth == 0 && declPos
                                 && com.legend.parser.TokenStreamCursor
-                                        .IDENTIFIER_TOKENS.contains(t)) {
+                                        .IDENTIFIER_TOKENS.contains(t)
+                                && (cursor + 1 >= ts.count()
+                                        || ts.type(cursor + 1)
+                                                != com.legend.lexer.TokenType
+                                                        .PATH_SEPARATOR)) {
                             sites.add(new int[]{cursor, 12, sectionIdx});
                         }
                     }

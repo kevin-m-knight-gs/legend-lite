@@ -87,9 +87,7 @@ public final class ProtocolEmitter {
                     "execution-environment wire emission (harness scope not"
                             + " claimed)",
                     ee.qualifiedName());
-            case Protocol.PDataSpace ds -> require(false,
-                    "dataspace wire emission (harness scope not claimed)",
-                    ds.qualifiedName());
+            case Protocol.PDataSpace ds -> TailEmitter.dataSpace(b, ds);
             case Protocol.PPersistence pp -> require(false,
                     "persistence wire emission (harness scope not claimed)",
                     pp.qualifiedName());

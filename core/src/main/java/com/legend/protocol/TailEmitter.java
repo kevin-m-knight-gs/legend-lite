@@ -611,6 +611,221 @@ final class TailEmitter {
         ProtocolEmitter.srcInfo(b, targetViewSpan);
     }
 
+    static void dataSpace(StringBuilder b, Protocol.PDataSpace d) {
+        b.append("{\"_type\":\"dataSpace\"");
+        if (d.defaultExecutionContext() != null) {
+            b.append(",\"defaultExecutionContext\":");
+            ProtocolEmitter.str(b, d.defaultExecutionContext());
+        }
+        if (d.description() != null) {
+            b.append(",\"description\":");
+            ProtocolEmitter.str(b, d.description());
+        }
+        if (d.diagrams() != null) {
+            b.append(",\"diagrams\":[");
+            for (int i = 0; i < d.diagrams().size(); i++) {
+                Protocol.PDataSpaceDiagram g = d.diagrams().get(i);
+                if (i > 0) {
+                    b.append(',');
+                }
+                b.append('{');
+                if (g.description() != null) {
+                    b.append("\"description\":");
+                    ProtocolEmitter.str(b, g.description());
+                    b.append(',');
+                }
+                b.append("\"diagram\":{\"path\":");
+                ProtocolEmitter.str(b, g.diagram());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, g.diagramSpan());
+                b.append("},\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, g.sourceInformation());
+                b.append(",\"title\":");
+                ProtocolEmitter.str(b, g.title());
+                b.append('}');
+            }
+            b.append(']');
+        }
+        if (d.elements() != null) {
+            b.append(",\"elements\":[");
+            for (int i = 0; i < d.elements().size(); i++) {
+                Protocol.PDataSpaceElementRef ref = d.elements().get(i);
+                if (i > 0) {
+                    b.append(',');
+                }
+                b.append('{');
+                if (ref.exclude()) {
+                    b.append("\"exclude\":true,");
+                }
+                b.append("\"path\":");
+                ProtocolEmitter.str(b, ref.path());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, ref.sourceInformation());
+                b.append('}');
+            }
+            b.append(']');
+        }
+        if (d.executables() != null) {
+            b.append(",\"executables\":[");
+            for (int i = 0; i < d.executables().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                dataSpaceExecutable(b, d.executables().get(i));
+            }
+            b.append(']');
+        }
+        b.append(",\"executionContexts\":[");
+        for (int i = 0; i < d.executionContexts().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            dataSpaceContext(b, d.executionContexts().get(i));
+        }
+        b.append("],\"name\":");
+        ProtocolEmitter.str(b, d.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, d.pkg());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, d.sourceInformation());
+        b.append(",\"stereotypes\":");
+        ProtocolEmitter.stereotypes(b, d.stereotypes());
+        if (d.supportInfo() != null) {
+            b.append(",\"supportInfo\":");
+            dataSpaceSupport(b, d.supportInfo());
+        }
+        b.append(",\"taggedValues\":");
+        ProtocolEmitter.taggedValues(b, d.taggedValues());
+        if (d.title() != null) {
+            b.append(",\"title\":");
+            ProtocolEmitter.str(b, d.title());
+        }
+        b.append('}');
+    }
+
+    private static void dataSpaceContext(StringBuilder b,
+            Protocol.PDataSpaceContext ctx) {
+        b.append("{\"defaultRuntime\":");
+        pointer(b, ctx.defaultRuntime(), ctx.runtimeSpan(), "RUNTIME");
+        if (ctx.description() != null) {
+            b.append(",\"description\":");
+            ProtocolEmitter.str(b, ctx.description());
+        }
+        b.append(",\"mapping\":");
+        pointer(b, ctx.mapping(), ctx.mappingSpan(), "MAPPING");
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, ctx.name());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, ctx.sourceInformation());
+        Protocol.PDataSpaceTestData td = ctx.testData();
+        if (td != null) {
+            if (!"Reference".equals(td.kind())) {
+                throw new IllegalStateException("unprobed dataspace testData"
+                        + " kind: " + td.kind());
+            }
+            b.append(",\"testData\":{\"_type\":\"reference\","
+                    + "\"dataElement\":");
+            pointer(b, td.path(), td.sourceInformation(), "DATA");
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, td.sourceInformation());
+            b.append('}');
+        }
+        if (ctx.title() != null) {
+            b.append(",\"title\":");
+            ProtocolEmitter.str(b, ctx.title());
+        }
+        b.append('}');
+    }
+
+    private static void dataSpaceExecutable(StringBuilder b,
+            Protocol.PDataSpaceExecutable e) {
+        boolean template = e.query() != null;
+        b.append("{\"_type\":\"").append(template
+                ? "dataSpaceTemplateExecutable"
+                : "dataSpacePackageableElementExecutable").append('"');
+        if (e.description() != null) {
+            b.append(",\"description\":");
+            ProtocolEmitter.str(b, e.description());
+        }
+        if (!template) {
+            String path = java.util.Objects.requireNonNull(e.executable());
+            b.append(",\"executable\":{\"path\":");
+            ProtocolEmitter.str(b, path);
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
+                    e.executableSpan()));
+            // a FUNCTION-pointer executable (signature form) carries a
+            // type tag; a plain element pointer does not (DIFF-pinned)
+            if (path.indexOf('(') >= 0) {
+                b.append(",\"type\":\"FUNCTION\"");
+            }
+            b.append('}');
+        }
+        if (e.executionContextKey() != null) {
+            b.append(",\"executionContextKey\":");
+            ProtocolEmitter.str(b, e.executionContextKey());
+        }
+        if (e.id() != null) {
+            b.append(",\"id\":");
+            ProtocolEmitter.str(b, e.id());
+        }
+        if (template) {
+            b.append(",\"query\":");
+            ProtocolEmitter.valueSpec(b,
+                    java.util.Objects.requireNonNull(e.query()));
+        }
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, e.sourceInformation());
+        b.append(",\"title\":");
+        ProtocolEmitter.str(b, e.title());
+        b.append('}');
+    }
+
+    private static void dataSpaceSupport(StringBuilder b,
+            Protocol.PDataSpaceSupport s) {
+        switch (s) {
+            case Protocol.PDataSpaceSupport.PSupportEmail e -> {
+                b.append("{\"_type\":\"email\",\"address\":");
+                ProtocolEmitter.str(b, e.address());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, e.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PDataSpaceSupport.PSupportCombined cb -> {
+                b.append("{\"_type\":\"combined\"");
+                if (cb.documentationUrl() != null) {
+                    b.append(",\"documentationUrl\":");
+                    ProtocolEmitter.str(b, cb.documentationUrl());
+                }
+                if (cb.emails() != null) {
+                    b.append(",\"emails\":[");
+                    for (int i = 0; i < cb.emails().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        ProtocolEmitter.str(b, cb.emails().get(i));
+                    }
+                    b.append(']');
+                }
+                if (cb.faqUrl() != null) {
+                    b.append(",\"faqUrl\":");
+                    ProtocolEmitter.str(b, cb.faqUrl());
+                }
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, cb.sourceInformation());
+                if (cb.supportUrl() != null) {
+                    b.append(",\"supportUrl\":");
+                    ProtocolEmitter.str(b, cb.supportUrl());
+                }
+                if (cb.website() != null) {
+                    b.append(",\"website\":");
+                    ProtocolEmitter.str(b, cb.website());
+                }
+                b.append('}');
+            }
+        }
+    }
+
     static void dataQualityValidation(StringBuilder b,
             Protocol.PDataQualityValidation v) {
         b.append("{\"_type\":\"dataQualityValidation\",\"context\":");

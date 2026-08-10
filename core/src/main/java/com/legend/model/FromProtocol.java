@@ -604,24 +604,45 @@ public final class FromProtocol {
         for (Protocol.PDataSpaceContext ctx : d.executionContexts()) {
             contexts.add(new DataSpaceDefinition.ExecutionContext(ctx.name(),
                     ctx.title(), ctx.description(), ctx.mapping(),
-                    ctx.defaultRuntime(), ctx.testDataSource()));
+                    ctx.defaultRuntime(),
+                    ctx.testData() == null ? null
+                            : ctx.testData().kind() + " #{"
+                                    + ctx.testData().path() + "}#"));
         }
         java.util.List<DataSpaceDefinition.Executable> executables =
-                new ArrayList<>(d.executables().size());
-        for (Protocol.PDataSpaceExecutable e : d.executables()) {
-            executables.add(new DataSpaceDefinition.Executable(e.id(),
-                    e.title(), e.description(), e.executable(),
-                    e.querySource(), e.executionContextKey()));
+                new ArrayList<>();
+        if (d.executables() != null) {
+            for (Protocol.PDataSpaceExecutable e : d.executables()) {
+                executables.add(new DataSpaceDefinition.Executable(e.id(),
+                        e.title(), e.description(), e.executable(),
+                        e.query() == null ? null : "<query>",
+                        e.executionContextKey()));
+            }
         }
         java.util.List<DataSpaceDefinition.Diagram> diagrams =
-                new ArrayList<>(d.diagrams().size());
-        for (Protocol.PDataSpaceDiagram g : d.diagrams()) {
-            diagrams.add(new DataSpaceDefinition.Diagram(g.title(),
-                    g.description(), g.diagram()));
+                new ArrayList<>();
+        if (d.diagrams() != null) {
+            for (Protocol.PDataSpaceDiagram g : d.diagrams()) {
+                diagrams.add(new DataSpaceDefinition.Diagram(g.title(),
+                        g.description(), g.diagram()));
+            }
         }
+        java.util.List<String> elementScope = new ArrayList<>();
+        if (d.elements() != null) {
+            for (Protocol.PDataSpaceElementRef ref : d.elements()) {
+                elementScope.add(ref.exclude() ? "-" + ref.path()
+                        : ref.path());
+            }
+        }
+        String supportInfo = switch (d.supportInfo()) {
+            case null -> null;
+            case Protocol.PDataSpaceSupport.PSupportEmail e ->
+                    "Email " + e.address();
+            case Protocol.PDataSpaceSupport.PSupportCombined cb -> "Combined";
+        };
         return new DataSpaceDefinition(d.qualifiedName(), contexts,
                 d.defaultExecutionContext(), d.title(), d.description(),
-                executables, diagrams, d.supportInfoSource(), d.elements());
+                executables, diagrams, supportInfo, elementScope);
     }
 
     private static ConnectionDefinition toRelationalConnection(String qualifiedName,

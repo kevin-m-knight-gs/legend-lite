@@ -1061,9 +1061,9 @@ public final class Protocol {
     }
 
     /**
-     * A {@code ###DataSpace} DataSpace element, corpus-censused scope. Like
-     * {@link PService}: exists for the parse/transform seam; NO wire shape
-     * claimed, emission walls.
+     * A {@code ###DataSpace} DataSpace element — {@code _type:"dataSpace"}
+     * (ZTailProbe "dataspace-rich"/"dataspace-email"). Lists are NULL when
+     * their key is unspelled: the wire omits the slot entirely.
      */
     public record PDataSpace(String pkg, String name,
                              List<PStereotype> stereotypes,
@@ -1072,10 +1072,10 @@ public final class Protocol {
                              @com.legend.Nullable String defaultExecutionContext,
                              @com.legend.Nullable String title,
                              @com.legend.Nullable String description,
-                             List<PDataSpaceExecutable> executables,
-                             List<PDataSpaceDiagram> diagrams,
-                             @com.legend.Nullable String supportInfoSource,
-                             List<String> elements,
+                             @com.legend.Nullable List<PDataSpaceExecutable> executables,
+                             @com.legend.Nullable List<PDataSpaceDiagram> diagrams,
+                             @com.legend.Nullable PDataSpaceSupport supportInfo,
+                             @com.legend.Nullable List<PDataSpaceElementRef> elements,
                              com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1083,27 +1083,69 @@ public final class Protocol {
         }
     }
 
-    /** One dataspace execution context. */
+    /** One dataspace execution context. Pointer spans cover the WHOLE
+     *  {@code key: value;} statement (semicolon included); the testData
+     *  span covers the VALUE only ({@code Kind #{...}#}). */
     public record PDataSpaceContext(String name,
                                     @com.legend.Nullable String title,
                                     @com.legend.Nullable String description,
-                                    String mapping, String defaultRuntime,
-                                    @com.legend.Nullable String testDataSource) {
+                                    String mapping,
+                                    com.legend.protocol.SourceInfo mappingSpan,
+                                    String defaultRuntime,
+                                    com.legend.protocol.SourceInfo runtimeSpan,
+                                    @com.legend.Nullable PDataSpaceTestData testData,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    /** One dataspace executable (path form or inline-query form). */
+    /** {@code testData: Kind #{ path }#} — kind Reference /
+     *  DataspaceTestData / ...; span covers kind through {@code }#}. */
+    public record PDataSpaceTestData(String kind, String path,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One dataspace executable: path form OR inline-query template form
+     *  (the id stringifies on the wire even when written as an integer). */
     public record PDataSpaceExecutable(@com.legend.Nullable String id,
                                        String title,
                                        @com.legend.Nullable String description,
                                        @com.legend.Nullable String executable,
-                                       @com.legend.Nullable String querySource,
-                                       @com.legend.Nullable String executionContextKey) {
+                                       @com.legend.Nullable com.legend.protocol.SourceInfo executableSpan,
+                                       @com.legend.Nullable com.legend.protocol.spec.ValueSpecification query,
+                                       @com.legend.Nullable String executionContextKey,
+                                       com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    /** One dataspace diagram reference. */
+    /** One dataspace diagram reference — the pointer carries NO type
+     *  field on the wire. */
     public record PDataSpaceDiagram(String title,
                                     @com.legend.Nullable String description,
-                                    String diagram) {
+                                    String diagram,
+                                    com.legend.protocol.SourceInfo diagramSpan,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code elements:} entry — {@code exclude} only when the path
+     *  is '-'-prefixed; span includes the '-'. */
+    public record PDataSpaceElementRef(String path, boolean exclude,
+                                       com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code supportInfo:} — Email or Combined; span covers the VALUE
+     *  ({@code Kind { ... }}), no key, no semicolon. */
+    public sealed interface PDataSpaceSupport {
+        record PSupportEmail(String address,
+                             com.legend.protocol.SourceInfo sourceInformation)
+                implements PDataSpaceSupport {
+        }
+
+        record PSupportCombined(@com.legend.Nullable String documentationUrl,
+                                @com.legend.Nullable String website,
+                                @com.legend.Nullable String faqUrl,
+                                @com.legend.Nullable String supportUrl,
+                                @com.legend.Nullable List<String> emails,
+                                com.legend.protocol.SourceInfo sourceInformation)
+                implements PDataSpaceSupport {
+        }
     }
 
     /** A {@code ###Persistence} Persistence element — top-level keys

@@ -838,6 +838,103 @@ class ZTailProbe {
     }
 
     @Test
+    void dataSpaceShapes() throws Exception {
+        probe("dataspace-rich", """
+                ###DataSpace
+                DataSpace <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'bla'} model::dataSpace
+                {
+                  executionContexts:
+                  [
+                    {
+                      name: 'Context 1';
+                      title: 'ctx title';
+                      description: 'some information about the context';
+                      mapping: model::String;
+                      defaultRuntime: model::Runtime;
+                    },
+                    {
+                      name: 'Context 2';
+                      description: 'd2';
+                      mapping: model::String;
+                      defaultRuntime: model::Runtime;
+                      testData:
+                        Reference
+                        #{
+                          com::model::someDataElement
+                        }#;
+                    }
+                  ];
+                  defaultExecutionContext: 'Context 1';
+                  title: 'some title';
+                  description: 'some description';
+                  diagrams:
+                  [
+                    {
+                      title: 'Diag 1';
+                      description: 'dd';
+                      diagram: model::SomeDiag1;
+                    },
+                    {
+                      title: 'Diag 2';
+                      diagram: model::SomeDiag2;
+                    }
+                  ];
+                  elements:
+                  [
+                    model::Class1,
+                    model::Class2,
+                    -model,
+                    -model::Enum2
+                  ];
+                  executables:
+                  [
+                    {
+                      title: 'Exec 1';
+                      description: 'de';
+                      executable: model::SomeExec1;
+                    },
+                    {
+                      id: 1;
+                      title: 'Template 1';
+                      description: 'dt';
+                      query: |model::Firm.all()->project([x|$x.id], ['Id']);
+                      executionContextKey: 'Context 1';
+                    }
+                  ];
+                  supportInfo: Combined {
+                    documentationUrl: 'https://example.org';
+                    website: 'https://example.org/website';
+                    faqUrl: 'https://example.org/faq';
+                    supportUrl: 'https://example.org/support';
+                    emails:
+                    [
+                      'someEmail@test.org',
+                      'someEmail2@test.org'
+                    ];
+                  };
+                }
+                """);
+        probe("dataspace-email", """
+                ###DataSpace
+                DataSpace model::DS2
+                {
+                  executionContexts:
+                  [
+                    {
+                      name: 'c1';
+                      mapping: model::M;
+                      defaultRuntime: model::R;
+                    }
+                  ];
+                  defaultExecutionContext: 'c1';
+                  supportInfo: Email {
+                    address: 'someEmail@test.org';
+                  };
+                }
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

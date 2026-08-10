@@ -6,6 +6,7 @@ package com.legend.parser.section;
 import com.legend.lexer.TokenType;
 import com.legend.parser.TokenStreamCursor;
 import com.legend.protocol.Protocol;
+import com.legend.protocol.SourceInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,11 +20,11 @@ import java.util.List;
  * inline-query form), diagrams, supportInfo (raw) and the
  * include/exclude {@code elements} scope list.
  *
- * <p>Like {@code ###Service}: no WIRE shape claimed — emission walls and
- * the parity harness keeps DataSpace files OUT_OF_SCOPE. The grammar's job
- * is the parse/transform seam.
+ * <p>Wire shape claimed (ZTailProbe "dataspace-rich"/"dataspace-email"):
+ * {@code _type:"dataSpace"}, byte-exact via {@code TailEmitter}.
  */
-public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
+public final class DataSpaceSectionGrammar
+        implements ElementwiseSectionGrammar {
 
     /** The one stateless instance the registry hands out. */
     public static final DataSpaceSectionGrammar INSTANCE =
@@ -38,35 +39,13 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
     }
 
     @Override
-    public void parse(com.legend.spi.SectionSource src,
-            com.legend.spi.ElementSink out) {
-        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()));
-        while (!c.atEnd()) {
-            if (c.peek() == TokenType.IMPORT) {
-                SectionImports.parseImport(c);
-                continue;
-            }
-            Protocol.PDataSpace ds = parseElement(c);
-            out.accept(ds.qualifiedName(),
-                    com.legend.protocol.ProtocolEmitter.emitElement(ds));
-        }
+    public String qualifiedNameOf(Protocol.Element e) {
+        return ((Protocol.PDataSpace) e).qualifiedName();
     }
 
     @Override
-    public ParsedSection parseSection(TokenStreamCursor host,
-            int sectionEndOffset) {
-        List<ParsedElement> elements = new ArrayList<>();
-        List<String> imports = new ArrayList<>();
-        while (!host.atEnd()
-                && host.tokens().start(host.pos()) < sectionEndOffset) {
-            if (host.peek() == TokenType.IMPORT) {
-                imports.add(SectionImports.parseImport(host));
-                continue;
-            }
-            int at = host.tokens().start(host.pos());
-            elements.add(new ParsedElement(parseElement(host), at));
-        }
-        return new ParsedSection(elements, imports);
+    public Protocol.Element parseOne(TokenStreamCursor c) {
+        return parseElement(c);
     }
 
     @Override
@@ -94,10 +73,10 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
         String defaultContext = null;
         String title = null;
         String description = null;
-        List<Protocol.PDataSpaceExecutable> executables = new ArrayList<>();
-        List<Protocol.PDataSpaceDiagram> diagrams = new ArrayList<>();
-        String supportInfoSource = null;
-        List<String> elements = new ArrayList<>();
+        List<Protocol.PDataSpaceExecutable> executables = null;
+        List<Protocol.PDataSpaceDiagram> diagrams = null;
+        Protocol.PDataSpaceSupport supportInfo = null;
+        List<Protocol.PDataSpaceElementRef> elements = null;
 
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
@@ -116,28 +95,30 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
                     description = stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
-                case "executables" -> parseExecutables(c, executables);
-                case "diagrams" -> parseDiagrams(c, diagrams);
+                case "executables" -> {
+                    executables = new ArrayList<>();
+                    parseExecutables(c, executables);
+                }
+                case "diagrams" -> {
+                    diagrams = new ArrayList<>();
+                    parseDiagrams(c, diagrams);
+                }
                 case "supportInfo" -> {
-                    // Email { address: '...'; } — kind + RAW body, carried
-                    String kind = c.parseIdentifier();
-                    int bs = c.pos();
-                    if (c.peek() == TokenType.BRACE_OPEN) {
-                        skipBalanced(c, TokenType.BRACE_OPEN,
-                                TokenType.BRACE_CLOSE);
-                    }
-                    supportInfoSource = kind + " "
-                            + c.reconstructText(bs, c.pos());
+                    supportInfo = parseSupportInfo(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "elements" -> {
-                    // [ model, -model::experiment ] — exclusions keep '-'
+                    // [ model, -model::experiment ] — the ref span
+                    // includes the '-' of an exclusion
+                    elements = new ArrayList<>();
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+                        int s = c.pos();
                         boolean excluded = c.match(TokenType.MINUS);
                         String path = Protocol.unquotePath(
                                 c.parseQualifiedName());
-                        elements.add(excluded ? "-" + path : path);
+                        elements.add(new Protocol.PDataSpaceElementRef(path,
+                                excluded, c.spanOf(s, c.pos() - 1)));
                         c.match(TokenType.COMMA);
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
@@ -150,22 +131,77 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
         c.expect(TokenType.BRACE_CLOSE);
         return new Protocol.PDataSpace(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), contexts, defaultContext, title,
-                description, executables, diagrams, supportInfoSource,
+                description, executables, diagrams, supportInfo,
                 elements, c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** {@code Email { address: '...'; } | Combined { ...; emails: [..]; }}
+     *  — span covers the value only ({@code Kind { ... }}). */
+    private static Protocol.PDataSpaceSupport parseSupportInfo(
+            TokenStreamCursor c) {
+        int start = c.pos();
+        String kind = c.parseIdentifier();
+        c.expect(TokenType.BRACE_OPEN);
+        String address = null;
+        String documentationUrl = null;
+        String website = null;
+        String faqUrl = null;
+        String supportUrl = null;
+        List<String> emails = null;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "address" -> address = stringValue(c);
+                case "documentationUrl" -> documentationUrl = stringValue(c);
+                case "website" -> website = stringValue(c);
+                case "faqUrl" -> faqUrl = stringValue(c);
+                case "supportUrl" -> supportUrl = stringValue(c);
+                case "emails" -> {
+                    emails = new ArrayList<>();
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        emails.add(stringValue(c));
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
+                default -> throw c.error("unknown supportInfo key '" + key
+                        + "'");
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        SourceInfo span = c.spanOf(start, c.pos() - 1);
+        return switch (kind) {
+            case "Email" -> new Protocol.PDataSpaceSupport.PSupportEmail(
+                    java.util.Objects.requireNonNull(address), span);
+            case "Combined" -> new Protocol.PDataSpaceSupport
+                    .PSupportCombined(documentationUrl, website, faqUrl,
+                            supportUrl, emails, span);
+            default -> throw c.error("unknown supportInfo kind '" + kind
+                    + "'");
+        };
     }
 
     private static void parseContexts(TokenStreamCursor c,
             List<Protocol.PDataSpaceContext> out) {
         c.expect(TokenType.BRACKET_OPEN);
         while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int ctxStart = c.pos();
             c.expect(TokenType.BRACE_OPEN);
             String name = null;
             String title = null;
             String description = null;
             String mapping = null;
+            SourceInfo mappingSpan = null;
             String defaultRuntime = null;
-            String testDataSource = null;
+            SourceInfo runtimeSpan = null;
+            Protocol.PDataSpaceTestData testData = null;
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int keyStart = c.pos();
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
                 switch (key) {
@@ -177,22 +213,34 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
                     case "defaultRuntime" -> defaultRuntime =
                             Protocol.unquotePath(c.parseQualifiedName());
                     case "testData" -> {
-                        // Reference #{ path }# — kind + RAW island, carried
+                        // Reference #{ path }# — the span covers the VALUE
+                        // (kind through }#), no key, no semicolon
+                        int vs = c.pos();
                         String kind = c.parseIdentifier();
-                        testDataSource = kind + " #{" + rawIsland(c) + "}#";
+                        String path = rawIsland(c).trim();
+                        testData = new Protocol.PDataSpaceTestData(kind,
+                                path, c.spanOf(vs, c.pos() - 1));
                     }
                     default -> throw c.error(
                             "unknown executionContexts key: " + key);
                 }
                 c.expect(TokenType.SEMI_COLON);
+                // POINTER spans cover the whole `key: value;` statement
+                if ("mapping".equals(key)) {
+                    mappingSpan = c.spanOf(keyStart, c.pos() - 1);
+                } else if ("defaultRuntime".equals(key)) {
+                    runtimeSpan = c.spanOf(keyStart, c.pos() - 1);
+                }
             }
             c.expect(TokenType.BRACE_CLOSE);
-            if (name == null || mapping == null || defaultRuntime == null) {
+            if (name == null || mapping == null || mappingSpan == null
+                    || defaultRuntime == null || runtimeSpan == null) {
                 throw c.error("an execution context needs name, mapping and"
                         + " defaultRuntime");
             }
             out.add(new Protocol.PDataSpaceContext(name, title, description,
-                    mapping, defaultRuntime, testDataSource));
+                    mapping, mappingSpan, defaultRuntime, runtimeSpan,
+                    testData, c.spanOf(ctxStart, c.pos() - 1)));
             c.match(TokenType.COMMA);
         }
         c.expect(TokenType.BRACKET_CLOSE);
@@ -203,18 +251,22 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
             List<Protocol.PDataSpaceExecutable> out) {
         c.expect(TokenType.BRACKET_OPEN);
         while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int entryStart = c.pos();
             c.expect(TokenType.BRACE_OPEN);
             String id = null;
             String title = null;
             String description = null;
             String executable = null;
-            String querySource = null;
+            SourceInfo executableSpan = null;
+            com.legend.protocol.spec.ValueSpecification query = null;
             String contextKey = null;
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int keyStart = c.pos();
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
                 switch (key) {
-                    // ids appear as bare identifiers AND integers
+                    // ids appear as bare identifiers AND integers — the
+                    // wire stringifies both
                     case "id" -> {
                         id = c.safeText();
                         c.advance();
@@ -230,19 +282,24 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
                             executable += rawToSemicolon(c);
                         }
                     }
-                    case "query" -> querySource = rawToSemicolon(c);
+                    case "query" -> query = SectionParse.specToSemicolon(c);
                     case "executionContextKey" -> contextKey = stringValue(c);
                     default -> throw c.error("unknown executables key: " + key);
                 }
                 c.expect(TokenType.SEMI_COLON);
+                if ("executable".equals(key)) {
+                    // the pointer span covers the whole `key: value;`
+                    executableSpan = c.spanOf(keyStart, c.pos() - 1);
+                }
             }
             c.expect(TokenType.BRACE_CLOSE);
-            if (title == null || (executable == null && querySource == null)) {
+            if (title == null || (executable == null && query == null)) {
                 throw c.error("an executable needs a title and an executable"
                         + " path or query");
             }
             out.add(new Protocol.PDataSpaceExecutable(id, title, description,
-                    executable, querySource, contextKey));
+                    executable, executableSpan, query, contextKey,
+                    c.spanOf(entryStart, c.pos() - 1)));
             c.match(TokenType.COMMA);
         }
         c.expect(TokenType.BRACKET_CLOSE);
@@ -253,11 +310,14 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
             List<Protocol.PDataSpaceDiagram> out) {
         c.expect(TokenType.BRACKET_OPEN);
         while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int entryStart = c.pos();
             c.expect(TokenType.BRACE_OPEN);
             String title = null;
             String description = null;
             String diagram = null;
+            SourceInfo diagramSpan = null;
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int keyStart = c.pos();
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
                 switch (key) {
@@ -268,12 +328,16 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
                     default -> throw c.error("unknown diagrams key: " + key);
                 }
                 c.expect(TokenType.SEMI_COLON);
+                if ("diagram".equals(key)) {
+                    diagramSpan = c.spanOf(keyStart, c.pos() - 1);
+                }
             }
             c.expect(TokenType.BRACE_CLOSE);
-            if (title == null || diagram == null) {
+            if (title == null || diagram == null || diagramSpan == null) {
                 throw c.error("a diagram entry needs title and diagram");
             }
-            out.add(new Protocol.PDataSpaceDiagram(title, description, diagram));
+            out.add(new Protocol.PDataSpaceDiagram(title, description,
+                    diagram, diagramSpan, c.spanOf(entryStart, c.pos() - 1)));
             c.match(TokenType.COMMA);
         }
         c.expect(TokenType.BRACKET_CLOSE);
@@ -344,29 +408,4 @@ public final class DataSpaceSectionGrammar implements LexableSectionGrammar {
         }
     }
 
-    /** A minimal cursor over a re-lexed slice for the SPI feed. */
-    private static final class SliceCursor implements TokenStreamCursor {
-
-        private final com.legend.lexer.TokenStream tokens;
-        private int pos;
-
-        SliceCursor(com.legend.lexer.TokenStream tokens) {
-            this.tokens = tokens;
-        }
-
-        @Override
-        public com.legend.lexer.TokenStream tokens() {
-            return tokens;
-        }
-
-        @Override
-        public int pos() {
-            return pos;
-        }
-
-        @Override
-        public void setPos(int pos) {
-            this.pos = pos;
-        }
-    }
 }
