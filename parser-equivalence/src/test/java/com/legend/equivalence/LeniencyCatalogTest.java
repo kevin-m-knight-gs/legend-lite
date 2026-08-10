@@ -69,7 +69,11 @@ class LeniencyCatalogTest {
             return "EXTENSION-island-parser";
         }
         if (msg.contains("is not a known section parser")) {
-            return "EXTENSION-section-jar";
+            // AuthenticationDemo: the section parser exists ONLY in the
+            // engine's own test sources (no published jar) — a PRODUCTION
+            // engine refuses these files exactly as our strict surface
+            // does; pure mode skips the section as an unclaimed carrier
+            return "ENGINE-TEST-SCOPED-section";
         }
         if (msg.contains("Unknown schema format")
                 || msg.contains("Unknown embedded data type")

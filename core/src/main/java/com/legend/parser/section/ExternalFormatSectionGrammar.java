@@ -77,6 +77,13 @@ public final class ExternalFormatSectionGrammar
         if (format == null) {
             throw c.error("SchemaSet needs a format");
         }
+        // engine-parity validation: the PRODUCTION engine's format
+        // extensions (corpus-evidenced set). 'Example' exists only in the
+        // engine's OWN test sources — production refuses it, so do we.
+        if (!"FlatData".equals(format) && !"JSON".equals(format)
+                && !"XSD".equals(format)) {
+            throw c.error("Unknown schema format: " + format);
+        }
         return new Protocol.PSchemaSet(h.pkg(), h.name(), format, schemas,
                 c.spanOf(h.declStart(), c.pos() - 1));
     }

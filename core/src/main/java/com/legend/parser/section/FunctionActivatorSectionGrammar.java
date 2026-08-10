@@ -169,9 +169,15 @@ public final class FunctionActivatorSectionGrammar
                 c.match(TokenType.SEMI_COLON);
                 c.expect(TokenType.BRACE_CLOSE);
             } else if ("permissionScheme".equals(key)) {
-                // an ENUM-shaped value (SEQUESTERED) — a bare identifier,
-                // wired as a plain string slot
-                scalars.put(key, c.parseIdentifier());
+                // an ENUM-shaped value — engine-parity validation against
+                // SnowflakePermissionScheme (SnowflakeTreeWalker:113)
+                String scheme = c.parseIdentifier();
+                if (!"DEFAULT".equals(scheme)
+                        && !"SEQUESTERED".equals(scheme)) {
+                    throw c.error("Unknown permission scheme '" + scheme
+                            + "'");
+                }
+                scalars.put(key, scheme);
             } else if ("activationConfiguration".equals(key)) {
                 int aS = c.pos();
                 actConn = Protocol.unquotePath(c.parseQualifiedName());

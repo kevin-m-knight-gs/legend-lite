@@ -12,10 +12,10 @@ Oracle: legend-engine **4.138.2** jars (W10 re-pin, 2026-08-10; the
 previous pin was 4.133.0 — an earlier revision of this doc mis-recorded
 it as "5.88.1"), extension set as loaded by parser-equivalence. Corpus:
 full engine+pure checkouts plus Java-inline snippets. Authoritative
-counts = `LeniencyCatalogTest` output (2026-08-10 post-re-pin, 1,465
+counts = `LeniencyCatalogTest` output (2026-08-10 post-re-pin + extension close-out, 1,459
 rows): `DIALECT-function-types=278, DIALECT-generics=331,
 DIALECT-milestoning-range=31, DIALECT-native-or-m2=102,
-EXTENSION-format=6, EXTENSION-section-jar=10,
+ENGINE-TEST-SCOPED-section=10,
 ORACLE-DEFECT-InputMismatchException=344, ORACLE-DEFECT-crash=338,
 VERSION-SKEW-grammar=25`. Per-class prose below keeps the sub-construct
 evidence; where prose counts differ slightly from the classifier's
@@ -83,16 +83,20 @@ DIALECT class; a strict ACCEPT is what "checkout-unreleased" means
 `#>` accessors, `Primitive` definitions) all became oracle-ACCEPTED at
 4.138.2 and now sit in the byte-exact ledger.
 
-### EXTENSION-GAP — oracle missing format/section extensions (16 rows)
-The vanilla oracle loads without certain extensions; the format or
-section is real engine grammar we support:
-- **Formats** (6): `Unknown schema format` / `Unknown embedded data
-  type` / `Unknown permission scheme`.
-- **Unregistered sections** (10): `'X' is not a known section parser` —
-  section jars absent from the oracle classpath.
-- RETIRED at 4.138.2: the `#TDS`/`#SQL`/relation-accessor `'>'` island
-  rows — the newer extensions collection ships those embedded parsers,
-  and the files now byte-compare in the ledger.
+### ENGINE-TEST-SCOPED — grammar living only in the engine's OWN tests (10 rows)
+`###AuthenticationDemo`: its section parser exists exclusively in the
+engine's `src/test` sources and no `-tests` jar is published — a
+PRODUCTION engine refuses these files exactly as our strict surface does
+(`'AuthenticationDemo' is not a known section parser`). Pure mode skips
+the section as an unclaimed carrier; nothing to build.
+
+The former EXTENSION-format class (6 rows) is CLOSED: `Example` schema
+format is engine-test-scoped too, and `WHATSCHEME` was a Snowflake
+negative fixture — both now refuse on BOTH surfaces via engine-parity
+validation (SchemaSet format ∈ {FlatData, JSON, XSD}; permissionScheme ∈
+{DEFAULT, SEQUESTERED}), with the ledgers proving the sets are
+production-true. The 4.133-era `#TDS`/`#SQL`/`'>'` island rows retired at
+the 4.138.2 re-pin (the extensions collection ships those parsers).
 
 ### ORACLE-DEFECT — the oracle crashes (~682 rows)
 Not a refusal but an exception escaping the oracle's own walker:
