@@ -43,6 +43,10 @@ public final class Protocol {
             PService, PExecutionEnvironment, PDataSpace,
             PPersistence, PPersistenceContext, PFunctionActivator,
             PGenericSectionElement, PDiagram,
+            PText, PGenerationSpecification, PFileGeneration,
+            PDeephavenDatabase, PElasticsearch7Cluster, PMongoDatabase,
+            PDataQualityValidation, PDataQualityRelationValidation,
+            PDataQualityRelationComparison,
             PMapping, PDataElement {
     }
 
@@ -1194,6 +1198,203 @@ public final class Protocol {
             }
         }
 
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** {@code ###Text} — {@code Text pkg::T { type: STRING; content: '...' }};
+     *  type is optional (ZTailProbe "text"). */
+    public record PText(String pkg, String name,
+                        @com.legend.Nullable String type, String content,
+                        com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One {@code generationNodes:} entry — id defaults to the element path
+     *  text when not spelled (ZTailProbe "genspec"). */
+    public record PGenerationNode(String generationElement, String id,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ###GenerationSpecification} (ZTailProbe "genspec"):
+     *  generation-node list + FILE_GENERATION pointers. */
+    public record PGenerationSpecification(String pkg, String name,
+                                           List<PGenerationNode> generationNodes,
+                                           List<PPointer> fileGenerations,
+                                           com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A {@code ###FileGeneration} config value — the typed JSON scalar
+     *  forms the composer round-trips (ZTailProbe "filegen"). */
+    public sealed interface PConfigValue {
+        record PCString(String value) implements PConfigValue { }
+        record PCBoolean(boolean value) implements PConfigValue { }
+        record PCInteger(long value) implements PConfigValue { }
+        record PCStrings(List<String> values) implements PConfigValue { }
+        /** {@code {k1: 'v1'; k2: 'v2';}} — insertion-ordered. */
+        record PCMap(java.util.LinkedHashMap<String, String> entries)
+                implements PConfigValue { }
+    }
+
+    /** One config property — name keeps its QUOTES when quoted; span covers
+     *  {@code name: value;} including the semicolon. */
+    public record PConfigProperty(String name, PConfigValue value,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ###FileGeneration} (ZTailProbe "filegen"): the type keyword is
+     *  OPEN (Avro/Java/Protobuf/...); scopeElements + generationOutputPath
+     *  hoist out of configurationProperties. */
+    public record PFileGeneration(String pkg, String name, String type,
+                                  com.legend.protocol.SourceInfo typeSourceInformation,
+                                  @com.legend.Nullable String generationOutputPath,
+                                  List<String> scopeElements,
+                                  List<PConfigProperty> configurationProperties,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A Deephaven table column — kind is the wire {@code _type} stem
+     *  (stringType/intType/...); precision/scale ride DECIMAL only. */
+    public record PDeephavenColumn(String name, String kind,
+                                   @com.legend.Nullable Integer precision,
+                                   @com.legend.Nullable Integer scale) {
+    }
+
+    /** {@code ###Deephaven} store (ZTailProbe "deephaven-store"/"-cols"):
+     *  tables of typed columns; no table/column spans on the wire. */
+    public record PDeephavenDatabase(String pkg, String name,
+                                  List<PDeephavenTable> tables,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public record PDeephavenTable(String name, List<PDeephavenColumn> columns) {
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** {@code ###Elasticsearch} cluster (ZTailProbe "elastic-cluster"):
+     *  indices of named properties; the property type is the wire key
+     *  ({@code keyword}) with a {@code _pure_protocol_type} carrier. */
+    public record PElasticsearch7Cluster(String pkg, String name,
+                                      List<PEsIndex> indices,
+                                      com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public record PEsIndex(String indexName, List<PEsProperty> properties) {
+        }
+
+        /** {@code typeKey} is the lowercase wire key ({@code keyword}). */
+        public record PEsProperty(String propertyName, String typeKey) {
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A BSON schema node from a MongoDB {@code jsonSchema:} island —
+     *  typed by wire {@code _type} (schema/stringType/longType/...);
+     *  scalar facets only when spelled, properties in source order
+     *  (ZTailProbe "mongo-rich"). */
+    public record PBsonSchema(String wireType,
+                              @com.legend.Nullable Boolean additionalPropertiesAllowed,
+                              List<java.util.Map.Entry<String, PBsonSchema>> properties,
+                              List<String> required,
+                              @com.legend.Nullable String title,
+                              @com.legend.Nullable String description,
+                              @com.legend.Nullable Long minLength,
+                              @com.legend.Nullable Long maxLength) {
+    }
+
+    /** {@code ###MongoDB} database (ZTailProbe "mongo-db"/"mongo-rich"):
+     *  collections with validation levels and a structured BSON schema. */
+    public record PMongoDatabase(String pkg, String name,
+                                 List<PMongoCollection> collections,
+                                 com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public record PMongoCollection(String name, String validationLevel,
+                                       String validationAction,
+                                       PBsonSchema schema) {
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A DataQuality graph-fetch tree node: root carries the class name,
+     *  property nodes the property name; both carry constraint names and
+     *  subtrees (ZTailProbe "dq-validation"). */
+    public record PDqTreeNode(@com.legend.Nullable String className,
+                              @com.legend.Nullable String property,
+                              List<String> constraints,
+                              List<PDqTreeNode> subTrees,
+                              com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code DataQualityValidation} (tree kind): context pointer(s) +
+     *  validation tree + optional filter lambda (spec wire). */
+    public record PDataQualityValidation(String pkg, String name,
+                                         List<PStereotype> stereotypes,
+                                         List<PTaggedValue> taggedValues,
+                                         String contextKind,
+                                         String contextPath,
+                                         com.legend.protocol.SourceInfo contextPathSpan,
+                                         @com.legend.Nullable String contextSecond,
+                                         @com.legend.Nullable com.legend.protocol.SourceInfo contextSecondSpan,
+                                         PDqTreeNode validationTree,
+                                         @com.legend.Nullable com.legend.protocol.spec.ValueSpecification filter,
+                                         com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One {@code validations:} entry of a relation validation. */
+    public record PDqRelationCheck(String name,
+                                   @com.legend.Nullable String description,
+                                   com.legend.protocol.spec.ValueSpecification assertion) {
+    }
+
+    /** {@code DataQualityRelationValidation} (ZTailProbe
+     *  "dq-relation-validation"): a relation query lambda + named
+     *  assertion lambdas, all on the spec wire. */
+    public record PDataQualityRelationValidation(String pkg, String name,
+                                                 List<PStereotype> stereotypes,
+                                                 List<PTaggedValue> taggedValues,
+                                                 com.legend.protocol.spec.ValueSpecification query,
+                                                 List<PDqRelationCheck> validations,
+                                                 com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** {@code DataQualityRelationComparison} (ZTailProbe
+     *  "dq-relation-comparison"): source/target lambdas, key names, and a
+     *  strategy tag ({@code MD5Hash} &rarr; {@code md5Hash}). */
+    public record PDataQualityRelationComparison(String pkg, String name,
+                                                 com.legend.protocol.spec.ValueSpecification source,
+                                                 com.legend.protocol.spec.ValueSpecification target,
+                                                 List<String> keys,
+                                                 String strategy,
+                                                 com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
         }

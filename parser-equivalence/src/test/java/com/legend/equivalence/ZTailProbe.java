@@ -421,6 +421,251 @@ class ZTailProbe {
     }
 
     @Test
+    void tailShapes() throws Exception {
+        probe("text", """
+                ###Text
+                Text meta::pure::myText
+                {
+                  type: STRING;
+                  content: 'this is just for context';
+                }
+
+                Text meta::pure::noType
+                {
+                  content: 'x';
+                }
+                """);
+        probe("genspec", """
+                ###GenerationSpecification
+                GenerationSpecification test::x
+                {
+                  generationNodes: [
+                    {
+                      generationElement: model::serializableSpec;
+                    },
+                    {
+                      id: 'secondGeneration';
+                      generationElement: model::modelSpec;
+                    }
+                  ];
+                  fileGenerations: [
+                    model::myFileGeneration,
+                    model::other
+                  ];
+                }
+                """);
+        probe("filegen", """
+                ###FileGeneration
+                Avro model::AvroConfig
+                {
+                  scopeElements: [model::MyClass, model];
+                  generationOutputPath: 'myAvroRoot';
+                  includeNamespace: true;
+                  propertyProfile: ['model::myProfile', 'model::nextProfile'];
+                  test: 2;
+                  namespaceOverride: {
+                    key1: 'mapValue1';
+                    key2: 'mapValue2';
+                  };
+                }
+
+                JsonSchema model::JSONSchemaConfig
+                {
+                }
+                """);
+        probe("deephaven-store", """
+                ###Deephaven
+                Deephaven test::Store::foo
+                (
+                    Table xyz
+                    (
+                      prop1: STRING,
+                      prop2: INT,
+                      prop3: BOOLEAN,
+                      prop4: DATETIME,
+                      prop8: DECIMAL(10, 2)
+                    )
+                )
+                """);
+        probe("mongo-db", """
+                ###MongoDB
+                Database test::db
+                (
+                  Collection Person
+                  (
+                    validationLevel: strict;
+                    validationAction: error;
+                    jsonSchema: {
+                      "bsonType": "object",
+                      "properties": {
+                        "name": {
+                          "bsonType": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    };
+                  )
+                )
+                """);
+        probe("elastic-cluster", """
+                ###Elasticsearch
+                Elasticsearch7Cluster abc::abc::Store
+                {
+                    indices: [
+                        index1: {
+                            properties: [
+                                prop1: Keyword
+                            ];
+                        }
+                    ];
+                }
+                """);
+    }
+
+    @Test
+    void tailShapes2() throws Exception {
+        probe("dq-validation", """
+                Class my::Person
+                {
+                  name: String[1];
+                  age: Integer[1];
+                }
+
+                ###DataQualityValidation
+                DataQualityValidation my::PersonValidation
+                {
+                   context: fromMappingAndRuntime(my::M, my::RT);
+                   validationTree: $[
+                      Person{
+                        name,
+                        age
+                      }
+                    ]$;
+                   filter: p: Person[1]|$p.age >= 18;
+                }
+                """);
+    }
+
+    @Test
+    void tailShapes3() throws Exception {
+        probe("deephaven-app", """
+                function test::myFunc():Any[*] { 1 }
+
+                ###Deephaven
+                DeephavenApp test::MyApp
+                {
+                    applicationName: 'MyTestApp';
+                    function: test::myFunc():Any[*];
+                    description: 'A test app';
+                    ownership: Deployment { identifier: 'owner123' };
+                }
+                """);
+        probe("dq-relation-validation", """
+                Class demo::Person
+                {
+                  id: Integer[1];
+                }
+
+                ###DataQualityValidation
+                DataQualityRelationValidation demo::simpleValidation
+                {
+                   query: |demo::Person.all()->project(~[id: x|$x.id]);
+                   validations: [
+                   {
+                     name: 'idNotNegative';
+                     description: 'no negative ids';
+                     assertion: rel|$rel->filter(row|$row.id > 0);
+                    }
+                   ];
+                }
+                """);
+        probe("dq-relation-comparison", """
+                Class demo::Person
+                {
+                  id: Integer[1];
+                }
+
+                ###DataQualityValidation
+                DataQualityRelationComparison meta::dataquality::TestRelationComparison
+                {
+                  source: |demo::Person.all()->project(~[id: x|$x.id]);
+                  target: |demo::Person.all()->project(~[id: x|$x.id]);
+                  keys: [id, fullName];
+                  strategy: MD5Hash;
+                }
+                """);
+        probe("filegen-quoted", """
+                ###FileGeneration
+                Avro model::AvroConfig
+                {
+                  scopeElements: [model::MyClass, model];
+                  'include Namespace': true;
+                }
+                """);
+        probe("dq-dataspace-ctx", """
+                ###DataQualityValidation
+                DataQualityValidation my::V
+                {
+                   context: fromDataSpace(my::DS, 'Local_Context');
+                   validationTree: $[
+                      Person<ageMustBePositive, 'nameMust NotBeBlank'>{
+                        name
+                      }
+                    ]$;
+                }
+                """);
+    }
+
+    @Test
+    void tailShapes4() throws Exception {
+        probe("deephaven-cols", """
+                ###Deephaven
+                Deephaven test::S
+                (
+                    Table t
+                    (
+                      p5: FLOAT,
+                      p6: DOUBLE,
+                      p7: TIMESTAMP
+                    )
+                )
+                """);
+        probe("mongo-rich", """
+                ###MongoDB
+                Database test::db2
+                (
+                  Collection Person
+                  (
+                    validationLevel: strict;
+                    validationAction: error;
+                    jsonSchema: {
+                      "bsonType": "object",
+                      "title": "Record of Firm",
+                      "properties": {
+                        "name": {
+                          "bsonType": "string",
+                          "description": "name of the firm",
+                          "minLength": 2
+                        },
+                        "age": {
+                          "bsonType": "long"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "required": ["name"]
+                    };
+                  )
+                )
+                """);
+        probe("mongo-empty", """
+                ###MongoDB
+                Database test::empty
+                (
+                )
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

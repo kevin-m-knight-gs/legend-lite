@@ -98,6 +98,20 @@ public final class ProtocolEmitter {
                             + " claimed)",
                     pc.qualifiedName());
             case Protocol.PFunctionActivator fa -> functionActivator(b, fa);
+            case Protocol.PText t -> TailEmitter.text(b, t);
+            case Protocol.PGenerationSpecification gs ->
+                    TailEmitter.generationSpecification(b, gs);
+            case Protocol.PFileGeneration fg -> TailEmitter.fileGeneration(b, fg);
+            case Protocol.PDeephavenDatabase dh -> TailEmitter.deephavenStore(b, dh);
+            case Protocol.PElasticsearch7Cluster es ->
+                    TailEmitter.elasticsearchStore(b, es);
+            case Protocol.PMongoDatabase mg -> TailEmitter.mongoDatabase(b, mg);
+            case Protocol.PDataQualityValidation dq ->
+                    TailEmitter.dataQualityValidation(b, dq);
+            case Protocol.PDataQualityRelationValidation dq ->
+                    TailEmitter.dataQualityRelationValidation(b, dq);
+            case Protocol.PDataQualityRelationComparison dq ->
+                    TailEmitter.dataQualityRelationComparison(b, dq);
             case Protocol.PGenericSectionElement ge -> require(false,
                     "###" + ge.section() + " wire emission (harness scope not"
                             + " claimed)",
@@ -995,6 +1009,7 @@ public final class ProtocolEmitter {
             case "BigQueryFunction" -> "bigQueryFunction";
             case "HostedService" -> "hostedService";
             case "FunctionJar" -> "functionJar";
+            case "DeephavenApp" -> "DeephavenApp";
             default -> throw new IllegalStateException(
                     "unknown activator kind: " + fa.kind());
         };
@@ -1708,7 +1723,7 @@ public final class ProtocolEmitter {
     }
 
     /** {@code [{"profile":…,"profileSourceInformation":…,"sourceInformation":…,"value":…}]} */
-    private static void stereotypes(StringBuilder b, List<Protocol.PStereotype> ss) {
+    static void stereotypes(StringBuilder b, List<Protocol.PStereotype> ss) {
         b.append('[');
         for (int i = 0; i < ss.size(); i++) {
             if (i > 0) {
@@ -1729,7 +1744,7 @@ public final class ProtocolEmitter {
     }
 
     /** {@code [{"sourceInformation":…,"tag":{…},"value":…}]} */
-    private static void taggedValues(StringBuilder b, List<Protocol.PTaggedValue> ts) {
+    static void taggedValues(StringBuilder b, List<Protocol.PTaggedValue> ts) {
         b.append('[');
         for (int i = 0; i < ts.size(); i++) {
             if (i > 0) {

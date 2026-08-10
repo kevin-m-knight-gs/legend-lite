@@ -84,32 +84,25 @@ public final class SectionGrammarRegistry {
         m.put("FunctionJar",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
                         "FunctionJar", java.util.Set.of("FunctionJar")));
-        // the small keyed sections share ONE grammar class, each instance
-        // registered with its censused element-kind set (null = open, the
-        // FileGeneration posture — engine's own file-gen grammar is generic)
+        // the TAIL sections each own a dedicated typed grammar
+        for (com.legend.spi.SectionGrammar g : new com.legend.spi.SectionGrammar[]{
+                com.legend.parser.section.TextSectionGrammar.INSTANCE,
+                com.legend.parser.section.GenerationSpecificationSectionGrammar.INSTANCE,
+                com.legend.parser.section.FileGenerationSectionGrammar.INSTANCE,
+                com.legend.parser.section.DeephavenSectionGrammar.INSTANCE,
+                com.legend.parser.section.MongoDBSectionGrammar.INSTANCE,
+                com.legend.parser.section.DataQualityValidationSectionGrammar.INSTANCE,
+                com.legend.parser.section.ElasticsearchSectionGrammar.INSTANCE}) {
+            m.put(g.name(), g);
+        }
+        // the small keyed sections still on the GENERIC stopgap grammar,
+        // each instance registered with its censused element-kind set
         for (var g : new com.legend.parser.section.GenericKeyedSectionGrammar[]{
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
                         "ExternalFormat",
                         java.util.Set.of("Binding", "SchemaSet")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "FileGeneration", null),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "Text", java.util.Set.of("Text")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "GenerationSpecification",
-                        java.util.Set.of("GenerationSpecification")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "DataQualityValidation",
-                        java.util.Set.of("DataQualityValidation",
-                                "DataQualityRelationValidation",
-                                "DataQualityRelationComparison")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "ServiceStore", java.util.Set.of("ServiceStore")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "MongoDB", java.util.Set.of("Database")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "Deephaven", java.util.Set.of("Deephaven",
-                                "DeephavenApp"))}) {
+                        "ServiceStore", java.util.Set.of("ServiceStore"))}) {
             m.put(g.name(), g);
         }
         // the first RAW built-in: Diagram content never reaches the shared

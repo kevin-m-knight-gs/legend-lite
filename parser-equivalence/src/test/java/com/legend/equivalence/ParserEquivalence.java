@@ -96,6 +96,13 @@ public final class ParserEquivalence {
                 "HostedService", "FunctionJar"}) {
             activatorRanges.addAll(sectionRanges(src.text(), s, false));
         }
+        Map<String, List<long[]>> tailRanges = new java.util.LinkedHashMap<>();
+        for (String s : TAIL_SECTIONS) {
+            List<long[]> r = sectionRanges(src.text(), s, false);
+            if (!r.isEmpty()) {
+                tailRanges.put(s, r);
+            }
+        }
 
         Ref ref;
         try {
@@ -120,7 +127,13 @@ public final class ParserEquivalence {
                 com.legend.lexer.TokenType.MAPPING, 9));
         sites.addAll(textMarkerSites(ts, dataRanges, "Data", 10));
         for (String marker : ACTIVATOR_WIRE_TYPES.keySet()) {
-            sites.addAll(textMarkerSites(ts, activatorRanges, marker, 11));
+            if (!"DeephavenApp".equals(marker)) {
+                sites.addAll(textMarkerSites(ts, activatorRanges, marker, 11));
+            }
+        }
+        for (Map.Entry<String, List<long[]>> e : tailRanges.entrySet()) {
+            sites.addAll(tailSites(ts, e.getValue(),
+                    TAIL_SECTIONS.indexOf(e.getKey())));
         }
         // AggregationAware span emulation needs each mapping SECTION's
         // first content line (probe agg-off-A/B)
@@ -141,6 +154,7 @@ public final class ParserEquivalence {
         boolean mappingWalled = false;
         boolean dataWalled = false;
         boolean activatorWalled = false;
+        java.util.Set<String> walledTailSections = new java.util.HashSet<>();
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -194,6 +208,10 @@ public final class ParserEquivalence {
                             .parseElement(ElementParser.at(ts, site[0]));
                     el = fa;
                     fqn = fa.qualifiedName();
+                } else if (site[1] == 12) {
+                    var g = TAIL_GRAMMARS.get(TAIL_SECTIONS.get(site[2]));
+                    el = g.parseOne(ElementParser.at(ts, site[0]));
+                    fqn = g.qualifiedNameOf(el);
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -230,6 +248,10 @@ public final class ParserEquivalence {
                     activatorWalled = true;
                     out.add(new Verdict(Kind.WALL, src.id(), "?",
                             "activator: " + root(t)));
+                } else if (site[1] == 12) {
+                    walledTailSections.add(TAIL_SECTIONS.get(site[2]));
+                    out.add(new Verdict(Kind.WALL, src.id(), "?",
+                            TAIL_SECTIONS.get(site[2]) + ": " + root(t)));
                 } else {
                     out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 }
@@ -245,10 +267,7 @@ public final class ParserEquivalence {
                 // KIND (snowflakeApp vs hostedService...), not the site
                 // kind index — read it off the parsed element
                 String prefix = "{\"_type\":\""
-                        + (site[1] == 11
-                                ? ACTIVATOR_WIRE_TYPES.get(
-                                        ((Protocol.PFunctionActivator) el)
-                                                .kind())
+                        + (site[1] >= 11 ? tailWireType(el)
                                 : new String[]{"class", "Enumeration",
                                         "profile", "association", "function",
                                         "measure", "runtime", "connection",
@@ -300,7 +319,8 @@ public final class ParserEquivalence {
                 }
                 boolean activatorKind = false;
                 for (String t : ACTIVATOR_WIRE_TYPES.values()) {
-                    if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
+                    if (!"DeephavenApp".equals(t)
+                            && leftover.startsWith("{\"_type\":\"" + t + "\"")) {
                         activatorKind = true;
                         break;
                     }
@@ -309,6 +329,25 @@ public final class ParserEquivalence {
                     out.add(activatorWalled
                             ? new Verdict(Kind.WALL, src.id(), e.getKey(),
                                     "activator: unbuilt sub-grammar"
+                                            + " (walled site)")
+                            : new Verdict(Kind.LITE_MISSED, src.id(),
+                                    e.getKey(),
+                                    "reference element never compared"));
+                    continue;
+                }
+                String tailSection = null;
+                for (Map.Entry<String, String> tw
+                        : TAIL_WIRE_SECTIONS.entrySet()) {
+                    if (leftover.startsWith(
+                            "{\"_type\":\"" + tw.getKey() + "\"")) {
+                        tailSection = tw.getValue();
+                        break;
+                    }
+                }
+                if (tailSection != null) {
+                    out.add(walledTailSections.contains(tailSection)
+                            ? new Verdict(Kind.WALL, src.id(), e.getKey(),
+                                    tailSection + ": unbuilt sub-grammar"
                                             + " (walled site)")
                             : new Verdict(Kind.LITE_MISSED, src.id(),
                                     e.getKey(),
@@ -372,7 +411,68 @@ public final class ParserEquivalence {
             "MemSqlFunction", "memSqlFunction",
             "BigQueryFunction", "bigQueryFunction",
             "HostedService", "hostedService",
-            "FunctionJar", "functionJar");
+            "FunctionJar", "functionJar",
+            "DeephavenApp", "DeephavenApp");
+
+    /** The TAIL sections (site kind 12): each with its typed grammar. The
+     *  site scan takes ANY identifier at a declaration position — a bad
+     *  head walls loudly, which IS the worklist behavior. */
+    private static final List<String> TAIL_SECTIONS = List.of("Text",
+            "GenerationSpecification", "FileGeneration", "Deephaven",
+            "MongoDB", "DataQualityValidation", "Elasticsearch");
+
+    private static final Map<String,
+            com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
+            Map.of("Text",
+                    com.legend.parser.section.TextSectionGrammar.INSTANCE,
+                    "GenerationSpecification", com.legend.parser.section
+                            .GenerationSpecificationSectionGrammar.INSTANCE,
+                    "FileGeneration", com.legend.parser.section
+                            .FileGenerationSectionGrammar.INSTANCE,
+                    "Deephaven", com.legend.parser.section
+                            .DeephavenSectionGrammar.INSTANCE,
+                    "MongoDB", com.legend.parser.section
+                            .MongoDBSectionGrammar.INSTANCE,
+                    "DataQualityValidation", com.legend.parser.section
+                            .DataQualityValidationSectionGrammar.INSTANCE,
+                    "Elasticsearch", com.legend.parser.section
+                            .ElasticsearchSectionGrammar.INSTANCE);
+
+    /** Tail wire {@code _type} &rarr; owning section, for the drain. */
+    private static final Map<String, String> TAIL_WIRE_SECTIONS = Map.of(
+            "text", "Text",
+            "generationSpecification", "GenerationSpecification",
+            "fileGeneration", "FileGeneration",
+            "deephavenStore", "Deephaven",
+            "DeephavenApp", "Deephaven",
+            "MongoDatabase", "MongoDB",
+            "elasticsearch7Store", "Elasticsearch",
+            "dataQualityValidation", "DataQualityValidation",
+            "dataqualityRelationValidation", "DataQualityValidation",
+            "dataQualityRelationComparison", "DataQualityValidation");
+
+    /** The wire {@code _type} a tail/activator element will emit — the
+     *  site-12 dequeue prefix, computed BEFORE emission. */
+    private static String tailWireType(Protocol.Element el) {
+        return switch (el) {
+            case Protocol.PText t -> "text";
+            case Protocol.PGenerationSpecification g ->
+                    "generationSpecification";
+            case Protocol.PFileGeneration f -> "fileGeneration";
+            case Protocol.PDeephavenDatabase d -> "deephavenStore";
+            case Protocol.PMongoDatabase m -> "MongoDatabase";
+            case Protocol.PElasticsearch7Cluster s -> "elasticsearch7Store";
+            case Protocol.PDataQualityValidation v -> "dataQualityValidation";
+            case Protocol.PDataQualityRelationValidation v ->
+                    "dataqualityRelationValidation";
+            case Protocol.PDataQualityRelationComparison v ->
+                    "dataQualityRelationComparison";
+            case Protocol.PFunctionActivator a -> java.util.Objects
+                    .requireNonNull(ACTIVATOR_WIRE_TYPES.get(a.kind()));
+            default -> throw new IllegalStateException(
+                    "not a tail element: " + el.getClass());
+        };
+    }
 
     /** One all-kinds instance for site-11 parses — the harness scans sites
      *  per section range, so section-scoped kind gating already happened. */
@@ -509,6 +609,53 @@ public final class ParserEquivalence {
                 }
                 declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
                         || t == com.legend.lexer.TokenType.SEMI_COLON;
+            }
+        }
+        return sites;
+    }
+
+    /** Tail-section declaration sites: kind 12 — ANY identifier at a
+     *  declaration position heads an element (each section's grammar
+     *  refuses bad heads loudly); {@code import} statements skip. Paren
+     *  bodies (Deephaven/MongoDB stores) close with {@code )}, so
+     *  PAREN_CLOSE restarts declaration position too. */
+    private static java.util.List<int[]> tailSites(
+            com.legend.lexer.TokenStream ts, List<long[]> ranges,
+            int sectionIdx) {
+        java.util.List<int[]> sites = new ArrayList<>();
+        int cursor = 0;
+        for (long[] r : ranges) {
+            while (cursor < ts.count() && ts.start(cursor) < r[0]) {
+                cursor++;
+            }
+            int depth = 0;
+            boolean declPos = true;
+            for (; cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
+                com.legend.lexer.TokenType t = ts.type(cursor);
+                switch (t) {
+                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                    case IMPORT -> {
+                        if (depth == 0 && declPos) {
+                            while (cursor < ts.count() && ts.type(cursor)
+                                    != com.legend.lexer.TokenType.SEMI_COLON) {
+                                cursor++;
+                            }
+                            // the ';' restarts declaration position
+                            t = com.legend.lexer.TokenType.SEMI_COLON;
+                        }
+                    }
+                    default -> {
+                        if (depth == 0 && declPos
+                                && com.legend.parser.TokenStreamCursor
+                                        .IDENTIFIER_TOKENS.contains(t)) {
+                            sites.add(new int[]{cursor, 12, sectionIdx});
+                        }
+                    }
+                }
+                declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
+                        || t == com.legend.lexer.TokenType.SEMI_COLON
+                        || t == com.legend.lexer.TokenType.PAREN_CLOSE;
             }
         }
         return sites;
