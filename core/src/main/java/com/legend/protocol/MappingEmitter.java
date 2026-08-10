@@ -117,49 +117,36 @@ final class MappingEmitter {
                             b.append('}');
                             continue;
                         }
-                        b.append("{\"_type\":"
-                                + "\"relationFunctionPropertyMapping\","
-                                + "\"column\":");
-                        str(b, java.util.Objects.requireNonNull(pm.column()));
-                        if (pm.localMappingProperty() != null) {
-                            Protocol.PLocalProp lp = pm.localMappingProperty();
-                            b.append(",\"localMappingProperty\":"
-                                    + "{\"multiplicity\":{\"lowerBound\":");
-                            b.append(lp.lowerBound());
-                            if (lp.upperBound() != null) {
-                                b.append(",\"upperBound\":")
-                                        .append(lp.upperBound());
-                            }
-                            b.append("},\"sourceInformation\":");
-                            srcInfo(b, lp.sourceInformation());
-                            b.append(",\"type\":");
-                            str(b, lp.type());
-                            b.append('}');
-                        }
-                        b.append(",\"property\":{\"class\":");
-                        str(b, java.util.Objects.requireNonNull(
-                                pm.ownerClass()));
-                        b.append(",\"property\":");
-                        str(b, pm.property());
-                        b.append(",\"sourceInformation\":");
-                        srcInfo(b, pm.propertySourceInformation());
-                        b.append('}');
-                        if (pm.source() != null) {
-                            b.append(",\"source\":");
-                            str(b, pm.source());
-                        }
-                        b.append(",\"sourceInformation\":");
-                        srcInfo(b, pm.sourceInformation());
-                        b.append('}');
+                        relationFnPm(b, pm);
                     }
-                    b.append("],\"relationFunction\":{\"path\":");
-                    str(b, rf.relationFunction());
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, rf.relationFunctionSourceInformation());
-                    b.append(",\"type\":\"FUNCTION\"},\"root\":")
-                            .append(rf.root());
+                    b.append(']');
+                    if (rf.relationFunction() != null) {
+                        b.append(",\"relationFunction\":{\"path\":");
+                        str(b, rf.relationFunction());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, java.util.Objects.requireNonNull(
+                                rf.relationFunctionSourceInformation()));
+                        b.append(",\"type\":\"FUNCTION\"}");
+                    }
+                    b.append(",\"root\":").append(rf.root());
                     b.append(",\"sourceInformation\":");
                     srcInfo(b, rf.sourceInformation());
+                    if (rf.sourceLambda() != null) {
+                        // ~src row-source form (probe ZRelationMappingProbe):
+                        // one func node over the BARE name; wrapper span is
+                        // the parser's shifted descriptor span
+                        Protocol.PRelationSrcLambda sl = rf.sourceLambda();
+                        b.append(",\"sourceLambda\":{\"_type\":\"lambda\","
+                                + "\"body\":[{\"_type\":\"func\","
+                                + "\"function\":");
+                        str(b, sl.function());
+                        b.append(",\"parameters\":[],\"sourceInformation\":");
+                        srcInfo(b, sl.functionSourceInformation());
+                        b.append("}],\"parameters\":[],"
+                                + "\"sourceInformation\":");
+                        srcInfo(b, sl.sourceInformation());
+                        b.append('}');
+                    }
                     b.append('}');
                 }
                 case Protocol.PClassMappingOperation om -> {
@@ -1076,17 +1063,7 @@ final class MappingEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            Protocol.PRelationFnPropertyMapping in = nested.get(i);
-            b.append("{\"_type\":\"relationFunctionPropertyMapping\","
-                    + "\"column\":");
-            str(b, java.util.Objects.requireNonNull(in.column()));
-            b.append(",\"property\":{\"property\":");
-            str(b, in.property());
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, in.propertySourceInformation());
-            b.append("},\"sourceInformation\":");
-            srcInfo(b, in.sourceInformation());
-            b.append('}');
+            relationFnPm(b, nested.get(i));
         }
         b.append(']');
         if (pm.source() != null) {
@@ -1095,6 +1072,65 @@ final class MappingEmitter {
         }
         b.append(",\"sourceInformation\":");
         srcInfo(b, pm.sourceInformation());
+        b.append('}');
+    }
+
+    /** ONE {@code relationFunctionPropertyMapping} — key order: _type,
+     *  [column], [enumMappingId], [localMappingProperty],
+     *  property{[class],property,si}, [source], sourceInformation,
+     *  [valueFn] (probe ZRelationMappingProbe; nested pms carry NO class,
+     *  signalled by a null ownerClass). Shared by the outer arm and the
+     *  embedded helper so the pm wire cannot drift between them. */
+    static void relationFnPm(StringBuilder b,
+            Protocol.PRelationFnPropertyMapping pm) {
+        b.append("{\"_type\":\"relationFunctionPropertyMapping\"");
+        if (pm.column() != null) {
+            b.append(",\"column\":");
+            str(b, pm.column());
+        }
+        if (pm.enumMappingId() != null) {
+            b.append(",\"enumMappingId\":");
+            str(b, pm.enumMappingId());
+        }
+        if (pm.localMappingProperty() != null) {
+            Protocol.PLocalProp lp = pm.localMappingProperty();
+            b.append(",\"localMappingProperty\":"
+                    + "{\"multiplicity\":{\"lowerBound\":");
+            b.append(lp.lowerBound());
+            if (lp.upperBound() != null) {
+                b.append(",\"upperBound\":").append(lp.upperBound());
+            }
+            b.append("},\"sourceInformation\":");
+            srcInfo(b, lp.sourceInformation());
+            b.append(",\"type\":");
+            str(b, lp.type());
+            b.append('}');
+        }
+        b.append(",\"property\":{");
+        if (pm.ownerClass() != null) {
+            b.append("\"class\":");
+            str(b, pm.ownerClass());
+            b.append(',');
+        }
+        b.append("\"property\":");
+        str(b, pm.property());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pm.propertySourceInformation());
+        b.append('}');
+        if (pm.source() != null) {
+            b.append(",\"source\":");
+            str(b, pm.source());
+        }
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pm.sourceInformation());
+        if (pm.expr() != null) {
+            b.append(",\"valueFn\":{\"_type\":\"lambda\",\"body\":[");
+            valueSpec(b, pm.expr());
+            b.append("],\"parameters\":[],\"sourceInformation\":");
+            srcInfo(b, java.util.Objects.requireNonNull(
+                    pm.exprLambdaSourceInformation()));
+            b.append('}');
+        }
         b.append('}');
     }
 

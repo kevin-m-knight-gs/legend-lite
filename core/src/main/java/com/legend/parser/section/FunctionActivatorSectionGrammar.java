@@ -132,13 +132,14 @@ public final class FunctionActivatorSectionGrammar
             } else if (BOOLEAN_KEYS.contains(key)) {
                 booleans.put(key, booleanValue(c));
             } else if ("function".equals(key)) {
-                int fS = c.pos();
-                String fn = Protocol.unquotePath(c.parseQualifiedName());
-                if (c.peek() == TokenType.PAREN_OPEN) {
-                    fn += rawToSemicolon(c);
-                }
-                functionPath = fn;
-                functionSpan = c.spanOf(fS, c.pos() - 1);
+                // the SHARED pointer-site scan (TokenStreamCursor
+                // #parseFunctionDescriptor); this site renders the raw
+                // SPELLING (reconstructText), unquoting only the fqn
+                var fd = c.parseFunctionDescriptor();
+                functionPath = Protocol.unquotePath(
+                        c.reconstructText(fd.start(), fd.nameEnd()))
+                        + c.reconstructText(fd.nameEnd(), fd.end());
+                functionSpan = c.spanOf(fd.start(), fd.end() - 1);
             } else if ("ownership".equals(key)) {
                 String oKind = c.parseIdentifier();
                 c.expect(TokenType.BRACE_OPEN);
@@ -209,24 +210,6 @@ public final class FunctionActivatorSectionGrammar
                 dec.stereotypes(), dec.taggedValues(), scalars, booleans,
                 functionPath, functionSpan, ownerId, userListUsers, actConn,
                 actConnSpan, c.spanOf(declStart, c.pos() - 1));
-    }
-
-    private static String rawToSemicolon(TokenStreamCursor c) {
-        int bs = c.pos();
-        int d = 0;
-        while (!c.atEnd()) {
-            TokenType tk = c.peek();
-            switch (tk) {
-                case PAREN_OPEN, BRACE_OPEN, BRACKET_OPEN -> d++;
-                case PAREN_CLOSE, BRACE_CLOSE, BRACKET_CLOSE -> d--;
-                default -> { }
-            }
-            if (tk == TokenType.SEMI_COLON && d <= 0) {
-                break;
-            }
-            c.advance();
-        }
-        return c.reconstructText(bs, c.pos());
     }
 
     private static String stringValue(TokenStreamCursor c) {

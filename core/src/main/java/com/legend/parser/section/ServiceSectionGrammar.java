@@ -250,6 +250,13 @@ public final class ServiceSectionGrammar
         while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
             int ss = c.pos();
             String id = c.parseIdentifier();
+            // 4.138 COMPACT form: id 'doc'? ( ... ) — v1 keeps id: { ... }
+            if (c.peek() == TokenType.STRING
+                    || c.peek() == TokenType.PAREN_OPEN) {
+                out.add(parseCompactSuite(c, ss, id));
+                c.match(TokenType.COMMA);
+                continue;
+            }
             c.expect(TokenType.COLON);
             c.expect(TokenType.BRACE_OPEN);
             Protocol.PServiceTestSuite.PSuiteData data = null;
@@ -267,12 +274,120 @@ public final class ServiceSectionGrammar
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
-            out.add(new Protocol.PServiceTestSuite(id, data, tests,
+            out.add(new Protocol.PServiceTestSuite(id, null, data, tests,
                     c.spanOf(ss, c.pos() - 1)));
             c.match(TokenType.COMMA);
         }
         c.expect(TokenType.BRACKET_CLOSE);
         return out;
+    }
+
+    /** The 4.138 COMPACT suite (ZServiceV2Probe): {@code id 'doc'? (
+     *  (path; | path: Kind #{...}#;)* (testId 'doc'? => <expected>;)* )}
+     *  — {@code path;} is a referenceDataResolver, {@code path: ...} a
+     *  baseDataResolver, and each test carries ONE "default"
+     *  equalTo-assertion. The testData wire span anchors at the suite's
+     *  DOC string. */
+    private static Protocol.PServiceTestSuite parseCompactSuite(
+            TokenStreamCursor c, int ss, String id) {
+        String doc = null;
+        int docTok = c.pos();
+        if (c.peek() == TokenType.STRING) {
+            doc = stringValue(c);
+        }
+        c.expect(TokenType.PAREN_OPEN);
+        List<Protocol.PServiceTestSuite.PResolverData> resolvers =
+                new ArrayList<>();
+        List<Protocol.PServiceTestSuite.PSuiteTest> tests = new ArrayList<>();
+        while (!c.atEnd() && c.peek() != TokenType.PAREN_CLOSE) {
+            int es = c.pos();
+            String name = Protocol.unquotePath(c.parseQualifiedName());
+            int nameEnd = c.pos() - 1;
+            if (c.peek() == TokenType.SEMI_COLON) {
+                c.advance();                        // reference resolver
+                // resolver spans END BEFORE the ';' (G8-adjudicated)
+                resolvers.add(new Protocol.PServiceTestSuite.PResolverData(
+                        null, name, c.spanOf(es, nameEnd),
+                        c.spanOf(es, c.pos() - 2)));
+            } else if (c.peek() == TokenType.COLON) {
+                c.advance();                        // base resolver
+                Protocol.PEmbeddedDataValue v = com.legend.parser
+                        .MappingProtocolParser.parseEmbeddedValueAt(c);
+                c.expect(TokenType.SEMI_COLON);
+                resolvers.add(new Protocol.PServiceTestSuite.PResolverData(
+                        v, name, c.spanOf(es, nameEnd),
+                        c.spanOf(es, c.pos() - 2)));
+            } else {
+                String tdoc = null;                 // a test entry
+                if (c.peek() == TokenType.STRING) {
+                    tdoc = stringValue(c);
+                }
+                List<Protocol.PServiceTestSuite.PSuiteParam> parameters =
+                        null;
+                if (c.peek() == TokenType.PAREN_OPEN) {
+                    c.advance();                    // ( name = value, ... )
+                    parameters = new ArrayList<>();
+                    while (c.peek() != TokenType.PAREN_CLOSE) {
+                        String pn = c.parseIdentifier();
+                        c.expect(TokenType.EQUAL);
+                        int vs = c.pos();
+                        int d = 0;
+                        while (!c.atEnd()) {
+                            TokenType tk = c.peek();
+                            switch (tk) {
+                                case PAREN_OPEN, BRACE_OPEN,
+                                        BRACKET_OPEN -> d++;
+                                case PAREN_CLOSE, BRACE_CLOSE,
+                                        BRACKET_CLOSE -> d--;
+                                default -> { }
+                            }
+                            if ((tk == TokenType.COMMA && d <= 0)
+                                    || (tk == TokenType.PAREN_CLOSE
+                                            && d < 0)) {
+                                break;
+                            }
+                            c.advance();
+                        }
+                        parameters.add(new Protocol.PServiceTestSuite
+                                .PSuiteParam(pn, SpecParser.parse(
+                                        c.tokens().slice(vs, c.pos()))));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.PAREN_CLOSE);
+                }
+                List<String> keys = new ArrayList<>();
+                if (c.peek() == TokenType.BRACKET_OPEN) {
+                    c.advance();                    // [ 'KEY_A', ... ]
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        keys.add(stringValue(c));
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
+                String fmt = null;
+                if (c.match(TokenType.COLON)) {     // : PURE_TDSOBJECT
+                    fmt = c.parseIdentifier();
+                }
+                c.expect(TokenType.EQUAL);
+                c.expect(TokenType.GREATER_THAN);
+                Protocol.PTestAssertion a = com.legend.parser
+                        .MappingProtocolParser.parseDefaultAssertionAt(c);
+                c.match(TokenType.SEMI_COLON);
+                tests.add(new Protocol.PServiceTestSuite.PSuiteTest(name,
+                        tdoc, fmt, keys, parameters, List.of(a),
+                        c.spanOf(es, c.pos() - 1)));
+            }
+        }
+        int close = c.pos();
+        c.expect(TokenType.PAREN_CLOSE);
+        Protocol.PServiceTestSuite.PSuiteData data = resolvers.isEmpty()
+                ? null
+                : new Protocol.PServiceTestSuite.PSuiteData(List.of(),
+                        resolvers, c.spanOf(docTok, close));
+        return new Protocol.PServiceTestSuite(id, doc, data, tests,
+                c.spanOf(ss, close));
     }
 
     private static Protocol.PServiceTestSuite.PSuiteData parseSuiteData(
@@ -301,7 +416,7 @@ public final class ServiceSectionGrammar
             c.expect(TokenType.BRACKET_CLOSE);
         }
         c.expect(TokenType.BRACKET_CLOSE);
-        return new Protocol.PServiceTestSuite.PSuiteData(conns,
+        return new Protocol.PServiceTestSuite.PSuiteData(conns, null,
                 c.spanOf(keyStart, c.pos() - 1));
     }
 
@@ -387,7 +502,7 @@ public final class ServiceSectionGrammar
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
-            out.add(new Protocol.PServiceTestSuite.PSuiteTest(id,
+            out.add(new Protocol.PServiceTestSuite.PSuiteTest(id, null,
                     serializationFormat, keys, parameters, asserts,
                     c.spanOf(ts, c.pos() - 1)));
             c.match(TokenType.COMMA);

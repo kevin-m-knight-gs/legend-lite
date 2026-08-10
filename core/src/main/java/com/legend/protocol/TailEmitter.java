@@ -1558,7 +1558,12 @@ final class TailEmitter {
 
     private static void serviceTestSuite(StringBuilder b,
             Protocol.PServiceTestSuite st) {
-        b.append("{\"_type\":\"serviceTestSuite\",\"id\":");
+        b.append("{\"_type\":\"serviceTestSuite\"");
+        if (st.doc() != null) {
+            b.append(",\"doc\":");
+            ProtocolEmitter.str(b, st.doc());
+        }
+        b.append(",\"id\":");
         ProtocolEmitter.str(b, st.id());
         b.append(",\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, st.sourceInformation());
@@ -1578,6 +1583,33 @@ final class TailEmitter {
                     b.append(",\"sourceInformation\":");
                     ProtocolEmitter.srcInfo(b,
                             cds.get(i).sourceInformation());
+                    b.append('}');
+                }
+                b.append("],");
+            }
+            var rds = st.testData().serviceTestData();
+            if (rds != null && !rds.isEmpty()) {
+                // COMPACT-form resolver entries (ZServiceV2Probe): the
+                // elementPointer carries NO "type" key
+                b.append("\"serviceTestData\":[");
+                for (int i = 0; i < rds.size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    var rd = rds.get(i);
+                    b.append(rd.data() != null
+                            ? "{\"_type\":\"baseDataResolver\",\"data\":"
+                            : "{\"_type\":\"referenceDataResolver\"");
+                    if (rd.data() != null) {
+                        MappingEmitter.embeddedDataValue(b, rd.data());
+                    }
+                    b.append(",\"elementPointer\":{\"path\":");
+                    ProtocolEmitter.str(b, rd.elementPath());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b,
+                            rd.elementSourceInformation());
+                    b.append("},\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, rd.sourceInformation());
                     b.append('}');
                 }
                 b.append("],");
@@ -1604,9 +1636,13 @@ final class TailEmitter {
                                 + "\"expected\":");
                         MappingEmitter.externalFormatData(b, ef);
                     }
-                    case Protocol.PRelationElement re ->
-                            throw new IllegalStateException(
-                                    "unprobed service equalToRelation");
+                    case Protocol.PRelationElement re -> {
+                        // COMPACT-form `=> Relation #{...}#`
+                        // (ZServiceV2Probe): a BARE relation element
+                        b.append("{\"_type\":\"equalToRelation\","
+                                + "\"expected\":");
+                        MappingEmitter.relationElement(b, re);
+                    }
                 }
                 b.append(",\"id\":");
                 ProtocolEmitter.str(b, a.id());
@@ -1614,7 +1650,12 @@ final class TailEmitter {
                 ProtocolEmitter.srcInfo(b, a.sourceInformation());
                 b.append('}');
             }
-            b.append("],\"id\":");
+            b.append(']');
+            if (t.doc() != null) {
+                b.append(",\"doc\":");
+                ProtocolEmitter.str(b, t.doc());
+            }
+            b.append(",\"id\":");
             ProtocolEmitter.str(b, t.id());
             b.append(",\"keys\":[");
             for (int j = 0; j < t.keys().size(); j++) {

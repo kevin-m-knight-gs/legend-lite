@@ -923,9 +923,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private static final int BODY_TEST_SUITES = 4;
 
     /** A Relation binding's right-hand side: a column NAME, or a row
-     *  expression when it is richer than one. */
+     *  expression when it is richer than one; {@code span} covers the RHS
+     *  tokens (the valueFn wrapper's columns — see PRelationFnPropertyMapping). */
     private record RelationBinding(@com.legend.Nullable String column,
-            @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+            @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
+            SourceInfo span) {
     }
 
     /**
@@ -962,44 +964,18 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         com.legend.protocol.spec.ValueSpecification rhs =
                 SpecParser.parse(tokens.slice(exprStart, pos), legendStrict);
-        if (rhs instanceof com.legend.protocol.spec.AppliedProperty ap
-                && ap.receiver() instanceof com.legend.protocol.spec.Variable) {
-            return new RelationBinding(ap.property(), null);
-        }
+        SourceInfo span = spanOf(exprStart, pos - 1);
+        // NO $src.COL→column fold: the 4.138 wire keeps `$src.ID` as a
+        // valueFn expression — only a BARE identifier (or quoted name) is a
+        // column (relationUnionAdvancedSetup cm[3] pm[1], G8-adjudicated).
         if (rhs instanceof com.legend.protocol.spec.CString cs) {
-            return new RelationBinding(cs.value(), null);
+            return new RelationBinding(cs.value(), null, span);
         }
         if (rhs instanceof com.legend.protocol.spec.PackageableElementPtr ptr
                 && !ptr.fullPath().contains("::")) {
-            return new RelationBinding(ptr.fullPath(), null);
+            return new RelationBinding(ptr.fullPath(), null, span);
         }
-        return new RelationBinding(null, rhs);
-    }
-
-    /** Consume {@code <...>} type arguments and a {@code [..]} multiplicity,
-     *  if present — the tail of a {@code ~func} signature spelling. */
-    private void skipTypeArgsAndMultiplicity() {
-        if (peek() == TokenType.LESS_THAN) {
-            int depth = 0;
-            while (!atEnd()) {
-                if (peek() == TokenType.LESS_THAN) {
-                    depth++;
-                } else if (peek() == TokenType.GREATER_THAN) {
-                    depth--;
-                    if (depth == 0) {
-                        advance();
-                        break;
-                    }
-                }
-                advance();
-            }
-        }
-        if (peek() == TokenType.BRACKET_OPEN) {
-            while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
-                advance();
-            }
-            match(TokenType.BRACKET_CLOSE);
-        }
+        return new RelationBinding(null, rhs, span);
     }
 
     /** Admit one mapping-body section, or refuse the swap / the duplicate;
@@ -1865,13 +1841,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PClassMappingRelation parseRelationClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
             @com.legend.Nullable String id, boolean root) {
+        int braceTok = pos;
         expect(TokenType.BRACE_OPEN);
-        // `~func <ref>` is canonical; `~src <ref>()` is the row-source
-        // ALIAS and names the same extent function
-        // (MappingGrammarParser:536-546 accepted both, and
-        // tests/mapping/relation writes `~src ...personFunctionTyped()`).
+        int braceLine = tokens.startLine(braceTok);
+        // `~func <ref>` is the FUNCTION-pointer form; `~src <ref>()` is the
+        // row-source form. Both name an extent function, but their WIRE
+        // differs (4.138, probe ZRelationMappingProbe): ~func emits a
+        // relationFunction pointer, ~src emits a sourceLambda.
+        boolean srcForm = false;
         if (peek() == TokenType.SRC_CMD) {
             advance();                              // '~src' is ONE token
+            srcForm = true;
         } else if (peek() == TokenType.TILDE
                 && "func".equals(tokens.text(
                         Math.min(pos + 1, tokens.count() - 1)))) {
@@ -1881,41 +1861,21 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             throw error("Relation class mapping must open with ~func"
                     + " (or its ~src alias)");
         }
-        int dS = pos;
         // The descriptor is `<fqn>` with an OPTIONAL signature spelling
-        // `f():Relation<Any>[1]` — parsed structurally, exactly as
-        // MappingGrammarParser:546-554 does.
-        //
-        // This used to be a scan that ran until it saw a `]`, on the
-        // assumption that every descriptor ends in a `[m]` multiplicity.
-        // Most corpus spellings do; `~func my::personFunction__Relation_1_`
-        // does not, and the scan then swallowed the property lines whole
-        // and stopped at the first `]` it could find — the `Integer[1]` of a
-        // later `+local` binding — leaving the parse mid-line
-        // (relationMappingSetup.pure:434).
-        parseQualifiedName();
-        if (peek() == TokenType.PAREN_OPEN) {
-            int parens = 0;
-            do {
-                if (peek() == TokenType.PAREN_OPEN) {
-                    parens++;
-                } else if (peek() == TokenType.PAREN_CLOSE) {
-                    parens--;
-                }
-                advance();
-            } while (!atEnd() && parens > 0);
-            if (match(TokenType.COLON)) {
-                parseQualifiedName();
-                skipTypeArgsAndMultiplicity();
-            }
+        // `f():Relation<Any>[1]` — the SHARED pointer-site scan
+        // (TokenStreamCursor#parseFunctionDescriptor; this arm's canonical
+        // text is the tokens joined with NO spaces).
+        FunctionDescriptor fd = parseFunctionDescriptor();
+        String desc = compactText(fd.start(), fd.end() - 1);
+        SourceInfo fnSpan = spanOf(fd.start(), fd.end() - 1);
+        Protocol.PRelationSrcLambda srcLambda = null;
+        if (srcForm) {
+            int delta = tokens.startLine(fd.start()) - braceLine;
+            srcLambda = new Protocol.PRelationSrcLambda(
+                    compactText(fd.start(), fd.nameEnd() - 1),
+                    spanOf(fd.start(), fd.nameEnd() - 1),
+                    shiftLines(fnSpan, delta));
         }
-        // the record's path is the CANONICAL text: the descriptor's tokens
-        // joined with NO spaces
-        StringBuilder desc = new StringBuilder();
-        for (int i = dS; i < pos; i++) {
-            desc.append(tokens.text(i));
-        }
-        SourceInfo fnSpan = spanOf(dS, pos - 1);
         List<String> pk = new ArrayList<>();
         if (peek() == TokenType.PRIMARY_KEY_CMD) {
             // ~primaryKey: [COL, ...] — bare column names (probe
@@ -1959,14 +1919,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             TokenType.PAREN_CLOSE);
                     nested.add(new Protocol.PRelationFnPropertyMapping(null,
                             nProp, nSpan, nb.column(), null, null, null, null,
-                            nEnum, nb.expr(), spanOf(nS, pos - 1)));
+                            nEnum, nb.expr(), exprWrapper(nb, braceLine),
+                            spanOf(nS, pos - 1)));
                     match(TokenType.COMMA);
                 }
                 int pClose = pos;
                 expect(TokenType.PAREN_CLOSE);
                 props.add(new Protocol.PRelationFnPropertyMapping(target,
                         prop, propSpan, null, null, nested, null, id,
-                        null, null, spanOf(pS, pClose)));
+                        null, null, null, spanOf(pS, pClose)));
                 match(TokenType.COMMA);
                 continue;
             }
@@ -1984,7 +1945,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 expect(TokenType.BRACKET_CLOSE);
                 props.add(new Protocol.PRelationFnPropertyMapping(target,
                         prop, propSpan, null, setId, null, null, id,
-                        null, null, spanOf(pS, bClose)));
+                        null, null, null, spanOf(pS, bClose)));
                 match(TokenType.COMMA);
                 continue;
             }
@@ -2025,13 +1986,26 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             RelationBinding rb = relationBinding(TokenType.BRACE_CLOSE);
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
                     propSpan, rb.column(), null, null, lp, id, enumId,
-                    rb.expr(), spanOf(pS, pos - 1)));
+                    rb.expr(), exprWrapper(rb, braceLine),
+                    spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingRelation(target, id, pk, props,
-                desc.toString(), fnSpan, root, spanOf(memberStart, close));
+                srcForm ? null : desc, srcForm ? null : fnSpan, srcLambda,
+                root, spanOf(memberStart, close));
+    }
+
+    /** The valueFn WRAPPER span for an expression binding: the RHS columns
+     *  with both lines shifted DOWN by (RHS line - cm brace line) — the
+     *  engine walker's re-parse anchor quirk (see PRelationSrcLambda). */
+    private static @com.legend.Nullable SourceInfo exprWrapper(
+            RelationBinding rb, int braceLine) {
+        if (rb.expr() == null) {
+            return null;
+        }
+        return shiftLines(rb.span(), rb.span().startLine() - braceLine);
     }
 
     /** {@code id: { function: |...; tests: [...] }} — suite span
@@ -2473,10 +2447,38 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return v;
     }
 
+    /** One COMPACT-form assertion value ({@code => Relation #{...}#})
+     *  parsed off a HOST cursor — the wire id is "default"
+     *  (ZServiceV2Probe). */
+    public static Protocol.PTestAssertion parseDefaultAssertionAt(
+            com.legend.parser.TokenStreamCursor host) {
+        MappingProtocolParser p = new MappingProtocolParser(host.tokens(),
+                host.pos(), host.legendStrict());
+        Protocol.PTestAssertion v = p.assertionValue("default");
+        host.setPos(p.pos());
+        return v;
+    }
+
     private Protocol.PTestAssertion parseTestAssertion() {
-        int aS = pos;
         String assertId = parseIdentifier();
         expect(TokenType.COLON);
+        return assertionValue(assertId);
+    }
+
+    /** The kind-dispatched assertion VALUE ({@code Relation #{...}#} /
+     *  {@code EqualToJson #{...}#} / compact {@code ExternalFormat
+     *  #{...}#}) — shared by the keyed form ({@code id: <value>}) and the
+     *  compact form ({@code => <value>}). */
+    private Protocol.PTestAssertion assertionValue(String assertId) {
+        if (peek() == TokenType.VALID_STRING
+                && "ExternalFormat".equals(text())) {
+            // compact spelling of equalToJson: assertion AND expected share
+            // the kind..}# span (ZServiceV2Probe "inline-compact")
+            Protocol.PExternalFormatData ef = parseExternalFormat();
+            match(TokenType.SEMI_COLON);
+            return new Protocol.PTestAssertion(assertId, ef,
+                    ef.sourceInformation());
+        }
         if (peek() == TokenType.VALID_STRING && "Relation".equals(text())) {
             int rTok = pos;
             advance();

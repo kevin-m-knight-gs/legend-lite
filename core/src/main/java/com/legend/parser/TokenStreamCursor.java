@@ -753,18 +753,147 @@ public interface TokenStreamCursor {
                 int vS = pos();
                 String tagName = parseIdentifier();
                 expect(TokenType.EQUAL);
-                String quoted = text();
-                expect(TokenType.STRING);
-                String value = unquoteAndUnescape(quoted, this);
+                String value;
+                com.legend.protocol.SourceInfo tvSpan;
+                if (peek() == TokenType.DOC_STRING) {
+                    // '''...''' tagged-value VALUE (4.138, ZMissedRowsProbe):
+                    // shared strip rule; the tv span ends by the token's
+                    // single-line column arithmetic
+                    int dTok = pos();
+                    value = docStringValue(text());
+                    advance();
+                    com.legend.protocol.SourceInfo d = docStringSpan(dTok);
+                    com.legend.protocol.SourceInfo s = spanOf(tS, tS);
+                    tvSpan = new com.legend.protocol.SourceInfo(
+                            s.sourceId(), s.startLine(), s.startColumn(),
+                            d.endLine(), d.endColumn());
+                } else {
+                    String quoted = text();
+                    expect(TokenType.STRING);
+                    value = unquoteAndUnescape(quoted, this);
+                    tvSpan = spanOf(tS, pos() - 1);
+                }
                 tags.add(new com.legend.protocol.Protocol.PTaggedValue(
                         new com.legend.protocol.Protocol.PTag(profile, tagName, pSpan,
                                 spanOf(vS, vS)),
-                        value, spanOf(tS, pos() - 1)));
+                        value, tvSpan));
                 match(TokenType.COMMA);
             }
             expect(TokenType.BRACE_CLOSE);
         }
         return new Decorations(stereos, tags);
+    }
+
+    /** A function DESCRIPTOR's extent — {@code fqn}, optional balanced
+     *  {@code (args)}, optional {@code :Type<...>[m]} signature suffix.
+     *  {@code nameEnd}/{@code end} are EXCLUSIVE token indexes. */
+    record FunctionDescriptor(int start, int nameEnd, int end) {
+    }
+
+    /**
+     * ONE scan for every function-pointer site (Relation {@code ~func}/
+     * {@code ~src}, activator {@code function:}), so the descriptor grammar
+     * cannot drift per site. Each site renders the text by its own wire
+     * rule ({@link #compactText} canonical join vs {@link #reconstructText}
+     * raw spelling) — the shared part is the EXTENT, not the rendering.
+     */
+    default FunctionDescriptor parseFunctionDescriptor() {
+        int start = pos();
+        parseQualifiedName();
+        int nameEnd = pos();
+        if (peek() == TokenType.PAREN_OPEN) {
+            int parens = 0;
+            do {
+                if (peek() == TokenType.PAREN_OPEN) {
+                    parens++;
+                } else if (peek() == TokenType.PAREN_CLOSE) {
+                    parens--;
+                }
+                advance();
+            } while (!atEnd() && parens > 0);
+            if (match(TokenType.COLON)) {
+                parseQualifiedName();
+                skipTypeArgsAndMultiplicity();
+            }
+        }
+        return new FunctionDescriptor(start, nameEnd, pos());
+    }
+
+    /** Consume {@code <...>} type arguments and a {@code [..]} multiplicity,
+     *  if present — the tail of a signature spelling. */
+    default void skipTypeArgsAndMultiplicity() {
+        if (peek() == TokenType.LESS_THAN) {
+            int depth = 0;
+            while (!atEnd()) {
+                if (peek() == TokenType.LESS_THAN) {
+                    depth++;
+                } else if (peek() == TokenType.GREATER_THAN) {
+                    depth--;
+                    if (depth == 0) {
+                        advance();
+                        break;
+                    }
+                }
+                advance();
+            }
+        }
+        if (peek() == TokenType.BRACKET_OPEN) {
+            while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                advance();
+            }
+            match(TokenType.BRACKET_CLOSE);
+        }
+    }
+
+    /**
+     * The logical VALUE of a {@code '''...'''} literal (4.138 wire,
+     * ZMissedRowsProbe): the newline after the opening delimiter drops; if
+     * the closing delimiter sits on its own line, that line's indent is
+     * removed from the tail AND stripped from every content line (content
+     * keeps a trailing newline); a closing delimiter on a content line
+     * keeps the content verbatim.
+     */
+    static String docStringValue(String raw) {
+        String content = raw.substring(3, raw.length() - 3);
+        if (content.startsWith("\n")) {
+            content = content.substring(1);
+        }
+        int lastNl = content.lastIndexOf('\n');
+        String tail = content.substring(lastNl + 1);
+        if (lastNl >= 0 && tail.isBlank()) {
+            String indent = tail;
+            String body = content.substring(0, lastNl + 1);
+            StringBuilder out = new StringBuilder();
+            int at = 0;
+            while (at <= body.length()) {
+                int nl = body.indexOf('\n', at);
+                String line = nl < 0 ? body.substring(at)
+                        : body.substring(at, nl);
+                if (at > 0) {
+                    out.append('\n');
+                }
+                out.append(line.startsWith(indent)
+                        ? line.substring(indent.length()) : line);
+                if (nl < 0) {
+                    break;
+                }
+                at = nl + 1;
+            }
+            return out.toString();
+        }
+        return content;
+    }
+
+    /** The engine's span for a {@code '''...'''} token: SINGLE-LINE column
+     *  arithmetic over the raw length — endLine stays the start line and
+     *  endColumn = startColumn + rawLength - 1 (ZMissedRowsProbe: 3:15-3:41
+     *  over a three-line literal). */
+    default com.legend.protocol.SourceInfo docStringSpan(int tok) {
+        TokenStream ts = tokens();
+        int rawLen = ts.end(tok) - ts.start(tok);
+        return new com.legend.protocol.SourceInfo(spanSourceId(),
+                ts.startLine(tok), ts.startColumn(tok),
+                ts.startLine(tok), ts.startColumn(tok) + rawLen - 1);
     }
 
     default com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {

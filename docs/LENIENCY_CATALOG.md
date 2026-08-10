@@ -8,17 +8,25 @@ named classes below — an unclassified row fails the build. This document
 records each class's JUSTIFICATION with the evidence that established it;
 the test records membership row by row (`target/leniency-catalog.txt`).
 
-Oracle: legend-engine 5.88.1 jars, extension set as loaded by
-parser-equivalence. Corpus: full engine+pure checkouts plus Java-inline
-snippets. Authoritative counts = `LeniencyCatalogTest` output
-(2026-08-10, 1,484 rows after the GENUINELY-LITE fixes below):
-`DIALECT-function-types=276, DIALECT-generics=300,
-DIALECT-milestoning-range=30, DIALECT-native-or-m2=101,
+Oracle: legend-engine **4.138.2** jars (W10 re-pin, 2026-08-10; the
+previous pin was 4.133.0 — an earlier revision of this doc mis-recorded
+it as "5.88.1"), extension set as loaded by parser-equivalence. Corpus:
+full engine+pure checkouts plus Java-inline snippets. Authoritative
+counts = `LeniencyCatalogTest` output (2026-08-10 post-re-pin, 1,465
+rows): `DIALECT-function-types=278, DIALECT-generics=331,
+DIALECT-milestoning-range=31, DIALECT-native-or-m2=102,
 EXTENSION-format=6, EXTENSION-section-jar=10,
-ORACLE-DEFECT-InputMismatchException=345, ORACLE-DEFECT-crash=337,
-VERSION-SKEW-grammar=79`. Per-class prose below keeps the sub-construct
+ORACLE-DEFECT-InputMismatchException=344, ORACLE-DEFECT-crash=338,
+VERSION-SKEW-grammar=25`. Per-class prose below keeps the sub-construct
 evidence; where prose counts differ slightly from the classifier's
 (message-keyed) buckets, the classifier is authoritative.
+
+The 4.138.2 re-pin's effects: the G8 ledger grew to 26,168 byte-equal /
+0 DIFF / 0 WALL / 0 MISSED (relation `~func`/`~src` class mappings,
+compact service test suites, `'''...'''` multi-line strings — all newly
+wire-verified); EXTENSION-island-parser retired (the newer extensions
+collection ships the `#TDS`/`#SQL`/relation-accessor parsers);
+VERSION-SKEW collapsed 79 → 25.
 
 ## The two surfaces (dialect quarantine, 2026-08-10)
 
@@ -62,39 +70,39 @@ below). Sub-classes:
   (`employeeFirmDenormTable` alternatives `['(', '@']`), m2 aggregation-
   aware forms (TestAggregationAwareMapping snippets, `Unsupported syntax`).
 
-### VERSION-SKEW — 5.88.1 oracle vs 5.92-era corpus (~90 rows)
-The corpus is the CURRENT engine checkout; the oracle jars are 5.88.1.
-Constructs added in between parse with us (we track the checkout) and
-refuse with the oracle:
-- **Relation mappings** (~41): `*X: Relation ~func ...`, `~src`, relation
-  accessors `#>{db.table}#` (the oracle knows `~func` only — its error
-  lists `['~func']` as the sole alternative at `~src`).
-- **Primitive type definitions** (~5): `Primitive x::Y: String(...)`.
-- **Misc newer grammar** (rest): individually spot-verified members of
-  the `Unexpected token` residue whose constructs exist in the current
-  checkout's .g4 sources.
+### VERSION-SKEW — checkout-unreleased grammar (25 rows)
+The corpus is the CURRENT engine checkout, which carries UNRELEASED
+grammar the 4.138.2 release does not know yet (TDS-DSL compilation
+snippets, newer modelJoin test spellings, relation setups). We parse
+them (we track the checkout); the released oracle refuses with a bare
+"Unexpected token". Membership is MECHANICALLY adjudicated: on that bare
+message the classifier consults OUR strict surface — an engine-verbatim
+strict refusal names the row's construct and moves it to the matching
+DIALECT class; a strict ACCEPT is what "checkout-unreleased" means
+(ZSkewResidueProbe). The 4.133-era members (relation mappings, `~src`,
+`#>` accessors, `Primitive` definitions) all became oracle-ACCEPTED at
+4.138.2 and now sit in the byte-exact ledger.
 
-### EXTENSION-GAP — oracle missing island/format extensions (~80 rows)
-The vanilla oracle loads without certain grammar extensions; the island
-or format is real engine grammar we support:
-- **#TDS literals** (~46): `Can't find an embedded Pure parser for the
-  type 'TDS'` or lexing runs to EOF inside `#TDS...#`.
-- **#SQL / '>' islands** (23): same family (`SQL`, relation-accessor
-  `'>'`).
-- **Example schema format** (5): `Unknown schema format: Example`.
+### EXTENSION-GAP — oracle missing format/section extensions (16 rows)
+The vanilla oracle loads without certain extensions; the format or
+section is real engine grammar we support:
+- **Formats** (6): `Unknown schema format` / `Unknown embedded data
+  type` / `Unknown permission scheme`.
 - **Unregistered sections** (10): `'X' is not a known section parser` —
   section jars absent from the oracle classpath.
-- **csv/data islands in pure sources** (rest): oracle lexer consumes to
-  EOF inside legend-pure data islands (verified: shared.pure ends
-  well-formed; the refusal is mid-island).
+- RETIRED at 4.138.2: the `#TDS`/`#SQL`/relation-accessor `'>'` island
+  rows — the newer extensions collection ships those embedded parsers,
+  and the files now byte-compare in the ledger.
 
-### ORACLE-DEFECT — the oracle crashes (~540 rows)
+### ORACLE-DEFECT — the oracle crashes (~682 rows)
 Not a refusal but an exception escaping the oracle's own walker:
-- **NullPointerException** (337): e.g.
+- **NullPointerException** (338): e.g.
   `DomainParserGrammar$ExpressionInstanceContext.qualifiedName() is null`
   (m2 `^X(...)` instance forms), ClassBody/AssociationBody/Multiplicity
-  walker NPEs.
-- **InputMismatchException with null message** (345 rows share the
+  walker NPEs — plus one `NumberFormatException` from the oracle's
+  unicode-escape parser (`For input string: "sers" under radix 16`,
+  TestProfile.java#52).
+- **InputMismatchException with null message** (344 rows share the
   `null`-message bucket with the NPEs; the split is recorded per row in
   the generated report).
 A crash cannot adjudicate our acceptance either way; these rows are
@@ -124,5 +132,7 @@ validation and five persistence negatives (pre-W2).
 - Every DIALECT row must REFUSE on the strict surface
   (`StrictDialectParityTest`) — a dialect construct reachable from
   `parseStrict` is a quarantine leak and fails the build.
-- When the oracle is upgraded past 5.88.1, VERSION-SKEW must shrink to
-  zero; rows that remain get re-adjudicated.
+- On every oracle upgrade, VERSION-SKEW re-adjudicates: previously-skew
+  constructs the new jar accepts must enter the byte-exact ledger, and
+  bare-message residue is adjudicated by the strict surface (dialect vs
+  still-unreleased). Done at 4.138.2 (79 → 25); repeat at the next bump.

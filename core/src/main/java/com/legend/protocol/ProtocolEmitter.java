@@ -2013,9 +2013,20 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CInteger c ->
                     literal(b, "integer", c.value().toString(), c.pos());
             case com.legend.protocol.spec.CString c -> {
-                StringBuilder quoted = new StringBuilder();
-                str(quoted, c.value());
-                literal(b, "string", quoted.toString(), c.pos());
+                if (c.multiLine()) {
+                    // '''...''' literal (ZMissedRowsProbe): the flag rides
+                    // between _type and sourceInformation
+                    b.append("{\"_type\":\"string\",\"multiLine\":true,"
+                            + "\"sourceInformation\":");
+                    srcInfo(b, requirePos(c.pos(), "multiLine string"));
+                    b.append(",\"value\":");
+                    str(b, c.value());
+                    b.append('}');
+                } else {
+                    StringBuilder quoted = new StringBuilder();
+                    str(quoted, c.value());
+                    literal(b, "string", quoted.toString(), c.pos());
+                }
             }
             case com.legend.protocol.spec.Variable var -> {
                 require(var.type() == null && var.multiplicity() == null,
@@ -2242,7 +2253,8 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CInteger c ->
                     valueSpec(b, new com.legend.protocol.spec.CInteger(c.value(), span));
             case com.legend.protocol.spec.CString c ->
-                    valueSpec(b, new com.legend.protocol.spec.CString(c.value(), span));
+                    valueSpec(b, new com.legend.protocol.spec.CString(c.value(), span,
+                            c.multiLine()));
             case com.legend.protocol.spec.CFloat c ->
                     valueSpec(b, new com.legend.protocol.spec.CFloat(c.value(), span));
             case com.legend.protocol.spec.CDate c ->

@@ -361,17 +361,32 @@ public final class Protocol {
     }
 
     /** {@code _type:"relation"} class mapping (probe relation-fn):
-     *  NO classSourceInformation; {@code ~func} descriptor is a FUNCTION
-     *  pointer whose path is the CANONICAL descriptor text. */
+     *  NO classSourceInformation; the {@code ~func} descriptor is a FUNCTION
+     *  pointer whose path is the CANONICAL descriptor text. The {@code ~src}
+     *  row-source form (4.138 wire, probe ZRelationMappingProbe) rides
+     *  {@code sourceLambda} INSTEAD — exactly one of
+     *  {@code relationFunction}/{@code sourceLambda} is set. */
     public record PClassMappingRelation(String className,
                                         @com.legend.Nullable String id,
                                         List<String> primaryKey,
                                         List<PRelationFnPropertyMapping> propertyMappings,
-                                        String relationFunction,
-                                        com.legend.protocol.SourceInfo relationFunctionSourceInformation,
+                                        @com.legend.Nullable String relationFunction,
+                                        @com.legend.Nullable com.legend.protocol.SourceInfo relationFunctionSourceInformation,
+                                        @com.legend.Nullable PRelationSrcLambda sourceLambda,
                                         boolean root,
                                         com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
+    }
+
+    /** The {@code ~src fn()} wire: a {@code sourceLambda} whose body is one
+     *  {@code func} node spanning the BARE function name, while the WRAPPER
+     *  lambda's span is the full descriptor's columns with both lines
+     *  shifted DOWN by (descriptor line - cm brace line) — the engine
+     *  walker's re-parse anchor quirk (probe ZRelationMappingProbe:
+     *  srcMapping 41→42 / 92→93). */
+    public record PRelationSrcLambda(String function,
+                                     com.legend.protocol.SourceInfo functionSourceInformation,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code prop: col} inside a Relation mapping — span prop..col;
@@ -380,16 +395,15 @@ public final class Protocol {
     /**
      * A column binding in a {@code : Relation} class mapping.
      *
-     * <p>{@code enumMappingId} and {@code expr} are CARRIED, NOT EMITTED —
-     * the same treatment an Operation mapping's {@code extends} gets. Both
-     * spell constructs legend-PURE writes and legend-engine's grammar has no
-     * production for ({@code prop: EnumerationMapping <id>: COL} is refused
-     * outright by the engine parser), so engine's
-     * {@code relationFunctionPropertyMapping} JSON has no field to put them
-     * in and inventing one would break wire parity for every Relation
-     * mapping in the corpus. The corpus needs them read
-     * ({@code tests/mapping/relation}, {@code tests/mapping/union/relation});
-     * nothing needs them serialised.
+     * <p>{@code enumMappingId} and {@code expr} were carried-not-emitted
+     * while the 4.133 oracle had no production for them; the 4.138 grammar
+     * DOES (probe ZRelationMappingProbe), so both are real wire now:
+     * {@code enumMappingId} emits after {@code column}, and {@code expr}
+     * emits as {@code valueFn} — a parameterless lambda whose body keeps
+     * TRUE spans while the wrapper's span is the expression's columns with
+     * both lines shifted DOWN by (expr line - cm brace line), the same
+     * anchor quirk as {@link PRelationSrcLambda}. The shifted wrapper span
+     * rides {@code exprLambdaSourceInformation}.
      */
     public record PRelationFnPropertyMapping(@com.legend.Nullable String ownerClass,
                                              String property,
@@ -401,6 +415,7 @@ public final class Protocol {
                                              @com.legend.Nullable String source,
                                              @com.legend.Nullable String enumMappingId,
                                              @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
+                                             @com.legend.Nullable com.legend.protocol.SourceInfo exprLambdaSourceInformation,
                                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1070,19 +1085,34 @@ public final class Protocol {
 
     /** One {@code testSuites:} entry — wire {@code serviceTestSuite}
      *  (ZTailProbe "service-suites2"): suite/test spans anchor at their
-     *  ID tokens; connection data rides the embedded-data wire. */
+     *  ID tokens; connection data rides the embedded-data wire. The 4.138
+     *  COMPACT form {@code id 'doc'? ( resolvers... tests... )} adds
+     *  {@code doc} and resolver-style test data (ZServiceV2Probe). */
     public record PServiceTestSuite(String id,
+                                    @com.legend.Nullable String doc,
                                     @com.legend.Nullable PSuiteData testData,
                                     List<PSuiteTest> tests,
                                     com.legend.protocol.SourceInfo sourceInformation) {
-        /** {@code data: [ connections: [...] ]} — span key..']'. */
+        /** {@code data: [ connections: [...] ]} — span key..']'; OR the
+         *  compact form's resolver entries (exactly one list is used). */
         public record PSuiteData(List<PSuiteConnData> connectionsTestData,
+                                 @com.legend.Nullable List<PResolverData> serviceTestData,
                                  com.legend.protocol.SourceInfo sourceInformation) {
         }
 
         /** {@code id: Kind #{...}#} — span id..'}#'. */
         public record PSuiteConnData(String id, PEmbeddedDataValue data,
                                      com.legend.protocol.SourceInfo sourceInformation) {
+        }
+
+        /** One compact-form data entry (ZServiceV2Probe): {@code path;}
+         *  is a {@code referenceDataResolver}, {@code path: Kind #{...}#;}
+         *  a {@code baseDataResolver}; the elementPointer wire carries NO
+         *  "type" key. */
+        public record PResolverData(@com.legend.Nullable PEmbeddedDataValue data,
+                                    String elementPath,
+                                    com.legend.protocol.SourceInfo elementSourceInformation,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
         }
 
         /** {@code id: { serializationFormat?; asserts: [...] }} — wire
@@ -1093,6 +1123,7 @@ public final class Protocol {
         }
 
         public record PSuiteTest(String id,
+                                 @com.legend.Nullable String doc,
                                  @com.legend.Nullable String serializationFormat,
                                  List<String> keys,
                                  @com.legend.Nullable List<PSuiteParam> parameters,

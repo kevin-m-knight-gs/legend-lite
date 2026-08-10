@@ -2539,6 +2539,23 @@ public final class ElementParser implements TokenStreamCursor {
         String tag = parseIdentifier();
         int tagEnd = pos - 1;
         expect(TokenType.EQUAL);
+        if (peek() == TokenType.DOC_STRING) {
+            // '''...''' tagged-value VALUE (4.138, ZMissedRowsProbe): shared
+            // strip rule; the tv span ends by the token's single-line
+            // column arithmetic
+            int dTok = pos;
+            String value = TokenStreamCursor.docStringValue(text());
+            advance();
+            com.legend.protocol.SourceInfo d = docStringSpan(dTok);
+            com.legend.protocol.SourceInfo s = spanOf(start, start);
+            return new com.legend.protocol.Protocol.PTaggedValue(
+                    new com.legend.protocol.Protocol.PTag(profile, tag,
+                            spanOf(profStart, profEnd),
+                            spanOf(tagStart, tagEnd)),
+                    value, new com.legend.protocol.SourceInfo(s.sourceId(),
+                            s.startLine(), s.startColumn(), d.endLine(),
+                            d.endColumn()));
+        }
         String rawValue = consume(TokenType.STRING);
         // Unquote AND unescape: the wire carries the LOGICAL string ("it's", not "it\\'s") —
         // quote-stripping alone left escapes behind (harness DIFF on dateExtension.pure).

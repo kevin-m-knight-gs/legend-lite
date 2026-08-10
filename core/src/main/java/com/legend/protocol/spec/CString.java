@@ -10,12 +10,21 @@ import java.util.Objects;
  * ({@code \\}, {@code \'}, {@code \n}, {@code \t}, {@code \r}) are
  * resolved by the parser so consumers see the logical string content.
  */
-public record CString(String value, @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+public record CString(String value, @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+                      boolean multiLine)
         implements ValueSpecification {
 
     /** Position-free convenience constructor — keeps hand-built test expectations compiling. */
     public CString(String value) {
-        this(value, null);
+        this(value, null, false);
+    }
+
+    /** Ordinary single-quoted literal at a position. {@code multiLine} marks
+     *  a {@code '''...'''} literal (4.138 wire: {@code "multiLine":true};
+     *  ZMissedRowsProbe) — like {@code pos} it is EXCLUDED from equality:
+     *  the logical string content is the semantic identity. */
+    public CString(String value, @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+        this(value, pos, false);
     }
 
     /**

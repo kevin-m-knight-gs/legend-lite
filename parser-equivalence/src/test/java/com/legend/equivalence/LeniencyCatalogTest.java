@@ -19,10 +19,35 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LeniencyCatalogTest {
 
-    /** Class a refusal by the ORACLE'S OWN evidence (message/exception).
+    /** Class a refusal by the ORACLE'S OWN evidence (message/exception),
+     *  with one mechanical assist: a bare "Unexpected token" is adjudicated
+     *  by OUR strict surface — its engine-verbatim gates name the dialect
+     *  construct row by row (ZSkewResidueProbe), and a strict ACCEPT means
+     *  the construct is checkout-unreleased grammar (true version skew).
      *  Returns null when nothing matches — the failing case. */
-    static @com.legend.Nullable String classify(Throwable root) {
+    static @com.legend.Nullable String classify(Throwable root, String text) {
         String msg = String.valueOf(root.getMessage());
+        if ("Unexpected token".equals(msg.trim())) {
+            try {
+                com.legend.parser.ElementParser.parseStrict(text);
+                return "VERSION-SKEW-grammar";
+            } catch (Throwable strict) {
+                String sm = String.valueOf(strict.getMessage());
+                if (sm.contains("not authorized in Legend Engine")) {
+                    return "DIALECT-generics";
+                }
+                if (sm.contains("is not supported yet")) {
+                    return "DIALECT-function-types";
+                }
+                if (sm.contains(".allVersionsInRange")) {
+                    return "DIALECT-milestoning-range";
+                }
+                if (sm.contains("Unsupported syntax")) {
+                    return "DIALECT-native-or-m2";
+                }
+                return "VERSION-SKEW-grammar";
+            }
+        }
         // DIALECT-GAP — the engine names its own subset
         if (msg.contains("not authorized in Legend")) {
             return "DIALECT-generics";
@@ -55,7 +80,11 @@ class LeniencyCatalogTest {
         if (root instanceof NullPointerException
                 || msg.contains("Cannot invoke")
                 || msg.contains("NullPointerException")
-                || msg.contains("please notify developer")) {
+                || msg.contains("please notify developer")
+                // NumberFormatException escaping the oracle's unicode-escape
+                // parser (TestProfile.java#52: For input string "sers"
+                // under radix 16)
+                || msg.contains("under radix")) {
             return "ORACLE-DEFECT-crash";
         }
         if ("null".equals(msg)) {
@@ -103,7 +132,7 @@ class LeniencyCatalogTest {
             while (root.getCause() != null && root.getCause() != root) {
                 root = root.getCause();
             }
-            String cls = classify(root);
+            String cls = classify(root, src.text());
             String msg = String.valueOf(root.getMessage())
                     .replaceAll("\\s+", " ");
             if (cls == null) {

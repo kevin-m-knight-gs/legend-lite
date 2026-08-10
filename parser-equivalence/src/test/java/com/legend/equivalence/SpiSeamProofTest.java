@@ -171,8 +171,11 @@ class SpiSeamProofTest {
      *  the extension-LESS vanilla baseline ('Can't find an embedded Pure parser',
      *  'Unknown embedded data type') that a production engine classpath accepts. None
      *  can be stored through a vanilla engine, so accepting them cannot change drop-in
-     *  behavior. Ratcheted DOWN only. */
-    private static final int MAX_LENIENT_ACCEPTS = 200;
+     *  behavior. Ratcheted DOWN only. 200 -> 212 at the 4.138.2 re-pin: the
+     *  retired '''-literal gate had masked 12 files whose OTHER constructs
+     *  vanilla rejects — every one is catalog-classified (LeniencyCatalogTest),
+     *  so the rows moved from a blanket refusal into the named universe. */
+    private static final int MAX_LENIENT_ACCEPTS = 212;
     // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
     // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
     // incremental fixtures, '>' accessor islands) parse further once the

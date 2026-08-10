@@ -44,13 +44,10 @@ class CodeShapeGuardrailTest {
             // relation-mapping forms landed (2026-08-05); the row-expression binding
             // added ~4 lines. Next real touch should extract the relation-col binding
             // family into its own normalizer helper instead of growing this again.
-            "MappingNormalizer.java", 3510,
-            // crossed the ceiling when the dialect-quarantine mode plumbing
-            // landed (2026-08-10, ~35 lines: legendStrict entry overloads +
-            // the .allVersionsInRange strict gate). Next real touch should
-            // extract the graph-fetch island sub-parser into its own file
-            // instead of growing this again.
-            "SpecParser.java", 3525);
+            "MappingNormalizer.java", 3510);
+    // SpecParser.java's entry (3525, dialect-quarantine growth) was RETIRED
+    // at the 4.138.2 re-pin: the named seam was taken — the island
+    // char-scanner family moved to IslandScan.java (3539 -> ~3200 lines).
 
     /** Mutable instance fields that are DELIBERATE: hand-rolled parser
      * cursors (Lexer/ElementParser/SpecParser walk positions and scope

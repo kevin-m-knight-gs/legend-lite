@@ -23,7 +23,9 @@
     </description>
 
     <properties>
-        <legend.engine.version>4.133.0</legend.engine.version>
+        <!-- 4.133.0 -> 4.138.2 (2026-08-10, leniency burn-down): AHEAD of the
+             corpus checkout (4.137.1-SNAPSHOT), so VERSION-SKEW must be zero -->
+        <legend.engine.version>4.138.2</legend.engine.version>
     </properties>
 
     <dependencies>

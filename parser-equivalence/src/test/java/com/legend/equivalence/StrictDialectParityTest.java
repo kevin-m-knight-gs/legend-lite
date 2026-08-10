@@ -42,7 +42,7 @@ class StrictDialectParityTest {
             while (root.getCause() != null && root.getCause() != root) {
                 root = root.getCause();
             }
-            String cls = LeniencyCatalogTest.classify(root);
+            String cls = LeniencyCatalogTest.classify(root, src.text());
             if (cls == null || !cls.startsWith("DIALECT-")) {
                 continue;                   // skew/extension/defect rows: not dialect
             }

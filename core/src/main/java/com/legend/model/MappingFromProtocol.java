@@ -357,8 +357,13 @@ public final class MappingFromProtocol {
         }
         // the FQN identifies the function; a signature spelling
         // `f():Relation<Any>[1]` carries redundant tokens the legacy parser
-        // skips (MappingGrammarParser:546-554)
-        String funcRef = rel.relationFunction();
+        // skips (MappingGrammarParser:546-554). Both wire forms (~func
+        // pointer / ~src sourceLambda) fold into the SAME model channel —
+        // a class binding realized by a function (MAPPING_CLEAN_SHEET §1).
+        String funcRef = rel.relationFunction() != null
+                ? rel.relationFunction()
+                : java.util.Objects.requireNonNull(rel.sourceLambda())
+                        .function();
         int sig = funcRef.indexOf('(');
         return new ClassMapping.RelationFunction(rel.className(), rel.id(), null,
                 rel.root(), sig < 0 ? funcRef : funcRef.substring(0, sig),
