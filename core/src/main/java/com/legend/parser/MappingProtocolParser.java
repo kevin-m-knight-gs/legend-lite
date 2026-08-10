@@ -494,6 +494,30 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     targetSpan, id, extendsId, root));
             return;
         }
+        if (peek() == TokenType.VALID_STRING
+                && ("ServiceStore".equals(kind) || "MongoDB".equals(kind))) {
+            // censused FOREIGN store class mappings — kind + RAW body,
+            // carried; the emitter WALLS them (no wire claim) and the model
+            // transform SKIPS them (the class is simply not mapped in a
+            // store lite executes)
+            advance();
+            int bs = pos;
+            expect(TokenType.BRACE_OPEN);
+            int depth = 1;
+            while (!atEnd() && depth > 0) {
+                TokenType t = peek();
+                if (t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                }
+                advance();
+            }
+            classMappings.add(new Protocol.PClassMappingForeign(kind, target,
+                    id, root, reconstructText(bs, pos),
+                    spanOf(memberStart, pos - 1)));
+            return;
+        }
         if (extendsId != null) {
             throw error("'extends' on this class-mapping kind is unbuilt");
         }

@@ -163,7 +163,17 @@ public final class Protocol {
             permits PClassMappingRel, PClassMappingPure,
             PClassMappingOperation, PClassMappingRelation,
             PClassMappingMergeOperation, PClassMappingAggregationAware,
-            PClassMappingFunction {
+            PClassMappingFunction, PClassMappingForeign {
+    }
+
+    /** A censused FOREIGN store class mapping (ServiceStore / MongoDB) —
+     *  kind + RAW body; no wire claim (emission walls), and the model
+     *  transform skips it. */
+    public record PClassMappingForeign(String kind, String className,
+                                       @com.legend.Nullable String id,
+                                       boolean root, String bodySource,
+                                       com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
     }
 
     /**

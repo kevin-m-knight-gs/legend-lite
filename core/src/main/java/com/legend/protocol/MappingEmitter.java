@@ -37,6 +37,12 @@ final class MappingEmitter {
                 b.append(',');
             }
             switch (m.classMappings().get(i)) {
+                case Protocol.PClassMappingForeign f ->
+                        throw new UnsupportedOperationException(
+                                "MappingEmitter has no rule for foreign class"
+                                        + " mapping kind '" + f.kind()
+                                        + "'. Add the emit rule — do not"
+                                        + " drop it.");
                 case Protocol.PClassMappingRel r -> relClassMapping(b, r);
                 case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
                 case Protocol.PClassMappingFunction fi -> functionClassMapping(b, fi);
