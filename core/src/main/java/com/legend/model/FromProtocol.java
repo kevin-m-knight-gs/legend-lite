@@ -527,6 +527,18 @@ public final class FromProtocol {
         return out;
     }
 
+    /** A {@code Measure} element to its model form. */
+    public static MeasureDefinition toMeasureDefinition(Protocol.PMeasure m) {
+        return new MeasureDefinition(m.qualifiedName(),
+                m.canonicalUnit() == null ? null : toUnit(m.canonicalUnit()),
+                m.nonCanonicalUnits().stream().map(FromProtocol::toUnit)
+                        .toList());
+    }
+
+    private static MeasureDefinition.Unit toUnit(Protocol.PUnit u) {
+        return new MeasureDefinition.Unit(u.name(), u.paramName(), u.body());
+    }
+
     /** A {@code ###DataSpace} element to its model form. Decorations ride
      *  the protocol record only. */
     public static DataSpaceDefinition toDataSpaceDefinition(Protocol.PDataSpace d) {

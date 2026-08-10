@@ -180,7 +180,12 @@ class SpiSeamProofTest {
      *  BRIDGE (a site scanner that skips unrecognised tokens); this bounds the
      *  strict parser surface itself. Ratcheted DOWN only; the two converge as
      *  the bridge goes total. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 742;
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 743;
+    // 742 -> 743 (2026-08-09, Measure element wired): m2m/tests/legend/
+    // unitMeasure.pure — an engine PLATFORM source legend-pure compiles in
+    // production — now parses to its Measure instead of dying there; the
+    // vanilla engine still refuses the file at its 'Primitive' (the
+    // engine-subsets-pure category, same as shared.pure beside it).
 
     /** Files where the delta is the engine's OWN serialize-only field (proven: the
      *  engine's readTree -> protocol -> serialize round-trip of ITS OWN output equals

@@ -611,8 +611,19 @@ public final class ElementParser implements TokenStreamCursor {
         if ("Data".equals(safeText())) {
             return dataElement();
         }
+        if ("Measure".equals(safeText())) {
+            return measureElement();
+        }
         throw error("unsupported top-level keyword: " + t
                 + " ('" + safeText() + "')");
+    }
+
+    /** PROTOCOL-FIRST — the byte-parity-proven {@link #parseMeasureDefinition}
+     *  finally has a caller on the model path (worklist item: finishes
+     *  ###Pure). */
+    private PackageableElement measureElement() {
+        return com.legend.model.FromProtocol.toMeasureDefinition(
+                parseMeasureDefinition());
     }
 
     // ============================================================

@@ -359,6 +359,9 @@ public final class NameResolver {
             // skipping resolution.
             case EnumDefinition ed -> ed;
             case ProfileDefinition pd -> pd;
+            // unit conversion lambdas are numeric expressions over their own
+            // parameter — no cross-element names to resolve
+            case com.legend.model.MeasureDefinition me -> me;
             // The canonical (binding-table) MappingDefinition is produced
             // directly by Door 1 (clean-sheet text), so it reaches the resolver
             // and its binding FQNs must be resolved like any other element's.

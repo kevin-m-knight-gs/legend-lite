@@ -499,16 +499,29 @@ final class ElementParserTest {
 
     @Test
     void unsupportedTopLevelKeywordFailsLoudly() {
-        // 'Measure' is unsupported — and after the dead-token purge it is
-        // no longer even a KEYWORD (zombie tokens deleted; unsupported
-        // constructs fail at the dispatcher). The error names the offending
-        // TEXT, which is what a user can act on.
+        // An unbuilt element keyword fails at the dispatcher; the error
+        // names the offending TEXT, which is what a user can act on.
+        // ('Measure' was this test's example until 2026-08-09, when it
+        // became a supported element — see measureElementParses.)
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Measure my::M ( )"));
+                () -> ElementParser.parse("Persistence my::P ( )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
-        assertTrue(e.getMessage().contains("Measure"),
+        assertTrue(e.getMessage().contains("Persistence"),
                 () -> "error should name the offending text, got: " + e.getMessage());
+    }
+
+    @Test
+    void measureElementParses() {
+        ParsedModel m = ElementParser.parse(
+                "Measure my::Mass { *Gram: x -> $x; Kilogram: x -> $x * 1000; }");
+        var me = assertInstanceOf(com.legend.model.MeasureDefinition.class,
+                m.elements().get(0));
+        assertEquals("my::Mass", me.qualifiedName());
+        assertEquals("Gram",
+                java.util.Objects.requireNonNull(me.canonicalUnit()).name());
+        assertEquals(1, me.nonCanonicalUnits().size());
+        assertEquals("Kilogram", me.nonCanonicalUnits().get(0).name());
     }
 
     @Test

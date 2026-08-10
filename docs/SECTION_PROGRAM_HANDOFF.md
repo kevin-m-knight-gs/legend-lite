@@ -92,9 +92,9 @@ grep -E "files in scope|MATCHED |LENIENT |DEFECT " \
 | LITE_EXTRA | 0 | we never invent an element engine did not produce |
 | PARSE_FAIL | 14 | |
 | OUT_OF_SCOPE | 440 | sections we have not claimed — **not defects** |
-| MATCHED | 944 | was 875 before the Connection+Runtime+Service+DataSpace migrations |
+| MATCHED | 945 | was 875 at session start (Connection, Runtime, Service, DataSpace, Measure all landed 2026-08-09) |
 | LENIENT | 68 | we accept, reference refuses — rose 55 → 68 with the Service claim, ADJUDICATED: oracle-version-skew rows (5.88.1 jars vs 5.92.1 corpus) now visible instead of masked behind section refusals; the two genuinely-ours unmasked leniencies (join-type case, mapping-test input format) were FIXED, not absorbed |
-| DEFECT | **102** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime, −20 Service, −20 DataSpace) |
+| DEFECT | **101** | reference accepts, we refuse — **the coverage debt** (was 184; −22 Connection, −20 Runtime, −20 Service, −20 DataSpace, −1 Measure) |
 
 ## 1.4 How to read those numbers without fooling yourself
 
@@ -202,7 +202,7 @@ Defects attributed to the section they OCCUR in; sums to 184.
 | # | section | defects | walls | oos | state |
 |--:|---|---:|---:|---:|---|
 | 1 | **Relational** | **0** | **0** | 0 | **DONE** — protocol-first (R3) |
-| 2 | **Pure** | **1** (+5 islands) | 0 | 0 | one element short: **Measure** |
+| 2 | **Pure** | 0 (+5 islands) | 0 | 0 | **Measure wired 2026-08-09** (MeasureDefinition model + transform + arm; the byte-parity-proven `parseMeasureDefinition` finally has a model-path caller) |
 | 3 | **Connection** | 3 | 0 | 0 | **first real `SectionGrammar`** (2026-08-09); twin deleted; widening LANDED (Snowflake/Spanner/Databricks/BigQuery specs, SnowflakePublic/GCP/ApiToken/MiddleTier auths, quoteIdentifiers — probed byte-exact, +15 MATCH, −30 WALL); left: foreign flavors only (Deephaven 2, MongoDB 1) |
 | 4 | **Service** | 0 | 0 | **135** | **real `SectionGrammar`** (2026-08-09): Single AND Multi executions, embedded anonymous runtimes (raw), owners/title/ownership/postValidations, ExecutionEnvironment elements; twin deleted; oos stays (no wire shape claimed — `PService` emission walls) |
 | 5 | **Mapping** | 25 | **62** | 0 | protocol-first (M4); walls are other STORES + `include dataspace` |
@@ -447,12 +447,20 @@ A section that satisfies (1) alone is "protocol-first", which is what
    bucket at zero. DEFECT stayed 142 — those files' NEXT gap is an
    unregistered section (`'X' is not a known section parser` grew 97 → 108),
    which is worklist items 5–6's territory.
-4. **Measure** — protocol parse EXISTS and NOTHING calls it. Needs a model
-   type, a transform, one arm. Finishes `###Pure`.
-5. **Service — 135 oos + the biggest share of the 108 section-refusal
-   files.** Biggest single section and the only one genuinely from scratch.
-6. **DataSpace** (51 oos), **ExternalFormat** (77 oos), **Persistence**
-   (53 oos), **ServiceStore** (32 oos), **Snowflake** (31 oos), then the tail.
+4. ~~**Measure**~~ — **LANDED 2026-08-09**: `MeasureDefinition` + transform
+   + arm. `###Pure` is done.
+5. ~~**Service**~~ — **LANDED 2026-08-09** as the fourth `SectionGrammar`
+   (no wire shape claimed; oos stays until the harness scope is claimed).
+6. ~~**DataSpace**~~ — **LANDED 2026-08-09** as the fifth `SectionGrammar`.
+7. **Remaining defect landscape (101):** `'X' is not a known section
+   parser` ~40 (Snowflake 12, Diagram 6, ExternalFormat 4,
+   FileGeneration 3, tail), `unsupported class mapping type` 19
+   (ServiceStore/XStore mapping arms), `expected type name, got
+   ISLAND_OPEN` remnants, DSL islands 3, embedded data kinds 3,
+   `include dataspace` 2, foreign connection flavors 3, misc. Re-derive
+   with the bucketing grep in §1.4 before working — the sums must hit 101.
+8. Then: **ExternalFormat** (77 oos), **Persistence** (53 oos),
+   **ServiceStore** (32 oos), **Snowflake** (31 oos), and the tail.
 
 ## 3.4 Conventions you must not break
 
