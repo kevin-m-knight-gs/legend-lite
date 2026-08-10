@@ -596,13 +596,6 @@ public final class FromProtocol {
         };
     }
 
-    /** A {@code ###Snowflake} activator to its model form. */
-    public static SnowflakeActivatorDefinition toSnowflakeActivator(
-            Protocol.PSnowflakeActivator a) {
-        return new SnowflakeActivatorDefinition(a.qualifiedName(), a.kind(),
-                a.fields());
-    }
-
     /** A {@code ###DataSpace} element to its model form. Decorations ride
      *  the protocol record only. */
     public static DataSpaceDefinition toDataSpaceDefinition(Protocol.PDataSpace d) {

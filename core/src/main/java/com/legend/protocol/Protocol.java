@@ -41,7 +41,7 @@ public final class Protocol {
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
             PService, PExecutionEnvironment, PDataSpace,
-            PPersistence, PPersistenceContext, PSnowflakeActivator,
+            PPersistence, PPersistenceContext, PFunctionActivator,
             PGenericSectionElement, PDiagram,
             PMapping, PDataElement {
     }
@@ -1163,15 +1163,37 @@ public final class Protocol {
         }
     }
 
-    /** A {@code ###Snowflake} function activator ({@code SnowflakeApp} or
-     *  {@code SnowflakeM2MUdf}) — censused keys as a flat field map. No
-     *  wire shape claimed; emission walls. */
-    public record PSnowflakeActivator(String pkg, String name, String kind,
-                                      List<PStereotype> stereotypes,
-                                      List<PTaggedValue> taggedValues,
-                                      java.util.Map<String, String> fields,
-                                      com.legend.protocol.SourceInfo sourceInformation)
+    /**
+     * A FUNCTION ACTIVATOR element — the uniform family SnowflakeApp /
+     * SnowflakeM2MUdf / MemSqlFunction / BigQueryFunction / HostedService /
+     * FunctionJar (ZTailProbe "activatorShapes"/"activatorShapes2"): typed
+     * scalar/boolean fields, a FUNCTION pointer keeping its full signature
+     * text and span, ownership (a DeploymentOwner id OR a UserList — the
+     * two are exclusive), and an optional activation-configuration
+     * connection pointer.
+     */
+    public record PFunctionActivator(String pkg, String name, String kind,
+                                     List<PStereotype> stereotypes,
+                                     List<PTaggedValue> taggedValues,
+                                     java.util.Map<String, String> scalars,
+                                     java.util.Map<String, Boolean> booleans,
+                                     String functionPath,
+                                     com.legend.protocol.SourceInfo functionSpan,
+                                     @com.legend.Nullable String ownerId,
+                                     @com.legend.Nullable List<String> userListUsers,
+                                     @com.legend.Nullable String activationConnection,
+                                     @com.legend.Nullable com.legend.protocol.SourceInfo activationConnectionSpan,
+                                     com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
+        public PFunctionActivator {
+            scalars = java.util.Map.copyOf(scalars);
+            booleans = java.util.Map.copyOf(booleans);
+            if (ownerId != null && userListUsers != null) {
+                throw new IllegalArgumentException(
+                        "ownership is Deployment OR UserList, not both");
+            }
+        }
+
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
         }

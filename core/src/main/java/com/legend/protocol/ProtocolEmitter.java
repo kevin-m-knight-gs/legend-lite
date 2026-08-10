@@ -97,10 +97,7 @@ public final class ProtocolEmitter {
                     "persistence-context wire emission (harness scope not"
                             + " claimed)",
                     pc.qualifiedName());
-            case Protocol.PSnowflakeActivator sa -> require(false,
-                    "snowflake-activator wire emission (harness scope not"
-                            + " claimed)",
-                    sa.qualifiedName());
+            case Protocol.PFunctionActivator fa -> functionActivator(b, fa);
             case Protocol.PGenericSectionElement ge -> require(false,
                     "###" + ge.section() + " wire emission (harness scope not"
                             + " claimed)",
@@ -979,6 +976,115 @@ public final class ProtocolEmitter {
                 str(b, sm.to());
                 b.append('}');
             }
+        }
+    }
+
+    /**
+     * The FUNCTION-ACTIVATOR family wire (ZTailProbe "activatorShapes" /
+     * "activatorShapes2"): one alphabetical slot sequence covers
+     * snowflakeApp / snowflakeM2MUdf / memSqlFunction / bigQueryFunction /
+     * hostedService / functionJar; hostedService additionally always
+     * spells generateLineage/storeModel (default false).
+     */
+    private static void functionActivator(StringBuilder b,
+            Protocol.PFunctionActivator fa) {
+        String wireType = switch (fa.kind()) {
+            case "SnowflakeApp" -> "snowflakeApp";
+            case "SnowflakeM2MUdf" -> "snowflakeM2MUdf";
+            case "MemSqlFunction" -> "memSqlFunction";
+            case "BigQueryFunction" -> "bigQueryFunction";
+            case "HostedService" -> "hostedService";
+            case "FunctionJar" -> "functionJar";
+            default -> throw new IllegalStateException(
+                    "unknown activator kind: " + fa.kind());
+        };
+        b.append("{\"_type\":\"").append(wireType)
+                .append("\",\"actions\":[]");
+        if (fa.activationConnection() != null) {
+            String cfgType = switch (fa.kind()) {
+                case "SnowflakeApp" -> "snowflakeDeploymentConfiguration";
+                case "SnowflakeM2MUdf" ->
+                        "snowflakeM2MUdfDeploymentConfiguration";
+                case "MemSqlFunction" -> "memSqlFunctionConfig";
+                case "BigQueryFunction" -> "bigQueryFunctionConfig";
+                default -> throw new UnsupportedOperationException(
+                        "activationConfiguration wire for " + fa.kind()
+                                + " is unprobed");
+            };
+            b.append(",\"activationConfiguration\":{\"_type\":\"")
+                    .append(cfgType)
+                    .append("\",\"activationConnection\":{\"_type\":"
+                            + "\"connectionPointer\",\"connection\":");
+            str(b, fa.activationConnection());
+            // only the Snowflake configs walk the pointer span; the
+            // memSql/bigQuery composers drop it (corpus DIFF-pinned)
+            if (fa.kind().startsWith("Snowflake")) {
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, java.util.Objects.requireNonNull(
+                        fa.activationConnectionSpan()));
+            }
+            b.append("}}");
+        }
+        scalarSlot(b, fa, "applicationName");
+        Boolean auto = fa.booleans().get("autoActivateUpdates");
+        if (auto != null) {
+            b.append(",\"autoActivateUpdates\":").append(auto);
+        }
+        scalarSlot(b, fa, "deploymentSchema");
+        scalarSlot(b, fa, "deploymentStage");
+        scalarSlot(b, fa, "description");
+        scalarSlot(b, fa, "documentation");
+        b.append(",\"function\":{\"path\":");
+        str(b, fa.functionPath());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, fa.functionSpan());
+        b.append(",\"type\":\"FUNCTION\"}");
+        scalarSlot(b, fa, "functionName");
+        if ("HostedService".equals(fa.kind())) {
+            b.append(",\"generateLineage\":").append(
+                    fa.booleans().getOrDefault("generateLineage", false));
+        }
+        b.append(",\"name\":");
+        str(b, fa.name());
+        if (fa.ownerId() != null) {
+            b.append(",\"ownership\":{\"_type\":\"DeploymentOwner\",\"id\":");
+            str(b, fa.ownerId());
+            b.append('}');
+        } else if (fa.userListUsers() != null) {
+            b.append(",\"ownership\":{\"_type\":\"userList\",\"users\":[");
+            for (int i = 0; i < fa.userListUsers().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                str(b, fa.userListUsers().get(i));
+            }
+            b.append("]}");
+        }
+        b.append(",\"package\":");
+        str(b, fa.pkg());
+        scalarSlot(b, fa, "pattern");
+        scalarSlot(b, fa, "permissionScheme");
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, fa.sourceInformation());
+        b.append(",\"stereotypes\":");
+        stereotypes(b, fa.stereotypes());
+        if ("HostedService".equals(fa.kind())) {
+            b.append(",\"storeModel\":").append(
+                    fa.booleans().getOrDefault("storeModel", false));
+        }
+        b.append(",\"taggedValues\":");
+        taggedValues(b, fa.taggedValues());
+        scalarSlot(b, fa, "udfName");
+        scalarSlot(b, fa, "usageRole");
+        b.append('}');
+    }
+
+    private static void scalarSlot(StringBuilder b,
+            Protocol.PFunctionActivator fa, String key) {
+        String v = fa.scalars().get(key);
+        if (v != null) {
+            b.append(",\"").append(key).append("\":");
+            str(b, v);
         }
     }
 

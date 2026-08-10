@@ -91,6 +91,11 @@ public final class ParserEquivalence {
         List<long[]> relationalRanges = sectionRanges(src.text(), "Relational", false);
         List<long[]> mappingRanges = sectionRanges(src.text(), "Mapping", false);
         List<long[]> dataRanges = sectionRanges(src.text(), "Data", false);
+        List<long[]> activatorRanges = new ArrayList<>();
+        for (String s : new String[]{"Snowflake", "MemSql", "BigQuery",
+                "HostedService", "FunctionJar"}) {
+            activatorRanges.addAll(sectionRanges(src.text(), s, false));
+        }
 
         Ref ref;
         try {
@@ -114,6 +119,9 @@ public final class ParserEquivalence {
         sites.addAll(markerSites(ts, mappingRanges,
                 com.legend.lexer.TokenType.MAPPING, 9));
         sites.addAll(textMarkerSites(ts, dataRanges, "Data", 10));
+        for (String marker : ACTIVATOR_WIRE_TYPES.keySet()) {
+            sites.addAll(textMarkerSites(ts, activatorRanges, marker, 11));
+        }
         // AggregationAware span emulation needs each mapping SECTION's
         // first content line (probe agg-off-A/B)
         for (int[] site : sites) {
@@ -132,6 +140,7 @@ public final class ParserEquivalence {
         boolean relationalWalled = false;
         boolean mappingWalled = false;
         boolean dataWalled = false;
+        boolean activatorWalled = false;
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -180,6 +189,11 @@ public final class ParserEquivalence {
                             .MappingProtocolParser.parseData(ts, site[0]);
                     el = de;
                     fqn = de.qualifiedName();
+                } else if (site[1] == 11) {
+                    Protocol.PFunctionActivator fa = ACTIVATOR_GRAMMAR
+                            .parseElement(ElementParser.at(ts, site[0]));
+                    el = fa;
+                    fqn = fa.qualifiedName();
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -212,6 +226,10 @@ public final class ParserEquivalence {
                     dataWalled = true;
                     out.add(new Verdict(Kind.WALL, src.id(), "?",
                             "data: " + root(t)));
+                } else if (site[1] == 11) {
+                    activatorWalled = true;
+                    out.add(new Verdict(Kind.WALL, src.id(), "?",
+                            "activator: " + root(t)));
                 } else {
                     out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 }
@@ -223,11 +241,19 @@ public final class ParserEquivalence {
             // falling back to the head so a real kind mismatch still DIFFs
             String expected = null;
             if (queue != null && !queue.isEmpty()) {
+                // an activator site's wire _type depends on its declared
+                // KIND (snowflakeApp vs hostedService...), not the site
+                // kind index — read it off the parsed element
                 String prefix = "{\"_type\":\""
-                        + new String[]{"class", "Enumeration", "profile",
-                                "association", "function", "measure",
-                                "runtime", "connection", "relational",
-                                "mapping", "dataElement"}[site[1]]
+                        + (site[1] == 11
+                                ? ACTIVATOR_WIRE_TYPES.get(
+                                        ((Protocol.PFunctionActivator) el)
+                                                .kind())
+                                : new String[]{"class", "Enumeration",
+                                        "profile", "association", "function",
+                                        "measure", "runtime", "connection",
+                                        "relational", "mapping",
+                                        "dataElement"}[site[1]])
                         + "\"";
                 int pick = 0;
                 for (int q = 0; q < queue.size(); q++) {
@@ -271,6 +297,23 @@ public final class ParserEquivalence {
                         pureKind = true;
                         break;
                     }
+                }
+                boolean activatorKind = false;
+                for (String t : ACTIVATOR_WIRE_TYPES.values()) {
+                    if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
+                        activatorKind = true;
+                        break;
+                    }
+                }
+                if (activatorKind) {
+                    out.add(activatorWalled
+                            ? new Verdict(Kind.WALL, src.id(), e.getKey(),
+                                    "activator: unbuilt sub-grammar"
+                                            + " (walled site)")
+                            : new Verdict(Kind.LITE_MISSED, src.id(),
+                                    e.getKey(),
+                                    "reference element never compared"));
+                    continue;
                 }
                 if (pureKind && runtimeWalled
                         && leftover.startsWith("{\"_type\":\"runtime\"")) {
@@ -319,6 +362,24 @@ public final class ParserEquivalence {
         return out;
     }
 
+
+    /** Function-activator declaration keyword &rarr; its wire {@code _type}
+     *  — the site-11 dequeue/drain classifier (kind decides the wire type,
+     *  not the section). */
+    private static final Map<String, String> ACTIVATOR_WIRE_TYPES = Map.of(
+            "SnowflakeApp", "snowflakeApp",
+            "SnowflakeM2MUdf", "snowflakeM2MUdf",
+            "MemSqlFunction", "memSqlFunction",
+            "BigQueryFunction", "bigQueryFunction",
+            "HostedService", "hostedService",
+            "FunctionJar", "functionJar");
+
+    /** One all-kinds instance for site-11 parses — the harness scans sites
+     *  per section range, so section-scoped kind gating already happened. */
+    private static final com.legend.parser.section.FunctionActivatorSectionGrammar
+            ACTIVATOR_GRAMMAR =
+                    new com.legend.parser.section.FunctionActivatorSectionGrammar(
+                            "<activator>", ACTIVATOR_WIRE_TYPES.keySet());
 
     /** {@code {marker token type -> site parse kind}} for {@link #pureSites}. */
     private static final Map<com.legend.lexer.TokenType, Integer> MARKERS = Map.of(

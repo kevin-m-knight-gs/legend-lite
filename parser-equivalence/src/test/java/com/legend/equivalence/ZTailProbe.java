@@ -286,6 +286,141 @@ class ZTailProbe {
     }
 
     @Test
+    void activatorShapes() throws Exception {
+        probe("snowflake-app", """
+                function my::f(): String[1] { 'x' }
+
+                ###Snowflake
+                SnowflakeApp my::App
+                {
+                  applicationName: 'revenue';
+                  description: 'd';
+                  ownership: Deployment { identifier: 'dep1' };
+                  function: my::f():String[1];
+                  usageRole: 'PUBLIC';
+                  deploymentSchema: 'LEGEND';
+                }
+                """);
+        probe("snowflake-udf", """
+                function my::f(): String[1] { 'x' }
+
+                ###Snowflake
+                SnowflakeM2MUdf my::Udf
+                {
+                  udfName: 'u';
+                  function: my::f():String[1];
+                  ownership: Deployment { identifier: 'dep1' };
+                  deploymentSchema: 'S';
+                  deploymentStage: 'St';
+                }
+                """);
+        probe("memsql-fn", """
+                function my::f(): String[1] { 'x' }
+
+                ###MemSql
+                MemSqlFunction my::MF
+                {
+                  functionName: 'mf';
+                  function: my::f():String[1];
+                  ownership: Deployment { identifier: 'dep1' };
+                }
+                """);
+        probe("hosted-service", """
+                function my::f(): String[1] { 'x' }
+
+                ###HostedService
+                HostedService my::HS
+                {
+                  pattern: '/p';
+                  ownership: Deployment { identifier: 'dep1' };
+                  function: my::f():String[1];
+                  documentation: 'd';
+                  autoActivateUpdates: true;
+                }
+                """);
+    }
+
+    @Test
+    void activatorShapes2() throws Exception {
+        probe("bigquery-fn", """
+                function my::f(): String[1] { 'x' }
+
+                ###BigQuery
+                BigQueryFunction my::BF
+                {
+                  functionName: 'bf';
+                  function: my::f():String[1];
+                  ownership: Deployment { identifier: 'dep1' };
+                }
+                """);
+        probe("function-jar", """
+                function my::f(): String[1] { 'x' }
+
+                ###FunctionJar
+                FunctionJar my::FJ
+                {
+                  ownership: Deployment { identifier: 'dep1' };
+                  function: my::f():String[1];
+                  documentation: 'd';
+                }
+                """);
+        probe("snowflake-app-actcfg", """
+                function my::f(): String[1] { 'x' }
+
+                ###Connection
+                RelationalDatabaseConnection my::conn
+                {
+                  store: my::db;
+                  type: Snowflake;
+                  specification: Snowflake { name: 'n'; account: 'a'; warehouse: 'w'; region: 'r'; };
+                  auth: DefaultH2;
+                }
+
+                ###Snowflake
+                SnowflakeApp my::App2
+                {
+                  applicationName: 'a2';
+                  function: my::f():String[1];
+                  ownership: Deployment { identifier: 'dep1' };
+                  activationConfiguration: my::conn;
+                }
+                """);
+    }
+
+    @Test
+    void activatorShapes3() throws Exception {
+        probe("hosted-userlist", """
+                function my::f(): String[1] { 'x' }
+
+                ###HostedService
+                HostedService my::HS
+                {
+                  pattern: '/a/b';
+                  ownership: UserList { users: [
+                   'user1',
+                   'user2'
+                   ] };
+                  function: my::f():String[1];
+                  documentation: 'd';
+                  autoActivateUpdates: true;
+                }
+                """);
+        probe("snowflake-permscheme", """
+                function my::f(): String[1] { 'x' }
+
+                ###Snowflake
+                SnowflakeApp my::App
+                {
+                  applicationName: 'a';
+                  function: my::f():String[1];
+                  ownership: Deployment { identifier: 'dep1' };
+                  usageRole: 'PRIVATE';
+                  permissionScheme: SEQUESTERED;
+                }
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

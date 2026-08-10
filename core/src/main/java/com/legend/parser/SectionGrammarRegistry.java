@@ -66,8 +66,24 @@ public final class SectionGrammarRegistry {
                 com.legend.parser.section.DataSpaceSectionGrammar.INSTANCE);
         m.put("Persistence",
                 com.legend.parser.section.PersistenceSectionGrammar.INSTANCE);
+        // the FUNCTION-ACTIVATOR family shares ONE typed grammar class,
+        // each instance registered with its censused activator-kind set
         m.put("Snowflake",
-                com.legend.parser.section.SnowflakeSectionGrammar.INSTANCE);
+                new com.legend.parser.section.FunctionActivatorSectionGrammar(
+                        "Snowflake", java.util.Set.of("SnowflakeApp",
+                                "SnowflakeM2MUdf")));
+        m.put("MemSql",
+                new com.legend.parser.section.FunctionActivatorSectionGrammar(
+                        "MemSql", java.util.Set.of("MemSqlFunction")));
+        m.put("BigQuery",
+                new com.legend.parser.section.FunctionActivatorSectionGrammar(
+                        "BigQuery", java.util.Set.of("BigQueryFunction")));
+        m.put("HostedService",
+                new com.legend.parser.section.FunctionActivatorSectionGrammar(
+                        "HostedService", java.util.Set.of("HostedService")));
+        m.put("FunctionJar",
+                new com.legend.parser.section.FunctionActivatorSectionGrammar(
+                        "FunctionJar", java.util.Set.of("FunctionJar")));
         // the small keyed sections share ONE grammar class, each instance
         // registered with its censused element-kind set (null = open, the
         // FileGeneration posture — engine's own file-gen grammar is generic)
@@ -77,14 +93,6 @@ public final class SectionGrammarRegistry {
                         java.util.Set.of("Binding", "SchemaSet")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
                         "FileGeneration", null),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "MemSql", java.util.Set.of("MemSqlFunction")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "BigQuery", java.util.Set.of("BigQueryFunction")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "HostedService", java.util.Set.of("HostedService")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "FunctionJar", java.util.Set.of("FunctionJar")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
                         "Text", java.util.Set.of("Text")),
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
