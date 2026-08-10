@@ -6,6 +6,7 @@ package com.legend.parser.section;
 import com.legend.lexer.TokenType;
 import com.legend.parser.TokenStreamCursor;
 import com.legend.protocol.Protocol;
+import com.legend.protocol.SourceInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +23,8 @@ import java.util.List;
  *
  * <p>No WIRE shape claimed — emission walls; parity oos unchanged.
  */
-public final class PersistenceSectionGrammar implements LexableSectionGrammar {
+public final class PersistenceSectionGrammar
+        implements ElementwiseSectionGrammar {
 
     /** The one stateless instance the registry hands out. */
     public static final PersistenceSectionGrammar INSTANCE =
@@ -37,21 +39,7 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
     }
 
     @Override
-    public void parse(com.legend.spi.SectionSource src,
-            com.legend.spi.ElementSink out) {
-        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()));
-        while (!c.atEnd()) {
-            if (c.peek() == TokenType.IMPORT) {
-                SectionImports.parseImport(c);
-                continue;
-            }
-            Protocol.Element e = parseElement(c);
-            out.accept(qualifiedNameOf(e),
-                    com.legend.protocol.ProtocolEmitter.emitElement(e));
-        }
-    }
-
-    private static String qualifiedNameOf(Protocol.Element e) {
+    public String qualifiedNameOf(Protocol.Element e) {
         return switch (e) {
             case Protocol.PPersistence p -> p.qualifiedName();
             case Protocol.PPersistenceContext p -> p.qualifiedName();
@@ -61,20 +49,8 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
     }
 
     @Override
-    public ParsedSection parseSection(TokenStreamCursor host,
-            int sectionEndOffset) {
-        List<ParsedElement> elements = new ArrayList<>();
-        List<String> imports = new ArrayList<>();
-        while (!host.atEnd()
-                && host.tokens().start(host.pos()) < sectionEndOffset) {
-            if (host.peek() == TokenType.IMPORT) {
-                imports.add(SectionImports.parseImport(host));
-                continue;
-            }
-            int at = host.tokens().start(host.pos());
-            elements.add(new ParsedElement(parseElement(host), at));
-        }
-        return new ParsedSection(elements, imports);
+    public Protocol.Element parseOne(TokenStreamCursor c) {
+        return parseElement(c);
     }
 
     @Override
@@ -106,14 +82,16 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
         c.expect(TokenType.BRACE_OPEN);
 
         String doc = null;
-        String triggerSource = null;
+        String triggerKind = null;
         String service = null;
-        String persisterSource = null;
-        String serviceOutputTargetsSource = null;
-        String notifierSource = null;
-        String testsSource = null;
+        SourceInfo serviceSpan = null;
+        Protocol.PPersistenceNode persister = null;
+        Protocol.PPersistenceNotifier notifier = null;
+        List<Protocol.PServiceOutputTarget> outputTargets = null;
+        List<Protocol.PPersistenceTest> tests = null;
 
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            int keyStart = c.pos();
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             switch (key) {
@@ -124,26 +102,27 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                 case "service" -> {
                     service = Protocol.unquotePath(c.parseQualifiedName());
                     c.expect(TokenType.SEMI_COLON);
+                    serviceSpan = c.spanOf(keyStart, c.pos() - 1);
                 }
                 case "trigger" -> {
-                    // the OLD grammar omits the ';' after a block value
-                    triggerSource = kindWithRawBody(c);
-                    c.match(TokenType.SEMI_COLON);
+                    triggerKind = c.parseIdentifier();
+                    c.expect(TokenType.SEMI_COLON);
                 }
                 case "persister" -> {
-                    persisterSource = parsePersisterValidated(c);
+                    persister = parseNode(c);
+                    validateSink(c, persister);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceOutputTargets" -> {
-                    serviceOutputTargetsSource = rawBalanced(c);
+                    outputTargets = parseOutputTargets(c);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "notifier" -> {
-                    notifierSource = rawBalanced(c);
+                    notifier = parseNotifier(c, keyStart);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "tests" -> {
-                    testsSource = parseTestsValidated(c);
+                    tests = parseTests(c);
                     c.match(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error("unknown key '" + key
@@ -152,9 +131,445 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
         }
         c.expect(TokenType.BRACE_CLOSE);
         return new Protocol.PPersistence(pkg, name, dec.stereotypes(),
-                dec.taggedValues(), doc, triggerSource, service,
-                persisterSource, serviceOutputTargetsSource, notifierSource,
-                testsSource, c.spanOf(declStart, c.pos() - 1));
+                dec.taggedValues(), doc,
+                java.util.Objects.requireNonNull(triggerKind), service,
+                serviceSpan, persister, notifier, outputTargets, tests,
+                c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** The engine REQUIRES a Relational sink to spell {@code database:}
+     *  and an ObjectStorage sink {@code binding:} — structured validation,
+     *  not a lenient accept (sentinel parity). */
+    private static void validateSink(TokenStreamCursor c,
+            Protocol.PPersistenceNode persister) {
+        for (Protocol.PPersistenceEntry e : persister.entries()) {
+            if (e instanceof Protocol.PPersistenceEntry.Node nd
+                    && "sink".equals(nd.key())) {
+                String need = switch (nd.node().kind()) {
+                    case "Relational" -> "database";
+                    case "ObjectStorage" -> "binding";
+                    default -> null;
+                };
+                if (need != null && nd.node().entries().stream()
+                        .noneMatch(se -> need.equals(se.key()))) {
+                    throw c.error("Field '" + need + "' is required");
+                }
+            }
+        }
+    }
+
+    /** An island node whose span anchors at the CONTENT (line after '#{',
+     *  first content column) and ends ONE PAST '}#' — the
+     *  persistenceTarget/platform walker quirk (DIFF-pinned). */
+    private static Protocol.PPersistenceNode contentAnchoredIslandNode(
+            TokenStreamCursor c) {
+        String kind = c.parseIdentifier();
+        if (c.peek() != TokenType.ISLAND_OPEN
+                && c.peek() != TokenType.ISLAND_START) {
+            throw c.error("'" + kind + "' needs an island body");
+        }
+        c.advance();
+        int embStart = c.pos();
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
+            c.advance();
+        }
+        String emb = c.reconstructText(embStart, c.pos());
+        List<Protocol.PPersistenceEntry> entries = new ArrayList<>();
+        parseEntries(new OffsetCursor(com.legend.lexer.Lexer.tokenize(emb),
+                c.tokens().startLine(embStart) - 1,
+                c.tokens().startColumn(embStart) - 1), entries, null);
+        SourceInfo cs = c.spanOf(embStart, embStart);
+        int openLine = c.tokens().startLine(embStart - 1);
+        int endTok = c.pos();
+        c.expect(TokenType.ISLAND_END);
+        SourceInfo es = c.spanOf(endTok, endTok);
+        return new Protocol.PPersistenceNode(kind, entries,
+                new SourceInfo("", Math.max(openLine + 1, cs.startLine()),
+                        cs.startColumn(), es.endLine(),
+                        es.endColumn() + 1));
+    }
+
+    private static Protocol.PPersistenceNode parseNode(TokenStreamCursor c) {
+        int s = c.pos();
+        if (c.peek() == TokenType.PATH_LITERAL) {
+            // a PATH-HEADED node: `#/Class/prop# { ... }` — the graphFetch
+            // service output; the path rides the spec wire
+            com.legend.protocol.spec.ValueSpecification headPath =
+                    com.legend.parser.SpecParser.parse(
+                            c.tokens().slice(c.pos(), c.pos() + 1));
+            c.advance();
+            List<Protocol.PPersistenceEntry> pathEntries = new ArrayList<>();
+            c.expect(TokenType.BRACE_OPEN);
+            parseEntries(c, pathEntries, TokenType.BRACE_CLOSE);
+            c.expect(TokenType.BRACE_CLOSE);
+            return new Protocol.PPersistenceNode("#path", headPath,
+                    pathEntries, c.spanOf(s, c.pos() - 1));
+        }
+        String kind = c.parseIdentifier();
+        List<Protocol.PPersistenceEntry> entries = new ArrayList<>();
+        if (c.match(TokenType.BRACE_OPEN)) {
+            parseEntries(c, entries, TokenType.BRACE_CLOSE);
+            c.expect(TokenType.BRACE_CLOSE);
+        } else if (c.peek() == TokenType.ISLAND_OPEN
+                || c.peek() == TokenType.ISLAND_START) {
+            // island interiors lex as RAW content chunks — RE-LEX the
+            // text and parse on an offset cursor so spans stay
+            // file-absolute (the ConnectionSectionGrammar precedent);
+            // offsets COMPOSE for islands nested in re-lexed islands
+            c.advance();
+            int embStart = c.pos();
+            int depth = 0;
+            while (!c.atEnd()) {
+                TokenType t = c.peek();
+                if (t == TokenType.ISLAND_START) {
+                    depth++;
+                } else if (t == TokenType.ISLAND_END) {
+                    if (depth == 0) {
+                        break;
+                    }
+                    depth--;
+                }
+                c.advance();
+            }
+            String emb = c.reconstructText(embStart, c.pos());
+            int baseLine = c.tokens().startLine(embStart) - 1;
+            int baseCol = c.tokens().startColumn(embStart) - 1;
+            if (c instanceof OffsetCursor oc) {
+                baseLine += oc.lineOffset;
+                baseCol += oc.colOffset;
+            }
+            OffsetCursor ic = new OffsetCursor(
+                    com.legend.lexer.Lexer.tokenize(emb), baseLine, baseCol);
+            c.expect(TokenType.ISLAND_END);
+            parseEntries(ic, entries, null);
+        } else {
+            return new Protocol.PPersistenceNode(kind, entries,
+                    c.spanOf(s, s));
+        }
+        return new Protocol.PPersistenceNode(kind, entries,
+                c.spanOf(s, c.pos() - 1));
+    }
+
+    private static void parseEntries(TokenStreamCursor c,
+            List<Protocol.PPersistenceEntry> out,
+            @com.legend.Nullable TokenType close) {
+        while (!c.atEnd() && (close == null || c.peek() != close)) {
+            int keyStart = c.pos();
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (c.peek()) {
+                case STRING -> {
+                    out.add(new Protocol.PPersistenceEntry.Scalar(key,
+                            stringValue(c), true));
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case TRUE, FALSE -> {
+                    boolean v = c.peek() == TokenType.TRUE;
+                    c.advance();
+                    out.add(new Protocol.PPersistenceEntry.Scalar(key,
+                            v ? "true" : "false", false));
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case BRACKET_OPEN -> {
+                    // keys: [ID, NAME] — NO trailing semicolon in grammar;
+                    // MultiFlat parts carry KEYLESS braced nodes; string
+                    // lists ('Yes', 'true') keep their unquoted values
+                    c.advance();
+                    if (c.peek() == TokenType.BRACE_OPEN) {
+                        List<Protocol.PPersistenceNode> nodes =
+                                new ArrayList<>();
+                        while (c.peek() != TokenType.BRACKET_CLOSE) {
+                            int ps = c.pos();
+                            c.expect(TokenType.BRACE_OPEN);
+                            List<Protocol.PPersistenceEntry> pe =
+                                    new ArrayList<>();
+                            parseEntries(c, pe, TokenType.BRACE_CLOSE);
+                            c.expect(TokenType.BRACE_CLOSE);
+                            nodes.add(new Protocol.PPersistenceNode("__part__",
+                                    pe, c.spanOf(ps, c.pos() - 1)));
+                            if (!c.match(TokenType.COMMA)) {
+                                break;
+                            }
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                        c.match(TokenType.SEMI_COLON);
+                        out.add(new Protocol.PPersistenceEntry.NodeList(key,
+                                nodes));
+                        continue;
+                    }
+                    if (c.peek() == TokenType.PATH_LITERAL) {
+                        List<com.legend.protocol.spec.ValueSpecification>
+                                specs = new ArrayList<>();
+                        while (c.peek() != TokenType.BRACKET_CLOSE) {
+                            specs.add(com.legend.parser.SpecParser.parse(
+                                    c.tokens().slice(c.pos(), c.pos() + 1)));
+                            c.expect(TokenType.PATH_LITERAL);
+                            if (!c.match(TokenType.COMMA)) {
+                                break;
+                            }
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                        c.match(TokenType.SEMI_COLON);
+                        out.add(new Protocol.PPersistenceEntry.PathList(key,
+                                specs));
+                        continue;
+                    }
+                    List<String> vals = new ArrayList<>();
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        if (c.peek() == TokenType.STRING) {
+                            vals.add(SectionParse.stringValue(c));
+                        } else {
+                            vals.add(c.parseIdentifier());
+                        }
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    c.match(TokenType.SEMI_COLON);
+                    out.add(new Protocol.PPersistenceEntry.Strings(key, vals));
+                }
+                case PATH_LITERAL -> {
+                    out.add(new Protocol.PPersistenceEntry.PathValue(key,
+                            com.legend.parser.SpecParser.parse(
+                                    c.tokens().slice(c.pos(), c.pos() + 1))));
+                    c.advance();
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case INTEGER -> {
+                    // dataProcessingUnits: 10 — bare numbers stay unquoted
+                    out.add(new Protocol.PPersistenceEntry.Scalar(key,
+                            c.text(), false));
+                    c.advance();
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                default -> {
+                    String head = Protocol.unquotePath(c.parseQualifiedName());
+                    // dotted table names: `table: schemaA.personTable;`
+                    while (c.peek() == TokenType.DOT) {
+                        c.advance();
+                        head += "." + c.parseIdentifier();
+                    }
+                    if (c.peek() == TokenType.BRACE_OPEN
+                            || c.peek() == TokenType.ISLAND_OPEN
+                            || c.peek() == TokenType.ISLAND_START) {
+                        c.setPos(keyStart);
+                        c.parseIdentifier();
+                        c.expect(TokenType.COLON);
+                        out.add(new Protocol.PPersistenceEntry.Node(key,
+                                parseNode(c)));
+                        c.match(TokenType.SEMI_COLON);
+                    } else if ("database".equals(key)
+                            || "binding".equals(key)) {
+                        // pointer keys — span covers `key: path;`;
+                        // database wires type STORE, binding no type
+                        c.expect(TokenType.SEMI_COLON);
+                        out.add(new Protocol.PPersistenceEntry.Pointer(key,
+                                head, c.spanOf(keyStart, c.pos() - 1)));
+                    } else if (!head.isEmpty()
+                            && Character.isUpperCase(head.charAt(0))
+                            && head.chars().anyMatch(Character::isLowerCase)
+                            && !head.contains("::")
+                            && !"table".equals(key)
+                            && !"targetName".equals(key)) {
+                        // a CamelCase bare keyword = a leaf node
+                        // (deduplication: None) — lowercase identifiers,
+                        // ALL_CAPS enums and name-valued keys (table:
+                        // TableA) are scalars. Leaf spans are
+                        // END-EXCLUSIVE (DIFF-pinned)
+                        c.expect(TokenType.SEMI_COLON);
+                        SourceInfo ks = c.spanOf(keyStart + 2, keyStart + 2);
+                        out.add(new Protocol.PPersistenceEntry.Node(key,
+                                new Protocol.PPersistenceNode(head,
+                                        List.of(),
+                                        new SourceInfo(ks.sourceId(),
+                                                ks.startLine(),
+                                                ks.startColumn(),
+                                                ks.endLine(),
+                                                ks.endColumn() + 1))));
+                    } else {
+                        c.expect(TokenType.SEMI_COLON);
+                        out.add(new Protocol.PPersistenceEntry.Scalar(key,
+                                head, false));
+                    }
+                }
+            }
+        }
+    }
+
+    private static List<Protocol.PServiceOutputTarget> parseOutputTargets(
+            TokenStreamCursor c) {
+        List<Protocol.PServiceOutputTarget> out = new ArrayList<>();
+        c.expect(TokenType.BRACKET_OPEN);
+        while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int s = c.pos();
+            Protocol.PPersistenceNode serviceOutput = parseNode(c);
+            c.expect(TokenType.ARROW);
+            Protocol.PPersistenceNode target;
+            if (c.peek() == TokenType.BRACE_OPEN) {
+                // a KEYLESS target `-> { }` — the wire omits the
+                // persistenceTarget slot entirely
+                int ts = c.pos();
+                c.expect(TokenType.BRACE_OPEN);
+                List<Protocol.PPersistenceEntry> te = new ArrayList<>();
+                parseEntries(c, te, TokenType.BRACE_CLOSE);
+                c.expect(TokenType.BRACE_CLOSE);
+                target = new Protocol.PPersistenceNode("__empty__", te,
+                        c.spanOf(ts, c.pos() - 1));
+            } else {
+                target = contentAnchoredIslandNode(c);
+            }
+            out.add(new Protocol.PServiceOutputTarget(serviceOutput, target,
+                    c.spanOf(s, c.pos() - 1)));
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return out;
+    }
+
+    private static Protocol.PPersistenceNotifier parseNotifier(
+            TokenStreamCursor c, int keyStart) {
+        c.expect(TokenType.BRACE_OPEN);
+        List<Protocol.PPersistenceNode> notifyees = new ArrayList<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            if (!"notifyees".equals(key)) {
+                throw c.error("unknown notifier key '" + key + "'");
+            }
+            c.expect(TokenType.BRACKET_OPEN);
+            while (c.peek() != TokenType.BRACKET_CLOSE) {
+                notifyees.add(parseNode(c));
+                if (!c.match(TokenType.COMMA)) {
+                    break;
+                }
+            }
+            c.expect(TokenType.BRACKET_CLOSE);
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PPersistenceNotifier(notifyees,
+                c.spanOf(keyStart, c.pos() - 1));
+    }
+
+    private static List<Protocol.PPersistenceTest> parseTests(
+            TokenStreamCursor c) {
+        List<Protocol.PPersistenceTest> out = new ArrayList<>();
+        c.expect(TokenType.BRACKET_OPEN);
+        while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int s = c.pos();
+            String id = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            c.expect(TokenType.BRACE_OPEN);
+            List<Protocol.PPersistenceTestBatch> batches = new ArrayList<>();
+            boolean fromServiceOutput = false;
+            com.legend.protocol.spec.ValueSpecification graphFetchPath = null;
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                String key = c.parseIdentifier();
+                c.expect(TokenType.COLON);
+                switch (key) {
+                    case "testBatches" -> parseTestBatches(c, batches);
+                    case "isTestDataFromServiceOutput" -> {
+                        fromServiceOutput = c.match(TokenType.TRUE);
+                        if (!fromServiceOutput) {
+                            c.expect(TokenType.FALSE);
+                        }
+                        c.expect(TokenType.SEMI_COLON);
+                    }
+                    case "graphFetchPath" -> {
+                        graphFetchPath = com.legend.parser.SpecParser.parse(
+                                c.tokens().slice(c.pos(), c.pos() + 1));
+                        c.expect(TokenType.PATH_LITERAL);
+                        c.expect(TokenType.SEMI_COLON);
+                    }
+                    default -> throw c.error("unknown test key '" + key
+                            + "'");
+                }
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            out.add(new Protocol.PPersistenceTest(id, batches,
+                    fromServiceOutput, graphFetchPath,
+                    c.spanOf(s, c.pos() - 1)));
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return out;
+    }
+
+    private static void parseTestBatches(TokenStreamCursor c,
+            List<Protocol.PPersistenceTestBatch> out) {
+        c.expect(TokenType.BRACKET_OPEN);
+        while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int s = c.pos();
+            String id = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            c.expect(TokenType.BRACE_OPEN);
+            Protocol.PPersistenceNode connData = null;
+            SourceInfo connSpan = null;
+            SourceInfo dataSpan = null;
+            List<Protocol.PPersistenceAssert> asserts = new ArrayList<>();
+            boolean assertsSpelled = false;
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int keyStart = c.pos();
+                String key = c.parseIdentifier();
+                c.expect(TokenType.COLON);
+                switch (key) {
+                    case "data" -> {
+                        c.expect(TokenType.BRACE_OPEN);
+                        int connKey = c.pos();
+                        String ck = c.parseIdentifier();
+                        if (!"connection".equals(ck)) {
+                            throw c.error("unknown data key '" + ck + "'");
+                        }
+                        c.expect(TokenType.COLON);
+                        c.expect(TokenType.BRACE_OPEN);
+                        connData = parseNode(c);
+                        c.expect(TokenType.BRACE_CLOSE);
+                        connSpan = c.spanOf(connKey, c.pos() - 1);
+                        c.expect(TokenType.BRACE_CLOSE);
+                        dataSpan = c.spanOf(keyStart, c.pos() - 1);
+                    }
+                    case "asserts" -> {
+                        assertsSpelled = true;
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (c.peek() != TokenType.BRACKET_CLOSE) {
+                            String aid = c.parseIdentifier();
+                            c.expect(TokenType.COLON);
+                            // the wire span starts at the assertion VALUE
+                            // (kind keyword), not the id (DIFF-pinned)
+                            int as = c.pos();
+                            Protocol.PPersistenceNode an = parseNode(c);
+                            asserts.add(new Protocol.PPersistenceAssert(aid,
+                                    an, c.spanOf(as, c.pos() - 1)));
+                            if (!c.match(TokenType.COMMA)) {
+                                break;
+                            }
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                    }
+                    default -> throw c.error("unknown testBatch key '" + key
+                            + "'");
+                }
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            if (connData == null || connSpan == null || dataSpan == null) {
+                throw c.error("testBatch '" + id + "' needs data");
+            }
+            out.add(new Protocol.PPersistenceTestBatch(id, connData,
+                    connSpan, dataSpan, asserts, c.spanOf(s, c.pos() - 1)));
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
     }
 
     private static Protocol.PPersistenceContext parseContext(
@@ -169,28 +584,83 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
         c.expect(TokenType.BRACE_OPEN);
 
         String persistence = null;
-        String platformSource = null;
-        String serviceParametersSource = null;
-        String sinkConnectionSource = null;
+        SourceInfo persistenceSpan = null;
+        Protocol.PPersistenceNode platform = null;
+        List<Protocol.PCtxParam> params = new ArrayList<>();
+        Protocol.PConnectionValue sinkConnection = null;
 
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            int keyStart = c.pos();
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             switch (key) {
                 case "persistence" -> {
                     persistence = Protocol.unquotePath(c.parseQualifiedName());
                     c.expect(TokenType.SEMI_COLON);
+                    persistenceSpan = c.spanOf(keyStart, c.pos() - 1);
                 }
                 case "platform" -> {
-                    platformSource = kindWithRawBody(c);
+                    // span quirk: CONTENT start .. '}#' end + 1 (probed)
+                    String kind = c.parseIdentifier();
+                    if (c.peek() != TokenType.ISLAND_OPEN
+                            && c.peek() != TokenType.ISLAND_START) {
+                        throw c.error("platform '" + kind
+                                + "' needs an island body");
+                    }
+                    c.advance();
+                    int embStart = c.pos();
+                    int depth = 0;
+                    while (!c.atEnd()) {
+                        TokenType t = c.peek();
+                        if (t == TokenType.ISLAND_START) {
+                            depth++;
+                        } else if (t == TokenType.ISLAND_END) {
+                            if (depth == 0) {
+                                break;
+                            }
+                            depth--;
+                        }
+                        c.advance();
+                    }
+                    String emb = c.reconstructText(embStart, c.pos());
+                    List<Protocol.PPersistenceEntry> entries =
+                            new ArrayList<>();
+                    parseEntries(new OffsetCursor(
+                            com.legend.lexer.Lexer.tokenize(emb),
+                            c.tokens().startLine(embStart) - 1,
+                            c.tokens().startColumn(embStart) - 1), entries,
+                            null);
+                    SourceInfo cs = c.spanOf(embStart, embStart);
+                    // engine walker start = the line AFTER '#{' even when
+                    // content shares the opener's line (DIFF-pinned)
+                    int openLine = c.tokens().startLine(embStart - 1);
+                    int endTok = c.pos();
+                    c.expect(TokenType.ISLAND_END);
+                    SourceInfo es = c.spanOf(endTok, endTok);
+                    platform = new Protocol.PPersistenceNode(kind, entries,
+                            new SourceInfo("",
+                                    Math.max(openLine + 1, cs.startLine()),
+                                    cs.startColumn(), es.endLine(),
+                                    es.endColumn() + 1));
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceParameters" -> {
-                    serviceParametersSource = rawBalanced(c);
+                    parseCtxParams(c, params);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "sinkConnection" -> {
-                    sinkConnectionSource = kindWithRawBody(c);
+                    if (c.peek() == TokenType.ISLAND_OPEN
+                            || c.peek() == TokenType.ISLAND_START) {
+                        // a KINDLESS island: `#{ Flavor { ... } }#`
+                        sinkConnection = parseConnectionIsland(c);
+                    } else {
+                        // pointer form: `sinkConnection: test::conn;`
+                        int vs = c.pos();
+                        String path = Protocol.unquotePath(
+                                c.parseQualifiedName());
+                        sinkConnection = new Protocol.PConnectionPointer(
+                                path, c.spanOf(vs, c.pos() - 1));
+                    }
                     c.match(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error("unknown key '" + key
@@ -203,9 +673,87 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
                     + "' needs a persistence pointer");
         }
         return new Protocol.PPersistenceContext(pkg, name, dec.stereotypes(),
-                dec.taggedValues(), persistence, platformSource,
-                serviceParametersSource, sinkConnectionSource,
-                c.spanOf(declStart, c.pos() - 1));
+                dec.taggedValues(), persistence,
+                java.util.Objects.requireNonNull(persistenceSpan), platform,
+                params, sinkConnection, c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** {@code [ name=value, ... ]} — values are primitives (spec wire),
+     *  connection pointers, or embedded connection islands. */
+    private static void parseCtxParams(TokenStreamCursor c,
+            List<Protocol.PCtxParam> out) {
+        c.expect(TokenType.BRACKET_OPEN);
+        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+            int s = c.pos();
+            String name = c.parseIdentifier();
+            c.expect(TokenType.EQUAL);
+            Protocol.PCtxParamValue value;
+            if (c.peek() == TokenType.ISLAND_OPEN
+                    || c.peek() == TokenType.ISLAND_START) {
+                value = new Protocol.PCtxParamValue.ConnectionVal(
+                        parseConnectionIsland(c));
+            } else if (c.isIdentifierToken(c.peek())
+                    && c.tokens().text(c.pos()).length() > 0
+                    && !c.tokens().text(c.pos()).startsWith("'")) {
+                int vs = c.pos();
+                String head = Protocol.unquotePath(c.parseQualifiedName());
+                value = new Protocol.PCtxParamValue.ConnectionPtr(head,
+                        c.spanOf(vs, c.pos() - 1));
+            } else {
+                // a primitive — parsed by THE SpecParser (value spans ride
+                // the spec wire)
+                int vs = c.pos();
+                int d = 0;
+                while (!c.atEnd()) {
+                    TokenType tk = c.peek();
+                    switch (tk) {
+                        case PAREN_OPEN, BRACE_OPEN, BRACKET_OPEN -> d++;
+                        case PAREN_CLOSE, BRACE_CLOSE, BRACKET_CLOSE -> d--;
+                        default -> { }
+                    }
+                    if ((tk == TokenType.COMMA && d <= 0)
+                            || (tk == TokenType.BRACKET_CLOSE && d < 0)) {
+                        break;
+                    }
+                    c.advance();
+                }
+                value = new Protocol.PCtxParamValue.Primitive(
+                        com.legend.parser.SpecParser.parse(
+                                c.tokens().slice(vs, c.pos())));
+            }
+            out.add(new Protocol.PCtxParam(name, value,
+                    c.spanOf(s, c.pos() - 1)));
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+    }
+
+    /** A KINDLESS connection island {@code #{ Flavor { ... } }#} — the
+     *  interior re-lexes through THE connection grammar with the walker
+     *  offset rule, so the embedded value's spans stay file-absolute. */
+    private static Protocol.PConnectionValue parseConnectionIsland(
+            TokenStreamCursor c) {
+        c.advance();                                // ISLAND_OPEN
+        int embStart = c.pos();
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
+            c.advance();
+        }
+        String emb = c.reconstructText(embStart, c.pos());
+        Protocol.PConnectionValue value = ConnectionSectionGrammar
+                .parseIslandValue(emb, c.tokens().startLine(embStart),
+                        c.tokens().startColumn(embStart));
+        c.expect(TokenType.ISLAND_END);
+        return value;
     }
 
     /**
@@ -444,14 +992,20 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
         }
     }
 
-    /** A minimal cursor over a re-lexed slice for the SPI feed. */
-    private static final class SliceCursor implements TokenStreamCursor {
+    /** The island re-lex cursor — spans shift by the island's position in
+     *  the enclosing source, and offsets COMPOSE across nesting. */
+    private static final class OffsetCursor implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
         private int pos;
+        private final int lineOffset;
+        private final int colOffset;
 
-        SliceCursor(com.legend.lexer.TokenStream tokens) {
+        OffsetCursor(com.legend.lexer.TokenStream tokens, int lineOffset,
+                int colOffset) {
             this.tokens = tokens;
+            this.lineOffset = lineOffset;
+            this.colOffset = colOffset;
         }
 
         @Override
@@ -467,6 +1021,13 @@ public final class PersistenceSectionGrammar implements LexableSectionGrammar {
         @Override
         public void setPos(int pos) {
             this.pos = pos;
+        }
+
+        @Override
+        public com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
+            return TokenStreamCursor.shiftIsland(
+                    TokenStreamCursor.super.spanOf(fromTok, toTok),
+                    lineOffset, colOffset);
         }
     }
 }

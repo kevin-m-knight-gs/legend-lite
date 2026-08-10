@@ -826,6 +826,581 @@ final class TailEmitter {
         }
     }
 
+    /** {@code (slot:kind) -> wire _type} for the persistence sub-DSL.
+     *  Unknown pairs THROW — the wall names the next probe. */
+    private static final java.util.Map<String, String> PERSISTENCE_TYPES =
+            java.util.Map.ofEntries(
+                    java.util.Map.entry("trigger:Manual", "manualTrigger"),
+                    java.util.Map.entry("trigger:Cron", "cronTrigger"),
+                    java.util.Map.entry("persister:Batch", "batchPersister"),
+                    java.util.Map.entry("persister:Streaming",
+                            "streamingPersister"),
+                    java.util.Map.entry("sink:Relational", "relationalSink"),
+                    java.util.Map.entry("sink:ObjectStorage",
+                            "objectStorageSink"),
+                    java.util.Map.entry("ingestMode:BitemporalSnapshot",
+                            "bitemporalSnapshot"),
+                    java.util.Map.entry("ingestMode:NontemporalSnapshot",
+                            "nontemporalSnapshot"),
+                    java.util.Map.entry("ingestMode:UnitemporalSnapshot",
+                            "unitemporalSnapshot"),
+                    java.util.Map.entry("ingestMode:NontemporalDelta",
+                            "nontemporalDelta"),
+                    java.util.Map.entry("ingestMode:UnitemporalDelta",
+                            "unitemporalDelta"),
+                    java.util.Map.entry("ingestMode:BitemporalDelta",
+                            "bitemporalDelta"),
+                    java.util.Map.entry("ingestMode:AppendOnly", "appendOnly"),
+                    java.util.Map.entry(
+                            "transactionMilestoning:BatchIdAndDateTime",
+                            "batchIdAndDateTimeTransactionMilestoning"),
+                    java.util.Map.entry("transactionMilestoning:BatchId",
+                            "batchIdTransactionMilestoning"),
+                    java.util.Map.entry("transactionMilestoning:DateTime",
+                            "dateTimeTransactionMilestoning"),
+                    java.util.Map.entry("validityMilestoning:DateTime",
+                            "dateTimeValidityMilestoning"),
+                    java.util.Map.entry(
+                            "derivation:SourceSpecifiesFromDateTime",
+                            "sourceSpecifiesFromDateTime"),
+                    java.util.Map.entry(
+                            "derivation:SourceSpecifiesFromAndThruDateTime",
+                            "sourceSpecifiesFromAndThruDateTime"),
+                    java.util.Map.entry(
+                            "derivation:SourceSpecifiesInDateTime",
+                            "sourceSpecifiesInDateTime"),
+                    java.util.Map.entry(
+                            "derivation:SourceSpecifiesInAndOutDateTime",
+                            "sourceSpecifiesInAndOutDateTime"),
+                    java.util.Map.entry("targetShape:Flat", "flatTarget"),
+                    java.util.Map.entry("targetShape:MultiFlat",
+                            "multiFlatTarget"),
+                    java.util.Map.entry("notifyee:Email", "emailNotifyee"),
+                    java.util.Map.entry("notifyee:PagerDuty",
+                            "pagerDutyNotifyee"),
+                    java.util.Map.entry("serviceOutput:TDS",
+                            "tdsServiceOutput"),
+                    java.util.Map.entry("serviceOutput:GraphFetch",
+                            "graphFetchServiceOutput"),
+                    java.util.Map.entry("persistenceTarget:Relational",
+                            "relationalPersistenceTarget"),
+                    java.util.Map.entry("datasetType:Snapshot", "snapshot"),
+                    java.util.Map.entry("datasetType:Delta", "delta"),
+                    java.util.Map.entry("partitioning:None",
+                            "noPartitioning"),
+                    java.util.Map.entry("partitioning:FieldBased",
+                            "fieldBasedForTds"),
+                    java.util.Map.entry("partitioning@gf:FieldBased",
+                            "fieldBasedForGraphFetch"),
+                    java.util.Map.entry(
+                            "deduplicationStrategy:DuplicateCount",
+                            "duplicateCountDeduplicationStrategy"),
+                    java.util.Map.entry("deduplication:None",
+                            "noDeduplication"),
+                    java.util.Map.entry("deduplication:AnyVersion",
+                            "anyVersion"),
+                    java.util.Map.entry("deduplication:MaxVersion",
+                            "maxVersionForTds"),
+                    java.util.Map.entry("deduplication@gf:MaxVersion",
+                            "maxVersionForGraphFetch"),
+                    java.util.Map.entry("emptyDatasetHandling:NoOp", "noOp"),
+                    java.util.Map.entry(
+                            "emptyDatasetHandling:DeleteTargetData",
+                            "deleteTargetDataset"),
+                    java.util.Map.entry("updatesHandling:Overwrite",
+                            "overwrite"),
+                    java.util.Map.entry("updatesHandling:AppendOnly",
+                            "appendOnly"),
+                    java.util.Map.entry("temporality:None", "none"),
+                    java.util.Map.entry("temporality:Unitemporal",
+                            "unitemporalTemporality"),
+                    java.util.Map.entry("temporality:Bitemporal",
+                            "bitemporalTemporality"),
+                    java.util.Map.entry("auditing@tgt:DateTime",
+                            "auditingDateTime"),
+                    java.util.Map.entry("connectionData:ExternalFormat",
+                            "externalFormat"),
+                    java.util.Map.entry("assertion:EqualToJson",
+                            "equalToJson"),
+                    java.util.Map.entry("platform:AwsGlue", "awsGlue"),
+                    java.util.Map.entry("sourceFields:StartAndEnd",
+                            "sourceTimeStartAndEnd"),
+                    java.util.Map.entry("sourceFields:Start", "sourceTimeStart"),
+                    java.util.Map.entry("processingDimension:BatchId",
+                            "batchId"),
+                    java.util.Map.entry("processingDimension:DateTime",
+                            "processingTime"),
+                    java.util.Map.entry(
+                            "processingDimension:BatchIdAndDateTime",
+                            "batchIdAndDateTime"),
+                    java.util.Map.entry("sourceDerivedDimension:DateTime",
+                            "sourceDerivedTime"),
+                    java.util.Map.entry("appendStrategy:AllowDuplicates",
+                            "allowDuplicates"),
+                    java.util.Map.entry("appendStrategy:FailOnDuplicates",
+                            "failOnDuplicates"),
+                    java.util.Map.entry("appendStrategy:FilterDuplicates",
+                            "filterDuplicates"),
+                    java.util.Map.entry("deduplicationStrategy:None",
+                            "noDeduplicationStrategy"),
+                    java.util.Map.entry("deduplicationStrategy:MaxVersion",
+                            "maxVersionDeduplicationStrategy"),
+                    java.util.Map.entry("deduplicationStrategy:AnyVersion",
+                            "anyVersionDeduplicationStrategy"),
+                    java.util.Map.entry("actionIndicator@gf:DeleteIndicator",
+                            "deleteIndicatorForGraphFetch"),
+                    java.util.Map.entry("actionIndicator:None",
+                            "noActionIndicator"),
+                    java.util.Map.entry("actionIndicator@gf:None",
+                            "noActionIndicator"),
+                    java.util.Map.entry("actionIndicator:DeleteIndicator",
+                            "deleteIndicatorForTds"),
+                    java.util.Map.entry("auditing:None", "noAuditing"),
+                    java.util.Map.entry("auditing:DateTime",
+                            "dateTimeAuditing"),
+                    java.util.Map.entry("mergeStrategy:NoDeletes",
+                            "noDeletesMergeStrategy"),
+                    java.util.Map.entry("mergeStrategy:DeleteIndicator",
+                            "deleteIndicatorMergeStrategy"));
+
+    private static String persistenceType(String slot, String kind,
+            boolean gf) {
+        return persistenceType(slot, kind, gf, false);
+    }
+
+    private static String persistenceType(String slot, String kind,
+            boolean gf, boolean tgt) {
+        String t = tgt ? PERSISTENCE_TYPES.get(slot + "@tgt:" + kind) : null;
+        if (t == null && gf) {
+            t = PERSISTENCE_TYPES.get(slot + "@gf:" + kind);
+        }
+        if (t == null) {
+            t = PERSISTENCE_TYPES.get(slot + ":" + kind);
+        }
+        if (t == null) {
+            throw new IllegalStateException("unprobed persistence node: "
+                    + slot + ":" + kind + (gf ? " (graphFetch)" : "")
+                    + (tgt ? " (target)" : ""));
+        }
+        return t;
+    }
+
+    static void persistence(StringBuilder b, Protocol.PPersistence p) {
+        b.append("{\"_type\":\"persistence\"");
+        if (p.doc() != null) {
+            b.append(",\"documentation\":");
+            ProtocolEmitter.str(b, p.doc());
+        }
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, p.name());
+        b.append(",\"notifier\":{\"notifyees\":[");
+        Protocol.PPersistenceNotifier nf = p.notifier();
+        if (nf != null) {
+            for (int i = 0; i < nf.notifyees().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                persistenceNode(b, "notifyee", nf.notifyees().get(i), true);
+            }
+        }
+        b.append(']');
+        if (nf != null && nf.sourceInformation() != null) {
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, nf.sourceInformation());
+        }
+        b.append("},\"package\":");
+        ProtocolEmitter.str(b, p.pkg());
+        if (p.persister() != null) {
+            b.append(",\"persister\":");
+            persistenceNode(b, "persister", p.persister(), true);
+        }
+        if (p.service() != null) {
+            b.append(",\"service\":");
+            pointer(b, p.service(),
+                    java.util.Objects.requireNonNull(p.serviceSpan()),
+                    "SERVICE");
+        }
+        b.append(",\"serviceOutputTargets\":[");
+        if (p.serviceOutputTargets() != null) {
+            for (int i = 0; i < p.serviceOutputTargets().size(); i++) {
+                Protocol.PServiceOutputTarget t =
+                        p.serviceOutputTargets().get(i);
+                if (i > 0) {
+                    b.append(',');
+                }
+                b.append('{');
+                if (!"__empty__".equals(t.persistenceTarget().kind())) {
+                    b.append("\"persistenceTarget\":");
+                    persistenceNode(b, "persistenceTarget",
+                            t.persistenceTarget(), true);
+                    b.append(',');
+                }
+                b.append("\"serviceOutput\":");
+                persistenceNode(b, "serviceOutput", t.serviceOutput(), true);
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, t.sourceInformation());
+                b.append('}');
+            }
+        }
+        b.append("],\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, p.sourceInformation());
+        if (p.tests() != null) {
+            b.append(",\"tests\":[");
+            for (int i = 0; i < p.tests().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                persistenceTest(b, p.tests().get(i));
+            }
+            b.append(']');
+        }
+        b.append(",\"trigger\":{\"_type\":\"")
+                .append(persistenceType("trigger", p.triggerKind(), false))
+                .append("\"}}");
+    }
+
+    /** Leaf {@code _type}s the wire prints WITHOUT sourceInformation
+     *  (DIFF-pinned: noAuditing; manualTrigger handled at its slot). */
+    private static final java.util.Set<String> SPANLESS_LEAVES =
+            java.util.Set.of("noAuditing", "noDeletesMergeStrategy",
+                    "deleteIndicatorMergeStrategy");
+
+    /** The generic node walk: {@code _type} first, entries alphabetical by
+     *  key with {@code sourceInformation} merged into sorted position. */
+    private static void persistenceNode(StringBuilder b, String slot,
+            Protocol.PPersistenceNode n, boolean withSpan) {
+        persistenceNode(b, slot, n, withSpan, false, false);
+    }
+
+    private static void persistenceNode(StringBuilder b, String slot,
+            Protocol.PPersistenceNode n, boolean withSpan, boolean gf) {
+        persistenceNode(b, slot, n, withSpan, gf, false);
+    }
+
+    /** {@code gf} = inside a graphFetch service output, {@code tgt} =
+     *  inside a persistenceTarget — both wire context-dependent
+     *  {@code _type}s and span rules. */
+    private static void persistenceNode(StringBuilder b, String slot,
+            Protocol.PPersistenceNode n, boolean withSpan, boolean gf,
+            boolean tgt) {
+        boolean part = "__part__".equals(n.kind());
+        boolean pathHead = "#path".equals(n.kind());
+        if (pathHead) {
+            gf = true;
+        }
+        if ("persistenceTarget".equals(slot)) {
+            tgt = true;
+        }
+        String wireType = part ? null
+                : pathHead ? "graphFetchServiceOutput"
+                        : persistenceType(slot, n.kind(), gf, tgt);
+        // V1-context leaves drop their spans; the SAME kinds inside a
+        // persistenceTarget keep them (DIFF-pinned). Among the spelled
+        // deduplication strategies only no/duplicateCount are spanless.
+        if (wireType != null
+                && ((SPANLESS_LEAVES.contains(wireType) && !tgt)
+                        || "noDeduplicationStrategy".equals(wireType))) {
+            withSpan = false;
+        }
+        b.append('{');
+        boolean first = true;
+        if (wireType != null) {
+            b.append("\"_type\":\"").append(wireType).append('"');
+            first = false;
+        }
+        List<Protocol.PPersistenceEntry> entries =
+                new java.util.ArrayList<>(n.entries());
+        if (pathHead) {
+            entries.add(new Protocol.PPersistenceEntry.PathValue("path",
+                    java.util.Objects.requireNonNull(n.headPath())));
+        }
+        if (("targetShape".equals(slot) && "Flat".equals(n.kind())) || part) {
+            // flatTarget and each MultiFlat part inject defaults (probed)
+            if (entries.stream().noneMatch(e ->
+                    "deduplicationStrategy".equals(e.key()))) {
+                entries.add(new Protocol.PPersistenceEntry.Node(
+                        "deduplicationStrategy",
+                        new Protocol.PPersistenceNode("__noDedup__",
+                                List.of(), n.sourceInformation())));
+            }
+            if (entries.stream().noneMatch(e ->
+                    "partitionFields".equals(e.key()))) {
+                entries.add(new Protocol.PPersistenceEntry.Strings(
+                        "partitionFields", List.of()));
+            }
+        }
+        final boolean tgtCtx = tgt;
+        entries.sort(java.util.Comparator.comparing(
+                e2 -> wireKey(e2, tgtCtx)));
+        boolean spanEmitted = !withSpan;
+        for (Protocol.PPersistenceEntry e : entries) {
+            String key = wireKey(e, tgt);
+            if (!spanEmitted && key.compareTo("sourceInformation") > 0) {
+                if (!first) {
+                    b.append(',');
+                }
+                first = false;
+                b.append("\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, n.sourceInformation());
+                spanEmitted = true;
+            }
+            if (!first) {
+                b.append(',');
+            }
+            first = false;
+            b.append('"').append(key).append("\":");
+            switch (e) {
+                case Protocol.PPersistenceEntry.Scalar s -> {
+                    if (!s.quoted() && ("true".equals(s.value())
+                            || "false".equals(s.value())
+                            || s.value().chars().allMatch(
+                                    Character::isDigit))) {
+                        b.append(s.value());
+                    } else {
+                        ProtocolEmitter.str(b, s.value());
+                    }
+                }
+                case Protocol.PPersistenceEntry.Node nd -> {
+                    if ("__noDedup__".equals(nd.node().kind())) {
+                        b.append("{\"_type\":\"noDeduplicationStrategy\"}");
+                    } else {
+                        persistenceNode(b, nd.key(), nd.node(), true, gf, tgt);
+                    }
+                }
+                case Protocol.PPersistenceEntry.Pointer pt -> {
+                    if ("binding".equals(pt.key())) {
+                        // binding pointers carry NO type tag (DIFF-pinned)
+                        b.append("{\"path\":");
+                        ProtocolEmitter.str(b, pt.path());
+                        b.append(",\"sourceInformation\":");
+                        ProtocolEmitter.srcInfo(b, pt.sourceInformation());
+                        b.append('}');
+                    } else {
+                        pointer(b, pt.path(), pt.sourceInformation(),
+                                "STORE");
+                    }
+                }
+                case Protocol.PPersistenceEntry.Strings ss -> {
+                    b.append('[');
+                    for (int i = 0; i < ss.values().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        ProtocolEmitter.str(b, ss.values().get(i));
+                    }
+                    b.append(']');
+                }
+                case Protocol.PPersistenceEntry.PathValue pv ->
+                        ProtocolEmitter.pathValue(b,
+                                (com.legend.protocol.spec.PathLiteral)
+                                        pv.spec());
+                case Protocol.PPersistenceEntry.PathList pl -> {
+                    b.append('[');
+                    for (int i = 0; i < pl.specs().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        ProtocolEmitter.pathValue(b,
+                                (com.legend.protocol.spec.PathLiteral)
+                                        pl.specs().get(i));
+                    }
+                    b.append(']');
+                }
+                case Protocol.PPersistenceEntry.NodeList nl -> {
+                    b.append('[');
+                    for (int i = 0; i < nl.nodes().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        persistenceNode(b, nl.key(), nl.nodes().get(i),
+                                true, gf, tgt);
+                    }
+                    b.append(']');
+                }
+            }
+        }
+        if (!spanEmitted) {
+            if (!first) {
+                b.append(',');
+            }
+            b.append("\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, n.sourceInformation());
+        }
+        b.append('}');
+    }
+
+    /** The wire slot name for an entry — {@code deleteField} path values
+     *  wire as {@code deleteFieldPath} (probed). */
+    private static String wireKey(Protocol.PPersistenceEntry e) {
+        if (e instanceof Protocol.PPersistenceEntry.PathValue) {
+            if ("deleteField".equals(e.key())) {
+                return "deleteFieldPath";
+            }
+            if ("versionField".equals(e.key())) {
+                return "versionFieldPath";
+            }
+        }
+        return e.key();
+    }
+
+    /** V2 TARGET dialect key renames (protocol-class-pinned:
+     *  ProcessingDateTime.timeIn/timeOut, SourceDerivedTime
+     *  .timeStart/timeEnd, AuditingDateTime.auditingDateTimeName,
+     *  SourceDerivedDimension.sourceTimeFields) — V1 keys pass through. */
+    private static String wireKey(Protocol.PPersistenceEntry e, boolean tgt) {
+        if (!tgt) {
+            return wireKey(e);
+        }
+        return switch (e.key()) {
+            case "batchDateTimeName", "dateTimeName" ->
+                    "auditingDateTimeName";
+            case "dateTimeIn" -> "timeIn";
+            case "dateTimeOut" -> "timeOut";
+            case "dateTimeStart" -> "timeStart";
+            case "dateTimeEnd" -> "timeEnd";
+            case "sourceFields" -> "sourceTimeFields";
+            default -> wireKey(e);
+        };
+    }
+
+    static void persistenceContext(StringBuilder b,
+            Protocol.PPersistenceContext pc) {
+        b.append("{\"_type\":\"persistenceContext\",\"name\":");
+        ProtocolEmitter.str(b, pc.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, pc.pkg());
+        b.append(",\"persistence\":");
+        pointer(b, pc.persistence(), pc.persistenceSpan(), "PERSISTENCE");
+        // platform is ALWAYS on the wire — {_type:"default"} when unspelled
+        b.append(",\"platform\":");
+        if (pc.platform() == null) {
+            b.append("{\"_type\":\"default\"}");
+        } else {
+            persistenceNode(b, "platform", pc.platform(), true);
+        }
+        b.append(",\"serviceParameters\":[");
+        for (int i = 0; i < pc.serviceParameters().size(); i++) {
+            Protocol.PCtxParam p = pc.serviceParameters().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"name\":");
+            ProtocolEmitter.str(b, p.name());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, p.sourceInformation());
+            b.append(",\"value\":");
+            switch (p.value()) {
+                case Protocol.PCtxParamValue.Primitive pv -> {
+                    b.append("{\"_type\":\"primitiveTypeValue\","
+                            + "\"primitiveType\":");
+                    ProtocolEmitter.valueSpec(b, pv.spec());
+                    b.append('}');
+                }
+                case Protocol.PCtxParamValue.ConnectionPtr cp -> {
+                    b.append("{\"_type\":\"connectionValue\","
+                            + "\"connection\":{\"_type\":"
+                            + "\"connectionPointer\",\"connection\":");
+                    ProtocolEmitter.str(b, cp.path());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, cp.sourceInformation());
+                    b.append("}}");
+                }
+                case Protocol.PCtxParamValue.ConnectionVal cv -> {
+                    b.append("{\"_type\":\"connectionValue\","
+                            + "\"connection\":");
+                    ProtocolEmitter.connectionValue(b, cv.connection());
+                    b.append('}');
+                }
+            }
+            b.append('}');
+        }
+        b.append(']');
+        if (pc.sinkConnection() != null) {
+            b.append(",\"sinkConnection\":");
+            ProtocolEmitter.connectionValue(b, pc.sinkConnection());
+        }
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, pc.sourceInformation());
+        b.append('}');
+    }
+
+    private static void persistenceTest(StringBuilder b,
+            Protocol.PPersistenceTest t) {
+        if (t.graphFetchPath() != null) {
+            b.append("{\"_type\":\"test\",\"graphFetchPath\":");
+            ProtocolEmitter.pathValue(b,
+                    (com.legend.protocol.spec.PathLiteral) t.graphFetchPath());
+            b.append(",\"id\":");
+            ProtocolEmitter.str(b, t.id());
+            b.append(",\"isTestDataFromServiceOutput\":")
+                    .append(t.isTestDataFromServiceOutput())
+                    .append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, t.sourceInformation());
+            b.append(",\"testBatches\":[");
+            persistenceTestBatches(b, t);
+            b.append("]}");
+            return;
+        }
+        b.append("{\"_type\":\"test\",\"id\":");
+        ProtocolEmitter.str(b, t.id());
+        b.append(",\"isTestDataFromServiceOutput\":")
+                .append(t.isTestDataFromServiceOutput())
+                .append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, t.sourceInformation());
+        b.append(",\"testBatches\":[");
+        persistenceTestBatches(b, t);
+        b.append("]}");
+    }
+
+    private static void persistenceTestBatches(StringBuilder b,
+            Protocol.PPersistenceTest t) {
+        for (int i = 0; i < t.testBatches().size(); i++) {
+            Protocol.PPersistenceTestBatch tb = t.testBatches().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"assertions\":[");
+            for (int a = 0; a < tb.asserts().size(); a++) {
+                Protocol.PPersistenceAssert as = tb.asserts().get(a);
+                if (a > 0) {
+                    b.append(',');
+                }
+                b.append("{\"_type\":\"")
+                        .append(persistenceType("assertion",
+                                as.assertion().kind(), false))
+                        .append('"');
+                for (Protocol.PPersistenceEntry e
+                        : as.assertion().entries()) {
+                    b.append(",\"").append(e.key()).append("\":");
+                    if (e instanceof Protocol.PPersistenceEntry.Node nd) {
+                        persistenceNode(b, "connectionData", nd.node(),
+                                true);
+                    } else if (e instanceof
+                            Protocol.PPersistenceEntry.Scalar s) {
+                        ProtocolEmitter.str(b, s.value());
+                    }
+                }
+                b.append(",\"id\":");
+                ProtocolEmitter.str(b, as.id());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, as.sourceInformation());
+                b.append('}');
+            }
+            // batchId AUTO-NUMBERS in source order (probed)
+            b.append("],\"batchId\":").append(i).append(",\"id\":");
+            ProtocolEmitter.str(b, tb.id());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, tb.sourceInformation());
+            b.append(",\"testData\":{\"connection\":{\"data\":");
+            persistenceNode(b, "connectionData", tb.connectionData(), true);
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, tb.connectionSpan());
+            b.append("},\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, tb.dataSpan());
+            b.append("}}");
+        }
+    }
+
     static void dataQualityValidation(StringBuilder b,
             Protocol.PDataQualityValidation v) {
         b.append("{\"_type\":\"dataQualityValidation\",\"context\":");

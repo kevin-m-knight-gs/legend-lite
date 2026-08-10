@@ -478,30 +478,37 @@ public final class ParserEquivalence {
     private static final List<String> TAIL_SECTIONS = List.of("Text",
             "GenerationSpecification", "FileGeneration", "Deephaven",
             "MongoDB", "DataQualityValidation", "Elasticsearch",
-            "ExternalFormat", "ServiceStore", "DataSpace");
+            "ExternalFormat", "ServiceStore", "DataSpace", "Persistence");
 
     private static final Map<String,
             com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
-            Map.of("Text",
-                    com.legend.parser.section.TextSectionGrammar.INSTANCE,
-                    "GenerationSpecification", com.legend.parser.section
-                            .GenerationSpecificationSectionGrammar.INSTANCE,
-                    "FileGeneration", com.legend.parser.section
-                            .FileGenerationSectionGrammar.INSTANCE,
-                    "Deephaven", com.legend.parser.section
-                            .DeephavenSectionGrammar.INSTANCE,
-                    "MongoDB", com.legend.parser.section
-                            .MongoDBSectionGrammar.INSTANCE,
-                    "DataQualityValidation", com.legend.parser.section
-                            .DataQualityValidationSectionGrammar.INSTANCE,
-                    "Elasticsearch", com.legend.parser.section
-                            .ElasticsearchSectionGrammar.INSTANCE,
-                    "ExternalFormat", com.legend.parser.section
-                            .ExternalFormatSectionGrammar.INSTANCE,
-                    "ServiceStore", com.legend.parser.section
-                            .ServiceStoreSectionGrammar.INSTANCE,
-                    "DataSpace", com.legend.parser.section
-                            .DataSpaceSectionGrammar.INSTANCE);
+            Map.ofEntries(
+                    Map.entry("Text", com.legend.parser.section
+                            .TextSectionGrammar.INSTANCE),
+                    Map.entry("GenerationSpecification",
+                            com.legend.parser.section
+                                    .GenerationSpecificationSectionGrammar
+                                    .INSTANCE),
+                    Map.entry("FileGeneration", com.legend.parser.section
+                            .FileGenerationSectionGrammar.INSTANCE),
+                    Map.entry("Deephaven", com.legend.parser.section
+                            .DeephavenSectionGrammar.INSTANCE),
+                    Map.entry("MongoDB", com.legend.parser.section
+                            .MongoDBSectionGrammar.INSTANCE),
+                    Map.entry("DataQualityValidation",
+                            com.legend.parser.section
+                                    .DataQualityValidationSectionGrammar
+                                    .INSTANCE),
+                    Map.entry("Elasticsearch", com.legend.parser.section
+                            .ElasticsearchSectionGrammar.INSTANCE),
+                    Map.entry("ExternalFormat", com.legend.parser.section
+                            .ExternalFormatSectionGrammar.INSTANCE),
+                    Map.entry("ServiceStore", com.legend.parser.section
+                            .ServiceStoreSectionGrammar.INSTANCE),
+                    Map.entry("DataSpace", com.legend.parser.section
+                            .DataSpaceSectionGrammar.INSTANCE),
+                    Map.entry("Persistence", com.legend.parser.section
+                            .PersistenceSectionGrammar.INSTANCE));
 
     /** Tail wire {@code _type} &rarr; owning section, for the drain. */
     private static final Map<String, String> TAIL_WIRE_SECTIONS =
@@ -523,7 +530,9 @@ public final class ParserEquivalence {
                     Map.entry("binding", "ExternalFormat"),
                     Map.entry("serviceStore", "ServiceStore"),
                     Map.entry("diagram", "Diagram"),
-                    Map.entry("dataSpace", "DataSpace"));
+                    Map.entry("dataSpace", "DataSpace"),
+                    Map.entry("persistence", "Persistence"),
+                    Map.entry("persistenceContext", "Persistence"));
 
     /** The wire {@code _type} a tail/activator element will emit — the
      *  site-12 dequeue prefix, computed BEFORE emission. */
@@ -545,6 +554,8 @@ public final class ParserEquivalence {
             case Protocol.PBinding bd -> "binding";
             case Protocol.PServiceStoreDefinition sd -> "serviceStore";
             case Protocol.PDataSpace dsp -> "dataSpace";
+            case Protocol.PPersistence pp -> "persistence";
+            case Protocol.PPersistenceContext pc -> "persistenceContext";
             case Protocol.PFunctionActivator a -> java.util.Objects
                     .requireNonNull(ACTIVATOR_WIRE_TYPES.get(a.kind()));
             default -> throw new IllegalStateException(

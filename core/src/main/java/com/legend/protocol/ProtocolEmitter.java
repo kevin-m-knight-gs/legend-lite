@@ -88,13 +88,9 @@ public final class ProtocolEmitter {
                             + " claimed)",
                     ee.qualifiedName());
             case Protocol.PDataSpace ds -> TailEmitter.dataSpace(b, ds);
-            case Protocol.PPersistence pp -> require(false,
-                    "persistence wire emission (harness scope not claimed)",
-                    pp.qualifiedName());
-            case Protocol.PPersistenceContext pc -> require(false,
-                    "persistence-context wire emission (harness scope not"
-                            + " claimed)",
-                    pc.qualifiedName());
+            case Protocol.PPersistence pp -> TailEmitter.persistence(b, pp);
+            case Protocol.PPersistenceContext pc ->
+                    TailEmitter.persistenceContext(b, pc);
             case Protocol.PFunctionActivator fa -> functionActivator(b, fa);
             case Protocol.PText t -> TailEmitter.text(b, t);
             case Protocol.PGenerationSpecification gs ->
@@ -701,7 +697,7 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    private static void connectionValue(StringBuilder b,
+    static void connectionValue(StringBuilder b,
             Protocol.PConnectionValue v) {
         switch (v) {
             case Protocol.PConnectionPointer cp -> {
@@ -2637,7 +2633,24 @@ public final class ProtocolEmitter {
         SourceInfo outer = new SourceInfo(lit.sourceId(), line, s + len, line, s + 2 * len + 2);
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, outerOverride != null ? outerOverride : outer);
-        b.append(",\"type\":\"path\",\"value\":{");
+        b.append(",\"type\":\"path\",\"value\":");
+        pathValue(b, pl);
+        b.append('}');
+    }
+
+    /** The path VALUE object alone (no classInstance wrapper) — shifted
+     *  spans as above; persistence graphFetch slots embed this directly. */
+    static void pathValue(StringBuilder b,
+            com.legend.protocol.spec.PathLiteral pl) {
+        SourceInfo lit = requirePos(pl.pos(), "path literal");
+        require(lit.startLine() == lit.endLine(), "multi-line path literal",
+                pl.startType());
+        int s = lit.startColumn();
+        int len = pl.literalLength();
+        int line = lit.startLine();
+        SourceInfo outer = new SourceInfo(lit.sourceId(), line, s + len,
+                line, s + 2 * len + 2);
+        b.append('{');
         if (pl.alias() != null) {
             // the !alias becomes the path's NAME, alphabetically first in the value
             b.append("\"name\":");
@@ -2666,7 +2679,7 @@ public final class ProtocolEmitter {
         srcInfo(b, outer);
         b.append(",\"startType\":");
         str(b, pl.startType());
-        b.append("}}");
+        b.append('}');
     }
 
 

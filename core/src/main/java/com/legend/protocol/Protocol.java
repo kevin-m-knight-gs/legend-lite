@@ -1155,12 +1155,13 @@ public final class Protocol {
                                List<PStereotype> stereotypes,
                                List<PTaggedValue> taggedValues,
                                @com.legend.Nullable String doc,
-                               @com.legend.Nullable String triggerSource,
+                               String triggerKind,
                                @com.legend.Nullable String service,
-                               @com.legend.Nullable String persisterSource,
-                               @com.legend.Nullable String serviceOutputTargetsSource,
-                               @com.legend.Nullable String notifierSource,
-                               @com.legend.Nullable String testsSource,
+                               @com.legend.Nullable com.legend.protocol.SourceInfo serviceSpan,
+                               @com.legend.Nullable PPersistenceNode persister,
+                               @com.legend.Nullable PPersistenceNotifier notifier,
+                               @com.legend.Nullable List<PServiceOutputTarget> serviceOutputTargets,
+                               @com.legend.Nullable List<PPersistenceTest> tests,
                                com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1168,18 +1169,142 @@ public final class Protocol {
         }
     }
 
+    /** One persistence sub-DSL node — {@code Kind { entries }} (span
+     *  kind..'}'), {@code Kind #{ entries }#} (span kind..'}#'), or a
+     *  bare keyword leaf (empty entries, span = the keyword text). Wire
+     *  field names ARE the grammar keys; slots sort alphabetically at
+     *  emission (ZTailProbe "persist-v1"/"persist-v2"). */
+    public record PPersistenceNode(String kind,
+                                   @com.legend.Nullable com.legend.protocol.spec.ValueSpecification headPath,
+                                   List<PPersistenceEntry> entries,
+                                   com.legend.protocol.SourceInfo sourceInformation) {
+        /** A keyword-headed node (the usual form). */
+        public PPersistenceNode(String kind, List<PPersistenceEntry> entries,
+                com.legend.protocol.SourceInfo sourceInformation) {
+            this(kind, null, entries, sourceInformation);
+        }
+    }
+
+    /** One entry of a persistence node. */
+    public sealed interface PPersistenceEntry {
+        String key();
+
+        /** {@code key: 'string' | identifier | true/false;}. */
+        record Scalar(String key, String value, boolean quoted)
+                implements PPersistenceEntry {
+        }
+
+        /** {@code key: Kind {...} | Kind #{...}# | Keyword;}. */
+        record Node(String key, PPersistenceNode node)
+                implements PPersistenceEntry {
+        }
+
+        /** A store/element pointer ({@code database:}) — span covers the
+         *  whole {@code key: path;} statement. */
+        record Pointer(String key, String path,
+                       com.legend.protocol.SourceInfo sourceInformation)
+                implements PPersistenceEntry {
+        }
+
+        /** {@code key: [id, id]} — identifiers as wire strings. */
+        record Strings(String key, List<String> values)
+                implements PPersistenceEntry {
+        }
+
+        /** {@code key: #/Class/prop#;} — a spec path literal riding the
+         *  shifted-span path-value wire. */
+        record PathValue(String key,
+                         com.legend.protocol.spec.ValueSpecification spec)
+                implements PPersistenceEntry {
+        }
+
+        /** {@code key: [ { ... }, ... ]} — KEYLESS braced parts
+         *  (MultiFlat parts). */
+        record NodeList(String key, List<PPersistenceNode> nodes)
+                implements PPersistenceEntry {
+        }
+
+        /** {@code key: [ #/a/b#, ... ]} — graphFetch key paths, wired as
+         *  bare path values. */
+        record PathList(String key,
+                        List<com.legend.protocol.spec.ValueSpecification> specs)
+                implements PPersistenceEntry {
+        }
+    }
+
+    /** {@code notifier: { notifyees: [...] }} — span key..'}' (the ONE
+     *  key-anchored span in the family); ALWAYS on the wire, empty
+     *  notifyees and no span when unspelled. */
+    public record PPersistenceNotifier(List<PPersistenceNode> notifyees,
+                                       @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code serviceOutputTargets:} pair —
+     *  {@code ServiceOutput -> Target}; span covers the whole pair. */
+    public record PServiceOutputTarget(PPersistenceNode serviceOutput,
+                                       PPersistenceNode persistenceTarget,
+                                       com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code tests:} entry — {@code id: { testBatches; ... }};
+     *  graphFetch tests carry a {@code graphFetchPath:} path literal. */
+    public record PPersistenceTest(String id,
+                                   List<PPersistenceTestBatch> testBatches,
+                                   boolean isTestDataFromServiceOutput,
+                                   @com.legend.Nullable com.legend.protocol.spec.ValueSpecification graphFetchPath,
+                                   com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One test batch — batchId AUTO-NUMBERS in source order. */
+    public record PPersistenceTestBatch(String id,
+                                        PPersistenceNode connectionData,
+                                        com.legend.protocol.SourceInfo connectionSpan,
+                                        com.legend.protocol.SourceInfo dataSpan,
+                                        List<PPersistenceAssert> asserts,
+                                        com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One assertion — {@code id: Kind #{ ... }#}. */
+    public record PPersistenceAssert(String id, PPersistenceNode assertion,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
     /** A {@code PersistenceContext} element. */
     public record PPersistenceContext(String pkg, String name,
                                       List<PStereotype> stereotypes,
                                       List<PTaggedValue> taggedValues,
                                       String persistence,
-                                      @com.legend.Nullable String platformSource,
-                                      @com.legend.Nullable String serviceParametersSource,
-                                      @com.legend.Nullable String sinkConnectionSource,
+                                      com.legend.protocol.SourceInfo persistenceSpan,
+                                      @com.legend.Nullable PPersistenceNode platform,
+                                      List<PCtxParam> serviceParameters,
+                                      @com.legend.Nullable PConnectionValue sinkConnection,
                                       com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One {@code serviceParameters:} entry — {@code name=value} where the
+     *  value is a primitive (spec wire), a connection pointer, or an
+     *  embedded connection island; span covers the whole entry. */
+    public record PCtxParam(String name, PCtxParamValue value,
+                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A context service-parameter value. */
+    public sealed interface PCtxParamValue {
+        record Primitive(com.legend.protocol.spec.ValueSpecification spec)
+                implements PCtxParamValue {
+        }
+
+        record ConnectionPtr(String path,
+                             com.legend.protocol.SourceInfo sourceInformation)
+                implements PCtxParamValue {
+        }
+
+        record ConnectionVal(PConnectionValue connection)
+                implements PCtxParamValue {
         }
     }
 

@@ -583,14 +583,20 @@ public final class FromProtocol {
     public static PackageableElement toPersistenceElement(Protocol.Element e) {
         return switch (e) {
             case Protocol.PPersistence p -> new PersistenceDefinition(
-                    p.qualifiedName(), p.doc(), p.triggerSource(), p.service(),
-                    p.persisterSource(), p.serviceOutputTargetsSource(),
-                    p.notifierSource(), p.testsSource());
+                    p.qualifiedName(), p.doc(), p.triggerKind(), p.service(),
+                    p.persister() == null ? null : p.persister().kind(),
+                    p.serviceOutputTargets() == null ? null : "<targets>",
+                    p.notifier() == null ? null : "<notifier>",
+                    p.tests() == null ? null : "<tests>");
             case Protocol.PPersistenceContext p ->
                     new PersistenceContextDefinition(p.qualifiedName(),
-                            p.persistence(), p.platformSource(),
-                            p.serviceParametersSource(),
-                            p.sinkConnectionSource());
+                            p.persistence(),
+                            p.platform() == null ? null
+                                    : p.platform().kind(),
+                            p.serviceParameters().isEmpty() ? null
+                                    : "<serviceParameters>",
+                            p.sinkConnection() == null ? null
+                                    : "<sinkConnection>");
             default -> throw new IllegalStateException(
                     "not a persistence-section element: " + e.getClass());
         };

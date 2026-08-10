@@ -183,6 +183,11 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
                     int bs = c.pos();
                     skipBalanced(c, TokenType.BRACE_OPEN, TokenType.BRACE_CLOSE);
                     testSource = kind + " " + c.reconstructText(bs, c.pos());
+                    // the engine REFUSES an EMPTY legacy asserts list —
+                    // structured refusal, not a lenient accept (sentinel)
+                    if (testSource.replace(" ", "").contains("asserts:[]")) {
+                        throw c.error("Field 'asserts' is required");
+                    }
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "testSuites" -> {

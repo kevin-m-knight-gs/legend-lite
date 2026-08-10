@@ -334,6 +334,12 @@ class CorpusEquivalenceTest {
         b.append("\nWALLS — the ranked worklist\n").append("-".repeat(72)).append('\n');
         walls.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(20)
                 .forEach(e -> b.append(String.format("  %6d  %s%n", e.getValue(), e.getKey())));
+        if (System.getProperty("legend.corpus.wallFiles") != null) {
+            b.append("\nWALL rows with files\n").append("-".repeat(72)).append('\n');
+            all.stream().filter(v -> v.kind() == Kind.WALL).limit(80)
+                    .forEach(v -> b.append("  ").append(v.sourceId())
+                            .append(" :: ").append(v.detail()).append('\n'));
+        }
         List<Verdict> missed = all.stream()
                 .filter(v -> v.kind() == Kind.LITE_MISSED).toList();
         if (!missed.isEmpty()) {

@@ -935,6 +935,299 @@ class ZTailProbe {
     }
 
     @Test
+    void persistenceShapes() throws Exception {
+        probe("persist-v1", """
+                ###Persistence
+                Persistence test::TestPersistence
+                {
+                  doc: 'test doc';
+                  trigger: Manual;
+                  service: test::service::Service;
+                  persister: Batch
+                  {
+                    sink: Relational
+                    {
+                      database: test::Database;
+                    }
+                    ingestMode: BitemporalSnapshot
+                    {
+                      transactionMilestoning: BatchIdAndDateTime
+                      {
+                        batchIdInName: 'batchIdIn';
+                        batchIdOutName: 'batchIdOut';
+                        dateTimeInName: 'inZ';
+                        dateTimeOutName: 'outZ';
+                      }
+                      validityMilestoning: DateTime
+                      {
+                        dateTimeFromName: 'FROM_Z';
+                        dateTimeThruName: 'THRU_Z';
+                        derivation: SourceSpecifiesFromDateTime
+                        {
+                          sourceDateTimeFromField: sourceFrom;
+                        }
+                      }
+                    }
+                    targetShape: Flat
+                    {
+                      modelClass: test::ModelClass;
+                      targetName: 'TestDataset1';
+                    }
+                  }
+                  notifier:
+                  {
+                    notifyees:
+                    [
+                      Email
+                      {
+                        address: 'x@y.com';
+                      },
+                      PagerDuty
+                      {
+                        url: 'https://x.com';
+                      }
+                    ];
+                  }
+                }
+                """);
+    }
+
+    @Test
+    void persistenceShapes2() throws Exception {
+        probe("persist-v2", """
+                ###Persistence
+                Persistence test::TestPersistence
+                {
+                  doc: 'This is test documentation.';
+                  trigger: Manual;
+                  service: test::Service;
+                  serviceOutputTargets:
+                  [
+                  TDS
+                  {
+                    keys: [ID, NAME]
+                    deduplication: None;
+                    datasetType: Snapshot
+                    {
+                      partitioning: None
+                      {
+                        emptyDatasetHandling: NoOp;
+                      }
+                    }
+                  }
+                  ->
+                  Relational
+                  #{
+                    table: personTable;
+                    database: test::TestDatabase;
+                    temporality: None
+                    {
+                        updatesHandling: Overwrite;
+                    }
+                  }#
+                  ];
+                  tests:
+                  [
+                    test1:
+                    {
+                      testBatches:
+                      [
+                        testBatch1:
+                        {
+                          data:
+                          {
+                            connection:
+                            {
+                                ExternalFormat
+                                #{
+                                  contentType: 'application/json';
+                                  data: '[{"ID":1, "NAME":"ANDY"}]';
+                                }#
+                            }
+                          }
+                          asserts:
+                          [
+                            assert1:
+                              EqualToJson
+                              #{
+                                expected:
+                                ExternalFormat
+                                #{
+                                  contentType: 'application/json';
+                                  data: '[{"ID":1, "BATCH_ID":1}]';
+                                }#;
+                              }#
+                          ]
+                        }
+                      ]
+                      isTestDataFromServiceOutput: true;
+                    }
+                  ]
+                }
+                """);
+    }
+
+    @Test
+    void persistenceCtxShapes() throws Exception {
+        probe("persist-ctx", """
+                ###Persistence
+                PersistenceContext test::TestPersistenceContext
+                {
+                  persistence: test::TestPersistence;
+                  serviceParameters:
+                  [
+                    foo='hello',
+                    bar=1,
+                    con1=test::TestConnection,
+                    con2=
+                    #{
+                      RelationalDatabaseConnection
+                      {
+                        store: test::TestDatabase;
+                        type: H2;
+                        specification: LocalH2
+                        {
+                        };
+                        auth: Test;
+                      }
+                    }#
+                  ];
+                  sinkConnection:
+                  #{
+                    RelationalDatabaseConnection
+                    {
+                      store: test::TestDatabase;
+                      type: H2;
+                      specification: LocalH2
+                      {
+                      };
+                      auth: Test;
+                    }
+                  }#;
+                }
+                """);
+        probe("persist-ctx-glue", """
+                ###Persistence
+                PersistenceContext test::TestPersistenceContext
+                {
+                  persistence: test::TestPersistence;
+                  platform: AwsGlue
+                  #{
+                    dataProcessingUnits: 10;
+                  }#;
+                }
+                """);
+    }
+
+    @Test
+    void persistenceShapes3() throws Exception {
+        probe("persist-graphfetch", """
+                ###Persistence
+                Persistence test::TestPersistence
+                {
+                  doc: 'd';
+                  trigger: Manual;
+                  service: test::service::FirmService;
+                  serviceOutputTargets:
+                  [
+                    #/test::model::Firm/employees#
+                    {
+                      keys:
+                      [
+                      ]
+                      datasetType: Delta
+                      {
+                        actionIndicator: DeleteIndicator
+                        {
+                          deleteField: #/test::model::Firm/employees/isDeleted#;
+                          deleteValues: ['Yes', 'true', '1'];
+                        }
+                      }
+                      deduplication: None;
+                    }
+                    ->
+                    Relational
+                    #{
+                      table: personTable;
+                      database: test::myDatabase;
+                      temporality: None
+                      {
+                          updatesHandling: Overwrite;
+                      }
+                    }#
+                  ];
+                }
+                """);
+        probe("persist-multiflat", """
+                ###Persistence
+                Persistence test::TestPersistence
+                {
+                  doc: 'd';
+                  trigger: Manual;
+                  service: test::service::FirmService;
+                  persister: Batch
+                  {
+                    sink: ObjectStorage
+                    {
+                      binding: test::Binding;
+                    }
+                    ingestMode: AppendOnly
+                    {
+                      auditing: None;
+                      filterDuplicates: false;
+                    }
+                    targetShape: MultiFlat
+                    {
+                      modelClass: test::ServiceResult;
+                      transactionScope: ALL_TARGETS;
+                      parts:
+                      [
+                        {
+                          modelProperty: property1;
+                          targetName: 'TestDataset1';
+                        }
+                      ];
+                    }
+                  }
+                }
+                """);
+    }
+
+    @Test
+    void persistenceShapes4() throws Exception {
+        probe("persist-keyless-target", """
+                ###Persistence
+                Persistence test::P
+                {
+                  doc: 'd';
+                  trigger: Manual;
+                  service: test::Service;
+                  serviceOutputTargets:
+                  [
+                    #/test::Person/all#
+                    {
+                      keys:
+                      [
+                        #/test::Person/name#
+                      ]
+                      deduplication: None;
+                      datasetType: Snapshot
+                      {
+                        partitioning: None
+                        {
+                          emptyDatasetHandling: NoOp;
+                        }
+                      }
+                    }
+                    ->
+                    {
+                    }
+                  ];
+                }
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping
