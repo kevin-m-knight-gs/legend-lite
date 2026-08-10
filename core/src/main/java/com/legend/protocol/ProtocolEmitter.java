@@ -3269,21 +3269,27 @@ public final class ProtocolEmitter {
     }
 
     private static void section(StringBuilder b, PSection s) {
-        b.append("{\"_type\":\"importAware\",\"elements\":[");
+        b.append(s.importAware() ? "{\"_type\":\"importAware\""
+                : "{\"_type\":\"default\"");
+        b.append(",\"elements\":[");
         for (int i = 0; i < s.elements().size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
             str(b, s.elements().get(i));
         }
-        b.append("],\"imports\":[");
-        for (int i = 0; i < s.imports().size(); i++) {
-            if (i > 0) {
-                b.append(',');
+        b.append(']');
+        if (s.importAware()) {
+            b.append(",\"imports\":[");
+            for (int i = 0; i < s.imports().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                str(b, s.imports().get(i));
             }
-            str(b, s.imports().get(i));
+            b.append(']');
         }
-        b.append("],\"parserName\":");
+        b.append(",\"parserName\":");
         str(b, s.parserName());
         b.append(",\"sourceInformation\":");
         srcInfo(b, s.sourceInformation());

@@ -1,0 +1,104 @@
+package com.legend.equivalence;
+
+import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * WHOLE-DOCUMENT parity: for every corpus source the oracle accepts,
+ * {@code PmcdParser.parseDocument} must produce the engine's ENTIRE PMCD
+ * byte-for-byte — envelope, element order, and the
+ * {@code __internal__::SectionIndex} (spans included). This subsumes the
+ * per-element ledger: any deviation anywhere in parsing, ordering, or
+ * section bookkeeping surfaces here as a document diff.
+ */
+class PmcdEquivalenceTest {
+
+    @Test
+    void wholeDocumentByteParity() throws Exception {
+        var mapper = org.finos.legend.engine.shared.core.ObjectMapperFactory
+                .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        int match = 0;
+        int oracleRejects = 0;
+        List<String> weRefuse = new ArrayList<>();
+        List<String> diffs = new ArrayList<>();
+        Map<String, Integer> refuseByMsg = new TreeMap<>();
+        List<Corpus.Source> all = new ArrayList<>(Corpus.all());
+        all.addAll(InlineSnippets.extract(java.nio.file.Path.of(
+                System.getProperty("legend.engine.root")), "inline-engine"));
+        all.addAll(InlineSnippets.extract(java.nio.file.Path.of(
+                System.getProperty("legend.pure.root")), "inline-pure"));
+        for (Corpus.Source src : all) {
+            String expected;
+            try {
+                expected = mapper.writeValueAsString(
+                        oracle.parseModel(src.text()));
+            } catch (Throwable t) {
+                oracleRejects++;
+                continue;
+            }
+            String actual;
+            try {
+                actual = com.legend.parser.PmcdParser
+                        .parseDocument(src.text());
+            } catch (Throwable t) {
+                Throwable r = t;
+                while (r.getCause() != null && r.getCause() != r) {
+                    r = r.getCause();
+                }
+                String m = String.valueOf(r.getMessage())
+                        .replaceAll("\\s+", " ");
+                weRefuse.add(src.id() + " :: " + m);
+                refuseByMsg.merge(m.length() > 60 ? m.substring(0, 60) : m,
+                        1, Integer::sum);
+                continue;
+            }
+            if (expected.equals(actual)) {
+                match++;
+            } else {
+                diffs.add(src.id() + " :: "
+                        + firstDivergence(expected, actual));
+            }
+        }
+        System.out.println("PMCD document parity: " + match + " match, "
+                + diffs.size() + " diff, " + weRefuse.size()
+                + " we-refuse, " + oracleRejects + " oracle-rejects");
+        refuseByMsg.entrySet().stream().limit(15).forEach(e ->
+                System.out.println("  REFUSE " + e.getValue() + "x "
+                        + e.getKey()));
+        diffs.stream().limit(15).forEach(d ->
+                System.out.println("  DIFF " + d));
+        weRefuse.stream().limit(10).forEach(d ->
+                System.out.println("  REFUSE-ROW " + d));
+        assertEquals(0, diffs.size(),
+                () -> diffs.size() + " document diffs; first:\n  "
+                        + String.join("\n  ",
+                                diffs.subList(0, Math.min(10, diffs.size()))));
+        assertEquals(0, weRefuse.size(),
+                () -> weRefuse.size() + " oracle-accepted files we refuse;"
+                        + " first:\n  " + String.join("\n  ", weRefuse
+                                .subList(0, Math.min(10, weRefuse.size()))));
+    }
+
+    private static String firstDivergence(String expected, String actual) {
+        int n = Math.min(expected.length(), actual.length());
+        int i = 0;
+        while (i < n && expected.charAt(i) == actual.charAt(i)) {
+            i++;
+        }
+        return "byte " + i + " | expected …"
+                + expected.substring(Math.max(0, i - 30),
+                        Math.min(expected.length(), i + 50))
+                + "… | actual …"
+                + actual.substring(Math.max(0, i - 30),
+                        Math.min(actual.length(), i + 50))
+                + "…";
+    }
+}

@@ -61,8 +61,8 @@ class ProtocolEmitterTest {
         PClass person = new PClass("model", "Person", List.of(), List.of(), List.of(name),
                 List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 4, 1));
         PSectionIndex sections = new PSectionIndex("__internal__", "SectionIndex",
-                List.of(new PSection("Pure", List.of("model::Person"), List.of(),
-                        new SourceInfo("", 1, 1, 6, 2))));
+                List.of(new PSection(true, "Pure", List.of("model::Person"),
+                        List.of(), new SourceInfo("", 1, 1, 6, 2))));
 
         assertEquals(EXPECTED_SIMPLE_CLASS,
                 ProtocolEmitter.emit(new PureModelContextData(List.of(person, sections))));

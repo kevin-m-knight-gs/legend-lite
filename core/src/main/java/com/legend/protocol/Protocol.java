@@ -2501,8 +2501,13 @@ public final class Protocol {
         }
     }
 
-    /** {@code _type:"importAware"} — the only section kind emitted for {@code ###Pure}. */
-    public record PSection(String parserName, List<String> elements, List<String> imports,
+    /** One sectionIndex entry (ZPmcdProbe): {@code _type:"importAware"}
+     *  for import-supporting parsers (imports emitted), {@code "default"}
+     *  otherwise (NO imports key). Spans are the engine's BUFFER
+     *  coordinates over {@code "\n###Pure\n" + source} with the
+     *  newline-inclusive SECTION_START token (PureGrammarParser.parse). */
+    public record PSection(boolean importAware, String parserName,
+                           List<String> elements, List<String> imports,
                            com.legend.protocol.SourceInfo sourceInformation) {
         public PSection {
             elements = List.copyOf(elements);
