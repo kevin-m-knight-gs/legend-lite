@@ -80,13 +80,9 @@ public final class ProtocolEmitter {
             // ###Service records exist for the parse/transform seam; their
             // engine wire shape is NOT claimed yet (the parity harness keeps
             // Service files OUT_OF_SCOPE), so emission walls loudly
-            case Protocol.PService sv -> require(false,
-                    "service wire emission (harness scope not claimed)",
-                    sv.qualifiedName());
-            case Protocol.PExecutionEnvironment ee -> require(false,
-                    "execution-environment wire emission (harness scope not"
-                            + " claimed)",
-                    ee.qualifiedName());
+            case Protocol.PService sv -> TailEmitter.service(b, sv);
+            case Protocol.PExecutionEnvironment ee ->
+                    TailEmitter.executionEnvironment(b, ee);
             case Protocol.PDataSpace ds -> TailEmitter.dataSpace(b, ds);
             case Protocol.PPersistence pp -> TailEmitter.persistence(b, pp);
             case Protocol.PPersistenceContext pc ->
@@ -155,12 +151,30 @@ public final class ProtocolEmitter {
         str(b, r.pkg());
         b.append(",\"runtimeValue\":{\"_type\":");
         str(b, r.single() ? "localEngineRuntime" : "engineRuntime");
+        runtimeArrays(b, r.connectionStores(), r.connections(),
+                r.mappings());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, r.sourceInformation());
+        b.append("},\"sourceInformation\":");
+        srcInfo(b, r.sourceInformation());
+        b.append('}');
+    }
+
+
+    /** The engineRuntime/localEngineRuntime ARRAYS (connectionStores +
+     *  connections + mappings) — shared by the section runtime element and
+     *  embedded service runtimes. Emits {@code ,"connectionStores":[...],
+     *  "connections":[...],"mappings":[...]}. */
+    static void runtimeArrays(StringBuilder b,
+            List<Protocol.PConnectionStores> connectionStores,
+            List<Protocol.PStoreConnections> connections,
+            List<Protocol.PPointer> mappings) {
         b.append(",\"connectionStores\":[");
-        for (int i = 0; i < r.connectionStores().size(); i++) {
+        for (int i = 0; i < connectionStores.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            Protocol.PConnectionStores cs = r.connectionStores().get(i);
+            Protocol.PConnectionStores cs = connectionStores.get(i);
             b.append("{\"connectionPointer\":");
             connectionValue(b, cs.connectionPointer());
             b.append(",\"sourceInformation\":");
@@ -179,24 +193,20 @@ public final class ProtocolEmitter {
             b.append("]}");
         }
         b.append("],\"connections\":[");
-        for (int i = 0; i < r.connections().size(); i++) {
+        for (int i = 0; i < connections.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            storeConnections(b, r.connections().get(i));
+            storeConnections(b, connections.get(i));
         }
         b.append("],\"mappings\":[");
-        for (int i = 0; i < r.mappings().size(); i++) {
+        for (int i = 0; i < mappings.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            pointer(b, r.mappings().get(i));
+            pointer(b, mappings.get(i));
         }
-        b.append("],\"sourceInformation\":");
-        srcInfo(b, r.sourceInformation());
-        b.append("},\"sourceInformation\":");
-        srcInfo(b, r.sourceInformation());
-        b.append('}');
+        b.append(']');
     }
 
     private static void storeConnections(StringBuilder b,

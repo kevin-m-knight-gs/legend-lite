@@ -7,6 +7,7 @@ import com.legend.lexer.TokenType;
 import com.legend.parser.SpecParser;
 import com.legend.parser.TokenStreamCursor;
 import com.legend.protocol.Protocol;
+import com.legend.protocol.SourceInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,8 @@ import java.util.List;
  * OUT_OF_SCOPE. This grammar's job today is the parse/transform seam — the
  * drop-in surface accepting exactly the section content the engine accepts.
  */
-public final class ServiceSectionGrammar implements LexableSectionGrammar {
+public final class ServiceSectionGrammar
+        implements ElementwiseSectionGrammar {
 
     /** The one stateless instance the registry hands out. */
     public static final ServiceSectionGrammar INSTANCE =
@@ -39,24 +41,8 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
         return "Service";
     }
 
-    /** The SPI feed would emit protocol JSON, and Service has no claimed
-     *  wire shape yet — so it walls at the emitter, loudly, per element. */
     @Override
-    public void parse(com.legend.spi.SectionSource src,
-            com.legend.spi.ElementSink out) {
-        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()));
-        while (!c.atEnd()) {
-            if (c.peek() == TokenType.IMPORT) {
-                SectionImports.parseImport(c);
-                continue;
-            }
-            Protocol.Element e = parseElement(c);
-            out.accept(qualifiedNameOf(e),
-                    com.legend.protocol.ProtocolEmitter.emitElement(e));
-        }
-    }
-
-    private static String qualifiedNameOf(Protocol.Element e) {
+    public String qualifiedNameOf(Protocol.Element e) {
         return switch (e) {
             case Protocol.PService s -> s.qualifiedName();
             case Protocol.PExecutionEnvironment ee -> ee.qualifiedName();
@@ -66,20 +52,8 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
     }
 
     @Override
-    public ParsedSection parseSection(TokenStreamCursor host,
-            int sectionEndOffset) {
-        List<ParsedElement> elements = new ArrayList<>();
-        List<String> imports = new ArrayList<>();
-        while (!host.atEnd()
-                && host.tokens().start(host.pos()) < sectionEndOffset) {
-            if (host.peek() == TokenType.IMPORT) {
-                imports.add(SectionImports.parseImport(host));
-                continue;
-            }
-            int at = host.tokens().start(host.pos());
-            elements.add(new ParsedElement(parseElement(host), at));
-        }
-        return new ParsedSection(elements, imports);
+    public Protocol.Element parseOne(TokenStreamCursor c) {
+        return parseElement(c);
     }
 
     @Override
@@ -117,12 +91,13 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
         String pattern = null;
         String title = null;
         List<String> owners = new ArrayList<>();
-        String ownershipSource = null;
+        String ownershipKind = null;
+        String ownershipId = null;
         String documentation = null;
         Boolean autoActivate = null;
         Protocol.PServiceExecution execution = null;
-        String testSource = null;
-        String testSuitesSource = null;
+        Protocol.PLegacyServiceTest test = null;
+        List<Protocol.PServiceTestSuite> testSuites = null;
         String postValidationsSource = null;
 
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
@@ -139,15 +114,18 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "ownership" -> {
-                    // ownership: Deployment {...} | UserList {...} — kind +
-                    // RAW body, carried (engine: serviceOwnership rule)
-                    String kind = c.parseIdentifier();
-                    int bs = c.pos();
-                    if (c.peek() == TokenType.BRACE_OPEN) {
-                        skipBalanced(c, TokenType.BRACE_OPEN,
-                                TokenType.BRACE_CLOSE);
+                    // ownership: DID { identifier: '...' } — kind + one
+                    // identifier field (probed: deploymentOwnership)
+                    ownershipKind = c.parseIdentifier();
+                    c.expect(TokenType.BRACE_OPEN);
+                    String ik = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    if (!"identifier".equals(ik)) {
+                        throw c.error("unknown ownership key: " + ik);
                     }
-                    ownershipSource = kind + " " + c.reconstructText(bs, c.pos());
+                    ownershipId = stringValue(c);
+                    c.match(TokenType.SEMI_COLON);
+                    c.expect(TokenType.BRACE_CLOSE);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "postValidations" -> {
@@ -176,34 +154,9 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "execution" -> execution = parseExecution(c, qn);
-                case "test" -> {
-                    // legacy single test — kind + RAW balanced body, carried
-                    // (same posture as testSuites below)
-                    String kind = c.parseIdentifier();
-                    int bs = c.pos();
-                    skipBalanced(c, TokenType.BRACE_OPEN, TokenType.BRACE_CLOSE);
-                    testSource = kind + " " + c.reconstructText(bs, c.pos());
-                    // the engine REFUSES an EMPTY legacy asserts list —
-                    // structured refusal, not a lenient accept (sentinel)
-                    if (testSource.replace(" ", "").contains("asserts:[]")) {
-                        throw c.error("Field 'asserts' is required");
-                    }
-                    c.match(TokenType.SEMI_COLON);
-                }
+                case "test" -> test = parseLegacyTest(c);
                 case "testSuites" -> {
-                    // the entire balanced block as raw text — D-3
-                    TokenType opener = c.peek();
-                    if (opener != TokenType.BRACE_OPEN
-                            && opener != TokenType.BRACKET_OPEN) {
-                        throw c.error("expected '{' or '[' after testSuites:,"
-                                + " got " + opener);
-                    }
-                    int bs = c.pos();
-                    skipBalanced(c, opener,
-                            opener == TokenType.BRACE_OPEN
-                                    ? TokenType.BRACE_CLOSE
-                                    : TokenType.BRACKET_CLOSE);
-                    testSuitesSource = c.reconstructText(bs, c.pos());
+                    testSuites = parseTestSuites(c);
                     c.match(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error("unknown key '" + key
@@ -215,38 +168,325 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
             throw c.error("Service '" + qn + "' has no execution");
         }
         return new Protocol.PService(pkg, name, dec.stereotypes(),
-                dec.taggedValues(), pattern, title, owners, ownershipSource,
-                documentation, autoActivate, execution, testSource,
-                testSuitesSource, postValidationsSource,
+                dec.taggedValues(), pattern, title, owners, ownershipKind,
+                ownershipId, documentation, autoActivate, execution, test,
+                testSuites, postValidationsSource,
                 c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** The legacy test BODY loop ({@code data:} / {@code asserts:}),
+     *  shared by Single and Multi keyed entries; returns data. */
+    private static @com.legend.Nullable String parseLegacyBody(
+            TokenStreamCursor c,
+            List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts) {
+        String data = null;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "data" -> {
+                    data = stringValue(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "asserts" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        int as = c.pos();
+                        c.expect(TokenType.BRACE_OPEN);
+                        c.expect(TokenType.BRACKET_OPEN);
+                        if (c.peek() != TokenType.BRACKET_CLOSE) {
+                            throw c.error("legacy test parameter values are"
+                                    + " out of the corpus-censused scope");
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                        c.expect(TokenType.COMMA);
+                        int ls = c.pos();
+                        int d = 0;
+                        while (!c.atEnd()) {
+                            TokenType tk = c.peek();
+                            switch (tk) {
+                                case PAREN_OPEN, BRACE_OPEN, BRACKET_OPEN ->
+                                        d++;
+                                case PAREN_CLOSE, BRACKET_CLOSE -> d--;
+                                case BRACE_CLOSE -> {
+                                    d--;
+                                }
+                                default -> { }
+                            }
+                            if (tk == TokenType.BRACE_CLOSE && d < 0) {
+                                break;
+                            }
+                            c.advance();
+                        }
+                        com.legend.protocol.spec.ValueSpecification lambda =
+                                com.legend.parser.SpecParser.parse(
+                                        c.tokens().slice(ls, c.pos()));
+                        c.expect(TokenType.BRACE_CLOSE);
+                        asserts.add(new Protocol.PLegacyServiceTest
+                                .PLegacyAssert(lambda,
+                                        c.spanOf(as, c.pos() - 1)));
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                default -> throw c.error("unknown legacy test key '" + key
+                        + "'");
+            }
+        }
+        return data;
+    }
+
+    /** {@code testSuites: [ id: { data?; tests } ]} — the wire spans
+     *  anchor at ID tokens; connection data and asserts ride THE
+     *  embedded-data / test-assertion machinery (probed
+     *  service-suites2). */
+    private static List<Protocol.PServiceTestSuite> parseTestSuites(
+            TokenStreamCursor c) {
+        List<Protocol.PServiceTestSuite> out = new ArrayList<>();
+        c.expect(TokenType.BRACKET_OPEN);
+        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+            int ss = c.pos();
+            String id = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            c.expect(TokenType.BRACE_OPEN);
+            Protocol.PServiceTestSuite.PSuiteData data = null;
+            List<Protocol.PServiceTestSuite.PSuiteTest> tests =
+                    new ArrayList<>();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int keyStart = c.pos();
+                String key = c.parseIdentifier();
+                c.expect(TokenType.COLON);
+                switch (key) {
+                    case "data" -> data = parseSuiteData(c, keyStart);
+                    case "tests" -> parseSuiteTests(c, tests);
+                    default -> throw c.error("unknown testSuite key '"
+                            + key + "'");
+                }
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            out.add(new Protocol.PServiceTestSuite(id, data, tests,
+                    c.spanOf(ss, c.pos() - 1)));
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return out;
+    }
+
+    private static Protocol.PServiceTestSuite.PSuiteData parseSuiteData(
+            TokenStreamCursor c, int keyStart) {
+        c.expect(TokenType.BRACKET_OPEN);
+        List<Protocol.PServiceTestSuite.PSuiteConnData> conns =
+                new ArrayList<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+            String k = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            if (!"connections".equals(k)) {
+                throw c.error("unknown suite data key '" + k + "'");
+            }
+            c.expect(TokenType.BRACKET_OPEN);
+            while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                int cs = c.pos();
+                // connection ids may be QUALIFIED paths
+                String cid = Protocol.unquotePath(c.parseQualifiedName());
+                c.expect(TokenType.COLON);
+                Protocol.PEmbeddedDataValue value = com.legend.parser
+                        .MappingProtocolParser.parseEmbeddedValueAt(c);
+                conns.add(new Protocol.PServiceTestSuite.PSuiteConnData(cid,
+                        value, c.spanOf(cs, c.pos() - 1)));
+                c.match(TokenType.COMMA);
+            }
+            c.expect(TokenType.BRACKET_CLOSE);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return new Protocol.PServiceTestSuite.PSuiteData(conns,
+                c.spanOf(keyStart, c.pos() - 1));
+    }
+
+    private static void parseSuiteTests(TokenStreamCursor c,
+            List<Protocol.PServiceTestSuite.PSuiteTest> out) {
+        c.expect(TokenType.BRACKET_OPEN);
+        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+            int ts = c.pos();
+            String id = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            c.expect(TokenType.BRACE_OPEN);
+            String serializationFormat = null;
+            List<String> keys = new ArrayList<>();
+            List<Protocol.PServiceTestSuite.PSuiteParam> parameters = null;
+            List<Protocol.PTestAssertion> asserts = new ArrayList<>();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                String key = c.parseIdentifier();
+                c.expect(TokenType.COLON);
+                switch (key) {
+                    case "serializationFormat" -> {
+                        serializationFormat = c.parseIdentifier();
+                        c.expect(TokenType.SEMI_COLON);
+                    }
+                    case "keys" -> {
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (c.peek() != TokenType.BRACKET_CLOSE) {
+                            keys.add(stringValue(c));
+                            if (!c.match(TokenType.COMMA)) {
+                                break;
+                            }
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                        c.match(TokenType.SEMI_COLON);
+                    }
+                    case "parameters" -> {
+                        // [ name = value, ... ] — values ride the spec
+                        // wire (probed service-test-params)
+                        parameters = new ArrayList<>();
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (c.peek() != TokenType.BRACKET_CLOSE) {
+                            String pn = c.parseIdentifier();
+                            c.expect(TokenType.EQUAL);
+                            int vs2 = c.pos();
+                            int d2 = 0;
+                            while (!c.atEnd()) {
+                                TokenType tk = c.peek();
+                                switch (tk) {
+                                    case PAREN_OPEN, BRACE_OPEN,
+                                            BRACKET_OPEN -> d2++;
+                                    case PAREN_CLOSE, BRACE_CLOSE,
+                                            BRACKET_CLOSE -> d2--;
+                                    default -> { }
+                                }
+                                if ((tk == TokenType.COMMA && d2 <= 0)
+                                        || (tk == TokenType.BRACKET_CLOSE
+                                                && d2 < 0)) {
+                                    break;
+                                }
+                                c.advance();
+                            }
+                            parameters.add(new Protocol.PServiceTestSuite
+                                    .PSuiteParam(pn, SpecParser.parse(
+                                            c.tokens().slice(vs2,
+                                                    c.pos()))));
+                            c.match(TokenType.COMMA);
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                        c.match(TokenType.SEMI_COLON);
+                    }
+                    case "asserts" -> {
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (!c.atEnd()
+                                && c.peek() != TokenType.BRACKET_CLOSE) {
+                            asserts.add(com.legend.parser
+                                    .MappingProtocolParser
+                                    .parseTestAssertionAt(c));
+                            c.match(TokenType.COMMA);
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                    }
+                    default -> throw c.error("unknown suite test key '"
+                            + key + "'");
+                }
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            out.add(new Protocol.PServiceTestSuite.PSuiteTest(id,
+                    serializationFormat, keys, parameters, asserts,
+                    c.spanOf(ts, c.pos() - 1)));
+            c.match(TokenType.COMMA);
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+    }
+
+    /** {@code test: Single { data: '...'; asserts: [ { [params], lambda }
+     *  ] }} — wire {@code singleExecutionTest}; the engine REFUSES an
+     *  empty asserts list (sentinel parity). */
+    private static Protocol.PLegacyServiceTest parseLegacyTest(
+            TokenStreamCursor c) {
+        int start = c.pos();
+        String kind = c.parseIdentifier();
+        if ("Multi".equals(kind)) {
+            // Multi tests: tests['KEY']: { data; asserts } entries — the
+            // entry span starts at the tests keyword (probed
+            // service-multi-test); empty bodies legal
+            c.expect(TokenType.BRACE_OPEN);
+            List<Protocol.PLegacyServiceTest.PKeyedLegacyTest> keyed =
+                    new ArrayList<>();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int es = c.pos();
+                String tk = c.parseIdentifier();
+                if (!"tests".equals(tk)) {
+                    throw c.error("unknown Multi test key '" + tk + "'");
+                }
+                c.expect(TokenType.BRACKET_OPEN);
+                String keyValue = stringValue(c);
+                c.expect(TokenType.BRACKET_CLOSE);
+                c.expect(TokenType.COLON);
+                c.expect(TokenType.BRACE_OPEN);
+                List<Protocol.PLegacyServiceTest.PLegacyAssert> ka =
+                        new ArrayList<>();
+                String kd = parseLegacyBody(c, ka);
+                c.expect(TokenType.BRACE_CLOSE);
+                c.match(TokenType.SEMI_COLON);
+                if (kd == null) {
+                    throw c.error("Multi test '" + keyValue
+                            + "' needs data");
+                }
+                keyed.add(new Protocol.PLegacyServiceTest.PKeyedLegacyTest(
+                        keyValue, kd, ka, c.spanOf(es, c.pos() - 1)));
+                c.match(TokenType.COMMA);
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            c.match(TokenType.SEMI_COLON);
+            return new Protocol.PLegacyServiceTest("Multi", null,
+                    java.util.List.of(), keyed,
+                    c.spanOf(start, c.pos() - 1));
+        }
+        if (!"Single".equals(kind)) {
+            throw c.error("unsupported legacy test kind: " + kind);
+        }
+        c.expect(TokenType.BRACE_OPEN);
+        List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts =
+                new ArrayList<>();
+        String data = parseLegacyBody(c, asserts);
+        c.expect(TokenType.BRACE_CLOSE);
+        c.match(TokenType.SEMI_COLON);
+        if (data == null) {
+            throw c.error("legacy test needs data");
+        }
+        return new Protocol.PLegacyServiceTest("Single", data, asserts,
+                java.util.List.of(), c.spanOf(start, c.pos() - 1));
     }
 
     private static Protocol.PServiceExecution parseExecution(
             TokenStreamCursor c, String qn) {
+        int execStart = c.pos();
         String kind = c.parseIdentifier();
         return switch (kind) {
             case "Single" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 com.legend.protocol.spec.ValueSpecification query = null;
                 String mapping = null;
+                SourceInfo mappingSpan = null;
                 String runtime = null;
-                String embeddedRuntime = null;
+                SourceInfo runtimeSpan = null;
+                Protocol.PEmbeddedRuntime embedded = null;
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
                     c.expect(TokenType.COLON);
                     switch (key) {
                         case "query" -> query = parseQuery(c, qn);
                         case "mapping" -> {
+                            int ms = c.pos();
                             mapping = Protocol.unquotePath(c.parseQualifiedName());
+                            mappingSpan = c.spanOf(ms, c.pos() - 1);
                             c.expect(TokenType.SEMI_COLON);
                         }
                         case "runtime" -> {
                             if (c.peek() == TokenType.ISLAND_OPEN) {
-                                // an embedded ANONYMOUS runtime — carried RAW
-                                embeddedRuntime = rawIsland(c);
+                                embedded = parseEmbeddedRuntime(c);
                             } else {
+                                int rs = c.pos();
                                 runtime = Protocol.unquotePath(
                                         c.parseQualifiedName());
+                                runtimeSpan = c.spanOf(rs, c.pos() - 1);
                             }
                             c.expect(TokenType.SEMI_COLON);
                         }
@@ -258,23 +498,29 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
                 if (query == null) {
                     throw c.error("Service '" + qn + "' has no query expression");
                 }
-                yield new Protocol.PSingleExecution(query, mapping, runtime,
-                        embeddedRuntime);
+                yield new Protocol.PSingleExecution(query, mapping,
+                        mappingSpan, runtime, runtimeSpan, embedded,
+                        c.spanOf(execStart, c.pos() - 1));
             }
             case "Multi" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 com.legend.protocol.spec.ValueSpecification query = null;
                 String executionKey = null;
-                List<Protocol.PKeyedExecution> executions = new ArrayList<>();
+                List<Protocol.PKeyedExecution> executions = null;
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    int keyTok = c.pos();
                     String key = c.parseIdentifier();
                     if ("executions".equals(key)) {
                         // executions['QA']: { mapping: ...; runtime: ...; }
+                        // — the wire span starts at the KEY token (probed)
                         c.expect(TokenType.BRACKET_OPEN);
                         String keyValue = stringValue(c);
                         c.expect(TokenType.BRACKET_CLOSE);
                         c.expect(TokenType.COLON);
-                        executions.add(parseKeyedBody(c, keyValue));
+                        if (executions == null) {
+                            executions = new ArrayList<>();
+                        }
+                        executions.add(parseKeyedBody(c, keyValue, keyTok));
                         c.match(TokenType.COMMA);
                         continue;
                     }
@@ -290,12 +536,12 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
                     }
                 }
                 c.expect(TokenType.BRACE_CLOSE);
-                if (query == null || executionKey == null) {
+                if (query == null) {
                     throw c.error("Multi execution of '" + qn
-                            + "' needs query and key");
+                            + "' needs a query");
                 }
                 yield new Protocol.PMultiExecution(query, executionKey,
-                        executions);
+                        executions, c.spanOf(execStart, c.pos() - 1));
             }
             default -> throw c.error("unsupported execution kind: " + kind
                     + " (expected Single or Multi)");
@@ -304,33 +550,76 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
 
     /** {@code { mapping: ...; runtime: ...; }} for one keyed environment. */
     private static Protocol.PKeyedExecution parseKeyedBody(
-            TokenStreamCursor c, String keyValue) {
+            TokenStreamCursor c, String keyValue, int start) {
         c.expect(TokenType.BRACE_OPEN);
         String mapping = null;
+        SourceInfo mappingSpan = null;
         String runtime = null;
+        SourceInfo runtimeSpan = null;
+        Protocol.PEmbeddedRuntime embedded = null;
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             switch (key) {
-                case "mapping" -> mapping =
-                        Protocol.unquotePath(c.parseQualifiedName());
-                case "runtime" -> runtime =
-                        Protocol.unquotePath(c.parseQualifiedName());
+                case "mapping" -> {
+                    int ms = c.pos();
+                    mapping = Protocol.unquotePath(c.parseQualifiedName());
+                    mappingSpan = c.spanOf(ms, c.pos() - 1);
+                }
+                case "runtime" -> {
+                    if (c.peek() == TokenType.ISLAND_OPEN) {
+                        embedded = parseEmbeddedRuntime(c);
+                    } else {
+                        int rs = c.pos();
+                        runtime = Protocol.unquotePath(c.parseQualifiedName());
+                        runtimeSpan = c.spanOf(rs, c.pos() - 1);
+                    }
+                }
                 default -> throw c.error(
                         "unknown key '" + key + "' inside keyed execution");
             }
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PKeyedExecution(keyValue, mapping, runtime);
+        return new Protocol.PKeyedExecution(keyValue, mapping, mappingSpan,
+                runtime, runtimeSpan, embedded,
+                c.spanOf(start, c.pos() - 1));
+    }
+
+    /** An embedded anonymous runtime island — re-lexed through THE runtime
+     *  grammar's body loop; the wire span is CONTENT-anchored (first..last
+     *  content token, probed service-single). */
+    private static Protocol.PEmbeddedRuntime parseEmbeddedRuntime(
+            TokenStreamCursor c) {
+        c.advance();                                // ISLAND_OPEN
+        int embStart = c.pos();
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
+            c.advance();
+        }
+        String emb = c.reconstructText(embStart, c.pos());
+        Protocol.PEmbeddedRuntime value = RuntimeSectionGrammar
+                .parseEmbeddedBody(emb, c.tokens().startLine(embStart),
+                        c.tokens().startColumn(embStart));
+        c.expect(TokenType.ISLAND_END);
+        return value;
     }
 
     /** {@code query: |expr...;} — scan to the top-level {@code ;} (paren
      *  depth aware) and spec-parse the slice, exactly as the retired twin
-     *  did. */
+     *  did; the LEADING '|' stays in the slice so the wire query is the
+     *  full lambda. */
     private static com.legend.protocol.spec.ValueSpecification parseQuery(
             TokenStreamCursor c, String qn) {
-        c.match(TokenType.PIPE);            // optional leading '|'
         int bs = c.pos();
         int d = 0;
         while (!c.atEnd()) {
@@ -350,6 +639,7 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
         if (c.pos() == bs) {
             throw c.error("empty query expression in Service '" + qn + "'");
         }
+
         com.legend.protocol.spec.ValueSpecification v =
                 SpecParser.parse(c.tokens().slice(bs, c.pos()));
         c.expect(TokenType.SEMI_COLON);
@@ -380,10 +670,12 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
             c.expect(TokenType.BRACKET_OPEN);
             while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
                 // KEY: { mapping; runtime; } — bare identifier key here,
-                // unlike Multi's quoted executions['KEY']
+                // unlike Multi's quoted executions['KEY']; the wire span
+                // starts at the KEY token (probed exec-env)
+                int keyTok2 = c.pos();
                 String keyValue = c.parseIdentifier();
                 c.expect(TokenType.COLON);
-                executions.add(parseKeyedBody(c, keyValue));
+                executions.add(parseKeyedBody(c, keyValue, keyTok2));
                 c.match(TokenType.COMMA);
             }
             c.expect(TokenType.BRACKET_CLOSE);
@@ -453,29 +745,4 @@ public final class ServiceSectionGrammar implements LexableSectionGrammar {
         }
     }
 
-    /** A minimal cursor over a re-lexed slice for the SPI feed. */
-    private static final class SliceCursor implements TokenStreamCursor {
-
-        private final com.legend.lexer.TokenStream tokens;
-        private int pos;
-
-        SliceCursor(com.legend.lexer.TokenStream tokens) {
-            this.tokens = tokens;
-        }
-
-        @Override
-        public com.legend.lexer.TokenStream tokens() {
-            return tokens;
-        }
-
-        @Override
-        public int pos() {
-            return pos;
-        }
-
-        @Override
-        public void setPos(int pos) {
-            this.pos = pos;
-        }
-    }
 }

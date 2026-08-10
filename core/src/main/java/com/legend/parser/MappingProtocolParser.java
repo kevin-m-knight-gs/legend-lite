@@ -148,6 +148,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  {@code Reference}, {@code Relation}, {@code Relational} and
      *  {@code ModelStore} islands, shared by every site that admits an
      *  EmbeddedData (###Data bodies, resolvers, ModelStore entries). */
+    /** One embedded-data VALUE ({@code Kind #{...}#} / reference) parsed
+     *  off a HOST cursor — the service test-suite data seam. */
+    public static Protocol.PEmbeddedDataValue parseEmbeddedValueAt(
+            com.legend.parser.TokenStreamCursor host) {
+        MappingProtocolParser p = new MappingProtocolParser(host.tokens(),
+                host.pos());
+        Protocol.PEmbeddedDataValue v = p.parseEmbeddedValue();
+        host.setPos(p.pos());
+        return v;
+    }
+
     private Protocol.PEmbeddedDataValue parseEmbeddedValue() {
         // 'Relational' is a LEXER KEYWORD, the rest lex as identifiers
         if (peek() == TokenType.RELATIONAL) {
@@ -157,7 +168,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if ("ExternalFormat".equals(kind)) {
             return parseExternalFormat();
         }
-        if ("Reference".equals(kind)) {
+        if ("Reference".equals(kind) || "DataspaceTestData".equals(kind)) {
+            // DataspaceTestData references a DATASPACE, Reference a DATA
+            // element — same wire shape, different pointer type
             int rTok = pos;
             advance();
             IslandBlock ri = readIsland();
@@ -167,7 +180,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             SourceInfo si = new SourceInfo("", tokens.startLine(rTok),
                     tokens.startColumn(rTok), ri.endLine(), ri.endColumn());
             return new Protocol.PDataReference(
-                    new Protocol.PPointer("DATA", dataPath, si), si);
+                    new Protocol.PPointer("Reference".equals(kind) ? "DATA"
+                            : "DATASPACE", dataPath, si), si);
         }
         if ("Relation".equals(kind)) {
             advance();
@@ -2418,6 +2432,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     }
 
     /** {@code id: EqualToJson #{ expected: ExternalFormat #{...}#; }#}. */
+    /** One {@code id: EqualToJson #{...}#} assertion parsed off a HOST
+     *  cursor — the service test-suite asserts seam. */
+    public static Protocol.PTestAssertion parseTestAssertionAt(
+            com.legend.parser.TokenStreamCursor host) {
+        MappingProtocolParser p = new MappingProtocolParser(host.tokens(),
+                host.pos());
+        Protocol.PTestAssertion v = p.parseTestAssertion();
+        host.setPos(p.pos());
+        return v;
+    }
+
     private Protocol.PTestAssertion parseTestAssertion() {
         int aS = pos;
         String assertId = parseIdentifier();

@@ -1228,6 +1228,474 @@ class ZTailProbe {
     }
 
     @Test
+    void serviceShapes5() throws Exception {
+        probe("service-multi-test", """
+                Class test::class { prop1: String[1]; }
+
+                ###Mapping
+                Mapping test::mapping ()
+
+                ###Runtime
+                Runtime test::runtime { mappings: [ test::mapping ]; }
+
+                ###Service
+                Service test::Service
+                {
+                  pattern: 'url/myUrl/';
+                  owners: ['ownerName'];
+                  documentation: 'test';
+                  autoActivateUpdates: true;
+                  execution: Multi
+                  {
+                    query: src: test::class[1]|$src.prop1;
+                    key: 'env';
+                    executions['QA']:
+                    {
+                      mapping: test::mapping;
+                      runtime: test::runtime;
+                    }
+                  }
+                  test: Multi
+                  {
+                    tests['QA']:
+                    {
+                      data: 'moreData';
+                      asserts:
+                      [
+                        { [], res: Result<Any|*>[1]|$res.values->isNotEmpty() }
+                      ];
+                    }
+                  }
+                }
+                """);
+    }
+
+    @Test
+    void serviceShapes4() throws Exception {
+        probe("service-multi-env", """
+                Class my::Person { name: String[1]; }
+
+                ###Service
+                Service my::S7
+                {
+                  pattern: '/p7';
+                  documentation: 'd';
+                  execution: Multi
+                  {
+                    query: env:String[1]|my::Person.all()->from(test::EE->get($env));
+                  }
+                }
+                """);
+        probe("service-test-params", """
+                Class my::Person { name: String[1]; }
+                Enum model::EmployeeType { CONTRACT, FULL_TIME }
+
+                ###Mapping
+                Mapping my::M ()
+
+                ###Service
+                Service my::S8
+                {
+                  pattern: '/p8';
+                  documentation: 'd';
+                  execution: Single
+                  {
+                    query: et: model::EmployeeType[1]|my::Person.all();
+                    mapping: my::M;
+                    runtime:
+                    #{
+                      connections: [];
+                    }#;
+                  }
+                  testSuites:
+                  [
+                    suite1:
+                    {
+                      tests:
+                      [
+                        test1:
+                        {
+                          serializationFormat: PURE_TDSOBJECT;
+                          parameters:
+                          [
+                            eType = model::EmployeeType.CONTRACT,
+                            s1 = 'str',
+                            n1 = 42
+                          ]
+                          asserts:
+                          [
+                            a1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '[]';
+                                  }#;
+                              }#
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """);
+        probe("service-dataspace-testdata", """
+                ###Service
+                Service my::S9
+                {
+                  pattern: '/p9';
+                  documentation: 'd';
+                  execution: Single
+                  {
+                    query: |my::Person.all();
+                    mapping: my::M;
+                    runtime: my::R;
+                  }
+                  testSuites:
+                  [
+                    suite1:
+                    {
+                      data:
+                      [
+                        connections:
+                        [
+                          c1:
+                            DataspaceTestData
+                            #{
+                              my::DS
+                            }#
+                        ]
+                      ]
+                      tests:
+                      [
+                        t1:
+                        {
+                          serializationFormat: PURE;
+                          asserts:
+                          [
+                            a1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '[]';
+                                  }#;
+                              }#
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """);
+    }
+
+    @Test
+    void serviceShapes3() throws Exception {
+        probe("service-suites2", """
+                Class my::Person { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M ()
+
+                ###Service
+                Service my::S5
+                {
+                  pattern: '/p5';
+                  documentation: 'd';
+                  execution: Single
+                  {
+                    query: |my::Person.all();
+                    mapping: my::M;
+                    runtime:
+                    #{
+                      connections: [];
+                    }#;
+                  }
+                  testSuites:
+                  [
+                    serviceSuite:
+                    {
+                      data:
+                      [
+                        connections:
+                        [
+                          h2:
+                            Relational
+                            #{
+                              default.PersonTable:
+                                'id,firstName\\n' +
+                                '1,John\\n';
+                            }#
+                        ]
+                      ]
+                      tests:
+                      [
+                        allPersons:
+                        {
+                          serializationFormat: PURE_TDSOBJECT;
+                          asserts:
+                          [
+                            shouldMatch:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '[]';
+                                  }#;
+                              }#
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """);
+        probe("service-legacy-empty", """
+                Class my::Person { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M ()
+
+                ###Service
+                Service my::S6
+                {
+                  pattern: '/p6';
+                  documentation: 'd';
+                  execution: Single
+                  {
+                    query: |my::Person.all();
+                    mapping: my::M;
+                    runtime:
+                    #{
+                      connections: [];
+                    }#;
+                  }
+                  test: Single
+                  {
+                    data: 'test data';
+                    asserts: [];
+                  }
+                }
+                """);
+        probe("exec-env", """
+                ###Mapping
+                Mapping my::M ()
+
+                ###Runtime
+                Runtime my::R { mappings: [ my::M ]; }
+
+                ###Service
+                ExecutionEnvironment my::EE
+                {
+                  executions:
+                  [
+                    PROD:
+                    {
+                      mapping: my::M;
+                      runtime: my::R;
+                    }
+                  ];
+                }
+                """);
+    }
+
+    @Test
+    void serviceShapes2() throws Exception {
+        probe("service-suites", """
+                ###Service
+                Service meta::pure::myServiceSingle
+                {
+                  pattern: 'url/myUrl/';
+                  owners:
+                  [
+                    'ownerName',
+                    'ownerName2'
+                  ];
+                  documentation: 'this is just for context';
+                  autoActivateUpdates: true;
+                  execution: Single
+                  {
+                    query: param: String[1]|demo::_NPerson.all();
+                    mapping: meta::myMapping;
+                    runtime: meta::myRuntime;
+                  }
+                  testSuites:
+                  [
+                    testSuite1:
+                    {
+                      data:
+                      [
+                        connections:
+                        [
+                          connection1:
+                            ExternalFormat
+                            #{
+                              contentType: 'application/x.flatdata';
+                              data: 'FIRST_NAME\nFred';
+                            }#,
+                          connection2:
+                            Reference
+                            #{
+                              my::TestData
+                            }#
+                        ]
+                      ]
+                      tests:
+                      [
+                        test1:
+                        {
+                          serializationFormat: myFormat;
+                          parameters:
+                          [
+                            param = 'value1'
+                          ]
+                          asserts:
+                          [
+                            assert1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '[]';
+                                  }#;
+                              }#,
+                            assert2:
+                              EqualTo
+                              #{
+                                expected:
+                                  'expected result content';
+                              }#
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """);
+        probe("service-postval", """
+                ###Service
+                Service test::Service
+                {
+                  pattern: 'url/myUrl';
+                  documentation: 'd';
+                  execution: Single
+                  {
+                    query: |demo::_NPerson.all();
+                    mapping: meta::myMapping;
+                    runtime: meta::myRuntime;
+                  }
+                  postValidations:
+                  [
+                    {
+                      description: 'a validation';
+                      params: [];
+                      assertions: [
+                          testAssert: tds: TabularDataSet[1]|$tds->filter(row|$row.getString('firstName')->startsWith('T'))->meta::legend::service::validation::assertTabularDataSetEmpty('Expected no rows');
+                      ];
+                    }
+                  ];
+                  title: 'the title';
+                }
+                """);
+    }
+
+    @Test
+    void serviceShapes() throws Exception {
+        probe("service-single", """
+                Class my::Person { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M ()
+
+                ###Service
+                Service my::S
+                {
+                  pattern: '/api/{name}';
+                  owners: ['bob', 'alice'];
+                  documentation: 'docs here';
+                  autoActivateUpdates: true;
+                  execution: Single
+                  {
+                    query: src: my::Person[1]|$src.name;
+                    mapping: my::M;
+                    runtime:
+                    #{
+                      connections: [];
+                    }#;
+                  }
+                }
+                """);
+        probe("service-multi", """
+                Class my::Person { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M ()
+
+                ###Runtime
+                Runtime my::R { mappings: [ my::M ]; }
+
+                ###Service
+                Service my::S2
+                {
+                  pattern: '/api2';
+                  ownership: DID { identifier: 'did-123' };
+                  documentation: 'd';
+                  execution: Multi
+                  {
+                    query: |my::Person.all()->project([x|$x.name], ['n']);
+                    key: 'env';
+                    executions['PROD']:
+                    {
+                      mapping: my::M;
+                      runtime: my::R;
+                    }
+                    executions['DEV']:
+                    {
+                      mapping: my::M;
+                      runtime: my::R;
+                    }
+                  }
+                }
+                """);
+        probe("service-legacy-test", """
+                Class my::Person { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M ()
+
+                ###Service
+                Service my::S3
+                {
+                  pattern: '/api3';
+                  documentation: 'd';
+                  execution: Single
+                  {
+                    query: |my::Person.all();
+                    mapping: my::M;
+                    runtime:
+                    #{
+                      connections: [];
+                    }#;
+                  }
+                  test: Single
+                  {
+                    data: 'test data';
+                    asserts: [ { [], res: Result<Any|*>[1]|$res.values->isNotEmpty() } ];
+                  }
+                }
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

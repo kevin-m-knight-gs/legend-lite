@@ -542,18 +542,35 @@ public final class FromProtocol {
         String pattern = s.pattern() != null ? s.pattern() : "/";
         return switch (s.execution()) {
             case Protocol.PSingleExecution single -> new ServiceDefinition(
-                    s.qualifiedName(), pattern, single.query(),
+                    s.qualifiedName(), pattern, modelQuery(single.query()),
                     s.documentation(), single.mapping(), single.runtime(),
-                    s.testSuitesSource(), s.owners(),
-                    s.autoActivateUpdates(), null, s.testSource());
+                    s.testSuites() == null ? null : "<suites>", s.owners(),
+                    s.autoActivateUpdates(), null, s.test() == null ? null : "<legacyTest>");
             case Protocol.PMultiExecution multi -> new ServiceDefinition(
-                    s.qualifiedName(), pattern, multi.query(),
-                    s.documentation(), null, null, s.testSuitesSource(),
+                    s.qualifiedName(), pattern, modelQuery(multi.query()),
+                    s.documentation(), null, null, s.testSuites() == null ? null : "<suites>",
                     s.owners(), s.autoActivateUpdates(),
-                    new ServiceDefinition.MultiExecution(multi.executionKey(),
-                            keyedExecutions(multi.executions())),
-                    s.testSource());
+                    new ServiceDefinition.MultiExecution(
+                            multi.executionKey() == null ? ""
+                                    : multi.executionKey(),
+                            keyedExecutions(multi.executions() == null
+                                    ? java.util.List.of()
+                                    : multi.executions())),
+                    s.test() == null ? null : "<legacyTest>");
         };
+    }
+
+    /** The PROTOCOL query is wire-true — always a lambda (a bare
+     *  {@code |expr} query parses to a zero-parameter one). The MODEL keeps
+     *  the pre-wire shape: the lambda BODY expression, which the
+     *  normalizer lifts directly. */
+    private static com.legend.protocol.spec.ValueSpecification modelQuery(
+            com.legend.protocol.spec.ValueSpecification q) {
+        if (q instanceof com.legend.protocol.spec.LambdaFunction lf
+                && lf.parameters().isEmpty() && lf.body().size() == 1) {
+            return lf.body().get(0);
+        }
+        return q;
     }
 
     private static java.util.List<ServiceDefinition.KeyedExecution>

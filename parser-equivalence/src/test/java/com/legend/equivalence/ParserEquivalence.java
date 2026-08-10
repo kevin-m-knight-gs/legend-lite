@@ -478,7 +478,8 @@ public final class ParserEquivalence {
     private static final List<String> TAIL_SECTIONS = List.of("Text",
             "GenerationSpecification", "FileGeneration", "Deephaven",
             "MongoDB", "DataQualityValidation", "Elasticsearch",
-            "ExternalFormat", "ServiceStore", "DataSpace", "Persistence");
+            "ExternalFormat", "ServiceStore", "DataSpace", "Persistence",
+            "Service");
 
     private static final Map<String,
             com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
@@ -508,7 +509,9 @@ public final class ParserEquivalence {
                     Map.entry("DataSpace", com.legend.parser.section
                             .DataSpaceSectionGrammar.INSTANCE),
                     Map.entry("Persistence", com.legend.parser.section
-                            .PersistenceSectionGrammar.INSTANCE));
+                            .PersistenceSectionGrammar.INSTANCE),
+                    Map.entry("Service", com.legend.parser.section
+                            .ServiceSectionGrammar.INSTANCE));
 
     /** Tail wire {@code _type} &rarr; owning section, for the drain. */
     private static final Map<String, String> TAIL_WIRE_SECTIONS =
@@ -532,7 +535,8 @@ public final class ParserEquivalence {
                     Map.entry("diagram", "Diagram"),
                     Map.entry("dataSpace", "DataSpace"),
                     Map.entry("persistence", "Persistence"),
-                    Map.entry("persistenceContext", "Persistence"));
+                    Map.entry("persistenceContext", "Persistence"),
+                    Map.entry("service", "Service"));
 
     /** The wire {@code _type} a tail/activator element will emit — the
      *  site-12 dequeue prefix, computed BEFORE emission. */
@@ -556,6 +560,8 @@ public final class ParserEquivalence {
             case Protocol.PDataSpace dsp -> "dataSpace";
             case Protocol.PPersistence pp -> "persistence";
             case Protocol.PPersistenceContext pc -> "persistenceContext";
+            case Protocol.PService psv -> "service";
+            case Protocol.PExecutionEnvironment pee -> "execEnvironment";
             case Protocol.PFunctionActivator a -> java.util.Objects
                     .requireNonNull(ACTIVATOR_WIRE_TYPES.get(a.kind()));
             default -> throw new IllegalStateException(

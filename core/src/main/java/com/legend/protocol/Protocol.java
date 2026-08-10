@@ -1005,12 +1005,13 @@ public final class Protocol {
                            @com.legend.Nullable String pattern,
                            @com.legend.Nullable String title,
                            List<String> owners,
-                           @com.legend.Nullable String ownershipSource,
+                           @com.legend.Nullable String ownershipKind,
+                           @com.legend.Nullable String ownershipId,
                            @com.legend.Nullable String documentation,
                            @com.legend.Nullable Boolean autoActivateUpdates,
                            PServiceExecution execution,
-                           @com.legend.Nullable String testSource,
-                           @com.legend.Nullable String testSuitesSource,
+                           @com.legend.Nullable PLegacyServiceTest test,
+                           @com.legend.Nullable List<PServiceTestSuite> testSuites,
                            @com.legend.Nullable String postValidationsSource,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
@@ -1024,30 +1025,102 @@ public final class Protocol {
             permits PSingleExecution, PMultiExecution {
     }
 
-    /** {@code runtime:} is a POINTER or an embedded anonymous runtime
-     *  island ({@code #{ connections: [...] }#}) — the island rides RAW;
-     *  exactly one of {@code runtime} / {@code embeddedRuntimeSource} is
-     *  set when the source spells a runtime at all. */
+    /** An embedded anonymous runtime island body — the {@code PRuntime}
+     *  part records; wire {@code _type:"engineRuntime"} with a
+     *  CONTENT-anchored span (ZTailProbe "service-single"). */
+    public record PEmbeddedRuntime(List<PPointer> mappings,
+                                   List<PStoreConnections> connections,
+                                   List<PConnectionStores> connectionStores,
+                                   com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code runtime:} is a POINTER (with its path span) or an embedded
+     *  anonymous runtime island; exactly one of {@code runtime} /
+     *  {@code embeddedRuntime} is set when the source spells one. The
+     *  execution span covers {@code Kind..'}'}. */
     public record PSingleExecution(
             com.legend.protocol.spec.ValueSpecification query,
             @com.legend.Nullable String mapping,
+            @com.legend.Nullable com.legend.protocol.SourceInfo mappingSpan,
             @com.legend.Nullable String runtime,
-            @com.legend.Nullable String embeddedRuntimeSource)
+            @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
+            @com.legend.Nullable PEmbeddedRuntime embeddedRuntime,
+            com.legend.protocol.SourceInfo sourceInformation)
             implements PServiceExecution {
     }
 
     public record PMultiExecution(
             com.legend.protocol.spec.ValueSpecification query,
-            String executionKey,
-            List<PKeyedExecution> executions)
+            @com.legend.Nullable String executionKey,
+            @com.legend.Nullable List<PKeyedExecution> executions,
+            com.legend.protocol.SourceInfo sourceInformation)
             implements PServiceExecution {
     }
 
     /** {@code executions['QA']: { mapping; runtime; }} — also the entry
-     *  shape of an {@code ExecutionEnvironment}. */
+     *  shape of an {@code ExecutionEnvironment}; span = braces. */
     public record PKeyedExecution(String keyValue,
                                   @com.legend.Nullable String mapping,
-                                  @com.legend.Nullable String runtime) {
+                                  @com.legend.Nullable com.legend.protocol.SourceInfo mappingSpan,
+                                  @com.legend.Nullable String runtime,
+                                  @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
+                                  @com.legend.Nullable PEmbeddedRuntime embeddedRuntime,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code testSuites:} entry — wire {@code serviceTestSuite}
+     *  (ZTailProbe "service-suites2"): suite/test spans anchor at their
+     *  ID tokens; connection data rides the embedded-data wire. */
+    public record PServiceTestSuite(String id,
+                                    @com.legend.Nullable PSuiteData testData,
+                                    List<PSuiteTest> tests,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
+        /** {@code data: [ connections: [...] ]} — span key..']'. */
+        public record PSuiteData(List<PSuiteConnData> connectionsTestData,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
+        }
+
+        /** {@code id: Kind #{...}#} — span id..'}#'. */
+        public record PSuiteConnData(String id, PEmbeddedDataValue data,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+        }
+
+        /** {@code id: { serializationFormat?; asserts: [...] }} — wire
+         *  {@code serviceTest}; keys always []. */
+        /** {@code name = value} — the value rides the spec wire. */
+        public record PSuiteParam(String name,
+                                  com.legend.protocol.spec.ValueSpecification value) {
+        }
+
+        public record PSuiteTest(String id,
+                                 @com.legend.Nullable String serializationFormat,
+                                 List<String> keys,
+                                 @com.legend.Nullable List<PSuiteParam> parameters,
+                                 List<PTestAssertion> assertions,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
+        }
+    }
+
+    /** Legacy {@code test: Single { data; asserts }} — wire
+     *  {@code singleExecutionTest} (ZTailProbe "service-legacy-test"). */
+    public record PLegacyServiceTest(String kind,
+                                     @com.legend.Nullable String data,
+                                     List<PLegacyAssert> asserts,
+                                     List<PKeyedLegacyTest> keyedTests,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+        /** One {@code tests['KEY']: { data; asserts }} entry of a Multi
+         *  test — span starts at the {@code tests} keyword. */
+        public record PKeyedLegacyTest(String key, String data,
+                                       List<PLegacyAssert> asserts,
+                                       com.legend.protocol.SourceInfo sourceInformation) {
+        }
+
+        /** One assert: {@code { [params], lambda }} — parametersValues
+         *  stay empty in the corpus scope. */
+        public record PLegacyAssert(
+                com.legend.protocol.spec.ValueSpecification assertion,
+                com.legend.protocol.SourceInfo sourceInformation) {
+        }
     }
 
     /** An {@code ExecutionEnvironment} element (###Service section). */

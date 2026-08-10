@@ -1401,6 +1401,401 @@ final class TailEmitter {
         }
     }
 
+    static void service(StringBuilder b, Protocol.PService sv) {
+        b.append("{\"_type\":\"service\"");
+        b.append(",\"autoActivateUpdates\":").append(
+                Boolean.TRUE.equals(sv.autoActivateUpdates()));
+        if (sv.documentation() != null) {
+            b.append(",\"documentation\":");
+            ProtocolEmitter.str(b, sv.documentation());
+        }
+        b.append(",\"execution\":");
+        serviceExecution(b, sv.execution());
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, sv.name());
+        b.append(",\"owners\":[");
+        for (int i = 0; i < sv.owners().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, sv.owners().get(i));
+        }
+        b.append(']');
+        if (sv.ownershipKind() != null) {
+            if (!"DID".equals(sv.ownershipKind())) {
+                throw new IllegalStateException("unprobed service ownership"
+                        + " kind: " + sv.ownershipKind());
+            }
+            b.append(",\"ownership\":{\"_type\":\"deploymentOwnership\","
+                    + "\"identifier\":");
+            ProtocolEmitter.str(b, java.util.Objects.requireNonNull(
+                    sv.ownershipId()));
+            b.append('}');
+        }
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, sv.pkg());
+        if (sv.pattern() != null) {
+            b.append(",\"pattern\":");
+            ProtocolEmitter.str(b, sv.pattern());
+        }
+        if (sv.postValidationsSource() != null) {
+            throw new IllegalStateException(
+                    "unprobed service postValidations wire");
+        }
+        b.append(",\"postValidations\":[],\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, sv.sourceInformation());
+        b.append(",\"stereotypes\":");
+        ProtocolEmitter.stereotypes(b, sv.stereotypes());
+        b.append(",\"taggedValues\":");
+        ProtocolEmitter.taggedValues(b, sv.taggedValues());
+        Protocol.PLegacyServiceTest t = sv.test();
+        if (t != null && "Multi".equals(t.kind())) {
+            b.append(",\"test\":{\"_type\":\"multiExecutionTest\","
+                    + "\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, t.sourceInformation());
+            b.append(",\"tests\":[");
+            for (int i = 0; i < t.keyedTests().size(); i++) {
+                var kt = t.keyedTests().get(i);
+                if (i > 0) {
+                    b.append(',');
+                }
+                b.append("{\"asserts\":[");
+                for (int j = 0; j < kt.asserts().size(); j++) {
+                    var a = kt.asserts().get(j);
+                    if (j > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"assert\":");
+                    ProtocolEmitter.valueSpec(b, a.assertion());
+                    b.append(",\"parametersValues\":[],"
+                            + "\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, a.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"data\":");
+                ProtocolEmitter.str(b, kt.data());
+                b.append(",\"key\":");
+                ProtocolEmitter.str(b, kt.key());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, kt.sourceInformation());
+                b.append('}');
+            }
+            b.append("]}");
+            t = null;
+        }
+        if (t != null) {
+            b.append(",\"test\":{\"_type\":\"singleExecutionTest\","
+                    + "\"asserts\":[");
+            for (int i = 0; i < t.asserts().size(); i++) {
+                var a = t.asserts().get(i);
+                if (i > 0) {
+                    b.append(',');
+                }
+                b.append("{\"assert\":");
+                ProtocolEmitter.valueSpec(b, a.assertion());
+                b.append(",\"parametersValues\":[],"
+                        + "\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, a.sourceInformation());
+                b.append('}');
+            }
+            b.append("],\"data\":");
+            ProtocolEmitter.str(b,
+                    java.util.Objects.requireNonNull(t.data()));
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, t.sourceInformation());
+            b.append('}');
+        }
+        if (sv.testSuites() != null) {
+            b.append(",\"testSuites\":[");
+            for (int i = 0; i < sv.testSuites().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                serviceTestSuite(b, sv.testSuites().get(i));
+            }
+            b.append(']');
+        }
+        if (sv.title() != null) {
+            b.append(",\"title\":");
+            ProtocolEmitter.str(b, sv.title());
+        }
+        b.append('}');
+    }
+
+    static void executionEnvironment(StringBuilder b,
+            Protocol.PExecutionEnvironment ee) {
+        b.append("{\"_type\":\"executionEnvironmentInstance\","
+                + "\"executionParameters\":[");
+        for (int i = 0; i < ee.executions().size(); i++) {
+            Protocol.PKeyedExecution k = ee.executions().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"_type\":\"singleExecutionParameters\","
+                    + "\"key\":");
+            ProtocolEmitter.str(b, k.keyValue());
+            if (k.mapping() != null) {
+                b.append(",\"mapping\":");
+                ProtocolEmitter.str(b, k.mapping());
+                b.append(",\"mappingSourceInformation\":");
+                ProtocolEmitter.srcInfo(b,
+                        java.util.Objects.requireNonNull(k.mappingSpan()));
+            }
+            serviceRuntime(b, k.runtime(), k.runtimeSpan(),
+                    k.embeddedRuntime());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, k.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"name\":");
+        ProtocolEmitter.str(b, ee.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, ee.pkg());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, ee.sourceInformation());
+        b.append('}');
+    }
+
+    private static void serviceTestSuite(StringBuilder b,
+            Protocol.PServiceTestSuite st) {
+        b.append("{\"_type\":\"serviceTestSuite\",\"id\":");
+        ProtocolEmitter.str(b, st.id());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, st.sourceInformation());
+        if (st.testData() != null) {
+            b.append(",\"testData\":{");
+            var cds = st.testData().connectionsTestData();
+            if (!cds.isEmpty()) {
+                b.append("\"connectionsTestData\":[");
+                for (int i = 0; i < cds.size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"data\":");
+                    MappingEmitter.embeddedDataValue(b, cds.get(i).data());
+                    b.append(",\"id\":");
+                    ProtocolEmitter.str(b, cds.get(i).id());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b,
+                            cds.get(i).sourceInformation());
+                    b.append('}');
+                }
+                b.append("],");
+            }
+            b.append("\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, st.testData().sourceInformation());
+            b.append('}');
+        }
+        b.append(",\"tests\":[");
+        for (int i = 0; i < st.tests().size(); i++) {
+            Protocol.PServiceTestSuite.PSuiteTest t = st.tests().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"_type\":\"serviceTest\",\"assertions\":[");
+            for (int j = 0; j < t.assertions().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PTestAssertion a = t.assertions().get(j);
+                switch (a.expected()) {
+                    case Protocol.PExternalFormatData ef -> {
+                        b.append("{\"_type\":\"equalToJson\","
+                                + "\"expected\":");
+                        MappingEmitter.externalFormatData(b, ef);
+                    }
+                    case Protocol.PRelationElement re ->
+                            throw new IllegalStateException(
+                                    "unprobed service equalToRelation");
+                }
+                b.append(",\"id\":");
+                ProtocolEmitter.str(b, a.id());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, a.sourceInformation());
+                b.append('}');
+            }
+            b.append("],\"id\":");
+            ProtocolEmitter.str(b, t.id());
+            b.append(",\"keys\":[");
+            for (int j = 0; j < t.keys().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                ProtocolEmitter.str(b, t.keys().get(j));
+            }
+            b.append(']');
+            if (t.parameters() != null) {
+                b.append(",\"parameters\":[");
+                for (int j = 0; j < t.parameters().size(); j++) {
+                    if (j > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"name\":");
+                    ProtocolEmitter.str(b,
+                            t.parameters().get(j).name());
+                    b.append(",\"value\":");
+                    paramValue(b, t.parameters().get(j).value());
+                    b.append('}');
+                }
+                b.append(']');
+            }
+            if (t.serializationFormat() != null) {
+                b.append(",\"serializationFormat\":");
+                ProtocolEmitter.str(b, t.serializationFormat());
+            }
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, t.sourceInformation());
+            b.append('}');
+        }
+        b.append("]}");
+    }
+
+    private static void serviceExecution(StringBuilder b,
+            Protocol.PServiceExecution e) {
+        switch (e) {
+            case Protocol.PSingleExecution se -> {
+                b.append("{\"_type\":\"pureSingleExecution\",\"func\":");
+                serviceFunc(b, se.query());
+                if (se.mapping() != null) {
+                    b.append(",\"mapping\":");
+                    ProtocolEmitter.str(b, se.mapping());
+                    b.append(",\"mappingSourceInformation\":");
+                    ProtocolEmitter.srcInfo(b,
+                            java.util.Objects.requireNonNull(
+                                    se.mappingSpan()));
+                }
+                serviceRuntime(b, se.runtime(), se.runtimeSpan(),
+                        se.embeddedRuntime());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, se.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PMultiExecution me -> {
+                b.append("{\"_type\":\"pureMultiExecution\"");
+                if (me.executionKey() != null) {
+                    b.append(",\"executionKey\":");
+                    ProtocolEmitter.str(b, me.executionKey());
+                }
+                if (me.executions() == null) {
+                    b.append(",\"func\":");
+                    serviceFunc(b, me.query());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, me.sourceInformation());
+                    b.append('}');
+                    break;
+                }
+                b.append(",\"executionParameters\":[");
+                for (int i = 0; i < me.executions().size(); i++) {
+                    Protocol.PKeyedExecution k = me.executions().get(i);
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"key\":");
+                    ProtocolEmitter.str(b, k.keyValue());
+                    if (k.mapping() != null) {
+                        b.append(",\"mapping\":");
+                        ProtocolEmitter.str(b, k.mapping());
+                        b.append(",\"mappingSourceInformation\":");
+                        ProtocolEmitter.srcInfo(b,
+                                java.util.Objects.requireNonNull(
+                                        k.mappingSpan()));
+                    }
+                    serviceRuntime(b, k.runtime(), k.runtimeSpan(),
+                            k.embeddedRuntime());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, k.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"func\":");
+                serviceFunc(b, me.query());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, me.sourceInformation());
+                b.append('}');
+            }
+        }
+    }
+
+    /** Test-parameter values: the engine's TEST walker wires a REAL
+     *  enumValue node (span = the whole dotted text) where expression
+     *  position uses property-form; collections rewrite one level deep
+     *  (probed service-test-params). */
+    private static void paramValue(StringBuilder b,
+            com.legend.protocol.spec.ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.EnumValue e) {
+            SourceInfo ep = java.util.Objects.requireNonNull(
+                    e.enumerationPos());
+            SourceInfo vp = java.util.Objects.requireNonNull(e.pos());
+            b.append("{\"_type\":\"enumValue\",\"fullPath\":");
+            ProtocolEmitter.str(b, e.fullPath());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, new SourceInfo(ep.sourceId(),
+                    ep.startLine(), ep.startColumn(), vp.endLine(),
+                    vp.endColumn()));
+            b.append(",\"value\":");
+            ProtocolEmitter.str(b, e.value());
+            b.append('}');
+            return;
+        }
+        if (v instanceof com.legend.protocol.spec.PureCollection pc
+                && pc.values().stream().anyMatch(x -> x instanceof
+                        com.legend.protocol.spec.EnumValue)) {
+            b.append("{\"_type\":\"collection\",\"multiplicity\":"
+                    + "{\"lowerBound\":").append(pc.values().size())
+                    .append(",\"upperBound\":")
+                    .append(pc.values().size())
+                    .append("},\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
+                    pc.pos()));
+            b.append(",\"values\":[");
+            for (int i = 0; i < pc.values().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                paramValue(b, pc.values().get(i));
+            }
+            b.append("]}");
+            return;
+        }
+        ProtocolEmitter.valueSpec(b, v);
+    }
+
+    /** The wire query is ALWAYS a lambda — a bare expression wraps as a
+     *  zero-parameter lambda WITHOUT sourceInformation (DIFF-pinned). */
+    private static void serviceFunc(StringBuilder b,
+            com.legend.protocol.spec.ValueSpecification q) {
+        if (q instanceof com.legend.protocol.spec.LambdaFunction) {
+            ProtocolEmitter.valueSpec(b, q);
+            return;
+        }
+        b.append("{\"_type\":\"lambda\",\"body\":[");
+        ProtocolEmitter.valueSpec(b, q);
+        b.append("],\"parameters\":[]}");
+    }
+
+    /** {@code runtimePointer | engineRuntime} — the embedded form reuses
+     *  the runtime element's ARRAY emission. */
+    private static void serviceRuntime(StringBuilder b,
+            @com.legend.Nullable String runtime,
+            @com.legend.Nullable SourceInfo runtimeSpan,
+            @com.legend.Nullable Protocol.PEmbeddedRuntime embedded) {
+        if (runtime != null) {
+            b.append(",\"runtime\":{\"_type\":\"runtimePointer\","
+                    + "\"runtime\":");
+            ProtocolEmitter.str(b, runtime);
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b,
+                    java.util.Objects.requireNonNull(runtimeSpan));
+            b.append('}');
+        } else if (embedded != null) {
+            b.append(",\"runtime\":{\"_type\":\"engineRuntime\"");
+            ProtocolEmitter.runtimeArrays(b, embedded.connectionStores(),
+                    embedded.connections(), embedded.mappings());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, embedded.sourceInformation());
+            b.append('}');
+        }
+    }
+
     static void dataQualityValidation(StringBuilder b,
             Protocol.PDataQualityValidation v) {
         b.append("{\"_type\":\"dataQualityValidation\",\"context\":");

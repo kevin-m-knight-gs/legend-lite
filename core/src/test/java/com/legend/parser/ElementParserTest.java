@@ -1480,32 +1480,46 @@ final class ElementParserTest {
 
     @Test
     void serviceCapturesTestSuitesAsRawText() {
-        // D-3: testSuites block preserved as raw text for B.4 to parse.
-        // Pin both ends + every salient inner fragment so a capture bug that
-        // trims, extends, or otherwise distorts the slice fails loudly.
+        // W9: testSuites parse STRUCTURED (wire-validated by 41 corpus
+        // elements); the model carries a presence marker. The old
+        // raw-capture pin used a synthetic shape the real grammar (and
+        // the engine) never accepted.
         ParsedModel m = ElementParser.parse("""
                 Service my::S
                 {
                   pattern: '/x';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; }
-                  testSuites: [ { suite_1: { setup: 'x'; } } ];
+                  testSuites:
+                  [
+                    suite1:
+                    {
+                      tests:
+                      [
+                        test1:
+                        {
+                          serializationFormat: PURE;
+                          asserts:
+                          [
+                            a1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '[]';
+                                  }#;
+                              }#
+                          ]
+                        }
+                      ]
+                    }
+                  ]
                 }
                 """);
         ServiceDefinition s = (ServiceDefinition) m.elements().get(0);
-        String captured = s.testSuitesSource();
-        assertNotNull(captured, "testSuites raw text should be captured");
-        assertTrue(captured.startsWith("["),
-                () -> "outer '[' must be in capture, got: " + captured);
-        assertTrue(captured.endsWith("]"),
-                () -> "outer ']' must be in capture, got: " + captured);
-        // Every nested token must round-trip — guards against partial slices.
-        for (String fragment : List.of("suite_1", "setup", "'x'")) {
-            assertTrue(captured.contains(fragment),
-                    () -> "missing fragment '" + fragment + "' in captured testSuites: " + captured);
-        }
-        // The capture must not bleed into following content (no execution-block tokens).
-        assertFalse(captured.contains("execution"),
-                () -> "capture must not bleed into preceding/following keys, got: " + captured);
+        assertNotNull(s.testSuitesSource(),
+                "testSuites presence must reach the model");
     }
 
     @Test
