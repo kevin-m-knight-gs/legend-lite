@@ -92,19 +92,14 @@ public final class SectionGrammarRegistry {
                 com.legend.parser.section.DeephavenSectionGrammar.INSTANCE,
                 com.legend.parser.section.MongoDBSectionGrammar.INSTANCE,
                 com.legend.parser.section.DataQualityValidationSectionGrammar.INSTANCE,
-                com.legend.parser.section.ElasticsearchSectionGrammar.INSTANCE}) {
+                com.legend.parser.section.ElasticsearchSectionGrammar.INSTANCE,
+                com.legend.parser.section.ExternalFormatSectionGrammar.INSTANCE}) {
             m.put(g.name(), g);
         }
-        // the small keyed sections still on the GENERIC stopgap grammar,
-        // each instance registered with its censused element-kind set
-        for (var g : new com.legend.parser.section.GenericKeyedSectionGrammar[]{
+        // the LAST section on the GENERIC stopgap grammar
+        m.put("ServiceStore",
                 new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "ExternalFormat",
-                        java.util.Set.of("Binding", "SchemaSet")),
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "ServiceStore", java.util.Set.of("ServiceStore"))}) {
-            m.put(g.name(), g);
-        }
+                        "ServiceStore", java.util.Set.of("ServiceStore")));
         // the first RAW built-in: Diagram content never reaches the shared
         // lexer; the grammar walks characters
         m.put("Diagram",

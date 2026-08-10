@@ -46,7 +46,7 @@ public final class Protocol {
             PText, PGenerationSpecification, PFileGeneration,
             PDeephavenDatabase, PElasticsearch7Cluster, PMongoDatabase,
             PDataQualityValidation, PDataQualityRelationValidation,
-            PDataQualityRelationComparison,
+            PDataQualityRelationComparison, PSchemaSet, PBinding,
             PMapping, PDataElement {
     }
 
@@ -1394,6 +1394,42 @@ public final class Protocol {
                                                  List<String> keys,
                                                  String strategy,
                                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One {@code schemas:} entry of a SchemaSet — contentSourceInformation
+     *  is the string TOKEN's span, quotes included; sourceInformation the
+     *  brace body (ZTailProbe "schemaset"). */
+    public record PSchema(@com.legend.Nullable String id,
+                          @com.legend.Nullable String location,
+                          String content,
+                          com.legend.protocol.SourceInfo contentSourceInformation,
+                          com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ###ExternalFormat SchemaSet} (ZTailProbe "schemaset"):
+     *  {@code _type:"externalFormatSchemaSet"}. */
+    public record PSchemaSet(String pkg, String name, String format,
+                             List<PSchema> schemas,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** {@code ###ExternalFormat Binding} (ZTailProbe "binding"):
+     *  {@code _type:"binding"}; schemaSet/schemaId omitted when schemaless. */
+    public record PBinding(String pkg, String name,
+                           @com.legend.Nullable String schemaSet,
+                           @com.legend.Nullable String schemaId,
+                           String contentType,
+                           List<String> modelIncludes,
+                           List<String> modelExcludes,
+                           com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;

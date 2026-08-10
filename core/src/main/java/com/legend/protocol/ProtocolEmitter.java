@@ -112,6 +112,8 @@ public final class ProtocolEmitter {
                     TailEmitter.dataQualityRelationValidation(b, dq);
             case Protocol.PDataQualityRelationComparison dq ->
                     TailEmitter.dataQualityRelationComparison(b, dq);
+            case Protocol.PSchemaSet ss -> TailEmitter.schemaSet(b, ss);
+            case Protocol.PBinding bd -> TailEmitter.binding(b, bd);
             case Protocol.PGenericSectionElement ge -> require(false,
                     "###" + ge.section() + " wire emission (harness scope not"
                             + " claimed)",

@@ -305,6 +305,74 @@ final class TailEmitter {
         b.append('}');
     }
 
+    static void schemaSet(StringBuilder b, Protocol.PSchemaSet s) {
+        b.append("{\"_type\":\"externalFormatSchemaSet\",\"format\":");
+        ProtocolEmitter.str(b, s.format());
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, s.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, s.pkg());
+        b.append(",\"schemas\":[");
+        for (int i = 0; i < s.schemas().size(); i++) {
+            Protocol.PSchema sc = s.schemas().get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"content\":");
+            ProtocolEmitter.str(b, sc.content());
+            b.append(",\"contentSourceInformation\":");
+            ProtocolEmitter.srcInfo(b, sc.contentSourceInformation());
+            if (sc.id() != null) {
+                b.append(",\"id\":");
+                ProtocolEmitter.str(b, sc.id());
+            }
+            if (sc.location() != null) {
+                b.append(",\"location\":");
+                ProtocolEmitter.str(b, sc.location());
+            }
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, sc.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, s.sourceInformation());
+        b.append('}');
+    }
+
+    static void binding(StringBuilder b, Protocol.PBinding bd) {
+        b.append("{\"_type\":\"binding\",\"contentType\":");
+        ProtocolEmitter.str(b, bd.contentType());
+        b.append(",\"modelUnit\":{\"packageableElementExcludes\":[");
+        for (int i = 0; i < bd.modelExcludes().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, bd.modelExcludes().get(i));
+        }
+        b.append("],\"packageableElementIncludes\":[");
+        for (int i = 0; i < bd.modelIncludes().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, bd.modelIncludes().get(i));
+        }
+        b.append("]},\"name\":");
+        ProtocolEmitter.str(b, bd.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, bd.pkg());
+        if (bd.schemaId() != null) {
+            b.append(",\"schemaId\":");
+            ProtocolEmitter.str(b, bd.schemaId());
+        }
+        if (bd.schemaSet() != null) {
+            b.append(",\"schemaSet\":");
+            ProtocolEmitter.str(b, bd.schemaSet());
+        }
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, bd.sourceInformation());
+        b.append('}');
+    }
+
     static void dataQualityValidation(StringBuilder b,
             Protocol.PDataQualityValidation v) {
         b.append("{\"_type\":\"dataQualityValidation\",\"context\":");

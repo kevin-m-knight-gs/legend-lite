@@ -666,6 +666,90 @@ class ZTailProbe {
     }
 
     @Test
+    void externalFormatShapes() throws Exception {
+        probe("schemaset", """
+                ###ExternalFormat
+                SchemaSet test::Example2
+                {
+                  format: FlatData;
+                  schemas: [
+                    {
+                      id: ex2_1;
+                      location: 'ex2_1.schema';
+                      content: 'section A: DelimitedWithHeadings\\n{\\n}';
+                    },
+                    {
+                      content: 'plain';
+                    }
+                  ];
+                }
+                """);
+        probe("binding", """
+                Class my::ClassA { a: String[1]; }
+                Class my::ClassC { c: String[1]; }
+
+                ###ExternalFormat
+                SchemaSet test::Example
+                {
+                  format: FlatData;
+                  schemas: [
+                    {
+                      id: s1;
+                      content: 'x';
+                    }
+                  ];
+                }
+
+                Binding test::ExampleBinding
+                {
+                  schemaSet: test::Example;
+                  schemaId: s1;
+                  contentType: 'application/x.flatdata';
+                  modelIncludes: [
+                    my::ClassA,
+                    my::ClassB
+                  ];
+                  modelExcludes: [
+                    my::ClassC
+                  ];
+                }
+                """);
+        probe("binding-schemaless", """
+                ###ExternalFormat
+                Binding test::B2
+                {
+                  contentType: 'application/x.flatdata';
+                  modelIncludes: [ my::ClassA ];
+                }
+                """);
+    }
+
+    @Test
+    void schemaEscapeShapes() throws Exception {
+        probe("schema-esc", """
+                ###ExternalFormat
+                SchemaSet my::S
+                {
+                  format: FlatData;
+                  schemas: [
+                    {
+                      content: 'a\\',\\'b';
+                    },
+                    {
+                      content: 'a\\'b';
+                    },
+                    {
+                      content: 'plain';
+                    },
+                    {
+                      content: 'x\\ny';
+                    }
+                  ];
+                }
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

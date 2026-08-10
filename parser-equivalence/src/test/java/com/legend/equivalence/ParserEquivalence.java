@@ -419,7 +419,8 @@ public final class ParserEquivalence {
      *  head walls loudly, which IS the worklist behavior. */
     private static final List<String> TAIL_SECTIONS = List.of("Text",
             "GenerationSpecification", "FileGeneration", "Deephaven",
-            "MongoDB", "DataQualityValidation", "Elasticsearch");
+            "MongoDB", "DataQualityValidation", "Elasticsearch",
+            "ExternalFormat");
 
     private static final Map<String,
             com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
@@ -436,20 +437,28 @@ public final class ParserEquivalence {
                     "DataQualityValidation", com.legend.parser.section
                             .DataQualityValidationSectionGrammar.INSTANCE,
                     "Elasticsearch", com.legend.parser.section
-                            .ElasticsearchSectionGrammar.INSTANCE);
+                            .ElasticsearchSectionGrammar.INSTANCE,
+                    "ExternalFormat", com.legend.parser.section
+                            .ExternalFormatSectionGrammar.INSTANCE);
 
     /** Tail wire {@code _type} &rarr; owning section, for the drain. */
-    private static final Map<String, String> TAIL_WIRE_SECTIONS = Map.of(
-            "text", "Text",
-            "generationSpecification", "GenerationSpecification",
-            "fileGeneration", "FileGeneration",
-            "deephavenStore", "Deephaven",
-            "DeephavenApp", "Deephaven",
-            "MongoDatabase", "MongoDB",
-            "elasticsearch7Store", "Elasticsearch",
-            "dataQualityValidation", "DataQualityValidation",
-            "dataqualityRelationValidation", "DataQualityValidation",
-            "dataQualityRelationComparison", "DataQualityValidation");
+    private static final Map<String, String> TAIL_WIRE_SECTIONS =
+            Map.ofEntries(Map.entry("text", "Text"),
+                    Map.entry("generationSpecification",
+                            "GenerationSpecification"),
+                    Map.entry("fileGeneration", "FileGeneration"),
+                    Map.entry("deephavenStore", "Deephaven"),
+                    Map.entry("DeephavenApp", "Deephaven"),
+                    Map.entry("MongoDatabase", "MongoDB"),
+                    Map.entry("elasticsearch7Store", "Elasticsearch"),
+                    Map.entry("dataQualityValidation",
+                            "DataQualityValidation"),
+                    Map.entry("dataqualityRelationValidation",
+                            "DataQualityValidation"),
+                    Map.entry("dataQualityRelationComparison",
+                            "DataQualityValidation"),
+                    Map.entry("externalFormatSchemaSet", "ExternalFormat"),
+                    Map.entry("binding", "ExternalFormat"));
 
     /** The wire {@code _type} a tail/activator element will emit — the
      *  site-12 dequeue prefix, computed BEFORE emission. */
@@ -467,6 +476,8 @@ public final class ParserEquivalence {
                     "dataqualityRelationValidation";
             case Protocol.PDataQualityRelationComparison v ->
                     "dataQualityRelationComparison";
+            case Protocol.PSchemaSet s -> "externalFormatSchemaSet";
+            case Protocol.PBinding bd -> "binding";
             case Protocol.PFunctionActivator a -> java.util.Objects
                     .requireNonNull(ACTIVATOR_WIRE_TYPES.get(a.kind()));
             default -> throw new IllegalStateException(
