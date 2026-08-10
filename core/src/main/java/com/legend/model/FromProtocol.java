@@ -539,6 +539,30 @@ public final class FromProtocol {
         return new MeasureDefinition.Unit(u.name(), u.paramName(), u.body());
     }
 
+    /** A {@code ###Persistence} section element to its model form. */
+    public static PackageableElement toPersistenceElement(Protocol.Element e) {
+        return switch (e) {
+            case Protocol.PPersistence p -> new PersistenceDefinition(
+                    p.qualifiedName(), p.doc(), p.triggerSource(), p.service(),
+                    p.persisterSource(), p.serviceOutputTargetsSource(),
+                    p.notifierSource(), p.testsSource());
+            case Protocol.PPersistenceContext p ->
+                    new PersistenceContextDefinition(p.qualifiedName(),
+                            p.persistence(), p.platformSource(),
+                            p.serviceParametersSource(),
+                            p.sinkConnectionSource());
+            default -> throw new IllegalStateException(
+                    "not a persistence-section element: " + e.getClass());
+        };
+    }
+
+    /** A {@code ###Snowflake} activator to its model form. */
+    public static SnowflakeActivatorDefinition toSnowflakeActivator(
+            Protocol.PSnowflakeActivator a) {
+        return new SnowflakeActivatorDefinition(a.qualifiedName(), a.kind(),
+                a.fields());
+    }
+
     /** A {@code ###DataSpace} element to its model form. Decorations ride
      *  the protocol record only. */
     public static DataSpaceDefinition toDataSpaceDefinition(Protocol.PDataSpace d) {

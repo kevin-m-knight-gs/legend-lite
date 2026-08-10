@@ -274,7 +274,8 @@ public final class Lexer {
      */
     private static final java.util.Set<String> LEXABLE_SECTIONS =
             java.util.Set.of("Pure", "Mapping", "Relational", "Connection",
-                    "Runtime", "Data", "Service", "DataSpace");
+                    "Runtime", "Data", "Service", "DataSpace", "Persistence",
+                    "Snowflake");
 
     /** Opaque sections raw-skipped by {@link #skipSectionHeader} — RECORDED,
      *  never silent (GRAMMAR_EXTENSIBILITY.md step 1): the parser surfaces

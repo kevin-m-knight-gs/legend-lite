@@ -90,6 +90,17 @@ public final class ProtocolEmitter {
             case Protocol.PDataSpace ds -> require(false,
                     "dataspace wire emission (harness scope not claimed)",
                     ds.qualifiedName());
+            case Protocol.PPersistence pp -> require(false,
+                    "persistence wire emission (harness scope not claimed)",
+                    pp.qualifiedName());
+            case Protocol.PPersistenceContext pc -> require(false,
+                    "persistence-context wire emission (harness scope not"
+                            + " claimed)",
+                    pc.qualifiedName());
+            case Protocol.PSnowflakeActivator sa -> require(false,
+                    "snowflake-activator wire emission (harness scope not"
+                            + " claimed)",
+                    sa.qualifiedName());
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");

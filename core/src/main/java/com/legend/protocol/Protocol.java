@@ -41,6 +41,7 @@ public final class Protocol {
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
             PService, PExecutionEnvironment, PDataSpace,
+            PPersistence, PPersistenceContext, PSnowflakeActivator,
             PMapping, PDataElement {
     }
 
@@ -998,6 +999,55 @@ public final class Protocol {
     public record PDataSpaceDiagram(String title,
                                     @com.legend.Nullable String description,
                                     String diagram) {
+    }
+
+    /** A {@code ###Persistence} Persistence element — top-level keys
+     *  structured, deep sub-DSLs RAW (see PersistenceSectionGrammar). No
+     *  wire shape claimed; emission walls. */
+    public record PPersistence(String pkg, String name,
+                               List<PStereotype> stereotypes,
+                               List<PTaggedValue> taggedValues,
+                               @com.legend.Nullable String doc,
+                               @com.legend.Nullable String triggerSource,
+                               @com.legend.Nullable String service,
+                               @com.legend.Nullable String persisterSource,
+                               @com.legend.Nullable String serviceOutputTargetsSource,
+                               @com.legend.Nullable String notifierSource,
+                               @com.legend.Nullable String testsSource,
+                               com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A {@code PersistenceContext} element. */
+    public record PPersistenceContext(String pkg, String name,
+                                      List<PStereotype> stereotypes,
+                                      List<PTaggedValue> taggedValues,
+                                      String persistence,
+                                      @com.legend.Nullable String platformSource,
+                                      @com.legend.Nullable String serviceParametersSource,
+                                      @com.legend.Nullable String sinkConnectionSource,
+                                      com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A {@code ###Snowflake} function activator ({@code SnowflakeApp} or
+     *  {@code SnowflakeM2MUdf}) — censused keys as a flat field map. No
+     *  wire shape claimed; emission walls. */
+    public record PSnowflakeActivator(String pkg, String name, String kind,
+                                      List<PStereotype> stereotypes,
+                                      List<PTaggedValue> taggedValues,
+                                      java.util.Map<String, String> fields,
+                                      com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
     }
 
     /**

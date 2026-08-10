@@ -362,6 +362,27 @@ public final class NameResolver {
             // unit conversion lambdas are numeric expressions over their own
             // parameter — no cross-element names to resolve
             case com.legend.model.MeasureDefinition me -> me;
+            case com.legend.model.PersistenceDefinition pe -> {
+                String svc = pe.service() == null ? null
+                        : resolveName(pe.service(), scope);
+                yield Objects.equals(svc, pe.service()) ? pe
+                        : new com.legend.model.PersistenceDefinition(
+                                pe.qualifiedName(), pe.doc(),
+                                pe.triggerSource(), svc, pe.persisterSource(),
+                                pe.serviceOutputTargetsSource(),
+                                pe.notifierSource(), pe.testsSource());
+            }
+            case com.legend.model.PersistenceContextDefinition pce -> {
+                String p = resolveName(pce.persistence(), scope);
+                yield p.equals(pce.persistence()) ? pce
+                        : new com.legend.model.PersistenceContextDefinition(
+                                pce.qualifiedName(), p, pce.platformSource(),
+                                pce.serviceParametersSource(),
+                                pce.sinkConnectionSource());
+            }
+            // activator fields carry function-pointer signatures and raw
+            // ownership blocks — nothing safely resolvable by name
+            case com.legend.model.SnowflakeActivatorDefinition sa -> sa;
             // The canonical (binding-table) MappingDefinition is produced
             // directly by Door 1 (clean-sheet text), so it reaches the resolver
             // and its binding FQNs must be resolved like any other element's.
