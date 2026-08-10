@@ -565,6 +565,10 @@ public final class PersistenceSectionGrammar
             if (connData == null || connSpan == null || dataSpan == null) {
                 throw c.error("testBatch '" + id + "' needs data");
             }
+            if (!assertsSpelled) {
+                // engine deserializer parity (leniency audit row #30)
+                throw c.error("Field 'asserts' is required");
+            }
             out.add(new Protocol.PPersistenceTestBatch(id, connData,
                     connSpan, dataSpan, asserts, c.spanOf(s, c.pos() - 1)));
             c.match(TokenType.COMMA);

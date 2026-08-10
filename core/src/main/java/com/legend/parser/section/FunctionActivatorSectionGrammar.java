@@ -185,6 +185,26 @@ public final class FunctionActivatorSectionGrammar
         if (functionPath == null || functionSpan == null) {
             throw c.error(kind + " '" + qn + "' needs a function");
         }
+        // engine-required fields (leniency audit: the engine deserializer
+        // refuses these when absent — structured parity refusals).
+        // BigQueryFunction is EXEMPT from ownership: accepted corpus
+        // fixtures omit it (the corpus adjudicates).
+        if (ownerId == null && userListUsers == null
+                && !"BigQueryFunction".equals(kind)) {
+            throw c.error("Field 'ownership' is required");
+        }
+        if ("MemSqlFunction".equals(kind)
+                && !scalars.containsKey("functionName")) {
+            throw c.error("Field 'functionName' is required");
+        }
+        if ("SnowflakeM2MUdf".equals(kind)) {
+            if (!scalars.containsKey("deploymentSchema")) {
+                throw c.error("Field 'deploymentSchema' is required");
+            }
+            if (!scalars.containsKey("deploymentStage")) {
+                throw c.error("Field 'deploymentStage' is required");
+            }
+        }
         return new Protocol.PFunctionActivator(pkg, name, kind,
                 dec.stereotypes(), dec.taggedValues(), scalars, booleans,
                 functionPath, functionSpan, ownerId, userListUsers, actConn,
