@@ -750,6 +750,49 @@ class ZTailProbe {
     }
 
     @Test
+    void serviceStoreShapes() throws Exception {
+        probe("svcstore-empty", """
+                ###ServiceStore
+                ServiceStore test::Empty
+                (
+                )
+                """);
+        probe("svcstore-rich", """
+                ###ServiceStore
+                ServiceStore test::Rich
+                (
+                  description : 'store docs';
+                  Service TestService
+                  (
+                    path : '/testService/{param2}';
+                    requestBody : [ExampleClass <- tests::store::exampleBinding];
+                    method : POST;
+                    parameters :
+                    (
+                      param1 : [Integer] ( location = query, style = simple, explode = true, enum = test::Enum, allowReserved = true ),
+                      param2 : String ( location = path, required = true ),
+                      "abc.xyz" : String ( location = header )
+                    );
+                    response : ExampleClass <- tests::store::exampleBinding;
+                    security : [];
+                  )
+                  ServiceGroup TestServices
+                  (
+                    path : '/testServices';
+
+                    Service NestedService
+                    (
+                      path : '/nested';
+                      method : GET;
+                      response : [ExampleClass <- tests::store::exampleBinding];
+                      security : [];
+                    )
+                  )
+                )
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("include-dataspace", """
                 ###Mapping

@@ -272,6 +272,14 @@ public final class Lexer {
      * the next header. Its elements are simply invisible — exactly what
      * the engine's semantics need from a diagram.
      */
+    /** The lexable-section names, for the registry-agreement guardrail —
+     *  this set and the registry's lexable grammars must not drift
+     *  (an unlisted claimed section raw-skips SILENTLY: Elasticsearch
+     *  2026-08-10). */
+    public static java.util.Set<String> lexableSections() {
+        return LEXABLE_SECTIONS;
+    }
+
     private static final java.util.Set<String> LEXABLE_SECTIONS =
             java.util.Set.of("Pure", "Mapping", "Relational", "Connection",
                     "Runtime", "Data", "Service", "DataSpace", "Persistence",

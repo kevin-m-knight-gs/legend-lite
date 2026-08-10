@@ -420,7 +420,7 @@ public final class ParserEquivalence {
     private static final List<String> TAIL_SECTIONS = List.of("Text",
             "GenerationSpecification", "FileGeneration", "Deephaven",
             "MongoDB", "DataQualityValidation", "Elasticsearch",
-            "ExternalFormat");
+            "ExternalFormat", "ServiceStore");
 
     private static final Map<String,
             com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
@@ -439,7 +439,9 @@ public final class ParserEquivalence {
                     "Elasticsearch", com.legend.parser.section
                             .ElasticsearchSectionGrammar.INSTANCE,
                     "ExternalFormat", com.legend.parser.section
-                            .ExternalFormatSectionGrammar.INSTANCE);
+                            .ExternalFormatSectionGrammar.INSTANCE,
+                    "ServiceStore", com.legend.parser.section
+                            .ServiceStoreSectionGrammar.INSTANCE);
 
     /** Tail wire {@code _type} &rarr; owning section, for the drain. */
     private static final Map<String, String> TAIL_WIRE_SECTIONS =
@@ -458,7 +460,8 @@ public final class ParserEquivalence {
                     Map.entry("dataQualityRelationComparison",
                             "DataQualityValidation"),
                     Map.entry("externalFormatSchemaSet", "ExternalFormat"),
-                    Map.entry("binding", "ExternalFormat"));
+                    Map.entry("binding", "ExternalFormat"),
+                    Map.entry("serviceStore", "ServiceStore"));
 
     /** The wire {@code _type} a tail/activator element will emit — the
      *  site-12 dequeue prefix, computed BEFORE emission. */
@@ -478,6 +481,7 @@ public final class ParserEquivalence {
                     "dataQualityRelationComparison";
             case Protocol.PSchemaSet s -> "externalFormatSchemaSet";
             case Protocol.PBinding bd -> "binding";
+            case Protocol.PServiceStoreDefinition sd -> "serviceStore";
             case Protocol.PFunctionActivator a -> java.util.Objects
                     .requireNonNull(ACTIVATOR_WIRE_TYPES.get(a.kind()));
             default -> throw new IllegalStateException(

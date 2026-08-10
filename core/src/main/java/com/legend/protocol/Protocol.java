@@ -42,11 +42,12 @@ public final class Protocol {
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
             PService, PExecutionEnvironment, PDataSpace,
             PPersistence, PPersistenceContext, PFunctionActivator,
-            PGenericSectionElement, PDiagram,
+            PDiagram,
             PText, PGenerationSpecification, PFileGeneration,
             PDeephavenDatabase, PElasticsearch7Cluster, PMongoDatabase,
             PDataQualityValidation, PDataQualityRelationValidation,
             PDataQualityRelationComparison, PSchemaSet, PBinding,
+            PServiceStoreDefinition,
             PMapping, PDataElement {
     }
 
@@ -1151,22 +1152,6 @@ public final class Protocol {
         }
     }
 
-    /** An element from one of the small keyed sections (see
-     *  {@code GenericKeyedSectionGrammar}) — keyed field values or a raw
-     *  paren body, as written. No wire shape claimed; emission walls. */
-    public record PGenericSectionElement(String pkg, String name,
-                                         String section, String kind,
-                                         List<PStereotype> stereotypes,
-                                         List<PTaggedValue> taggedValues,
-                                         java.util.Map<String, String> fields,
-                                         @com.legend.Nullable String bodySource,
-                                         com.legend.protocol.SourceInfo sourceInformation)
-            implements Element {
-        public String qualifiedName() {
-            return pkg.isEmpty() ? name : pkg + "::" + name;
-        }
-    }
-
     /**
      * A FUNCTION ACTIVATOR element — the uniform family SnowflakeApp /
      * SnowflakeM2MUdf / MemSqlFunction / BigQueryFunction / HostedService /
@@ -1430,6 +1415,67 @@ public final class Protocol {
                            List<String> modelIncludes,
                            List<String> modelExcludes,
                            com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A ServiceStore type reference — primitive ({@code String} /
+     *  {@code [Integer]}) or complex ({@code Class <- binding}); exactly
+     *  one of {@code primitive}/{@code complexType} is set (ZTailProbe
+     *  "svcstore-rich"). */
+    public record PSsTypeRef(@com.legend.Nullable String primitive,
+                             @com.legend.Nullable String complexType,
+                             @com.legend.Nullable String binding,
+                             boolean list,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One ServiceStore service parameter — serializationFormat facets
+     *  (style/explode) carry their own {@code x = y} text spans. */
+    public record PSsParam(String name, PSsTypeRef type,
+                           @com.legend.Nullable Boolean allowReserved,
+                           @com.legend.Nullable Boolean required,
+                           String location,
+                           @com.legend.Nullable String style,
+                           @com.legend.Nullable com.legend.protocol.SourceInfo styleSpan,
+                           @com.legend.Nullable Boolean explode,
+                           @com.legend.Nullable com.legend.protocol.SourceInfo explodeSpan,
+                           @com.legend.Nullable String enumeration,
+                           com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A ServiceStore element: a service or a nested group. */
+    public sealed interface PServiceStoreElement {
+    }
+
+    /** {@code Service id ( ... )} — parameters is null when the block is
+     *  not spelled (the wire omits the slot entirely). */
+    public record PSsService(String id, String path,
+                             @com.legend.Nullable PSsTypeRef requestBody,
+                             String method,
+                             @com.legend.Nullable List<PSsParam> parameters,
+                             PSsTypeRef response,
+                             List<String> security,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements PServiceStoreElement {
+    }
+
+    /** {@code ServiceGroup id ( path ... nested )}. */
+    public record PSsServiceGroup(String id, String path,
+                                  List<PServiceStoreElement> elements,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PServiceStoreElement {
+    }
+
+    /** {@code ###ServiceStore} (ZTailProbe "svcstore-*"): _type
+     *  "serviceStore". The {@code description:} field parses but never
+     *  reaches the wire (engine walker drops it). */
+    public record PServiceStoreDefinition(String pkg, String name,
+                                          @com.legend.Nullable String description,
+                                          List<PServiceStoreElement> elements,
+                                          com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;

@@ -93,13 +93,10 @@ public final class SectionGrammarRegistry {
                 com.legend.parser.section.MongoDBSectionGrammar.INSTANCE,
                 com.legend.parser.section.DataQualityValidationSectionGrammar.INSTANCE,
                 com.legend.parser.section.ElasticsearchSectionGrammar.INSTANCE,
-                com.legend.parser.section.ExternalFormatSectionGrammar.INSTANCE}) {
+                com.legend.parser.section.ExternalFormatSectionGrammar.INSTANCE,
+                com.legend.parser.section.ServiceStoreSectionGrammar.INSTANCE}) {
             m.put(g.name(), g);
         }
-        // the LAST section on the GENERIC stopgap grammar
-        m.put("ServiceStore",
-                new com.legend.parser.section.GenericKeyedSectionGrammar(
-                        "ServiceStore", java.util.Set.of("ServiceStore")));
         // the first RAW built-in: Diagram content never reaches the shared
         // lexer; the grammar walks characters
         m.put("Diagram",
@@ -117,5 +114,10 @@ public final class SectionGrammarRegistry {
     /** The grammar registered for {@code sectionName}, if any. */
     public static Optional<com.legend.spi.SectionGrammar> lookup(String sectionName) {
         return Optional.ofNullable(REGISTRY.get(sectionName));
+    }
+
+    /** Every registered section name — for the lexer-agreement guardrail. */
+    public static Map<String, com.legend.spi.SectionGrammar> all() {
+        return java.util.Collections.unmodifiableMap(REGISTRY);
     }
 }

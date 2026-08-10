@@ -79,7 +79,6 @@ class CodeShapeGuardrailTest {
             "DataSpaceSectionGrammar.pos",
             "PersistenceSectionGrammar.pos",
             "FunctionActivatorSectionGrammar.pos",
-            "GenericKeyedSectionGrammar.pos",
             // the SHARED SliceCursor (ElementwiseSectionGrammar's SPI feed)
             "SliceCursor.pos",
             // parse-surface MODE, set once at construction by the factory that owns

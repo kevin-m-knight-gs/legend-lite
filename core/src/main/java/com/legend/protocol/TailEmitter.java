@@ -373,6 +373,143 @@ final class TailEmitter {
         b.append('}');
     }
 
+    static void serviceStore(StringBuilder b,
+            Protocol.PServiceStoreDefinition s) {
+        b.append("{\"_type\":\"serviceStore\",\"elements\":[");
+        for (int i = 0; i < s.elements().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            serviceStoreElement(b, s.elements().get(i));
+        }
+        b.append("],\"includedStores\":[],\"name\":");
+        ProtocolEmitter.str(b, s.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, s.pkg());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, s.sourceInformation());
+        b.append('}');
+    }
+
+    private static void serviceStoreElement(StringBuilder b,
+            Protocol.PServiceStoreElement e) {
+        switch (e) {
+            case Protocol.PSsService sv -> ssService(b, sv);
+            case Protocol.PSsServiceGroup g -> {
+                b.append("{\"_type\":\"serviceGroup\",\"elements\":[");
+                for (int i = 0; i < g.elements().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    serviceStoreElement(b, g.elements().get(i));
+                }
+                b.append("],\"id\":");
+                ProtocolEmitter.str(b, g.id());
+                b.append(",\"path\":");
+                ProtocolEmitter.str(b, g.path());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, g.sourceInformation());
+                b.append('}');
+            }
+        }
+    }
+
+    private static void ssService(StringBuilder b, Protocol.PSsService sv) {
+        b.append("{\"_type\":\"service\",\"id\":");
+        ProtocolEmitter.str(b, sv.id());
+        b.append(",\"method\":");
+        ProtocolEmitter.str(b, sv.method());
+        if (sv.parameters() != null) {
+            b.append(",\"parameters\":[");
+            for (int i = 0; i < sv.parameters().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                ssParam(b, sv.parameters().get(i));
+            }
+            b.append(']');
+        }
+        b.append(",\"path\":");
+        ProtocolEmitter.str(b, sv.path());
+        if (sv.requestBody() != null) {
+            b.append(",\"requestBody\":");
+            ssTypeRef(b, sv.requestBody());
+        }
+        b.append(",\"response\":");
+        ssTypeRef(b, sv.response());
+        if (!sv.security().isEmpty()) {
+            throw new IllegalStateException("non-empty ServiceStore security"
+                    + " wire is unprobed");
+        }
+        b.append(",\"security\":[],\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, sv.sourceInformation());
+        b.append('}');
+    }
+
+    private static void ssParam(StringBuilder b, Protocol.PSsParam p) {
+        b.append('{');
+        if (p.allowReserved() != null) {
+            b.append("\"allowReserved\":").append(p.allowReserved())
+                    .append(',');
+        }
+        if (p.enumeration() != null) {
+            b.append("\"enumeration\":");
+            ProtocolEmitter.str(b, p.enumeration());
+            b.append(',');
+        }
+        b.append("\"location\":");
+        ProtocolEmitter.str(b, p.location());
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, p.name());
+        if (p.required() != null) {
+            b.append(",\"required\":").append(p.required());
+        }
+        b.append(",\"serializationFormat\":{");
+        if (p.explode() != null) {
+            b.append("\"explode\":").append(p.explode())
+                    .append(",\"explodeSourceInformation\":");
+            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
+                    p.explodeSpan()));
+        }
+        if (p.style() != null) {
+            if (p.explode() != null) {
+                b.append(',');
+            }
+            b.append("\"style\":");
+            ProtocolEmitter.str(b, p.style());
+            b.append(",\"styleSourceInformation\":");
+            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
+                    p.styleSpan()));
+        }
+        b.append("},\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, p.sourceInformation());
+        b.append(",\"type\":");
+        ssTypeRef(b, p.type());
+        b.append('}');
+    }
+
+    private static void ssTypeRef(StringBuilder b, Protocol.PSsTypeRef t) {
+        if (t.complexType() != null) {
+            b.append("{\"_type\":\"complex\",\"binding\":");
+            ProtocolEmitter.str(b,
+                    java.util.Objects.requireNonNull(t.binding()));
+            b.append(",\"list\":").append(t.list())
+                    .append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, t.sourceInformation());
+            b.append(",\"type\":");
+            ProtocolEmitter.str(b, t.complexType());
+            b.append('}');
+        } else {
+            b.append("{\"_type\":\"")
+                    .append(java.util.Objects.requireNonNull(t.primitive())
+                            .toLowerCase(java.util.Locale.ROOT))
+                    .append("\",\"list\":").append(t.list())
+                    .append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, t.sourceInformation());
+            b.append('}');
+        }
+    }
+
     static void dataQualityValidation(StringBuilder b,
             Protocol.PDataQualityValidation v) {
         b.append("{\"_type\":\"dataQualityValidation\",\"context\":");

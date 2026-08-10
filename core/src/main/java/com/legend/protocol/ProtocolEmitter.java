@@ -114,10 +114,8 @@ public final class ProtocolEmitter {
                     TailEmitter.dataQualityRelationComparison(b, dq);
             case Protocol.PSchemaSet ss -> TailEmitter.schemaSet(b, ss);
             case Protocol.PBinding bd -> TailEmitter.binding(b, bd);
-            case Protocol.PGenericSectionElement ge -> require(false,
-                    "###" + ge.section() + " wire emission (harness scope not"
-                            + " claimed)",
-                    ge.qualifiedName());
+            case Protocol.PServiceStoreDefinition sd ->
+                    TailEmitter.serviceStore(b, sd);
             case Protocol.PDiagram dg -> require(false,
                     "diagram wire emission (harness scope not claimed)",
                     dg.qualifiedName());
