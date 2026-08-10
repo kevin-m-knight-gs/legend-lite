@@ -61,32 +61,34 @@ And do not BUILD while a chain runs: a `mvn install` underneath a running gate
 swaps the jar it loaded and produces a fake failure (2026-08-08: G8 reported
 MATCH 25,142 mid-chain; re-run clean it was 25,472, the baseline exactly).
 
-## Budget decision, 2026-08-10 — gate 8 grew by ~28s
+## Budget decision, 2026-08-10 — gate 8 grew by ~100s
 
-**Four `parser-equivalence` test classes were in no gate and no workflow**, including
-the two that pin the programme's flagship claims:
+**Four `parser-equivalence` test classes were in no gate and no workflow**, including the
+two that pin the programme's flagship claims. All four now run in gate 8.
 
-| class | time | in gate 8 now? |
+| class | time | pins |
 |---|---:|---|
-| `PmcdEquivalenceTest` — whole-document parity, the "8,186/8,186" claim | 27s | **yes, added** |
-| `ViewFilterParityTest` | 0.8s | **yes, added** |
-| `LeniencyCatalogTest` — the total refusal-row classifier | 42s | **no — decide** |
-| `StrictDialectParityTest` — the "dialect quarantine is TOTAL" claim | **722s** | **no — see below** |
+| `ViewFilterParityTest` | 0.8s | view-filter shapes |
+| `PmcdEquivalenceTest` | 27s | whole-document parity — the "8,186/8,186" headline |
+| `StrictDialectParityTest` | 34s | "dialect quarantine goes TOTAL" |
+| `LeniencyCatalogTest` | 37s | the total refusal-row classifier |
 
-Per this file's own rule, that is recorded rather than absorbed. The chain moves
-**324s → ~352s**, which is over the 330s ceiling. Two ways to settle it, both explicit
-decisions for a human:
+> **A measurement warning, learned the hard way.** My first timing put
+> `StrictDialectParityTest` at **722s** and I nearly recorded it as unaffordable. It was a
+> slept/preempted run — precisely the failure mode this file documents below. Re-measured
+> under `caffeinate -dims` it is **34s, 21× faster**. **Never time a gate on this machine
+> without `caffeinate`, and treat any outlier as suspect before treating it as data.**
 
-1. **Raise the ceiling to 360s.** The two additions gate claims that were previously
-   pinned by nothing automated — `DEEP_AUDIT_HANDOFF.md` calls `PmcdEquivalenceTest`
-   "the audit's strongest regression net", and it ran in no gate at all.
-2. **Take the documented cheapest cut** — gate 5 (41s, the same sweep as gate 4 against
-   a second backend, scoreboard not written). That lands the chain at ~311s, under budget.
+The chain moves **324s → ~424s (7.1 min)**, over the 330s ceiling. Per this file's own
+rule that is recorded, not absorbed. Three ways to settle it, all explicit human decisions:
 
-**`StrictDialectParityTest` cannot go in as-is at 722s** — it is 2.2× the entire current
-chain. It pins "dialect quarantine goes TOTAL", so it should be gated somehow: either
-optimise it, sample it in the chain and run it whole nightly, or accept a longer chain
-explicitly. **`LeniencyCatalogTest` at 42s is affordable and should probably just go in.**
+1. **Raise the ceiling to ~430s.** These four gate claims that were previously enforced by
+   nothing automated — `DEEP_AUDIT_HANDOFF.md` calls `PmcdEquivalenceTest` "the audit's
+   strongest regression net", and it ran in no gate at all.
+2. **Take the cut this file already nominates** — gate 5 (41s, the same sweep as gate 4
+   against a second backend, scoreboard not written) → ~383s.
+3. **Split the chain**: the fast seven on every push, the four heavy parity tests
+   pre-push/nightly. Riskier — a gate that runs less often is a gate that catches less.
 
 ## The time budget: 5.5 minutes, locked
 

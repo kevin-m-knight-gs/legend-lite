@@ -143,7 +143,7 @@ if want 8; then
   # not the reactor, so GATES=8 alone silently A/Bs the previously installed
   # jar. Relying on GATE2 having run first institutionalises hazard #1.
   mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am test \
-      -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,PmcdEquivalenceTest,ViewFilterParityTest' \
+      -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,PmcdEquivalenceTest,ViewFilterParityTest,LeniencyCatalogTest,StrictDialectParityTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?; if skipped "$OUT/g8.out"; then
     echo "G8 SKIPPED — no upstream checkouts ($ROOT_ENGINE / $ROOT_PURE). NOT a pass." >> "$L"; G8=1
