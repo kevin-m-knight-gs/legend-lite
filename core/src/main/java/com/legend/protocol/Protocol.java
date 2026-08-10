@@ -42,6 +42,7 @@ public final class Protocol {
             PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
             PService, PExecutionEnvironment, PDataSpace,
             PPersistence, PPersistenceContext, PSnowflakeActivator,
+            PGenericSectionElement,
             PMapping, PDataElement {
     }
 
@@ -1030,6 +1031,22 @@ public final class Protocol {
                                       @com.legend.Nullable String serviceParametersSource,
                                       @com.legend.Nullable String sinkConnectionSource,
                                       com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** An element from one of the small keyed sections (see
+     *  {@code GenericKeyedSectionGrammar}) — keyed field values or a raw
+     *  paren body, as written. No wire shape claimed; emission walls. */
+    public record PGenericSectionElement(String pkg, String name,
+                                         String section, String kind,
+                                         List<PStereotype> stereotypes,
+                                         List<PTaggedValue> taggedValues,
+                                         java.util.Map<String, String> fields,
+                                         @com.legend.Nullable String bodySource,
+                                         com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;

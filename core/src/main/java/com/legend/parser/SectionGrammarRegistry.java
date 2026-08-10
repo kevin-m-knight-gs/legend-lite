@@ -68,6 +68,38 @@ public final class SectionGrammarRegistry {
                 com.legend.parser.section.PersistenceSectionGrammar.INSTANCE);
         m.put("Snowflake",
                 com.legend.parser.section.SnowflakeSectionGrammar.INSTANCE);
+        // the small keyed sections share ONE grammar class, each instance
+        // registered with its censused element-kind set (null = open, the
+        // FileGeneration posture — engine's own file-gen grammar is generic)
+        for (var g : new com.legend.parser.section.GenericKeyedSectionGrammar[]{
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "ExternalFormat",
+                        java.util.Set.of("Binding", "SchemaSet")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "FileGeneration", null),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "MemSql", java.util.Set.of("MemSqlFunction")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "BigQuery", java.util.Set.of("BigQueryFunction")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "HostedService", java.util.Set.of("HostedService")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "FunctionJar", java.util.Set.of("FunctionJar")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "Text", java.util.Set.of("Text")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "GenerationSpecification",
+                        java.util.Set.of("GenerationSpecification")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "DataQualityValidation",
+                        java.util.Set.of("DataQualityValidation",
+                                "DataQualityRelationValidation")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "ServiceStore", java.util.Set.of("ServiceStore")),
+                new com.legend.parser.section.GenericKeyedSectionGrammar(
+                        "MongoDB", java.util.Set.of("Database"))}) {
+            m.put(g.name(), g);
+        }
         // ServiceLoader overlays — registered LAST so an extension claiming
         // a built-in name WINS (the engine's own shadowing rule: that is
         // exactly what lets legend-lite drop into the engine's ###Pure)

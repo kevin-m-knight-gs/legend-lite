@@ -101,6 +101,10 @@ public final class ProtocolEmitter {
                     "snowflake-activator wire emission (harness scope not"
                             + " claimed)",
                     sa.qualifiedName());
+            case Protocol.PGenericSectionElement ge -> require(false,
+                    "###" + ge.section() + " wire emission (harness scope not"
+                            + " claimed)",
+                    ge.qualifiedName());
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");

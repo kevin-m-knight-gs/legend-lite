@@ -41,6 +41,7 @@ public sealed interface PackageableElement
                 PersistenceDefinition,
                 PersistenceContextDefinition,
                 SnowflakeActivatorDefinition,
+                GenericSectionElementDefinition,
                 DatabaseDefinition,
                 MappingDefinition,
                 LegacyMappingDefinition,
