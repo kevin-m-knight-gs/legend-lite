@@ -2,7 +2,6 @@ package org.finos.legend.engine.nlq.eval;
 
 import org.finos.legend.engine.nlq.LlmClient;
 import org.finos.legend.engine.nlq.SemanticIndex;
-import com.gs.legend.parser.PureParser;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -181,7 +180,7 @@ public final class NlqEvalMetrics {
 
         boolean parseable;
         try {
-            PureParser.parseQuery(pureQuery);
+            com.legend.parser.SpecParser.parse(pureQuery);
             parseable = true;
         } catch (Exception e) {
             parseable = false;

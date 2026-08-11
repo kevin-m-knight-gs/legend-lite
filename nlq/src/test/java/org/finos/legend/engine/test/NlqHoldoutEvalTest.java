@@ -2,7 +2,9 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.*;
 import org.finos.legend.engine.nlq.eval.*;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
@@ -25,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NlqHoldoutEvalTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
     private static GeminiClient gemini;
     private static NlqService service;
@@ -39,8 +41,7 @@ class NlqHoldoutEvalTest {
         assertNotNull(is, "Test model not found");
         String pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
 
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);

@@ -45,12 +45,6 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.InstantiationConte
 import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
-import com.gs.legend.model.m3.Multiplicity;
-import com.gs.legend.model.m3.Primitive;
-import com.gs.legend.model.m3.Property;
-import com.gs.legend.model.m3.PureClass;
-
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Connection;
@@ -172,7 +166,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
             // Inject class definitions from the interpreter's model
             java.util.Set<String> discoveredEnums = new java.util.LinkedHashSet<>();
-            Map<String, PureClass> extractedClasses =
+            Map<String, String> extractedClasses =
                     extractClassMetadata(pureExpression, discoveredEnums, processorSupport);
             java.util.List<String> enumDefs =
                     extractEnumDefinitions(pureExpression, discoveredEnums, processorSupport);
@@ -184,8 +178,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 for (String ed : enumDefs) {
                     classDefs.append(ed).append("\n");
                 }
-                for (PureClass pc : extractedClasses.values()) {
-                    classDefs.append(pc.toString()).append("\n");
+                for (String classText : extractedClasses.values()) {
+                    classDefs.append(classText).append("\n");
                 }
                 System.out.println("[LegendLite PCT] Injected model:\n" + classDefs);
                 model = classDefs + model;
@@ -846,10 +840,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return defs;
     }
 
-    private Map<String, PureClass> extractClassMetadata(String pureExpression,
+    private Map<String, String> extractClassMetadata(String pureExpression,
             java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
         try {
-            Map<String, PureClass> classes = new HashMap<>();
+            Map<String, String> classes = new HashMap<>();
             Set<String> visited = new HashSet<>();
             Matcher matcher = INSTANCE_CLASS_PATTERN.matcher(pureExpression);
             while (matcher.find()) {
@@ -897,7 +891,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
     }
 
-    private void extractClassRecursive(String className, Map<String, PureClass> classes,
+    private void extractClassRecursive(String className, Map<String, String> classes,
                                        Set<String> visited, java.util.Set<String> discoveredEnums,
                                        ProcessorSupport ps) {
         if (visited.contains(className)) return;
@@ -913,7 +907,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return;
         }
 
-        List<Property> properties = new ArrayList<>();
+        List<String> propertyLines = new ArrayList<>();
         for (CoreInstance prop : ps.class_getSimpleProperties(cls)) {
             CoreInstance nameInstance = prop.getValueForMetaPropertyToOne(M3Properties.name);
             if (nameInstance == null) continue;
@@ -926,7 +920,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     .multiplicityUpperBoundToInt(mult);
             int lower = org.finos.legend.pure.m3.navigation.multiplicity.Multiplicity
                     .multiplicityLowerBoundToInt(mult);
-            Multiplicity multiplicity = new Multiplicity.Bounded(lower, upper < 0 ? null : upper);
+            String multiplicity = multText(lower, upper < 0 ? null : upper);
 
             CoreInstance genericType = prop.getValueForMetaPropertyToOne(M3Properties.genericType);
             CoreInstance rawType = (genericType != null)
@@ -935,21 +929,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 rawType = org.finos.legend.pure.m3.navigation.importstub.ImportStub
                         .withImportStubByPass(rawType, ps);
             }
-            // Resolve the property type via FQN — no simple-name resolver (see the
-            // "single kind-aware resolver" policy on Type.java). For primitives,
-            // Pure's FQN (e.g. {@code meta::pure::metamodel::type::Integer}) maps
-            // directly to our {@link Primitive} singletons via {@link Primitive#findByFqn}.
-            // For classes, we recurse. rawType==null means "no declared type" → Any.
-            com.gs.legend.model.m3.Type propType;
+            // Resolve the property type via FQN. Primitives print as their
+            // Pure simple names ("Integer"); classes and enums print as FQNs
+            // (the engine PureClass.toString convention, preserved verbatim).
+            // rawType==null means "no declared type" → Any.
+            String typeRef;
             if (rawType == null) {
-                propType = Primitive.ANY;
+                typeRef = "Any";
             } else {
                 String qualifiedTypeName = getQualifiedName(rawType);
-                var primitive = qualifiedTypeName != null
-                        ? Primitive.findByFqn(qualifiedTypeName)
-                        : java.util.Optional.<Primitive>empty();
-                if (primitive.isPresent()) {
-                    propType = primitive.get();
+                String primitive = qualifiedTypeName != null
+                        ? primitivePureName(qualifiedTypeName) : null;
+                if (primitive != null) {
+                    typeRef = primitive;
                 } else if (qualifiedTypeName == null
                         || qualifiedTypeName.startsWith("meta::pure::metamodel")) {
                     continue;
@@ -958,15 +950,14 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     // enum-typed property: reference by name; the DEFINITION
                     // is injected as an Enum, never as a shadow Class
                     discoveredEnums.add(qualifiedTypeName);
-                    propType = new com.gs.legend.model.m3.Type.ClassType(qualifiedTypeName);
+                    typeRef = qualifiedTypeName;
                 } else {
                     extractClassRecursive(qualifiedTypeName, classes, visited, discoveredEnums, ps);
-                    PureClass referenced = classes.get(qualifiedTypeName);
-                    if (referenced == null) continue;
-                    propType = new com.gs.legend.model.m3.Type.ClassType(referenced.qualifiedName());
+                    if (!classes.containsKey(qualifiedTypeName)) continue;
+                    typeRef = qualifiedTypeName;
                 }
             }
-            properties.add(new Property(propName, propType, multiplicity));
+            propertyLines.add(propName + ": " + typeRef + multiplicity);
         }
 
         // SUPERCLASSES ride along (concatenate's LUB is the common
@@ -991,18 +982,38 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
 
         String qualifiedName = getQualifiedName(cls);
-        String packagePath = "";
-        String simpleName = className;
-        if (qualifiedName != null) {
-            int lastSep = qualifiedName.lastIndexOf("::");
-            if (lastSep >= 0) {
-                packagePath = qualifiedName.substring(0, lastSep);
-                simpleName = qualifiedName.substring(lastSep + 2);
+        String fqn = qualifiedName != null ? qualifiedName : className;
+        var sb = new StringBuilder("Class ").append(fqn);
+        if (!superFqns.isEmpty()) {
+            sb.append(" extends ").append(String.join(", ", superFqns));
+        }
+        sb.append(" {\n");
+        for (String line : propertyLines) {
+            sb.append("    ").append(line).append(";\n");
+        }
+        sb.append("}");
+        classes.put(fqn, sb.toString());
+    }
+
+    /** The Pure multiplicity print form: [1], [0..1], [*], [2..*]. */
+    private static String multText(int lower, Integer upper) {
+        if (upper == null) {
+            return lower == 0 ? "[*]" : "[" + lower + "..*]";
+        }
+        if (lower == upper) {
+            return "[" + upper + "]";
+        }
+        return "[" + lower + ".." + upper + "]";
+    }
+
+    /** The Pure simple name of a primitive FQN, or null if not a primitive. */
+    private static String primitivePureName(String fqn) {
+        for (var p : com.legend.compiler.element.type.Type.Primitive.values()) {
+            if (p.qualifiedName().equals(fqn)) {
+                return p.typeName();
             }
         }
-
-        classes.put(qualifiedName != null ? qualifiedName : className,
-                new PureClass(packagePath, simpleName, superFqns, properties));
+        return null;
     }
 
     private String getQualifiedName(CoreInstance element) {

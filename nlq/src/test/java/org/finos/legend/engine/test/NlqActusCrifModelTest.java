@@ -1,7 +1,9 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -12,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("NLQ ACTUS + CRIF Models — Smoke Tests")
 class NlqActusCrifModelTest {
 
-    private static PureModelBuilder actusModel;
+    private static ParsedModel actusModel;
     private static SemanticIndex actusIndex;
-    private static PureModelBuilder crifModel;
+    private static ParsedModel crifModel;
     private static SemanticIndex crifIndex;
 
     @BeforeAll
@@ -23,8 +25,7 @@ class NlqActusCrifModelTest {
         try (InputStream is = NlqActusCrifModelTest.class.getResourceAsStream("/nlq/actus-model.pure")) {
             assertNotNull(is, "ACTUS model not found");
             String src = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            actusModel = new PureModelBuilder();
-            actusModel.addSource(src);
+            actusModel = NlqModel.parse(src);
             actusIndex = new SemanticIndex();
             actusIndex.buildIndex(actusModel);
         }
@@ -32,8 +33,7 @@ class NlqActusCrifModelTest {
         try (InputStream is = NlqActusCrifModelTest.class.getResourceAsStream("/nlq/crif-model.pure")) {
             assertNotNull(is, "CRIF model not found");
             String src = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            crifModel = new PureModelBuilder();
-            crifModel.addSource(src);
+            crifModel = NlqModel.parse(src);
             crifIndex = new SemanticIndex();
             crifIndex.buildIndex(crifModel);
         }
@@ -44,7 +44,7 @@ class NlqActusCrifModelTest {
     @Test
     @DisplayName("ACTUS: loads 30+ contract types")
     void testActusClassCount() {
-        int count = actusModel.getAllClasses().size();
+        int count = NlqModel.allClasses(actusModel).size();
         System.out.println("ACTUS classes: " + count);
         assertTrue(count >= 30, "Expected >= 30, got " + count);
     }
@@ -74,7 +74,7 @@ class NlqActusCrifModelTest {
     @Test
     @DisplayName("CRIF: loads 10+ classes")
     void testCrifClassCount() {
-        int count = crifModel.getAllClasses().size();
+        int count = NlqModel.allClasses(crifModel).size();
         System.out.println("CRIF classes: " + count);
         assertTrue(count >= 10, "Expected >= 10, got " + count);
     }
@@ -105,9 +105,9 @@ class NlqActusCrifModelTest {
     @Test
     @DisplayName("Combined statistics")
     void testStats() {
-        var actusAll = actusModel.getAllClasses();
+        var actusAll = NlqModel.allClasses(actusModel);
         int actusProps = actusAll.values().stream().mapToInt(c -> c.properties().size()).sum();
-        var crifAll = crifModel.getAllClasses();
+        var crifAll = NlqModel.allClasses(crifModel);
         int crifProps = crifAll.values().stream().mapToInt(c -> c.properties().size()).sum();
         System.out.printf("\n  ACTUS: %d classes, %d properties%n", actusAll.size(), actusProps);
         System.out.printf("  CRIF:  %d classes, %d properties%n", crifAll.size(), crifProps);

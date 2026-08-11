@@ -1,10 +1,8 @@
 package org.finos.legend.engine.nlq;
 
-import com.gs.legend.model.ModelContext;
-import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.model.m3.Association;
-import com.gs.legend.model.m3.Property;
-import com.gs.legend.model.m3.PureClass;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
 
 import java.util.*;
 
@@ -25,18 +23,18 @@ public class ModelSchemaExtractor {
      * @param modelBuilder The model builder with the full model
      * @return A compact text schema suitable for LLM context
      */
-    public static String extractSchema(Set<String> classNames, PureModelBuilder modelBuilder) {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
-        Map<String, Association> allAssociations = modelBuilder.getAllAssociations();
+    public static String extractSchema(Set<String> classNames, ParsedModel model) {
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(model);
+        Map<String, AssociationDefinition> allAssociations = NlqModel.allAssociations(model);
 
         // Resolve class names to PureClass objects
-        Map<String, PureClass> primaryClasses = new LinkedHashMap<>();
+        Map<String, ClassDefinition> primaryClasses = new LinkedHashMap<>();
         for (String name : classNames) {
-            PureClass pc = allClasses.get(name);
+            ClassDefinition pc = allClasses.get(name);
             if (pc == null) {
                 // Try lookup by simple name
-                for (PureClass candidate : allClasses.values()) {
-                    if (candidate.name().equals(name)) {
+                for (ClassDefinition candidate : allClasses.values()) {
+                    if (NlqModel.simpleName(candidate.qualifiedName()).equals(name)) {
                         pc = candidate;
                         break;
                     }
@@ -48,16 +46,16 @@ public class ModelSchemaExtractor {
         }
 
         // Find associations between primary classes
-        List<Association> relevantAssociations = new ArrayList<>();
+        List<AssociationDefinition> relevantAssociations = new ArrayList<>();
         Set<String> primaryNames = new HashSet<>();
-        for (PureClass pc : primaryClasses.values()) {
+        for (ClassDefinition pc : primaryClasses.values()) {
             primaryNames.add(pc.qualifiedName());
-            primaryNames.add(pc.name());
+            primaryNames.add(NlqModel.simpleName(pc.qualifiedName()));
         }
 
-        for (Association assoc : allAssociations.values()) {
-            String t1 = assoc.property1().targetClass();
-            String t2 = assoc.property2().targetClass();
+        for (AssociationDefinition assoc : allAssociations.values()) {
+            String t1 = NlqModel.typeName(assoc.property1().targetClass());
+            String t2 = NlqModel.typeName(assoc.property2().targetClass());
             if (matchesAny(t1, primaryNames) || matchesAny(t2, primaryNames)) {
                 relevantAssociations.add(assoc);
             }
@@ -65,19 +63,19 @@ public class ModelSchemaExtractor {
 
         // Find 1-hop neighbors (reduced detail)
         Set<String> neighborNames = new HashSet<>();
-        for (Association assoc : relevantAssociations) {
-            String t1 = assoc.property1().targetClass();
-            String t2 = assoc.property2().targetClass();
+        for (AssociationDefinition assoc : relevantAssociations) {
+            String t1 = NlqModel.typeName(assoc.property1().targetClass());
+            String t2 = NlqModel.typeName(assoc.property2().targetClass());
             if (!matchesAny(t1, primaryNames)) neighborNames.add(t1);
             if (!matchesAny(t2, primaryNames)) neighborNames.add(t2);
         }
 
-        Map<String, PureClass> neighborClasses = new LinkedHashMap<>();
+        Map<String, ClassDefinition> neighborClasses = new LinkedHashMap<>();
         for (String name : neighborNames) {
-            PureClass pc = allClasses.get(name);
+            ClassDefinition pc = allClasses.get(name);
             if (pc == null) {
-                for (PureClass candidate : allClasses.values()) {
-                    if (candidate.name().equals(name)) {
+                for (ClassDefinition candidate : allClasses.values()) {
+                    if (NlqModel.simpleName(candidate.qualifiedName()).equals(name)) {
                         pc = candidate;
                         break;
                     }
@@ -91,26 +89,25 @@ public class ModelSchemaExtractor {
         // Build the schema text
         StringBuilder sb = new StringBuilder();
 
-        ModelContext ctx = modelBuilder;
 
         // Primary classes with full detail
         sb.append("=== Classes (full detail) ===\n\n");
-        for (PureClass pc : primaryClasses.values()) {
-            appendClassFull(sb, pc, ctx);
+        for (ClassDefinition pc : primaryClasses.values()) {
+            appendClassFull(sb, pc, allClasses);
         }
 
         // Neighbor classes with reduced detail
         if (!neighborClasses.isEmpty()) {
             sb.append("=== Related Classes (summary) ===\n\n");
-            for (PureClass pc : neighborClasses.values()) {
-                appendClassSummary(sb, pc, ctx);
+            for (ClassDefinition pc : neighborClasses.values()) {
+                appendClassSummary(sb, pc, allClasses);
             }
         }
 
         // Associations
         if (!relevantAssociations.isEmpty()) {
             sb.append("=== Associations ===\n\n");
-            for (Association assoc : relevantAssociations) {
+            for (AssociationDefinition assoc : relevantAssociations) {
                 appendAssociation(sb, assoc);
             }
         }
@@ -123,17 +120,17 @@ public class ModelSchemaExtractor {
      * plus a compact "Associations:" line per class listing connected class names.
      * No neighbor summaries or full association blocks — just what the router needs to pick.
      */
-    public static String extractPrimarySchema(Set<String> classNames, PureModelBuilder modelBuilder) {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
-        Map<String, Association> allAssociations = modelBuilder.getAllAssociations();
+    public static String extractPrimarySchema(Set<String> classNames, ParsedModel model) {
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(model);
+        Map<String, AssociationDefinition> allAssociations = NlqModel.allAssociations(model);
 
         // Resolve class names to PureClass objects
-        Map<String, PureClass> primaryClasses = new LinkedHashMap<>();
+        Map<String, ClassDefinition> primaryClasses = new LinkedHashMap<>();
         for (String name : classNames) {
-            PureClass pc = allClasses.get(name);
+            ClassDefinition pc = allClasses.get(name);
             if (pc == null) {
-                for (PureClass candidate : allClasses.values()) {
-                    if (candidate.name().equals(name)) {
+                for (ClassDefinition candidate : allClasses.values()) {
+                    if (NlqModel.simpleName(candidate.qualifiedName()).equals(name)) {
                         pc = candidate;
                         break;
                     }
@@ -145,23 +142,23 @@ public class ModelSchemaExtractor {
         }
 
         Set<String> primaryNames = new HashSet<>();
-        for (PureClass pc : primaryClasses.values()) {
+        for (ClassDefinition pc : primaryClasses.values()) {
             primaryNames.add(pc.qualifiedName());
-            primaryNames.add(pc.name());
+            primaryNames.add(NlqModel.simpleName(pc.qualifiedName()));
         }
 
         // Build per-class association target map
         Map<String, List<String>> assocTargets = new LinkedHashMap<>();
-        for (PureClass pc : primaryClasses.values()) {
+        for (ClassDefinition pc : primaryClasses.values()) {
             assocTargets.put(pc.qualifiedName(), new ArrayList<>());
         }
-        for (Association assoc : allAssociations.values()) {
-            String t1 = assoc.property1().targetClass();
-            String t2 = assoc.property2().targetClass();
+        for (AssociationDefinition assoc : allAssociations.values()) {
+            String t1 = NlqModel.typeName(assoc.property1().targetClass());
+            String t2 = NlqModel.typeName(assoc.property2().targetClass());
             // If t1 is primary, it navigates to t2
-            for (PureClass pc : primaryClasses.values()) {
+            for (ClassDefinition pc : primaryClasses.values()) {
                 String qn = pc.qualifiedName();
-                String sn = pc.name();
+                String sn = NlqModel.simpleName(pc.qualifiedName());
                 if (t1.equals(qn) || t1.equals(sn)) {
                     assocTargets.get(qn).add(simpleName(t2));
                 }
@@ -173,10 +170,9 @@ public class ModelSchemaExtractor {
 
         // Build schema text
         StringBuilder sb = new StringBuilder();
-        ModelContext ctx = modelBuilder;
         sb.append("=== Classes ===\n\n");
-        for (PureClass pc : primaryClasses.values()) {
-            appendClassFull(sb, pc, ctx);
+        for (ClassDefinition pc : primaryClasses.values()) {
+            appendClassFull(sb, pc, allClasses);
             List<String> targets = assocTargets.get(pc.qualifiedName());
             if (targets != null && !targets.isEmpty()) {
                 // Deduplicate and sort
@@ -196,7 +192,8 @@ public class ModelSchemaExtractor {
 
     // ==================== Formatting ====================
 
-    private static void appendClassFull(StringBuilder sb, PureClass pc, ModelContext ctx) {
+    private static void appendClassFull(StringBuilder sb, ClassDefinition pc,
+            Map<String, ClassDefinition> allClasses) {
         sb.append("Class ").append(pc.qualifiedName());
 
         // Stereotypes
@@ -204,55 +201,55 @@ public class ModelSchemaExtractor {
             sb.append(" <<");
             for (int i = 0; i < pc.stereotypes().size(); i++) {
                 if (i > 0) sb.append(", ");
-                sb.append(pc.stereotypes().get(i).toReference());
+                sb.append(pc.stereotypes().get(i).profileName() + "." + pc.stereotypes().get(i).stereotypeName());
             }
             sb.append(">>");
         }
         sb.append("\n");
 
         // Class-level description
-        String desc = pc.getTagValue("nlq::NlqProfile", "description");
-        if (desc == null) desc = pc.getTagValue("doc", "doc");
+        String desc = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "description");
+        if (desc == null) desc = NlqModel.tag(pc.taggedValues(), "doc", "doc");
         if (desc != null) {
             sb.append("  Description: ").append(desc).append("\n");
         }
 
         // Synonyms
-        String syn = pc.getTagValue("nlq::NlqProfile", "synonyms");
+        String syn = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "synonyms");
         if (syn != null) {
             sb.append("  Synonyms: ").append(syn).append("\n");
         }
 
         // Business domain
-        String domain = pc.getTagValue("nlq::NlqProfile", "businessDomain");
+        String domain = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "businessDomain");
         if (domain != null) {
             sb.append("  Domain: ").append(domain).append("\n");
         }
 
         // When to use (routing hint)
-        String whenToUse = pc.getTagValue("nlq::NlqProfile", "whenToUse");
+        String whenToUse = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "whenToUse");
         if (whenToUse != null) {
             sb.append("  When to use: ").append(whenToUse).append("\n");
         }
 
         // Properties
         sb.append("  Properties:\n");
-        for (Property prop : pc.allProperties(ctx)) {
+        for (var prop : NlqModel.allProperties(pc, allClasses)) {
             sb.append("    - ").append(prop.name())
-              .append(": ").append(prop.typeFqn())
-              .append(prop.multiplicity());
+              .append(": ").append(NlqModel.typeName(prop.type()))
+              .append(NlqModel.multText(prop.multiplicity()));
 
-            String propDesc = prop.getTagValue("nlq::NlqProfile", "description");
+            String propDesc = NlqModel.tag(prop.taggedValues(), "nlq::NlqProfile", "description");
             if (propDesc != null) {
                 sb.append("  // ").append(propDesc);
             }
 
-            String unit = prop.getTagValue("nlq::NlqProfile", "unit");
+            String unit = NlqModel.tag(prop.taggedValues(), "nlq::NlqProfile", "unit");
             if (unit != null) {
                 sb.append(" [").append(unit).append("]");
             }
 
-            String sample = prop.getTagValue("nlq::NlqProfile", "sampleValues");
+            String sample = NlqModel.tag(prop.taggedValues(), "nlq::NlqProfile", "sampleValues");
             if (sample != null) {
                 sb.append(" e.g. ").append(sample);
             }
@@ -262,32 +259,33 @@ public class ModelSchemaExtractor {
         sb.append("\n");
     }
 
-    private static void appendClassSummary(StringBuilder sb, PureClass pc, ModelContext ctx) {
+    private static void appendClassSummary(StringBuilder sb, ClassDefinition pc,
+            Map<String, ClassDefinition> allClasses) {
         sb.append("Class ").append(pc.qualifiedName());
 
-        String desc = pc.getTagValue("nlq::NlqProfile", "description");
-        if (desc == null) desc = pc.getTagValue("doc", "doc");
+        String desc = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "description");
+        if (desc == null) desc = NlqModel.tag(pc.taggedValues(), "doc", "doc");
         if (desc != null) {
             sb.append(" — ").append(desc);
         }
 
-        sb.append(" (").append(pc.allProperties(ctx).size()).append(" properties)\n");
+        sb.append(" (").append(NlqModel.allProperties(pc, allClasses).size()).append(" properties)\n");
     }
 
-    private static void appendAssociation(StringBuilder sb, Association assoc) {
-        sb.append(assoc.property1().targetClass())
+    private static void appendAssociation(StringBuilder sb, AssociationDefinition assoc) {
+        sb.append(NlqModel.typeName(assoc.property1().targetClass()))
           .append(".").append(assoc.property2().propertyName())
           .append(" → ")
-          .append(assoc.property2().targetClass())
-          .append("[").append(assoc.property2().multiplicity()).append("]");
+          .append(NlqModel.typeName(assoc.property2().targetClass()))
+          .append(NlqModel.multText(assoc.property2().multiplicity()));
 
         sb.append("  |  ");
 
-        sb.append(assoc.property2().targetClass())
+        sb.append(NlqModel.typeName(assoc.property2().targetClass()))
           .append(".").append(assoc.property1().propertyName())
           .append(" → ")
-          .append(assoc.property1().targetClass())
-          .append("[").append(assoc.property1().multiplicity()).append("]");
+          .append(NlqModel.typeName(assoc.property1().targetClass()))
+          .append(NlqModel.multText(assoc.property1().multiplicity()));
 
         sb.append("\n");
     }
@@ -297,15 +295,15 @@ public class ModelSchemaExtractor {
      * Builds a compact string of disambiguation hints from whenToUse and exampleQuestions tags.
      * Returns empty string if no hints are found (model-agnostic).
      */
-    public static String extractRoutingHints(Set<String> classNames, PureModelBuilder modelBuilder) {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+    public static String extractRoutingHints(Set<String> classNames, ParsedModel model) {
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(model);
         StringBuilder sb = new StringBuilder();
 
         for (String name : classNames) {
-            PureClass pc = allClasses.get(name);
+            ClassDefinition pc = allClasses.get(name);
             if (pc == null) {
-                for (PureClass candidate : allClasses.values()) {
-                    if (candidate.name().equals(name)) {
+                for (ClassDefinition candidate : allClasses.values()) {
+                    if (NlqModel.simpleName(candidate.qualifiedName()).equals(name)) {
                         pc = candidate;
                         break;
                     }
@@ -313,11 +311,11 @@ public class ModelSchemaExtractor {
             }
             if (pc == null) continue;
 
-            String whenToUse = pc.getTagValue("nlq::NlqProfile", "whenToUse");
-            String examples = pc.getTagValue("nlq::NlqProfile", "exampleQuestions");
+            String whenToUse = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "whenToUse");
+            String examples = NlqModel.tag(pc.taggedValues(), "nlq::NlqProfile", "exampleQuestions");
 
             if (whenToUse != null || examples != null) {
-                sb.append(pc.name()).append(": ");
+                sb.append(NlqModel.simpleName(pc.qualifiedName())).append(": ");
                 if (whenToUse != null) {
                     sb.append(whenToUse);
                 }

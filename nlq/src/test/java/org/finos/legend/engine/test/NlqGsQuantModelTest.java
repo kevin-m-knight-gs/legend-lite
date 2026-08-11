@@ -2,8 +2,9 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
 import org.finos.legend.engine.nlq.ModelSchemaExtractor;
-import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.model.m3.PureClass;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("NLQ GS-Quant Model — Smoke Tests")
 class NlqGsQuantModelTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
 
     @BeforeAll
@@ -31,8 +32,7 @@ class NlqGsQuantModelTest {
             pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
 
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);
@@ -41,7 +41,7 @@ class NlqGsQuantModelTest {
     @Test
     @DisplayName("Model loads 600+ classes")
     void testClassCount() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         System.out.println("GS-Quant classes loaded: " + allClasses.size());
         assertTrue(allClasses.size() >= 600,
                 "Expected at least 600 classes, got " + allClasses.size());
@@ -58,19 +58,19 @@ class NlqGsQuantModelTest {
     @Test
     @DisplayName("Key instrument classes exist")
     void testInstrumentClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("rates::IRSwap"), "IRSwap missing");
-        assertNotNull(modelBuilder.getAllClasses().get("rates::IRSwaption"), "IRSwaption missing");
-        assertNotNull(modelBuilder.getAllClasses().get("equity::EqOption"), "EqOption missing");
-        assertNotNull(modelBuilder.getAllClasses().get("fx::FXOption"), "FXOption missing");
-        assertNotNull(modelBuilder.getAllClasses().get("rates::Bond"), "Bond missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("rates::IRSwap"), "IRSwap missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("rates::IRSwaption"), "IRSwaption missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("equity::EqOption"), "EqOption missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("fx::FXOption"), "FXOption missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("rates::Bond"), "Bond missing");
     }
 
     @Test
     @DisplayName("Key domain classes exist")
     void testDomainClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("portfolio::Portfolio"), "Portfolio missing");
-        assertNotNull(modelBuilder.getAllClasses().get("common::RiskMeasure"), "RiskMeasure missing");
-        assertNotNull(modelBuilder.getAllClasses().get("secmaster::SecMasterRecord"), "SecMaster class missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("portfolio::Portfolio"), "Portfolio missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("common::RiskMeasure"), "RiskMeasure missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("secmaster::SecMasterRecord"), "SecMaster class missing");
     }
 
     @Test
@@ -153,7 +153,7 @@ class NlqGsQuantModelTest {
     @Test
     @DisplayName("Model statistics summary")
     void testModelStats() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         int totalProps = allClasses.values().stream()
                 .mapToInt(c -> c.properties().size())
                 .sum();

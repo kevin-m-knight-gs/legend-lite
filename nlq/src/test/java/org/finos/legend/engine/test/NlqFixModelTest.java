@@ -1,7 +1,9 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -14,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("NLQ FIX Orchestra Model — Smoke Tests")
 class NlqFixModelTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
 
     @BeforeAll
@@ -24,8 +26,7 @@ class NlqFixModelTest {
             assertNotNull(is, "FIX model resource not found");
             pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);
     }
@@ -33,7 +34,7 @@ class NlqFixModelTest {
     @Test
     @DisplayName("Model loads 250+ classes")
     void testClassCount() {
-        int count = modelBuilder.getAllClasses().size();
+        int count = NlqModel.allClasses(modelBuilder).size();
         System.out.println("FIX classes: " + count);
         assertTrue(count >= 250, "Expected >= 250 classes, got " + count);
     }
@@ -67,7 +68,7 @@ class NlqFixModelTest {
     @Test
     @DisplayName("Model statistics")
     void testStats() {
-        var all = modelBuilder.getAllClasses();
+        var all = NlqModel.allClasses(modelBuilder);
         int totalProps = all.values().stream().mapToInt(c -> c.properties().size()).sum();
         Set<String> domains = new HashSet<>();
         all.keySet().forEach(n -> { if (n.contains("::")) domains.add(n.substring(0, n.indexOf("::"))); });

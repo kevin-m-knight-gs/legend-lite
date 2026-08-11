@@ -1,7 +1,9 @@
 package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.*;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 
 import java.io.InputStream;
@@ -17,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NlqPipelineTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
 
     @BeforeAll
@@ -26,8 +28,7 @@ class NlqPipelineTest {
         assertNotNull(is, "Test model not found");
         String pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
 
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);

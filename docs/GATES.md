@@ -2,8 +2,13 @@
 
 Established 2026-08-02 after the engine-suite audit: 23 tests had been
 failing for months because only the corpus runner was gated. The FULL
-engine suite is the acceptance scoreboard for core — a runner-only
-cycle is not a gate.
+suite is the acceptance scoreboard — a runner-only cycle is not a gate.
+
+**2026-08-11: the engine module is DELETED.** Its behavioral suite lives in
+core (`com.legend.integration`), the corpus runner in `com.legend.rcorpus`,
+the server shell in `com.legend.server`. Gate 3 (engine suite) folded into
+gate 1; gates 4/5 run `-pl core`. Gate numbers stay stable in
+`tools/allgates.sh` so logs remain comparable.
 
 **Numbers below are refreshed 2026-08-06.** Prefer regenerating a report to
 quoting one; the ratchet constants in the test sources are the authority, and
@@ -96,9 +101,9 @@ Measured 2026-08-08, sequentially, nothing concurrent:
 
 | # | gate | time |
 |---|------|------|
-| 1 | core suite (clean, 1,658 tests) | 13s |
+| 1 | core suite (clean, ~4,000 tests — engine's behavioral suite folded in) | ~35s |
 | 2 | core install | 1s |
-| 3 | engine suite (2,729 tests) | 21s |
+| 3 | (folded into gate 1 — engine module deleted) | — |
 | 4 | **DuckDB corpus sweep** | **92s** |
 | 5 | h2 corpus sweep | 41s |
 | 6 | **PCT full (1,109)** | **73s** |

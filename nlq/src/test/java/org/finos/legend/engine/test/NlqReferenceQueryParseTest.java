@@ -2,7 +2,6 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.eval.NlqEvalCase;
 import org.finos.legend.engine.nlq.eval.NlqEvalRunner;
-import com.gs.legend.parser.PureParser;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -53,7 +52,7 @@ class NlqReferenceQueryParseTest {
     @DisplayName("Sales-Trading reference queries parse")
     void testSalesTradingReferenceQueryParses(QueryCase qc) {
         assertDoesNotThrow(
-                () -> PureParser.parseQuery(qc.referenceQuery()),
+                () -> com.legend.parser.SpecParser.parse(qc.referenceQuery()),
                 qc.id() + " referenceQuery failed to parse: " + qc.referenceQuery()
         );
     }
@@ -63,7 +62,7 @@ class NlqReferenceQueryParseTest {
     @DisplayName("CDM reference queries parse")
     void testCdmReferenceQueryParses(QueryCase qc) {
         assertDoesNotThrow(
-                () -> PureParser.parseQuery(qc.referenceQuery()),
+                () -> com.legend.parser.SpecParser.parse(qc.referenceQuery()),
                 qc.id() + " referenceQuery failed to parse: " + qc.referenceQuery()
         );
     }

@@ -19,7 +19,7 @@
         <!-- Legend-Lite Engine (provides PureModelBuilder, PureClass, etc.) -->
         <dependency>
             <groupId>org.finos.legend</groupId>
-            <artifactId>legend-lite-engine</artifactId>
+            <artifactId>legend-lite-core</artifactId>
         </dependency>
 
         <!-- JUnit 5 -->

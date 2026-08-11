@@ -4,7 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.legend.server.LegendHttpServer;
 import com.legend.server.Json;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ParsedModel;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -100,8 +100,7 @@ public class NlqHttpServer {
                 }
 
                 // Build model and index
-                PureModelBuilder modelBuilder = new PureModelBuilder();
-                modelBuilder.addSource(pureSource);
+                ParsedModel modelBuilder = NlqModel.parse(pureSource);
 
                 SemanticIndex index = new SemanticIndex();
                 index.buildIndex(modelBuilder);

@@ -2,10 +2,10 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
 import org.finos.legend.engine.nlq.ModelSchemaExtractor;
-import com.gs.legend.model.def.EnumDefinition;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import com.gs.legend.model.m3.*;
-import com.gs.legend.model.SymbolTable;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -22,7 +22,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("NLQ ISDA CDM Model — Smoke Tests")
 class NlqCdmModelTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
+    private static com.legend.compiler.element.ModelContext compiled;
     private static SemanticIndex index;
 
     @BeforeAll
@@ -33,8 +34,8 @@ class NlqCdmModelTest {
             pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
+        compiled = com.legend.Compiler.compileModel(pureSource);
 
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);
@@ -43,7 +44,7 @@ class NlqCdmModelTest {
     @Test
     @DisplayName("Model loads 700+ classes")
     void testClassCount() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         System.out.println("CDM classes loaded: " + allClasses.size());
         assertTrue(allClasses.size() >= 700,
                 "Expected at least 700 classes, got " + allClasses.size());
@@ -60,24 +61,24 @@ class NlqCdmModelTest {
     @Test
     @DisplayName("Key product classes exist")
     void testProductClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("template::EconomicTerms"), "EconomicTerms missing");
-        assertNotNull(modelBuilder.getAllClasses().get("template::TransferableProduct"), "TransferableProduct missing");
-        assertNotNull(modelBuilder.getAllClasses().get("product::InterestRatePayout"), "InterestRatePayout missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("template::EconomicTerms"), "EconomicTerms missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("template::TransferableProduct"), "TransferableProduct missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("product::InterestRatePayout"), "InterestRatePayout missing");
     }
 
     @Test
     @DisplayName("Key event classes exist")
     void testEventClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("event::BusinessEvent"), "BusinessEvent missing");
-        assertNotNull(modelBuilder.getAllClasses().get("event::TradeState"), "TradeState missing");
-        assertNotNull(modelBuilder.getAllClasses().get("event::Trade"), "Trade missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("event::BusinessEvent"), "BusinessEvent missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("event::TradeState"), "TradeState missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("event::Trade"), "Trade missing");
     }
 
     @Test
     @DisplayName("Key party/asset classes exist")
     void testRefDataClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("party::Party"), "Party missing");
-        assertNotNull(modelBuilder.getAllClasses().get("asset::AssetIdentifier"), "AssetIdentifier missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("party::Party"), "Party missing");
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("asset::AssetIdentifier"), "AssetIdentifier missing");
     }
 
     @Test
@@ -152,7 +153,7 @@ class NlqCdmModelTest {
     @Test
     @DisplayName("Model has 250+ enum definitions")
     void testEnumCount() {
-        Map<String, EnumDefinition> allEnums = modelBuilder.getAllEnums();
+        Map<String, com.legend.model.EnumDefinition> allEnums = NlqModel.allEnums(modelBuilder);
         System.out.println("CDM enums loaded: " + allEnums.size());
         assertTrue(allEnums.size() >= 250,
                 "Expected at least 250 enums, got " + allEnums.size());
@@ -161,20 +162,20 @@ class NlqCdmModelTest {
     @Test
     @DisplayName("Key enums exist with correct values")
     void testKeyEnums() {
-        EnumDefinition actionEnum = modelBuilder.getEnum("event::ActionEnum");
+        var actionEnum = compiled.findEnum("event::ActionEnum").orElse(null);
         assertNotNull(actionEnum, "ActionEnum missing");
-        assertTrue(actionEnum.hasValue("New"), "ActionEnum should have 'New'");
-        assertTrue(actionEnum.hasValue("Cancel"), "ActionEnum should have 'Cancel'");
+        assertTrue(actionEnum.values().contains("New"), "ActionEnum should have 'New'");
+        assertTrue(actionEnum.values().contains("Cancel"), "ActionEnum should have 'Cancel'");
 
-        EnumDefinition creditEventType = modelBuilder.getEnum("event::CreditEventTypeEnum");
+        var creditEventType = compiled.findEnum("event::CreditEventTypeEnum").orElse(null);
         assertNotNull(creditEventType, "CreditEventTypeEnum missing");
-        assertTrue(creditEventType.hasValue("Bankruptcy"), "CreditEventTypeEnum should have 'Bankruptcy'");
+        assertTrue(creditEventType.values().contains("Bankruptcy"), "CreditEventTypeEnum should have 'Bankruptcy'");
     }
 
     @Test
     @DisplayName("Model has 1100+ associations")
     void testAssociationCount() {
-        int assocCount = modelBuilder.getAllAssociations().size();
+        int assocCount = NlqModel.allAssociations(modelBuilder).size();
         System.out.println("CDM associations loaded: " + assocCount);
         assertTrue(assocCount >= 1100,
                 "Expected at least 1100 associations, got " + assocCount);
@@ -184,12 +185,13 @@ class NlqCdmModelTest {
     @DisplayName("Properties are correctly typed (no class refs on class body)")
     void testPropertyTypes() {
         int enumProps = 0, primitiveProps = 0, classProps = 0;
-        for (PureClass pc : modelBuilder.getAllClasses().values()) {
-            for (Property p : pc.allProperties(modelBuilder)) {
-                Type t = p.type();
-                if (t instanceof Type.EnumType) enumProps++;
-                else if (t instanceof Primitive) primitiveProps++;
-                else if (t instanceof Type.ClassType) classProps++;
+        for (String fqn : NlqModel.allClasses(modelBuilder).keySet()) {
+            var tc = compiled.findClass(fqn).orElseThrow();
+            for (var p : tc.properties()) {
+                var t = p.type();
+                if (t instanceof com.legend.compiler.element.type.Type.EnumType) enumProps++;
+                else if (t instanceof com.legend.compiler.element.type.Type.Primitive) primitiveProps++;
+                else if (t instanceof com.legend.compiler.element.type.Type.ClassType) classProps++;
             }
         }
         System.out.printf("Property types — primitive: %d, enum: %d, class: %d%n",
@@ -202,22 +204,20 @@ class NlqCdmModelTest {
     @Test
     @DisplayName("CreditEvent has enum-typed creditEventType property")
     void testEnumTypedProperty() {
-        PureClass ce = modelBuilder.getAllClasses().get("event::CreditEvent");
-        assertNotNull(ce, "CreditEvent missing");
-        Property cet = ce.allProperties(modelBuilder).stream()
-                .filter(p -> p.name().equals("creditEventType"))
-                .findFirst().orElse(null);
+        var cet = compiled.findProperty("event::CreditEvent", "creditEventType")
+                .orElse(null);
         assertNotNull(cet, "creditEventType property missing");
-        assertInstanceOf(Type.EnumType.class, cet.type(),
-                "creditEventType should be a Type.EnumType, got: " + cet.type().getClass().getSimpleName());
+        assertInstanceOf(com.legend.compiler.element.type.Type.EnumType.class, cet.type(),
+                "creditEventType should be an EnumType, got: " + cet.type().getClass().getSimpleName());
         // Simple name matches the pre-flag-day assertEquals("CreditEventTypeEnum", typeName()) exactly.
-        assertEquals("CreditEventTypeEnum", SymbolTable.extractSimpleName(cet.typeFqn()));
+        assertEquals("CreditEventTypeEnum", NlqModel.simpleName(
+                ((com.legend.compiler.element.type.Type.EnumType) cet.type()).fqn()));
     }
 
     @Test
     @DisplayName("Model statistics summary")
     void testModelStats() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         int totalProps = allClasses.values().stream()
                 .mapToInt(c -> c.properties().size())
                 .sum();
@@ -232,10 +232,10 @@ class NlqCdmModelTest {
         System.out.println("\n═══════════════════════════════════════════════════");
         System.out.println("  ISDA CDM Pure Model Statistics");
         System.out.println("═══════════════════════════════════════════════════");
-        System.out.printf("  Enums:        %d%n", modelBuilder.getAllEnums().size());
+        System.out.printf("  Enums:        %d%n", NlqModel.allEnums(modelBuilder).size());
         System.out.printf("  Classes:      %d%n", allClasses.size());
         System.out.printf("  Properties:   %d%n", totalProps);
-        System.out.printf("  Associations: %d%n", modelBuilder.getAllAssociations().size());
+        System.out.printf("  Associations: %d%n", NlqModel.allAssociations(modelBuilder).size());
         System.out.printf("  Domains:      %d (%s)%n", domains.size(), domains);
         System.out.printf("  Index entries: %d%n", index.size());
         System.out.println("═══════════════════════════════════════════════════");

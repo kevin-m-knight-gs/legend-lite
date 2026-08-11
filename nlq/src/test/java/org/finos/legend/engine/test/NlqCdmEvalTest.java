@@ -2,7 +2,9 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.*;
 import org.finos.legend.engine.nlq.eval.*;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
@@ -24,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NlqCdmEvalTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
     private static GeminiClient gemini;
     private static NlqService service;
@@ -38,8 +40,7 @@ class NlqCdmEvalTest {
         assertNotNull(is, "CDM model not found");
         String pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
 
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);
@@ -51,7 +52,7 @@ class NlqCdmEvalTest {
         evalCases = NlqEvalRunner.loadCases("/nlq/cdm-eval-cases.json");
 
         System.out.println("Running CDM eval for " + evalCases.size() + " cases (" + 
-                modelBuilder.getAllClasses().size() + " classes)...");
+                NlqModel.allClasses(modelBuilder).size() + " classes)...");
         results = runner.runFullPipelineEval(evalCases, service, gemini);
     }
 

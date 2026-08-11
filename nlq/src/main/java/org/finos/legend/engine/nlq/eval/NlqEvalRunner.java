@@ -5,7 +5,8 @@ import org.finos.legend.engine.nlq.ModelSchemaExtractor;
 import org.finos.legend.engine.nlq.NlqResult;
 import org.finos.legend.engine.nlq.NlqService;
 import org.finos.legend.engine.nlq.SemanticIndex;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,14 +26,14 @@ import java.util.stream.Collectors;
 public class NlqEvalRunner {
 
     private final SemanticIndex index;
-    private final PureModelBuilder modelBuilder;
+    private final ParsedModel modelBuilder;
 
-    public NlqEvalRunner(SemanticIndex index, PureModelBuilder modelBuilder) {
+    public NlqEvalRunner(SemanticIndex index, ParsedModel modelBuilder) {
         this.index = Objects.requireNonNull(index);
         this.modelBuilder = Objects.requireNonNull(modelBuilder);
     }
 
-    public PureModelBuilder getModelBuilder() {
+    public ParsedModel getModelBuilder() {
         return modelBuilder;
     }
 
@@ -111,7 +112,7 @@ public class NlqEvalRunner {
         // For small models (<100 classes), build full schema once for the judge.
         // For large models, we'll build per-question scoped schema to keep prompts small.
         List<SemanticIndex.RetrievalResult> allClasses = index.retrieve("", 100);
-        boolean isLargeModel = modelBuilder.getAllClasses().size() > 100;
+        boolean isLargeModel = NlqModel.allClasses(modelBuilder).size() > 100;
         String fullSchema = null;
         if (!isLargeModel) {
             Set<String> allClassNames = allClasses.stream()

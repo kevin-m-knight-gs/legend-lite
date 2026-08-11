@@ -22,7 +22,7 @@ jobs:
           cache: maven
       - name: core (null gate + suite; clean is load-bearing)
         run: mvn -B -pl core clean test
-      - name: install core for engine
+      - name: install core
         run: mvn -B -pl core install -DskipTests
       - name: corpus sweep (self-checks vs committed scoreboard)
-        run: mvn -B -pl engine test -Dtest=RelationalCorpusRunner
+        run: mvn -B -pl core test -Dtest=RelationalCorpusRunner

@@ -16,35 +16,24 @@
 > their type names do not. Each carries a name-mapping banner. Take names from
 > here and from `core/README.md`.
 
-## Read this first: there are two trees, and you almost certainly want `core/`
+## Read this first: ONE tree — the engine module is deleted (2026-08-11)
 
-| | `core/src/main/java/com/legend/` | `engine/src/main/java/com/gs/legend/` |
-|---|---|---|
-| status | **LIVE.** All compiler work happens here. | **LEGACY**, frozen — last substantive change 2026-07-18. |
-| size | 418 files / ~120,716 LOC | 341 files / ~47,949 LOC |
-| back half | the whole pipeline | switched off (`System.getProperty("legend.pipeline","core")`) |
+`core/` is the whole product. The legacy `engine/` module (`com.gs.legend`)
+was deleted after everything real moved in:
 
-`com.gs.legend`'s parser, compiler, model, plan, sql and sqlgen packages all
-have live `com.legend` counterparts. **Core is authoritative — do not read,
-copy, or "fix" the legacy versions.** The wall is enforced: nothing under
-`com.legend.*` may import `com.gs.legend.*` (`ArchitectureTest:50`).
+- **Server shell** (HTTP, LSP, diagrams, query service, JSON lib,
+  serializers) → `core com.legend.server`.
+- **Behavioral test suite** (checker/integration tests, ~4,000 tests) →
+  `core/src/test/.../com/legend/integration`.
+- **Relational corpus scoreboard** → `com.legend.rcorpus` (gates 4/5 run
+  `-pl core`).
+- **Stress benchmarks** → ported onto `Compiler.compileModel`/`lowerResolved`.
+- Hosted services and the mapping-testSuites runner were engine-lite
+  inventions and were deleted, not ported —
+  `docs/DEFERRED_TEST_EXECUTION.md` is the re-implementation charter.
 
-**Legitimate reasons to open `engine/`** — capabilities core genuinely does
-not have:
-
-- **HTTP server + routing** — `server/LegendHttpServer` (core has no wire layer).
-- **JSON *writing*** — `util/Json`. Core's `sql/Json` is **parse-only**; there
-  is no general JSON emitter in core.
-- **Result serialization** — `serial/{JsonSerializer,CsvSerializer,...}`.
-- **LSP** — `server/PureLspServer`. Core's `ide/` is dormant parsing infra by
-  its own `package-info`; no JSON-RPC, no diagnostics.
-- **Diagrams** — `server/DiagramService`. Core lexes `###Diagram` and discards it.
-- **The relational corpus scoreboard** — `engine/src/test/.../rcorpus/`. This
-  lives under `engine/` but **measures core**; it calls `com.legend.sql.dialect.DuckDb`
-  and `com.legend.exec.Executor` directly.
-
-The legacy→core bridge is exactly three files: `QueryService.java:82`,
-`PlanGenerator.java:101`, `CoreBridge.java`.
+Recover legacy sources via git history (last present at tag-commit
+`4e3f0552`'s parent chain). Do not resurrect them.
 
 ## Pipeline — 11 steps, one driver
 
@@ -252,8 +241,8 @@ Cross-project dependencies must not force-load the transitive graph.
   every step.
 
 > **The two automated guards — `NoEagerTypeReferencesTest` and
-> `NoEagerUserClassLoadsTest` — live in `engine/src/test` and scan
-> `com.gs.legend` only.** Core has **no lazy-loading enforcement at all**. If
+> `NoEagerUserClassLoadsTest` — died with the engine module.** Core has
+> **no lazy-loading enforcement at all**. If
 > you break this in core, nothing turns red.
 
 ### 6. F must not trigger G `[CONVENTION]`

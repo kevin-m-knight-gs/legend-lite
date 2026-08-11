@@ -35,7 +35,7 @@
         <!-- Legend-Lite Engine (the code we're testing) -->
         <dependency>
             <groupId>org.finos.legend</groupId>
-            <artifactId>legend-lite-engine</artifactId>
+            <artifactId>legend-lite-core</artifactId>
         </dependency>
 
         <!-- Legend Pure M3/M4 core -->

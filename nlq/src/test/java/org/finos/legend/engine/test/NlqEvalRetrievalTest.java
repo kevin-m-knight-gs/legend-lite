@@ -6,8 +6,9 @@ import org.finos.legend.engine.nlq.eval.NlqEvalCase;
 import org.finos.legend.engine.nlq.eval.NlqEvalMetrics;
 import org.finos.legend.engine.nlq.eval.NlqEvalResult;
 import org.finos.legend.engine.nlq.eval.NlqEvalRunner;
-import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.model.m3.PureClass;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("NLQ Retrieval Eval — Sales & Trading")
 class NlqEvalRetrievalTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
     private static List<NlqEvalCase> evalCases;
 
@@ -43,8 +44,7 @@ class NlqEvalRetrievalTest {
         }
 
         // Parse and build the model
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
 
         // Build the semantic index
         index = new SemanticIndex();
@@ -59,7 +59,7 @@ class NlqEvalRetrievalTest {
     @Test
     @DisplayName("Model loads with expected class count")
     void testModelClassCount() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         // We expect ~20+ classes from the S&T model (excluding enum-only classes)
         assertTrue(allClasses.size() >= 15,
                 "Expected at least 15 classes, got " + allClasses.size());

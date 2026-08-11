@@ -1,7 +1,6 @@
 package org.finos.legend.engine.nlq;
 
-import com.gs.legend.parser.PureParser;
-import com.gs.legend.model.PureModelBuilder;
+import com.legend.model.ParsedModel;
 
 import java.util.List;
 import java.util.Set;
@@ -226,10 +225,10 @@ public class NlqService {
     private static final int MAX_RETRIES = 2;
 
     private final SemanticIndex index;
-    private final PureModelBuilder modelBuilder;
+    private final ParsedModel modelBuilder;
     private final LlmClient llmClient;
 
-    public NlqService(SemanticIndex index, PureModelBuilder modelBuilder, LlmClient llmClient) {
+    public NlqService(SemanticIndex index, ParsedModel modelBuilder, LlmClient llmClient) {
         this.index = index;
         this.modelBuilder = modelBuilder;
         this.llmClient = llmClient;
@@ -274,7 +273,7 @@ public class NlqService {
             for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
                 try {
-                    PureParser.parseQuery(pureQuery);
+                    com.legend.parser.SpecParser.parse(pureQuery);
                     lastParseError = null;
                     break;
                 } catch (Exception e) {

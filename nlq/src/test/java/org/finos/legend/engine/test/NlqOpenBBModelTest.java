@@ -2,8 +2,9 @@ package org.finos.legend.engine.test;
 
 import org.finos.legend.engine.nlq.SemanticIndex;
 import org.finos.legend.engine.nlq.ModelSchemaExtractor;
-import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.model.m3.PureClass;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
+import org.finos.legend.engine.nlq.NlqModel;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("NLQ OpenBB Model — Smoke Tests")
 class NlqOpenBBModelTest {
 
-    private static PureModelBuilder modelBuilder;
+    private static ParsedModel modelBuilder;
     private static SemanticIndex index;
 
     @BeforeAll
@@ -31,8 +32,7 @@ class NlqOpenBBModelTest {
             pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        modelBuilder = new PureModelBuilder();
-        modelBuilder.addSource(pureSource);
+        modelBuilder = NlqModel.parse(pureSource);
 
         index = new SemanticIndex();
         index.buildIndex(modelBuilder);
@@ -41,7 +41,7 @@ class NlqOpenBBModelTest {
     @Test
     @DisplayName("Model loads 170+ classes")
     void testClassCount() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         System.out.println("OpenBB classes loaded: " + allClasses.size());
         assertTrue(allClasses.size() >= 170,
                 "Expected at least 170 classes, got " + allClasses.size());
@@ -58,27 +58,27 @@ class NlqOpenBBModelTest {
     @Test
     @DisplayName("Key equity classes exist")
     void testEquityClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("equity::EquityHistorical"));
-        assertNotNull(modelBuilder.getAllClasses().get("equity::EquityQuote"));
-        assertNotNull(modelBuilder.getAllClasses().get("equity::EquityInfo"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("equity::EquityHistorical"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("equity::EquityQuote"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("equity::EquityInfo"));
     }
 
     @Test
     @DisplayName("Key fundamentals classes exist")
     void testFundamentalsClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("fundamentals::BalanceSheet"));
-        assertNotNull(modelBuilder.getAllClasses().get("fundamentals::IncomeStatement"));
-        assertNotNull(modelBuilder.getAllClasses().get("fundamentals::CashFlow"));
-        assertNotNull(modelBuilder.getAllClasses().get("fundamentals::KeyMetrics"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("fundamentals::BalanceSheet"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("fundamentals::IncomeStatement"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("fundamentals::CashFlow"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("fundamentals::KeyMetrics"));
     }
 
     @Test
     @DisplayName("Cross-domain classes exist")
     void testCrossDomainClasses() {
-        assertNotNull(modelBuilder.getAllClasses().get("refdata::Security"));
-        assertNotNull(modelBuilder.getAllClasses().get("derivatives::OptionsChains"));
-        assertNotNull(modelBuilder.getAllClasses().get("macro::ConsumerPriceIndex"));
-        assertNotNull(modelBuilder.getAllClasses().get("fixedincome::TreasuryRates"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("refdata::Security"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("derivatives::OptionsChains"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("macro::ConsumerPriceIndex"));
+        assertNotNull(NlqModel.allClasses(modelBuilder).get("fixedincome::TreasuryRates"));
     }
 
     @Test
@@ -162,7 +162,7 @@ class NlqOpenBBModelTest {
     @Test
     @DisplayName("Model statistics summary")
     void testModelStats() {
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(modelBuilder);
         int totalProps = allClasses.values().stream()
                 .mapToInt(c -> c.properties().size())
                 .sum();

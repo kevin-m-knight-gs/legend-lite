@@ -1,10 +1,8 @@
 package org.finos.legend.engine.nlq;
 
-import com.gs.legend.model.ModelContext;
-import com.gs.legend.model.PureModelBuilder;
-import com.gs.legend.model.m3.Association;
-import com.gs.legend.model.m3.Property;
-import com.gs.legend.model.m3.PureClass;
+import com.legend.model.AssociationDefinition;
+import com.legend.model.ClassDefinition;
+import com.legend.model.ParsedModel;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -67,19 +65,18 @@ public class SemanticIndex {
      * Builds the index from a PureModelBuilder. Extracts NLQ metadata
      * from class and property tagged values.
      */
-    public void buildIndex(PureModelBuilder modelBuilder) {
+    public void buildIndex(ParsedModel model) {
         entries.clear();
         idf.clear();
 
-        Map<String, PureClass> allClasses = modelBuilder.getAllClasses();
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(model);
         totalDocuments = allClasses.size();
-        ModelContext ctx = modelBuilder;
 
         // Phase 1: Build entries and collect document frequencies
         Map<String, Integer> docFreq = new HashMap<>();
 
-        for (PureClass pc : allClasses.values()) {
-            ClassIndexEntry entry = buildEntry(pc, ctx);
+        for (ClassDefinition pc : allClasses.values()) {
+            ClassIndexEntry entry = buildEntry(pc, allClasses);
             entries.add(entry);
 
             // Count document frequency for IDF
@@ -98,11 +95,12 @@ public class SemanticIndex {
         }
     }
 
-    private ClassIndexEntry buildEntry(PureClass pc, ModelContext ctx) {
+    private ClassIndexEntry buildEntry(ClassDefinition pc,
+            Map<String, ClassDefinition> allClasses) {
         String description = getTagValue(pc, "description");
         if (description == null) {
             // Fallback to doc.doc
-            description = pc.getTagValue("doc", "doc");
+            description = NlqModel.tag(pc.taggedValues(), "doc", "doc");
         }
         if (description == null) {
             description = "";
@@ -123,25 +121,25 @@ public class SemanticIndex {
 
         // Build property terms: property name + description + synonyms
         List<String> propertyTerms = new ArrayList<>();
-        for (Property prop : pc.allProperties(ctx)) {
+        for (var prop : NlqModel.allProperties(pc, allClasses)) {
             propertyTerms.add(prop.name());
 
-            String propDesc = prop.getTagValue(NLQ_PROFILE, "description");
+            String propDesc = NlqModel.tag(prop.taggedValues(), NLQ_PROFILE, "description");
             if (propDesc != null) {
                 propertyTerms.add(propDesc);
             }
 
-            String propSyn = prop.getTagValue(NLQ_PROFILE, "synonyms");
+            String propSyn = NlqModel.tag(prop.taggedValues(), NLQ_PROFILE, "synonyms");
             if (propSyn != null) {
                 propertyTerms.addAll(Arrays.asList(propSyn.split(",\\s*")));
             }
 
-            String propUnit = prop.getTagValue(NLQ_PROFILE, "unit");
+            String propUnit = NlqModel.tag(prop.taggedValues(), NLQ_PROFILE, "unit");
             if (propUnit != null) {
                 propertyTerms.add(propUnit);
             }
 
-            String propSample = prop.getTagValue(NLQ_PROFILE, "sampleValues");
+            String propSample = NlqModel.tag(prop.taggedValues(), NLQ_PROFILE, "sampleValues");
             if (propSample != null) {
                 propertyTerms.addAll(Arrays.asList(propSample.split(",\\s*")));
             }
@@ -150,7 +148,7 @@ public class SemanticIndex {
         // Build combined description text: name + description + synonyms + displayName
         String displayName = getTagValue(pc, "displayName");
         StringBuilder descText = new StringBuilder();
-        descText.append(pc.name()).append(" ");
+        descText.append(NlqModel.simpleName(pc.qualifiedName())).append(" ");
         if (displayName != null) {
             descText.append(displayName).append(" ");
         }
@@ -255,18 +253,23 @@ public class SemanticIndex {
      * @return Expanded set including associated classes
      */
     public Set<String> expandWithAssociations(
-            Set<String> classNames, PureModelBuilder modelBuilder, int maxHops) {
+            Set<String> classNames, ParsedModel model, int maxHops) {
 
         Set<String> expanded = new HashSet<>(classNames);
         Set<String> frontier = new HashSet<>(classNames);
 
-        Map<String, Association> allAssociations = modelBuilder.getAllAssociations();
+        Map<String, AssociationDefinition> allAssociations = NlqModel.allAssociations(model);
+        Map<String, ClassDefinition> allClasses = NlqModel.allClasses(model);
 
         for (int hop = 0; hop < maxHops; hop++) {
             Set<String> newFrontier = new HashSet<>();
-            for (Association assoc : allAssociations.values()) {
-                String class1 = assoc.property1().targetClass();
-                String class2 = assoc.property2().targetClass();
+            for (AssociationDefinition assoc : allAssociations.values()) {
+                String class1 = NlqModel.resolveClassFqn(
+                        NlqModel.typeName(assoc.property1().targetClass()),
+                        assoc.qualifiedName(), allClasses);
+                String class2 = NlqModel.resolveClassFqn(
+                        NlqModel.typeName(assoc.property2().targetClass()),
+                        assoc.qualifiedName(), allClasses);
 
                 if (frontier.contains(class1) && !expanded.contains(class2)) {
                     newFrontier.add(class2);
@@ -417,8 +420,8 @@ public class SemanticIndex {
     /**
      * Gets an NLQ tagged value from a PureClass.
      */
-    private String getTagValue(PureClass pc, String tagName) {
-        return pc.getTagValue(NLQ_PROFILE, tagName);
+    private String getTagValue(ClassDefinition pc, String tagName) {
+        return NlqModel.tag(pc.taggedValues(), NLQ_PROFILE, tagName);
     }
 
     /**
