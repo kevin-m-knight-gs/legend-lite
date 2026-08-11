@@ -69,20 +69,30 @@ parser/section/DiagramSectionGrammar$Raw#skipBalanced quoted-string handling
 parser/section/DiagramSectionGrammar$Raw#fail
 ```
 
-A mutation study against real gate runs (one single-point fault at a time, `-am`):
+A mutation study against real gate runs (one single-point fault at a time, `-am`), now
+**complete at 7 mutations**:
 
 | mutation | code | verdict |
 |---|---|---|
-| remove `allVersionsInRange` keyword | unit-covered | **CAUGHT** (g1 + g8) |
-| swap `allVersionsInRange` range endpoints | unit-covered | **CAUGHT by g1 only** — g8 green |
+| remove `allVersionsInRange` keyword | unit-covered | **CAUGHT** — gate 1 + gate 8 |
+| swap `allVersionsInRange` range endpoints | unit-covered | **CAUGHT** — gate 1 only |
+| function-type return multiplicity forced to `[1]` | unit-covered | **CAUGHT** — gate 1 |
 | `Primitive X extends Y` parsed backwards | **dark** | **SURVIVED everything** |
 | `Lexer#grow` off-by-one (drops last end offset) | **dark** | **SURVIVED everything** |
 | Mongo `validationLevel`/`Action` swapped | **dark** | **SURVIVED everything** |
-| ColSpec lambda slots swapped | **dark** | **SURVIVED everything** |
+| ColSpec lambda slots swapped | **dark** | **SURVIVED everything** — incl. all three newly-gated parity tests |
 
-**The predictor is exact: survival is decided by whether a hand-written unit test happens
-to assert the value. Every differential gate is blind to all of them.** Gate 8 reported
-`MATCH 26168 / DIFF 0` unchanged under all four dark mutations.
+**7 for 7 predicted by coverage class alone.** Every fault in a method some unit test
+happens to touch was caught by gate 1. Every fault in the 7 dark methods survived gate 1,
+gate 8, `LeniencyCatalogTest`, `StrictDialectParityTest` and `PmcdEquivalenceTest`. **No
+differential gate caught a single one of the four** — gate 8 reported
+`MATCH 26168 / DIFF 0 / REFERENCE_REJECTED 1960`, unchanged, under all of them.
+
+That settles the mechanism with no ambiguity: on the 1,960, **the only thing between a
+value-corrupting parser fault and production is whether someone wrote a unit test asserting
+that specific field.** The byte gate contributes nothing there, by construction.
+`SpecParserTest.classAllVersionsInRange` — not the corpus, not the oracle — is what
+protects milestoning ranges today.
 
 Note what this does to the known survivor story. Removing the `allVersionsInRange` keyword
 **is** caught today — but by `SpiSeamProofTest`'s aggregate ratchet (`leniency census grew:
