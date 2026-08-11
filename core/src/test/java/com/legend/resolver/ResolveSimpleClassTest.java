@@ -44,6 +44,7 @@ class ResolveSimpleClassTest {
             Class m::Coded { code: m::Status[1]; label: String[1]; }
             Enum m::Status { ACTIVE, INACTIVE }
             Class m::Emp { name: String[1]; firmName: String[1]; orgName: String[1]; }
+            ###Relational
             Database s::DB (
               Table T (NAME VARCHAR(50), AGE INTEGER, ACTIVE INTEGER)
               Table C (CODE VARCHAR(10), LABEL VARCHAR(50))
@@ -54,6 +55,7 @@ class ResolveSimpleClassTest {
               Join FO (F.OID = O.ID)
               Filter ActiveF ( T.ACTIVE = 1 )
             )
+            ###Mapping
             Mapping m::M (
               m::Status: EnumerationMapping StatusM { ACTIVE: 'A', INACTIVE: 'I' }
               *m::Person: Relational { ~filter [s::DB] ActiveF ~mainTable [s::DB] T
@@ -64,6 +66,7 @@ class ResolveSimpleClassTest {
                 name: P.NAME, firmName: @PF | F.LEGAL,
                 orgName: @PF > @FO | O.ONAME }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

@@ -40,6 +40,7 @@ class ResolveNavigationTest {
             Class m::Firm { legal: String[1]; }
             Association m::Emp { employer: m::Firm[1]; staff: m::Person[*]; }
             Association m::Mgr { boss: m::Person[1]; reports: m::Person[*]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), CITY VARCHAR(50), FID INTEGER, BOSS INTEGER, ID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
@@ -48,6 +49,7 @@ class ResolveNavigationTest {
               Join PF (P.FID = F.ID)
               Join PB (P.BOSS = {target}.ID)
             )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] P
                 name: P.NAME,
@@ -57,6 +59,7 @@ class ResolveNavigationTest {
               m::Emp: Relational { AssociationMapping ( employer: [s::DB] @PF ) }
               m::Mgr: Relational { AssociationMapping ( boss: [s::DB] @PB ) }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 
@@ -241,16 +244,19 @@ class ResolveNavigationTest {
             Class m::P { name: String[1]; }
             Class m::E { orgName: String[1]; }
             Association m::PE { emp: m::E[1]; owner: m::P[1]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), EID INTEGER)
               Table E (ID INTEGER, OID INTEGER)
               Table O (ID INTEGER, ONAME VARCHAR(50))
               Join PE (P.EID = E.ID)
               Join EO (E.OID = O.ID) )
+            ###Mapping
             Mapping m::M (
               *m::P: Relational { ~mainTable [s::DB] P name: P.NAME }
               *m::E: Relational { ~mainTable [s::DB] E orgName: @EO | O.ONAME }
               m::PE: Relational { AssociationMapping ( emp: [s::DB] @PE ) } )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
         var ctx = Compiler.compileModel(model);
@@ -272,13 +278,16 @@ class ResolveNavigationTest {
     private static final String A7_MODEL = """
             Class m::P { name: String[1]; firm: m::F[1]; }
             Class m::F { legal: String[1]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), FID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
               Join PF (P.FID = F.ID) )
+            ###Mapping
             Mapping m::M (
               *m::P: Relational { ~mainTable [s::DB] P name: P.NAME, firm: [s::DB] @PF }
               *m::F: Relational { ~mainTable [s::DB] F legal: F.LEGAL } )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

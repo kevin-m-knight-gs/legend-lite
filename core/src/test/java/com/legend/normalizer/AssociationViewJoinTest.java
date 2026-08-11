@@ -28,12 +28,14 @@ class AssociationViewJoinTest {
             Class model::A { id: Integer[1]; }
             Class model::B { bid: Integer[1]; }
             Association model::AB { a: model::A[1]; b: model::B[*]; }
+            ###Relational
             Database db::DB (
               Table TA (ID INTEGER)
               Table TB (ID INTEGER, AID INTEGER)
               View VA ( vid: TA.ID )
               Join AB_J (VA.vid = TB.AID)
             )
+            ###Mapping
             Mapping my::M (
               *model::A: Relational { ~mainTable [db::DB] TA id: TA.ID }
               *model::B: Relational { ~mainTable [db::DB] TB bid: TB.ID }
@@ -41,6 +43,7 @@ class AssociationViewJoinTest {
                 AssociationMapping ( b: [db::DB]@AB_J )
               }
             )
+            ###Runtime
             Runtime my::RT { mappings: [my::M]; }
             """;
 

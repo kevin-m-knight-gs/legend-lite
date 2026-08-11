@@ -61,6 +61,7 @@ class ResolveUnionTest {
             Class u::PersonD { lastName: String[1]; }
             Class <<temporal.businesstemporal>> u::FirmD { legalName: String[1]; }
             Association u::EmploymentD { firmD: u::FirmD[0..1]; employeesD: u::PersonD[*]; }
+            ###Relational
             Database u::DB (
               Table PA1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR(64), FirmID INTEGER)
               Table PA2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR(64), FirmID INTEGER)
@@ -85,6 +86,7 @@ class ResolveUnionTest {
               Join PB2FG2 (PB2.LegacyID = FG2.ID)
               Join PDFD (PD.FirmID = FD.ID)
             )
+            ###Mapping
             Mapping u::MA (
               *u::PersonA : Operation { %s(a1, a2, a3) }
               u::PersonA[a1] : Relational { ~mainTable [u::DB] PA1 lastName: PA1.lastName_s1 }
@@ -130,6 +132,7 @@ class ResolveUnionTest {
                 lastName: PD.lastName, firmD: [u::DB]@PDFD }
               *u::FirmD : Relational { ~mainTable [u::DB] FD legalName: FD.name }
             )
+            ###Runtime
             Runtime u::RT { mappings: [u::MA]; }
             """.formatted(UNION_OP, UNION_OP, UNION_OP, UNION_OP, UNION_OP);
 

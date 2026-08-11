@@ -132,6 +132,7 @@ class AssociationIntegrationTest {
                 Association test::PersonDept { dept: Dept[0..1]; members: Person[*]; }
                 Association test::PersonAddress { addresses: Address[*]; person: Person[1]; }
                 Association test::DeptOrg { org: Org[1]; departments: Dept[*]; }
+                ###Relational
                 Database store::DB
                 (
                     Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
@@ -144,6 +145,9 @@ class AssociationIntegrationTest {
                     Join PersonAddress(T_PERSON.ID = T_ADDRESS.PERSON_ID)
                     Join DeptOrg(T_DEPT.ORG_ID = T_ORG.ID)
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M
                 (
                     Person: Relational
@@ -336,6 +340,7 @@ class AssociationIntegrationTest {
                     Class test::Phone { number: String[1]; }
                     Association test::PersonAddr { addresses: Addr[*]; person: Person[1]; }
                     Association test::PersonPhone { phones: Phone[*]; owner: Person[1]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
@@ -344,6 +349,9 @@ class AssociationIntegrationTest {
                         Join PersonAddr(T_PERSON2.ID = T_ADDR.PERSON_ID)
                         Join PersonPhone(T_PERSON2.ID = T_PHONE.PERSON_ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational { ~mainTable [store::DB] T_PERSON2 name: [store::DB] T_PERSON2.NAME }
@@ -650,6 +658,7 @@ class AssociationIntegrationTest {
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Class test::Firm { id: Integer[1]; legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
@@ -657,6 +666,9 @@ class AssociationIntegrationTest {
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                         Filter ActivePerson(T_PERSON.ID <= 3)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -696,12 +708,16 @@ class AssociationIntegrationTest {
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Class test::Firm { id: Integer[1]; legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
                         Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -738,6 +754,7 @@ class AssociationIntegrationTest {
                     Class test::Person { id: Integer[1]; name: String[1]; orgName: String[1]; }
                     Class test::Firm { id: Integer[1]; legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
@@ -748,6 +765,9 @@ class AssociationIntegrationTest {
                         Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
                         Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -821,12 +841,16 @@ class AssociationIntegrationTest {
                     Class test::Emp { name: String[1]; }
                     Class test::Team { teamName: String[1]; }
                     Association test::EmpTeam { team: Team[0..1]; members: Emp[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_EMP (DEPT_ID INTEGER, TEAM_ID INTEGER, NAME VARCHAR(100))
                         Table T_TEAM (DEPT_ID INTEGER, TEAM_ID INTEGER, TEAM_NAME VARCHAR(100))
                         Join EmpTeam(T_EMP.DEPT_ID = T_TEAM.DEPT_ID and T_EMP.TEAM_ID = T_TEAM.TEAM_ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Emp: Relational
@@ -871,12 +895,16 @@ class AssociationIntegrationTest {
                     Class test::Parent { name: String[1]; }
                     Class test::Child { name: String[1]; }
                     Association test::ParentChild { activeChildren: Child[*]; parent: Parent[1]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PARENT (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
                         Table T_CHILD (ID INTEGER, PARENT_ID INTEGER, ACTIVE INTEGER, NAME VARCHAR(100))
                         Join ParentChild(T_PARENT.ID = T_CHILD.PARENT_ID and T_CHILD.ACTIVE = 1)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Parent: Relational
@@ -924,12 +952,16 @@ class AssociationIntegrationTest {
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100))
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
@@ -970,12 +1002,16 @@ class AssociationIntegrationTest {
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100))
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
@@ -1142,12 +1178,16 @@ class AssociationIntegrationTest {
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_EMPTY_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_EMPTY_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100))
                         Join PersonFirm(T_EMPTY_PERSON.FIRM_ID = T_EMPTY_FIRM.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational { ~mainTable [store::DB] T_EMPTY_PERSON name: [store::DB] T_EMPTY_PERSON.NAME }
@@ -1264,11 +1304,15 @@ class AssociationIntegrationTest {
 
                     Class test::Emp { name: String[1]; }
                     Association test::EmpManager { manager: Emp[0..1]; reports: Emp[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_EMP2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INTEGER)
                         Join EmpManager(T_EMP2.MANAGER_ID = {target}.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Emp: Relational { ~mainTable [store::DB] T_EMP2 name: [store::DB] T_EMP2.NAME }
@@ -1299,11 +1343,15 @@ class AssociationIntegrationTest {
 
                     Class test::Emp { name: String[1]; }
                     Association test::EmpManager { manager: Emp[0..1]; reports: Emp[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_EMP3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INTEGER)
                         Join EmpManager(T_EMP3.MANAGER_ID = {target}.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Emp: Relational { ~mainTable [store::DB] T_EMP3 name: [store::DB] T_EMP3.NAME }
@@ -1339,6 +1387,7 @@ class AssociationIntegrationTest {
                     Class test::Person { id: Integer[1]; name: String[1]; deptId: Integer[0..1]; }
                     Class test::Firm { id: Integer[1]; legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
@@ -1347,6 +1396,9 @@ class AssociationIntegrationTest {
                         Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -1492,6 +1544,7 @@ class AssociationIntegrationTest {
                     Class test::Person { name: String[1]; deptName: String[0..1]; city: String[0..1]; orgName: String[0..1]; countryName: String[0..1]; }
                     Class test::Firm { legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[0..1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER, ADDR_ID INTEGER)
@@ -1506,6 +1559,9 @@ class AssociationIntegrationTest {
                         Join Org_Country(T_ORG.COUNTRY_ID = T_COUNTRY.ID)
                         Join Person_Addr(T_PERSON.ADDR_ID = T_ADDR.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -1626,11 +1682,15 @@ class AssociationIntegrationTest {
 
                     Class test::Emp { name: String[1]; }
                     Association test::EmpManager { manager: Emp[0..1]; reports: Emp[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_EMP (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), MANAGER_ID INTEGER)
                         Join EmpManager(T_EMP.MANAGER_ID = {target}.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Emp: Relational
@@ -1853,6 +1913,7 @@ class AssociationIntegrationTest {
                 Association test::AddressCountry { country: Country[0..1]; addressesInCountry: Address[*]; }
                 Association test::AddressTag { tags: Tag[*]; address: Address[1]; }
                 Association test::PersonPhone { phones: Phone[*]; owner: Person[1]; }
+                ###Relational
                 Database store::DB
                 (
                     Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER, DEPT_ID INTEGER)
@@ -1871,6 +1932,9 @@ class AssociationIntegrationTest {
                     Join AddressTag(T_ADDRESS.ID = T_TAG.ADDRESS_ID)
                     Join PersonPhone(T_PERSON.ID = T_PHONE.PERSON_ID)
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M
                 (
                     Person: Relational { ~mainTable [store::DB] T_PERSON  id: [store::DB] T_PERSON.ID, name: [store::DB] T_PERSON.NAME }

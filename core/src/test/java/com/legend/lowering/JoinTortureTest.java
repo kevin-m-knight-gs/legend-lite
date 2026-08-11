@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JoinTortureTest {
 
     private static final String MODEL = """
+            ###Relational
             Database test::DB
             (
               Table T_PERSON (NAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL,

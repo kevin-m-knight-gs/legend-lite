@@ -31,6 +31,7 @@ class ResolveNestedTemporalFrameTest {
             Class <<temporal.businesstemporal>> q::A { id: Integer[1]; p: q::P[*]; }
             Class <<temporal.businesstemporal>> q::B { id: Integer[1]; }
             Class <<temporal.businesstemporal>> q::P { name: String[1]; }
+            ###Relational
             Database q::DB (
               Table AT (
                 milestoning( business(BUS_FROM=a_from, BUS_THRU=a_thru) )
@@ -44,12 +45,14 @@ class ResolveNestedTemporalFrameTest {
                 p_from DATE, p_thru DATE )
               Join AP (AT.ID = PT.ID)
             )
+            ###Mapping
             Mapping q::M (
               *q::A : Relational { ~mainTable [q::DB] AT id: AT.ID,
                 p: [q::DB]@AP }
               *q::B : Relational { ~mainTable [q::DB] BT id: BT.ID }
               *q::P : Relational { ~mainTable [q::DB] PT name: PT.name }
             )
+            ###Runtime
             Runtime q::RT { mappings: [q::M]; }
             """;
 

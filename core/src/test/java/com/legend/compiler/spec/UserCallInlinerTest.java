@@ -26,12 +26,16 @@ class UserCallInlinerTest {
 
     private static final String MODEL = """
             Class m::Person { name: String[1]; age: Integer[1]; }
+            ###Relational
             Database s::DB ( Table P (NAME VARCHAR(50), AGE INTEGER) )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] P name: P.NAME, age: P.AGE }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
 
+            ###Pure
             function m::isAdult(p: m::Person[1]): Boolean[1] { $p.age >= 18 }
             function m::shout(s: String[1]): String[1] { $s->toUpper() + '!' }
             function m::doubleShout(s: String[1]): String[1] { m::shout(m::shout($s)) }

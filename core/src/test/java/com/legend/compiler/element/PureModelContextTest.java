@@ -218,7 +218,7 @@ class PureModelContextTest {
         com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; } "
-                      + "Mapping my::M ( *model::Person: Pure { my::funcs::missing } )"));
+                      + "\n###Mapping\nMapping my::M ( *model::Person: Pure { my::funcs::missing } )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("class binding for 'model::Person'")
                         && ex.getMessage().contains("unknown function"),
                 () -> "got: " + ex.getMessage());
@@ -230,7 +230,7 @@ class PureModelContextTest {
         var ctx = com.legend.Compiler.compileModel(
                 "Class model::Person { name: String[1]; } "
               + "function my::funcs::personMapping(): model::Person[*] { model::Person.all() } "
-              + "Mapping my::M ( *model::Person: Pure { my::funcs::personMapping } )");
+              + "\n###Mapping\nMapping my::M ( *model::Person: Pure { my::funcs::personMapping } )");
         // No throw at build; the class still resolves.
         assertTrue(ctx.findClass("model::Person").isPresent());
     }
@@ -241,7 +241,7 @@ class PureModelContextTest {
         var ctx = com.legend.Compiler.compileModel(
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } "
-              + "Mapping my::M ( *model::Person: Pure { ~src model::RawPerson name: $src.name } )");
+              + "\n###Mapping\nMapping my::M ( *model::Person: Pure { ~src model::RawPerson name: $src.name } )");
         // The lifted my::M$class$model::Person exists, so build doesn't throw.
         assertTrue(ctx.findClass("model::Person").isPresent());
     }
@@ -270,7 +270,7 @@ class PureModelContextTest {
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; } "
                       + "function my::funcs::notAClass(): String[1] { 'x' } "
-                      + "Mapping my::M ( *model::Person: Pure { my::funcs::notAClass } )"));
+                      + "\n###Mapping\nMapping my::M ( *model::Person: Pure { my::funcs::notAClass } )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("class binding for 'model::Person'")
                         && ex.getMessage().contains("(): Class[*]"),
                 () -> "got: " + ex.getMessage());

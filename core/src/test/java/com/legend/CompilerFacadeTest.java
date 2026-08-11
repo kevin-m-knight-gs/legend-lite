@@ -22,6 +22,7 @@ class CompilerFacadeTest {
               age: Integer[1];
             }
 
+            ###Relational
             Database test::DB
             (
               Table T_PERSON ( NAME VARCHAR(200) NOT NULL, AGE INTEGER NOT NULL )
@@ -78,10 +79,12 @@ class CompilerFacadeTest {
     void compileRendersTheFullPlanWithoutExecuting() {
         String planModel = MODEL + """
 
+                ###Mapping
                 Mapping test::M (
                   *test::Person: Relational { ~mainTable [test::DB] T_PERSON
                     name: T_PERSON.NAME, age: T_PERSON.AGE }
                 )
+                ###Runtime
                 Runtime test::RT { mappings: [test::M]; }
                 """;
         com.legend.exec.QueryPlan plan = Compiler.plan(planModel,
@@ -97,13 +100,16 @@ class CompilerFacadeTest {
     void undeclaredDialectIsHonestlyUnbuilt() {
         String pgModel = MODEL + """
 
+                ###Mapping
                 Mapping test::M (
                   *test::Person: Relational { ~mainTable [test::DB] T_PERSON
                     name: T_PERSON.NAME, age: T_PERSON.AGE }
                 )
+                ###Connection
                 RelationalDatabaseConnection test::Conn {
                   store: test::DB; type: Postgres;
                   specification: DuckDB { }; auth: Test; }
+                ###Runtime
                 Runtime test::RT { mappings: [test::M];
                   connections: [ test::DB: [ environment: test::Conn ] ]; }
                 """;

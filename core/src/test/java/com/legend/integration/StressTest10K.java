@@ -28,10 +28,11 @@ class StressTest10K {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                ###Connection
                 import test::*;
-
-
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import test::*;
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }
@@ -117,7 +118,7 @@ class StressTest10K {
         }
 
         // ---- Database ----
-        sb.append("Database store::DB (\n");
+        sb.append("###Relational\nDatabase store::DB (\n");
 
         // Hub tables
         for (int h = 0; h < HUBS; h++) {
@@ -178,7 +179,7 @@ class StressTest10K {
         sb.append(")\n");
 
         // ---- Mappings ----
-        sb.append("Mapping test::M (\n");
+        sb.append("###Mapping\nMapping test::M (\n");
 
         // Hub mappings
         for (int h = 0; h < HUBS; h++) {

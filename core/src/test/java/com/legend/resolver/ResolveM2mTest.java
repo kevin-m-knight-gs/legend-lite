@@ -37,9 +37,11 @@ class ResolveM2mTest {
     private static final String MODEL = """
             Class m::RawPerson { firstName: String[1]; lastName: String[1]; age: Integer[1]; }
             Class m::Person { fullName: String[1]; age: Integer[1]; }
+            ###Relational
             Database s::DB (
               Table R (FIRST VARCHAR(50), LAST VARCHAR(50), AGE INTEGER)
             )
+            ###Mapping
             Mapping m::M (
               *m::RawPerson: Relational { ~mainTable [s::DB] R
                 firstName: R.FIRST, lastName: R.LAST, age: R.AGE }
@@ -47,6 +49,7 @@ class ResolveM2mTest {
                 fullName: $src.firstName + ' ' + $src.lastName,
                 age: $src.age }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 
@@ -151,13 +154,16 @@ class ResolveM2mTest {
         String model = """
                 Class m::Raw { name: String[1]; }
                 Class m::Person { label: String[1]; }
+                ###Relational
                 Database s::DB (
                   Table A (NAME VARCHAR(50))
                   Table B (NAME VARCHAR(50))
                 )
+                ###Mapping
                 Mapping m::BaseA ( *m::Raw: Relational { ~mainTable [s::DB] A name: A.NAME } )
                 Mapping m::BaseB ( *m::Raw: Relational { ~mainTable [s::DB] B name: B.NAME } )
                 Mapping m::M2M ( *m::Person: Pure { ~src m::Raw label: $src.name } )
+                ###Runtime
                 Runtime m::RT1 { mappings: [m::M2M, m::BaseA]; }
                 Runtime m::RT2 { mappings: [m::M2M, m::BaseB]; }
                 """;

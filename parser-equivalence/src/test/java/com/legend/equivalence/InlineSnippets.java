@@ -27,9 +27,20 @@ final class InlineSnippets {
     private InlineSnippets() {
     }
 
-    /** Lines that start a Pure declaration — the candidate heuristic. */
+    /** Lines that start a Pure declaration — the candidate heuristic. The
+     *  corpus universe (ledger totals, catalog totality) is pinned on THIS
+     *  pattern; never widen it in place. */
     private static final Pattern PURE_DECL = Pattern.compile(
             "(?m)^\\s*(Class|Enum|Association|Profile|Measure|function|native\\s+function|import)\\s");
+
+    /** The OWN-CORPUS candidate heuristic: PURE_DECL plus snippets that
+     *  START with a store/mapping element (Database-first fixtures carry
+     *  no domain decl at all). Wider than the corpus pattern on purpose —
+     *  our own conformance surface should see every model our tests
+     *  compile; the engine-corpus universe stays pinned above. */
+    static final Pattern OWN_DECL = Pattern.compile(
+            "(?m)^\\s*(Class|Enum|Association|Profile|Measure|function|native\\s+function|import"
+                    + "|Database|Mapping|Runtime|RelationalDatabaseConnection|Service)\\s");
 
     /** One test file's literal runs, in source order — the rejection-parity pairing
      *  walks these directly. */
@@ -61,6 +72,13 @@ final class InlineSnippets {
     }
 
     static List<Corpus.Source> extract(Path root, String tier) {
+        return extract(root, tier, PURE_DECL);
+    }
+
+    /** {@link #extract(Path, String)} with an explicit candidate pattern —
+     *  the own-corpus surface passes {@link #OWN_DECL}. */
+    static List<Corpus.Source> extract(Path root, String tier,
+            Pattern candidate) {
         List<Path> javaFiles = new ArrayList<>();
         if (Files.isDirectory(root)) {
             try (Stream<Path> s = Files.walk(root)) {
@@ -87,7 +105,7 @@ final class InlineSnippets {
             runs += found.size();
             int idx = 0;
             for (String run : found) {
-                if (run.length() > 20 && PURE_DECL.matcher(run).find()) {
+                if (run.length() > 20 && candidate.matcher(run).find()) {
                     byText.putIfAbsent(run, root.relativize(p) + "#" + idx);
                 }
                 idx++;
@@ -107,7 +125,9 @@ final class InlineSnippets {
      * ({@code +} literal)* — whitespace and comments may sit between. A non-literal operand ends
      * the run.
      */
-    private static List<String> literalRuns(String s) {
+    static List<String> literalRuns(String s) {   // package-visible: the
+        // section-normalize rewriter verifies its edits with THIS scanner
+
         List<String> out = new ArrayList<>();
         int i = 0;
         int n = s.length();

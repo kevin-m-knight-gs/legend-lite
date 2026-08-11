@@ -29,6 +29,7 @@ class ResolveUnionSelfJoinProbeTest {
 
     private static final String MODEL = ("""
             Class u::Person { lastName: String[1]; manager: u::Person[0..1]; }
+            ###Relational
             Database u::DB (
               Table P1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR)
               Table P2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR)
@@ -37,6 +38,7 @@ class ResolveUnionSelfJoinProbeTest {
               Join person2_person_join (P2.lastName_s2 = P1.lastName_s1)
               Join person2_person2_join (P2.lastName_s2 = {target}.lastName_s2)
             )
+            ###Mapping
             Mapping u::M (
               *u::Person : Operation { %s(set1, set2) }
               u::Person[set1] : Relational { ~mainTable [u::DB] P1
@@ -48,6 +50,7 @@ class ResolveUnionSelfJoinProbeTest {
                 manager[set1]: [u::DB] @person2_person_join,
                 manager[set2]: [u::DB] @person2_person2_join }
             )
+            ###Runtime
             Runtime u::RT { mappings: [u::M]; }
             """).formatted(UNION_FQN);
 

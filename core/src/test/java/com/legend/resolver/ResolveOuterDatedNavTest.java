@@ -39,6 +39,7 @@ class ResolveOuterDatedNavTest {
             Class n::Order { id: Integer[1]; orderDate: StrictDate[0..1]; product: n::Product[*]; orderDetails: n::Detail[*]; }
             Class n::Detail { settlementDate: StrictDate[1]; }
             Class <<temporal.businesstemporal>> n::Product { name: String[1]; kind: String[1]; }
+            ###Relational
             Database n::DB (
               Table OrderT (ID INTEGER PRIMARY KEY, PID INTEGER, orderDate DATE)
               Table DetailT (OID INTEGER PRIMARY KEY, settlementDate DATE)
@@ -49,6 +50,7 @@ class ResolveOuterDatedNavTest {
                 from_z DATE, thru_z DATE )
               Join OP (OrderT.PID = ProdT.ID)
             )
+            ###Mapping
             Mapping n::M (
               *n::Order : Relational { ~mainTable [n::DB] OrderT
                 id: OrderT.ID, orderDate: OrderT.orderDate,
@@ -59,6 +61,7 @@ class ResolveOuterDatedNavTest {
               *n::Product : Relational { ~mainTable [n::DB] ProdT
                 name: ProdT.name, kind: ProdT.kind }
             )
+            ###Runtime
             Runtime n::RT { mappings: [n::M]; }
             """;
 

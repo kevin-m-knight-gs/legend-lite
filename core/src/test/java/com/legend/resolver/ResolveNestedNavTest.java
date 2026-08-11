@@ -46,6 +46,7 @@ class ResolveNestedNavTest {
             Class n::C { cname: String[1]; }
             Class <<temporal.businesstemporal>> n::TC { tname: String[1]; }
             Class n::BT { btname: String[1]; }
+            ###Relational
             Database n::DB (
               Table TA (ID INTEGER PRIMARY KEY, aname VARCHAR(64), BID INTEGER)
               Table TB (ID INTEGER PRIMARY KEY, bname VARCHAR(64), CID INTEGER)
@@ -59,6 +60,7 @@ class ResolveNestedNavTest {
               Join BTTC (TBT.TCID = TTC.ID)
               Join ABT (TA.BID = TBT.ID)
             )
+            ###Mapping
             Mapping n::M (
               *n::A : Relational { ~mainTable [n::DB] TA
                 aname: TA.aname, b: [n::DB]@AB, bt: [n::DB]@ABT }
@@ -69,10 +71,12 @@ class ResolveNestedNavTest {
               *n::BT : Relational { ~mainTable [n::DB] TBT
                 btname: TBT.btname, tc: [n::DB]@BTTC }
             )
+            ###Pure
             Association n::AB_A { b: n::B[0..1]; backA: n::A[*]; }
             Association n::BC_A { c: n::C[0..1]; backB: n::B[*]; }
             Association n::ABT_A { bt: n::BT[0..1]; backA2: n::A[*]; }
             Association n::BTTC_A { tc: n::TC[0..1]; backBT: n::BT[*]; }
+            ###Runtime
             Runtime n::RT { mappings: [n::M]; }
             """;
 

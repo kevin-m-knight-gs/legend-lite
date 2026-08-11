@@ -99,6 +99,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         String pureDatabase = """
                 import store::*;
 
+                ###Relational
                 Database store::SalesDB
                 (
                     Table T_CUSTOMER
@@ -110,7 +111,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     (
                         ID INTEGER PRIMARY KEY,
                         CUSTOMER_ID INTEGER NOT NULL,
-                        TOTAL DECIMAL NOT NULL
+                        TOTAL DECIMAL(10,2) NOT NULL
                     )
                 )
                 """;
@@ -291,14 +292,27 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Adult { name: String[1]; age: Integer[1]; }
+                ###Relational
                 Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
 
+                ###Pure
+                import model::*;
+                import store::*;
+                import test::*;
                 function query::getAdults(): model::Adult[*]
                 {
                     model::Adult.all()->filter({p | $p.age >= 18})
                 }
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: SQLite;
@@ -306,6 +320,10 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:
@@ -351,14 +369,27 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Worker { dept: String[1]; salary: Integer[1]; }
+                ###Relational
                 Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )
 
+                ###Pure
+                import model::*;
+                import store::*;
+                import test::*;
                 function query::getWorkerInfo(): Any[*]
                 {
                     model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
                 }
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: SQLite;
@@ -366,6 +397,10 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:

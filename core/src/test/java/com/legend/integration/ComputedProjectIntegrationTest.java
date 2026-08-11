@@ -41,8 +41,17 @@ public class ComputedProjectIntegrationTest {
             Class meta::pure::functions::relation::tests::project::PrimitiveContainer {
                 val: Integer[1];
             }
+            ###Relational
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
+            ###Connection
+            import meta::pure::functions::relation::tests::project::*;
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            import meta::pure::functions::relation::tests::project::*;
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 
@@ -114,8 +123,17 @@ public class ComputedProjectIntegrationTest {
                 legalName: String[1];
                 employees: meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests[*];
             }
+            ###Relational
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
+            ###Connection
+            import meta::pure::functions::relation::tests::composition::*;
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            import meta::pure::functions::relation::tests::composition::*;
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 
@@ -171,8 +189,15 @@ public class ComputedProjectIntegrationTest {
             import store::*;
             import test::*;
 
+            ###Relational
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
+            ###Connection
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 
@@ -284,8 +309,15 @@ public class ComputedProjectIntegrationTest {
             import store::*;
             import test::*;
 
+            ###Relational
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
+            ###Connection
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 

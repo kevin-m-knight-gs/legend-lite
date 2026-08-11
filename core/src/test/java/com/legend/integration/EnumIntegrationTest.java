@@ -192,6 +192,7 @@ class EnumIntegrationTest {
                         status: TaskStatus[1];
                     }
 
+                    ###Relational
                     Database store::TaskDB
                     (
                         Table TASKS
@@ -202,6 +203,9 @@ class EnumIntegrationTest {
                         )
                     )
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::TaskMapping
                     (
                         Task: Relational
@@ -344,6 +348,7 @@ class EnumIntegrationTest {
                         status: TaskStatus[1];
                     }
 
+                    ###Relational
                     Database store::TaskDB
                     (
                         Table TASKS
@@ -354,6 +359,10 @@ class EnumIntegrationTest {
                         )
                     )
 
+                    ###Mapping
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Mapping model::TaskMapping
                     (
                         Task: Relational
@@ -371,8 +380,16 @@ class EnumIntegrationTest {
                         }
                     )
 
+                    ###Connection
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+                    ###Runtime
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
                     """;
 
@@ -425,6 +442,7 @@ class EnumIntegrationTest {
                         priority: Priority[1];
                     }
 
+                    ###Relational
                     Database store::IssueDB
                     (
                         Table ISSUES
@@ -435,6 +453,10 @@ class EnumIntegrationTest {
                         )
                     )
 
+                    ###Mapping
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Mapping model::IssueMapping
                     (
                         Issue: Relational
@@ -452,8 +474,16 @@ class EnumIntegrationTest {
                         }
                     )
 
+                    ###Connection
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     RelationalDatabaseConnection store::IssueConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+                    ###Runtime
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Runtime app::IssueRuntime { mappings: [ model::IssueMapping ]; connections: [ store::IssueDB: [ environment: store::IssueConnection ] ]; }
                     """;
 
@@ -505,6 +535,7 @@ class EnumIntegrationTest {
                         status: OrderStatus[1];
                     }
 
+                    ###Relational
                     Database store::OrderDB
                     (
                         Table ORDERS
@@ -515,6 +546,10 @@ class EnumIntegrationTest {
                         )
                     )
 
+                    ###Mapping
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping
                     (
                         Order: Relational
@@ -532,8 +567,16 @@ class EnumIntegrationTest {
                         }
                     )
 
+                    ###Connection
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+                    ###Runtime
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Runtime app::OrderRuntime { mappings: [ model::OrderMapping ]; connections: [ store::OrderDB: [ environment: store::OrderConnection ] ]; }
                     """;
 
@@ -601,6 +644,7 @@ class EnumIntegrationTest {
                         status: OrderStatus[1];
                     }
 
+                    ###Relational
                     Database store::OrderDB
                     (
                         Table ORDERS
@@ -611,6 +655,10 @@ class EnumIntegrationTest {
                         )
                     )
 
+                    ###Mapping
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping
                     (
                         model::OrderStatus: EnumerationMapping StatusMapping
@@ -630,8 +678,16 @@ class EnumIntegrationTest {
                         }
                     )
 
+                    ###Connection
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+                    ###Runtime
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Runtime app::OrderRuntime { mappings: [ model::OrderMapping ]; connections: [ store::OrderDB: [ environment: store::OrderConnection ] ]; }
                     """;
 
@@ -684,6 +740,7 @@ class EnumIntegrationTest {
                         status: TaskStatus[1];
                     }
 
+                    ###Relational
                     Database store::TaskDB
                     (
                         Table TASKS
@@ -694,6 +751,10 @@ class EnumIntegrationTest {
                         )
                     )
 
+                    ###Mapping
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Mapping model::TaskMapping
                     (
                         model::TaskStatus: EnumerationMapping TaskStatusMap
@@ -712,8 +773,16 @@ class EnumIntegrationTest {
                         }
                     )
 
+                    ###Connection
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+                    ###Runtime
+                    import app::*;
+                    import model::*;
+                    import store::*;
                     Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
                     """;
 

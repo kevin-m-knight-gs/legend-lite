@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LowerRelationTest {
 
     private static final String MODEL = """
+            ###Relational
             Database test::DB
             (
               Table T_PERSON (NAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL,
@@ -611,6 +612,7 @@ class LowerRelationTest {
             st.execute("INSERT INTO T_ORDERS VALUES (1, '[10, 20]'), (2, '[30]'), (3, NULL)");
         }
         String model = """
+                ###Relational
                 Database test::DB
                 (
                   Table T_ORDERS (ID INTEGER NOT NULL, ITEMS SEMISTRUCTURED)
@@ -667,6 +669,7 @@ class LowerRelationTest {
                     + " (2, '{\"items\": [{\"sku\": \"B-2\"}], \"qty\": 5}')");
         }
         String model = """
+                ###Relational
                 Database test::DB
                 (
                   Table T_DOCS (ID INTEGER NOT NULL, PAYLOAD SEMISTRUCTURED)
@@ -693,6 +696,7 @@ class LowerRelationTest {
             st.execute("INSERT INTO T_CARTS VALUES (1, '[1, 2, 3]'), (2, '[10]')");
         }
         String model = """
+                ###Relational
                 Database test::DB
                 (
                   Table T_CARTS (ID INTEGER NOT NULL, NUMS SEMISTRUCTURED)

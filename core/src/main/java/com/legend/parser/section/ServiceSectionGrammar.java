@@ -167,6 +167,17 @@ public final class ServiceSectionGrammar
         if (execution == null) {
             throw c.error("Service '" + qn + "' has no execution");
         }
+        if (c.legendStrict()) {
+            // ENGINE-VERBATIM required fields (ServiceParserGrammar): the
+            // lenient tier keeps its defaults (pattern -> "/"), the
+            // drop-in surface refuses like the engine does
+            if (pattern == null) {
+                throw c.error("Field 'pattern' is required");
+            }
+            if (documentation == null) {
+                throw c.error("Field 'documentation' is required");
+            }
+        }
         return new Protocol.PService(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), pattern, title, owners, ownershipKind,
                 ownershipId, documentation, autoActivate, execution, test,

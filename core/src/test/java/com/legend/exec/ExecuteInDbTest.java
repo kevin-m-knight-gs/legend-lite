@@ -155,6 +155,7 @@ class ExecuteInDbTest {
     @DisplayName("dropAndCreateTableInDb: DDL renders from the compiled store model")
     void dropAndCreateFromStoreModel() throws Exception {
         String model = """
+                ###Relational
                 Database my::store::DB
                 (
                    Table kDdlTable(id INTEGER PRIMARY KEY, name VARCHAR(20))
@@ -191,10 +192,13 @@ class ExecuteInDbTest {
     void classQueryDerivedSqlResolves() throws Exception {
         String model = """
                 Class t9::P { name: String[1]; }
+                ###Relational
                 Database t9::DB ( Table PT (NAME VARCHAR(20)) )
+                ###Mapping
                 Mapping t9::M (
                   *t9::P: Relational { ~mainTable [t9::DB] PT name: PT.NAME }
                 )
+                ###Runtime
                 Runtime t9::RT { mappings: [t9::M]; }
                 """;
         try (Statement st = conn.createStatement()) {

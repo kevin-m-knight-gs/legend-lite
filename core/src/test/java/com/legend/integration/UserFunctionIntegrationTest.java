@@ -40,6 +40,7 @@ class UserFunctionIntegrationTest {
                 age: Integer[1];
             }
 
+            ###Relational
             Database store::PersonDatabase
             (
                 Table T_PERSON (
@@ -50,6 +51,8 @@ class UserFunctionIntegrationTest {
                 )
             )
 
+            ###Mapping
+            import store::*;
             Mapping model::PersonMapping
             (
                 model::Person: Relational
@@ -61,6 +64,8 @@ class UserFunctionIntegrationTest {
                 }
             )
 
+            ###Connection
+            import store::*;
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -68,6 +73,8 @@ class UserFunctionIntegrationTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import store::*;
             Runtime test::TestRuntime
             {
                 mappings: [ model::PersonMapping ];
@@ -115,7 +122,9 @@ class UserFunctionIntegrationTest {
     // ==================== Helpers ====================
 
     private static String modelWith(String functions) {
-        return BASE_MODEL + "\n" + functions;
+        // BASE_MODEL ends inside ###Runtime — appended domain elements must
+        // reopen the default section like a real Legend document does
+        return BASE_MODEL + "\n###Pure\n" + functions;
     }
 
     private static QueryPlan plan(String pureSource, String query) {
@@ -1011,6 +1020,7 @@ class UserFunctionIntegrationTest {
                     {
                         dept: String[1];
                     }
+                    ###Relational
                     Database store::PersonDatabase
                     (
                         Table T_EMPLOYEE (
@@ -1021,6 +1031,8 @@ class UserFunctionIntegrationTest {
                             DEPT VARCHAR(100)
                         )
                     )
+                    ###Mapping
+                    import store::*;
                     Mapping model::EmpMapping
                     (
                         model::Employee: Relational
@@ -1032,17 +1044,23 @@ class UserFunctionIntegrationTest {
                             dept: [PersonDatabase] T_EMPLOYEE.DEPT
                         }
                     )
+                    ###Connection
+                    import store::*;
                     RelationalDatabaseConnection store::TestConnection
                     {
                         type: DuckDB;
                         specification: DuckDB { };
                         auth: Test;
                     }
+                    ###Runtime
+                    import store::*;
                     Runtime test::TestRuntime
                     {
                         mappings: [ model::EmpMapping ];
                         connections: [ store::PersonDatabase: [ environment: store::TestConnection ] ];
                     }
+                    ###Pure
+                    import store::*;
                     function test::getNames(people: model::Person[*]):Any[*]
                     {
                         $people->project([p|$p.firstName], ['name'])
@@ -1060,7 +1078,7 @@ class UserFunctionIntegrationTest {
         @Test
         @DisplayName("Type check: unrelated class rejected for typed param")
         void testUnrelatedClassRejected() {
-            String model = BASE_MODEL + """
+            String model = BASE_MODEL + "\n###Pure\n" + """
                     Class model::Firm
                     {
                         legalName: String[1];
@@ -1095,7 +1113,7 @@ class UserFunctionIntegrationTest {
         @Test
         @DisplayName("Return type check: declares Person but body returns wrong class — rejected")
         void testClassReturnWrongClassRejected() {
-            String model = BASE_MODEL + """
+            String model = BASE_MODEL + "\n###Pure\n" + """
                     Class model::Firm
                     {
                         legalName: String[1];

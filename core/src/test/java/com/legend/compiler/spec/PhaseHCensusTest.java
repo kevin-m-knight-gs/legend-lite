@@ -35,29 +35,37 @@ public class PhaseHCensusTest {
     static {
         FIXTURES_MUTABLE.put("A1 simple columns", """
             Class m::Person { name: String[1]; age: Integer[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), AGE INTEGER) )
+            ###Mapping
             Mapping m::M ( *m::Person: Relational { ~mainTable [s::DB] T
               name: T.NAME, age: T.AGE } )
             """);
         FIXTURES_MUTABLE.put("A2 join chain property", """
             Class m::Person { name: String[1]; firmName: String[1]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), FID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
               Join PF (P.FID = F.ID) )
+            ###Mapping
             Mapping m::M ( *m::Person: Relational { ~mainTable [s::DB] P
               name: P.NAME, firmName: @PF | F.LEGAL } )
             """);
         FIXTURES_MUTABLE.put("A3 dynafunction", """
             Class m::P { full: String[1]; up: String[1]; digest: String[1]; }
+            ###Relational
             Database s::DB ( Table T (A VARCHAR(10), B VARCHAR(10)) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T
               full: concat(T.A, ' ', T.B), up: toUpper(T.A), digest: md5(T.B) } )
             """);
         FIXTURES_MUTABLE.put("A5 enum mapping", """
             Enum m::Status { ACTIVE, INACTIVE }
             Class m::P { status: m::Status[1]; }
+            ###Relational
             Database s::DB ( Table T (CODE VARCHAR(10)) )
+            ###Mapping
             Mapping m::M (
               m::Status: EnumerationMapping StatusM { ACTIVE: 'A', INACTIVE: 'I' }
               *m::P: Relational { ~mainTable [s::DB] T
@@ -66,36 +74,46 @@ public class PhaseHCensusTest {
         FIXTURES_MUTABLE.put("A6 embedded", """
             Class m::P { name: String[1]; addr: m::Addr[1]; }
             Class m::Addr { city: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), CITY VARCHAR(50)) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T
               name: T.NAME, addr( city: T.CITY ) } )
             """);
         FIXTURES_MUTABLE.put("B2 mapping filter", """
             Class m::P { name: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), ACTIVE INTEGER)
               Filter ActiveF ( T.ACTIVE = 1 ) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~filter [s::DB] ActiveF
               ~mainTable [s::DB] T name: T.NAME } )
             """);
         FIXTURES_MUTABLE.put("B4+B5 distinct groupBy", """
             Class m::P { name: String[1]; total: Integer[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), AMT INTEGER) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~distinct
               ~mainTable [s::DB] T name: T.NAME, total: T.AMT } )
             """);
         FIXTURES_MUTABLE.put("B5 groupBy agg", """
             Class m::P { name: String[1]; total: Integer[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), AMT INTEGER) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~groupBy([s::DB] T.NAME)
               ~mainTable [s::DB] T name: T.NAME, total: sum(T.AMT) } )
             """);
         FIXTURES_MUTABLE.put("A7 class-typed join PM (legacyNavigate)", """
             Class m::P { name: String[1]; firm: m::F[1]; }
             Class m::F { legal: String[1]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), FID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
               Join PF (P.FID = F.ID) )
+            ###Mapping
             Mapping m::M (
               *m::P: Relational { ~mainTable [s::DB] P name: P.NAME, firm: [s::DB] @PF }
               *m::F: Relational { ~mainTable [s::DB] F legal: F.LEGAL } )
@@ -104,10 +122,12 @@ public class PhaseHCensusTest {
             Class m::Person { name: String[1]; }
             Class m::Firm { legal: String[1]; }
             Association m::Emp { employer: m::Firm[1]; staff: m::Person[*]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), FID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
               Join PF (P.FID = F.ID) )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] P name: P.NAME }
               *m::Firm: Relational { ~mainTable [s::DB] F legal: F.LEGAL }
@@ -116,16 +136,20 @@ public class PhaseHCensusTest {
             """);
         FIXTURES_MUTABLE.put("view-backed", """
             Class m::P { name: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), ACTIVE INTEGER)
               Filter ActiveF ( T.ACTIVE = 1 )
               View V ( ~filter ActiveF vname: T.NAME ) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] V
               name: V.vname } )
             """);
         FIXTURES_MUTABLE.put("derived property", """
             Class m::P { first: String[1]; last: String[1];
               full() { $this.first + ' ' + $this.last }: String[1]; }
+            ###Relational
             Database s::DB ( Table T (F VARCHAR(20), L VARCHAR(20)) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T
               first: T.F, last: T.L } )
             """);

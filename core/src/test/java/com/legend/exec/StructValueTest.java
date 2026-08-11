@@ -40,6 +40,7 @@ class StructValueTest {
             }
             Class m::Addr { val: String[1]; }
             Class m::Val { val: Integer[1]; }
+            ###Relational
             Database m::DB ( Table T (ID INTEGER) )
             """;
 

@@ -30,17 +30,20 @@ class ResolveSerializeTest {
             Class m::Person { name: String[1]; age: Integer[1]; }
             Class m::Firm { legal: String[1]; }
             Association m::Emp { employer: m::Firm[0..1]; staff: m::Person[*]; }
+            ###Relational
             Database s::DB (
               Table P (NAME VARCHAR(50), AGE INTEGER, FID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
               Join PF (P.FID = F.ID)
             )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] P
                 name: P.NAME, age: P.AGE }
               *m::Firm: Relational { ~mainTable [s::DB] F legal: F.LEGAL }
               m::Emp: Relational { AssociationMapping ( employer: [s::DB] @PF, staff: [s::DB] @PF ) }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

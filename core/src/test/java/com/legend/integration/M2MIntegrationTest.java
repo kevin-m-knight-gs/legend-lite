@@ -129,6 +129,7 @@ class M2MIntegrationTest {
                 nameUpper: String[1];
             }
 
+            ###Relational
             Database store::RawDatabase
             (
                 Table T_RAW_PERSON
@@ -138,7 +139,7 @@ class M2MIntegrationTest {
                     LAST_NAME VARCHAR(100) NOT NULL,
                     AGE INTEGER NOT NULL,
                     SALARY DECIMAL(10,2) NOT NULL,
-                    IS_ACTIVE BOOLEAN NOT NULL
+                    IS_ACTIVE BIT NOT NULL
                 )
                 Table T_RAW_ADDRESS
                 (
@@ -150,6 +151,10 @@ class M2MIntegrationTest {
                 Join PersonAddress(T_RAW_PERSON.ID = T_RAW_ADDRESS.PERSON_ID)
             )
 
+            ###Mapping
+            import model::*;
+            import store::*;
+            import test::*;
             Mapping model::RawMapping
             (
                 RawPerson: Relational
@@ -268,6 +273,10 @@ class M2MIntegrationTest {
                 }
             )
 
+            ###Connection
+            import model::*;
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -275,6 +284,10 @@ class M2MIntegrationTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import model::*;
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime
             {
                 mappings:

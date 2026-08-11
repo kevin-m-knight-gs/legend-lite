@@ -117,7 +117,7 @@ class ModelBuilderTest {
     @Test
     void findDatabaseReturnsParsedDefinition() {
         ParsedModel parsed = ElementParser.parse(
-                "Database model::DB ( "
+                "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, NAME VARCHAR(64)) "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -129,7 +129,7 @@ class ModelBuilderTest {
     @Test
     void findFilterResolvesByDbAndName() {
         ParsedModel parsed = ElementParser.parse(
-                "Database model::DB ( "
+                "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, AGE INTEGER) "
               + "  Filter activeOnly(PERSON.AGE > 18) "
               + ")");
@@ -142,7 +142,7 @@ class ModelBuilderTest {
     @Test
     void findFilterReturnsEmptyForMissingFilter() {
         ParsedModel parsed = ElementParser.parse(
-                "Database model::DB ( "
+                "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, AGE INTEGER) "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -159,7 +159,7 @@ class ModelBuilderTest {
     @Test
     void findJoinResolvesByDbAndName() {
         ParsedModel parsed = ElementParser.parse(
-                "Database model::DB ( "
+                "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, FIRM_ID INTEGER) "
               + "  Table FIRM(ID INTEGER PRIMARY KEY, NAME VARCHAR(64)) "
               + "  Join person_firm(PERSON.FIRM_ID = FIRM.ID) "
@@ -173,7 +173,7 @@ class ModelBuilderTest {
     @Test
     void findJoinReturnsEmptyForMissingJoin() {
         ParsedModel parsed = ElementParser.parse(
-                "Database model::DB ( "
+                "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY) "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -188,7 +188,7 @@ class ModelBuilderTest {
     void findMappingReturnsParsedDefinition() {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
-              + "Mapping pkg::M ( "
+              + "\n###Mapping\nMapping pkg::M ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -201,7 +201,7 @@ class ModelBuilderTest {
     void isMappedClassTrueForAnyClassWithClassMapping() {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
-              + "Mapping pkg::M ( "
+              + "\n###Mapping\nMapping pkg::M ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -213,7 +213,7 @@ class ModelBuilderTest {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
               + "Class model::Other  { x:    String[1]; } "
-              + "Mapping pkg::M ( "
+              + "\n###Mapping\nMapping pkg::M ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
               + ")");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -228,7 +228,7 @@ class ModelBuilderTest {
         // collapses the duplicates.
         ParsedModel parsed = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
-              + "Mapping pkg::M1 ( "
+              + "\n###Mapping\nMapping pkg::M1 ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
               + ") "
               + "Mapping pkg::M2 ( "
@@ -250,7 +250,7 @@ class ModelBuilderTest {
                 "Class model::Person { name: String[1]; } "
               + "Class model::SrcA   { name: String[1]; } "
               + "Class model::SrcB   { name: String[1]; } "
-              + "Mapping pkg::M ( "
+              + "\n###Mapping\nMapping pkg::M ( "
               + "  *model::Person: Pure { ~src model::SrcA name: $src.name } "
               + "  *model::Person[alt]: Pure { ~src model::SrcB name: $src.name } "
               + ")");
@@ -301,7 +301,7 @@ class ModelBuilderTest {
         ParsedModel raw = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } "
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
               + ")");
         NormalizedModel normalized = MappingNormalizer.normalize(raw, ModelBuilder.from(new com.legend.model.ParsedModel(raw.elements(), raw.imports())));
@@ -322,7 +322,7 @@ class ModelBuilderTest {
         ParsedModel raw = ElementParser.parse(
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } "
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
               + ")");
         // Pre-normalize: no lifted function exists yet, so findFunction is
@@ -346,8 +346,8 @@ class ModelBuilderTest {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::A { x: String[1]; } "
               + "Class model::B { y: String[1]; } "
-              + "Database model::DB ( Table T(ID INTEGER PRIMARY KEY) ) "
-              + "Mapping pkg::M ( *model::A: Pure { ~src model::A x: $src.x } )");
+              + "\n###Relational\nDatabase model::DB ( Table T(ID INTEGER PRIMARY KEY) ) "
+              + "\n###Mapping\nMapping pkg::M ( *model::A: Pure { ~src model::A x: $src.x } )");
         ModelBuilder mb = ModelBuilder.from(parsed);
         assertEquals(2, mb.classes().count());
         assertEquals(1, mb.databases().count());
@@ -363,7 +363,7 @@ class ModelBuilderTest {
         ParsedModel parsed = ElementParser.parse(
                 "Class model::A { x: String[1]; } "
               + "Class model::B { y: String[1]; } "
-              + "Database model::DB ( Table T(ID INTEGER PRIMARY KEY) )");
+              + "\n###Relational\nDatabase model::DB ( Table T(ID INTEGER PRIMARY KEY) )");
         ModelBuilder mb = ModelBuilder.from(parsed);
         assertTrue(mb.symbols().allFqns().contains("model::A"));
         assertTrue(mb.symbols().allFqns().contains("model::B"));

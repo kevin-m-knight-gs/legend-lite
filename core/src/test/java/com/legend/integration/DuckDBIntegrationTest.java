@@ -312,6 +312,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     addresses: Address[*];
                 }
 
+                ###Relational
                 Database store::TestDB
                 (
                     Table T_PERSON
@@ -788,12 +789,17 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     emp: EmpMC[*];
                     dept: DeptMC[0..1];
                 }
+                ###Relational
                 Database store::McDb
                 (
                     Table T_EMP_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
                     Table T_DEPT_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
                     Join Emp_Dept_MC(T_EMP_MC.DEPT_CODE = T_DEPT_MC.DEPT_CODE and T_EMP_MC.REGION = T_DEPT_MC.REGION)
                 )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::McMap
                 (
                     EmpMC: Relational { ~mainTable [McDb] T_EMP_MC  name: [McDb] T_EMP_MC.NAME }
@@ -801,7 +807,15 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 
                     model::Emp_Dept_MC: Relational { AssociationMapping ( emp: [store::McDb]@Emp_Dept_MC, dept: [store::McDb]@Emp_Dept_MC ) }
 )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::McConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::McRT { mappings: [model::McMap]; connections: [store::McDb: [environment: store::McConn]]; }
                 """;
 
@@ -841,12 +855,17 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     emp: EmpMC2[*];
                     dept: DeptMC2[0..1];
                 }
+                ###Relational
                 Database store::McDb2
                 (
                     Table T_EMP_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
                     Table T_DEPT_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
                     Join Emp_Dept_MC2(T_EMP_MC2.DEPT_CODE = T_DEPT_MC2.DEPT_CODE and T_EMP_MC2.REGION = T_DEPT_MC2.REGION)
                 )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::McMap2
                 (
                     EmpMC2: Relational { ~mainTable [McDb2] T_EMP_MC2  name: [McDb2] T_EMP_MC2.NAME }
@@ -854,7 +873,15 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 
                     model::Emp_Dept_MC2: Relational { AssociationMapping ( emp: [store::McDb2]@Emp_Dept_MC2, dept: [store::McDb2]@Emp_Dept_MC2 ) }
 )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::McConn2 { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::McRT2 { mappings: [model::McMap2]; connections: [store::McDb2: [environment: store::McConn2]]; }
                 """;
 
@@ -962,9 +989,18 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Emp { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP dept: [EmpDb] T_EMP.DEPT, sal: [EmpDb] T_EMP.SAL } )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: DuckDB;
@@ -972,6 +1008,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:
@@ -1013,9 +1053,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Emp { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP dept: [EmpDb] T_EMP.DEPT, sal: [EmpDb] T_EMP.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::EmpMap ]; connections: [ store::EmpDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1045,9 +1098,18 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Emp { name: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, NAME VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP name: [EmpDb] T_EMP.NAME, sal: [EmpDb] T_EMP.SAL } )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: DuckDB;
@@ -1055,6 +1117,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:
@@ -1104,9 +1170,18 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Emp { name: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::EmpDb ( Table T_EMP ( ID INTEGER, NAME VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EmpMap ( Emp: Relational { ~mainTable [EmpDb] T_EMP name: [EmpDb] T_EMP.NAME, sal: [EmpDb] T_EMP.SAL } )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: DuckDB;
@@ -1114,6 +1189,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:
@@ -1158,14 +1237,27 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Adult { name: String[1]; age: Integer[1]; }
+                ###Relational
                 Database store::AdultDb ( Table T_ADULT ( ID INTEGER, NAME VARCHAR(100), AGE INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::AdultMap ( Adult: Relational { ~mainTable [AdultDb] T_ADULT name: [AdultDb] T_ADULT.NAME, age: [AdultDb] T_ADULT.AGE } )
 
+                ###Pure
+                import model::*;
+                import store::*;
+                import test::*;
                 function query::getAdults(): model::Adult[*]
                 {
                     model::Adult.all()->filter({p | $p.age >= 18})
                 }
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: DuckDB;
@@ -1173,6 +1265,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:
@@ -1218,14 +1314,27 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Worker { dept: String[1]; salary: Integer[1]; }
+                ###Relational
                 Database store::WorkerDb ( Table T_WORKER ( ID INTEGER, DEPT VARCHAR(50), SALARY INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::WorkerMap ( Worker: Relational { ~mainTable [WorkerDb] T_WORKER dept: [WorkerDb] T_WORKER.DEPT, salary: [WorkerDb] T_WORKER.SALARY } )
 
+                ###Pure
+                import model::*;
+                import store::*;
+                import test::*;
                 function query::getWorkerInfo(): Any[*]
                 {
                     model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])
                 }
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: DuckDB;
@@ -1233,6 +1342,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:
@@ -1319,9 +1432,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Item { category: String[1]; value: Integer[1]; }
+                ###Relational
                 Database store::ItemDb ( Table T_ITEMS ( ID INTEGER, CATEGORY VARCHAR(50), VALUE INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::ItemMap ( Item: Relational { ~mainTable [ItemDb] T_ITEMS category: [ItemDb] T_ITEMS.CATEGORY, value: [ItemDb] T_ITEMS.VALUE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { store: ItemDb; type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ItemMap]; connections: [ItemDb: [conn: store::TestConn]]; }
                 """;
 
@@ -1386,11 +1512,20 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::User { name: String[1]; }
+                ###Relational
                 Database store::UserDb (
                     Table T_ACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
                     Table T_INACTIVE_USERS ( ID INTEGER, NAME VARCHAR(100) )
                 )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { store: UserDb; type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: []; connections: [UserDb: [conn: store::TestConn]]; }
                 """;
 
@@ -1441,9 +1576,18 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Stats { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::StatsDb ( Table T_STATS ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::StatsMap ( Stats: Relational { ~mainTable [StatsDb] T_STATS dept: [StatsDb] T_STATS.DEPT, sal: [StatsDb] T_STATS.SAL } )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: DuckDB;
@@ -1451,6 +1595,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings: [ model::StatsMap ];
@@ -1499,10 +1647,23 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Var { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::VarDb ( Table T_VAR ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::VarMap ( Var: Relational { ~mainTable [VarDb] T_VAR dept: [VarDb] T_VAR.DEPT, sal: [VarDb] T_VAR.SAL } )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::VarMap ]; connections: [ store::VarDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1535,10 +1696,23 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Med { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::MedDb ( Table T_MED ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::MedMap ( Med: Relational { ~mainTable [MedDb] T_MED dept: [MedDb] T_MED.DEPT, sal: [MedDb] T_MED.SAL } )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::MedMap ]; connections: [ store::MedDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1570,9 +1744,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::StdSamp { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::StdSampDb ( Table T_STDDEV_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::StdSampMap ( StdSamp: Relational { ~mainTable [StdSampDb] T_STDDEV_SAMP dept: [StdSampDb] T_STDDEV_SAMP.DEPT, sal: [StdSampDb] T_STDDEV_SAMP.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::StdSampMap ]; connections: [ store::StdSampDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1602,9 +1789,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::StdPop { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::StdPopDb ( Table T_STDDEV_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::StdPopMap ( StdPop: Relational { ~mainTable [StdPopDb] T_STDDEV_POP dept: [StdPopDb] T_STDDEV_POP.DEPT, sal: [StdPopDb] T_STDDEV_POP.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::StdPopMap ]; connections: [ store::StdPopDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1635,9 +1835,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::VarSamp { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::VarSampDb ( Table T_VAR_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::VarSampMap ( VarSamp: Relational { ~mainTable [VarSampDb] T_VAR_SAMP dept: [VarSampDb] T_VAR_SAMP.DEPT, sal: [VarSampDb] T_VAR_SAMP.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::VarSampMap ]; connections: [ store::VarSampDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1667,9 +1880,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::VarPop { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::VarPopDb ( Table T_VAR_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::VarPopMap ( VarPop: Relational { ~mainTable [VarPopDb] T_VAR_POP dept: [VarPopDb] T_VAR_POP.DEPT, sal: [VarPopDb] T_VAR_POP.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::VarPopMap ]; connections: [ store::VarPopDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1701,9 +1927,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Corr { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
+                ###Relational
                 Database store::CorrDb ( Table T_CORR ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::CorrMap ( Corr: Relational { ~mainTable [CorrDb] T_CORR dept: [CorrDb] T_CORR.DEPT, sal: [CorrDb] T_CORR.SAL, years: [CorrDb] T_CORR.YEARS } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::CorrMap ]; connections: [ store::CorrDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1739,9 +1978,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::CovarSamp { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
+                ###Relational
                 Database store::CovarSampDb ( Table T_COVAR_SAMP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::CovarSampMap ( CovarSamp: Relational { ~mainTable [CovarSampDb] T_COVAR_SAMP dept: [CovarSampDb] T_COVAR_SAMP.DEPT, sal: [CovarSampDb] T_COVAR_SAMP.SAL, years: [CovarSampDb] T_COVAR_SAMP.YEARS } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::CovarSampMap ]; connections: [ store::CovarSampDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1776,9 +2028,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::CovarPop { dept: String[1]; sal: Integer[1]; years: Integer[1]; }
+                ###Relational
                 Database store::CovarPopDb ( Table T_COVAR_POP ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER, YEARS INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::CovarPopMap ( CovarPop: Relational { ~mainTable [CovarPopDb] T_COVAR_POP dept: [CovarPopDb] T_COVAR_POP.DEPT, sal: [CovarPopDb] T_COVAR_POP.SAL, years: [CovarPopDb] T_COVAR_POP.YEARS } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::CovarPopMap ]; connections: [ store::CovarPopDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1816,9 +2081,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::PctEmployee { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::PctDb ( Table T_PERCENTILE ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::PctMap ( PctEmployee: Relational { ~mainTable [PctDb] T_PERCENTILE dept: [PctDb] T_PERCENTILE.DEPT, sal: [PctDb] T_PERCENTILE.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::PctMap ]; connections: [ store::PctDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1861,9 +2139,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DiscEmployee { dept: String[1]; sal: Integer[1]; }
+                ###Relational
                 Database store::DiscDb ( Table T_PERCENTILE_DISC ( ID INTEGER, DEPT VARCHAR(100), SAL INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DiscMap ( DiscEmployee: Relational { ~mainTable [DiscDb] T_PERCENTILE_DISC dept: [DiscDb] T_PERCENTILE_DISC.DEPT, sal: [DiscDb] T_PERCENTILE_DISC.SAL } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DiscMap ]; connections: [ store::DiscDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1899,9 +2190,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DatePerson { name: String[1]; birthDate: StrictDate[1]; }
+                ###Relational
                 Database store::DateDb ( Table T_DATE_TEST ( ID INTEGER, NAME VARCHAR(100), BIRTH_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DateMap ( DatePerson: Relational { ~mainTable [DateDb] T_DATE_TEST name: [DateDb] T_DATE_TEST.NAME, birthDate: [DateDb] T_DATE_TEST.BIRTH_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DateMap ]; connections: [ store::DateDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -1956,9 +2260,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::TimeEvent { name: String[1]; eventTime: DateTime[1]; }
+                ###Relational
                 Database store::TimeDb ( Table T_TIME_TEST ( ID INTEGER, NAME VARCHAR(100), EVENT_TIME TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::TimeMap ( TimeEvent: Relational { ~mainTable [TimeDb] T_TIME_TEST name: [TimeDb] T_TIME_TEST.NAME, eventTime: [TimeDb] T_TIME_TEST.EVENT_TIME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::TimeMap ]; connections: [ store::TimeDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2007,9 +2324,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Sale { saleDate: StrictDate[1]; amount: Integer[1]; }
+                ###Relational
                 Database store::QuarterDb ( Table T_QUARTER_TEST ( ID INTEGER, SALE_DATE DATE, AMOUNT INTEGER ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::QuarterMap ( Sale: Relational { ~mainTable [QuarterDb] T_QUARTER_TEST saleDate: [QuarterDb] T_QUARTER_TEST.SALE_DATE, amount: [QuarterDb] T_QUARTER_TEST.AMOUNT } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::QuarterMap ]; connections: [ store::QuarterDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2048,9 +2378,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Event { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::DowDb ( Table T_DOW_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DowMap ( Event: Relational { ~mainTable [DowDb] T_DOW_TEST eventDate: [DowDb] T_DOW_TEST.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DowMap ]; connections: [ store::DowDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2092,9 +2435,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::WeekEvent { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::WeekDb ( Table T_WEEK_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::WeekMap ( WeekEvent: Relational { ~mainTable [WeekDb] T_WEEK_TEST eventDate: [WeekDb] T_WEEK_TEST.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::WeekMap ]; connections: [ store::WeekDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2130,9 +2486,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::User { name: String[1]; birthDate: StrictDate[1]; lastLogin: DateTime[1]; }
+                ###Relational
                 Database store::DateTimeDb ( Table T_DATETIME_TEST ( ID INTEGER, NAME VARCHAR(100), BIRTH_DATE DATE, LAST_LOGIN TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DateTimeMap ( User: Relational { ~mainTable [DateTimeDb] T_DATETIME_TEST name: [DateTimeDb] T_DATETIME_TEST.NAME, birthDate: [DateTimeDb] T_DATETIME_TEST.BIRTH_DATE, lastLogin: [DateTimeDb] T_DATETIME_TEST.LAST_LOGIN } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DateTimeMap ]; connections: [ store::DateTimeDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2175,9 +2544,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::TestRecord { name: String[1]; }
+                ###Relational
                 Database store::NowDb ( Table T_NOW_TEST ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::NowMap ( TestRecord: Relational { ~mainTable [NowDb] T_NOW_TEST name: [NowDb] T_NOW_TEST.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::NowMap ]; connections: [ store::NowDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2213,9 +2595,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::EventRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::FirstDayDb ( Table T_FIRST_DAY_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::FirstDayMap ( EventRecord: Relational { ~mainTable [FirstDayDb] T_FIRST_DAY_TEST eventDate: [FirstDayDb] T_FIRST_DAY_TEST.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::FirstDayMap ]; connections: [ store::FirstDayDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2250,9 +2645,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::TruncRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::TruncDb ( Table T_TRUNC_TEST ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::TruncMap ( TruncRecord: Relational { ~mainTable [TruncDb] T_TRUNC_TEST eventDate: [TruncDb] T_TRUNC_TEST.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::TruncMap ]; connections: [ store::TruncDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2287,9 +2695,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DateRange { startDate: StrictDate[1]; endDate: StrictDate[1]; }
+                ###Relational
                 Database store::DateDiffDb ( Table T_DATE_DIFF_TEST ( ID INTEGER, START_DATE DATE, END_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DateDiffMap ( DateRange: Relational { ~mainTable [DateDiffDb] T_DATE_DIFF_TEST startDate: [DateDiffDb] T_DATE_DIFF_TEST.START_DATE, endDate: [DateDiffDb] T_DATE_DIFF_TEST.END_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DateDiffMap ]; connections: [ store::DateDiffDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2323,9 +2744,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::AdjustRecord { baseDate: StrictDate[1]; }
+                ###Relational
                 Database store::AdjustDb ( Table T_ADJUST_TEST ( ID INTEGER, BASE_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::AdjustMap ( AdjustRecord: Relational { ~mainTable [AdjustDb] T_ADJUST_TEST baseDate: [AdjustDb] T_ADJUST_TEST.BASE_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::AdjustMap ]; connections: [ store::AdjustDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2360,9 +2794,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::AdjustMethodRecord { baseDate: StrictDate[1]; }
+                ###Relational
                 Database store::AdjustMethodDb ( Table T_ADJUST_METHOD_TEST ( ID INTEGER, BASE_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::AdjustMethodMap ( AdjustMethodRecord: Relational { ~mainTable [AdjustMethodDb] T_ADJUST_METHOD_TEST baseDate: [AdjustMethodDb] T_ADJUST_METHOD_TEST.BASE_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::AdjustMethodMap ]; connections: [ store::AdjustMethodDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2522,9 +2969,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::EpochRecord { eventDate: DateTime[1]; }
+                ###Relational
                 Database store::EpochDb ( Table T_EPOCH_TEST ( ID INTEGER, EVENT_DATE TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EpochMap ( EpochRecord: Relational { ~mainTable [EpochDb] T_EPOCH_TEST eventDate: [EpochDb] T_EPOCH_TEST.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::EpochMap ]; connections: [ store::EpochDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2555,9 +3015,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::FromEpochRecord { epochSeconds: Integer[1]; }
+                ###Relational
                 Database store::FromEpochDb ( Table T_FROM_EPOCH_TEST ( ID INTEGER, EPOCH_SECONDS BIGINT ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::FromEpochMap ( FromEpochRecord: Relational { ~mainTable [FromEpochDb] T_FROM_EPOCH_TEST epochSeconds: [FromEpochDb] T_FROM_EPOCH_TEST.EPOCH_SECONDS } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::FromEpochMap ]; connections: [ store::FromEpochDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2590,9 +3063,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DateCompareRecord { date1: DateTime[1]; date2: DateTime[1]; }
+                ###Relational
                 Database store::DateCompareDb ( Table T_DATE_COMPARE ( ID INTEGER, DATE1 TIMESTAMP, DATE2 TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DateCompareMap ( DateCompareRecord: Relational { ~mainTable [DateCompareDb] T_DATE_COMPARE date1: [DateCompareDb] T_DATE_COMPARE.DATE1, date2: [DateCompareDb] T_DATE_COMPARE.DATE2 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DateCompareMap ]; connections: [ store::DateCompareDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2626,9 +3112,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::AfterBeforeRecord { date1: StrictDate[1]; date2: StrictDate[1]; }
+                ###Relational
                 Database store::AfterBeforeDb ( Table T_AFTER_BEFORE ( ID INTEGER, DATE1 DATE, DATE2 DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::AfterBeforeMap ( AfterBeforeRecord: Relational { ~mainTable [AfterBeforeDb] T_AFTER_BEFORE date1: [AfterBeforeDb] T_AFTER_BEFORE.DATE1, date2: [AfterBeforeDb] T_AFTER_BEFORE.DATE2 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::AfterBeforeMap ]; connections: [ store::AfterBeforeDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2665,9 +3164,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::OnOrRecord { date1: StrictDate[1]; date2: StrictDate[1]; }
+                ###Relational
                 Database store::OnOrDb ( Table T_ON_OR ( ID INTEGER, DATE1 DATE, DATE2 DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::OnOrMap ( OnOrRecord: Relational { ~mainTable [OnOrDb] T_ON_OR date1: [OnOrDb] T_ON_OR.DATE1, date2: [OnOrDb] T_ON_OR.DATE2 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::OnOrMap ]; connections: [ store::OnOrDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2699,9 +3211,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DatePartRecord { eventTime: DateTime[1]; }
+                ###Relational
                 Database store::DatePartDb ( Table T_DATEPART ( ID INTEGER, EVENT_TIME TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DatePartMap ( DatePartRecord: Relational { ~mainTable [DatePartDb] T_DATEPART eventTime: [DatePartDb] T_DATEPART.EVENT_TIME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DatePartMap ]; connections: [ store::DatePartDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2732,9 +3257,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::FirstHourRecord { eventTime: DateTime[1]; }
+                ###Relational
                 Database store::FirstHourDb ( Table T_FIRST_HOUR ( ID INTEGER, EVENT_TIME TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::FirstHourMap ( FirstHourRecord: Relational { ~mainTable [FirstHourDb] T_FIRST_HOUR eventTime: [FirstHourDb] T_FIRST_HOUR.EVENT_TIME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::FirstHourMap ]; connections: [ store::FirstHourDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2767,9 +3305,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::TimeBucketRecord { eventTime: DateTime[1]; }
+                ###Relational
                 Database store::TimeBucketDb ( Table T_TIMEBUCKET ( ID INTEGER, EVENT_TIME TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::TimeBucketMap ( TimeBucketRecord: Relational { ~mainTable [TimeBucketDb] T_TIMEBUCKET eventTime: [TimeBucketDb] T_TIMEBUCKET.EVENT_TIME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::TimeBucketMap ]; connections: [ store::TimeBucketDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2807,9 +3358,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DayBucketRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::DayBucketDb ( Table T_TIMEBUCKET_DAYS ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DayBucketMap ( DayBucketRecord: Relational { ~mainTable [DayBucketDb] T_TIMEBUCKET_DAYS eventDate: [DayBucketDb] T_TIMEBUCKET_DAYS.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DayBucketMap ]; connections: [ store::DayBucketDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2844,9 +3408,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::MonthRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::MonthDb ( Table T_MONTH ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::MonthMap ( MonthRecord: Relational { ~mainTable [MonthDb] T_MONTH eventDate: [MonthDb] T_MONTH.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::MonthMap ]; connections: [ store::MonthDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2880,9 +3457,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::QuarterRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::QuarterDb ( Table T_QUARTER ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::QuarterMap ( QuarterRecord: Relational { ~mainTable [QuarterDb] T_QUARTER eventDate: [QuarterDb] T_QUARTER.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::QuarterMap ]; connections: [ store::QuarterDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2915,9 +3505,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::MinMaxRecord { date1: StrictDate[1]; date2: StrictDate[1]; }
+                ###Relational
                 Database store::MinMaxDb ( Table T_MINMAX_DATE ( ID INTEGER, DATE1 DATE, DATE2 DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::MinMaxMap ( MinMaxRecord: Relational { ~mainTable [MinMaxDb] T_MINMAX_DATE date1: [MinMaxDb] T_MINMAX_DATE.DATE1, date2: [MinMaxDb] T_MINMAX_DATE.DATE2 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::MinMaxMap ]; connections: [ store::MinMaxDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -2978,9 +3581,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DowRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::DowDb ( Table T_DOW ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DowMap ( DowRecord: Relational { ~mainTable [DowDb] T_DOW eventDate: [DowDb] T_DOW.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DowMap ]; connections: [ store::DowDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3014,9 +3630,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::DoyRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::DoyDb ( Table T_DOY ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DoyMap ( DoyRecord: Relational { ~mainTable [DoyDb] T_DOY eventDate: [DoyDb] T_DOY.EVENT_DATE } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3044,9 +3673,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3068,9 +3710,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3091,9 +3746,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3115,9 +3783,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3138,9 +3819,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3161,9 +3855,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3184,9 +3891,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3207,9 +3927,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3233,9 +3966,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3256,9 +4002,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3279,9 +4038,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3302,9 +4074,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3326,9 +4111,22 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import test::*;
 
                 Class model::Dummy { name: String[1]; }
+                ###Relational
                 Database store::DummyDb ( Table T_DUMMY ( ID INTEGER, NAME VARCHAR(100) ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::DummyMap ( Dummy: Relational { ~mainTable [DummyDb] T_DUMMY name: [DummyDb] T_DUMMY.NAME } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::DummyMap ]; connections: [ store::DummyDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3370,13 +4168,26 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     name: String[1];
                     hireDate: Date[1];
                 }
+                ###Relational
                 Database store::EmpDb ( Table T_EMPLOYEE ( ID INTEGER, NAME VARCHAR(100), HIRE_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EmpMap ( Employee: Relational {
                     ~mainTable [EmpDb] T_EMPLOYEE
                     name: [EmpDb] T_EMPLOYEE.NAME,
                     hireDate: [EmpDb] T_EMPLOYEE.HIRE_DATE
                 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::EmpMap ]; connections: [ store::EmpDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3421,13 +4232,26 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     name: String[1];
                     hireDate: Date[1];
                 }
+                ###Relational
                 Database store::EmpDb ( Table T_EMPLOYEE ( ID INTEGER, NAME VARCHAR(100), HIRE_DATE DATE ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EmpMap ( Employee: Relational {
                     ~mainTable [EmpDb] T_EMPLOYEE
                     name: [EmpDb] T_EMPLOYEE.NAME,
                     hireDate: [EmpDb] T_EMPLOYEE.HIRE_DATE
                 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::EmpMap ]; connections: [ store::EmpDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3466,8 +4290,15 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 import store::*;
                 import test::*;
 
+                ###Relational
                 Database store::EventDb ( Table T_EVENTS ( ID INTEGER, EVENT_NAME VARCHAR(100), EVENT_DATE DATE ) )
+                ###Connection
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: []; connections: [ store::EventDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3512,13 +4343,26 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     title: String[1];
                     scheduledAt: DateTime[1];
                 }
+                ###Relational
                 Database store::ApptDb ( Table T_APPOINTMENTS ( ID INTEGER, TITLE VARCHAR(100), SCHEDULED_AT TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::ApptMap ( Appointment: Relational {
                     ~mainTable [ApptDb] T_APPOINTMENTS
                     title: [ApptDb] T_APPOINTMENTS.TITLE,
                     scheduledAt: [ApptDb] T_APPOINTMENTS.SCHEDULED_AT
                 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::ApptMap ]; connections: [ store::ApptDb: [ environment: store::TestConn ] ]; }
                 """;
 
@@ -3564,13 +4408,26 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     title: String[1];
                     scheduledAt: DateTime[1];
                 }
+                ###Relational
                 Database store::ApptDb ( Table T_APPOINTMENTS ( ID INTEGER, TITLE VARCHAR(100), SCHEDULED_AT TIMESTAMP ) )
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::ApptMap ( Appointment: Relational {
                     ~mainTable [ApptDb] T_APPOINTMENTS
                     title: [ApptDb] T_APPOINTMENTS.TITLE,
                     scheduledAt: [ApptDb] T_APPOINTMENTS.SCHEDULED_AT
                 } )
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime { mappings: [ model::ApptMap ]; connections: [ store::ApptDb: [ environment: store::TestConn ] ]; }
                 """;
 

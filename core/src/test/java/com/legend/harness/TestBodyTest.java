@@ -33,11 +33,13 @@ class TestBodyTest {
               age  : Integer[1];
             }
 
+            ###Relational
             Database test::DB
             (
               Table PERSON ( NAME VARCHAR(64) PRIMARY KEY, AGE INTEGER )
             )
 
+            ###Mapping
             Mapping test::M
             (
               test::Person : Relational
@@ -48,12 +50,15 @@ class TestBodyTest {
               }
             )
 
+            ###Connection
             RelationalDatabaseConnection test::Conn
             { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+            ###Runtime
             Runtime test::Rt
             { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
 
+            ###Pure
             function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
             function test::e(): meta::pure::metamodel::type::Any[*] { [] }
             """;
@@ -289,6 +294,7 @@ class TestBodyTest {
             Association test::Employment
             { employer : test::Firm[1]; employees : test::Person[*]; }
 
+            ###Relational
             Database test::DB (
               Table FIRM ( ID INTEGER PRIMARY KEY, LEGAL VARCHAR(64) )
               Table PERSON ( NAME VARCHAR(64) PRIMARY KEY, AGE INTEGER,
@@ -296,6 +302,7 @@ class TestBodyTest {
               Join FP ( FIRM.ID = PERSON.FIRMID )
             )
 
+            ###Mapping
             Mapping test::M (
               test::Person : Relational {
                 ~mainTable [test::DB] PERSON
@@ -310,12 +317,15 @@ class TestBodyTest {
               ) }
             )
 
+            ###Connection
             RelationalDatabaseConnection test::Conn
             { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
+            ###Runtime
             Runtime test::Rt
             { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
 
+            ###Pure
             function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
             function test::e(): meta::pure::metamodel::type::Any[*] { [] }
             """;

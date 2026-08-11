@@ -89,7 +89,9 @@ class ClassSourceTest {
     void extractionSplitsTheTerminal() {
         Ctx c = load("""
             Class m::Person { name: String[1]; age: Integer[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), AGE INTEGER) )
+            ###Mapping
             Mapping m::M ( *m::Person: Relational { ~mainTable [s::DB] T
               name: T.NAME, age: T.AGE } )
             """);
@@ -114,7 +116,9 @@ class ClassSourceTest {
     void memoized() {
         Ctx c = load("""
             Class m::P { name: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50)) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T name: T.NAME } )
             """);
         assertSame(c.sources().get("m::M", "m::P"), c.sources().get("m::M", "m::P"));
@@ -126,7 +130,9 @@ class ClassSourceTest {
         Ctx c = load("""
             Class m::P { name: String[1]; }
             Class m::Q { name: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50)) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T name: T.NAME } )
             """);
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
@@ -140,7 +146,9 @@ class ClassSourceTest {
     void unknownMappingIsLoud() {
         Ctx c = load("""
             Class m::P { name: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50)) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] T name: T.NAME } )
             """);
         assertThrows(MappingResolutionException.class,
@@ -152,8 +160,10 @@ class ClassSourceTest {
     void mappingFilterRidesThePipeline() {
         Ctx c = load("""
             Class m::P { name: String[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), ACTIVE INTEGER)
               Filter ActiveF ( T.ACTIVE = 1 ) )
+            ###Mapping
             Mapping m::M ( *m::P: Relational { ~filter [s::DB] ActiveF
               ~mainTable [s::DB] T name: T.NAME } )
             """);

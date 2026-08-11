@@ -37,6 +37,7 @@ class ResolveTemporalContextTest {
             Class <<temporal.businesstemporal>> t::Order { id: Integer[1]; mid: t::Mid[1]; }
             Class <<temporal.businesstemporal>> t::Mid { mname: String[1]; descr: String[1]; subq: t::Sub[1]; }
             Class <<temporal.businesstemporal>> t::Sub { sname: String[1]; }
+            ###Relational
             Database t::DB (
               Table OrderT (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
@@ -54,6 +55,7 @@ class ResolveTemporalContextTest {
               Join MD (MidT.ID = DescT.MID)
               Join MS (MidT.SID = SubT.ID)
             )
+            ###Mapping
             Mapping t::M (
               *t::Order : Relational { ~mainTable [t::DB] OrderT
                 id: OrderT.ID, mid: [t::DB]@OM }
@@ -62,6 +64,7 @@ class ResolveTemporalContextTest {
               *t::Sub : Relational { ~mainTable [t::DB] SubT
                 sname: SubT.sname }
             )
+            ###Runtime
             Runtime t::RT { mappings: [t::M]; }
             """;
 
@@ -69,6 +72,7 @@ class ResolveTemporalContextTest {
     private static final String XDIM_MODEL = """
             Class <<temporal.businesstemporal>> x::Order { id: Integer[1]; product: x::Product[1]; }
             Class <<temporal.businesstemporal>> x::Product { name: String[1]; descr: String[1]; }
+            ###Relational
             Database x::DB (
               Table OrderT (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
@@ -82,12 +86,14 @@ class ResolveTemporalContextTest {
               Join OP (OrderT.PID = ProdT.ID)
               Join PD (ProdT.ID = DescT.PID)
             )
+            ###Mapping
             Mapping x::M (
               *x::Order : Relational { ~mainTable [x::DB] OrderT
                 id: OrderT.ID, product: [x::DB]@OP }
               *x::Product : Relational { ~mainTable [x::DB] ProdT
                 name: ProdT.name, descr: @PD | DescT.descr }
             )
+            ###Runtime
             Runtime x::RT { mappings: [x::M]; }
             """;
 
@@ -96,6 +102,7 @@ class ResolveTemporalContextTest {
     private static final String BITEMP_MODEL = """
             Class b::Order { id: Integer[1]; orderDate: Date[1]; product: b::Product[1]; }
             Class <<temporal.bitemporal>> b::Product { name: String[1]; }
+            ###Relational
             Database b::DB (
               Table OrderT ( ID INTEGER PRIMARY KEY, PID INTEGER, odate DATE )
               Table ProdT (
@@ -103,12 +110,14 @@ class ResolveTemporalContextTest {
                 ID INTEGER PRIMARY KEY, name VARCHAR(64), in_z TIMESTAMP, out_z TIMESTAMP, from_z DATE, thru_z DATE )
               Join OP (OrderT.PID = ProdT.ID)
             )
+            ###Mapping
             Mapping b::M (
               *b::Order : Relational { ~mainTable [b::DB] OrderT
                 id: OrderT.ID, orderDate: OrderT.odate, product: [b::DB]@OP }
               *b::Product : Relational { ~mainTable [b::DB] ProdT
                 name: ProdT.name }
             )
+            ###Runtime
             Runtime b::RT { mappings: [b::M]; }
             """;
 
@@ -217,6 +226,7 @@ class ResolveTemporalContextTest {
     private static final String MID_MODEL = """
             Class <<temporal.businesstemporal>> m::Acct { id: Integer[1]; ref: m::Ref[0..1]; }
             Class m::Ref { rname: String[1]; }
+            ###Relational
             Database m::DB (
               Table AcctT (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
@@ -228,12 +238,14 @@ class ResolveTemporalContextTest {
               Join AM (AcctT.MID = MidT.ID)
               Join MR (MidT.RID = RefT.ID)
             )
+            ###Mapping
             Mapping m::M (
               *m::Acct : Relational { ~mainTable [m::DB] AcctT
                 id: AcctT.ID, ref: @AM > @MR }
               *m::Ref : Relational { ~mainTable [m::DB] RefT
                 rname: RefT.rname }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 
@@ -260,11 +272,13 @@ class ResolveTemporalContextTest {
             Class f::Firm { legal: String[1]; }
             Class f::Person { firstName: String[1]; lastName: String[1]; }
             Association f::Employment { employer: f::Firm[0..1]; employees: f::Person[*]; }
+            ###Relational
             Database f::DB (
               Table FirmT ( ID INTEGER PRIMARY KEY, LEGAL VARCHAR(64) )
               Table PersonT ( ID INTEGER PRIMARY KEY, FIRST VARCHAR(64), LAST VARCHAR(64), FIRMID INTEGER )
               Join FP (FirmT.ID = PersonT.FIRMID)
             )
+            ###Mapping
             Mapping f::M (
               *f::Firm : Relational { ~mainTable [f::DB] FirmT
                 legal: FirmT.LEGAL }
@@ -273,6 +287,7 @@ class ResolveTemporalContextTest {
               f::Employment : Relational { AssociationMapping (
                 employer: [f::DB]@FP, employees: [f::DB]@FP ) }
             )
+            ###Runtime
             Runtime f::RT { mappings: [f::M]; }
             """;
 

@@ -33,7 +33,7 @@ class CompilerTest {
         ModelContext ctx = Compiler.compileModel(
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } "
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
               + ")");
 

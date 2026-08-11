@@ -61,7 +61,7 @@ class CleanSheetProtocolShapeTest {
 
     @Test
     void relationalFunctionRef() {
-        var md = cleanSheet("Mapping acme::M ( "
+        var md = cleanSheet("\n###Mapping\nMapping acme::M ( "
                 + "  *acme::Person: Relational { acme::funcs::personMapping } "
                 + ")");
         var b = md.classBindings().get(0);
@@ -73,7 +73,7 @@ class CleanSheetProtocolShapeTest {
 
     @Test
     void pureFunctionRef() {
-        var md = cleanSheet("Mapping acme::M ( "
+        var md = cleanSheet("\n###Mapping\nMapping acme::M ( "
                 + "  acme::StaffMember: Pure { acme::funcs::staffMapping } "
                 + ")");
         var b = md.classBindings().get(0);
@@ -84,7 +84,7 @@ class CleanSheetProtocolShapeTest {
 
     @Test
     void setIdAndExtendsRideTheBinding() {
-        var md = cleanSheet("Mapping acme::M ( "
+        var md = cleanSheet("\n###Mapping\nMapping acme::M ( "
                 + "  acme::Person[emp] extends [base]: Relational"
                 + " { acme::funcs::employeeMapping } "
                 + ")");
@@ -97,7 +97,7 @@ class CleanSheetProtocolShapeTest {
     void associationKindTag() {
         // The tag this family exists to protect: an AssociationMapping in
         // function form lands in associationBindings, not classBindings.
-        var md = cleanSheet("Mapping acme::M ( "
+        var md = cleanSheet("\n###Mapping\nMapping acme::M ( "
                 + "  *acme::Person: Relational { acme::funcs::personMapping } "
                 + "  *acme::Firm:   Relational { acme::funcs::firmMapping } "
                 + "  acme::Person_Firm: AssociationMapping"
@@ -112,7 +112,7 @@ class CleanSheetProtocolShapeTest {
 
     @Test
     void multipleBindingsKeepOrderAndRootMarkers() {
-        var md = cleanSheet("Mapping acme::M ( "
+        var md = cleanSheet("\n###Mapping\nMapping acme::M ( "
                 + "  *acme::Person: Relational { acme::funcs::personMapping } "
                 + "  acme::Firm:    Relational { acme::funcs::firmMapping } "
                 + "  acme::Staff:   Pure       { acme::funcs::staffMapping } "
@@ -131,7 +131,7 @@ class CleanSheetProtocolShapeTest {
      *  becomes a lambda on the wire and a Realization.Inline in the model. */
     @Test
     void inlineExpressionBody() {
-        var md = cleanSheet("Mapping acme::M ( "
+        var md = cleanSheet("\n###Mapping\nMapping acme::M ( "
                 + "  *acme::Person: Relational"
                 + " { acme::funcs::rows() -> map(r | ^acme::Person(name = $r.NAME)) } "
                 + ")");
@@ -145,7 +145,7 @@ class CleanSheetProtocolShapeTest {
      *  route every relational mapping in the corpus into the wrong arm. */
     @Test
     void legacyBodyStillTakesTheLegacyPath() {
-        var el = mapping("Mapping acme::M ( "
+        var el = mapping("\n###Mapping\nMapping acme::M ( "
                 + "  *acme::Person: Relational { ~mainTable [acme::DB]personTable"
                 + "  name: [acme::DB]personTable.NAME } "
                 + ")");

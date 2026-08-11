@@ -1291,6 +1291,7 @@ final class ElementParserTest {
     @Test
     void connectionMinimalDuckDbTestAuth() {
         ParsedModel m = ElementParser.parse("""
+                ###Connection
                 RelationalDatabaseConnection store::C
                 {
                   store: store::PersonDb;
@@ -1313,6 +1314,7 @@ final class ElementParserTest {
     @Test
     void connectionStaticDatasourceWithUsernamePassword() {
         ParsedModel m = ElementParser.parse("""
+                ###Connection
                 RelationalDatabaseConnection store::Prod
                 {
                   store: store::PersonDb;
@@ -1333,6 +1335,7 @@ final class ElementParserTest {
     @Test
     void connectionLocalFileSpec() {
         ParsedModel m = ElementParser.parse("""
+                ###Connection
                 RelationalDatabaseConnection store::F
                 {
                   store: store::S;
@@ -1385,6 +1388,7 @@ final class ElementParserTest {
     @Test
     void runtimeMappingsAndConnectionBindings() {
         ParsedModel m = ElementParser.parse("""
+                ###Runtime
                 Runtime my::R
                 {
                   mappings: [ my::M1, my::M2 ];
@@ -1407,7 +1411,7 @@ final class ElementParserTest {
     @Test
     void runtimeEmbeddedJsonModelConnection() {
         ParsedModel m = ElementParser.parse(
-                "Runtime my::R { mappings: [my::M]; connections: ["
+                "\n###Runtime\nRuntime my::R { mappings: [my::M]; connections: ["
                 + "ModelStore: [ json: #{ JsonModelConnection { class: model::Raw;"
                 + " url: 'data:application/json,[]'; } }# ] ]; }");
         RuntimeDefinition r = (RuntimeDefinition) m.elements().get(0);
@@ -1452,6 +1456,7 @@ final class ElementParserTest {
     @Test
     void serviceMinimalWithExecutionBlock() {
         ParsedModel m = ElementParser.parse("""
+                ###Service
                 Service my::api::GetPerson
                 {
                   pattern: '/api/person/{id}';
@@ -1486,9 +1491,11 @@ final class ElementParserTest {
         // raw-capture pin used a synthetic shape the real grammar (and
         // the engine) never accepted.
         ParsedModel m = ElementParser.parse("""
+                ###Service
                 Service my::S
                 {
                   pattern: '/x';
+                  documentation: '';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; }
                   testSuites:
                   [
@@ -1526,7 +1533,7 @@ final class ElementParserTest {
     @Test
     void servicePatternDefaultsToSlashWhenAbsent() {
         ParsedModel m = ElementParser.parse(
-                "Service my::S { execution: Single { query: |1; mapping: my::M; runtime: my::R; } }");
+                "\n###Service\nService my::S { execution: Single { query: |1; mapping: my::M; runtime: my::R; } }");
         ServiceDefinition s = (ServiceDefinition) m.elements().get(0);
         assertEquals("/", s.pattern());
     }
@@ -1549,6 +1556,7 @@ final class ElementParserTest {
     @Test
     void databaseSingleTableColumns() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+                ###Relational
                 Database store::Db
                 (
                   Table T_PERSON
@@ -1577,6 +1585,7 @@ final class ElementParserTest {
         // inclusivity flags flip the boundary operators — all three are
         // load-bearing, never skippable tokens
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+                ###Relational
                 Database store::Db
                 (
                   Table ProductTable
@@ -1610,6 +1619,7 @@ final class ElementParserTest {
     @Test
     void databaseTableSnapshotMilestoning() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+                ###Relational
                 Database store::Db
                 (
                   Table OrderTable
@@ -1630,7 +1640,7 @@ final class ElementParserTest {
     @Test
     void databaseQuotedTableAndColumnIdentifiers() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table \"Mixed Case\" ( \"Col One\" INTEGER ) )")
+                "\n###Relational\nDatabase s::Db ( Table \"Mixed Case\" ( \"Col One\" INTEGER ) )")
                 .elements().get(0);
         TableDefinition t = db.tables().get(0);
         assertEquals("Mixed Case", t.name(), "quotes must be stripped from table name");
@@ -1640,7 +1650,7 @@ final class ElementParserTest {
     @Test
     void databaseIncludeStatements() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Child ( include s::Parent1 include other::P2 Table T ( C INTEGER ) )")
+                "\n###Relational\nDatabase s::Child ( include s::Parent1 include other::P2 Table T ( C INTEGER ) )")
                 .elements().get(0);
         assertEquals(List.of("s::Parent1", "other::P2"), db.includes());
         assertEquals(1, db.tables().size());
@@ -1649,6 +1659,7 @@ final class ElementParserTest {
     @Test
     void databaseSchemaMirrorsTablesAndViewsToFlatLists() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+                ###Relational
                 Database s::Db
                 (
                   Schema S1
@@ -1682,7 +1693,7 @@ final class ElementParserTest {
     @Test
     void joinSimpleEquiCondition() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table A ( ID INTEGER ) Table B ( A_ID INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table A ( ID INTEGER ) Table B ( A_ID INTEGER ) "
                 + "Join AB(A.ID = B.A_ID) )").elements().get(0);
         assertEquals(1, db.joins().size());
         JoinDefinition j = db.joins().get(0);
@@ -1696,7 +1707,7 @@ final class ElementParserTest {
     @Test
     void joinCompoundAndExpression() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table A ( X INTEGER, Y INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table A ( X INTEGER, Y INTEGER ) "
                 + "Table B ( X INTEGER, Y INTEGER ) "
                 + "Join AB(A.X = B.X and A.Y = B.Y) )").elements().get(0);
         JoinDefinition j = db.joins().get(0);
@@ -1710,7 +1721,7 @@ final class ElementParserTest {
     @Test
     void joinSelfWithTargetColumn() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( ID INTEGER, PARENT_ID INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( ID INTEGER, PARENT_ID INTEGER ) "
                 + "Join SelfJ(T.PARENT_ID = {target}.ID) )").elements().get(0);
         JoinDefinition j = db.joins().get(0);
         Comparison c = (Comparison) j.operation();
@@ -1725,7 +1736,7 @@ final class ElementParserTest {
     @Test
     void filterWithFunctionCallAndLiteral() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( N VARCHAR(50) ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( N VARCHAR(50) ) "
                 + "Filter NameFilter(upper(T.N) = 'BOB') )").elements().get(0);
         FilterDefinition f = db.filters().get(0);
         assertEquals("NameFilter", f.name());
@@ -1753,7 +1764,7 @@ final class ElementParserTest {
     @Test
     void filterIsNullAndIsNotNull() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER, Y INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER, Y INTEGER ) "
                 + "Filter Fa(T.X is null) Filter Fb(T.Y is not null) )")
                 .elements().get(0);
         assertInstanceOf(RelationalOperation.IsNull.class,
@@ -1765,7 +1776,7 @@ final class ElementParserTest {
     @Test
     void multiGrainFilterTrackedSeparately() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER ) MultiGrainFilter MGF(T.X = 1) )")
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) MultiGrainFilter MGF(T.X = 1) )")
                 .elements().get(0);
         assertEquals(0, db.filters().size());
         assertEquals(1, db.multiGrainFilters().size());
@@ -1779,7 +1790,7 @@ final class ElementParserTest {
     @Test
     void viewMinimalColumnMapping() {
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
                 + "View V ( a: T.X PRIMARY KEY, b: T.X ) )").elements().get(0);
         assertEquals(1, db.views().size());
         ViewDefinition v = db.views().get(0);
@@ -1796,7 +1807,7 @@ final class ElementParserTest {
     void viewFilterDirectLocal() {
         // ~filter F → Direct(Local("F"))
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER, Y INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER, Y INTEGER ) "
                 + "Filter F(T.X = 1) "
                 + "View V ( ~filter F ~groupBy(T.Y) ~distinct  a: T.X, b: T.Y ) )")
                 .elements().get(0);
@@ -1812,7 +1823,7 @@ final class ElementParserTest {
     void viewFilterDirectCross() {
         // ~filter [other::Db] F → Direct(Cross("other::Db", "F"))
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
                 + "View V ( ~filter [other::Db] RemoteFilter  a: T.X ) )")
                 .elements().get(0);
         FilterMapping.Direct direct = (FilterMapping.Direct) db.views().get(0).filter();
@@ -1843,7 +1854,7 @@ final class ElementParserTest {
     void viewFilterJoinMediatedMultiHop() {
         // the same chain, spelled the way engine's grammar requires
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
                 + "Join J1(T.X = T.X) Join J2(T.X = T.X) "
                 + "Filter F(T.X = 1) "
                 + "View V ( ~filter [s::Db] @J1 > @J2 | [s::Db] F  a: T.X ) )")
@@ -1859,7 +1870,7 @@ final class ElementParserTest {
     void viewFilterJoinMediatedCrossTarget() {
         // ~filter [s::Db] @J | [other::Db] F → JoinMediated(.., Cross("other::Db", "F"))
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( X INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
                 + "Join J(T.X = T.X) "
                 + "View V ( ~filter [s::Db] @J | [other::Db] RemoteFilter  a: T.X ) )")
                 .elements().get(0);
@@ -1904,7 +1915,7 @@ final class ElementParserTest {
         // Database-context join navigation: @J1 > @J2 | T.COL
         // Engine permits this in filters; we test parser only here.
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "Database s::Db ( Table T ( COL INTEGER ) "
+                "\n###Relational\nDatabase s::Db ( Table T ( COL INTEGER ) "
                 + "Join J1(T.COL = T.COL) Join J2(T.COL = T.COL) "
                 + "Filter F(@J1 > @J2 | T.COL = 1) )").elements().get(0);
         FilterDefinition f = db.filters().get(0);  // joins go in db.joins(), filters in db.filters()
@@ -1930,11 +1941,15 @@ final class ElementParserTest {
                 Enum my::E { A, B }
                 Profile my::P { stereotypes: [s]; }
                 function my::f(): String[1] { 'hi' }
+                ###Connection
                 RelationalDatabaseConnection store::C { store: store::Db; type: DuckDB;
                   specification: DuckDB {}; auth: Test; }
+                ###Runtime
                 Runtime my::R { mappings: [my::M]; connections: []; }
-                Service my::Svc { pattern: '/x';
+                ###Service
+                Service my::Svc { pattern: '/x'; documentation: '';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; } }
+                ###Relational
                 Database store::Db ( Table T ( ID INTEGER PRIMARY KEY ) )
                 """);
         assertEquals(9, m.elements().size());
@@ -1949,10 +1964,13 @@ final class ElementParserTest {
                 Enum my::E { A, B }
                 Profile my::P { stereotypes: [s]; }
                 function my::f(): String[1] { 'hi' }
+                ###Connection
                 RelationalDatabaseConnection store::C { store: store::S; type: DuckDB;
                   specification: DuckDB {}; auth: Test; }
+                ###Runtime
                 Runtime my::R { mappings: [my::M]; connections: []; }
-                Service my::Svc { pattern: '/x';
+                ###Service
+                Service my::Svc { pattern: '/x'; documentation: '';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; } }
                 """);
         assertEquals(8, m.elements().size());
@@ -1980,7 +1998,7 @@ final class ElementParserTest {
     @Test
     void cleanSheet_relationalFunctionRef_parsesToClassBinding() {
         var md = canonicalMapping(
-                "Mapping acme::M ( "
+                "\n###Mapping\nMapping acme::M ( "
               + "  *acme::Person: Relational { acme::funcs::personMapping } "
               + ")");
         assertEquals("acme::M", md.qualifiedName());
@@ -1997,7 +2015,7 @@ final class ElementParserTest {
     @Test
     void cleanSheet_pureFunctionRef_parsesToPureBinding() {
         var md = canonicalMapping(
-                "Mapping acme::M ( "
+                "\n###Mapping\nMapping acme::M ( "
               + "  acme::StaffMember: Pure { acme::funcs::staffMapping } "
               + ")");
         var b = md.classBindings().get(0);
@@ -2010,7 +2028,7 @@ final class ElementParserTest {
     @Test
     void cleanSheet_setIdAndExtends_carriedOntoBinding() {
         var md = canonicalMapping(
-                "Mapping acme::M ( "
+                "\n###Mapping\nMapping acme::M ( "
               + "  acme::Person[emp] extends [base]: Relational { acme::funcs::employeeMapping } "
               + ")");
         var b = md.classBindings().get(0);
@@ -2022,7 +2040,7 @@ final class ElementParserTest {
     @Test
     void cleanSheet_associationMappingKindTag_parsesToAssociationBinding() {
         var md = canonicalMapping(
-                "Mapping acme::M ( "
+                "\n###Mapping\nMapping acme::M ( "
               + "  *acme::Person: Relational { acme::funcs::personMapping } "
               + "  *acme::Firm:   Relational { acme::funcs::firmMapping } "
               + "  acme::Person_Firm: AssociationMapping { acme::funcs::personFirmMatch } "
@@ -2037,7 +2055,7 @@ final class ElementParserTest {
     @Test
     void cleanSheet_multipleBindings_preserveOrderAndRootMarkers() {
         var md = canonicalMapping(
-                "Mapping acme::M ( "
+                "\n###Mapping\nMapping acme::M ( "
               + "  *acme::Person: Relational { acme::funcs::personMapping } "
               + "   acme::Firm:   Relational { acme::funcs::firmMapping } "
               + ")");
@@ -2054,7 +2072,7 @@ final class ElementParserTest {
         // A `~mainTable` / `prop:` body is legacy DSL even under the same
         // Relational kind tag — the §5.1 rule must NOT misread it as clean-sheet.
         var parsed = ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
               + ")").elements().get(0);
         assertInstanceOf(LegacyMappingDefinition.class, parsed,
@@ -2096,7 +2114,7 @@ final class ElementParserTest {
         // M5 / Door 3: an inline pipeline body parses to a ClassBinding whose
         // realization is Inline (carrying the expression), NOT a function ref.
         var md = canonicalMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Relational { acme::prep::rows() -> map(@model::Person) } "
               + ")");
         var b = md.classBindings().get(0);
@@ -2107,7 +2125,7 @@ final class ElementParserTest {
         assertEquals(1, inline.body().size(), "the inline body carries the parsed expression");
         // The bare-FQN sibling case must still be a Ref (regression guard).
         var refMd = canonicalMapping(
-                "Mapping my::M ( *model::Person: Relational { acme::funcs::personMapping } )");
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { acme::funcs::personMapping } )");
         assertInstanceOf(Realization.Ref.class,
                 refMd.classBindings().get(0).realization(),
                 "a bare FQN body is still a function ref, not inline");
@@ -2116,7 +2134,7 @@ final class ElementParserTest {
     @Test
     void cleanSheet_inlineAssociationLambda_parsesToInlineRealization() {
         var md = canonicalMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
               + "  acme::Person_Firm: AssociationMapping { {p, f | $p.firmId == $f.id} } "
               + ")");
         var ab = md.associationBindings().get(0);
@@ -2146,7 +2164,7 @@ final class ElementParserTest {
     @Test
     void mappingIncludeWithoutSubstitutions() {
         LegacyMappingDefinition md = (LegacyMappingDefinition)
-                ElementParser.parse("Mapping my::M ( include other::Base )").elements().get(0);
+                ElementParser.parse("\n###Mapping\nMapping my::M ( include other::Base )").elements().get(0);
         assertEquals(1, md.includes().size());
         assertEquals("other::Base", md.includes().get(0).mappingPath());
         assertTrue(md.includes().get(0).substitutions().isEmpty());
@@ -2156,7 +2174,7 @@ final class ElementParserTest {
     void mappingIncludeWithStoreSubstitutions() {
         LegacyMappingDefinition md = (LegacyMappingDefinition)
                 ElementParser.parse(
-                        "Mapping my::M ( include other::Base "
+                        "\n###Mapping\nMapping my::M ( include other::Base "
                         + "[ store::OldDb -> store::NewDb, store::Old2 -> store::New2 ] )")
                 .elements().get(0);
         var subs = md.includes().get(0).substitutions();
@@ -2170,7 +2188,7 @@ final class ElementParserTest {
     @Test
     void relationalClassMappingMinimal() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { ~mainTable [db::DB] PERSON } )");
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { ~mainTable [db::DB] PERSON } )");
         assertEquals("model::Person", cm.className());
         assertNull(cm.setId());
         assertNull(cm.extendsSetId());
@@ -2186,7 +2204,7 @@ final class ElementParserTest {
     @Test
     void relationalClassMappingSetIdAndExtends() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( model::Person[employees] extends [parentSet]: Relational "
+                "\n###Mapping\nMapping my::M ( model::Person[employees] extends [parentSet]: Relational "
                 + "{ ~mainTable [db::DB] PERSON } )");
         assertEquals("employees", cm.setId());
         assertEquals("parentSet", cm.extendsSetId());
@@ -2197,7 +2215,7 @@ final class ElementParserTest {
     void relationalClassMappingMainTableWithSchema() {
         // ~mainTable [db::DB] SCHEMA.TABLE  — schema-qualified main table
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { ~mainTable [db::DB] HR.PERSON } )");
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { ~mainTable [db::DB] HR.PERSON } )");
         assertEquals("HR.PERSON", cm.mainTable().table());
     }
 
@@ -2209,7 +2227,7 @@ final class ElementParserTest {
         // ~mainTable goes LAST among the tilde-commands -- writing it
         // before ~distinct/~groupBy/~primaryKey is a grammar violation.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~distinct "
                 + "~groupBy([db::DB]PERSON.DEPT_ID) "
                 + "~primaryKey([db::DB]PERSON.ID) "
@@ -2235,7 +2253,7 @@ final class ElementParserTest {
         // form remains legal in a VIEW, whose rule makes the pointer
         // optional (viewFilterMapping) — see viewFilterDirectLocal.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~filter [db::DB] ActivePersonFilter "
                 + "~mainTable [db::DB] PERSON "
                 + "} )");
@@ -2270,7 +2288,7 @@ final class ElementParserTest {
         // Our previous implementation hard-rejected this; legend-
         // engine accepts.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "firstName: [db::DB]PERSON.FIRST_NAME "
                 + "} )");
         assertNull(cm.mainTable(), "no ~mainTable -> mainTable is null");
@@ -2313,7 +2331,7 @@ final class ElementParserTest {
     void relationalClassMappingFilterJoinMediated() {
         // ~filter precedes ~mainTable per legend-engine grammar.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~filter [db::DB] @PersonFirm | [db::DB] ActiveFirm "
                 + "~mainTable [db::DB] PERSON "
                 + "} )");
@@ -2326,7 +2344,7 @@ final class ElementParserTest {
     @Test
     void propertyMappingPlainColumn() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "firstName: PERSON.FIRST_NAME "
                 + "} )");
@@ -2364,7 +2382,7 @@ final class ElementParserTest {
     @Test
     void propertyMappingColumnWithExplicitDbOverride() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "remoteField: [other::Db] EXTRA.NAME "
                 + "} )");
@@ -2378,7 +2396,7 @@ final class ElementParserTest {
     @Test
     void propertyMappingEnumeratedColumn() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "status: EnumerationMapping StatusMapping : PERSON.STATUS "
                 + "} )");
@@ -2391,7 +2409,7 @@ final class ElementParserTest {
     @Test
     void propertyMappingSingleHopJoin() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "firm: @Person_Firm "
                 + "} )");
@@ -2404,7 +2422,7 @@ final class ElementParserTest {
     @Test
     void propertyMappingMultiHopJoinWithTerminalColumn() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "cityName: @Person_Address > @Address_City | CITY.NAME "
                 + "} )");
@@ -2425,7 +2443,7 @@ final class ElementParserTest {
         // db; Phase D resolves. (The bare-id case is different: it's
         // unambiguously the main table and IS resolved eagerly.)
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "fullName: concat(PERSON.FIRST_NAME, PERSON.LAST_NAME) "
                 + "} )");
@@ -2440,7 +2458,7 @@ final class ElementParserTest {
     @Test
     void propertyMappingStructuredExpression() {
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "fullName: concat(PERSON.FIRST_NAME, ' ', PERSON.LAST_NAME) "
                 + "} )");
@@ -2469,7 +2487,7 @@ final class ElementParserTest {
         //      The cross-database case below is what proves the bracket is
         //      read as a qualifier at all.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "missing: isNull([db::DB] PERSON.VAL) "
                 + "} )");
@@ -2483,7 +2501,7 @@ final class ElementParserTest {
         // A FOREIGN database is carried, which is the assertion that would
         // fail outright if '[store::DB]' were read as an array literal.
         var cm2 = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "missing: isNull([store::DB] TN1.VAL) "
                 + "} )");
@@ -2523,7 +2541,7 @@ final class ElementParserTest {
         // The engine-legal spelling — `EnumerationMapping <id>:` — is what
         // the corpus writes and what must keep working.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Task: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Task: Relational { "
                 + "~mainTable [db::DB] TASKS "
                 + "status: EnumerationMapping StatusMap: [db::DB] TASKS.STATUS_CODE "
                 + "} )");
@@ -2538,7 +2556,7 @@ final class ElementParserTest {
         // ENGINE-REAL spelling (conform-to-engine): a pathless DuckDB spec
         // is the in-process database the retired InMemory flavor named
         var parsed = ElementParser.parse(
-                "RelationalDatabaseConnection store::C { store: db::DB; type: DuckDB; "
+                "\n###Connection\nRelationalDatabaseConnection store::C { store: db::DB; type: DuckDB; "
                 + "specification: DuckDB { }; auth: Test; }");
         var conn = (com.legend.model.ConnectionDefinition) parsed.elements().get(0);
         assertEquals(new com.legend.model.ConnectionSpecification.InMemory(),
@@ -2550,7 +2568,7 @@ final class ElementParserTest {
         // The qualifier lookahead must NOT swallow real array literals —
         // a '::'-free bracket followed by ',' or ')' is still an array.
         var cm = firstRelationalClassMapping(
-                "Mapping my::M ( *model::Person: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { "
                 + "~mainTable [db::DB] PERSON "
                 + "flag: case(in(PERSON.KIND, ['a', 'b']), 'x', 'y') "
                 + "} )");
@@ -2570,7 +2588,7 @@ final class ElementParserTest {
         // instead of refusing the file — a query against the class still
         // fails loudly at resolution.
         ParsedModel m = ElementParser.parse(
-                "Mapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )");
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )");
         var md = assertInstanceOf(com.legend.model.LegacyMappingDefinition.class,
                 m.elements().get(0));
         assertEquals(0, md.classMappings().size(),
@@ -2599,7 +2617,7 @@ final class ElementParserTest {
     @Test
     void associationMappingSingleProperty() {
         var am = firstAssociationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "my::Person_Firm: Relational { AssociationMapping ( "
                 + "firm: [db::DB] @Person_Firm "
                 + ") } )");
@@ -2617,7 +2635,7 @@ final class ElementParserTest {
     @Test
     void associationMappingTwoEndsCommaSeparated() {
         var am = firstAssociationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "my::Person_Firm: Relational { AssociationMapping ( "
                 + "firm: [db::DB] @Person_Firm, "
                 + "person: [db::DB] @Person_Firm "
@@ -2630,7 +2648,7 @@ final class ElementParserTest {
     @Test
     void associationMappingWithSetIdBrackets() {
         var am = firstAssociationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "my::Person_Firm: Relational { AssociationMapping ( "
                 + "firm[employees, mainFirms]: [db::DB] @Person_Firm "
                 + ") } )");
@@ -2642,7 +2660,7 @@ final class ElementParserTest {
     @Test
     void associationMappingMultiHopJoinChain() {
         var am = firstAssociationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "my::Person_City: Relational { AssociationMapping ( "
                 + "city: [db::DB] @Person_Address > @Address_City "
                 + ") } )");
@@ -2673,7 +2691,7 @@ final class ElementParserTest {
         // association mapping header; the star is meaningless and the id
         // names the element - neither changes binding semantics.
         var m = ElementParser.parse(
-                "Mapping my::M ( *my::A[someId]: Relational { AssociationMapping ( "
+                "\n###Mapping\nMapping my::M ( *my::A[someId]: Relational { AssociationMapping ( "
                 + "firm: [db::DB] @J ) } )");
         assertEquals(1, m.elements().size());
     }
@@ -2686,7 +2704,7 @@ final class ElementParserTest {
         // particular is the audit-11 wrong-rows shape on the Pure side;
         // dropping it at parse destroys the only copy of the information.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "  *model::T: Pure { "
                 + "    ~src model::S "
                 + "    a*: $src.x, "
@@ -2731,7 +2749,7 @@ final class ElementParserTest {
         // the model and the family's golden encodes their absence. A parser
         // that refused it could not read the corpus at all.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( my::A: XStore { "
+                "\n###Mapping\nMapping my::M ( my::A: XStore { "
                 + "  employees[firm1, person1]: $this.a == $that.b, "
                 + "  firm[person1, firm1]: $this.a == $that.b "     // <-- no comma
                 + "  employees[firm2, person2]: $this.a == $that.b, "
@@ -2748,7 +2766,7 @@ final class ElementParserTest {
     void xstoreAllEntriesParseWhenCommasArePresent() {
         // The same fixture, comma-complete: all four entries survive.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( my::A: XStore { "
+                "\n###Mapping\nMapping my::M ( my::A: XStore { "
                 + "  employees[firm1, person1]: $this.a == $that.b, "
                 + "  firm[person1, firm1]: $this.a == $that.b, "
                 + "  employees[firm2, person2]: $this.a == $that.b, "
@@ -2774,7 +2792,7 @@ final class ElementParserTest {
     @Test
     void mappingMixesClassAndAssociationMappings() {
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
                 + "my::Person_Firm: Relational { AssociationMapping ( firm: [db::DB] @P_F ) } "
                 + ")").elements().get(0);
@@ -2810,7 +2828,7 @@ final class ElementParserTest {
     @Test
     void enumerationMappingWithIdAndSingleStringSources() {
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::OrderStatus: EnumerationMapping StatusMap { "
                 + "PENDING: 'P', "
                 + "SHIPPED: 'S' "
@@ -2827,7 +2845,7 @@ final class ElementParserTest {
     @Test
     void enumerationMappingWithoutId() {
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::TaskStatus: EnumerationMapping { "
                 + "TODO: 'TODO' "
                 + "} )");
@@ -2838,7 +2856,7 @@ final class ElementParserTest {
     @Test
     void enumerationMappingBracketedMultipleStringSources() {
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::S: EnumerationMapping Mid { "
                 + "PENDING: ['P', 'PEND', 'WAITING'] "
                 + "} )");
@@ -2852,7 +2870,7 @@ final class ElementParserTest {
     @Test
     void enumerationMappingIntegerSources() {
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::S: EnumerationMapping Mid { "
                 + "BUY: 1, "
                 + "SELL: [2, 3] "
@@ -2870,7 +2888,7 @@ final class ElementParserTest {
     void enumerationMappingCrossEnumSource() {
         // Map our enum values to values of another (already-defined) enum.
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::Local: EnumerationMapping Mid { "
                 + "FAST: other::Speed.HIGH, "
                 + "SLOW: other::Speed.LOW "
@@ -2884,7 +2902,7 @@ final class ElementParserTest {
     @Test
     void enumerationMappingMixedSourceKinds() {
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::S: EnumerationMapping Mid { "
                 + "X: ['STR', 42, other::E.V] "
                 + "} )");
@@ -2899,7 +2917,7 @@ final class ElementParserTest {
         // Regression: trailing comma must yield N entries, not N+1 with a
         // phantom empty entry silently appended.
         var em = firstEnumerationMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::S: EnumerationMapping Mid { "
                 + "A: 'a', "
                 + "B: 'b', "
@@ -2935,7 +2953,7 @@ final class ElementParserTest {
         // marker is a CLASS-mapping notion and is simply dropped here. The
         // real parser accepts this source; we refused it.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )")
+                "\n###Mapping\nMapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )")
                 .elements().get(0);
         var em = md.enumerationMappings().get(0);
         assertEquals("Mid", em.mappingId());
@@ -2946,7 +2964,7 @@ final class ElementParserTest {
     @Test
     void mappingWithClassAndEnumerationMappingTogether() {
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Order: Relational { ~mainTable [db::DB] ORDERS "
                 + "  status: EnumerationMapping StatusMap : ORDERS.STATUS } "
                 + "model::OrderStatus: EnumerationMapping StatusMap { "
@@ -2973,7 +2991,7 @@ final class ElementParserTest {
     @Test
     void pureClassMappingMinimal() {
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { "
                 + "~src model::RawPerson "
                 + "fullName: $src.firstName + ' ' + $src.lastName "
@@ -3004,7 +3022,7 @@ final class ElementParserTest {
     @Test
     void pureClassMappingMultipleProperties() {
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { "
                 + "~src model::RawPerson "
                 + "firstName: $src.firstName, "
@@ -3020,7 +3038,7 @@ final class ElementParserTest {
     @Test
     void pureClassMappingWithFilter() {
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::ActivePerson: Pure { "
                 + "~src model::RawPerson "
                 + "~filter $src.isActive == true "
@@ -3041,7 +3059,7 @@ final class ElementParserTest {
     void pureClassMappingBodyCanContainCommasInsideCalls() {
         // Commas inside if(...) must NOT split the property binding.
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { "
                 + "~src model::RawPerson "
                 + "ageGroup: if($src.age < 18, |'Minor', |if($src.age < 65, |'Adult', |'Senior')), "
@@ -3065,7 +3083,7 @@ final class ElementParserTest {
         // The whole RHS expression must round-trip — not just a keyword fragment.
         // Whitespace normalised so the test isn't brittle to tokenizer spacing.
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { "
                 + "~src model::RawPerson "
                 + "upperLastName: $src.lastName->toUpper() "
@@ -3084,7 +3102,7 @@ final class ElementParserTest {
     @Test
     void pureClassMappingWithSetIdAndExtends() {
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "model::Person[childSet] extends [baseSet]: Pure { "
                 + "~src model::RawPerson "
                 + "name: $src.name "
@@ -3102,7 +3120,7 @@ final class ElementParserTest {
         // business to reject later (it has no type to resolve $src.name
         // against), not the parser's.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( *model::P: Pure { name: $src.name } )")
+                "\n###Mapping\nMapping my::M ( *model::P: Pure { name: $src.name } )")
                 .elements().get(0);
         assertNull(((ClassMapping.Pure) md.classMappings().get(0)).sourceClass());
     }
@@ -3132,7 +3150,7 @@ final class ElementParserTest {
         // these (dataSpaceWithSubstantialMapping.pure binds a constant).
         // We used to refuse all 17 such files.
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Mammal: Pure { noOfLegs: '41231' } "
                 + ")").elements().get(0);
         var pcm = (ClassMapping.Pure) md.classMappings().get(0);
@@ -3171,7 +3189,7 @@ final class ElementParserTest {
     @Test
     void pureClassMappingTrailingCommaTolerated() {
         var cm = firstPureClassMapping(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { "
                 + "~src model::Raw "
                 + "name: $src.name, "
@@ -3190,7 +3208,7 @@ final class ElementParserTest {
     @Test
     void mappingMixesPureAndRelationalClassMappings() {
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { ~src model::RawPerson  name: $src.name } "
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRMS  legalName: FIRMS.NAME } "
                 + ")").elements().get(0);
@@ -3212,7 +3230,7 @@ final class ElementParserTest {
     @Test
     void embeddedPropertyMapping() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "name: T_PERSON.NAME, "
@@ -3234,7 +3252,7 @@ final class ElementParserTest {
     void embeddedPropertyMappingNested() {
         // Embedded inside embedded — confirms recursive composition.
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "address ( "
@@ -3255,7 +3273,7 @@ final class ElementParserTest {
     @Test
     void inlineEmbeddedPropertyMapping() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "name: T_PERSON.NAME, "
@@ -3269,7 +3287,7 @@ final class ElementParserTest {
     @Test
     void otherwiseEmbeddedPropertyMapping() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "name: T_PERSON.NAME, "
@@ -3291,7 +3309,7 @@ final class ElementParserTest {
     @Test
     void localMappingProperty() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "name: T_PERSON.NAME, "
@@ -3312,7 +3330,7 @@ final class ElementParserTest {
     @Test
     void localMappingPropertyWithUnboundedMultiplicity() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "+tags: String[*]: T_PERSON.TAGS "
@@ -3325,7 +3343,7 @@ final class ElementParserTest {
     @Test
     void localMappingPropertyWithExpressionBody() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "+computed: String[1]: concat(T_PERSON.A, ' ', T_PERSON.B) "
@@ -3337,7 +3355,7 @@ final class ElementParserTest {
     @Test
     void embeddedAllowsTrailingComma() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::P: Relational { "
                 + "~mainTable [db::DB] T "
                 + "firm ( legalName: T.NAME, ) "
@@ -3354,7 +3372,7 @@ final class ElementParserTest {
     @Test
     void embeddedAndLocalAndRegularMixedInOneClassMapping() {
         var cm = firstRelational(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { "
                 + "~mainTable [db::DB] T_PERSON "
                 + "name: T_PERSON.NAME, "
@@ -3376,7 +3394,7 @@ final class ElementParserTest {
     @Test
     void mappingWithoutTestSuitesHasNullSource() {
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                 + ")").elements().get(0);
         assertNull(md.testSuitesSource());
@@ -3462,7 +3480,7 @@ final class ElementParserTest {
     @Test
     void mappingTwoClassMappingsWithCommonMainTable() {
         LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "Mapping my::M ( "
+                "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRM  legalName: FIRM.LEGAL_NAME } "
                 + ")").elements().get(0);

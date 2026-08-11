@@ -76,11 +76,16 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     private static final String PURE_MODEL = """
                 Class model::DoyRecord { eventDate: StrictDate[1]; }
+                ###Relational
                 Database store::DoyDb ( Table T_DOY ( ID INTEGER, EVENT_DATE DATE ) )
+                ###Mapping
                 Mapping model::DoyMap ( DoyRecord: Relational { ~mainTable [DoyDb] T_DOY eventDate: [DoyDb] T_DOY.EVENT_DATE } )
+                ###Connection
                 RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
 
+                ###Pure
                 function meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues(val: Integer[*]):Boolean[1]
                 {
                     $val->filter(y | $y->mod(2) == 0)->size() == 2

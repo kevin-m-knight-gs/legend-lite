@@ -30,10 +30,10 @@ class NameResolutionContractTest {
     @Test
     @DisplayName("unimported cross-package store is UNRESOLVABLE (the FqnBug repro)")
     void unimportedStoreDoesNotBind() {
-        String f1 = "Database pkg::B::myDB ( Table T (ID INTEGER, NAME VARCHAR(50)) )";
+        String f1 = "\n###Relational\nDatabase pkg::B::myDB ( Table T (ID INTEGER, NAME VARCHAR(50)) )";
         String f2 = "import pkg::A::*;\n"
                 + "Class model::Person { name: String[1]; }\n"
-                + "Mapping my::M ( *model::Person: Relational "
+                + "\n###Mapping\nimport pkg::A::*;\nMapping my::M ( *model::Person: Relational "
                 + "{ ~mainTable [myDB] T name: T.NAME } )";
         var ctx = Compiler.compileModel(List.of(
                 new Compiler.ModelSource("f1.pure", f1),
@@ -47,11 +47,11 @@ class NameResolutionContractTest {
     @Test
     @DisplayName("imported store resolves; the same-named unimported one never shadows it")
     void importedStoreWins() {
-        String f1 = "Database pkgA::myDB ( Table T_A (ID INTEGER, N VARCHAR(50)) )";
-        String f2 = "Database pkgB::myDB ( Table T_B (ID INTEGER, N VARCHAR(50)) )";
+        String f1 = "\n###Relational\nDatabase pkgA::myDB ( Table T_A (ID INTEGER, N VARCHAR(50)) )";
+        String f2 = "\n###Relational\nDatabase pkgB::myDB ( Table T_B (ID INTEGER, N VARCHAR(50)) )";
         String f3 = "import pkgA::*;\n"
                 + "Class model::P { n: String[1]; }\n"
-                + "Mapping my::M ( *model::P: Relational "
+                + "\n###Mapping\nimport pkgA::*;\nMapping my::M ( *model::P: Relational "
                 + "{ ~mainTable [myDB] T_A n: T_A.N } )";
         var ctx = Compiler.compileModel(List.of(
                 new Compiler.ModelSource("f1.pure", f1),
@@ -70,9 +70,9 @@ class NameResolutionContractTest {
     @Test
     @DisplayName("own-package sibling resolves bare without any import")
     void ownPackageSiblingResolves() {
-        String src = "Database app::DB ( Table T (ID INTEGER, N VARCHAR(50)) )\n"
-                + "Class app::P { n: String[1]; }\n"
-                + "Mapping app::M ( *app::P: Relational "
+        String src = "\n###Relational\nDatabase app::DB ( Table T (ID INTEGER, N VARCHAR(50)) )\n"
+                + "\n###Pure\nClass app::P { n: String[1]; }\n"
+                + "\n###Mapping\nMapping app::M ( *app::P: Relational "
                 + "{ ~mainTable [DB] T n: T.N } )";
         var ctx = Compiler.compileModel(src);
         var md = ctx.findLegacyMapping("app::M").orElseThrow();
@@ -91,8 +91,8 @@ class NameResolutionContractTest {
         String src = "import model::*;\n"
                 + "Class model::View { label: String[1]; }\n"
                 + "Class model::Raw { label: String[1]; }\n"
-                + "Database store::DB ( Table R (LABEL VARCHAR(50)) )\n"
-                + "Mapping model::M (\n"
+                + "\n###Relational\nDatabase store::DB ( Table R (LABEL VARCHAR(50)) )\n"
+                + "\n###Mapping\nimport model::*;\nMapping model::M (\n"
                 + "    Raw: Relational { ~mainTable [store::DB] R label: [store::DB] R.LABEL }\n"
                 + "    View: Pure { ~src Raw label: $src.label }\n"
                 + ")";
@@ -116,9 +116,9 @@ class NameResolutionContractTest {
     void importBeatsOwnPackage() {
         String src = "Class ext::Address { name: String[1]; }\n"
                 + "Class app::Address { name: String[1]; }\n"
-                + "Database app::DB ( Table T (NAME VARCHAR(50)) )\n";
+                + "\n###Relational\nDatabase app::DB ( Table T (NAME VARCHAR(50)) )\n";
         String mapping = "import ext::*;\n"
-                + "Mapping app::M ( *Address: Relational "
+                + "\n###Mapping\nimport ext::*;\nMapping app::M ( *Address: Relational "
                 + "{ ~mainTable [app::DB] T name: [app::DB] T.NAME } )";
         var ctx = Compiler.compileModel(List.of(
                 new Compiler.ModelSource("m1.pure", src),

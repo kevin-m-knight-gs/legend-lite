@@ -34,17 +34,19 @@ class ResolveDerivedLeafProbeTest {
               classificationTypeStr() {$this.classification($this.businessDate).type->toOne()} : String[1];
             }
             Class <<temporal.businesstemporal>> q::Classification { type: String[1]; }
+            ###Relational
             Database q::DB (
               Table ProductTable (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
-                id INTEGER PRIMARY KEY, name VARCHAR, type VARCHAR,
+                id INTEGER PRIMARY KEY, name VARCHAR(200), type VARCHAR(200),
                 from_z DATE, thru_z DATE)
               Table ClassificationTable (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
-                type VARCHAR PRIMARY KEY, typeName VARCHAR,
+                type VARCHAR(200) PRIMARY KEY, typeName VARCHAR(200),
                 from_z DATE, thru_z DATE)
               Join ProdClass (ProductTable.type = ClassificationTable.type)
             )
+            ###Mapping
             Mapping q::M (
               *q::Product : Relational { ~mainTable [q::DB] ProductTable
                 name: ProductTable.name,
@@ -52,6 +54,7 @@ class ResolveDerivedLeafProbeTest {
               *q::Classification : Relational { ~mainTable [q::DB] ClassificationTable
                 type: ClassificationTable.type }
             )
+            ###Runtime
             Runtime q::RT { mappings: [q::M]; }
             """;
 
@@ -61,10 +64,10 @@ class ResolveDerivedLeafProbeTest {
     static void setUp() throws SQLException {
         conn = DriverManager.getConnection("jdbc:duckdb:");
         try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE ProductTable (id INTEGER, name VARCHAR,"
-                    + " type VARCHAR, from_z DATE, thru_z DATE)");
-            st.execute("CREATE TABLE ClassificationTable (type VARCHAR,"
-                    + " typeName VARCHAR, from_z DATE, thru_z DATE)");
+            st.execute("CREATE TABLE ProductTable (id INTEGER, name VARCHAR(200),"
+                    + " type VARCHAR(200), from_z DATE, thru_z DATE)");
+            st.execute("CREATE TABLE ClassificationTable (type VARCHAR(200),"
+                    + " typeName VARCHAR(200), from_z DATE, thru_z DATE)");
             st.execute("INSERT INTO ProductTable VALUES"
                     + " (1, 'P1', 'STOCK', DATE '2015-01-01', DATE '9999-12-31')");
             // two classification versions; only 'STOCK' current at 2015-08-20

@@ -77,6 +77,22 @@ METHOD (proven on min.pure and the W10 residue):
   anywhere. Decide + gate (the 12 rows that exposed this were absorbed
   into other classes, so build the fixture set from the engine's section
   grammars, not from leniency rows).
+  DONE for OUR OWN tests (sections normalization, 2026-08-11):
+  `ZSectionNormalizeRewrite` mechanically inserted `###Section` headers
+  into 435 sectionless test snippets (1019 headers; leading imports
+  replicated into import-aware sections only — Relational/DataSpace
+  grammars are `definition: (element)* EOF` and refuse import lines).
+  Own-corpus census moved 257→595 oracle-accepted of 776; the residue is
+  pinned per-class in `OwnCorpusConformanceTest` and the
+  `noSectionlessSnippets` ratchet holds the sectionless population at
+  ZERO. Conformance fixes riding the leg: Service `documentation: '';`
+  where required, sized `VARCHAR`/`DECIMAL` in Legend tables, Legend-side
+  `BOOLEAN` columns → `BIT` (lite types `Bit` as Boolean). Deliberate
+  design divergences got NAMED classes: `LITE-DESIGN-inline-association`
+  (clean-sheet `Assoc: AssociationMapping { {p,f|...} }`),
+  `LITE-DESIGN-sqlite-backend` (`type: SQLite` connections). The
+  STRICT-side section-binding decision for user endpoints stays with the
+  lenient→strict flip (LAST, after the invention census).
 - Block-doc sugar (`'''` before a declaration) is NEWER than the 4.138.2
   release: both sides refuse today; becomes wire work at the next bump.
 
@@ -114,7 +130,11 @@ Named hunt targets from the user:
 - `SpiSeamProofTest` ratchets; CodeShape/ErrorShape/DropInSurface
   guardrails (file size, regex ban in parser, endsWith-FQN ban).
 - Probes: `ZSkewResidueProbe`, `ZDefectResidueProbe`, `ZOneOffProbe`
-  (bisect pattern), `ZPmcdProbe/2` (engine coordinate quirks).
+  (bisect pattern), `ZPmcdProbe/2` (engine coordinate quirks),
+  `ZSectionizeProbe` (does mechanical sectionizing cure a refusal),
+  `ZSectionNormalizeRewrite` (the header-inserting source rewriter;
+  report-only unless `-Dsectionize.apply=true`, self-verifying via
+  independent re-extraction + token equality).
 
 ## Standing rules (unchanged)
 

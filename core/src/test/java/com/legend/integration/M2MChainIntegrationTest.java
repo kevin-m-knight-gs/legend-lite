@@ -187,6 +187,7 @@ class M2MChainIntegrationTest {
             }
 
             // ===== Database =====
+            ###Relational
             Database store::CompanyDB
             (
                 Table T_EMPLOYEE
@@ -197,7 +198,7 @@ class M2MChainIntegrationTest {
                     AGE INTEGER NOT NULL,
                     DEPT VARCHAR(50) NOT NULL,
                     SALARY DECIMAL(10,2) NOT NULL,
-                    IS_ACTIVE BOOLEAN NOT NULL,
+                    IS_ACTIVE BIT NOT NULL,
                     DEPT_ID INTEGER
                 )
                 Table T_DEPARTMENT
@@ -225,6 +226,9 @@ class M2MChainIntegrationTest {
             )
 
             // ===== Relational mappings =====
+            ###Mapping
+            import model::*;
+            import store::*;
             Mapping model::RelationalMapping
             (
                 Employee: Relational
@@ -406,6 +410,9 @@ class M2MChainIntegrationTest {
             )
 
             // ===== Runtime =====
+            ###Connection
+            import model::*;
+            import store::*;
             RelationalDatabaseConnection store::Conn
             {
                 type: DuckDB;
@@ -413,6 +420,9 @@ class M2MChainIntegrationTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import model::*;
+            import store::*;
             Runtime test::RT
             {
                 mappings:

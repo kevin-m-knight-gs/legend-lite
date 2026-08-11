@@ -41,13 +41,15 @@ class ResolveDeepEmptinessProbeTest {
             Class e::Location { place: String[1]; }
             Association e::FP { firm: e::Firm[0..1]; employees: e::Person[*]; }
             Association e::PL { person: e::Person[0..1]; locations: e::Location[*]; }
+            ###Relational
             Database e::DB (
-              Table F (ID INTEGER PRIMARY KEY, LEGALNAME VARCHAR)
-              Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR, AGE INTEGER, FIRMID INTEGER)
-              Table L (ID INTEGER PRIMARY KEY, PLACE VARCHAR, PERSONID INTEGER)
+              Table F (ID INTEGER PRIMARY KEY, LEGALNAME VARCHAR(200))
+              Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), AGE INTEGER, FIRMID INTEGER)
+              Table L (ID INTEGER PRIMARY KEY, PLACE VARCHAR(200), PERSONID INTEGER)
               Join FP (F.ID = P.FIRMID)
               Join PL (P.ID = L.PERSONID)
             )
+            ###Mapping
             Mapping e::M (
               *e::Firm : Relational { ~mainTable [e::DB] F
                 legalName: F.LEGALNAME,
@@ -61,6 +63,7 @@ class ResolveDeepEmptinessProbeTest {
                 place: L.PLACE,
                 person: [e::DB] @PL }
             )
+            ###Runtime
             Runtime e::RT { mappings: [e::M]; }
             """;
 
@@ -70,9 +73,9 @@ class ResolveDeepEmptinessProbeTest {
     static void setUp() throws SQLException {
         conn = DriverManager.getConnection("jdbc:duckdb:");
         try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE F (ID INTEGER, LEGALNAME VARCHAR)");
-            st.execute("CREATE TABLE P (ID INTEGER, NAME VARCHAR, AGE INTEGER, FIRMID INTEGER)");
-            st.execute("CREATE TABLE L (ID INTEGER, PLACE VARCHAR, PERSONID INTEGER)");
+            st.execute("CREATE TABLE F (ID INTEGER, LEGALNAME VARCHAR(200))");
+            st.execute("CREATE TABLE P (ID INTEGER, NAME VARCHAR(200), AGE INTEGER, FIRMID INTEGER)");
+            st.execute("CREATE TABLE L (ID INTEGER, PLACE VARCHAR(200), PERSONID INTEGER)");
             // Firm 1: employee with a location; Firm 2: employee without;
             // Firm 3: no employees
             st.execute("INSERT INTO F VALUES (1,'A'),(2,'B'),(3,'C')");

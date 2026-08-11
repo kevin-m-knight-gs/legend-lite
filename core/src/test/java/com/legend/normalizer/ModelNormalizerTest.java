@@ -301,8 +301,8 @@ class ModelNormalizerTest {
     void serviceQueryExternalized() {
         NormalizedModel m = normalize(
                 "Class model::Person { name: String[1]; } "
-              + "Service my::api::GetPeople { "
-              + "  pattern: '/people'; "
+              + "\n###Service\nService my::api::GetPeople { "
+              + "  pattern: '/people'; documentation: ''; "
               + "  execution: Single { query: |model::Person.all(); mapping: my::M; runtime: my::R; } "
               + "}");
 
@@ -332,8 +332,8 @@ class ModelNormalizerTest {
         NormalizedModel m = normalize(
                 "Class model::Person { name: String[1]; } "
               + "function my::funcs::peopleQuery(): model::Person[*] { model::Person.all() } "
-              + "Service my::api::GetPeople { "
-              + "  pattern: '/people'; "
+              + "\n###Service\nService my::api::GetPeople { "
+              + "  pattern: '/people'; documentation: ''; "
               + "  execution: Single { query: my::funcs::peopleQuery; mapping: my::M; runtime: my::R; } "
               + "}");
         // The service binds to the user function — no $query lift.
@@ -351,8 +351,8 @@ class ModelNormalizerTest {
     void serviceQueryCarriesTypedParams() {
         NormalizedModel m = normalize(
                 "Class model::Person { name: String[1]; } "
-              + "Service my::api::ByName { "
-              + "  pattern: '/person/{n}'; "
+              + "\n###Service\nService my::api::ByName { "
+              + "  pattern: '/person/{n}'; documentation: ''; "
               + "  execution: Single { "
               + "    query: {n: String[1] | model::Person.all()->filter(p | $p.name == $n)}; "
               + "    mapping: my::M; runtime: my::R; "
@@ -390,7 +390,7 @@ class ModelNormalizerTest {
               + "  age: Integer[1]; "
               + "  next() { $this.age } : Integer[1]; "
               + "} "
-              + "Service my::S { pattern: '/x'; "
+              + "\n###Service\nService my::S { pattern: '/x'; documentation: ''; "
               + "  execution: Single { query: |model::Person.all(); mapping: my::M; runtime: my::R; } }");
 
         ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(m.elements(), m.imports()));

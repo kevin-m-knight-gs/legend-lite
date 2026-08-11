@@ -42,6 +42,7 @@ class WindowFunctionTest {
                 salary: Integer[1];
             }
 
+            ###Relational
             Database store::EmployeeDatabase
             (
                 Table T_EMPLOYEE
@@ -53,6 +54,10 @@ class WindowFunctionTest {
                 )
             )
 
+            ###Mapping
+            import model::*;
+            import store::*;
+            import test::*;
             Mapping model::EmployeeMapping
             (
                 Employee: Relational
@@ -64,6 +69,10 @@ class WindowFunctionTest {
                 }
             )
 
+            ###Connection
+            import model::*;
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -71,6 +80,10 @@ class WindowFunctionTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import model::*;
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime
             {
                 mappings:

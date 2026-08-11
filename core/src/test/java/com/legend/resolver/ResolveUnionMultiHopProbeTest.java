@@ -45,6 +45,7 @@ class ResolveUnionMultiHopProbeTest {
             Class m::Product { pname: String[1]; classification: m::Classification[0..1]; }
             Class m::Classification { description: String[1]; ctype: String[1]; }
             Association m::OP { product: m::Product[0..1]; orders: m::Order[*]; }
+            ###Relational
             Database m::DB (
               Table O1 (ID INTEGER PRIMARY KEY, PRODFK INTEGER)
               Table O2 (ID INTEGER PRIMARY KEY, PRODFK INTEGER)
@@ -54,6 +55,7 @@ class ResolveUnionMultiHopProbeTest {
               Join O2P (O2.PRODFK = PT.ID)
               Join PC (PT.CTYPE = CT.CTYPE)
             )
+            ###Mapping
             Mapping m::M (
               *m::Order : Operation { %s(s1, s2) }
               m::Order[s1] : Relational { ~mainTable [m::DB] O1
@@ -69,6 +71,7 @@ class ResolveUnionMultiHopProbeTest {
                 description: CT.DESCRIPTION,
                 ctype: CT.CTYPE }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """).formatted(UNION_FQN);
 

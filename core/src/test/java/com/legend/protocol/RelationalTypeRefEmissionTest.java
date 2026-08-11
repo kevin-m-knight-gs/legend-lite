@@ -53,7 +53,7 @@ class RelationalTypeRefEmissionTest {
     @Test
     void typeArgumentInAnArrowChainReachesTheWire() {
         String json = emitMapping(
-                "Mapping my::M ( *model::Order: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Order: Relational { "
                 + "~mainTable [store::DB] T_ORDERS "
                 + "total: [store::DB] T_ORDERS.DATA->get('total', @Float) "
                 + "} )");
@@ -71,7 +71,7 @@ class RelationalTypeRefEmissionTest {
     @Test
     void arrowChainWithoutATypeArgumentEmitsNoTypeRef() {
         String json = emitMapping(
-                "Mapping my::M ( *model::Event: Relational { "
+                "\n###Mapping\nMapping my::M ( *model::Event: Relational { "
                 + "~mainTable [store::DB] T_EVENTS "
                 + "price: [store::DB] T_EVENTS.PAYLOAD->get('price') "
                 + "} )");

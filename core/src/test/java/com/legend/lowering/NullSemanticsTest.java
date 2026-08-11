@@ -32,9 +32,12 @@ class NullSemanticsTest {
 
     private static final String MODEL = """
             Class m::A { name: String[1]; street: String[0..1]; n: Integer[0..1]; }
+            ###Relational
             Database s::DB ( Table A (NAME VARCHAR(50), STREET VARCHAR(50), N INTEGER) )
+            ###Mapping
             Mapping m::M ( *m::A: Relational { ~mainTable [s::DB] A
                 name: A.NAME, street: A.STREET, n: A.N } )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

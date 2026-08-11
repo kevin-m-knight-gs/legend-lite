@@ -54,6 +54,7 @@ class StreamingIntegrationTest {
                 salary: Integer[1];
             }
 
+            ###Relational
             Database store::EmployeeDb
             (
                 Table T_EMPLOYEE
@@ -65,6 +66,10 @@ class StreamingIntegrationTest {
                 )
             )
 
+            ###Mapping
+            import model::*;
+            import store::*;
+            import test::*;
             Mapping model::EmployeeMapping
             (
                 Employee: Relational
@@ -76,6 +81,10 @@ class StreamingIntegrationTest {
                 }
             )
 
+            ###Connection
+            import model::*;
+            import store::*;
+            import test::*;
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -83,6 +92,10 @@ class StreamingIntegrationTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import model::*;
+            import store::*;
+            import test::*;
             Runtime test::TestRuntime
             {
                 mappings:

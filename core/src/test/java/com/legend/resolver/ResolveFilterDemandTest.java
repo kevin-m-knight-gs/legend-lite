@@ -39,6 +39,7 @@ class ResolveFilterDemandTest {
             Class m::Person { name: String[1]; }
             Class m::Org { name: String[1]; parent: m::Org[0..1]; children: m::Org[*]; }
             Class m::SOrg { name: String[1]; parent: m::SOrg[0..1]; }
+            ###Relational
             Database s::DB (
               Table TP (ID INTEGER, FIRM_ID INTEGER, NAME VARCHAR(50))
               Table TF (ID INTEGER, IS_ACTIVE INTEGER)
@@ -54,6 +55,7 @@ class ResolveFilterDemandTest {
               Filter OtherFilter ( OTHER.FILTER_VAL <= 4 )
               Filter SOrgFilter ( SORG.FVAL <= 4 )
             )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~filter [s::DB] ActiveFirms
                 ~mainTable [s::DB] TP
@@ -69,6 +71,7 @@ class ResolveFilterDemandTest {
                 name: [s::DB] SORG.NAME,
                 parent: [s::DB] @SOrgParent }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

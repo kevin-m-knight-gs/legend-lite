@@ -72,6 +72,7 @@ class TypeCheckerTest {
 
     /** Engine's PERSON_TABLE, declared in core's {@code Database} grammar (FQN-resolved). */
     private static final String DB_MODEL = """
+            ###Relational
             Database test::PersonDatabase
             (
               Table T_PERSON
@@ -81,7 +82,7 @@ class TypeCheckerTest {
                 AGE INTEGER NOT NULL,
                 SALARY DOUBLE,
                 HIRE_DATE DATE,
-                ACTIVE BOOLEAN
+                ACTIVE BIT
               )
               Table T_FIRM
               (
@@ -95,6 +96,7 @@ class TypeCheckerTest {
               )
             )
 
+            ###Pure
             Class test::Person
             {
               name: String[1];

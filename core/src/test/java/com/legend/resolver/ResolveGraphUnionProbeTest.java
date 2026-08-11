@@ -39,12 +39,12 @@ class ResolveGraphUnionProbeTest {
             Association g::FP { firm: g::Firm[0..1]; employees: g::Person[*]; }
             Association g::PA { resident: g::Person[0..1]; address: g::Address[0..1]; }
             Database g::DB (
-              Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR)
-              Table F2 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR)
-              Table P1 (ID INTEGER PRIMARY KEY, NAME VARCHAR, FID INTEGER, AID INTEGER)
-              Table P2 (ID INTEGER PRIMARY KEY, NAME VARCHAR, FID INTEGER, AID INTEGER)
-              Table A1 (ID INTEGER PRIMARY KEY, NAME VARCHAR)
-              Table A2 (ID INTEGER PRIMARY KEY, NAME VARCHAR)
+              Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
+              Table F2 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
+              Table P1 (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), FID INTEGER, AID INTEGER)
+              Table P2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), FID INTEGER, AID INTEGER)
+              Table A1 (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+              Table A2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
               Join F1_P1 (F1.ID = P1.FID)
               Join F1_P2 (F1.ID = P2.FID)
               Join F2_P1 (F2.ID = P1.FID)
@@ -86,12 +86,12 @@ class ResolveGraphUnionProbeTest {
     static void setUp() throws SQLException {
         conn = DriverManager.getConnection("jdbc:duckdb:");
         try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE F1 (ID INTEGER, LEGAL VARCHAR)");
-            st.execute("CREATE TABLE F2 (ID INTEGER, LEGAL VARCHAR)");
-            st.execute("CREATE TABLE P1 (ID INTEGER, NAME VARCHAR, FID INTEGER, AID INTEGER)");
-            st.execute("CREATE TABLE P2 (ID INTEGER, NAME VARCHAR, FID INTEGER, AID INTEGER)");
-            st.execute("CREATE TABLE A1 (ID INTEGER, NAME VARCHAR)");
-            st.execute("CREATE TABLE A2 (ID INTEGER, NAME VARCHAR)");
+            st.execute("CREATE TABLE F1 (ID INTEGER, LEGAL VARCHAR(200))");
+            st.execute("CREATE TABLE F2 (ID INTEGER, LEGAL VARCHAR(200))");
+            st.execute("CREATE TABLE P1 (ID INTEGER, NAME VARCHAR(200), FID INTEGER, AID INTEGER)");
+            st.execute("CREATE TABLE P2 (ID INTEGER, NAME VARCHAR(200), FID INTEGER, AID INTEGER)");
+            st.execute("CREATE TABLE A1 (ID INTEGER, NAME VARCHAR(200))");
+            st.execute("CREATE TABLE A2 (ID INTEGER, NAME VARCHAR(200))");
             st.execute("INSERT INTO F1 VALUES (1, 'ACME')");
             st.execute("INSERT INTO F2 VALUES (2, 'Globex')");
             st.execute("INSERT INTO P1 VALUES (10, 'Ann', 1, 100)");
@@ -111,9 +111,9 @@ class ResolveGraphUnionProbeTest {
             Class g::Person { lastName: String[1]; }
             Association g::FP { firm: g::Firm[0..1]; employees: g::Person[*]; }
             Database g::DB (
-              Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR)
-              Table F2 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR)
-              Table P1 (ID INTEGER PRIMARY KEY, NAME VARCHAR, FID INTEGER)
+              Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
+              Table F2 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
+              Table P1 (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), FID INTEGER)
               Join F1_P1 (F1.ID = P1.FID)
               Join F2_P1 (F2.ID = P1.FID)
             )
@@ -136,10 +136,10 @@ class ResolveGraphUnionProbeTest {
             Class g::Product { productId: String[1]; productName: String[1]; }
             Association g::TP { trade: g::Trade[0..1]; product: g::Product[0..1]; }
             Database g::DB3 (
-              Table T1 (tradeId INTEGER PRIMARY KEY, productId VARCHAR)
-              Table T2 (tradeId INTEGER PRIMARY KEY, productId VARCHAR)
-              Table PR1 (productId VARCHAR PRIMARY KEY, NAME VARCHAR)
-              Table PR2 (productId VARCHAR PRIMARY KEY, NAME VARCHAR)
+              Table T1 (tradeId INTEGER PRIMARY KEY, productId VARCHAR(200))
+              Table T2 (tradeId INTEGER PRIMARY KEY, productId VARCHAR(200))
+              Table PR1 (productId VARCHAR(200) PRIMARY KEY, NAME VARCHAR(200))
+              Table PR2 (productId VARCHAR(200) PRIMARY KEY, NAME VARCHAR(200))
               Join trade_product (PR1.productId = T1.productId)
               Join trade2_product2 (PR2.productId = T2.productId)
             )
@@ -166,16 +166,19 @@ class ResolveGraphUnionProbeTest {
     private static final String MODEL_EMBEDDED = """
             Class g::EPerson { firstName: String[1]; firm: g::EFirm[1]; }
             Class g::EFirm { legalName: String[1]; employees: g::EPerson[*]; }
+            ###Relational
             Database g::DB4 (
-              Table PT (ID INTEGER PRIMARY KEY, FN VARCHAR, FL VARCHAR)
+              Table PT (ID INTEGER PRIMARY KEY, FN VARCHAR(200), FL VARCHAR(200))
               Join firmEmployees (PT.FL = {target}.FL)
             )
+            ###Mapping
             Mapping g::M4 (
               g::EPerson[p] : Relational { ~mainTable [g::DB4] PT
                 firstName: PT.FN,
                 firm ( legalName: PT.FL,
                        employees: [g::DB4] @firmEmployees ) }
             )
+            ###Runtime
             Runtime g::RT4 { mappings: [g::M4]; }
             """;
 
@@ -186,8 +189,8 @@ class ResolveGraphUnionProbeTest {
             Database g::DB5 (
               Table OT1 (oid INTEGER PRIMARY KEY, pfk INTEGER)
               Table OT2 (oid INTEGER PRIMARY KEY, pfk INTEGER)
-              Table PT1 (pid INTEGER PRIMARY KEY, pname VARCHAR)
-              Table PT2 (pid INTEGER PRIMARY KEY, pname VARCHAR)
+              Table PT1 (pid INTEGER PRIMARY KEY, pname VARCHAR(200))
+              Table PT2 (pid INTEGER PRIMARY KEY, pname VARCHAR(200))
               Join O1_P1 (OT1.pfk = PT1.pid)
               Join O1_P2 (OT1.pfk = PT2.pid)
               Join O2_P1 (OT2.pfk = PT1.pid)
@@ -219,8 +222,8 @@ class ResolveGraphUnionProbeTest {
             Database g::DB7 (
               Table NOT1 (oid INTEGER PRIMARY KEY)
               Table NOT2 (oid INTEGER PRIMARY KEY, pfk INTEGER)
-              Table NPT1 (pid INTEGER PRIMARY KEY, pname VARCHAR)
-              Table NPT2 (pid INTEGER PRIMARY KEY, pname VARCHAR)
+              Table NPT1 (pid INTEGER PRIMARY KEY, pname VARCHAR(200))
+              Table NPT2 (pid INTEGER PRIMARY KEY, pname VARCHAR(200))
               Join N_OP (NOT2.pfk = NPT2.pid)
             )
             Mapping g::M7 (
@@ -244,8 +247,8 @@ class ResolveGraphUnionProbeTest {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE NOT1 (oid INTEGER)");
             st.execute("CREATE TABLE NOT2 (oid INTEGER, pfk INTEGER)");
-            st.execute("CREATE TABLE NPT1 (pid INTEGER, pname VARCHAR)");
-            st.execute("CREATE TABLE NPT2 (pid INTEGER, pname VARCHAR)");
+            st.execute("CREATE TABLE NPT1 (pid INTEGER, pname VARCHAR(200))");
+            st.execute("CREATE TABLE NPT2 (pid INTEGER, pname VARCHAR(200))");
             st.execute("INSERT INTO NOT1 VALUES (1)");
             st.execute("INSERT INTO NOT2 VALUES (2, 20)");
             // the same key exists in NPT1 — the navigate must read ONLY
@@ -267,14 +270,16 @@ class ResolveGraphUnionProbeTest {
             Class g::TOrder { oid: Integer[1]; }
             Class <<temporal.businesstemporal>> g::TProduct { pname: String[1]; }
             Association g::TOP { order: g::TOrder[0..1]; product: g::TProduct[*]; }
+            ###Relational
             Database g::DB6 (
               Table TOT (oid INTEGER PRIMARY KEY, pfk INTEGER)
               Table TPT (
                 milestoning(business(BUS_FROM=from_z, BUS_THRU=thru_z))
-                pid INTEGER PRIMARY KEY, pname VARCHAR,
+                pid INTEGER PRIMARY KEY, pname VARCHAR(200),
                 from_z DATE, thru_z DATE)
               Join O_P (TOT.pfk = TPT.pid)
             )
+            ###Mapping
             Mapping g::M6 (
               g::TOrder[o] : Relational { ~mainTable [g::DB6] TOT
                 oid: TOT.oid,
@@ -282,6 +287,7 @@ class ResolveGraphUnionProbeTest {
               g::TProduct[p] : Relational { ~mainTable [g::DB6] TPT
                 pname: TPT.pname }
             )
+            ###Runtime
             Runtime g::RT6 { mappings: [g::M6]; }
             """;
 
@@ -290,7 +296,7 @@ class ResolveGraphUnionProbeTest {
     void temporalGraphChild() throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE TOT (oid INTEGER, pfk INTEGER)");
-            st.execute("CREATE TABLE TPT (pid INTEGER, pname VARCHAR,"
+            st.execute("CREATE TABLE TPT (pid INTEGER, pname VARCHAR(200),"
                     + " from_z DATE, thru_z DATE)");
             st.execute("INSERT INTO TOT VALUES (1, 10)");
             // TWO VERSIONS of product 10: only 'Current' is in-window at
@@ -318,8 +324,8 @@ class ResolveGraphUnionProbeTest {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE OT1 (oid INTEGER, pfk INTEGER)");
             st.execute("CREATE TABLE OT2 (oid INTEGER, pfk INTEGER)");
-            st.execute("CREATE TABLE PT1 (pid INTEGER, pname VARCHAR)");
-            st.execute("CREATE TABLE PT2 (pid INTEGER, pname VARCHAR)");
+            st.execute("CREATE TABLE PT1 (pid INTEGER, pname VARCHAR(200))");
+            st.execute("CREATE TABLE PT2 (pid INTEGER, pname VARCHAR(200))");
             // order 1 (member o1) pfk 10: product 10 exists in BOTH PT1 and
             // PT2 — reached via BOTH of o1's routes; the engine's per-node
             // identity dedup keeps... BOTH (different members = different
@@ -347,7 +353,7 @@ class ResolveGraphUnionProbeTest {
     @DisplayName("graph tree with an EMBEDDED child (corpus embedded family shape)")
     void graphEmbeddedChild() throws SQLException {
         try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE PT (ID INTEGER, FN VARCHAR, FL VARCHAR)");
+            st.execute("CREATE TABLE PT (ID INTEGER, FN VARCHAR(200), FL VARCHAR(200))");
             st.execute("INSERT INTO PT VALUES (1, 'Peter', 'Firm X')");
         }
         String query = "g::EPerson.all()"
@@ -366,12 +372,12 @@ class ResolveGraphUnionProbeTest {
     @DisplayName("DIAGONAL union routes: member pairing yields NULL, never a cross-member match")
     void diagonalUnionPairing() throws SQLException {
         try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE T1 (tradeId INTEGER, productId VARCHAR)");
-            st.execute("CREATE TABLE T2 (tradeId INTEGER, productId VARCHAR)");
-            st.execute("CREATE TABLE PR1 (productId VARCHAR, NAME VARCHAR)");
-            st.execute("CREATE TABLE PR2 (productId VARCHAR, NAME VARCHAR)");
+            st.execute("CREATE TABLE T1 (tradeId INTEGER, productId VARCHAR(200))");
+            st.execute("CREATE TABLE T2 (tradeId INTEGER, productId VARCHAR(200))");
+            st.execute("CREATE TABLE PR1 (productId VARCHAR(200), NAME VARCHAR(200))");
+            st.execute("CREATE TABLE PR2 (productId VARCHAR(200), NAME VARCHAR(200))");
             // TRAPS both directions (corpus SameStore data shape: same
-            // column NAME on both sides, VARCHAR keys, target-first join
+            // column NAME on both sides, VARCHAR(200) keys, target-first join
             // spelling): trade 5 (member 1, product 40 ONLY in PR2) and
             // trade 3 (member 2, product 30 ONLY in PR1) must both be NULL
             st.execute("INSERT INTO T1 VALUES (1, '30'), (5, '40')");

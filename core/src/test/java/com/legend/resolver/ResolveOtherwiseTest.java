@@ -36,11 +36,13 @@ class ResolveOtherwiseTest {
             Class m::Person { name: String[1]; }
             Class m::Firm { legalName: String[1]; revenue: Integer[1]; }
             Association m::PF { person: m::Person[*]; firm: m::Firm[1]; }
+            ###Relational
             Database s::DB (
               Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_ID INTEGER)
               Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(200), REVENUE INTEGER)
               Join PF (T_PERSON.FIRM_ID = T_FIRM.ID)
             )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] T_PERSON
                 name: T_PERSON.NAME,
@@ -51,6 +53,7 @@ class ResolveOtherwiseTest {
                 revenue: T_FIRM.REVENUE }
               m::PF: Relational { AssociationMapping ( person: [s::DB] @PF, firm: [s::DB] @PF ) }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

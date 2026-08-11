@@ -51,9 +51,11 @@ class StressTestChaotic {
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
 
+                ###Connection
                 import test::*;
-
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import test::*;
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }
@@ -194,7 +196,7 @@ class StressTestChaotic {
         }
 
         // ---- Database ----
-        sb.append("Database store::DB (\n");
+        sb.append("###Relational\nDatabase store::DB (\n");
 
         for (var ci : classInfos) {
             sb.append("    Table TC").append(ci.index).append(" (");
@@ -221,7 +223,7 @@ class StressTestChaotic {
         sb.append(")\n");
 
         // ---- Mapping ----
-        sb.append("Mapping test::M (\n");
+        sb.append("###Mapping\nMapping test::M (\n");
 
         for (var ci : classInfos) {
             sb.append("    ").append(ci.fqn).append(": Relational {\n");

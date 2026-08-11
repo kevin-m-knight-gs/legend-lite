@@ -83,7 +83,7 @@ final class ModelIndexerTest {
     @Test
     void databaseUsesParenBody() {
         ModelIndex idx = scan(
-                "Database my::DB ( Table T_PERSON ( ID INTEGER, NAME VARCHAR(120) ) )");
+                "\n###Relational\nDatabase my::DB ( Table T_PERSON ( ID INTEGER, NAME VARCHAR(120) ) )");
         ModelIndex.Entry e = idx.get("my::DB");
         assertNotNull(e);
         assertEquals(ElementKind.DATABASE, e.kind());
@@ -92,7 +92,7 @@ final class ModelIndexerTest {
     @Test
     void mappingUsesParenBody() {
         ModelIndex idx = scan(
-                "Mapping my::M ( *model::P: Relational { ~mainTable [my::DB] T_PERSON  name: T_PERSON.NAME } )");
+                "\n###Mapping\nMapping my::M ( *model::P: Relational { ~mainTable [my::DB] T_PERSON  name: T_PERSON.NAME } )");
         ModelIndex.Entry e = idx.get("my::M");
         assertNotNull(e);
         assertEquals(ElementKind.MAPPING, e.kind());
@@ -207,10 +207,10 @@ final class ModelIndexerTest {
     @Test
     void serviceRuntimeAndConnection() {
         ModelIndex idx = scan(
-                "Service my::S { pattern: '/x'; "
+                "\n###Service\nService my::S { pattern: '/x'; documentation: ''; "
                 + "execution: Single { query: |1; mapping: my::M; runtime: my::R; } } "
-                + "Runtime my::R { mappings: [my::M]; } "
-                + "RelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
+                + "\n###Runtime\nRuntime my::R { mappings: [my::M]; } "
+                + "\n###Connection\nRelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
                 + "specification: DuckDB {}; auth: Test; }");
         assertEquals(ElementKind.SERVICE, idx.get("my::S").kind());
         assertEquals(ElementKind.RUNTIME, idx.get("my::R").kind());
@@ -325,17 +325,17 @@ final class ModelIndexerTest {
                         "function <<test::profile.Skip>> { meta::pure::profiles::doc.doc = 'd' } "
                                 + "my::f(): String[1] { 'hi' }"),
                 org.junit.jupiter.params.provider.Arguments.of("database with table and join",
-                        "Database my::DB ( Table T_P ( ID INTEGER, NAME VARCHAR(120) ) "
+                        "\n###Relational\nDatabase my::DB ( Table T_P ( ID INTEGER, NAME VARCHAR(120) ) "
                                 + "Join J(T_P.ID = T_P.ID) )"),
                 org.junit.jupiter.params.provider.Arguments.of("mapping with includes",
-                        "Mapping my::M ( include my::Base "
+                        "\n###Mapping\nMapping my::M ( include my::Base "
                                 + "*my::P: Relational { ~mainTable [my::DB] T  x: T.X } )"
                                 + " Mapping my::Base ( *my::Q: Relational { ~mainTable [my::DB] U  y: U.Y } )"),
                 org.junit.jupiter.params.provider.Arguments.of("service + runtime + connection",
-                        "Service my::S { pattern: '/x'; "
+                        "\n###Service\nService my::S { pattern: '/x'; documentation: ''; "
                                 + "execution: Single { query: |1; mapping: my::M; runtime: my::R; } } "
-                                + "Runtime my::R { mappings: [my::M]; } "
-                                + "RelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
+                                + "\n###Runtime\nRuntime my::R { mappings: [my::M]; } "
+                                + "\n###Connection\nRelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
                                 + "specification: DuckDB {}; auth: Test; }"),
                 org.junit.jupiter.params.provider.Arguments.of("imports before and between elements",
                         "import my::*; Class my::A {} import my::store::*; Class my::B {}"),
@@ -347,9 +347,16 @@ final class ModelIndexerTest {
                         Enum my::E { X, Y }
                         Profile my::P { stereotypes: [s]; tags: [t]; }
                         function my::f(): String[1] { 'hi' }
+                        ###Relational
                         Database my::DB ( Table T ( X INTEGER ) )
+                        ###Mapping
+                        import my::*;
                         Mapping my::M ( *my::C: Relational { ~mainTable [my::DB] T  x: T.X } )
+                        ###Runtime
+                        import my::*;
                         Runtime my::R { mappings: [my::M]; }
+                        ###Connection
+                        import my::*;
                         RelationalDatabaseConnection my::Conn { store: my::DB; type: DuckDB;
                           specification: DuckDB {}; auth: Test; }
                         """)
@@ -395,10 +402,13 @@ final class ModelIndexerTest {
 
                 function my::computeAge(p: my::Person[1]): Integer[1] { 42 }
 
+                ###Relational
                 Database my::DB (
                   Table PERSON ( ID INTEGER, NAME VARCHAR(120) )
                 )
 
+                ###Mapping
+                import my::*;
                 Mapping my::M (
                   *my::Person: Relational {
                     ~mainTable [my::DB] PERSON
@@ -406,6 +416,8 @@ final class ModelIndexerTest {
                   }
                 )
 
+                ###Runtime
+                import my::*;
                 Runtime my::R {
                   mappings: [my::M];
                 }

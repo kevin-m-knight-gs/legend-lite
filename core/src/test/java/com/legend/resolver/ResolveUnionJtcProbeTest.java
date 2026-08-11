@@ -42,6 +42,7 @@ class ResolveUnionJtcProbeTest {
               extraInformation: String[0..1]; }
             Class j::Firm { legalName: String[1]; }
             Association j::PF { firm: j::Firm[0..1]; employees: j::Person[*]; }
+            ###Relational
             Database j::DB (
               Table PersonMaster (ID INTEGER PRIMARY KEY, firstName VARCHAR, lastName VARCHAR, FirmID INTEGER)
               Table PersonAdditional (ID INTEGER PRIMARY KEY, otherName VARCHAR, extrainfo VARCHAR)
@@ -51,6 +52,7 @@ class ResolveUnionJtcProbeTest {
               Join PersonMasterFirmSet1 (PersonMaster.FirmID = FirmSet1.ID)
               Join PersonMasterFirmSet2 (PersonMaster.FirmID = FirmSet2.ID)
             )
+            ###Mapping
             Mapping j::M (
               *j::Firm : Operation { %s(FirmSet1, FirmSet2) }
               *j::Person : Operation { %s(set1, set2) }
@@ -73,6 +75,7 @@ class ResolveUnionJtcProbeTest {
                 otherNames: [j::DB] @PersonMasterPersonAdditional | PersonAdditional.otherName,
                 firm[set2, FirmSet2]: [j::DB] @PersonMasterFirmSet2 }
             )
+            ###Runtime
             Runtime j::RT { mappings: [j::M]; }
             """).formatted(UNION_FQN, UNION_FQN);
 

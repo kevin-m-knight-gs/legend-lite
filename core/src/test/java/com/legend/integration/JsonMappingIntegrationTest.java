@@ -31,6 +31,7 @@ class JsonMappingIntegrationTest {
     private static final String DATABASE_SCALAR = """
             import store::*;
 
+            ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
                     ID INTEGER PRIMARY KEY,
@@ -50,6 +51,7 @@ class JsonMappingIntegrationTest {
     private static final String DATABASE_ORDER_JSON = """
             import store::*;
 
+            ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
                     ID INTEGER PRIMARY KEY,
@@ -68,6 +70,7 @@ class JsonMappingIntegrationTest {
     private static final String DATABASE_ITEM_JSON = """
             import store::*;
 
+            ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
                     ID INTEGER PRIMARY KEY,
@@ -85,6 +88,7 @@ class JsonMappingIntegrationTest {
     private static final String DATABASE_BOTH_JSON = """
             import store::*;
 
+            ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
                     ID INTEGER PRIMARY KEY,
@@ -99,6 +103,7 @@ class JsonMappingIntegrationTest {
             """;
 
     private static final String CONNECTION = """
+            ###Connection
             RelationalDatabaseConnection store::TestConnection {
                 type: DuckDB;
                 specification: DuckDB { };
@@ -109,6 +114,8 @@ class JsonMappingIntegrationTest {
     private static final String RUNTIME = """
             import test::*;
 
+            ###Runtime
+            import test::*;
             Runtime test::TestRuntime {
                 mappings:
                 [
@@ -186,6 +193,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
@@ -223,6 +233,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
@@ -290,6 +303,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
@@ -333,6 +349,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
@@ -400,6 +419,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
@@ -444,6 +466,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
@@ -516,6 +541,9 @@ class JsonMappingIntegrationTest {
                     import model::*;
                     import store::*;
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
@@ -605,6 +633,7 @@ class JsonMappingIntegrationTest {
                         order: Order[1];
                         items: OrderItem[*];
                     }
+                    ###Relational
                     Database store::OrderDB (
                         Table T_ORDERS (
                             ID INTEGER PRIMARY KEY,
@@ -617,6 +646,9 @@ class JsonMappingIntegrationTest {
                         )
                         Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
@@ -685,6 +717,7 @@ class JsonMappingIntegrationTest {
                         order: Order[1];
                         items: OrderItem[*];
                     }
+                    ###Relational
                     Database store::OrderDB (
                         Table T_ORDERS (
                             ID INTEGER PRIMARY KEY,
@@ -697,6 +730,9 @@ class JsonMappingIntegrationTest {
                         )
                         Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
@@ -759,6 +795,7 @@ class JsonMappingIntegrationTest {
                         order: Order[1];
                         items: OrderItem[*];
                     }
+                    ###Relational
                     Database store::OrderDB (
                         Table T_ORDERS (
                             ID INTEGER PRIMARY KEY,
@@ -771,6 +808,9 @@ class JsonMappingIntegrationTest {
                         )
                         Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::OrderMapping (
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS

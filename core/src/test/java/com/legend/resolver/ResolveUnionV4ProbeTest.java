@@ -33,6 +33,7 @@ class ResolveUnionV4ProbeTest {
             Class <<temporal.businesstemporal>> v::Z { pk: Integer[1]; }
             Association v::XY { x: v::X[1]; y: v::Y[*]; }
             Association v::YZ { yy: v::Y[1]; z: v::Z[*]; }
+            ###Relational
             Database v::DB (
               Table xT0 (pk INTEGER PRIMARY KEY, fk INTEGER, fk1 INTEGER,
                 from_z DATE, thru_z DATE)
@@ -67,6 +68,7 @@ class ResolveUnionV4ProbeTest {
               Join H_I (hT.fk1 = iT.fk0)
               Join I_Z2 (iT.fk1 = zT2.ifk)
             )
+            ###Mapping
             Mapping v::CM (
               *v::X[x0] : Relational { ~mainTable [v::DB] xT0 pk: xT0.pk }
               *v::Y[y0] : Relational { ~mainTable [v::DB] yT0 pk: yT0.pk }
@@ -98,6 +100,7 @@ class ResolveUnionV4ProbeTest {
               *v::Y : Operation { %s(y0, y1) }
               *v::Z : Operation { %s(z0, z1) }
             )
+            ###Runtime
             Runtime v::RT2 { mappings: [v::M2]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
@@ -114,6 +117,7 @@ class ResolveUnionV4ProbeTest {
             Class v::X { pk: Integer[1]; }
             Class v::Y { pk: Integer[1]; }
             Association v::XY { x: v::X[1]; y: v::Y[*]; }
+            ###Relational
             Database v::DB (
               Table xT0 (pk INTEGER PRIMARY KEY, fk INTEGER, fk1 INTEGER)
               Table yT0 (pk INTEGER PRIMARY KEY, fk INTEGER)
@@ -123,6 +127,7 @@ class ResolveUnionV4ProbeTest {
               Join X0_A (xT0.fk1 = aT.fk1)
               Join A_Y1 (aT.afk = yT1.yfk1)
             )
+            ###Mapping
             Mapping v::M (
               *v::Y : Operation { %s(y0, y1) }
               v::X[x0] : Relational { ~mainTable [v::DB] xT0 pk: xT0.pk }
@@ -134,6 +139,7 @@ class ResolveUnionV4ProbeTest {
                 x[y0, x0] : [v::DB] @X0_Y0,
                 x[y1, x0] : [v::DB] @A_Y1 > @X0_A ) }
             )
+            ###Runtime
             Runtime v::RT { mappings: [v::M]; }
             """).formatted(UNION_FQN);
 

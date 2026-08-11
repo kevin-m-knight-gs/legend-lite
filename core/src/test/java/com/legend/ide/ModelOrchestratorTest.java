@@ -51,6 +51,8 @@ final class ModelOrchestratorTest {
               $p.name->toUpper()
             }
 
+            ###Mapping
+            import my::model::*;
             Mapping my::M (
               *my::Person: Relational {
                 ~mainTable [my::DB] T_PERSON

@@ -100,11 +100,11 @@ class LegacyCleanSheetConvergenceTest {
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } ";
         String legacy = classes
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { ~src model::RawPerson name: $src.name } "
               + ")";
         String clean = classes
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { "
               + "    model::RawPerson.all() -> map(src | ^model::Person(name = $src.name)) "
               + "  } "
@@ -120,11 +120,11 @@ class LegacyCleanSheetConvergenceTest {
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; active: Boolean[1]; } ";
         String legacy = classes
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { ~src model::RawPerson ~filter $src.active name: $src.name } "
               + ")";
         String clean = classes
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Pure { "
               + "    model::RawPerson.all() -> filter(src | $src.active) "
               + "      -> map(src | ^model::Person(name = $src.name)) "
@@ -144,13 +144,13 @@ class LegacyCleanSheetConvergenceTest {
         // the desugarer emits the same).
         String shared =
                 "Class model::Person { name: String[1]; } "
-              + "Database db::DB ( Table T_PERSON (ID INTEGER, NAME VARCHAR(50)) ) ";
+              + "\n###Relational\nDatabase db::DB ( Table T_PERSON (ID INTEGER, NAME VARCHAR(50)) ) ";
         String legacy = shared
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Relational { ~mainTable [db::DB] T_PERSON name: T_PERSON.NAME } "
               + ")";
         String clean = shared
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Relational { "
               + "    #>{db::DB.T_PERSON}# -> map(row | ^model::Person(name = $row.NAME->toOne())) "
               + "  } "
@@ -171,7 +171,7 @@ class LegacyCleanSheetConvergenceTest {
                 "Class model::Firm   { id: Integer[1]; } "
               + "Class model::Person { firmId: Integer[1]; } "
               + "Association model::Person_Firm { firm: model::Firm[1]; person: model::Person[1]; } "
-              + "Database db::DB ( "
+              + "\n###Relational\nDatabase db::DB ( "
               + "  Table T_FIRM   (ID INTEGER) "
               + "  Table T_PERSON (FIRM_ID INTEGER) "
               + "  Join Person_Firm( T_PERSON.FIRM_ID = T_FIRM.ID ) "
@@ -179,13 +179,13 @@ class LegacyCleanSheetConvergenceTest {
         // A mapping is all-legacy or all-clean-sheet (the mix rule), so both
         // class mappings AND the association are written in one surface each.
         String legacy = model
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Firm:   Relational { ~mainTable [db::DB] T_FIRM   id: T_FIRM.ID } "
               + "  *model::Person: Relational { ~mainTable [db::DB] T_PERSON firmId: T_PERSON.FIRM_ID } "
               + "  model::Person_Firm: Relational { AssociationMapping ( firm: [db::DB] @Person_Firm ) } "
               + ")";
         String clean = model
-              + "Mapping my::M ( "
+              + "\n###Mapping\nMapping my::M ( "
               + "  *model::Firm:   Relational { #>{db::DB.T_FIRM}# -> map(r | ^model::Firm(id = $r.ID->toOne())) } "
               + "  *model::Person: Relational { #>{db::DB.T_PERSON}# -> map(r | ^model::Person(firmId = $r.FIRM_ID->toOne())) } "
               + "  model::Person_Firm: AssociationMapping { {a, b | $a.id == $b.firmId} } "

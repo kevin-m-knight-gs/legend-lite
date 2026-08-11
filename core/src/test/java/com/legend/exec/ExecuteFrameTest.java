@@ -34,11 +34,14 @@ class ExecuteFrameTest {
 
     private static final String MODEL = """
             Class m::Person { name: String[1]; age: Integer[1]; }
+            ###Relational
             Database s::DB ( Table T (NAME VARCHAR(50), AGE INTEGER) )
+            ###Mapping
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] T
                 name: T.NAME, age: T.AGE }
             )
+            ###Runtime
             Runtime m::RT { mappings: [m::M]; }
             """;
 

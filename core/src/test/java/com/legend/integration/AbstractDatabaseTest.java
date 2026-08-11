@@ -82,6 +82,7 @@ public abstract class AbstractDatabaseTest {
     protected static final String PERSON_DATABASE = """
             import store::*;
 
+            ###Relational
             Database store::PersonDatabase
             (
                 Table T_PERSON
@@ -111,6 +112,9 @@ public abstract class AbstractDatabaseTest {
             import model::*;
             import store::*;
 
+            ###Mapping
+            import model::*;
+            import store::*;
             Mapping model::PersonMapping
             (
                 Person: Relational
@@ -300,6 +304,8 @@ public abstract class AbstractDatabaseTest {
         return """
                 import test::*;
 
+                ###Runtime
+                import test::*;
                 Runtime test::TestRuntime
                 {
                     mappings:

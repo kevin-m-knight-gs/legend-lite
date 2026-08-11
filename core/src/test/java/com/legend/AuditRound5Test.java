@@ -37,6 +37,7 @@ class AuditRound5Test {
     private static final String MODEL = """
             Enum test::GT { CITY, TOWN }
             Class test::P { name: String[1]; nick: String[*]; }
+            ###Relational
             Database test::DB
             (
               Table T (X INTEGER NOT NULL)

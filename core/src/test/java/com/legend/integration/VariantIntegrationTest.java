@@ -27,6 +27,7 @@ class VariantIntegrationTest {
     private static final String EVENT_DATABASE = """
             import store::*;
 
+            ###Relational
             Database store::EventDatabase
             (
                 Table T_EVENTS
@@ -39,6 +40,7 @@ class VariantIntegrationTest {
             """;
 
     private static final String CONNECTION_DEFINITION = """
+            ###Connection
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -50,6 +52,8 @@ class VariantIntegrationTest {
     private static final String RUNTIME_DEFINITION = """
             import test::*;
 
+            ###Runtime
+            import test::*;
             Runtime test::TestRuntime
             {
                 mappings:
@@ -326,6 +330,7 @@ class VariantIntegrationTest {
                     qty: Integer[1];
                 }
 
+                ###Relational
                 Database store::EventDatabase (
                     Table T_EVENTS (
                         ID INTEGER PRIMARY KEY,
@@ -334,6 +339,10 @@ class VariantIntegrationTest {
                     )
                 )
 
+                ###Mapping
+                import model::*;
+                import store::*;
+                import test::*;
                 Mapping model::EventMapping (
                     Event: Relational {
                         ~mainTable [EventDatabase] T_EVENTS
@@ -344,12 +353,20 @@ class VariantIntegrationTest {
                     }
                 )
 
+                ###Connection
+                import model::*;
+                import store::*;
+                import test::*;
                 RelationalDatabaseConnection store::TestConnection {
                     type: DuckDB;
                     specification: DuckDB { };
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
+                import test::*;
                 Runtime test::TestRuntime {
                     mappings:
                     [

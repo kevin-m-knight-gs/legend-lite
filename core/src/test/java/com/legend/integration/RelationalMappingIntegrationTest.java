@@ -155,7 +155,7 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO T1 VALUES (1, true), (2, false)");
             String m = singleTableModel("P", "T1", "store::DB", "model::M",
                     "Class model::P { active: Boolean[1]; }",
-                    "ID INTEGER, ACTIVE BOOLEAN",
+                    "ID INTEGER, ACTIVE BIT",
                     "active: [store::DB] T1.ACTIVE");
             var r = exec(m, "model::P.all()->project(~[active:x|$x.active])");
             assertEquals(2, r.rowCount());
@@ -261,10 +261,14 @@ class RelationalMappingIntegrationTest {
 
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legal: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER, NAME VARCHAR(100))
                         Table T_FIRM (ID INTEGER, LEGAL VARCHAR(200))
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legal: [store::DB] T_FIRM.LEGAL }
@@ -298,7 +302,7 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO EMP VALUES (5, 'Eve', 'Sales', 85000, false)");
             empModel = singleTableModel("Emp", "EMP", "store::DB", "model::M",
                     "Class model::Emp { name: String[1]; dept: String[1]; sal: Integer[1]; active: Boolean[1]; }",
-                    "ID INTEGER, NAME VARCHAR(100), DEPT VARCHAR(50), SAL INTEGER, ACTIVE BOOLEAN",
+                    "ID INTEGER, NAME VARCHAR(100), DEPT VARCHAR(50), SAL INTEGER, ACTIVE BIT",
                     "name: [store::DB] EMP.NAME, dept: [store::DB] EMP.DEPT, sal: [store::DB] EMP.SAL, active: [store::DB] EMP.ACTIVE");
         }
 
@@ -655,9 +659,13 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::P { fullName: String[1]; lastName: String[1]; salary: Integer[1]; }
+                    ###Relational
                     Database store::DB (
                         Table PEOPLE (ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INTEGER)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         model::P: Relational {
                             ~mainTable [store::DB] PEOPLE
@@ -685,9 +693,13 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::I { categoryLower: String[1]; price: Integer[1]; }
+                    ###Relational
                     Database store::DB (
                         Table ITEMS (ID INTEGER, CATEGORY VARCHAR(50), PRICE INTEGER)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         model::I: Relational {
                             ~mainTable [store::DB] ITEMS
@@ -716,11 +728,15 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Ord { custName: String[1]; amount: Integer[1]; }
+                    ###Relational
                     Database store::DB (
                         Table ORDERS (ID INTEGER, CUST_ID INTEGER, AMOUNT INTEGER)
                         Table CUSTOMERS (ID INTEGER, NAME VARCHAR(50))
                         Join OrdCust(ORDERS.CUST_ID = CUSTOMERS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         model::Ord: Relational {
                             ~mainTable [store::DB] ORDERS
@@ -747,7 +763,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::D { val: String[1]; }
+                    ###Relational
                     Database store::DB ( Table DUPS (ID INTEGER, VAL VARCHAR(20)) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( D: Relational { ~mainTable [store::DB] DUPS val: [store::DB] DUPS.VAL } )
                     """, "store::DB", "model::M");
             var r = exec(m, "model::D.all()->project(~[val:x|$x.val])->distinct()");
@@ -780,6 +800,7 @@ class RelationalMappingIntegrationTest {
                     Class model::Address { street: String[1]; city: String[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
                     Association model::Person_Address { person: Person[1]; addresses: Address[*]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(200))
@@ -787,6 +808,9 @@ class RelationalMappingIntegrationTest {
                         Join Person_Firm(T_PERSON.FIRM_ID = T_FIRM.ID)
                         Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Firm: Relational { ~mainTable [store::DB] T_FIRM legalName: [store::DB] T_FIRM.LEGAL_NAME }
@@ -873,7 +897,11 @@ class RelationalMappingIntegrationTest {
 
                     Enum model::TaskStatus { PENDING, IN_PROGRESS, DONE }
                     Class model::Task { name: String[1]; status: TaskStatus[1]; }
+                    ###Relational
                     Database store::DB ( Table TASKS (ID INTEGER, NAME VARCHAR(100), STATUS VARCHAR(20)) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Task: Relational { ~mainTable [store::DB] TASKS name: [store::DB] TASKS.NAME, status: EnumerationMapping TaskStatusMap: [store::DB] TASKS.STATUS }
                         TaskStatus: EnumerationMapping TaskStatusMap { PENDING: 'PENDING', IN_PROGRESS: 'IN_PROGRESS', DONE: 'DONE' }
@@ -893,7 +921,11 @@ class RelationalMappingIntegrationTest {
 
                     Enum model::OrderStatus { ACTIVE, INACTIVE, CANCELLED }
                     Class model::Order { status: OrderStatus[1]; }
+                    ###Relational
                     Database store::DB ( Table ORDERS (ID INTEGER, STATUS_CODE VARCHAR(5)) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Order: Relational { ~mainTable [store::DB] ORDERS status: EnumerationMapping StatusMap: [store::DB] ORDERS.STATUS_CODE }
                         OrderStatus: EnumerationMapping StatusMap { ACTIVE: 'A', INACTIVE: 'I', CANCELLED: 'C' }
@@ -917,7 +949,11 @@ class RelationalMappingIntegrationTest {
 
                     Enum model::Priority { LOW, MEDIUM, HIGH }
                     Class model::Flag { priority: Priority[1]; }
+                    ###Relational
                     Database store::DB ( Table FLAGS (ID INTEGER, LEVEL INTEGER) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Flag: Relational { ~mainTable [store::DB] FLAGS priority: EnumerationMapping PriorityMap: [store::DB] FLAGS.LEVEL }
                         Priority: EnumerationMapping PriorityMap { LOW: 1, MEDIUM: 2, HIGH: 3 }
@@ -937,7 +973,11 @@ class RelationalMappingIntegrationTest {
 
                     Enum model::Status { ACTIVE, INACTIVE }
                     Class model::Item { status: Status[1]; }
+                    ###Relational
                     Database store::DB ( Table ITEMS (ID INTEGER, CATEGORY VARCHAR(20)) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Item: Relational { ~mainTable [store::DB] ITEMS status: EnumerationMapping SM: [store::DB] ITEMS.CATEGORY }
                         Status: EnumerationMapping SM { ACTIVE: ['A', 'ACT', 'ACTIVE'], INACTIVE: 'I' }
@@ -966,7 +1006,11 @@ class RelationalMappingIntegrationTest {
 
                     Class model::RawPerson { firstName: String[1]; lastName: String[1]; }
                     Class model::Person { fullName: String[1]; }
+                    ###Relational
                     Database store::DB ( Table RAW_PERSON (ID INTEGER, FIRST_NAME VARCHAR(50), LAST_NAME VARCHAR(50)) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         RawPerson: Relational { ~mainTable [store::DB] RAW_PERSON firstName: [store::DB] RAW_PERSON.FIRST_NAME, lastName: [store::DB] RAW_PERSON.LAST_NAME }
                         Person: Pure { ~src RawPerson fullName: $src.firstName + ' ' + $src.lastName }
@@ -987,7 +1031,11 @@ class RelationalMappingIntegrationTest {
 
                     Class model::Source { a: String[1]; b: String[1]; c: Integer[1]; }
                     Class model::Target { combined: String[1]; doubled: Integer[1]; }
+                    ###Relational
                     Database store::DB ( Table SRC (ID INTEGER, A VARCHAR(50), B VARCHAR(50), C INTEGER) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Source: Relational { ~mainTable [store::DB] SRC a: [store::DB] SRC.A, b: [store::DB] SRC.B, c: [store::DB] SRC.C }
                         Target: Pure { ~src Source combined: $src.a + '-' + $src.b, doubled: $src.c * 2 }
@@ -1018,7 +1066,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::D { name: String[1]; val: Integer[1]; }
+                    ###Relational
                     Database store::DB ( Table T_DATA (ID INTEGER, NAME VARCHAR(50), VAL INTEGER) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( D: Relational { ~mainTable [store::DB] T_DATA name: [store::DB] T_DATA.NAME, val: [store::DB] T_DATA.VAL } )
                     """, "store::DB", "model::M");
         }
@@ -1085,11 +1137,15 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Dummy { x: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
                         Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Dummy: Relational { ~mainTable [store::DB] T_PERSON x: [store::DB] T_PERSON.NAME } )
                     """, "store::DB", "model::M");
         }
@@ -1409,11 +1465,15 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Dummy { x: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
                         Table T_ORG (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Dummy: Relational { ~mainTable [store::DB] T_PERSON x: [store::DB] T_PERSON.NAME } )
                     """, "store::DB", "model::M");
         }
@@ -1527,6 +1587,7 @@ class RelationalMappingIntegrationTest {
                     Class model::Proj { name: String[1]; }
                     Association model::Emp_Dept { emp: Emp[*]; dept: Dept[1]; }
                     Association model::Emp_Proj { emp: Emp[1]; projects: Proj[*]; }
+                    ###Relational
                     Database store::DB (
                         Table DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50))
                         Table EMP (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
@@ -1534,6 +1595,9 @@ class RelationalMappingIntegrationTest {
                         Join Emp_Dept(EMP.DEPT_ID = DEPT.ID)
                         Join Emp_Proj(EMP.ID = PROJ.EMP_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Dept: Relational { ~mainTable [store::DB] DEPT name: [store::DB] DEPT.NAME }
                         Emp: Relational { ~mainTable [store::DB] EMP name: [store::DB] EMP.NAME }
@@ -1565,10 +1629,14 @@ class RelationalMappingIntegrationTest {
 
                     Class model::Customer { name: String[1]; }
                     Class model::Product { title: String[1]; price: Integer[1]; }
+                    ###Relational
                     Database store::DB (
                         Table CUSTOMERS (ID INTEGER, NAME VARCHAR(100))
                         Table PRODUCTS (ID INTEGER, TITLE VARCHAR(100), PRICE INTEGER)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Customer: Relational { ~mainTable [store::DB] CUSTOMERS name: [store::DB] CUSTOMERS.NAME }
                         Product: Relational { ~mainTable [store::DB] PRODUCTS title: [store::DB] PRODUCTS.TITLE, price: [store::DB] PRODUCTS.PRICE }
@@ -1808,6 +1876,7 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Person { name: String[1]; deptName: String[1]; orgName: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
@@ -1815,6 +1884,9 @@ class RelationalMappingIntegrationTest {
                         Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
                         Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -2000,6 +2072,7 @@ class RelationalMappingIntegrationTest {
                     Class model::Org { name: String[1]; }
                     Association model::Person_Dept { persons: Person[*]; dept: Dept[1]; }
                     Association model::Dept_Org { depts: Dept[*]; org: Org[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
@@ -2007,6 +2080,9 @@ class RelationalMappingIntegrationTest {
                         Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
                         Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] T_PERSON name: [store::DB] T_PERSON.NAME }
                         Dept: Relational { ~mainTable [store::DB] T_DEPT name: [store::DB] T_DEPT.NAME }
@@ -2033,6 +2109,7 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Person { name: String[1]; orgName: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
@@ -2040,6 +2117,9 @@ class RelationalMappingIntegrationTest {
                         Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
                         Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -2062,6 +2142,7 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Person { name: String[1]; orgName: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, MANAGER_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
@@ -2069,6 +2150,9 @@ class RelationalMappingIntegrationTest {
                         Join Person_Dept(T_PERSON.DEPT_ID = T_DEPT.ID)
                         Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -2095,10 +2179,14 @@ class RelationalMappingIntegrationTest {
 
                     Class test::Employee { name: String[1]; managerName: String[1]; }
                     Association test::EmpMgr { emp: test::Employee[*]; manager: test::Employee[1]; }
+                    ###Relational
                     Database store::DB (
                         Table EMPLOYEES (ID INTEGER, NAME VARCHAR(100), MANAGER_ID INTEGER)
                         Join EmpMgr(EMPLOYEES.MANAGER_ID = {target}.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Employee: Relational {
                             ~mainTable [store::DB] EMPLOYEES
@@ -2129,11 +2217,14 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Person { id: Integer[1]; name: String[1]; active: Integer[1]; }
+                    ###Relational
                     Database test::DB
                     (
                         Table PEOPLE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL, ACTIVE INTEGER NOT NULL)
                         Filter ActiveFilter(PEOPLE.ACTIVE = 1)
                     )
+                    ###Mapping
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -2168,10 +2259,13 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Tag { id: Integer[1]; tag: String[1]; }
+                    ###Relational
                     Database test::DB
                     (
                         Table TAGS (ID INTEGER PRIMARY KEY, TAG VARCHAR(100) NOT NULL)
                     )
+                    ###Mapping
+                    import test::*;
                     Mapping test::M
                     (
                         Tag: Relational
@@ -2212,11 +2306,15 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Person { id: Integer[1]; name: String[1]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_EMPLOYEE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
                         Table T_CONTRACTOR (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         *Person[emp]: Relational
@@ -2264,7 +2362,12 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Person { id: Integer[1]; name: String[1]; }
+                    ###Relational
                     Database store::DB ( Table PEOPLE (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL) )
+                    ###Mapping
+                    import base::*;
+                    import store::*;
+                    import test::*;
                     Mapping base::BaseMapping
                     (
                         Person: Relational
@@ -2320,11 +2423,15 @@ class RelationalMappingIntegrationTest {
                     Class test::Order { qty: Integer[1]; price: Float[1]; }
                     Association test::OrderPrice { order: test::Order[*]; priceInfo: test::Price[1]; }
                     Class test::Price { price: Float[1]; }
+                    ###Relational
                     Database store::DB (
                         Table ORDERS (REGION VARCHAR(10), PRODUCT_ID INTEGER, QTY INTEGER)
                         Table PRICES (REGION VARCHAR(10), PRODUCT_ID INTEGER, PRICE DOUBLE)
                         Join OrderPrice(ORDERS.REGION = PRICES.REGION and ORDERS.PRODUCT_ID = PRICES.PRODUCT_ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Order: Relational {
                             ~mainTable [store::DB] ORDERS
@@ -2358,11 +2465,15 @@ class RelationalMappingIntegrationTest {
                     Class test::Item { code: String[1]; label: String[1]; }
                     Association test::ItemLabel { item: test::Item[*]; labelInfo: test::LabelInfo[1]; }
                     Class test::LabelInfo { label: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table CODES (ID INTEGER, PREFIX VARCHAR(10), CODE VARCHAR(20))
                         Table LABELS (FULL_CODE VARCHAR(30), LABEL VARCHAR(50))
                         Join CodeLabel(concat(CODES.PREFIX, '_', CODES.CODE) = LABELS.FULL_CODE)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Item: Relational {
                             ~mainTable [store::DB] CODES
@@ -2392,6 +2503,7 @@ class RelationalMappingIntegrationTest {
                 import test::*;
 
                 Class test::Employee { empId: Integer[1]; empName: String[1]; }
+                ###Relational
                 Database store::DB (
                     Table EMPLOYEES (ID INT, NAME VARCHAR(100), DEPT_ID INT)
                     View EmpView (
@@ -2400,6 +2512,9 @@ class RelationalMappingIntegrationTest {
                     )
                     Join EmpDept(EMPLOYEES.DEPT_ID = EMPLOYEES.ID)
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Employee: Relational {
                         ~mainTable [store::DB] EmpView
@@ -2433,6 +2548,7 @@ class RelationalMappingIntegrationTest {
                     fullName: String[1];
                     deptName: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table EMPLOYEES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), DEPT_ID INT)
                     Table DEPARTMENTS (ID INT, NAME VARCHAR(100))
@@ -2443,6 +2559,9 @@ class RelationalMappingIntegrationTest {
                         dept_name: @EmpDept | DEPARTMENTS.NAME
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Employee: Relational {
                         ~mainTable [store::DB] EmpView
@@ -2473,6 +2592,7 @@ class RelationalMappingIntegrationTest {
                     empName: String[1];
                     deptName: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table EMPLOYEES (ID INT, NAME VARCHAR(50), DEPT_ID INT)
                     Table DEPARTMENTS (ID INT, NAME VARCHAR(100))
@@ -2483,6 +2603,9 @@ class RelationalMappingIntegrationTest {
                         dept_name: @EmpDept | DEPARTMENTS.NAME
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Employee: Relational {
                         ~mainTable [store::DB] EmpView
@@ -2536,6 +2659,7 @@ class RelationalMappingIntegrationTest {
                     repName: String[1];
                     label: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table SALES (ID INT, PRODUCT VARCHAR(50), AMOUNT INT, REGION VARCHAR(50), REP_ID INT)
                     Table REPS (ID INT, NAME VARCHAR(50))
@@ -2549,6 +2673,9 @@ class RelationalMappingIntegrationTest {
                         label: concat(SALES.PRODUCT, ' [', SALES.REGION, ']')
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Sale: Relational {
                         ~mainTable [store::DB] SaleView
@@ -2602,6 +2729,7 @@ class RelationalMappingIntegrationTest {
                     custName: String[1];
                     label: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table ORDERS (ID INT, PRODUCT VARCHAR(50), AMOUNT INT, STATUS VARCHAR(20), CUST_ID INT)
                     Table CUSTOMERS (ID INT, NAME VARCHAR(50))
@@ -2617,6 +2745,9 @@ class RelationalMappingIntegrationTest {
                         label: concat(ORDERS.PRODUCT, ' $', ORDERS.AMOUNT)
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Order: Relational {
                         ~mainTable [store::DB] ActiveOrderView
@@ -2667,6 +2798,7 @@ class RelationalMappingIntegrationTest {
                     orgName: String[1];
                     city: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table PERSONS (ID INT, NAME VARCHAR(50), DEPT_ID INT, OFFICE_ID INT)
                     Table DEPTS (ID INT, NAME VARCHAR(50), ORG_ID INT)
@@ -2682,6 +2814,9 @@ class RelationalMappingIntegrationTest {
                         city: @PersonOffice | OFFICES.CITY
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Person: Relational {
                         ~mainTable [store::DB] PersonView
@@ -2729,6 +2864,7 @@ class RelationalMappingIntegrationTest {
                     orderId: Integer[1];
                     parties: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table ORDERS (ID INT, CUST_ID INT, VENDOR_ID INT)
                     Table CUSTOMERS (ID INT, NAME VARCHAR(50))
@@ -2740,6 +2876,9 @@ class RelationalMappingIntegrationTest {
                         parties: concat(@OrderCust | CUSTOMERS.NAME, ' / ', @OrderVendor | VENDORS.NAME)
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Order: Relational {
                         ~mainTable [store::DB] OrderView
@@ -2770,6 +2909,7 @@ class RelationalMappingIntegrationTest {
                     region: String[1];
                     total: Integer[1];
                 }
+                ###Relational
                 Database store::DB (
                     Table SALES (ID INT, REGION VARCHAR(50), AMOUNT INT)
                     View RegionSales (
@@ -2778,6 +2918,9 @@ class RelationalMappingIntegrationTest {
                         total: sum(SALES.AMOUNT)
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::RegionTotal: Relational {
                         ~mainTable [store::DB] RegionSales
@@ -2815,11 +2958,15 @@ class RelationalMappingIntegrationTest {
                     name: String[1];
                     dept: String[1];
                 }
+                ###Relational
                 Database store::DB (
                     Schema hr (
                         Table EMPLOYEES (ID INT, NAME VARCHAR(50), DEPT VARCHAR(50))
                     )
                 )
+                ###Mapping
+                import store::*;
+                import test::*;
                 Mapping test::M (
                     test::Employee: Relational {
                         ~mainTable [store::DB] hr.EMPLOYEES
@@ -2864,6 +3011,7 @@ class RelationalMappingIntegrationTest {
 
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Class test::Address { id: Integer[1]; city: String[1]; }
+                    ###Relational
                     Database store::BaseDB
                     (
                         Table BASE_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
@@ -2873,6 +3021,9 @@ class RelationalMappingIntegrationTest {
                         include store::BaseDB
                         Table EXT_ADDRESS (ID INTEGER PRIMARY KEY, PERSON_ID INTEGER NOT NULL, CITY VARCHAR(100) NOT NULL)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -2918,7 +3069,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Person { fullName: String[1]; }
+                    ###Relational
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES fullName: concat([store::DB] NAMES.FIRST, ' ', [store::DB] NAMES.LAST) } )
                     """, "store::DB", "model::M");
             var result = exec(model, "model::Person.all()->project([x|$x.fullName], ['fullName'])");
@@ -2938,7 +3093,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Code { country: String[1]; }
+                    ###Relational
                     Database store::DB ( Table CODES ( ID INTEGER, CODE VARCHAR(10) ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Code: Relational { ~mainTable [store::DB] CODES country: substring([store::DB] CODES.CODE, 0, 2) } )
                     """, "store::DB", "model::M");
             var result = exec(model, "model::Code.all()->project([x|$x.country], ['country'])");
@@ -2958,7 +3117,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Rec { label: String[1]; }
+                    ###Relational
                     Database store::DB ( Table STATUS ( ID INTEGER, CODE VARCHAR(10) ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Rec: Relational { ~mainTable [store::DB] STATUS label: if(equal([store::DB] STATUS.CODE, 'A'), 'Active', 'Inactive') } )
                     """, "store::DB", "model::M");
             var result = exec(model, "model::Rec.all()->project([x|$x.label], ['label'])");
@@ -2978,7 +3141,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Rec { total: Integer[1]; }
+                    ###Relational
                     Database store::DB ( Table NUMS ( ID INTEGER, A INTEGER, B INTEGER ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Rec: Relational { ~mainTable [store::DB] NUMS total: plus([store::DB] NUMS.A, [store::DB] NUMS.B) } )
                     """, "store::DB", "model::M");
             var result = exec(model, "model::Rec.all()->project([x|$x.total], ['total'])");
@@ -2995,7 +3162,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::P { lowerName: String[1]; }
+                    ###Relational
                     Database store::DB ( Table T1 ( ID INTEGER, NAME VARCHAR(50) ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] T1 lowerName: toLower([store::DB] T1.NAME) } )
                     """, "store::DB", "model::M");
             var result = exec(model, "model::P.all()->project([x|$x.lowerName], ['lowerName'])");
@@ -3015,7 +3186,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::Person { email: String[1]; }
+                    ###Relational
                     Database store::DB ( Table NAMES ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( Person: Relational { ~mainTable [store::DB] NAMES email: toLower(concat([store::DB] NAMES.FIRST, [store::DB] NAMES.LAST)) } )
                     """, "store::DB", "model::M");
             var result = exec(model, "model::Person.all()->project([x|$x.email], ['email'])");
@@ -3040,12 +3215,16 @@ class RelationalMappingIntegrationTest {
                     Class test::Person { id: Integer[1]; name: String[1]; }
                     Class test::Firm { id: Integer[1]; legalName: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB
                     (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL, FIRM_ID INTEGER NOT NULL)
                         Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100) NOT NULL)
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M
                     (
                         Person: Relational
@@ -3122,7 +3301,7 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO PRODUCTS VALUES (8, 'Gizmo', 'Electronics', 149.99, 10, true, '2024-05-01')");
             model = singleTableModel("P", "PRODUCTS", "store::DB", "model::M",
                     "Class model::P { name: String[1]; category: String[1]; price: Float[1]; stock: Integer[1]; active: Boolean[1]; created: Date[1]; }",
-                    "ID INTEGER, NAME VARCHAR(100), CATEGORY VARCHAR(50), PRICE DOUBLE, STOCK INTEGER, ACTIVE BOOLEAN, CREATED DATE",
+                    "ID INTEGER, NAME VARCHAR(100), CATEGORY VARCHAR(50), PRICE DOUBLE, STOCK INTEGER, ACTIVE BIT, CREATED DATE",
                     "name: [store::DB] PRODUCTS.NAME, category: [store::DB] PRODUCTS.CATEGORY, price: [store::DB] PRODUCTS.PRICE, stock: [store::DB] PRODUCTS.STOCK, active: [store::DB] PRODUCTS.ACTIVE, created: [store::DB] PRODUCTS.CREATED");
         }
 
@@ -3321,11 +3500,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Employee { name: String[1]; }
                     Class model::Dept { name: String[1]; }
                     Association model::Emp_Dept { employees: Employee[*]; dept: Dept[1]; }
+                    ###Relational
                     Database store::DB (
                         Table EMPLOYEES (ID INTEGER, NAME VARCHAR(100), DEPT_ID INTEGER)
                         Table DEPTS (ID INTEGER, NAME VARCHAR(50))
                         Join Emp_Dept(EMPLOYEES.DEPT_ID = DEPTS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Employee: Relational { ~mainTable [store::DB] EMPLOYEES name: [store::DB] EMPLOYEES.NAME }
                         Dept: Relational { ~mainTable [store::DB] DEPTS name: [store::DB] DEPTS.NAME }
@@ -3351,11 +3534,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Student { name: String[1]; }
                     Class model::School { name: String[1]; }
                     Association model::Student_School { students: Student[*]; school: School[1]; }
+                    ###Relational
                     Database store::DB (
                         Table STUDENTS (ID INTEGER, NAME VARCHAR(100), SCHOOL_ID INTEGER)
                         Table SCHOOLS (ID INTEGER, NAME VARCHAR(100))
                         Join Student_School(STUDENTS.SCHOOL_ID = SCHOOLS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Student: Relational { ~mainTable [store::DB] STUDENTS name: [store::DB] STUDENTS.NAME }
                         School: Relational { ~mainTable [store::DB] SCHOOLS name: [store::DB] SCHOOLS.NAME }
@@ -3384,11 +3571,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Person { name: String[1]; }
                     Class model::Addr { city: String[1]; }
                     Association model::Person_Addr { person: Person[1]; addrs: Addr[*]; }
+                    ###Relational
                     Database store::DB (
                         Table PEOPLE (ID INTEGER, NAME VARCHAR(100))
                         Table ADDRS (ID INTEGER, PERSON_ID INTEGER, CITY VARCHAR(100))
                         Join Person_Addr(PEOPLE.ID = ADDRS.PERSON_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] PEOPLE name: [store::DB] PEOPLE.NAME }
                         Addr: Relational { ~mainTable [store::DB] ADDRS city: [store::DB] ADDRS.CITY }
@@ -3415,11 +3606,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Person { name: String[1]; }
                     Class model::Addr { city: String[1]; }
                     Association model::Person_Addr { person: Person[1]; addrs: Addr[*]; }
+                    ###Relational
                     Database store::DB (
                         Table PEOPLE (ID INTEGER, NAME VARCHAR(100))
                         Table ADDRS (ID INTEGER, PERSON_ID INTEGER, CITY VARCHAR(100))
                         Join Person_Addr(PEOPLE.ID = ADDRS.PERSON_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational { ~mainTable [store::DB] PEOPLE name: [store::DB] PEOPLE.NAME }
                         Addr: Relational { ~mainTable [store::DB] ADDRS city: [store::DB] ADDRS.CITY }
@@ -3449,6 +3644,7 @@ class RelationalMappingIntegrationTest {
                     Class model::Product { name: String[1]; }
                     Association model::Order_Customer { orders: Order[*]; customer: Customer[1]; }
                     Association model::Order_Product { orders: Order[*]; product: Product[1]; }
+                    ###Relational
                     Database store::DB (
                         Table ORDERS (ID INTEGER, CUSTOMER_ID INTEGER, PRODUCT_ID INTEGER, QTY INTEGER)
                         Table CUSTOMERS (ID INTEGER, NAME VARCHAR(100))
@@ -3456,6 +3652,9 @@ class RelationalMappingIntegrationTest {
                         Join Order_Customer(ORDERS.CUSTOMER_ID = CUSTOMERS.ID)
                         Join Order_Product(ORDERS.PRODUCT_ID = PRODUCTS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Order: Relational { ~mainTable [store::DB] ORDERS qty: [store::DB] ORDERS.QTY }
                         Customer: Relational { ~mainTable [store::DB] CUSTOMERS name: [store::DB] CUSTOMERS.NAME }
@@ -3482,11 +3681,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Author { name: String[1]; country: String[1]; }
                     Class model::Book { title: String[1]; }
                     Association model::Author_Book { author: Author[1]; books: Book[*]; }
+                    ###Relational
                     Database store::DB (
                         Table AUTHORS (ID INTEGER, NAME VARCHAR(100), COUNTRY VARCHAR(50))
                         Table BOOKS (ID INTEGER, TITLE VARCHAR(200), AUTHOR_ID INTEGER)
                         Join Author_Book(AUTHORS.ID = BOOKS.AUTHOR_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Author: Relational { ~mainTable [store::DB] AUTHORS name: [store::DB] AUTHORS.NAME, country: [store::DB] AUTHORS.COUNTRY }
                         Book: Relational { ~mainTable [store::DB] BOOKS title: [store::DB] BOOKS.TITLE }
@@ -3649,11 +3852,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Emp { name: String[1]; sal: Integer[1]; }
                     Class model::Dept { name: String[1]; }
                     Association model::Emp_Dept { emps: Emp[*]; dept: Dept[1]; }
+                    ###Relational
                     Database store::DB (
                         Table HR_EMP (ID INTEGER, NAME VARCHAR(100), SAL INTEGER, DEPT_ID INTEGER)
                         Table HR_DEPT (ID INTEGER, NAME VARCHAR(50))
                         Join Emp_Dept(HR_EMP.DEPT_ID = HR_DEPT.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Emp: Relational { ~mainTable [store::DB] HR_EMP name: [store::DB] HR_EMP.NAME, sal: [store::DB] HR_EMP.SAL }
                         Dept: Relational { ~mainTable [store::DB] HR_DEPT name: [store::DB] HR_DEPT.NAME }
@@ -3679,11 +3886,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Item { name: String[1]; stock: Integer[1]; }
                     Class model::Supplier { name: String[1]; country: String[1]; }
                     Association model::Item_Supplier { items: Item[*]; supplier: Supplier[1]; }
+                    ###Relational
                     Database store::DB (
                         Table INV_ITEMS (ID INTEGER, NAME VARCHAR(100), STOCK INTEGER, SUPPLIER_ID INTEGER)
                         Table SUPPLIERS (ID INTEGER, NAME VARCHAR(100), COUNTRY VARCHAR(50))
                         Join Item_Supplier(INV_ITEMS.SUPPLIER_ID = SUPPLIERS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Item: Relational { ~mainTable [store::DB] INV_ITEMS name: [store::DB] INV_ITEMS.NAME, stock: [store::DB] INV_ITEMS.STOCK }
                         Supplier: Relational { ~mainTable [store::DB] SUPPLIERS name: [store::DB] SUPPLIERS.NAME, country: [store::DB] SUPPLIERS.COUNTRY }
@@ -3753,13 +3964,17 @@ class RelationalMappingIntegrationTest {
                     Class model::Addr { city: String[1]; state: String[1]; }
                     Association model::Emp_Dept { emps: Emp[*]; dept: Dept[1]; }
                     Association model::Emp_Addr { emp: Emp[1]; addrs: Addr[*]; }
+                    ###Relational
                     Database store::DB (
-                        Table C_EMP (ID INTEGER, NAME VARCHAR(100), SAL INTEGER, DEPT_ID INTEGER, ACTIVE BOOLEAN)
+                        Table C_EMP (ID INTEGER, NAME VARCHAR(100), SAL INTEGER, DEPT_ID INTEGER, ACTIVE BIT)
                         Table C_DEPT (ID INTEGER, NAME VARCHAR(50), BUDGET INTEGER)
                         Table C_ADDR (ID INTEGER, EMP_ID INTEGER, CITY VARCHAR(100), STATE VARCHAR(50))
                         Join Emp_Dept(C_EMP.DEPT_ID = C_DEPT.ID)
                         Join Emp_Addr(C_EMP.ID = C_ADDR.EMP_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Emp: Relational { ~mainTable [store::DB] C_EMP name: [store::DB] C_EMP.NAME, sal: [store::DB] C_EMP.SAL, active: [store::DB] C_EMP.ACTIVE }
                         Dept: Relational { ~mainTable [store::DB] C_DEPT name: [store::DB] C_DEPT.NAME, budget: [store::DB] C_DEPT.BUDGET }
@@ -3860,11 +4075,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Sale { amount: Integer[1]; }
                     Class model::Rep { name: String[1]; region: String[1]; }
                     Association model::Sale_Rep { sales: Sale[*]; rep: Rep[1]; }
+                    ###Relational
                     Database store::DB (
                         Table SALE (ID INTEGER, AMOUNT INTEGER, REP_ID INTEGER)
                         Table REP (ID INTEGER, NAME VARCHAR(100), REGION VARCHAR(50))
                         Join Sale_Rep(SALE.REP_ID = REP.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Sale: Relational { ~mainTable [store::DB] SALE amount: [store::DB] SALE.AMOUNT }
                         Rep: Relational { ~mainTable [store::DB] REP name: [store::DB] REP.NAME, region: [store::DB] REP.REGION }
@@ -3949,6 +4168,7 @@ class RelationalMappingIntegrationTest {
                     Class model::Product { name: String[1]; category: String[1]; }
                     Association model::Order_Customer { orders: Order[*]; customer: Customer[1]; }
                     Association model::Order_Product { orders: Order[*]; product: Product[1]; }
+                    ###Relational
                     Database store::DB (
                         Table MJ_ORDER (ID INTEGER, CUSTOMER_ID INTEGER, PRODUCT_ID INTEGER, QTY INTEGER, PRICE DOUBLE)
                         Table MJ_CUSTOMER (ID INTEGER, NAME VARCHAR(100), TIER VARCHAR(20))
@@ -3956,6 +4176,9 @@ class RelationalMappingIntegrationTest {
                         Join Order_Customer(MJ_ORDER.CUSTOMER_ID = MJ_CUSTOMER.ID)
                         Join Order_Product(MJ_ORDER.PRODUCT_ID = MJ_PRODUCT.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Order: Relational { ~mainTable [store::DB] MJ_ORDER qty: [store::DB] MJ_ORDER.QTY, price: [store::DB] MJ_ORDER.PRICE }
                         Customer: Relational { ~mainTable [store::DB] MJ_CUSTOMER name: [store::DB] MJ_CUSTOMER.NAME, tier: [store::DB] MJ_CUSTOMER.TIER }
@@ -4043,11 +4266,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Ticket { title: String[1]; priority: Priority[1]; }
                     Class model::User { name: String[1]; }
                     Association model::Ticket_User { tickets: Ticket[*]; assignee: User[1]; }
+                    ###Relational
                     Database store::DB (
                         Table EJ_TICKET (ID INTEGER, TITLE VARCHAR(200), PRIORITY_CODE VARCHAR(5), ASSIGNEE_ID INTEGER)
                         Table EJ_USER (ID INTEGER, NAME VARCHAR(100))
                         Join Ticket_User(EJ_TICKET.ASSIGNEE_ID = EJ_USER.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Ticket: Relational { ~mainTable [store::DB] EJ_TICKET title: [store::DB] EJ_TICKET.TITLE, priority: EnumerationMapping PM: [store::DB] EJ_TICKET.PRIORITY_CODE }
                         User: Relational { ~mainTable [store::DB] EJ_USER name: [store::DB] EJ_USER.NAME }
@@ -4078,11 +4305,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Order { status: Status[1]; amount: Integer[1]; }
                     Class model::Cust { name: String[1]; }
                     Association model::Order_Cust { orders: Order[*]; customer: Cust[1]; }
+                    ###Relational
                     Database store::DB (
                         Table EJ2_ORDER (ID INTEGER, STATUS VARCHAR(5), CUSTOMER_ID INTEGER, AMOUNT INTEGER)
                         Table EJ2_CUST (ID INTEGER, NAME VARCHAR(100))
                         Join Order_Cust(EJ2_ORDER.CUSTOMER_ID = EJ2_CUST.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Order: Relational { ~mainTable [store::DB] EJ2_ORDER status: EnumerationMapping SM: [store::DB] EJ2_ORDER.STATUS, amount: [store::DB] EJ2_ORDER.AMOUNT }
                         Cust: Relational { ~mainTable [store::DB] EJ2_CUST name: [store::DB] EJ2_CUST.NAME }
@@ -4121,11 +4352,15 @@ class RelationalMappingIntegrationTest {
                     Class model::RawDept { name: String[1]; }
                     Class model::Employee { fullName: String[1]; }
                     Association model::RawEmp_Dept { emps: RawEmp[*]; dept: RawDept[1]; }
+                    ###Relational
                     Database store::DB (
                         Table M2M_EMP (ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), DEPT_ID INTEGER)
                         Table M2M_DEPT (ID INTEGER, NAME VARCHAR(50))
                         Join RawEmp_Dept(M2M_EMP.DEPT_ID = M2M_DEPT.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         RawEmp: Relational { ~mainTable [store::DB] M2M_EMP first: [store::DB] M2M_EMP.FIRST, last: [store::DB] M2M_EMP.LAST }
                         RawDept: Relational { ~mainTable [store::DB] M2M_DEPT name: [store::DB] M2M_DEPT.NAME }
@@ -4149,7 +4384,11 @@ class RelationalMappingIntegrationTest {
 
                     Class model::Raw { a: String[1]; b: String[1]; score: Integer[1]; }
                     Class model::View { label: String[1]; score: Integer[1]; }
+                    ###Relational
                     Database store::DB ( Table M2M_RAW (ID INTEGER, A VARCHAR(50), B VARCHAR(50), SCORE INTEGER) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Raw: Relational { ~mainTable [store::DB] M2M_RAW a: [store::DB] M2M_RAW.A, b: [store::DB] M2M_RAW.B, score: [store::DB] M2M_RAW.SCORE }
                         View: Pure { ~src Raw label: $src.a + '-' + $src.b, score: $src.score }
@@ -4195,6 +4434,7 @@ class RelationalMappingIntegrationTest {
                     Association model::Emp_Dept { emps: Emp[*]; dept: Dept[1]; }
                     Association model::Project_Dept { projects: Project[*]; dept: Dept[1]; }
                     Association model::Emp_Skill { emp: Emp[1]; skills: Skill[*]; }
+                    ###Relational
                     Database store::DB (
                         Table LD_COMPANY (ID INTEGER, NAME VARCHAR(100), COUNTRY VARCHAR(50))
                         Table LD_DEPT (ID INTEGER, NAME VARCHAR(50), COMPANY_ID INTEGER)
@@ -4206,6 +4446,9 @@ class RelationalMappingIntegrationTest {
                         Join Project_Dept(LD_PROJECT.DEPT_ID = LD_DEPT.ID)
                         Join Emp_Skill(LD_EMP.ID = LD_SKILL.EMP_ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Company: Relational { ~mainTable [store::DB] LD_COMPANY name: [store::DB] LD_COMPANY.NAME, country: [store::DB] LD_COMPANY.COUNTRY }
                         Dept: Relational { ~mainTable [store::DB] LD_DEPT name: [store::DB] LD_DEPT.NAME }
@@ -4345,9 +4588,13 @@ class RelationalMappingIntegrationTest {
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INTEGER)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -4440,11 +4687,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Address { street: String[1]; city: String[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
                     Association model::Person_Address { person: Person[1]; address: Address[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INTEGER)
                         Table T_ADDRESS (ID INTEGER PRIMARY KEY, STREET VARCHAR(200), CITY VARCHAR(100))
                         Join Person_Address(T_PERSON.ADDR_ID = T_ADDRESS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -4491,11 +4742,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Address { street: String[1]; city: String[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
                     Association model::Person_Address { person: Person[1]; address: Address[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), ADDR_ID INTEGER)
                         Table T_ADDRESS (ID INTEGER PRIMARY KEY, STREET VARCHAR(200), CITY VARCHAR(100))
                         Join Person_Address(T_PERSON.ADDR_ID = T_ADDRESS.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -4542,9 +4797,13 @@ class RelationalMappingIntegrationTest {
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_REVENUE INTEGER)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -4625,11 +4884,15 @@ class RelationalMappingIntegrationTest {
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; revenue: Integer[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_NAME VARCHAR(200), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(200), REVENUE INTEGER)
                         Join Person_Firm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -4784,6 +5047,7 @@ class RelationalMappingIntegrationTest {
                     Association model::Emp_Dept { emps: Emp[*]; dept: Dept[1]; }
                     Association model::Dept_Company { depts: Dept[*]; company: Company[1]; }
                     Association model::Company_Country { companies: Company[*]; country: Country[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_EMP (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), COMPANY_ID INTEGER)
@@ -4793,6 +5057,9 @@ class RelationalMappingIntegrationTest {
                         Join Dept_Company(T_DEPT.COMPANY_ID = T_COMPANY.ID)
                         Join Company_Country(T_COMPANY.COUNTRY_ID = T_COUNTRY.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         Emp: Relational { ~mainTable [store::DB] T_EMP name: [store::DB] T_EMP.NAME }
                         Dept: Relational { ~mainTable [store::DB] T_DEPT name: [store::DB] T_DEPT.NAME }
@@ -4839,6 +5106,7 @@ class RelationalMappingIntegrationTest {
                     Class model::C2 { country: String[1]; }
                     Association model::E2_D2 { emps: E2[*]; dept: D2[1]; }
                     Association model::D2_C2 { depts: D2[*]; company: C2[1]; }
+                    ###Relational
                     Database store::DB (
                         Table T_EMP2 (ID INTEGER, NAME VARCHAR(100), DEPT_ID INTEGER, SALARY INTEGER)
                         Table T_DEPT2 (ID INTEGER, NAME VARCHAR(50), COMPANY_ID INTEGER)
@@ -4846,6 +5114,9 @@ class RelationalMappingIntegrationTest {
                         Join E2_D2(T_EMP2.DEPT_ID = T_DEPT2.ID)
                         Join D2_C2(T_DEPT2.COMPANY_ID = T_COMPANY2.ID)
                     )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M (
                         E2: Relational { ~mainTable [store::DB] T_EMP2 name: [store::DB] T_EMP2.NAME, salary: [store::DB] T_EMP2.SALARY }
                         D2: Relational { ~mainTable [store::DB] T_DEPT2 name: [store::DB] T_DEPT2.NAME }
@@ -4914,7 +5185,11 @@ class RelationalMappingIntegrationTest {
                     import store::*;
 
                     Class model::P { fullName: String[1]; }
+                    ###Relational
                     Database store::DB ( Table PEOPLE ( ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50) ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::M ( P: Relational { ~mainTable [store::DB] PEOPLE
                         fullName: concat([store::DB] PEOPLE.FIRST, ' ', [store::DB] PEOPLE.LAST)
                     } )
@@ -4942,6 +5217,7 @@ class RelationalMappingIntegrationTest {
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; country: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100), COUNTRY_ID INTEGER)
@@ -4949,6 +5225,9 @@ class RelationalMappingIntegrationTest {
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                         Join FirmCountry(T_FIRM.COUNTRY_ID = T_COUNTRY.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -4991,6 +5270,7 @@ class RelationalMappingIntegrationTest {
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; country: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100), COUNTRY_ID INTEGER)
@@ -4998,6 +5278,9 @@ class RelationalMappingIntegrationTest {
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                         Join FirmCountry(T_FIRM.COUNTRY_ID = T_COUNTRY.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -5035,6 +5318,7 @@ class RelationalMappingIntegrationTest {
                     Class test::Person { name: String[1]; }
                     Class test::Firm { legalName: String[1]; country: String[1]; }
                     Association test::PersonFirm { firm: Firm[1]; employees: Person[*]; }
+                    ###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER, LEGAL_NAME VARCHAR(100), COUNTRY_ID INTEGER)
@@ -5042,6 +5326,9 @@ class RelationalMappingIntegrationTest {
                         Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
                         Join FirmCountry(T_FIRM.COUNTRY_ID = T_COUNTRY.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Person: Relational {
                             ~mainTable [store::DB] T_PERSON
@@ -5075,9 +5362,13 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Position { acctNum: Integer[1]; gsn: String[1]; quantity: Integer[1]; }
+                    ###Relational
                     Database store::DB (
                         Table TRADE (TRADE_ID INTEGER, ACC_NUM INTEGER, GSN VARCHAR(20), PRODUCT_ID INTEGER, QTY INTEGER)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Position: Relational {
                             ~groupBy([store::DB] TRADE.ACC_NUM, [store::DB] TRADE.PRODUCT_ID, [store::DB] TRADE.GSN)
@@ -5120,10 +5411,14 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Employee { name: String[1]; managerName: String[0..1]; }
+                    ###Relational
                     Database store::DB (
                         Table EMPLOYEES (ID INTEGER, NAME VARCHAR(100), MANAGER_ID INTEGER)
                         Join EmpMgr(EMPLOYEES.MANAGER_ID = {target}.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Employee: Relational {
                             ~mainTable [store::DB] EMPLOYEES
@@ -5150,11 +5445,15 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Sale { qty: Integer[1]; productName: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table SALES (REGION VARCHAR(10), PRODUCT_ID INTEGER, QTY INTEGER)
                         Table PRODUCTS (REGION VARCHAR(10), PRODUCT_ID INTEGER, NAME VARCHAR(50))
                         Join SaleProduct(SALES.REGION = PRODUCTS.REGION and SALES.PRODUCT_ID = PRODUCTS.PRODUCT_ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Sale: Relational {
                             ~mainTable [store::DB] SALES
@@ -5189,6 +5488,7 @@ class RelationalMappingIntegrationTest {
                     import test::*;
 
                     Class test::Order { summary: String[1]; custName: String[1]; prodName: String[1]; }
+                    ###Relational
                     Database store::DB (
                         Table ORDERS (ID INTEGER, CUST_ID INTEGER, PROD_ID INTEGER)
                         Table CUSTOMERS (ID INTEGER, NAME VARCHAR(50))
@@ -5196,6 +5496,9 @@ class RelationalMappingIntegrationTest {
                         Join OrdCust(ORDERS.CUST_ID = CUSTOMERS.ID)
                         Join OrdProd(ORDERS.PROD_ID = PRODUCTS.ID)
                     )
+                    ###Mapping
+                    import store::*;
+                    import test::*;
                     Mapping test::M (
                         test::Order: Relational {
                             ~mainTable [store::DB] ORDERS

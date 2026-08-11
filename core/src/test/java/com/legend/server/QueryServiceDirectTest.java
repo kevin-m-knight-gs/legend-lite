@@ -38,6 +38,7 @@ class QueryServiceDirectTest {
                     age: Integer[1];
                 }
 
+                ###Relational
                 Database TestDatabase (
                     Table T_PERSON (
                         ID INTEGER PRIMARY KEY,
@@ -47,6 +48,8 @@ class QueryServiceDirectTest {
                     )
                 )
 
+                ###Mapping
+                import model::*;
                 Mapping model::PersonMapping (
                     model::Person: Relational {
                         ~mainTable [TestDatabase] T_PERSON
@@ -56,12 +59,16 @@ class QueryServiceDirectTest {
                     }
                 )
 
+                ###Connection
+                import model::*;
                 RelationalDatabaseConnection store::TestConnection {
                     type: DuckDB;
                     specification: DuckDB { path: '{{DB_PATH}}'; };
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
                 Runtime test::TestRuntime {
                     mappings:
                     [

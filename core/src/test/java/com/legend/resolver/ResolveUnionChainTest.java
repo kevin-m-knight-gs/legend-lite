@@ -43,6 +43,7 @@ class ResolveUnionChainTest {
             Class u::A { pk: Integer[1]; b: u::B[1]; }
             Class u::B { pk: Integer[1]; c: u::C[1]; }
             Class u::C { pk: Integer[1]; }
+            ###Relational
             Database u::DB (
               Table aT1 (pk INTEGER PRIMARY KEY, fk INTEGER)
               Table aT2 (pk INTEGER PRIMARY KEY, fk INTEGER)
@@ -55,6 +56,7 @@ class ResolveUnionChainTest {
               Join B1C1 (bT1.fk = cT1.fk)
               Join B2C2 (bT2.fk = cT2.fk)
             )
+            ###Mapping
             Mapping u::M (
               *u::A : Operation { %s(a1, a2) }
               *u::B : Operation { %s(b1, b2) }
@@ -70,6 +72,7 @@ class ResolveUnionChainTest {
               u::C[c1] : Relational { ~mainTable [u::DB] cT1 pk: cT1.pk }
               u::C[c2] : Relational { ~mainTable [u::DB] cT2 pk: cT2.pk }
             )
+            ###Runtime
             Runtime u::RT { mappings: [u::M]; }
             """).formatted(UNION_FQN, UNION_FQN, UNION_FQN);
 

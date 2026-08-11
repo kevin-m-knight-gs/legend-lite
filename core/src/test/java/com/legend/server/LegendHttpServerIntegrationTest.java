@@ -71,6 +71,7 @@ class LegendHttpServerIntegrationTest {
                     age: Integer[1];
                 }
 
+                ###Relational
                 Database TestDatabase (
                     Table T_PERSON (
                         ID INTEGER PRIMARY KEY,
@@ -80,6 +81,8 @@ class LegendHttpServerIntegrationTest {
                     )
                 )
 
+                ###Mapping
+                import model::*;
                 Mapping model::PersonMapping (
                     model::Person: Relational {
                         ~mainTable [TestDatabase] T_PERSON
@@ -89,12 +92,16 @@ class LegendHttpServerIntegrationTest {
                     }
                 )
 
+                ###Connection
+                import model::*;
                 RelationalDatabaseConnection store::TestConnection {
                     type: DuckDB;
                     specification: DuckDB { path: '{{DB_PATH}}'; };
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
                 Runtime test::TestRuntime {
                     mappings:
                     [
@@ -333,6 +340,7 @@ class LegendHttpServerIntegrationTest {
                     salary: Integer[1];
                 }
 
+                ###Relational
                 Database EmployeeDB (
                     Table T_EMPLOYEE (
                         ID INTEGER PRIMARY KEY,
@@ -342,6 +350,8 @@ class LegendHttpServerIntegrationTest {
                     )
                 )
 
+                ###Mapping
+                import model::*;
                 Mapping model::EmployeeMapping (
                     model::Employee: Relational {
                         ~mainTable [EmployeeDB] T_EMPLOYEE
@@ -351,12 +361,16 @@ class LegendHttpServerIntegrationTest {
                     }
                 )
 
+                ###Connection
+                import model::*;
                 RelationalDatabaseConnection store::EmpConnection {
                     type: DuckDB;
                     specification: DuckDB { };
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
                 Runtime test::EmpRuntime {
                     mappings:
                     [

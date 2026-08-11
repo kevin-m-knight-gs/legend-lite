@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PipelineStageFailureTest {
 
     private static final String MODEL = """
+            ###Relational
             Database test::DB
             (
               Table T_PERSON (NAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL)
@@ -70,6 +71,7 @@ class PipelineStageFailureTest {
         // lenient reference — import-scoped queries spell bare names); an
         // UNKNOWN name still fails with the qualification hint.
         var ex = failsWith(com.legend.error.ResolutionException.class, MODEL + """
+                ###Pure
                 Class test::Person { name: String[1]; }
                 """, "Nobody.all()");
         messageNames(ex, "Nobody", "fully qualified");
@@ -90,7 +92,7 @@ class PipelineStageFailureTest {
     @Test
     @DisplayName("model errors carry the offending ELEMENT's [line:col]")
     void modelErrorsCarryElementPosition() {
-        // Line 3 of the model declares the broken mapping — the decoration
+        // Line 7 of the model declares the broken mapping — the decoration
         // points AT it (positions wave: fqn-keyed side index + driver).
         // (an unknown ~filter now POISONS the class binding instead of
         // throwing at load — per-class fault isolation; an unknown extends
@@ -98,12 +100,12 @@ class PipelineStageFailureTest {
         // position decoration)
         var ex = failsWith(com.legend.error.ModelException.class,
                 "Class test::P { name: String[1]; }\n"
-                        + "Database test::DB ( Table T (X INTEGER) )\n"
-                        + "Mapping test::M ( test::P[s1]: Relational { ~mainTable [test::DB] T"
+                        + "\n###Relational\nDatabase test::DB ( Table T (X INTEGER) )\n"
+                        + "\n###Mapping\nMapping test::M ( test::P[s1]: Relational { ~mainTable [test::DB] T"
                         + " name: T.X } *test::P[s2] extends [nope]: Relational {"
                         + " ~mainTable [test::DB] T name: T.X } )",
                 "1 + 1");
-        assertTrue(String.valueOf(ex.getMessage()).startsWith("[3:"),
+        assertTrue(String.valueOf(ex.getMessage()).startsWith("[7:"),
                 () -> "expected the mapping's [line:col] prefix, got: " + ex.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals("test::M", ex.element());
     }
@@ -112,7 +114,7 @@ class PipelineStageFailureTest {
     @DisplayName("type errors inside a function body name the enclosing function")
     void typeErrorsNameTheEnclosingFunction() {
         var ctx = com.legend.Compiler.compileModel(
-                MODEL + " function test::broken(): Integer[1] { 'text' + 5 }");
+                MODEL + "\n###Pure\nfunction test::broken(): Integer[1] { 'text' + 5 }");
         var fn = ctx.findFunction("test::broken").get(0);
         var spec = new com.legend.compiler.spec.SpecCompiler(ctx);
         var ex = org.junit.jupiter.api.Assertions.assertThrows(

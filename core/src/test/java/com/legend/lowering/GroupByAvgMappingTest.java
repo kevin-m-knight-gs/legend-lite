@@ -24,7 +24,9 @@ class GroupByAvgMappingTest {
 
     private static final String MODEL = """
             Class g::Acct { k: String[1]; avgQty: Float[1]; }
+            ###Relational
             Database g::DB ( Table T (K VARCHAR(10), QTY INTEGER) )
+            ###Mapping
             Mapping g::M (
               *g::Acct : Relational {
                 ~groupBy([g::DB] T.K)
@@ -33,6 +35,7 @@ class GroupByAvgMappingTest {
                 avgQty: avg(T.QTY)
               }
             )
+            ###Runtime
             Runtime g::RT { mappings: [g::M]; }
             """;
 

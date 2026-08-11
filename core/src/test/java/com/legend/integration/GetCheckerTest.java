@@ -39,6 +39,7 @@ public class GetCheckerTest {
     private static final String EVENT_DATABASE = """
             import store::*;
 
+            ###Relational
             Database store::EventDatabase
             (
                 Table T_EVENTS
@@ -51,6 +52,7 @@ public class GetCheckerTest {
             """;
 
     private static final String CONNECTION_DEF = """
+            ###Connection
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
@@ -62,6 +64,8 @@ public class GetCheckerTest {
     private static final String RUNTIME_DEF = """
             import test::*;
 
+            ###Runtime
+            import test::*;
             Runtime test::TestRuntime
             {
                 mappings:

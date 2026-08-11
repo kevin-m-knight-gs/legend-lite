@@ -43,6 +43,7 @@ class ResolveUnionOuterDateProbeTest {
             Class u::CarDetails { id: Integer[1]; time: Date[1]; car: u::Car[0..1]; }
             Class <<temporal.businesstemporal>> u::Car { id: Integer[1]; description: String[1]; bicycle: u::Bicycle[0..1]; }
             Class u::Bicycle { id: Integer[1]; bdescription: String[1]; }
+            ###Relational
             Database u::DB (
               Table CarDetails (id INTEGER PRIMARY KEY, time DATE)
               Table Cars (
@@ -53,6 +54,7 @@ class ResolveUnionOuterDateProbeTest {
               Join Car_CarDetails (CarDetails.id = Cars.id)
               Join CarBicycle (Cars.id = Bicycles.id)
             )
+            ###Mapping
             Mapping u::M (
               *u::CarDetails : Operation { %s(c1, c2) }
               u::CarDetails[c1] : Relational { ~mainTable [u::DB] CarDetails
@@ -71,6 +73,7 @@ class ResolveUnionOuterDateProbeTest {
                 id: Bicycles.id,
                 bdescription: Bicycles.bdescription }
             )
+            ###Runtime
             Runtime u::RT { mappings: [u::M]; }
             """).formatted(UNION_FQN);
 
