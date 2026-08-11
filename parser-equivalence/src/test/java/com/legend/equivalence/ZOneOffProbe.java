@@ -12,16 +12,29 @@ class ZOneOffProbe {
         String want = System.getProperty("probe.id",
                 "src/test/java/com/legend/integration/DuckDBIntegrationTest.java#238");
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
-        for (String module : new String[]{"core", "pct", "nlq"}) {
-            for (Corpus.Source src : InlineSnippets.extract(
-                    repo.resolve(module), "lite-" + module,
-                    InlineSnippets.OWN_DECL)) {
+        for (Corpus.Source src : Corpus.all()) {
+            {
                 if (!src.id().equals(want)) {
                     continue;
                 }
                 try {
                     PureGrammarParser.newInstance().parseModel(src.text());
                     System.out.println("@@ ACCEPTS");
+                    try {
+                        com.legend.parser.ElementParser.parse(src.text());
+                        System.out.println("@@ LITE-OK");
+                    } catch (Throwable lt) {
+                        System.out.println("@@ LITE-FAIL " + lt);
+                        for (var st : lt.getStackTrace()) {
+                            if (st.getClassName().startsWith("com.legend")) {
+                                System.out.println("@@   at " + st);
+                            }
+                        }
+                        String[] ls = src.text().split("\n", -1);
+                        for (int i = 0; i < ls.length; i++) {
+                            System.out.println("@@ L" + (i + 1) + "| " + ls[i]);
+                        }
+                    }
                 } catch (Throwable t) {
                     for (Throwable x = t; x != null;
                             x = x.getCause() == x ? null : x.getCause()) {

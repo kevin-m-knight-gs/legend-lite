@@ -76,6 +76,16 @@ public final class FromProtocol {
             ends.add(new AssociationDefinition.AssociationEndDefinition(
                     p.name(), p.type(), p.multiplicity()));
         }
+        if (ends.size() != 2) {
+            // ENGINE-VERBATIM (TestDomainCompilationFromGrammar): the
+            // engine PARSES a wrong-arity association and refuses at
+            // COMPILE with this text; lite's parse-time transform is the
+            // corresponding seam (it used to crash on ends.get(1) —
+            // inverse-parity sweep 2026-08-11, 2 corpus rows)
+            throw new IllegalStateException(
+                    "Expected 2 properties for an association '"
+                            + a.qualifiedName() + "'");
+        }
         return new AssociationDefinition(a.qualifiedName(), ends.get(0), ends.get(1),
                 a.derivedProperties());
     }

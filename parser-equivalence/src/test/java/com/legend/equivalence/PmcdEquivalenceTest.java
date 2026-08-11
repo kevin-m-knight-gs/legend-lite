@@ -26,6 +26,7 @@ class PmcdEquivalenceTest {
         int match = 0;
         int oracleRejects = 0;
         List<String> weRefuse = new ArrayList<>();
+        List<String> modelRefuse = new ArrayList<>();
         List<String> diffs = new ArrayList<>();
         Map<String, Integer> refuseByMsg = new TreeMap<>();
         // Corpus.all() already includes the inline-snippet tiers (C4/C5) —
@@ -62,6 +63,25 @@ class PmcdEquivalenceTest {
                 diffs.add(src.id() + " :: "
                         + firstDivergence(expected, actual));
             }
+            // INVERSE-PARITY NET, MODEL PATH (2026-08-11): the protocol
+            // path above proves bytes; this proves the MODEL transform
+            // also reads every oracle-accepted source. It caught two
+            // wrong-arity associations CRASHING FromProtocol (the engine
+            // parses them and refuses at COMPILE — lite now refuses with
+            // the engine-verbatim compile text, the one allowed family).
+            try {
+                com.legend.parser.ElementParser.parse(src.text());
+            } catch (Throwable t) {
+                Throwable r = t;
+                while (r.getCause() != null && r.getCause() != r) {
+                    r = r.getCause();
+                }
+                String m = String.valueOf(r.getMessage());
+                if (!m.startsWith("Expected 2 properties for an association")) {
+                    modelRefuse.add(src.id() + " :: "
+                            + m.replaceAll("\\s+", " "));
+                }
+            }
         }
         System.out.println("PMCD document parity: " + match + " match, "
                 + diffs.size() + " diff, " + weRefuse.size()
@@ -81,6 +101,12 @@ class PmcdEquivalenceTest {
                 () -> weRefuse.size() + " oracle-accepted files we refuse;"
                         + " first:\n  " + String.join("\n  ", weRefuse
                                 .subList(0, Math.min(10, weRefuse.size()))));
+        assertEquals(0, modelRefuse.size(),
+                () -> modelRefuse.size() + " oracle-accepted sources the"
+                        + " MODEL path refuses (inverse-parity net — a"
+                        + " grammar arm or transform we lack):\n  "
+                        + String.join("\n  ", modelRefuse.subList(0,
+                                Math.min(10, modelRefuse.size()))));
     }
 
     private static String firstDivergence(String expected, String actual) {

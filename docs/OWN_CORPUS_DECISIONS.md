@@ -15,7 +15,7 @@ column carries a grep-able cue.
 
 **Decision key:** KEEP = deliberate, stays, class stays pinned.
 CONFORM = rewrite the test/feature to oracle shape. Every DECISION
-cell below starts `proposed:` — flip to `DECIDED:` as you rule.
+cell below is `DECIDED:` (2026-08-11 review — all classes confirmed).
 
 ---
 
@@ -99,7 +99,7 @@ against DuckDB today).
 | 6–11 | integration/UserFunctionIntegrationTest#68/75/87/92/97/132 | higher-order user fns executed on DuckDB |
 | 12–13 | parser/ElementParserTest#51/56 | `{T[1]->U[1]}` generic fn types (parse pins) |
 
-- **DECISION:** proposed: **KEEP** (pure-dialect; engine says "yet";
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (pure-dialect; engine says "yet";
   executable feature).
 
 ## 2. DIALECT-generics — 7 rows
@@ -115,7 +115,7 @@ relation-function surface depends on it).
 | 14–19 | parser/ElementParserTest#72/81/262/266/271/310 | generic fn/class decls (parse pins) |
 | 20 | rcorpus/RelationalCorpusRunner#6 | `meta::pure::tds::extensions::firstNotNull<T>` — a REAL engine-checkout helper the corpus harness registers |
 
-- **DECISION:** proposed: **KEEP**.
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP**.
 
 ## 3. DIALECT-milestoning-range — 1 row
 
@@ -123,7 +123,7 @@ relation-function surface depends on it).
 |---|---|---|
 | 21 | compiler/spec/UserCallInlinerTest#34 | `.allVersionsInRange($s,$e)` — engine: "is not supported"; legend-pure milestoning has it |
 
-- **DECISION:** proposed: **KEEP**.
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP**.
 
 ## 4. ENGINE-TEST-SCOPED-section — 1 row
 
@@ -156,7 +156,7 @@ Clean-sheet inline association predicate:
 | 24 | normalizer/MappingNormalizerTest#51 |
 | 25 | parser/ElementParserTest#565 |
 
-- **DECISION:** proposed: **KEEP** (part of the mappings-as-functions
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (part of the mappings-as-functions
   design family — M5 in MAPPING_CLEAN_SHEET).
 
 ## 7. LITE-DESIGN-json-column-get — 11 rows
@@ -198,7 +198,7 @@ fn-ref service query (`query: my::funcs::peopleQuery;`).
 | 48–53 | parser/CleanSheetProtocolShapeTest#2/5/8/11/14/18 | the protocol-shape pins for every clean-sheet form |
 | 54–56 | parser/ElementParserTest#548/559/563 | parse pins |
 
-- **DECISION:** proposed: **KEEP** (your named exception).
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (your named exception).
 
 ## 9. LITE-DESIGN-sqlite-backend — 2 rows
 
@@ -218,7 +218,7 @@ fn-ref service query (`query: my::funcs::peopleQuery;`).
 |---|---|---|
 | 59 | lexer/LexerTest#40 | `Diagram my::D(width=1.0) { TypeView v(color=#FFFFCC) }` — legend-pure m2 diagram spelling (geometry attrs; `DiagramAntlrParser.g4` widthFirst/heightFirst). A LEXER fixture: the `#FFFFCC` is deliberately unlexable content proving raw-section skipping. |
 
-- **DECISION:** proposed: **KEEP** (fixture needs foreign content; the
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (fixture needs foreign content; the
   spelling is real pure anyway).
 
 ## 11. PURE-DIALECT-signatures — 16 rows
@@ -241,7 +241,7 @@ syntax").
 | 68–72 | #334/344/352/368/376 | extend/sort/rename/filterAdults/write native+relation sigs |
 | 73–75 | #383/388/391 | native fns (strict: Unsupported syntax) |
 
-- **DECISION:** proposed: **KEEP** (these ARE legend-pure; deleting
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (these ARE legend-pure; deleting
   them deletes the ported relation spec).
 
 ## 12. PURE-DIALECT-xstore-tolerance — 1 row
@@ -250,7 +250,7 @@ syntax").
 |---|---|---|
 | (75a) | parser/ElementParserTest#705 | XStore missing-comma completion — CORPUS-PROVEN (`testMappingCrossStore.pure:238`): legend-pure's compiler completes the rule and drops the rest; a refusing parser cannot read the corpus |
 
-- **DECISION:** proposed: **KEEP** (corpus-required).
+- **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (corpus-required).
 
 ## 13. TEST-MACHINERY-fixture — 1 row
 
