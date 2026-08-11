@@ -74,7 +74,7 @@ two that pin the programme's flagship claims. All four now run in gate 8.
 | class | time | pins |
 |---|---:|---|
 | `ViewFilterParityTest` | 0.8s | view-filter shapes |
-| `PmcdEquivalenceTest` | 27s | whole-document parity — the "8,186/8,186" headline |
+| `PmcdEquivalenceTest` | 27s | whole-document parity — **5,259 distinct** documents (the "8,186" figure double-counted inline snippets; three agents reproduced 5,259 independently) |
 | `StrictDialectParityTest` | 34s | "dialect quarantine goes TOTAL" |
 | `LeniencyCatalogTest` | 37s | the total refusal-row classifier |
 
