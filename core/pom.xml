@@ -83,6 +83,15 @@
                  The forked-compiler -J flags below are the - -add-exports
                  block Error Prone needs on JDK 16+ (load-bearing build
                  config; expect to touch it on any JDK upgrade). -->
+            <!-- Heavy (stress/benchmark) tests run only when asked:
+                 mvn test -Dgroups=heavy -Dsurefire.excludedGroups= -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>heavy</excludedGroups>
+                </configuration>
+            </plugin>
             <!-- The server entrypoint (moved from the deleted engine module):
                  `mvn -pl core exec:java` runs the HTTP server; `package`
                  produces the shaded fat jar. -->

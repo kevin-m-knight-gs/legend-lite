@@ -1,0 +1,98 @@
+
+Mapping positions::PositionsMapping
+(
+    positions::Book: Relational {
+        ~mainTable [store::DB] BOOK
+        bookId: [store::DB] BOOK.BOOK_ID, name: [store::DB] BOOK.NAME, bookType: [store::DB] BOOK.BOOK_TYPE, currency: [store::DB] BOOK.CURRENCY, isActive: [store::DB] BOOK.IS_ACTIVE, openDate: [store::DB] BOOK.OPEN_DATE, closeDate: [store::DB] BOOK.CLOSE_DATE, legalEntity: [store::DB] BOOK.LEGAL_ENTITY, strategy: [store::DB] BOOK.STRATEGY, pnlYTD: [store::DB] BOOK.PNL_YTD, positionCount: [store::DB] BOOK.POSITION_COUNT, riskLimit: [store::DB] BOOK.RISK_LIMIT, description: [store::DB] BOOK.DESCRIPTION
+    }
+    positions::Position: Relational {
+        ~mainTable [store::DB] POSITION
+        positionId: [store::DB] POSITION.POSITION_ID, quantity: [store::DB] POSITION.QUANTITY, averageCost: [store::DB] POSITION.AVERAGE_COST, marketValue: [store::DB] POSITION.MARKET_VALUE, unrealizedPnL: [store::DB] POSITION.UNREALIZED_PN_L, realizedPnL: [store::DB] POSITION.REALIZED_PN_L, currency: [store::DB] POSITION.CURRENCY, positionDate: [store::DB] POSITION.POSITION_DATE, direction: [store::DB] POSITION.DIRECTION, costBasis: [store::DB] POSITION.COST_BASIS, accruedInterest: [store::DB] POSITION.ACCRUED_INTEREST, lastUpdated: [store::DB] POSITION.LAST_UPDATED, isOpen: [store::DB] POSITION.IS_OPEN, settlementDate: [store::DB] POSITION.SETTLEMENT_DATE
+    }
+    positions::Portfolio: Relational {
+        ~mainTable [store::DB] PORTFOLIO
+        portfolioId: [store::DB] PORTFOLIO.PORTFOLIO_ID, name: [store::DB] PORTFOLIO.NAME, strategy: [store::DB] PORTFOLIO.STRATEGY, inception: [store::DB] PORTFOLIO.INCEPTION, aum: [store::DB] PORTFOLIO.AUM, currency: [store::DB] PORTFOLIO.CURRENCY, benchmark: [store::DB] PORTFOLIO.BENCHMARK, isActive: [store::DB] PORTFOLIO.IS_ACTIVE, nav: [store::DB] PORTFOLIO.NAV, navDate: [store::DB] PORTFOLIO.NAV_DATE, returnYTD: [store::DB] PORTFOLIO.RETURN_YTD, returnMTD: [store::DB] PORTFOLIO.RETURN_MTD, sharpeRatio: [store::DB] PORTFOLIO.SHARPE_RATIO, maxDrawdown: [store::DB] PORTFOLIO.MAX_DRAWDOWN
+    }
+    positions::CashBalance: Relational {
+        ~mainTable [store::DB] CASH_BALANCE
+        balanceId: [store::DB] CASH_BALANCE.BALANCE_ID, balance: [store::DB] CASH_BALANCE.BALANCE, currency: [store::DB] CASH_BALANCE.CURRENCY, balanceDate: [store::DB] CASH_BALANCE.BALANCE_DATE, balanceType: [store::DB] CASH_BALANCE.BALANCE_TYPE, accountId: [store::DB] CASH_BALANCE.ACCOUNT_ID, availableBalance: [store::DB] CASH_BALANCE.AVAILABLE_BALANCE, pendingAmount: [store::DB] CASH_BALANCE.PENDING_AMOUNT, isOverdrawn: [store::DB] CASH_BALANCE.IS_OVERDRAWN, overdraftLimit: [store::DB] CASH_BALANCE.OVERDRAFT_LIMIT, lastUpdated: [store::DB] CASH_BALANCE.LAST_UPDATED
+    }
+    positions::Inventory: Relational {
+        ~mainTable [store::DB] INVENTORY
+        inventoryId: [store::DB] INVENTORY.INVENTORY_ID, availableQuantity: [store::DB] INVENTORY.AVAILABLE_QUANTITY, lockedQuantity: [store::DB] INVENTORY.LOCKED_QUANTITY, borrowedQuantity: [store::DB] INVENTORY.BORROWED_QUANTITY, lentQuantity: [store::DB] INVENTORY.LENT_QUANTITY, totalQuantity: [store::DB] INVENTORY.TOTAL_QUANTITY, inventoryDate: [store::DB] INVENTORY.INVENTORY_DATE, source: [store::DB] INVENTORY.SOURCE, locationType: [store::DB] INVENTORY.LOCATION_TYPE, isSettled: [store::DB] INVENTORY.IS_SETTLED, lastUpdated: [store::DB] INVENTORY.LAST_UPDATED, custodian: [store::DB] INVENTORY.CUSTODIAN
+    }
+    positions::LotPosition: Relational {
+        ~mainTable [store::DB] LOT_POSITION
+        lotId: [store::DB] LOT_POSITION.LOT_ID, quantity: [store::DB] LOT_POSITION.QUANTITY, costPrice: [store::DB] LOT_POSITION.COST_PRICE, costBasis: [store::DB] LOT_POSITION.COST_BASIS, acquireDate: [store::DB] LOT_POSITION.ACQUIRE_DATE, lotType: [store::DB] LOT_POSITION.LOT_TYPE, isOpen: [store::DB] LOT_POSITION.IS_OPEN, closeDate: [store::DB] LOT_POSITION.CLOSE_DATE, closePrice: [store::DB] LOT_POSITION.CLOSE_PRICE, realizedGain: [store::DB] LOT_POSITION.REALIZED_GAIN, holdingPeriod: [store::DB] LOT_POSITION.HOLDING_PERIOD, taxMethod: [store::DB] LOT_POSITION.TAX_METHOD
+    }
+    positions::BookTransfer: Relational {
+        ~mainTable [store::DB] BOOK_TRANSFER
+        transferId: [store::DB] BOOK_TRANSFER.TRANSFER_ID, fromBookId: [store::DB] BOOK_TRANSFER.FROM_BOOK_ID, toBookId: [store::DB] BOOK_TRANSFER.TO_BOOK_ID, quantity: [store::DB] BOOK_TRANSFER.QUANTITY, price: [store::DB] BOOK_TRANSFER.PRICE, transferDate: [store::DB] BOOK_TRANSFER.TRANSFER_DATE, reason: [store::DB] BOOK_TRANSFER.REASON, status: [store::DB] BOOK_TRANSFER.STATUS, approvedBy: [store::DB] BOOK_TRANSFER.APPROVED_BY, approvalDate: [store::DB] BOOK_TRANSFER.APPROVAL_DATE, currency: [store::DB] BOOK_TRANSFER.CURRENCY, notional: [store::DB] BOOK_TRANSFER.NOTIONAL
+    }
+    positions::PositionBreak: Relational {
+        ~mainTable [store::DB] POSITION_BREAK
+        breakId: [store::DB] POSITION_BREAK.BREAK_ID, breakType: [store::DB] POSITION_BREAK.BREAK_TYPE, expectedQuantity: [store::DB] POSITION_BREAK.EXPECTED_QUANTITY, actualQuantity: [store::DB] POSITION_BREAK.ACTUAL_QUANTITY, difference: [store::DB] POSITION_BREAK.DIFFERENCE, breakDate: [store::DB] POSITION_BREAK.BREAK_DATE, status: [store::DB] POSITION_BREAK.STATUS, priority: [store::DB] POSITION_BREAK.PRIORITY, assignedTo: [store::DB] POSITION_BREAK.ASSIGNED_TO, resolvedDate: [store::DB] POSITION_BREAK.RESOLVED_DATE, resolution: [store::DB] POSITION_BREAK.RESOLUTION, ageInDays: [store::DB] POSITION_BREAK.AGE_IN_DAYS
+    }
+    positions::ReconciliationItem: Relational {
+        ~mainTable [store::DB] RECONCILIATION_ITEM
+        reconId: [store::DB] RECONCILIATION_ITEM.RECON_ID, source: [store::DB] RECONCILIATION_ITEM.SOURCE, target: [store::DB] RECONCILIATION_ITEM.TARGET, sourceValue: [store::DB] RECONCILIATION_ITEM.SOURCE_VALUE, targetValue: [store::DB] RECONCILIATION_ITEM.TARGET_VALUE, difference: [store::DB] RECONCILIATION_ITEM.DIFFERENCE, reconDate: [store::DB] RECONCILIATION_ITEM.RECON_DATE, status: [store::DB] RECONCILIATION_ITEM.STATUS, matchType: [store::DB] RECONCILIATION_ITEM.MATCH_TYPE, isMatched: [store::DB] RECONCILIATION_ITEM.IS_MATCHED, comment: [store::DB] RECONCILIATION_ITEM.COMMENT, resolvedBy: [store::DB] RECONCILIATION_ITEM.RESOLVED_BY
+    }
+    positions::PositionSnapshot: Relational {
+        ~mainTable [store::DB] POSITION_SNAPSHOT
+        snapshotId: [store::DB] POSITION_SNAPSHOT.SNAPSHOT_ID, snapshotDate: [store::DB] POSITION_SNAPSHOT.SNAPSHOT_DATE, snapshotTime: [store::DB] POSITION_SNAPSHOT.SNAPSHOT_TIME, quantity: [store::DB] POSITION_SNAPSHOT.QUANTITY, marketValue: [store::DB] POSITION_SNAPSHOT.MARKET_VALUE, unrealizedPnL: [store::DB] POSITION_SNAPSHOT.UNREALIZED_PN_L, costBasis: [store::DB] POSITION_SNAPSHOT.COST_BASIS, currency: [store::DB] POSITION_SNAPSHOT.CURRENCY, source: [store::DB] POSITION_SNAPSHOT.SOURCE, isEOD: [store::DB] POSITION_SNAPSHOT.IS_EOD, version: [store::DB] POSITION_SNAPSHOT.VERSION
+    }
+    positions::BookTransfer_Book: Relational {
+        AssociationMapping (
+            sourceBook: [store::DB] @BookTransfer_Book,
+            outgoingTransfers: [store::DB] @BookTransfer_Book
+        )
+    }
+    positions::CashBalance_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @CashBalance_Book,
+            cashBalances: [store::DB] @CashBalance_Book
+        )
+    }
+    positions::Inventory_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Inventory_Book,
+            inventory: [store::DB] @Inventory_Book
+        )
+    }
+    positions::LotPosition_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @LotPosition_Position,
+            lots: [store::DB] @LotPosition_Position
+        )
+    }
+    positions::Portfolio_Position: Relational {
+        AssociationMapping (
+            portfolio: [store::DB] @Portfolio_Position,
+            positions: [store::DB] @Portfolio_Position
+        )
+    }
+    positions::PositionBreak_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @PositionBreak_Position,
+            breaks: [store::DB] @PositionBreak_Position
+        )
+    }
+    positions::PositionSnapshot_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @PositionSnapshot_Position,
+            snapshots: [store::DB] @PositionSnapshot_Position
+        )
+    }
+    positions::Position_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Position_Book,
+            positions: [store::DB] @Position_Book
+        )
+    }
+    positions::ReconciliationItem_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @ReconciliationItem_Position,
+            reconItems: [store::DB] @ReconciliationItem_Position
+        )
+    }
+)

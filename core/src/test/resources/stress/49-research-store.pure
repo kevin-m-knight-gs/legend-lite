@@ -1,0 +1,92 @@
+
+Mapping research::ResearchMapping
+(
+    research::AnalystRecommendation: Relational {
+        ~mainTable [store::DB] ANALYST_RECOMMENDATION
+        recommendationId: [store::DB] ANALYST_RECOMMENDATION.RECOMMENDATION_ID, recommendation: [store::DB] ANALYST_RECOMMENDATION.RECOMMENDATION, previousRecommendation: [store::DB] ANALYST_RECOMMENDATION.PREVIOUS_RECOMMENDATION, targetPrice: [store::DB] ANALYST_RECOMMENDATION.TARGET_PRICE, previousTargetPrice: [store::DB] ANALYST_RECOMMENDATION.PREVIOUS_TARGET_PRICE, ratingDate: [store::DB] ANALYST_RECOMMENDATION.RATING_DATE, upside: [store::DB] ANALYST_RECOMMENDATION.UPSIDE, conviction: [store::DB] ANALYST_RECOMMENDATION.CONVICTION, timeHorizon: [store::DB] ANALYST_RECOMMENDATION.TIME_HORIZON, isInitiation: [store::DB] ANALYST_RECOMMENDATION.IS_INITIATION, sector: [store::DB] ANALYST_RECOMMENDATION.SECTOR, currency: [store::DB] ANALYST_RECOMMENDATION.CURRENCY
+    }
+    research::ResearchReport: Relational {
+        ~mainTable [store::DB] RESEARCH_REPORT
+        reportId: [store::DB] RESEARCH_REPORT.REPORT_ID, title: [store::DB] RESEARCH_REPORT.TITLE, publishDate: [store::DB] RESEARCH_REPORT.PUBLISH_DATE, reportType: [store::DB] RESEARCH_REPORT.REPORT_TYPE, pageCount: [store::DB] RESEARCH_REPORT.PAGE_COUNT, isPublished: [store::DB] RESEARCH_REPORT.IS_PUBLISHED, abstractText: [store::DB] RESEARCH_REPORT.ABSTRACT_TEXT, sector: [store::DB] RESEARCH_REPORT.SECTOR, region: [store::DB] RESEARCH_REPORT.REGION, downloadCount: [store::DB] RESEARCH_REPORT.DOWNLOAD_COUNT, language: [store::DB] RESEARCH_REPORT.LANGUAGE, isPrimaryResearch: [store::DB] RESEARCH_REPORT.IS_PRIMARY_RESEARCH
+    }
+    research::EarningsEstimate: Relational {
+        ~mainTable [store::DB] EARNINGS_ESTIMATE
+        estimateId: [store::DB] EARNINGS_ESTIMATE.ESTIMATE_ID, fiscalYear: [store::DB] EARNINGS_ESTIMATE.FISCAL_YEAR, fiscalQuarter: [store::DB] EARNINGS_ESTIMATE.FISCAL_QUARTER, epsEstimate: [store::DB] EARNINGS_ESTIMATE.EPS_ESTIMATE, revenueEstimate: [store::DB] EARNINGS_ESTIMATE.REVENUE_ESTIMATE, previousEPS: [store::DB] EARNINGS_ESTIMATE.PREVIOUS_EPS, previousRevenue: [store::DB] EARNINGS_ESTIMATE.PREVIOUS_REVENUE, estimateDate: [store::DB] EARNINGS_ESTIMATE.ESTIMATE_DATE, currency: [store::DB] EARNINGS_ESTIMATE.CURRENCY, confidence: [store::DB] EARNINGS_ESTIMATE.CONFIDENCE, isConsensus: [store::DB] EARNINGS_ESTIMATE.IS_CONSENSUS, numberOfAnalysts: [store::DB] EARNINGS_ESTIMATE.NUMBER_OF_ANALYSTS
+    }
+    research::TargetPrice: Relational {
+        ~mainTable [store::DB] TARGET_PRICE
+        targetPriceId: [store::DB] TARGET_PRICE.TARGET_PRICE_ID, targetPrice: [store::DB] TARGET_PRICE.TARGET_PRICE, currentPrice: [store::DB] TARGET_PRICE.CURRENT_PRICE, upside: [store::DB] TARGET_PRICE.UPSIDE, targetDate: [store::DB] TARGET_PRICE.TARGET_DATE, setDate: [store::DB] TARGET_PRICE.SET_DATE, methodology: [store::DB] TARGET_PRICE.METHODOLOGY, timeHorizon: [store::DB] TARGET_PRICE.TIME_HORIZON, currency: [store::DB] TARGET_PRICE.CURRENCY, previousTarget: [store::DB] TARGET_PRICE.PREVIOUS_TARGET, confidence: [store::DB] TARGET_PRICE.CONFIDENCE
+    }
+    research::SectorOutlook: Relational {
+        ~mainTable [store::DB] SECTOR_OUTLOOK
+        outlookId: [store::DB] SECTOR_OUTLOOK.OUTLOOK_ID, sector: [store::DB] SECTOR_OUTLOOK.SECTOR, outlook: [store::DB] SECTOR_OUTLOOK.OUTLOOK, previousOutlook: [store::DB] SECTOR_OUTLOOK.PREVIOUS_OUTLOOK, outlookDate: [store::DB] SECTOR_OUTLOOK.OUTLOOK_DATE, keyTheme: [store::DB] SECTOR_OUTLOOK.KEY_THEME, riskLevel: [store::DB] SECTOR_OUTLOOK.RISK_LEVEL, timeHorizon: [store::DB] SECTOR_OUTLOOK.TIME_HORIZON, region: [store::DB] SECTOR_OUTLOOK.REGION, topPick: [store::DB] SECTOR_OUTLOOK.TOP_PICK, isPublished: [store::DB] SECTOR_OUTLOOK.IS_PUBLISHED
+    }
+    research::CompanyProfile: Relational {
+        ~mainTable [store::DB] COMPANY_PROFILE
+        profileId: [store::DB] COMPANY_PROFILE.PROFILE_ID, companyName: [store::DB] COMPANY_PROFILE.COMPANY_NAME, ticker: [store::DB] COMPANY_PROFILE.TICKER, sector: [store::DB] COMPANY_PROFILE.SECTOR, marketCap: [store::DB] COMPANY_PROFILE.MARKET_CAP, employees: [store::DB] COMPANY_PROFILE.EMPLOYEES, founded: [store::DB] COMPANY_PROFILE.FOUNDED, headquarters: [store::DB] COMPANY_PROFILE.HEADQUARTERS, ceo: [store::DB] COMPANY_PROFILE.CEO, description: [store::DB] COMPANY_PROFILE.DESCRIPTION, website: [store::DB] COMPANY_PROFILE.WEBSITE, currency: [store::DB] COMPANY_PROFILE.CURRENCY, fiscalYearEnd: [store::DB] COMPANY_PROFILE.FISCAL_YEAR_END
+    }
+    research::PeerComparison: Relational {
+        ~mainTable [store::DB] PEER_COMPARISON
+        comparisonId: [store::DB] PEER_COMPARISON.COMPARISON_ID, comparisonDate: [store::DB] PEER_COMPARISON.COMPARISON_DATE, metric: [store::DB] PEER_COMPARISON.METRIC, value: [store::DB] PEER_COMPARISON.VALUE, peerAverage: [store::DB] PEER_COMPARISON.PEER_AVERAGE, peerMedian: [store::DB] PEER_COMPARISON.PEER_MEDIAN, percentile: [store::DB] PEER_COMPARISON.PERCENTILE, rank: [store::DB] PEER_COMPARISON.RANK, peerGroupSize: [store::DB] PEER_COMPARISON.PEER_GROUP_SIZE, isAbovePeer: [store::DB] PEER_COMPARISON.IS_ABOVE_PEER, currency: [store::DB] PEER_COMPARISON.CURRENCY
+    }
+    research::AnalystCoverage: Relational {
+        ~mainTable [store::DB] ANALYST_COVERAGE
+        coverageId: [store::DB] ANALYST_COVERAGE.COVERAGE_ID, startDate: [store::DB] ANALYST_COVERAGE.START_DATE, endDate: [store::DB] ANALYST_COVERAGE.END_DATE, isActive: [store::DB] ANALYST_COVERAGE.IS_ACTIVE, region: [store::DB] ANALYST_COVERAGE.REGION, sector: [store::DB] ANALYST_COVERAGE.SECTOR, coverageType: [store::DB] ANALYST_COVERAGE.COVERAGE_TYPE, publishedReportCount: [store::DB] ANALYST_COVERAGE.PUBLISHED_REPORT_COUNT, lastPublishDate: [store::DB] ANALYST_COVERAGE.LAST_PUBLISH_DATE, accuracy: [store::DB] ANALYST_COVERAGE.ACCURACY
+    }
+    research::ConsensusForecast: Relational {
+        ~mainTable [store::DB] CONSENSUS_FORECAST
+        forecastId: [store::DB] CONSENSUS_FORECAST.FORECAST_ID, forecastDate: [store::DB] CONSENSUS_FORECAST.FORECAST_DATE, metric: [store::DB] CONSENSUS_FORECAST.METRIC, consensusValue: [store::DB] CONSENSUS_FORECAST.CONSENSUS_VALUE, highEstimate: [store::DB] CONSENSUS_FORECAST.HIGH_ESTIMATE, lowEstimate: [store::DB] CONSENSUS_FORECAST.LOW_ESTIMATE, numberOfEstimates: [store::DB] CONSENSUS_FORECAST.NUMBER_OF_ESTIMATES, standardDeviation: [store::DB] CONSENSUS_FORECAST.STANDARD_DEVIATION, period: [store::DB] CONSENSUS_FORECAST.PERIOD, currency: [store::DB] CONSENSUS_FORECAST.CURRENCY, previousConsensus: [store::DB] CONSENSUS_FORECAST.PREVIOUS_CONSENSUS
+    }
+    research::ResearchNote: Relational {
+        ~mainTable [store::DB] RESEARCH_NOTE
+        noteId: [store::DB] RESEARCH_NOTE.NOTE_ID, noteDate: [store::DB] RESEARCH_NOTE.NOTE_DATE, noteType: [store::DB] RESEARCH_NOTE.NOTE_TYPE, subject: [store::DB] RESEARCH_NOTE.SUBJECT, content: [store::DB] RESEARCH_NOTE.CONTENT, isUrgent: [store::DB] RESEARCH_NOTE.IS_URGENT, sentiment: [store::DB] RESEARCH_NOTE.SENTIMENT, impactLevel: [store::DB] RESEARCH_NOTE.IMPACT_LEVEL, sector: [store::DB] RESEARCH_NOTE.SECTOR, region: [store::DB] RESEARCH_NOTE.REGION, isPublished: [store::DB] RESEARCH_NOTE.IS_PUBLISHED
+    }
+    research::AnalystCoverage_ResearchNote: Relational {
+        AssociationMapping (
+            coverage: [store::DB] @AnalystCoverage_ResearchNote,
+            notes: [store::DB] @AnalystCoverage_ResearchNote
+        )
+    }
+    research::AnalystCoverage_ResearchReport: Relational {
+        AssociationMapping (
+            coverage: [store::DB] @AnalystCoverage_ResearchReport,
+            reports: [store::DB] @AnalystCoverage_ResearchReport
+        )
+    }
+    research::CompanyProfile_AnalystRecommendation: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_AnalystRecommendation,
+            recommendations: [store::DB] @CompanyProfile_AnalystRecommendation
+        )
+    }
+    research::CompanyProfile_EarningsEstimate: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_EarningsEstimate,
+            earningsEstimates: [store::DB] @CompanyProfile_EarningsEstimate
+        )
+    }
+    research::CompanyProfile_PeerComparison: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_PeerComparison,
+            peerComparisons: [store::DB] @CompanyProfile_PeerComparison
+        )
+    }
+    research::CompanyProfile_TargetPrice: Relational {
+        AssociationMapping (
+            company: [store::DB] @CompanyProfile_TargetPrice,
+            targetPrices: [store::DB] @CompanyProfile_TargetPrice
+        )
+    }
+    research::ConsensusForecast_CompanyProfile: Relational {
+        AssociationMapping (
+            company: [store::DB] @ConsensusForecast_CompanyProfile,
+            consensusForecasts: [store::DB] @ConsensusForecast_CompanyProfile
+        )
+    }
+    research::SectorOutlook_CompanyProfile: Relational {
+        AssociationMapping (
+            sectorOutlook: [store::DB] @SectorOutlook_CompanyProfile,
+            companies: [store::DB] @SectorOutlook_CompanyProfile
+        )
+    }
+)

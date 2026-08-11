@@ -1,0 +1,74 @@
+
+Mapping accounting::AccountingMapping
+(
+    accounting::JournalEntry: Relational {
+        ~mainTable [store::DB] JOURNAL_ENTRY
+        entryId: [store::DB] JOURNAL_ENTRY.ENTRY_ID, entryDate: [store::DB] JOURNAL_ENTRY.ENTRY_DATE, postingDate: [store::DB] JOURNAL_ENTRY.POSTING_DATE, debitAmount: [store::DB] JOURNAL_ENTRY.DEBIT_AMOUNT, creditAmount: [store::DB] JOURNAL_ENTRY.CREDIT_AMOUNT, currency: [store::DB] JOURNAL_ENTRY.CURRENCY, description: [store::DB] JOURNAL_ENTRY.DESCRIPTION, reference: [store::DB] JOURNAL_ENTRY.REFERENCE, status: [store::DB] JOURNAL_ENTRY.STATUS, postedBy: [store::DB] JOURNAL_ENTRY.POSTED_BY, approvedBy: [store::DB] JOURNAL_ENTRY.APPROVED_BY, isReversal: [store::DB] JOURNAL_ENTRY.IS_REVERSAL, reversalOf: [store::DB] JOURNAL_ENTRY.REVERSAL_OF, period: [store::DB] JOURNAL_ENTRY.PERIOD
+    }
+    accounting::GeneralLedgerAccount: Relational {
+        ~mainTable [store::DB] GENERAL_LEDGER_ACCOUNT
+        accountId: [store::DB] GENERAL_LEDGER_ACCOUNT.ACCOUNT_ID, accountName: [store::DB] GENERAL_LEDGER_ACCOUNT.ACCOUNT_NAME, accountNumber: [store::DB] GENERAL_LEDGER_ACCOUNT.ACCOUNT_NUMBER, accountType: [store::DB] GENERAL_LEDGER_ACCOUNT.ACCOUNT_TYPE, normalBalance: [store::DB] GENERAL_LEDGER_ACCOUNT.NORMAL_BALANCE, currency: [store::DB] GENERAL_LEDGER_ACCOUNT.CURRENCY, isActive: [store::DB] GENERAL_LEDGER_ACCOUNT.IS_ACTIVE, parentAccountId: [store::DB] GENERAL_LEDGER_ACCOUNT.PARENT_ACCOUNT_ID, level: [store::DB] GENERAL_LEDGER_ACCOUNT.LEVEL, openDate: [store::DB] GENERAL_LEDGER_ACCOUNT.OPEN_DATE, closeDate: [store::DB] GENERAL_LEDGER_ACCOUNT.CLOSE_DATE, description: [store::DB] GENERAL_LEDGER_ACCOUNT.DESCRIPTION
+    }
+    accounting::SubledgerEntry: Relational {
+        ~mainTable [store::DB] SUBLEDGER_ENTRY
+        subledgerEntryId: [store::DB] SUBLEDGER_ENTRY.SUBLEDGER_ENTRY_ID, entryDate: [store::DB] SUBLEDGER_ENTRY.ENTRY_DATE, amount: [store::DB] SUBLEDGER_ENTRY.AMOUNT, subledgerType: [store::DB] SUBLEDGER_ENTRY.SUBLEDGER_TYPE, reference: [store::DB] SUBLEDGER_ENTRY.REFERENCE, currency: [store::DB] SUBLEDGER_ENTRY.CURRENCY, status: [store::DB] SUBLEDGER_ENTRY.STATUS, isPostedToGL: [store::DB] SUBLEDGER_ENTRY.IS_POSTED_TO_GL, postingDate: [store::DB] SUBLEDGER_ENTRY.POSTING_DATE, source: [store::DB] SUBLEDGER_ENTRY.SOURCE, lineNumber: [store::DB] SUBLEDGER_ENTRY.LINE_NUMBER, description: [store::DB] SUBLEDGER_ENTRY.DESCRIPTION
+    }
+    accounting::AccountingRule: Relational {
+        ~mainTable [store::DB] ACCOUNTING_RULE
+        ruleId: [store::DB] ACCOUNTING_RULE.RULE_ID, ruleName: [store::DB] ACCOUNTING_RULE.RULE_NAME, ruleType: [store::DB] ACCOUNTING_RULE.RULE_TYPE, debitAccountId: [store::DB] ACCOUNTING_RULE.DEBIT_ACCOUNT_ID, creditAccountId: [store::DB] ACCOUNTING_RULE.CREDIT_ACCOUNT_ID, effectiveDate: [store::DB] ACCOUNTING_RULE.EFFECTIVE_DATE, expiryDate: [store::DB] ACCOUNTING_RULE.EXPIRY_DATE, isActive: [store::DB] ACCOUNTING_RULE.IS_ACTIVE, priority: [store::DB] ACCOUNTING_RULE.PRIORITY, condition: [store::DB] ACCOUNTING_RULE.CONDITION, description: [store::DB] ACCOUNTING_RULE.DESCRIPTION, lastModified: [store::DB] ACCOUNTING_RULE.LAST_MODIFIED
+    }
+    accounting::TrialBalance: Relational {
+        ~mainTable [store::DB] TRIAL_BALANCE
+        trialBalanceId: [store::DB] TRIAL_BALANCE.TRIAL_BALANCE_ID, periodEnd: [store::DB] TRIAL_BALANCE.PERIOD_END, totalDebits: [store::DB] TRIAL_BALANCE.TOTAL_DEBITS, totalCredits: [store::DB] TRIAL_BALANCE.TOTAL_CREDITS, isBalanced: [store::DB] TRIAL_BALANCE.IS_BALANCED, difference: [store::DB] TRIAL_BALANCE.DIFFERENCE, currency: [store::DB] TRIAL_BALANCE.CURRENCY, status: [store::DB] TRIAL_BALANCE.STATUS, generatedDate: [store::DB] TRIAL_BALANCE.GENERATED_DATE, generatedBy: [store::DB] TRIAL_BALANCE.GENERATED_BY, period: [store::DB] TRIAL_BALANCE.PERIOD, version: [store::DB] TRIAL_BALANCE.VERSION
+    }
+    accounting::BalanceSheet: Relational {
+        ~mainTable [store::DB] BALANCE_SHEET
+        balanceSheetId: [store::DB] BALANCE_SHEET.BALANCE_SHEET_ID, reportDate: [store::DB] BALANCE_SHEET.REPORT_DATE, totalAssets: [store::DB] BALANCE_SHEET.TOTAL_ASSETS, totalLiabilities: [store::DB] BALANCE_SHEET.TOTAL_LIABILITIES, totalEquity: [store::DB] BALANCE_SHEET.TOTAL_EQUITY, currency: [store::DB] BALANCE_SHEET.CURRENCY, isAudited: [store::DB] BALANCE_SHEET.IS_AUDITED, period: [store::DB] BALANCE_SHEET.PERIOD, version: [store::DB] BALANCE_SHEET.VERSION, preparedBy: [store::DB] BALANCE_SHEET.PREPARED_BY, approvedBy: [store::DB] BALANCE_SHEET.APPROVED_BY, status: [store::DB] BALANCE_SHEET.STATUS
+    }
+    accounting::IncomeStatement: Relational {
+        ~mainTable [store::DB] INCOME_STATEMENT
+        statementId: [store::DB] INCOME_STATEMENT.STATEMENT_ID, periodStart: [store::DB] INCOME_STATEMENT.PERIOD_START, periodEnd: [store::DB] INCOME_STATEMENT.PERIOD_END, totalRevenue: [store::DB] INCOME_STATEMENT.TOTAL_REVENUE, totalExpenses: [store::DB] INCOME_STATEMENT.TOTAL_EXPENSES, netIncome: [store::DB] INCOME_STATEMENT.NET_INCOME, currency: [store::DB] INCOME_STATEMENT.CURRENCY, isAudited: [store::DB] INCOME_STATEMENT.IS_AUDITED, version: [store::DB] INCOME_STATEMENT.VERSION, preparedBy: [store::DB] INCOME_STATEMENT.PREPARED_BY, approvedBy: [store::DB] INCOME_STATEMENT.APPROVED_BY, status: [store::DB] INCOME_STATEMENT.STATUS
+    }
+    accounting::CostAllocation: Relational {
+        ~mainTable [store::DB] COST_ALLOCATION
+        allocationId: [store::DB] COST_ALLOCATION.ALLOCATION_ID, allocationDate: [store::DB] COST_ALLOCATION.ALLOCATION_DATE, amount: [store::DB] COST_ALLOCATION.AMOUNT, fromCostCenter: [store::DB] COST_ALLOCATION.FROM_COST_CENTER, toCostCenter: [store::DB] COST_ALLOCATION.TO_COST_CENTER, allocationBasis: [store::DB] COST_ALLOCATION.ALLOCATION_BASIS, percentage: [store::DB] COST_ALLOCATION.PERCENTAGE, currency: [store::DB] COST_ALLOCATION.CURRENCY, period: [store::DB] COST_ALLOCATION.PERIOD, status: [store::DB] COST_ALLOCATION.STATUS, approvedBy: [store::DB] COST_ALLOCATION.APPROVED_BY, isReversed: [store::DB] COST_ALLOCATION.IS_REVERSED
+    }
+    accounting::AccrualSchedule: Relational {
+        ~mainTable [store::DB] ACCRUAL_SCHEDULE
+        scheduleId: [store::DB] ACCRUAL_SCHEDULE.SCHEDULE_ID, scheduleName: [store::DB] ACCRUAL_SCHEDULE.SCHEDULE_NAME, startDate: [store::DB] ACCRUAL_SCHEDULE.START_DATE, endDate: [store::DB] ACCRUAL_SCHEDULE.END_DATE, totalAmount: [store::DB] ACCRUAL_SCHEDULE.TOTAL_AMOUNT, monthlyAmount: [store::DB] ACCRUAL_SCHEDULE.MONTHLY_AMOUNT, accruedToDate: [store::DB] ACCRUAL_SCHEDULE.ACCRUED_TO_DATE, remainingAmount: [store::DB] ACCRUAL_SCHEDULE.REMAINING_AMOUNT, currency: [store::DB] ACCRUAL_SCHEDULE.CURRENCY, status: [store::DB] ACCRUAL_SCHEDULE.STATUS, isActive: [store::DB] ACCRUAL_SCHEDULE.IS_ACTIVE, frequency: [store::DB] ACCRUAL_SCHEDULE.FREQUENCY
+    }
+    accounting::AuditTrail: Relational {
+        ~mainTable [store::DB] AUDIT_TRAIL
+        auditId: [store::DB] AUDIT_TRAIL.AUDIT_ID, auditDate: [store::DB] AUDIT_TRAIL.AUDIT_DATE, action: [store::DB] AUDIT_TRAIL.ACTION, tableName: [store::DB] AUDIT_TRAIL.TABLE_NAME, recordId: [store::DB] AUDIT_TRAIL.RECORD_ID, fieldName: [store::DB] AUDIT_TRAIL.FIELD_NAME, oldValue: [store::DB] AUDIT_TRAIL.OLD_VALUE, newValue: [store::DB] AUDIT_TRAIL.NEW_VALUE, performedBy: [store::DB] AUDIT_TRAIL.PERFORMED_BY, ipAddress: [store::DB] AUDIT_TRAIL.IP_ADDRESS, isSystemAction: [store::DB] AUDIT_TRAIL.IS_SYSTEM_ACTION
+    }
+    accounting::GLAccount_AccountingRule: Relational {
+        AssociationMapping (
+            glAccount: [store::DB] @GLAccount_AccountingRule,
+            accountingRules: [store::DB] @GLAccount_AccountingRule
+        )
+    }
+    accounting::JournalEntry_GLAccount: Relational {
+        AssociationMapping (
+            glAccount: [store::DB] @JournalEntry_GLAccount,
+            journalEntries: [store::DB] @JournalEntry_GLAccount
+        )
+    }
+    accounting::SubledgerEntry_JournalEntry: Relational {
+        AssociationMapping (
+            journalEntry: [store::DB] @SubledgerEntry_JournalEntry,
+            subledgerEntries: [store::DB] @SubledgerEntry_JournalEntry
+        )
+    }
+    accounting::TrialBalance_BalanceSheet: Relational {
+        AssociationMapping (
+            trialBalance: [store::DB] @TrialBalance_BalanceSheet,
+            balanceSheets: [store::DB] @TrialBalance_BalanceSheet
+        )
+    }
+    accounting::TrialBalance_IncomeStatement: Relational {
+        AssociationMapping (
+            trialBalance: [store::DB] @TrialBalance_IncomeStatement,
+            incomeStatements: [store::DB] @TrialBalance_IncomeStatement
+        )
+    }
+)

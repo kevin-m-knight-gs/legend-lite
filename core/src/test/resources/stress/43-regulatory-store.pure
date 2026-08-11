@@ -1,0 +1,68 @@
+
+Mapping regulatory::RegulatoryMapping
+(
+    regulatory::TradeReport: Relational {
+        ~mainTable [store::DB] TRADE_REPORT
+        reportId: [store::DB] TRADE_REPORT.REPORT_ID, regime: [store::DB] TRADE_REPORT.REGIME, status: [store::DB] TRADE_REPORT.STATUS, submissionDate: [store::DB] TRADE_REPORT.SUBMISSION_DATE, reportType: [store::DB] TRADE_REPORT.REPORT_TYPE, uti: [store::DB] TRADE_REPORT.UTI, usi: [store::DB] TRADE_REPORT.USI, reportingEntity: [store::DB] TRADE_REPORT.REPORTING_ENTITY, reportingCounterparty: [store::DB] TRADE_REPORT.REPORTING_COUNTERPARTY, rejectReason: [store::DB] TRADE_REPORT.REJECT_REASON, retryCount: [store::DB] TRADE_REPORT.RETRY_COUNT, isLateReport: [store::DB] TRADE_REPORT.IS_LATE_REPORT, dueDate: [store::DB] TRADE_REPORT.DUE_DATE
+    }
+    regulatory::TransactionCost: Relational {
+        ~mainTable [store::DB] TRANSACTION_COST
+        tcaId: [store::DB] TRANSACTION_COST.TCA_ID, costBps: [store::DB] TRANSACTION_COST.COST_BPS, implementationShortfall: [store::DB] TRANSACTION_COST.IMPLEMENTATION_SHORTFALL, marketImpactBps: [store::DB] TRANSACTION_COST.MARKET_IMPACT_BPS, benchmark: [store::DB] TRANSACTION_COST.BENCHMARK, analysisDate: [store::DB] TRANSACTION_COST.ANALYSIS_DATE, arrivalPrice: [store::DB] TRANSACTION_COST.ARRIVAL_PRICE, executionPrice: [store::DB] TRANSACTION_COST.EXECUTION_PRICE, vwapPrice: [store::DB] TRANSACTION_COST.VWAP_PRICE, closingPrice: [store::DB] TRANSACTION_COST.CLOSING_PRICE, currency: [store::DB] TRANSACTION_COST.CURRENCY, isBestExecution: [store::DB] TRANSACTION_COST.IS_BEST_EXECUTION, model: [store::DB] TRANSACTION_COST.MODEL
+    }
+    regulatory::RegulatoryFiling: Relational {
+        ~mainTable [store::DB] REGULATORY_FILING
+        filingId: [store::DB] REGULATORY_FILING.FILING_ID, filingType: [store::DB] REGULATORY_FILING.FILING_TYPE, regime: [store::DB] REGULATORY_FILING.REGIME, filingDate: [store::DB] REGULATORY_FILING.FILING_DATE, dueDate: [store::DB] REGULATORY_FILING.DUE_DATE, status: [store::DB] REGULATORY_FILING.STATUS, submittedBy: [store::DB] REGULATORY_FILING.SUBMITTED_BY, approvedBy: [store::DB] REGULATORY_FILING.APPROVED_BY, isAmendment: [store::DB] REGULATORY_FILING.IS_AMENDMENT, previousFilingId: [store::DB] REGULATORY_FILING.PREVIOUS_FILING_ID, referenceNumber: [store::DB] REGULATORY_FILING.REFERENCE_NUMBER, periodStart: [store::DB] REGULATORY_FILING.PERIOD_START, periodEnd: [store::DB] REGULATORY_FILING.PERIOD_END
+    }
+    regulatory::ComplianceAlert: Relational {
+        ~mainTable [store::DB] COMPLIANCE_ALERT
+        alertId: [store::DB] COMPLIANCE_ALERT.ALERT_ID, alertType: [store::DB] COMPLIANCE_ALERT.ALERT_TYPE, severity: [store::DB] COMPLIANCE_ALERT.SEVERITY, triggeredDate: [store::DB] COMPLIANCE_ALERT.TRIGGERED_DATE, description: [store::DB] COMPLIANCE_ALERT.DESCRIPTION, status: [store::DB] COMPLIANCE_ALERT.STATUS, assignedTo: [store::DB] COMPLIANCE_ALERT.ASSIGNED_TO, resolvedDate: [store::DB] COMPLIANCE_ALERT.RESOLVED_DATE, resolution: [store::DB] COMPLIANCE_ALERT.RESOLUTION, isFalsePositive: [store::DB] COMPLIANCE_ALERT.IS_FALSE_POSITIVE, ruleId: [store::DB] COMPLIANCE_ALERT.RULE_ID, escalationLevel: [store::DB] COMPLIANCE_ALERT.ESCALATION_LEVEL, dueDate: [store::DB] COMPLIANCE_ALERT.DUE_DATE
+    }
+    regulatory::SanctionsScreening: Relational {
+        ~mainTable [store::DB] SANCTIONS_SCREENING
+        screeningId: [store::DB] SANCTIONS_SCREENING.SCREENING_ID, screeningDate: [store::DB] SANCTIONS_SCREENING.SCREENING_DATE, screeningType: [store::DB] SANCTIONS_SCREENING.SCREENING_TYPE, listType: [store::DB] SANCTIONS_SCREENING.LIST_TYPE, result: [store::DB] SANCTIONS_SCREENING.RESULT, matchScore: [store::DB] SANCTIONS_SCREENING.MATCH_SCORE, matchedName: [store::DB] SANCTIONS_SCREENING.MATCHED_NAME, status: [store::DB] SANCTIONS_SCREENING.STATUS, reviewedBy: [store::DB] SANCTIONS_SCREENING.REVIEWED_BY, reviewDate: [store::DB] SANCTIONS_SCREENING.REVIEW_DATE, isFalsePositive: [store::DB] SANCTIONS_SCREENING.IS_FALSE_POSITIVE, provider: [store::DB] SANCTIONS_SCREENING.PROVIDER
+    }
+    regulatory::BestExecutionReport: Relational {
+        ~mainTable [store::DB] BEST_EXECUTION_REPORT
+        reportId: [store::DB] BEST_EXECUTION_REPORT.REPORT_ID, reportDate: [store::DB] BEST_EXECUTION_REPORT.REPORT_DATE, venue: [store::DB] BEST_EXECUTION_REPORT.VENUE, assetClass: [store::DB] BEST_EXECUTION_REPORT.ASSET_CLASS, executionQuality: [store::DB] BEST_EXECUTION_REPORT.EXECUTION_QUALITY, priceImprovement: [store::DB] BEST_EXECUTION_REPORT.PRICE_IMPROVEMENT, fillRate: [store::DB] BEST_EXECUTION_REPORT.FILL_RATE, avgLatencyMs: [store::DB] BEST_EXECUTION_REPORT.AVG_LATENCY_MS, orderCount: [store::DB] BEST_EXECUTION_REPORT.ORDER_COUNT, totalVolume: [store::DB] BEST_EXECUTION_REPORT.TOTAL_VOLUME, currency: [store::DB] BEST_EXECUTION_REPORT.CURRENCY, isPassing: [store::DB] BEST_EXECUTION_REPORT.IS_PASSING, period: [store::DB] BEST_EXECUTION_REPORT.PERIOD
+    }
+    regulatory::PositionLimit: Relational {
+        ~mainTable [store::DB] POSITION_LIMIT
+        limitId: [store::DB] POSITION_LIMIT.LIMIT_ID, limitType: [store::DB] POSITION_LIMIT.LIMIT_TYPE, regime: [store::DB] POSITION_LIMIT.REGIME, limitAmount: [store::DB] POSITION_LIMIT.LIMIT_AMOUNT, currentPosition: [store::DB] POSITION_LIMIT.CURRENT_POSITION, utilizationPct: [store::DB] POSITION_LIMIT.UTILIZATION_PCT, effectiveDate: [store::DB] POSITION_LIMIT.EFFECTIVE_DATE, expiryDate: [store::DB] POSITION_LIMIT.EXPIRY_DATE, status: [store::DB] POSITION_LIMIT.STATUS, isBreached: [store::DB] POSITION_LIMIT.IS_BREACHED, lastChecked: [store::DB] POSITION_LIMIT.LAST_CHECKED, reportingThreshold: [store::DB] POSITION_LIMIT.REPORTING_THRESHOLD
+    }
+    regulatory::TradeReportStatus: Relational {
+        ~mainTable [store::DB] TRADE_REPORT_STATUS
+        statusId: [store::DB] TRADE_REPORT_STATUS.STATUS_ID, statusDate: [store::DB] TRADE_REPORT_STATUS.STATUS_DATE, previousStatus: [store::DB] TRADE_REPORT_STATUS.PREVIOUS_STATUS, newStatus: [store::DB] TRADE_REPORT_STATUS.NEW_STATUS, reason: [store::DB] TRADE_REPORT_STATUS.REASON, updatedBy: [store::DB] TRADE_REPORT_STATUS.UPDATED_BY, isAutomatic: [store::DB] TRADE_REPORT_STATUS.IS_AUTOMATIC, trRepository: [store::DB] TRADE_REPORT_STATUS.TR_REPOSITORY, responseCode: [store::DB] TRADE_REPORT_STATUS.RESPONSE_CODE, responseMessage: [store::DB] TRADE_REPORT_STATUS.RESPONSE_MESSAGE
+    }
+    regulatory::RegulatoryCapital: Relational {
+        ~mainTable [store::DB] REGULATORY_CAPITAL
+        capitalId: [store::DB] REGULATORY_CAPITAL.CAPITAL_ID, calcDate: [store::DB] REGULATORY_CAPITAL.CALC_DATE, rwaAmount: [store::DB] REGULATORY_CAPITAL.RWA_AMOUNT, capitalRequirement: [store::DB] REGULATORY_CAPITAL.CAPITAL_REQUIREMENT, tier1Capital: [store::DB] REGULATORY_CAPITAL.TIER1_CAPITAL, tier2Capital: [store::DB] REGULATORY_CAPITAL.TIER2_CAPITAL, totalCapital: [store::DB] REGULATORY_CAPITAL.TOTAL_CAPITAL, capitalRatio: [store::DB] REGULATORY_CAPITAL.CAPITAL_RATIO, leverageRatio: [store::DB] REGULATORY_CAPITAL.LEVERAGE_RATIO, currency: [store::DB] REGULATORY_CAPITAL.CURRENCY, framework: [store::DB] REGULATORY_CAPITAL.FRAMEWORK, isCompliant: [store::DB] REGULATORY_CAPITAL.IS_COMPLIANT
+    }
+    regulatory::LiquidityCoverage: Relational {
+        ~mainTable [store::DB] LIQUIDITY_COVERAGE
+        lcrId: [store::DB] LIQUIDITY_COVERAGE.LCR_ID, calcDate: [store::DB] LIQUIDITY_COVERAGE.CALC_DATE, hqla: [store::DB] LIQUIDITY_COVERAGE.HQLA, netCashOutflows: [store::DB] LIQUIDITY_COVERAGE.NET_CASH_OUTFLOWS, lcr: [store::DB] LIQUIDITY_COVERAGE.LCR, nsfr: [store::DB] LIQUIDITY_COVERAGE.NSFR, currency: [store::DB] LIQUIDITY_COVERAGE.CURRENCY, stressScenario: [store::DB] LIQUIDITY_COVERAGE.STRESS_SCENARIO, isCompliant: [store::DB] LIQUIDITY_COVERAGE.IS_COMPLIANT, minimumRequired: [store::DB] LIQUIDITY_COVERAGE.MINIMUM_REQUIRED, buffer: [store::DB] LIQUIDITY_COVERAGE.BUFFER, lastUpdated: [store::DB] LIQUIDITY_COVERAGE.LAST_UPDATED
+    }
+    regulatory::ComplianceAlert_SanctionsScreening: Relational {
+        AssociationMapping (
+            complianceAlert: [store::DB] @ComplianceAlert_SanctionsScreening,
+            screenings: [store::DB] @ComplianceAlert_SanctionsScreening
+        )
+    }
+    regulatory::RegulatoryFiling_LiquidityCoverage: Relational {
+        AssociationMapping (
+            filing: [store::DB] @RegulatoryFiling_LiquidityCoverage,
+            liquidityCalcs: [store::DB] @RegulatoryFiling_LiquidityCoverage
+        )
+    }
+    regulatory::RegulatoryFiling_RegulatoryCapital: Relational {
+        AssociationMapping (
+            filing: [store::DB] @RegulatoryFiling_RegulatoryCapital,
+            capitalCalcs: [store::DB] @RegulatoryFiling_RegulatoryCapital
+        )
+    }
+    regulatory::TradeReport_TradeReportStatus: Relational {
+        AssociationMapping (
+            tradeReport: [store::DB] @TradeReport_TradeReportStatus,
+            statusHistory: [store::DB] @TradeReport_TradeReportStatus
+        )
+    }
+)

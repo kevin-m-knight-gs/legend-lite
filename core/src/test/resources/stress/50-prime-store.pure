@@ -1,0 +1,92 @@
+
+Mapping prime::PrimeMapping
+(
+    prime::PrimeBrokerAccount: Relational {
+        ~mainTable [store::DB] PRIME_BROKER_ACCOUNT
+        pbAccountId: [store::DB] PRIME_BROKER_ACCOUNT.PB_ACCOUNT_ID, accountName: [store::DB] PRIME_BROKER_ACCOUNT.ACCOUNT_NAME, accountType: [store::DB] PRIME_BROKER_ACCOUNT.ACCOUNT_TYPE, currency: [store::DB] PRIME_BROKER_ACCOUNT.CURRENCY, status: [store::DB] PRIME_BROKER_ACCOUNT.STATUS, openDate: [store::DB] PRIME_BROKER_ACCOUNT.OPEN_DATE, closeDate: [store::DB] PRIME_BROKER_ACCOUNT.CLOSE_DATE, marginType: [store::DB] PRIME_BROKER_ACCOUNT.MARGIN_TYPE, isSegregated: [store::DB] PRIME_BROKER_ACCOUNT.IS_SEGREGATED, custodian: [store::DB] PRIME_BROKER_ACCOUNT.CUSTODIAN, legalEntity: [store::DB] PRIME_BROKER_ACCOUNT.LEGAL_ENTITY, serviceTier: [store::DB] PRIME_BROKER_ACCOUNT.SERVICE_TIER, annualFee: [store::DB] PRIME_BROKER_ACCOUNT.ANNUAL_FEE
+    }
+    prime::ClientBalance: Relational {
+        ~mainTable [store::DB] CLIENT_BALANCE
+        balanceId: [store::DB] CLIENT_BALANCE.BALANCE_ID, balanceDate: [store::DB] CLIENT_BALANCE.BALANCE_DATE, cashBalance: [store::DB] CLIENT_BALANCE.CASH_BALANCE, longMarketValue: [store::DB] CLIENT_BALANCE.LONG_MARKET_VALUE, shortMarketValue: [store::DB] CLIENT_BALANCE.SHORT_MARKET_VALUE, netEquity: [store::DB] CLIENT_BALANCE.NET_EQUITY, marginRequirement: [store::DB] CLIENT_BALANCE.MARGIN_REQUIREMENT, excessDeficit: [store::DB] CLIENT_BALANCE.EXCESS_DEFICIT, currency: [store::DB] CLIENT_BALANCE.CURRENCY, isDeficit: [store::DB] CLIENT_BALANCE.IS_DEFICIT, pendingActivity: [store::DB] CLIENT_BALANCE.PENDING_ACTIVITY, lastUpdated: [store::DB] CLIENT_BALANCE.LAST_UPDATED
+    }
+    prime::FinancingRate: Relational {
+        ~mainTable [store::DB] FINANCING_RATE
+        rateId: [store::DB] FINANCING_RATE.RATE_ID, rateDate: [store::DB] FINANCING_RATE.RATE_DATE, longRate: [store::DB] FINANCING_RATE.LONG_RATE, shortRate: [store::DB] FINANCING_RATE.SHORT_RATE, spreadBps: [store::DB] FINANCING_RATE.SPREAD_BPS, benchmark: [store::DB] FINANCING_RATE.BENCHMARK, currency: [store::DB] FINANCING_RATE.CURRENCY, tier: [store::DB] FINANCING_RATE.TIER, effectiveDate: [store::DB] FINANCING_RATE.EFFECTIVE_DATE, expiryDate: [store::DB] FINANCING_RATE.EXPIRY_DATE, isNegotiable: [store::DB] FINANCING_RATE.IS_NEGOTIABLE, lastUpdated: [store::DB] FINANCING_RATE.LAST_UPDATED
+    }
+    prime::MarginRequirement: Relational {
+        ~mainTable [store::DB] MARGIN_REQUIREMENT
+        marginId: [store::DB] MARGIN_REQUIREMENT.MARGIN_ID, calcDate: [store::DB] MARGIN_REQUIREMENT.CALC_DATE, regTMargin: [store::DB] MARGIN_REQUIREMENT.REG_TMARGIN, houseMargin: [store::DB] MARGIN_REQUIREMENT.HOUSE_MARGIN, concentrationMargin: [store::DB] MARGIN_REQUIREMENT.CONCENTRATION_MARGIN, totalMargin: [store::DB] MARGIN_REQUIREMENT.TOTAL_MARGIN, currency: [store::DB] MARGIN_REQUIREMENT.CURRENCY, methodology: [store::DB] MARGIN_REQUIREMENT.METHODOLOGY, isBreached: [store::DB] MARGIN_REQUIREMENT.IS_BREACHED, breachAmount: [store::DB] MARGIN_REQUIREMENT.BREACH_AMOUNT, callAmount: [store::DB] MARGIN_REQUIREMENT.CALL_AMOUNT, dueDate: [store::DB] MARGIN_REQUIREMENT.DUE_DATE
+    }
+    prime::ShortLocate: Relational {
+        ~mainTable [store::DB] SHORT_LOCATE
+        locateId: [store::DB] SHORT_LOCATE.LOCATE_ID, requestDate: [store::DB] SHORT_LOCATE.REQUEST_DATE, quantity: [store::DB] SHORT_LOCATE.QUANTITY, locatedQuantity: [store::DB] SHORT_LOCATE.LOCATED_QUANTITY, rate: [store::DB] SHORT_LOCATE.RATE, status: [store::DB] SHORT_LOCATE.STATUS, expiryDate: [store::DB] SHORT_LOCATE.EXPIRY_DATE, source: [store::DB] SHORT_LOCATE.SOURCE, isPreBorrow: [store::DB] SHORT_LOCATE.IS_PRE_BORROW, fillPct: [store::DB] SHORT_LOCATE.FILL_PCT, priority: [store::DB] SHORT_LOCATE.PRIORITY, requestedBy: [store::DB] SHORT_LOCATE.REQUESTED_BY
+    }
+    prime::BorrowAvailability: Relational {
+        ~mainTable [store::DB] BORROW_AVAILABILITY
+        availabilityId: [store::DB] BORROW_AVAILABILITY.AVAILABILITY_ID, availDate: [store::DB] BORROW_AVAILABILITY.AVAIL_DATE, availableQuantity: [store::DB] BORROW_AVAILABILITY.AVAILABLE_QUANTITY, borrowedQuantity: [store::DB] BORROW_AVAILABILITY.BORROWED_QUANTITY, rate: [store::DB] BORROW_AVAILABILITY.RATE, rateType: [store::DB] BORROW_AVAILABILITY.RATE_TYPE, source: [store::DB] BORROW_AVAILABILITY.SOURCE, isEasyToBorrow: [store::DB] BORROW_AVAILABILITY.IS_EASY_TO_BORROW, specialRate: [store::DB] BORROW_AVAILABILITY.SPECIAL_RATE, lastUpdated: [store::DB] BORROW_AVAILABILITY.LAST_UPDATED, expiryDate: [store::DB] BORROW_AVAILABILITY.EXPIRY_DATE
+    }
+    prime::SyntheticPosition: Relational {
+        ~mainTable [store::DB] SYNTHETIC_POSITION
+        syntheticId: [store::DB] SYNTHETIC_POSITION.SYNTHETIC_ID, quantity: [store::DB] SYNTHETIC_POSITION.QUANTITY, entryPrice: [store::DB] SYNTHETIC_POSITION.ENTRY_PRICE, currentPrice: [store::DB] SYNTHETIC_POSITION.CURRENT_PRICE, unrealizedPnL: [store::DB] SYNTHETIC_POSITION.UNREALIZED_PN_L, financingCost: [store::DB] SYNTHETIC_POSITION.FINANCING_COST, currency: [store::DB] SYNTHETIC_POSITION.CURRENCY, startDate: [store::DB] SYNTHETIC_POSITION.START_DATE, endDate: [store::DB] SYNTHETIC_POSITION.END_DATE, resetFrequency: [store::DB] SYNTHETIC_POSITION.RESET_FREQUENCY, isOpen: [store::DB] SYNTHETIC_POSITION.IS_OPEN, dividendEntitlement: [store::DB] SYNTHETIC_POSITION.DIVIDEND_ENTITLEMENT
+    }
+    prime::SwapFinancing: Relational {
+        ~mainTable [store::DB] SWAP_FINANCING
+        financingId: [store::DB] SWAP_FINANCING.FINANCING_ID, financingDate: [store::DB] SWAP_FINANCING.FINANCING_DATE, notional: [store::DB] SWAP_FINANCING.NOTIONAL, financingRate: [store::DB] SWAP_FINANCING.FINANCING_RATE, financingCost: [store::DB] SWAP_FINANCING.FINANCING_COST, dayCount: [store::DB] SWAP_FINANCING.DAY_COUNT, currency: [store::DB] SWAP_FINANCING.CURRENCY, benchmark: [store::DB] SWAP_FINANCING.BENCHMARK, spread: [store::DB] SWAP_FINANCING.SPREAD, isAccrued: [store::DB] SWAP_FINANCING.IS_ACCRUED, accrualPeriod: [store::DB] SWAP_FINANCING.ACCRUAL_PERIOD, status: [store::DB] SWAP_FINANCING.STATUS
+    }
+    prime::PortfolioSwap: Relational {
+        ~mainTable [store::DB] PORTFOLIO_SWAP
+        swapId: [store::DB] PORTFOLIO_SWAP.SWAP_ID, swapType: [store::DB] PORTFOLIO_SWAP.SWAP_TYPE, notional: [store::DB] PORTFOLIO_SWAP.NOTIONAL, startDate: [store::DB] PORTFOLIO_SWAP.START_DATE, endDate: [store::DB] PORTFOLIO_SWAP.END_DATE, resetDate: [store::DB] PORTFOLIO_SWAP.RESET_DATE, financingRate: [store::DB] PORTFOLIO_SWAP.FINANCING_RATE, dividendPct: [store::DB] PORTFOLIO_SWAP.DIVIDEND_PCT, currency: [store::DB] PORTFOLIO_SWAP.CURRENCY, status: [store::DB] PORTFOLIO_SWAP.STATUS, nav: [store::DB] PORTFOLIO_SWAP.NAV, isOpen: [store::DB] PORTFOLIO_SWAP.IS_OPEN
+    }
+    prime::ClientStatement: Relational {
+        ~mainTable [store::DB] CLIENT_STATEMENT
+        statementId: [store::DB] CLIENT_STATEMENT.STATEMENT_ID, statementDate: [store::DB] CLIENT_STATEMENT.STATEMENT_DATE, openingBalance: [store::DB] CLIENT_STATEMENT.OPENING_BALANCE, closingBalance: [store::DB] CLIENT_STATEMENT.CLOSING_BALANCE, totalDebits: [store::DB] CLIENT_STATEMENT.TOTAL_DEBITS, totalCredits: [store::DB] CLIENT_STATEMENT.TOTAL_CREDITS, financingCharges: [store::DB] CLIENT_STATEMENT.FINANCING_CHARGES, fees: [store::DB] CLIENT_STATEMENT.FEES, currency: [store::DB] CLIENT_STATEMENT.CURRENCY, period: [store::DB] CLIENT_STATEMENT.PERIOD, status: [store::DB] CLIENT_STATEMENT.STATUS, generatedDate: [store::DB] CLIENT_STATEMENT.GENERATED_DATE
+    }
+    prime::PBAccount_ClientBalance: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_ClientBalance,
+            balances: [store::DB] @PBAccount_ClientBalance
+        )
+    }
+    prime::PBAccount_ClientStatement: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_ClientStatement,
+            statements: [store::DB] @PBAccount_ClientStatement
+        )
+    }
+    prime::PBAccount_FinancingRate: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_FinancingRate,
+            financingRates: [store::DB] @PBAccount_FinancingRate
+        )
+    }
+    prime::PBAccount_MarginRequirement: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_MarginRequirement,
+            marginRequirements: [store::DB] @PBAccount_MarginRequirement
+        )
+    }
+    prime::PBAccount_PortfolioSwap: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_PortfolioSwap,
+            portfolioSwaps: [store::DB] @PBAccount_PortfolioSwap
+        )
+    }
+    prime::PBAccount_ShortLocate: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_ShortLocate,
+            shortLocates: [store::DB] @PBAccount_ShortLocate
+        )
+    }
+    prime::PBAccount_SyntheticPosition: Relational {
+        AssociationMapping (
+            pbAccount: [store::DB] @PBAccount_SyntheticPosition,
+            syntheticPositions: [store::DB] @PBAccount_SyntheticPosition
+        )
+    }
+    prime::SyntheticPosition_SwapFinancing: Relational {
+        AssociationMapping (
+            syntheticPosition: [store::DB] @SyntheticPosition_SwapFinancing,
+            financingEntries: [store::DB] @SyntheticPosition_SwapFinancing
+        )
+    }
+)

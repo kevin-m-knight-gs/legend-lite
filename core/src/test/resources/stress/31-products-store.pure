@@ -1,0 +1,50 @@
+
+Mapping products::ProductsMapping
+(
+    products::Instrument: Relational {
+        ~mainTable [store::DB] INSTRUMENT
+        instrumentId: [store::DB] INSTRUMENT.INSTRUMENT_ID, ticker: [store::DB] INSTRUMENT.TICKER, name: [store::DB] INSTRUMENT.NAME, isin: [store::DB] INSTRUMENT.ISIN, cusip: [store::DB] INSTRUMENT.CUSIP, sedol: [store::DB] INSTRUMENT.SEDOL, assetClass: [store::DB] INSTRUMENT.ASSET_CLASS, productType: [store::DB] INSTRUMENT.PRODUCT_TYPE, isActive: [store::DB] INSTRUMENT.IS_ACTIVE, listingDate: [store::DB] INSTRUMENT.LISTING_DATE, maturityDate: [store::DB] INSTRUMENT.MATURITY_DATE, notionalAmount: [store::DB] INSTRUMENT.NOTIONAL_AMOUNT, currency: [store::DB] INSTRUMENT.CURRENCY, description: [store::DB] INSTRUMENT.DESCRIPTION, issueDate: [store::DB] INSTRUMENT.ISSUE_DATE
+    }
+    products::Equity: Relational {
+        ~mainTable [store::DB] EQUITY
+        equityId: [store::DB] EQUITY.EQUITY_ID, ticker: [store::DB] EQUITY.TICKER, companyName: [store::DB] EQUITY.COMPANY_NAME, shareClass: [store::DB] EQUITY.SHARE_CLASS, marketCap: [store::DB] EQUITY.MARKET_CAP, sharesOutstanding: [store::DB] EQUITY.SHARES_OUTSTANDING, dividendYield: [store::DB] EQUITY.DIVIDEND_YIELD, peRatio: [store::DB] EQUITY.PE_RATIO, beta: [store::DB] EQUITY.BETA, primaryExchange: [store::DB] EQUITY.PRIMARY_EXCHANGE, isADR: [store::DB] EQUITY.IS_ADR, lotSize: [store::DB] EQUITY.LOT_SIZE, lastPrice: [store::DB] EQUITY.LAST_PRICE, priceDate: [store::DB] EQUITY.PRICE_DATE
+    }
+    products::Bond: Relational {
+        ~mainTable [store::DB] BOND
+        bondId: [store::DB] BOND.BOND_ID, issuerName: [store::DB] BOND.ISSUER_NAME, couponRate: [store::DB] BOND.COUPON_RATE, couponFrequency: [store::DB] BOND.COUPON_FREQUENCY, faceValue: [store::DB] BOND.FACE_VALUE, maturityDate: [store::DB] BOND.MATURITY_DATE, issueDate: [store::DB] BOND.ISSUE_DATE, creditRating: [store::DB] BOND.CREDIT_RATING, yieldToMaturity: [store::DB] BOND.YIELD_TO_MATURITY, duration: [store::DB] BOND.DURATION, convexity: [store::DB] BOND.CONVEXITY, isCallable: [store::DB] BOND.IS_CALLABLE, callDate: [store::DB] BOND.CALL_DATE, callPrice: [store::DB] BOND.CALL_PRICE, bondType: [store::DB] BOND.BOND_TYPE, currency: [store::DB] BOND.CURRENCY
+    }
+    products::Option: Relational {
+        ~mainTable [store::DB] OPTION
+        optionId: [store::DB] OPTION.OPTION_ID, optionType: [store::DB] OPTION.OPTION_TYPE, strikePrice: [store::DB] OPTION.STRIKE_PRICE, expirationDate: [store::DB] OPTION.EXPIRATION_DATE, premium: [store::DB] OPTION.PREMIUM, impliedVolatility: [store::DB] OPTION.IMPLIED_VOLATILITY, delta: [store::DB] OPTION.DELTA, gamma: [store::DB] OPTION.GAMMA, theta: [store::DB] OPTION.THETA, vega: [store::DB] OPTION.VEGA, exerciseStyle: [store::DB] OPTION.EXERCISE_STYLE, isInTheMoney: [store::DB] OPTION.IS_IN_THE_MONEY, underlyingPrice: [store::DB] OPTION.UNDERLYING_PRICE, contractSize: [store::DB] OPTION.CONTRACT_SIZE, openInterest: [store::DB] OPTION.OPEN_INTEREST
+    }
+    products::Future: Relational {
+        ~mainTable [store::DB] FUTURE
+        futureId: [store::DB] FUTURE.FUTURE_ID, contractName: [store::DB] FUTURE.CONTRACT_NAME, contractMonth: [store::DB] FUTURE.CONTRACT_MONTH, contractYear: [store::DB] FUTURE.CONTRACT_YEAR, tickSize: [store::DB] FUTURE.TICK_SIZE, contractSize: [store::DB] FUTURE.CONTRACT_SIZE, lastTradingDate: [store::DB] FUTURE.LAST_TRADING_DATE, firstNoticeDate: [store::DB] FUTURE.FIRST_NOTICE_DATE, settlementType: [store::DB] FUTURE.SETTLEMENT_TYPE, marginRequired: [store::DB] FUTURE.MARGIN_REQUIRED, dailyLimit: [store::DB] FUTURE.DAILY_LIMIT, openInterest: [store::DB] FUTURE.OPEN_INTEREST
+    }
+    products::FxForward: Relational {
+        ~mainTable [store::DB] FX_FORWARD
+        forwardId: [store::DB] FX_FORWARD.FORWARD_ID, baseCurrency: [store::DB] FX_FORWARD.BASE_CURRENCY, quoteCurrency: [store::DB] FX_FORWARD.QUOTE_CURRENCY, forwardRate: [store::DB] FX_FORWARD.FORWARD_RATE, spotRate: [store::DB] FX_FORWARD.SPOT_RATE, forwardPoints: [store::DB] FX_FORWARD.FORWARD_POINTS, notionalBase: [store::DB] FX_FORWARD.NOTIONAL_BASE, notionalQuote: [store::DB] FX_FORWARD.NOTIONAL_QUOTE, valueDate: [store::DB] FX_FORWARD.VALUE_DATE, tradeDate: [store::DB] FX_FORWARD.TRADE_DATE, tenor: [store::DB] FX_FORWARD.TENOR, isNDF: [store::DB] FX_FORWARD.IS_NDF
+    }
+    products::Swap: Relational {
+        ~mainTable [store::DB] SWAP
+        swapId: [store::DB] SWAP.SWAP_ID, swapType: [store::DB] SWAP.SWAP_TYPE, notional: [store::DB] SWAP.NOTIONAL, fixedRate: [store::DB] SWAP.FIXED_RATE, floatingIndex: [store::DB] SWAP.FLOATING_INDEX, floatingSpread: [store::DB] SWAP.FLOATING_SPREAD, startDate: [store::DB] SWAP.START_DATE, endDate: [store::DB] SWAP.END_DATE, paymentFrequency: [store::DB] SWAP.PAYMENT_FREQUENCY, dayCountConvention: [store::DB] SWAP.DAY_COUNT_CONVENTION, currency: [store::DB] SWAP.CURRENCY, isCleared: [store::DB] SWAP.IS_CLEARED, clearingHouse: [store::DB] SWAP.CLEARING_HOUSE, currentNPV: [store::DB] SWAP.CURRENT_NPV
+    }
+    products::CreditDefaultSwap: Relational {
+        ~mainTable [store::DB] CREDIT_DEFAULT_SWAP
+        cdsId: [store::DB] CREDIT_DEFAULT_SWAP.CDS_ID, referenceEntity: [store::DB] CREDIT_DEFAULT_SWAP.REFERENCE_ENTITY, notional: [store::DB] CREDIT_DEFAULT_SWAP.NOTIONAL, spread: [store::DB] CREDIT_DEFAULT_SWAP.SPREAD, premiumLeg: [store::DB] CREDIT_DEFAULT_SWAP.PREMIUM_LEG, protectionLeg: [store::DB] CREDIT_DEFAULT_SWAP.PROTECTION_LEG, maturityDate: [store::DB] CREDIT_DEFAULT_SWAP.MATURITY_DATE, effectiveDate: [store::DB] CREDIT_DEFAULT_SWAP.EFFECTIVE_DATE, recoveryRate: [store::DB] CREDIT_DEFAULT_SWAP.RECOVERY_RATE, isTriggered: [store::DB] CREDIT_DEFAULT_SWAP.IS_TRIGGERED, triggerDate: [store::DB] CREDIT_DEFAULT_SWAP.TRIGGER_DATE, currency: [store::DB] CREDIT_DEFAULT_SWAP.CURRENCY, seniority: [store::DB] CREDIT_DEFAULT_SWAP.SENIORITY
+    }
+    products::StructuredProduct: Relational {
+        ~mainTable [store::DB] STRUCTURED_PRODUCT
+        productId: [store::DB] STRUCTURED_PRODUCT.PRODUCT_ID, productName: [store::DB] STRUCTURED_PRODUCT.PRODUCT_NAME, underlyingType: [store::DB] STRUCTURED_PRODUCT.UNDERLYING_TYPE, notional: [store::DB] STRUCTURED_PRODUCT.NOTIONAL, issueDate: [store::DB] STRUCTURED_PRODUCT.ISSUE_DATE, maturityDate: [store::DB] STRUCTURED_PRODUCT.MATURITY_DATE, knockInBarrier: [store::DB] STRUCTURED_PRODUCT.KNOCK_IN_BARRIER, knockOutBarrier: [store::DB] STRUCTURED_PRODUCT.KNOCK_OUT_BARRIER, participationRate: [store::DB] STRUCTURED_PRODUCT.PARTICIPATION_RATE, couponRate: [store::DB] STRUCTURED_PRODUCT.COUPON_RATE, principalProtection: [store::DB] STRUCTURED_PRODUCT.PRINCIPAL_PROTECTION, currency: [store::DB] STRUCTURED_PRODUCT.CURRENCY
+    }
+    products::ETF: Relational {
+        ~mainTable [store::DB] ETF
+        etfId: [store::DB] ETF.ETF_ID, ticker: [store::DB] ETF.TICKER, fundName: [store::DB] ETF.FUND_NAME, assetClass: [store::DB] ETF.ASSET_CLASS, expenseRatio: [store::DB] ETF.EXPENSE_RATIO, totalAssets: [store::DB] ETF.TOTAL_ASSETS, nav: [store::DB] ETF.NAV, navDate: [store::DB] ETF.NAV_DATE, trackingError: [store::DB] ETF.TRACKING_ERROR, indexName: [store::DB] ETF.INDEX_NAME, isLeveraged: [store::DB] ETF.IS_LEVERAGED, leverageMultiple: [store::DB] ETF.LEVERAGE_MULTIPLE, dividendFrequency: [store::DB] ETF.DIVIDEND_FREQUENCY
+    }
+    products::Option_Underlying: Relational {
+        AssociationMapping (
+            underlying: [store::DB] @Option_Underlying,
+            options: [store::DB] @Option_Underlying
+        )
+    }
+)

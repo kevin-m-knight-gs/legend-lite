@@ -1,0 +1,86 @@
+
+Mapping settlement::SettlementMapping
+(
+    settlement::Settlement: Relational {
+        ~mainTable [store::DB] SETTLEMENT
+        settlementId: [store::DB] SETTLEMENT.SETTLEMENT_ID, settlementDate: [store::DB] SETTLEMENT.SETTLEMENT_DATE, amount: [store::DB] SETTLEMENT.AMOUNT, currency: [store::DB] SETTLEMENT.CURRENCY, status: [store::DB] SETTLEMENT.STATUS, settledDate: [store::DB] SETTLEMENT.SETTLED_DATE, settlementMethod: [store::DB] SETTLEMENT.SETTLEMENT_METHOD, custodian: [store::DB] SETTLEMENT.CUSTODIAN, depository: [store::DB] SETTLEMENT.DEPOSITORY, settledAmount: [store::DB] SETTLEMENT.SETTLED_AMOUNT, failReason: [store::DB] SETTLEMENT.FAIL_REASON, isPartial: [store::DB] SETTLEMENT.IS_PARTIAL, priority: [store::DB] SETTLEMENT.PRIORITY, lastUpdated: [store::DB] SETTLEMENT.LAST_UPDATED
+    }
+    settlement::SettlementInstruction: Relational {
+        ~mainTable [store::DB] SETTLEMENT_INSTRUCTION
+        instructionId: [store::DB] SETTLEMENT_INSTRUCTION.INSTRUCTION_ID, instructionType: [store::DB] SETTLEMENT_INSTRUCTION.INSTRUCTION_TYPE, createdDate: [store::DB] SETTLEMENT_INSTRUCTION.CREATED_DATE, effectiveDate: [store::DB] SETTLEMENT_INSTRUCTION.EFFECTIVE_DATE, beneficiaryAccount: [store::DB] SETTLEMENT_INSTRUCTION.BENEFICIARY_ACCOUNT, beneficiaryName: [store::DB] SETTLEMENT_INSTRUCTION.BENEFICIARY_NAME, intermediaryBank: [store::DB] SETTLEMENT_INSTRUCTION.INTERMEDIARY_BANK, swiftCode: [store::DB] SETTLEMENT_INSTRUCTION.SWIFT_CODE, iban: [store::DB] SETTLEMENT_INSTRUCTION.IBAN, currency: [store::DB] SETTLEMENT_INSTRUCTION.CURRENCY, isStanding: [store::DB] SETTLEMENT_INSTRUCTION.IS_STANDING, status: [store::DB] SETTLEMENT_INSTRUCTION.STATUS, approvedBy: [store::DB] SETTLEMENT_INSTRUCTION.APPROVED_BY
+    }
+    settlement::CashSettlement: Relational {
+        ~mainTable [store::DB] CASH_SETTLEMENT
+        cashSettlementId: [store::DB] CASH_SETTLEMENT.CASH_SETTLEMENT_ID, paymentDate: [store::DB] CASH_SETTLEMENT.PAYMENT_DATE, amount: [store::DB] CASH_SETTLEMENT.AMOUNT, currency: [store::DB] CASH_SETTLEMENT.CURRENCY, paymentMethod: [store::DB] CASH_SETTLEMENT.PAYMENT_METHOD, debitAccount: [store::DB] CASH_SETTLEMENT.DEBIT_ACCOUNT, creditAccount: [store::DB] CASH_SETTLEMENT.CREDIT_ACCOUNT, status: [store::DB] CASH_SETTLEMENT.STATUS, valueDate: [store::DB] CASH_SETTLEMENT.VALUE_DATE, isNetting: [store::DB] CASH_SETTLEMENT.IS_NETTING, reference: [store::DB] CASH_SETTLEMENT.REFERENCE, confirmedDate: [store::DB] CASH_SETTLEMENT.CONFIRMED_DATE
+    }
+    settlement::SecuritiesSettlement: Relational {
+        ~mainTable [store::DB] SECURITIES_SETTLEMENT
+        secSettlementId: [store::DB] SECURITIES_SETTLEMENT.SEC_SETTLEMENT_ID, settlementDate: [store::DB] SECURITIES_SETTLEMENT.SETTLEMENT_DATE, quantity: [store::DB] SECURITIES_SETTLEMENT.QUANTITY, deliveryType: [store::DB] SECURITIES_SETTLEMENT.DELIVERY_TYPE, custodian: [store::DB] SECURITIES_SETTLEMENT.CUSTODIAN, depository: [store::DB] SECURITIES_SETTLEMENT.DEPOSITORY, status: [store::DB] SECURITIES_SETTLEMENT.STATUS, matchStatus: [store::DB] SECURITIES_SETTLEMENT.MATCH_STATUS, isDelivery: [store::DB] SECURITIES_SETTLEMENT.IS_DELIVERY, settledQuantity: [store::DB] SECURITIES_SETTLEMENT.SETTLED_QUANTITY, failedQuantity: [store::DB] SECURITIES_SETTLEMENT.FAILED_QUANTITY, lastUpdated: [store::DB] SECURITIES_SETTLEMENT.LAST_UPDATED, priority: [store::DB] SECURITIES_SETTLEMENT.PRIORITY
+    }
+    settlement::SettlementFail: Relational {
+        ~mainTable [store::DB] SETTLEMENT_FAIL
+        failId: [store::DB] SETTLEMENT_FAIL.FAIL_ID, failDate: [store::DB] SETTLEMENT_FAIL.FAIL_DATE, failReason: [store::DB] SETTLEMENT_FAIL.FAIL_REASON, originalSettlementDate: [store::DB] SETTLEMENT_FAIL.ORIGINAL_SETTLEMENT_DATE, revisedSettlementDate: [store::DB] SETTLEMENT_FAIL.REVISED_SETTLEMENT_DATE, amount: [store::DB] SETTLEMENT_FAIL.AMOUNT, currency: [store::DB] SETTLEMENT_FAIL.CURRENCY, penaltyAmount: [store::DB] SETTLEMENT_FAIL.PENALTY_AMOUNT, status: [store::DB] SETTLEMENT_FAIL.STATUS, ageInDays: [store::DB] SETTLEMENT_FAIL.AGE_IN_DAYS, isResolved: [store::DB] SETTLEMENT_FAIL.IS_RESOLVED, resolvedDate: [store::DB] SETTLEMENT_FAIL.RESOLVED_DATE, escalationLevel: [store::DB] SETTLEMENT_FAIL.ESCALATION_LEVEL
+    }
+    settlement::CorporateAction: Relational {
+        ~mainTable [store::DB] CORPORATE_ACTION
+        corpActionId: [store::DB] CORPORATE_ACTION.CORP_ACTION_ID, actionType: [store::DB] CORPORATE_ACTION.ACTION_TYPE, exDate: [store::DB] CORPORATE_ACTION.EX_DATE, recordDate: [store::DB] CORPORATE_ACTION.RECORD_DATE, paymentDate: [store::DB] CORPORATE_ACTION.PAYMENT_DATE, ratio: [store::DB] CORPORATE_ACTION.RATIO, cashAmount: [store::DB] CORPORATE_ACTION.CASH_AMOUNT, currency: [store::DB] CORPORATE_ACTION.CURRENCY, status: [store::DB] CORPORATE_ACTION.STATUS, isMandatory: [store::DB] CORPORATE_ACTION.IS_MANDATORY, electionDeadline: [store::DB] CORPORATE_ACTION.ELECTION_DEADLINE, description: [store::DB] CORPORATE_ACTION.DESCRIPTION, announcementDate: [store::DB] CORPORATE_ACTION.ANNOUNCEMENT_DATE
+    }
+    settlement::CorporateActionElection: Relational {
+        ~mainTable [store::DB] CORPORATE_ACTION_ELECTION
+        electionId: [store::DB] CORPORATE_ACTION_ELECTION.ELECTION_ID, electionDate: [store::DB] CORPORATE_ACTION_ELECTION.ELECTION_DATE, electionType: [store::DB] CORPORATE_ACTION_ELECTION.ELECTION_TYPE, quantity: [store::DB] CORPORATE_ACTION_ELECTION.QUANTITY, cashAmount: [store::DB] CORPORATE_ACTION_ELECTION.CASH_AMOUNT, status: [store::DB] CORPORATE_ACTION_ELECTION.STATUS, submittedBy: [store::DB] CORPORATE_ACTION_ELECTION.SUBMITTED_BY, approvedBy: [store::DB] CORPORATE_ACTION_ELECTION.APPROVED_BY, isDefault: [store::DB] CORPORATE_ACTION_ELECTION.IS_DEFAULT, deadline: [store::DB] CORPORATE_ACTION_ELECTION.DEADLINE, currency: [store::DB] CORPORATE_ACTION_ELECTION.CURRENCY
+    }
+    settlement::SettlementLadder: Relational {
+        ~mainTable [store::DB] SETTLEMENT_LADDER
+        ladderId: [store::DB] SETTLEMENT_LADDER.LADDER_ID, ladderDate: [store::DB] SETTLEMENT_LADDER.LADDER_DATE, t0Amount: [store::DB] SETTLEMENT_LADDER.T0_AMOUNT, t1Amount: [store::DB] SETTLEMENT_LADDER.T1_AMOUNT, t2Amount: [store::DB] SETTLEMENT_LADDER.T2_AMOUNT, t3PlusAmount: [store::DB] SETTLEMENT_LADDER.T3_PLUS_AMOUNT, totalAmount: [store::DB] SETTLEMENT_LADDER.TOTAL_AMOUNT, currency: [store::DB] SETTLEMENT_LADDER.CURRENCY, direction: [store::DB] SETTLEMENT_LADDER.DIRECTION, assetType: [store::DB] SETTLEMENT_LADDER.ASSET_TYPE, isProjected: [store::DB] SETTLEMENT_LADDER.IS_PROJECTED, lastUpdated: [store::DB] SETTLEMENT_LADDER.LAST_UPDATED
+    }
+    settlement::NostroAccount: Relational {
+        ~mainTable [store::DB] NOSTRO_ACCOUNT
+        accountId: [store::DB] NOSTRO_ACCOUNT.ACCOUNT_ID, accountName: [store::DB] NOSTRO_ACCOUNT.ACCOUNT_NAME, currency: [store::DB] NOSTRO_ACCOUNT.CURRENCY, bank: [store::DB] NOSTRO_ACCOUNT.BANK, swiftCode: [store::DB] NOSTRO_ACCOUNT.SWIFT_CODE, accountNumber: [store::DB] NOSTRO_ACCOUNT.ACCOUNT_NUMBER, balance: [store::DB] NOSTRO_ACCOUNT.BALANCE, balanceDate: [store::DB] NOSTRO_ACCOUNT.BALANCE_DATE, isActive: [store::DB] NOSTRO_ACCOUNT.IS_ACTIVE, openDate: [store::DB] NOSTRO_ACCOUNT.OPEN_DATE, dailyLimit: [store::DB] NOSTRO_ACCOUNT.DAILY_LIMIT, description: [store::DB] NOSTRO_ACCOUNT.DESCRIPTION
+    }
+    settlement::SettlementNetting: Relational {
+        ~mainTable [store::DB] SETTLEMENT_NETTING
+        nettingId: [store::DB] SETTLEMENT_NETTING.NETTING_ID, nettingDate: [store::DB] SETTLEMENT_NETTING.NETTING_DATE, grossPayAmount: [store::DB] SETTLEMENT_NETTING.GROSS_PAY_AMOUNT, grossReceiveAmount: [store::DB] SETTLEMENT_NETTING.GROSS_RECEIVE_AMOUNT, netAmount: [store::DB] SETTLEMENT_NETTING.NET_AMOUNT, currency: [store::DB] SETTLEMENT_NETTING.CURRENCY, tradeCount: [store::DB] SETTLEMENT_NETTING.TRADE_COUNT, status: [store::DB] SETTLEMENT_NETTING.STATUS, isMultilateral: [store::DB] SETTLEMENT_NETTING.IS_MULTILATERAL, netDirection: [store::DB] SETTLEMENT_NETTING.NET_DIRECTION, savingsAmount: [store::DB] SETTLEMENT_NETTING.SAVINGS_AMOUNT
+    }
+    settlement::CashSettlement_NostroAccount: Relational {
+        AssociationMapping (
+            nostroAccount: [store::DB] @CashSettlement_NostroAccount,
+            cashSettlements: [store::DB] @CashSettlement_NostroAccount
+        )
+    }
+    settlement::CorporateAction_Election: Relational {
+        AssociationMapping (
+            corporateAction: [store::DB] @CorporateAction_Election,
+            elections: [store::DB] @CorporateAction_Election
+        )
+    }
+    settlement::Settlement_CashSettlement: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_CashSettlement,
+            cashSettlements: [store::DB] @Settlement_CashSettlement
+        )
+    }
+    settlement::Settlement_Instruction: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_Instruction,
+            instructions: [store::DB] @Settlement_Instruction
+        )
+    }
+    settlement::Settlement_Netting: Relational {
+        AssociationMapping (
+            netting: [store::DB] @Settlement_Netting,
+            settlements: [store::DB] @Settlement_Netting
+        )
+    }
+    settlement::Settlement_SecuritiesSettlement: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_SecuritiesSettlement,
+            securitiesSettlements: [store::DB] @Settlement_SecuritiesSettlement
+        )
+    }
+    settlement::Settlement_SettlementFail: Relational {
+        AssociationMapping (
+            settlement: [store::DB] @Settlement_SettlementFail,
+            fails: [store::DB] @Settlement_SettlementFail
+        )
+    }
+)

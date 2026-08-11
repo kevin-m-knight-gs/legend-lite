@@ -1,0 +1,18 @@
+RelationalDatabaseConnection store::Conn
+{
+    type: DuckDB;
+    specification: DuckDB { };
+    auth: Test;
+}
+
+Runtime stress::RT
+{
+    mappings:
+    [
+        stress::AllMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
+    ];
+}

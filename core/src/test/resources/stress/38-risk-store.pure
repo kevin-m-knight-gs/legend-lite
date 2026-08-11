@@ -1,0 +1,74 @@
+
+Mapping risk::RiskMapping
+(
+    risk::VaRResult: Relational {
+        ~mainTable [store::DB] VA_RRESULT
+        varId: [store::DB] VA_RRESULT.VAR_ID, calcDate: [store::DB] VA_RRESULT.CALC_DATE, varAmount: [store::DB] VA_RRESULT.VAR_AMOUNT, confidenceLevel: [store::DB] VA_RRESULT.CONFIDENCE_LEVEL, holdingPeriod: [store::DB] VA_RRESULT.HOLDING_PERIOD, methodology: [store::DB] VA_RRESULT.METHODOLOGY, currency: [store::DB] VA_RRESULT.CURRENCY, componentVaR: [store::DB] VA_RRESULT.COMPONENT_VA_R, marginalVaR: [store::DB] VA_RRESULT.MARGINAL_VA_R, incrementalVaR: [store::DB] VA_RRESULT.INCREMENTAL_VA_R, diversificationBenefit: [store::DB] VA_RRESULT.DIVERSIFICATION_BENEFIT, isBreached: [store::DB] VA_RRESULT.IS_BREACHED, model: [store::DB] VA_RRESULT.MODEL, runTime: [store::DB] VA_RRESULT.RUN_TIME
+    }
+    risk::Greeks: Relational {
+        ~mainTable [store::DB] GREEKS
+        greeksId: [store::DB] GREEKS.GREEKS_ID, calcDate: [store::DB] GREEKS.CALC_DATE, delta: [store::DB] GREEKS.DELTA, gamma: [store::DB] GREEKS.GAMMA, vega: [store::DB] GREEKS.VEGA, theta: [store::DB] GREEKS.THETA, rho: [store::DB] GREEKS.RHO, charm: [store::DB] GREEKS.CHARM, vanna: [store::DB] GREEKS.VANNA, volga: [store::DB] GREEKS.VOLGA, currency: [store::DB] GREEKS.CURRENCY, model: [store::DB] GREEKS.MODEL, isEOD: [store::DB] GREEKS.IS_EOD, underlyingPrice: [store::DB] GREEKS.UNDERLYING_PRICE
+    }
+    risk::RiskLimit: Relational {
+        ~mainTable [store::DB] RISK_LIMIT
+        limitId: [store::DB] RISK_LIMIT.LIMIT_ID, limitType: [store::DB] RISK_LIMIT.LIMIT_TYPE, limitAmount: [store::DB] RISK_LIMIT.LIMIT_AMOUNT, currentUtilization: [store::DB] RISK_LIMIT.CURRENT_UTILIZATION, utilizationPct: [store::DB] RISK_LIMIT.UTILIZATION_PCT, currency: [store::DB] RISK_LIMIT.CURRENCY, effectiveDate: [store::DB] RISK_LIMIT.EFFECTIVE_DATE, expiryDate: [store::DB] RISK_LIMIT.EXPIRY_DATE, status: [store::DB] RISK_LIMIT.STATUS, approvedBy: [store::DB] RISK_LIMIT.APPROVED_BY, approvalDate: [store::DB] RISK_LIMIT.APPROVAL_DATE, warningThreshold: [store::DB] RISK_LIMIT.WARNING_THRESHOLD, hardLimit: [store::DB] RISK_LIMIT.HARD_LIMIT, isActive: [store::DB] RISK_LIMIT.IS_ACTIVE
+    }
+    risk::LimitBreach: Relational {
+        ~mainTable [store::DB] LIMIT_BREACH
+        breachId: [store::DB] LIMIT_BREACH.BREACH_ID, breachDate: [store::DB] LIMIT_BREACH.BREACH_DATE, breachAmount: [store::DB] LIMIT_BREACH.BREACH_AMOUNT, severity: [store::DB] LIMIT_BREACH.SEVERITY, status: [store::DB] LIMIT_BREACH.STATUS, escalationLevel: [store::DB] LIMIT_BREACH.ESCALATION_LEVEL, resolvedDate: [store::DB] LIMIT_BREACH.RESOLVED_DATE, resolvedBy: [store::DB] LIMIT_BREACH.RESOLVED_BY, resolution: [store::DB] LIMIT_BREACH.RESOLUTION, peakExposure: [store::DB] LIMIT_BREACH.PEAK_EXPOSURE, durationMinutes: [store::DB] LIMIT_BREACH.DURATION_MINUTES, isActive: [store::DB] LIMIT_BREACH.IS_ACTIVE
+    }
+    risk::StressScenario: Relational {
+        ~mainTable [store::DB] STRESS_SCENARIO
+        scenarioId: [store::DB] STRESS_SCENARIO.SCENARIO_ID, name: [store::DB] STRESS_SCENARIO.NAME, category: [store::DB] STRESS_SCENARIO.CATEGORY, description: [store::DB] STRESS_SCENARIO.DESCRIPTION, createdDate: [store::DB] STRESS_SCENARIO.CREATED_DATE, createdBy: [store::DB] STRESS_SCENARIO.CREATED_BY, isActive: [store::DB] STRESS_SCENARIO.IS_ACTIVE, isRegulatory: [store::DB] STRESS_SCENARIO.IS_REGULATORY, shockMagnitude: [store::DB] STRESS_SCENARIO.SHOCK_MAGNITUDE, historicalDate: [store::DB] STRESS_SCENARIO.HISTORICAL_DATE, riskFactorCount: [store::DB] STRESS_SCENARIO.RISK_FACTOR_COUNT, lastRunDate: [store::DB] STRESS_SCENARIO.LAST_RUN_DATE
+    }
+    risk::StressResult: Relational {
+        ~mainTable [store::DB] STRESS_RESULT
+        resultId: [store::DB] STRESS_RESULT.RESULT_ID, calcDate: [store::DB] STRESS_RESULT.CALC_DATE, stressedPnL: [store::DB] STRESS_RESULT.STRESSED_PN_L, stressedVaR: [store::DB] STRESS_RESULT.STRESSED_VA_R, baselinePnL: [store::DB] STRESS_RESULT.BASELINE_PN_L, deltaFromBaseline: [store::DB] STRESS_RESULT.DELTA_FROM_BASELINE, currency: [store::DB] STRESS_RESULT.CURRENCY, model: [store::DB] STRESS_RESULT.MODEL, runTime: [store::DB] STRESS_RESULT.RUN_TIME, isBreached: [store::DB] STRESS_RESULT.IS_BREACHED, breachAmount: [store::DB] STRESS_RESULT.BREACH_AMOUNT, confidence: [store::DB] STRESS_RESULT.CONFIDENCE
+    }
+    risk::SensitivityResult: Relational {
+        ~mainTable [store::DB] SENSITIVITY_RESULT
+        sensitivityId: [store::DB] SENSITIVITY_RESULT.SENSITIVITY_ID, sensitivityType: [store::DB] SENSITIVITY_RESULT.SENSITIVITY_TYPE, riskFactor: [store::DB] SENSITIVITY_RESULT.RISK_FACTOR, sensitivityValue: [store::DB] SENSITIVITY_RESULT.SENSITIVITY_VALUE, calcDate: [store::DB] SENSITIVITY_RESULT.CALC_DATE, tenor: [store::DB] SENSITIVITY_RESULT.TENOR, currency: [store::DB] SENSITIVITY_RESULT.CURRENCY, model: [store::DB] SENSITIVITY_RESULT.MODEL, bumpSize: [store::DB] SENSITIVITY_RESULT.BUMP_SIZE, previousValue: [store::DB] SENSITIVITY_RESULT.PREVIOUS_VALUE, changeAmount: [store::DB] SENSITIVITY_RESULT.CHANGE_AMOUNT, isSignificant: [store::DB] SENSITIVITY_RESULT.IS_SIGNIFICANT
+    }
+    risk::RiskFactor: Relational {
+        ~mainTable [store::DB] RISK_FACTOR
+        factorId: [store::DB] RISK_FACTOR.FACTOR_ID, name: [store::DB] RISK_FACTOR.NAME, factorType: [store::DB] RISK_FACTOR.FACTOR_TYPE, assetClass: [store::DB] RISK_FACTOR.ASSET_CLASS, currency: [store::DB] RISK_FACTOR.CURRENCY, tenor: [store::DB] RISK_FACTOR.TENOR, currentLevel: [store::DB] RISK_FACTOR.CURRENT_LEVEL, previousLevel: [store::DB] RISK_FACTOR.PREVIOUS_LEVEL, dailyChange: [store::DB] RISK_FACTOR.DAILY_CHANGE, volatility: [store::DB] RISK_FACTOR.VOLATILITY, source: [store::DB] RISK_FACTOR.SOURCE, lastUpdated: [store::DB] RISK_FACTOR.LAST_UPDATED, isActive: [store::DB] RISK_FACTOR.IS_ACTIVE
+    }
+    risk::ExposureSnapshot: Relational {
+        ~mainTable [store::DB] EXPOSURE_SNAPSHOT
+        snapshotId: [store::DB] EXPOSURE_SNAPSHOT.SNAPSHOT_ID, snapshotDate: [store::DB] EXPOSURE_SNAPSHOT.SNAPSHOT_DATE, grossExposure: [store::DB] EXPOSURE_SNAPSHOT.GROSS_EXPOSURE, netExposure: [store::DB] EXPOSURE_SNAPSHOT.NET_EXPOSURE, longExposure: [store::DB] EXPOSURE_SNAPSHOT.LONG_EXPOSURE, shortExposure: [store::DB] EXPOSURE_SNAPSHOT.SHORT_EXPOSURE, leverage: [store::DB] EXPOSURE_SNAPSHOT.LEVERAGE, currency: [store::DB] EXPOSURE_SNAPSHOT.CURRENCY, assetClass: [store::DB] EXPOSURE_SNAPSHOT.ASSET_CLASS, region: [store::DB] EXPOSURE_SNAPSHOT.REGION, isEOD: [store::DB] EXPOSURE_SNAPSHOT.IS_EOD, runTime: [store::DB] EXPOSURE_SNAPSHOT.RUN_TIME
+    }
+    risk::ConcentrationRisk: Relational {
+        ~mainTable [store::DB] CONCENTRATION_RISK
+        concentrationId: [store::DB] CONCENTRATION_RISK.CONCENTRATION_ID, calcDate: [store::DB] CONCENTRATION_RISK.CALC_DATE, dimensionType: [store::DB] CONCENTRATION_RISK.DIMENSION_TYPE, dimensionValue: [store::DB] CONCENTRATION_RISK.DIMENSION_VALUE, exposure: [store::DB] CONCENTRATION_RISK.EXPOSURE, exposurePct: [store::DB] CONCENTRATION_RISK.EXPOSURE_PCT, limit: [store::DB] CONCENTRATION_RISK.LIMIT, isBreached: [store::DB] CONCENTRATION_RISK.IS_BREACHED, currency: [store::DB] CONCENTRATION_RISK.CURRENCY, rank: [store::DB] CONCENTRATION_RISK.RANK, previousExposure: [store::DB] CONCENTRATION_RISK.PREVIOUS_EXPOSURE, changeAmount: [store::DB] CONCENTRATION_RISK.CHANGE_AMOUNT
+    }
+    risk::RiskFactor_SensitivityResult: Relational {
+        AssociationMapping (
+            riskFactor: [store::DB] @RiskFactor_SensitivityResult,
+            sensitivities: [store::DB] @RiskFactor_SensitivityResult
+        )
+    }
+    risk::RiskLimit_LimitBreach: Relational {
+        AssociationMapping (
+            riskLimit: [store::DB] @RiskLimit_LimitBreach,
+            breaches: [store::DB] @RiskLimit_LimitBreach
+        )
+    }
+    risk::StressScenario_StressResult: Relational {
+        AssociationMapping (
+            scenario: [store::DB] @StressScenario_StressResult,
+            results: [store::DB] @StressScenario_StressResult
+        )
+    }
+    risk::VaRResult_ConcentrationRisk: Relational {
+        AssociationMapping (
+            varResult: [store::DB] @VaRResult_ConcentrationRisk,
+            concentrations: [store::DB] @VaRResult_ConcentrationRisk
+        )
+    }
+    risk::VaRResult_ExposureSnapshot: Relational {
+        AssociationMapping (
+            varResult: [store::DB] @VaRResult_ExposureSnapshot,
+            exposureSnapshots: [store::DB] @VaRResult_ExposureSnapshot
+        )
+    }
+)

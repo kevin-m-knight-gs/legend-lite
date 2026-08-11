@@ -1,0 +1,80 @@
+
+Mapping clearing::ClearingMapping
+(
+    clearing::ClearingMember: Relational {
+        ~mainTable [store::DB] CLEARING_MEMBER
+        memberId: [store::DB] CLEARING_MEMBER.MEMBER_ID, memberName: [store::DB] CLEARING_MEMBER.MEMBER_NAME, memberType: [store::DB] CLEARING_MEMBER.MEMBER_TYPE, status: [store::DB] CLEARING_MEMBER.STATUS, joinDate: [store::DB] CLEARING_MEMBER.JOIN_DATE, creditRating: [store::DB] CLEARING_MEMBER.CREDIT_RATING, defaultFundContribution: [store::DB] CLEARING_MEMBER.DEFAULT_FUND_CONTRIBUTION, guaranteeFundContribution: [store::DB] CLEARING_MEMBER.GUARANTEE_FUND_CONTRIBUTION, isActive: [store::DB] CLEARING_MEMBER.IS_ACTIVE, jurisdiction: [store::DB] CLEARING_MEMBER.JURISDICTION, lei: [store::DB] CLEARING_MEMBER.LEI, currency: [store::DB] CLEARING_MEMBER.CURRENCY
+    }
+    clearing::ClearedTrade: Relational {
+        ~mainTable [store::DB] CLEARED_TRADE
+        clearedTradeId: [store::DB] CLEARED_TRADE.CLEARED_TRADE_ID, clearingDate: [store::DB] CLEARED_TRADE.CLEARING_DATE, originalTradeId: [store::DB] CLEARED_TRADE.ORIGINAL_TRADE_ID, notional: [store::DB] CLEARED_TRADE.NOTIONAL, clearingFee: [store::DB] CLEARED_TRADE.CLEARING_FEE, status: [store::DB] CLEARED_TRADE.STATUS, productType: [store::DB] CLEARED_TRADE.PRODUCT_TYPE, currency: [store::DB] CLEARED_TRADE.CURRENCY, maturityDate: [store::DB] CLEARED_TRADE.MATURITY_DATE, isCompressed: [store::DB] CLEARED_TRADE.IS_COMPRESSED, compressionDate: [store::DB] CLEARED_TRADE.COMPRESSION_DATE, novationDate: [store::DB] CLEARED_TRADE.NOVATION_DATE
+    }
+    clearing::CCPMarginCall: Relational {
+        ~mainTable [store::DB] CCPMARGIN_CALL
+        ccpMarginId: [store::DB] CCPMARGIN_CALL.CCP_MARGIN_ID, callDate: [store::DB] CCPMARGIN_CALL.CALL_DATE, initialMargin: [store::DB] CCPMARGIN_CALL.INITIAL_MARGIN, variationMargin: [store::DB] CCPMARGIN_CALL.VARIATION_MARGIN, additionalMargin: [store::DB] CCPMARGIN_CALL.ADDITIONAL_MARGIN, totalMargin: [store::DB] CCPMARGIN_CALL.TOTAL_MARGIN, currency: [store::DB] CCPMARGIN_CALL.CURRENCY, status: [store::DB] CCPMARGIN_CALL.STATUS, dueDate: [store::DB] CCPMARGIN_CALL.DUE_DATE, paidAmount: [store::DB] CCPMARGIN_CALL.PAID_AMOUNT, isPaid: [store::DB] CCPMARGIN_CALL.IS_PAID, callType: [store::DB] CCPMARGIN_CALL.CALL_TYPE
+    }
+    clearing::DefaultFund: Relational {
+        ~mainTable [store::DB] DEFAULT_FUND
+        fundId: [store::DB] DEFAULT_FUND.FUND_ID, fundName: [store::DB] DEFAULT_FUND.FUND_NAME, totalSize: [store::DB] DEFAULT_FUND.TOTAL_SIZE, utilizedAmount: [store::DB] DEFAULT_FUND.UTILIZED_AMOUNT, availableAmount: [store::DB] DEFAULT_FUND.AVAILABLE_AMOUNT, currency: [store::DB] DEFAULT_FUND.CURRENCY, asOfDate: [store::DB] DEFAULT_FUND.AS_OF_DATE, lastAssessmentDate: [store::DB] DEFAULT_FUND.LAST_ASSESSMENT_DATE, nextAssessmentDate: [store::DB] DEFAULT_FUND.NEXT_ASSESSMENT_DATE, isAdequate: [store::DB] DEFAULT_FUND.IS_ADEQUATE, targetSize: [store::DB] DEFAULT_FUND.TARGET_SIZE
+    }
+    clearing::ClearingHouse: Relational {
+        ~mainTable [store::DB] CLEARING_HOUSE
+        clearingHouseId: [store::DB] CLEARING_HOUSE.CLEARING_HOUSE_ID, name: [store::DB] CLEARING_HOUSE.NAME, shortName: [store::DB] CLEARING_HOUSE.SHORT_NAME, jurisdiction: [store::DB] CLEARING_HOUSE.JURISDICTION, regulator: [store::DB] CLEARING_HOUSE.REGULATOR, isQCCP: [store::DB] CLEARING_HOUSE.IS_QCCP, productTypes: [store::DB] CLEARING_HOUSE.PRODUCT_TYPES, website: [store::DB] CLEARING_HOUSE.WEBSITE, lei: [store::DB] CLEARING_HOUSE.LEI, memberCount: [store::DB] CLEARING_HOUSE.MEMBER_COUNT, dailyVolume: [store::DB] CLEARING_HOUSE.DAILY_VOLUME, currency: [store::DB] CLEARING_HOUSE.CURRENCY
+    }
+    clearing::NovationRequest: Relational {
+        ~mainTable [store::DB] NOVATION_REQUEST
+        novationId: [store::DB] NOVATION_REQUEST.NOVATION_ID, requestDate: [store::DB] NOVATION_REQUEST.REQUEST_DATE, requestType: [store::DB] NOVATION_REQUEST.REQUEST_TYPE, status: [store::DB] NOVATION_REQUEST.STATUS, steppingInParty: [store::DB] NOVATION_REQUEST.STEPPING_IN_PARTY, steppingOutParty: [store::DB] NOVATION_REQUEST.STEPPING_OUT_PARTY, remainingParty: [store::DB] NOVATION_REQUEST.REMAINING_PARTY, notional: [store::DB] NOVATION_REQUEST.NOTIONAL, currency: [store::DB] NOVATION_REQUEST.CURRENCY, effectiveDate: [store::DB] NOVATION_REQUEST.EFFECTIVE_DATE, approvedDate: [store::DB] NOVATION_REQUEST.APPROVED_DATE, isApproved: [store::DB] NOVATION_REQUEST.IS_APPROVED
+    }
+    clearing::TradeCompression: Relational {
+        ~mainTable [store::DB] TRADE_COMPRESSION
+        compressionId: [store::DB] TRADE_COMPRESSION.COMPRESSION_ID, compressionDate: [store::DB] TRADE_COMPRESSION.COMPRESSION_DATE, tradesBefore: [store::DB] TRADE_COMPRESSION.TRADES_BEFORE, tradesAfter: [store::DB] TRADE_COMPRESSION.TRADES_AFTER, notionalBefore: [store::DB] TRADE_COMPRESSION.NOTIONAL_BEFORE, notionalAfter: [store::DB] TRADE_COMPRESSION.NOTIONAL_AFTER, reductionPct: [store::DB] TRADE_COMPRESSION.REDUCTION_PCT, status: [store::DB] TRADE_COMPRESSION.STATUS, cycle: [store::DB] TRADE_COMPRESSION.CYCLE, currency: [store::DB] TRADE_COMPRESSION.CURRENCY, productType: [store::DB] TRADE_COMPRESSION.PRODUCT_TYPE, isSuccessful: [store::DB] TRADE_COMPRESSION.IS_SUCCESSFUL
+    }
+    clearing::PortfolioReconciliation: Relational {
+        ~mainTable [store::DB] PORTFOLIO_RECONCILIATION
+        reconId: [store::DB] PORTFOLIO_RECONCILIATION.RECON_ID, reconDate: [store::DB] PORTFOLIO_RECONCILIATION.RECON_DATE, totalPositions: [store::DB] PORTFOLIO_RECONCILIATION.TOTAL_POSITIONS, matchedPositions: [store::DB] PORTFOLIO_RECONCILIATION.MATCHED_POSITIONS, unmatchedPositions: [store::DB] PORTFOLIO_RECONCILIATION.UNMATCHED_POSITIONS, matchRate: [store::DB] PORTFOLIO_RECONCILIATION.MATCH_RATE, status: [store::DB] PORTFOLIO_RECONCILIATION.STATUS, frequency: [store::DB] PORTFOLIO_RECONCILIATION.FREQUENCY, daysToResolve: [store::DB] PORTFOLIO_RECONCILIATION.DAYS_TO_RESOLVE, isComplete: [store::DB] PORTFOLIO_RECONCILIATION.IS_COMPLETE, notionalDifference: [store::DB] PORTFOLIO_RECONCILIATION.NOTIONAL_DIFFERENCE, currency: [store::DB] PORTFOLIO_RECONCILIATION.CURRENCY
+    }
+    clearing::ClearingFee: Relational {
+        ~mainTable [store::DB] CLEARING_FEE
+        feeId: [store::DB] CLEARING_FEE.FEE_ID, feeDate: [store::DB] CLEARING_FEE.FEE_DATE, feeType: [store::DB] CLEARING_FEE.FEE_TYPE, amount: [store::DB] CLEARING_FEE.AMOUNT, currency: [store::DB] CLEARING_FEE.CURRENCY, feeSchedule: [store::DB] CLEARING_FEE.FEE_SCHEDULE, volumeDiscount: [store::DB] CLEARING_FEE.VOLUME_DISCOUNT, netFee: [store::DB] CLEARING_FEE.NET_FEE, status: [store::DB] CLEARING_FEE.STATUS, invoiceId: [store::DB] CLEARING_FEE.INVOICE_ID, isPaid: [store::DB] CLEARING_FEE.IS_PAID
+    }
+    clearing::PositionTransfer: Relational {
+        ~mainTable [store::DB] POSITION_TRANSFER
+        transferId: [store::DB] POSITION_TRANSFER.TRANSFER_ID, transferDate: [store::DB] POSITION_TRANSFER.TRANSFER_DATE, fromMember: [store::DB] POSITION_TRANSFER.FROM_MEMBER, toMember: [store::DB] POSITION_TRANSFER.TO_MEMBER, notional: [store::DB] POSITION_TRANSFER.NOTIONAL, tradeCount: [store::DB] POSITION_TRANSFER.TRADE_COUNT, status: [store::DB] POSITION_TRANSFER.STATUS, reason: [store::DB] POSITION_TRANSFER.REASON, approvedBy: [store::DB] POSITION_TRANSFER.APPROVED_BY, effectiveDate: [store::DB] POSITION_TRANSFER.EFFECTIVE_DATE, currency: [store::DB] POSITION_TRANSFER.CURRENCY, isRegulatory: [store::DB] POSITION_TRANSFER.IS_REGULATORY
+    }
+    clearing::ClearedTrade_NovationRequest: Relational {
+        AssociationMapping (
+            clearedTrade: [store::DB] @ClearedTrade_NovationRequest,
+            novationRequests: [store::DB] @ClearedTrade_NovationRequest
+        )
+    }
+    clearing::ClearingHouse_ClearingMember: Relational {
+        AssociationMapping (
+            clearingHouse: [store::DB] @ClearingHouse_ClearingMember,
+            members: [store::DB] @ClearingHouse_ClearingMember
+        )
+    }
+    clearing::ClearingHouse_DefaultFund: Relational {
+        AssociationMapping (
+            clearingHouse: [store::DB] @ClearingHouse_DefaultFund,
+            defaultFunds: [store::DB] @ClearingHouse_DefaultFund
+        )
+    }
+    clearing::ClearingMember_CCPMarginCall: Relational {
+        AssociationMapping (
+            clearingMember: [store::DB] @ClearingMember_CCPMarginCall,
+            ccpMarginCalls: [store::DB] @ClearingMember_CCPMarginCall
+        )
+    }
+    clearing::ClearingMember_ClearedTrade: Relational {
+        AssociationMapping (
+            clearingMember: [store::DB] @ClearingMember_ClearedTrade,
+            clearedTrades: [store::DB] @ClearingMember_ClearedTrade
+        )
+    }
+    clearing::ClearingMember_ClearingFee: Relational {
+        AssociationMapping (
+            clearingMember: [store::DB] @ClearingMember_ClearingFee,
+            clearingFees: [store::DB] @ClearingMember_ClearingFee
+        )
+    }
+)

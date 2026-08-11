@@ -1,0 +1,294 @@
+// The TOP mapping: includes every domain mapping and carries the
+// cross-domain association bindings. Engine-lite let a cross-domain
+// AssociationMapping live inside a domain mapping and unioned the
+// runtime's mapping list; real Legend (and core) resolves association
+// bindings through the INCLUDE closure, so the bindings live where
+// both end classes are visible.
+Mapping stress::AllMapping
+(
+    include products::ProductsMapping
+    include refdata::RefdataMapping
+    include counterparty::CounterpartyMapping
+    include org::OrgMapping
+    include positions::PositionsMapping
+    include trading::TradingMapping
+    include pnl::PnlMapping
+    include risk::RiskMapping
+    include settlement::SettlementMapping
+    include ops::OpsMapping
+    include collateral::CollateralMapping
+    include sales::SalesMapping
+    include regulatory::RegulatoryMapping
+    include marketdata::MarketdataMapping
+    include funding::FundingMapping
+    include accounting::AccountingMapping
+    include clearing::ClearingMapping
+    include tax::TaxMapping
+    include research::ResearchMapping
+    include prime::PrimeMapping
+
+    cross::Bond_Issuer: Relational {
+        AssociationMapping (
+            issuer: [store::DB] @Bond_Issuer,
+            bonds: [store::DB] @Bond_Issuer
+        )
+    }
+    cross::Instrument_Currency: Relational {
+        AssociationMapping (
+            instrumentCurrency: [store::DB] @Instrument_Currency,
+            instrumentsByCurrency: [store::DB] @Instrument_Currency
+        )
+    }
+    cross::Instrument_Exchange: Relational {
+        AssociationMapping (
+            exchange: [store::DB] @Instrument_Exchange,
+            listedInstruments: [store::DB] @Instrument_Exchange
+        )
+    }
+    cross::Instrument_Sector: Relational {
+        AssociationMapping (
+            sector: [store::DB] @Instrument_Sector,
+            instruments: [store::DB] @Instrument_Sector
+        )
+    }
+    cross::Counterparty_Country: Relational {
+        AssociationMapping (
+            country: [store::DB] @Counterparty_Country,
+            counterparties: [store::DB] @Counterparty_Country
+        )
+    }
+    cross::PortfolioManager_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @PortfolioManager_Desk,
+            portfolioManagers: [store::DB] @PortfolioManager_Desk
+        )
+    }
+    cross::Book_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @Book_Desk,
+            books: [store::DB] @Book_Desk
+        )
+    }
+    cross::Portfolio_PortfolioManager: Relational {
+        AssociationMapping (
+            manager: [store::DB] @Portfolio_PortfolioManager,
+            portfolios: [store::DB] @Portfolio_PortfolioManager
+        )
+    }
+    cross::Position_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Position_Instrument,
+            positions: [store::DB] @Position_Instrument
+        )
+    }
+    cross::Allocation_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Allocation_Book,
+            allocations: [store::DB] @Allocation_Book
+        )
+    }
+    cross::Order_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Order_Instrument,
+            orders: [store::DB] @Order_Instrument
+        )
+    }
+    cross::Trade_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @Trade_Book,
+            trades: [store::DB] @Trade_Book
+        )
+    }
+    cross::Trade_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Trade_Counterparty,
+            trades: [store::DB] @Trade_Counterparty
+        )
+    }
+    cross::Trade_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Trade_Instrument,
+            trades: [store::DB] @Trade_Instrument
+        )
+    }
+    cross::Trade_Trader: Relational {
+        AssociationMapping (
+            trader: [store::DB] @Trade_Trader,
+            trades: [store::DB] @Trade_Trader
+        )
+    }
+    cross::DailyPnL_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @DailyPnL_Book,
+            dailyPnLs: [store::DB] @DailyPnL_Book
+        )
+    }
+    cross::DailyPnL_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @DailyPnL_Desk,
+            dailyPnLs: [store::DB] @DailyPnL_Desk
+        )
+    }
+    cross::DailyPnL_Trader: Relational {
+        AssociationMapping (
+            trader: [store::DB] @DailyPnL_Trader,
+            dailyPnLs: [store::DB] @DailyPnL_Trader
+        )
+    }
+    cross::Greeks_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @Greeks_Instrument,
+            instrumentGreeks: [store::DB] @Greeks_Instrument
+        )
+    }
+    cross::Greeks_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @Greeks_Position,
+            greeks: [store::DB] @Greeks_Position
+        )
+    }
+    cross::RiskLimit_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @RiskLimit_Desk,
+            riskLimits: [store::DB] @RiskLimit_Desk
+        )
+    }
+    cross::VaRResult_Portfolio: Relational {
+        AssociationMapping (
+            portfolio: [store::DB] @VaRResult_Portfolio,
+            varResults: [store::DB] @VaRResult_Portfolio
+        )
+    }
+    cross::CorporateAction_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @CorporateAction_Instrument,
+            corporateActions: [store::DB] @CorporateAction_Instrument
+        )
+    }
+    cross::Settlement_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @Settlement_Counterparty,
+            settlementsWithCpty: [store::DB] @Settlement_Counterparty
+        )
+    }
+    cross::Settlement_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Settlement_Trade,
+            settlements: [store::DB] @Settlement_Trade
+        )
+    }
+    cross::Confirmation_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @Confirmation_Trade,
+            confirmations: [store::DB] @Confirmation_Trade
+        )
+    }
+    cross::TradeException_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @TradeException_Trade,
+            exceptions: [store::DB] @TradeException_Trade
+        )
+    }
+    cross::CollateralAgreement_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @CollateralAgreement_Counterparty,
+            collateralAgreements: [store::DB] @CollateralAgreement_Counterparty
+        )
+    }
+    cross::MarginCall_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @MarginCall_Counterparty,
+            marginCalls: [store::DB] @MarginCall_Counterparty
+        )
+    }
+    cross::ClientCoverage_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @ClientCoverage_Counterparty,
+            coverages: [store::DB] @ClientCoverage_Counterparty
+        )
+    }
+    cross::SalesCredit_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @SalesCredit_Trade,
+            salesCredits: [store::DB] @SalesCredit_Trade
+        )
+    }
+    cross::SalesPerson_Desk: Relational {
+        AssociationMapping (
+            desk: [store::DB] @SalesPerson_Desk,
+            salesPeople: [store::DB] @SalesPerson_Desk
+        )
+    }
+    cross::RegulatoryCapital_LegalEntity: Relational {
+        AssociationMapping (
+            legalEntity: [store::DB] @RegulatoryCapital_LegalEntity,
+            capitalCalcs: [store::DB] @RegulatoryCapital_LegalEntity
+        )
+    }
+    cross::TradeReport_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @TradeReport_Trade,
+            tradeReports: [store::DB] @TradeReport_Trade
+        )
+    }
+    cross::TransactionCost_Execution: Relational {
+        AssociationMapping (
+            execution: [store::DB] @TransactionCost_Execution,
+            transactionCosts: [store::DB] @TransactionCost_Execution
+        )
+    }
+    cross::FxRate_Currency: Relational {
+        AssociationMapping (
+            baseCurrency: [store::DB] @FxRate_Currency,
+            fxRatesForCurrency: [store::DB] @FxRate_Currency
+        )
+    }
+    cross::MarketQuote_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @MarketQuote_Instrument,
+            quotes: [store::DB] @MarketQuote_Instrument
+        )
+    }
+    cross::CashFlow_Book: Relational {
+        AssociationMapping (
+            book: [store::DB] @CashFlow_Book,
+            cashFlows: [store::DB] @CashFlow_Book
+        )
+    }
+    cross::JournalEntry_CostCenter: Relational {
+        AssociationMapping (
+            costCenter: [store::DB] @JournalEntry_CostCenter,
+            journalEntries: [store::DB] @JournalEntry_CostCenter
+        )
+    }
+    cross::ClearedTrade_Trade: Relational {
+        AssociationMapping (
+            trade: [store::DB] @ClearedTrade_Trade,
+            clearedTrades: [store::DB] @ClearedTrade_Trade
+        )
+    }
+    cross::TaxLot_Position: Relational {
+        AssociationMapping (
+            position: [store::DB] @TaxLot_Position,
+            taxLots: [store::DB] @TaxLot_Position
+        )
+    }
+    cross::AnalystRecommendation_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @AnalystRecommendation_Instrument,
+            recommendations: [store::DB] @AnalystRecommendation_Instrument
+        )
+    }
+    cross::PBAccount_Counterparty: Relational {
+        AssociationMapping (
+            counterparty: [store::DB] @PBAccount_Counterparty,
+            pbAccounts: [store::DB] @PBAccount_Counterparty
+        )
+    }
+    cross::SyntheticPosition_Instrument: Relational {
+        AssociationMapping (
+            instrument: [store::DB] @SyntheticPosition_Instrument,
+            syntheticPositions: [store::DB] @SyntheticPosition_Instrument
+        )
+    }
+)

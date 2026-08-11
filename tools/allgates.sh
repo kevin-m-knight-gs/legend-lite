@@ -1,7 +1,8 @@
 #!/bin/bash
-# The standing 8-gate chain (docs/GATES.md). Sequential BY DESIGN — concurrent
-# heavy JVMs get killed on small machines, and core must be INSTALLED before any
-# engine-module gate (they build against core's installed jar).
+# The standing gate chain (docs/GATES.md). Sequential BY DESIGN — concurrent
+# heavy JVMs get killed on small machines. The engine module is DELETED:
+# its suite migrated into core, so GATE 3 folded into GATE 1 (gate numbers
+# kept stable so logs and habits stay comparable).
 #
 # Usage:
 #   LEGEND_ENGINE_ROOT=~/legend/legend-engine \
@@ -25,7 +26,7 @@ SFLAG=()
 OFF=()
 [ "${MVN_OFFLINE:-1}" = "1" ] && OFF=(-o)
 # Gate subset: GATES=1,2,3 runs only those. Default is all eight.
-WANT=${GATES:-1,2,3,4,5,6,7,8}
+WANT=${GATES:-1,2,4,5,6,7,8}
 want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
 # Default the log to a PER-USER path. A fixed /tmp/gates.log is shared across
 # accounts on this box (it was found owned by another user), so writes fail
@@ -79,15 +80,12 @@ if want 2; then
   rec 2 $?
 fi
 
-if want 3; then
-  g "GATE3 engine suite minus corpus"
-  mvn ${SFLAG[@]+"${SFLAG[@]}"} "${OFF[@]}" -pl engine test "-Dtest=!RelationalCorpusRunner" "$R1" "$R2" > "$OUT/g3.out" 2>&1
-  rec 3 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g3.out" | tail -1 >> "$L"
-fi
+# GATE3 (engine suite) folded into GATE1 — the engine module is deleted and
+# its behavioral tests live in core's suite (com.legend.integration).
 
 if want 4; then
   g "GATE4 DuckDB corpus"
-  mvn -pl engine test -Dtest=RelationalCorpusRunner "$R1" "$R2" > "$OUT/g4.out" 2>&1
+  mvn -pl core test -Dtest=RelationalCorpusRunner "$R1" "$R2" > "$OUT/g4.out" 2>&1
   G4=$?; if skipped "$OUT/g4.out"; then
     echo "G4 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G4=1
   fi
@@ -96,7 +94,7 @@ fi
 
 if want 5; then
   g "GATE5 h2 corpus"
-  mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 "$R1" "$R2" > "$OUT/g5.out" 2>&1
+  mvn -pl core test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 "$R1" "$R2" > "$OUT/g5.out" 2>&1
   G5=$?; if skipped "$OUT/g5.out"; then
     echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
   fi
