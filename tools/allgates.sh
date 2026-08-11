@@ -52,6 +52,21 @@ rec() {
   return 0
 }
 
+# roots_present — gates 4, 5 and 8 are meaningless without the upstream
+# checkouts. The `skipped()` detector below CANNOT catch this for gate 8: the
+# harness ships a committed in-repo fixture tier, so Corpus is never empty and
+# the tests genuinely RUN on a starved corpus rather than Assumptions-skipping.
+# Measured 2026-08-11: with both roots absent, PmcdEquivalenceTest runs on 774
+# rows instead of 6,033, reports "0 diff", and the build SUCCEEDS. Three gated
+# tests have no floor at all and pass green on a 99%-shrunk corpus. So check the
+# roots up front rather than trying to detect the symptom afterwards.
+roots_present() {
+  local ok=0
+  [ -d "$ROOT_ENGINE" ] || { echo "MISSING legend-engine checkout: $ROOT_ENGINE" >> "$L"; ok=1; }
+  [ -d "$ROOT_PURE" ]   || { echo "MISSING legend-pure checkout: $ROOT_PURE"   >> "$L"; ok=1; }
+  return $ok
+}
+
 # skipped <file> — surefire reports "Skipped: N" for Assumptions-skipped tests.
 # Gates 4, 5 and 8 skip silently without the upstream checkouts; that is NOT a
 # pass. Returns 0 (true) when the run was entirely skipped.
@@ -85,21 +100,31 @@ fi
 # its behavioral tests live in core's suite (com.legend.integration).
 
 if want 4; then
+  if ! roots_present; then
+    echo "G4 NOT RUN — legend-engine checkout absent. NOT a pass." >> "$L"
+    rec 4 1
+  else
   g "GATE4 DuckDB corpus"
   mvn -pl core test -Dtest=RelationalCorpusRunner "$R1" "$R2" > "$OUT/g4.out" 2>&1
   G4=$?; if skipped "$OUT/g4.out"; then
     echo "G4 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G4=1
   fi
   rec 4 $G4; grep -E "h2-exec|Tests run: [0-9]+, Fail" "$OUT/g4.out" | tail -3 >> "$L"
+  fi
 fi
 
 if want 5; then
+  if ! roots_present; then
+    echo "G5 NOT RUN — legend-engine checkout absent. NOT a pass." >> "$L"
+    rec 5 1
+  else
   g "GATE5 h2 corpus"
   mvn -pl core test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 "$R1" "$R2" > "$OUT/g5.out" 2>&1
   G5=$?; if skipped "$OUT/g5.out"; then
     echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
   fi
   rec 5 $G5; grep -E "EXACT|h2|Tests run: [0-9]+, Fail" "$OUT/g5.out" | tail -3 >> "$L"
+  fi
 fi
 
 if want 6; then
@@ -137,6 +162,10 @@ if want 7; then
 fi
 
 if want 8; then
+  if ! roots_present; then
+    echo "G8 NOT RUN — upstream checkout absent. NOT a pass." >> "$L"
+    rec 8 1
+  else
   g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
   # -am is REQUIRED: without it Maven resolves legend-lite-core from ~/.m2,
   # not the reactor, so GATES=8 alone silently A/Bs the previously installed
@@ -152,6 +181,7 @@ if want 8; then
   sed -n '3,6p' parser-equivalence/target/rejection-report.txt >> "$L" 2>/dev/null
   sed -n '3,9p' parser-equivalence/target/spi-seam-report.txt >> "$L" 2>/dev/null
   sed -n '3,5p' parser-equivalence/target/section-sentinel-report.txt >> "$L" 2>/dev/null
+  fi
 fi
 
 if [ ${#FAILED[@]} -eq 0 ]; then
