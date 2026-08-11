@@ -41,12 +41,13 @@ OUT=$(mktemp -d "${TMPDIR:-/tmp}/allgates.XXXXXX")
 trap 'rm -rf "$OUT"' EXIT
 : > "$L"
 FAILED=()
-g() { echo "=== $1" >> "$L"; }
+G_T0=$(date +%s)
+g() { echo "=== $1" >> "$L"; G_T0=$(date +%s); }
 
 # rec <n> <exit> — record a gate's verdict so the script can fail at the end.
 # A gate script that cannot fail is not a gate.
 rec() {
-  echo "G$1_EXIT=$2" >> "$L"
+  echo "G$1_EXIT=$2 (took $(( $(date +%s) - G_T0 ))s)" >> "$L"
   [ "$2" -ne 0 ] && FAILED+=("G$1")
   return 0
 }

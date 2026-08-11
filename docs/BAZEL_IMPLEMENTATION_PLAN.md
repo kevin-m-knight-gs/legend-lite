@@ -112,7 +112,19 @@ The proposal's initial estimate of "~36 files, ~200-500 lines" was a worst-case 
 
 ### 1.2 Smoke Test Project (DONE)
 
-Regression canary at `engine/src/test/resources/bazel_smoke/`:
+> **2026-08-11 — engine module deleted.** The canary now lives in core:
+> corpus at `core/src/test/resources/bazel_smoke/`, test at
+> `core/src/test/.../integration/BazelSmokeTest.java` (compiles both projects
+> as separate `Compiler.ModelSource`s). The §5 lazy-loading guards were also
+> rebuilt core-native: `core/src/test/.../architecture/NoEagerTypeReferencesTest`
+> (structural — TypedClass/TypedEnum fields; sole allowed holder is
+> PureModelContext's registry caches) and `NoEagerUserClassLoadsTest`
+> (behavioral — fail-fast ModelContext proxy over SpecCompiler). Engine-era
+> phase/step numbers below that reference engine types are historical; the
+> reasoning governs, the names do not. Known divergence pinned in the canary:
+> parse-level stereotype/tag profile refs are NOT canonicalized to FQNs in core.
+
+Regression canary at `core/src/test/resources/bazel_smoke/`:
 
 - `refdata/model.pure` — model-only project: 3 classes, 1 enum, 1 association, 1 function
 - `trading/model.pure` — depends on refdata via every cross-project ref type

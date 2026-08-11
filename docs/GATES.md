@@ -95,9 +95,22 @@ rule that is recorded, not absorbed. Three ways to settle it, all explicit human
 3. **Split the chain**: the fast seven on every push, the four heavy parity tests
    pre-push/nightly. Riskier — a gate that runs less often is a gate that catches less.
 
-## The time budget: 5.5 minutes, locked
+## The time budget: ~6m40s measured 2026-08-11 — re-pin pending
 
-Measured 2026-08-08, sequentially, nothing concurrent:
+The 5.5-minute lock (measured 2026-08-08) was already exceeded BEFORE the
+engine-module deletion (6m32s with the module still present), and the
+deletion itself was time-neutral (6m41s after — gate 3's removal offset the
+suite growth in gate 1). Suspected growth since the 08-08 pin: gate 8's
+strengthening (whole-document parity + the four previously ungated tests)
+and the clean NullAway compile absorbing the server shell. `allgates.sh`
+now stamps per-gate wall time into the log (`GN_EXIT=0 (took Ns)`) — re-pin
+this table from the next run's stamps instead of guessing.
+
+Per-suite execution is NOT the cost: the 4,046-test core gate runs in ~28s
+of test time. The budget lives in the seven maven invocations (JVM + clean
+compile each).
+
+Previous table (2026-08-08 measurements, rows updated for the fold):
 
 | # | gate | time |
 |---|------|------|
