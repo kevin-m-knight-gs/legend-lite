@@ -56,6 +56,7 @@ public sealed interface ValueSpecification permits
         SqlIsland,
         TdsLiteral,
         CString,
+        CByteArray,
         CTime,
         ColumnInstance,
         EnumValue,
@@ -84,6 +85,7 @@ public sealed interface ValueSpecification permits
             case PathLiteral pl -> java.util.List.of(pl.desugared());
             case GraphFetchLiteral gf -> java.util.List.of(gf.desugared());
             case CBoolean ignored -> java.util.List.of();
+            case CByteArray ignored -> java.util.List.of();
             case CDate ignored -> java.util.List.of();
             case CDecimal ignored -> java.util.List.of();
             case CFloat ignored -> java.util.List.of();
@@ -129,6 +131,7 @@ public sealed interface ValueSpecification permits
     default ValueSpecification withChildren(
             java.util.List<ValueSpecification> cs) {
         return switch (this) {
+            case CByteArray b -> b;                 // leaf
             case PathLiteral pl -> new PathLiteral(pl.startType(), pl.segments(),
                     (LambdaFunction) cs.get(0), pl.alias(), pl.hasDatedSegment(),
                     pl.pos(), pl.literalLength());

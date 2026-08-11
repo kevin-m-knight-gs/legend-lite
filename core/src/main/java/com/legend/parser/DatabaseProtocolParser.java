@@ -131,13 +131,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         DatabaseProtocolParser inner =
                 new DatabaseProtocolParser(tokens, pos, qn);
         Protocol.PDatabase db = inner.parseBody(declStart, pkg, name,
-                dbDec.stereotypes());
+                dbDec.stereotypes(), dbDec.taggedValues());
         this.pos = inner.pos;
         return db;
     }
 
     private Protocol.PDatabase parseBody(int declStart, String pkg, String name,
-            List<Protocol.PStereotype> dbStereotypes) {
+            List<Protocol.PStereotype> dbStereotypes,
+            List<Protocol.PTaggedValue> dbTaggedValues) {
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PPointer> includes = new ArrayList<>();
         List<Protocol.PDbTable> defaultTables = new ArrayList<>();
@@ -201,7 +202,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     defaultViews, defaultTabFns, List.of(), List.of(), dbSpan));
         }
         return new Protocol.PDatabase(pkg, name, includes, schemas, joins,
-                filters, dbStereotypes, dbSpan);
+                filters, dbStereotypes, dbTaggedValues, dbSpan);
     }
 
 
@@ -210,7 +211,16 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         expect(TokenType.SCHEMA);
         TokenStreamCursor.Decorations dec = parseDecorations();
         int nameTok = pos;
-        String name = parseIdentifier();
+        // a QUOTED schema name keeps its single quotes in the wire name
+        // ("'\"test\"'" — harvest testRelationalSchemaSingleAndDoubleQuoted;
+        // the engine walker stores the raw token text here)
+        String name;
+        if (peek() == TokenType.STRING) {
+            name = text();
+            advance();
+        } else {
+            name = parseIdentifier();
+        }
         currentSchemaDeclSpan = spanOf(nameTok, nameTok);
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PDbTable> tables = new ArrayList<>();

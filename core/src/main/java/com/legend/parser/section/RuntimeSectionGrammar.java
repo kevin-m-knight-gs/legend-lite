@@ -138,8 +138,13 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
             }
             int groupEnd = c.pos();
             c.expect(TokenType.BRACKET_CLOSE);
-            out.add(new Protocol.PStoreConnections(storePtr, ids,
-                    c.spanOf(sStart, groupEnd)));
+            if (!ids.isEmpty()) {
+                // the engine DROPS a store group with an EMPTY connection
+                // list (harvest testServiceRuntime: `ModelStore: []` never
+                // reaches the wire)
+                out.add(new Protocol.PStoreConnections(storePtr, ids,
+                        c.spanOf(sStart, groupEnd)));
+            }
             c.match(TokenType.COMMA);
         }
         c.expect(TokenType.BRACKET_CLOSE);

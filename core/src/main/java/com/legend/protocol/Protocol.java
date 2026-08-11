@@ -661,6 +661,7 @@ public final class Protocol {
     }
 
     public record PRelPropertyMapping(@com.legend.Nullable String ownerClass,
+                                      @com.legend.Nullable String bindingTransformer,
                                       String property,
                                       com.legend.protocol.SourceInfo propertySourceInformation,
                                       @com.legend.Nullable String enumMappingId,
@@ -801,6 +802,7 @@ public final class Protocol {
                             List<PDbJoin> joins,
                             List<PDbFilter> filters,
                             List<PStereotype> stereotypes,
+                            List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {

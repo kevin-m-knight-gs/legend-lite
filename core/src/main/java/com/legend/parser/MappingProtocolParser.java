@@ -1792,9 +1792,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             expect(TokenType.COLON);
         }
         String enumId = enumerationMappingId();
+        String bindingId = bindingTransformerId();
         Protocol.PRelOp op = parseOpInCtx(scopeDb, scope);
         props.add(new Protocol.PRelPropertyMapping(
-                localProp != null ? null : target, prop, propSpan, enumId,
+                localProp != null ? null : target, bindingId,
+                prop, propSpan, enumId,
                 localProp, op, srcId, localProp != null ? null : tgtId,
                 spanOf(colonTok, pos - 1)));
         entryComma(TokenType.BRACE_CLOSE, TokenType.PAREN_CLOSE);

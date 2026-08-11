@@ -1478,6 +1478,7 @@ public final class NameResolver {
             // A path literal dissolves into its desugared lambda at resolution — nothing
             // downstream of the resolver ever sees the wire-facing node.
             case PathLiteral pl -> resolveVs(pl.desugared(), scope);
+            case com.legend.protocol.spec.CByteArray b -> b;   // literal
             // an inline SQL island has no names to resolve; the typer refuses it
             case com.legend.protocol.spec.SqlIsland si -> si;
             // a TDS literal dissolves into its desugared tds(...) call

@@ -1325,6 +1325,12 @@ final class MappingEmitter {
         switch (pmi) {
             case Protocol.PRelPropertyMapping pm -> {
                 b.append("{\"_type\":\"relationalPropertyMapping\",");
+                if (pm.bindingTransformer() != null) {
+                    // probed wire: {"binding": fqn} right after _type
+                    b.append("\"bindingTransformer\":{\"binding\":");
+                    str(b, pm.bindingTransformer());
+                    b.append("},");
+                }
                 if (pm.enumMappingId() != null) {
                     b.append("\"enumMappingId\":");
                     str(b, pm.enumMappingId());

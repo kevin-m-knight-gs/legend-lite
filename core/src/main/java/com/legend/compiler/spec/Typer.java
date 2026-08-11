@@ -127,6 +127,11 @@ final class Typer {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
             case PathLiteral pl -> synth(pl.desugared(), env);
+            // service-test parameter literal — never reaches query typing
+            case com.legend.protocol.spec.CByteArray b ->
+                    throw new com.legend.error.NotImplementedException(
+                            "byte-array literals type only in service-test"
+                                    + " parameters");
             case com.legend.protocol.spec.GraphFetchLiteral gf -> synth(gf.desugared(), env);
             case com.legend.protocol.spec.TdsLiteral tl -> synth(tl.desugared(), env);
             case com.legend.protocol.spec.SqlIsland si ->

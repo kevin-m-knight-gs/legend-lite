@@ -361,6 +361,13 @@ public final class ProtocolEmitter {
         srcInfo(b, d.sourceInformation());
         b.append(",\"stereotypes\":");
         stereotypes(b, d.stereotypes());
+        if (!d.taggedValues().isEmpty()) {
+            // engine emits the key only when NON-EMPTY (unlike stereotypes
+            // — harvest testEmbeddedMapping vs
+            // testRelationalElementsWithStereotypesAndTaggedValues)
+            b.append(",\"taggedValues\":");
+            taggedValues(b, d.taggedValues());
+        }
         b.append('}');
     }
 
@@ -2019,6 +2026,16 @@ public final class ProtocolEmitter {
         switch (v) {
             case com.legend.protocol.spec.CBoolean c ->
                     literal(b, "boolean", String.valueOf(c.value()), c.pos());
+            case com.legend.protocol.spec.CByteArray c -> {
+                // toBytes('...') service-test parameter (probe-verified):
+                // _type, sourceInformation, base64 value
+                b.append("{\"_type\":\"byteArray\","
+                        + "\"sourceInformation\":");
+                srcInfo(b, requirePos(c.pos(), "byteArray"));
+                b.append(",\"value\":");
+                str(b, c.value());
+                b.append('}');
+            }
             case com.legend.protocol.spec.CInteger c ->
                     literal(b, "integer", c.value().toString(), c.pos());
             case com.legend.protocol.spec.CString c -> {

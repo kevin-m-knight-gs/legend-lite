@@ -184,6 +184,31 @@ public final class ServiceSectionGrammar
                 c.spanOf(declStart, c.pos() - 1));
     }
 
+
+    /** {@code name = toBytes('...')} — the byte-array parameter literal:
+     *  wire {@code {"_type":"byteArray","value":"<base64>"}} spanning the
+     *  whole call (harvest testBindingServices, probe-verified). Null when
+     *  the value is not a toBytes literal. */
+    private static Protocol.PServiceTestSuite.@com.legend.Nullable PSuiteParam
+            byteArrayParam(TokenStreamCursor c, String name) {
+        if (!(c.peek() == TokenType.VALID_STRING
+                && "toBytes".equals(c.safeText()))) {
+            return null;
+        }
+        int vs = c.pos();
+        c.advance();
+        c.expect(TokenType.PAREN_OPEN);
+        String quoted = c.text();
+        c.expect(TokenType.STRING);
+        String decoded = TokenStreamCursor.unquoteAndUnescape(quoted, c);
+        c.expect(TokenType.PAREN_CLOSE);
+        String b64 = java.util.Base64.getEncoder().encodeToString(
+                decoded.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return new Protocol.PServiceTestSuite.PSuiteParam(name,
+                new com.legend.protocol.spec.CByteArray(b64,
+                        c.spanOf(vs, c.pos() - 1)));
+    }
+
     /** The legacy test BODY loop ({@code data:} / {@code asserts:}),
      *  shared by Single and Multi keyed entries; returns data. */
     private static @com.legend.Nullable String parseLegacyBody(
@@ -340,6 +365,13 @@ public final class ServiceSectionGrammar
                     while (c.peek() != TokenType.PAREN_CLOSE) {
                         String pn = c.parseIdentifier();
                         c.expect(TokenType.EQUAL);
+                        Protocol.PServiceTestSuite.PSuiteParam tb =
+                                byteArrayParam(c, pn);
+                        if (tb != null) {
+                            parameters.add(tb);
+                            c.match(TokenType.COMMA);
+                            continue;
+                        }
                         int vs = c.pos();
                         int d = 0;
                         while (!c.atEnd()) {
@@ -469,6 +501,13 @@ public final class ServiceSectionGrammar
                         while (c.peek() != TokenType.BRACKET_CLOSE) {
                             String pn = c.parseIdentifier();
                             c.expect(TokenType.EQUAL);
+                            Protocol.PServiceTestSuite.PSuiteParam tb2 =
+                                    byteArrayParam(c, pn);
+                            if (tb2 != null) {
+                                parameters.add(tb2);
+                                c.match(TokenType.COMMA);
+                                continue;
+                            }
                             int vs2 = c.pos();
                             int d2 = 0;
                             while (!c.atEnd()) {

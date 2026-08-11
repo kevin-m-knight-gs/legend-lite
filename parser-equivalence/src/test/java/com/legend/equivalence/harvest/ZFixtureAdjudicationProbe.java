@@ -78,6 +78,13 @@ class ZFixtureAdjudicationProbe {
                 actual = com.legend.parser.PmcdParser.parseDocument(src);
             } catch (Throwable t) {
                 verdicts.merge("PROTOCOL-REFUSES-accepted", 1, Integer::sum);
+                Throwable r = rootOf(t);
+                String m = String.valueOf(r.getMessage())
+                        .replaceAll("\\[\\d+:\\d+\\]", "[N:N]")
+                        .replaceAll("'[^']*'", "'X'");
+                System.out.println("@@ PREF " + n.get("origin").asText()
+                        .replaceAll(".*\\.", "") + " :: "
+                        + (m.length() > 90 ? m.substring(0, 90) : m));
                 continue;
             }
             // model path SEPARATELY — its refusals are lite's COMPILE
