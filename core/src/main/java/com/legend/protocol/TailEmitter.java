@@ -1280,6 +1280,60 @@ final class TailEmitter {
         };
     }
 
+
+    /** One legacy assert entry: assert lambda + parametersValues (spec
+     *  values; harvest testServiceTestParameters). */
+    private static void legacyAssert(StringBuilder b,
+            Protocol.PLegacyServiceTest.PLegacyAssert a) {
+        b.append("{\"assert\":");
+        if (a.assertion() instanceof com.legend.protocol.spec.LambdaFunction) {
+            ProtocolEmitter.valueSpec(b, a.assertion());
+        } else {
+            // a BARE expression assert wires wrapped in a parameterless
+            // lambda with NO span (harvest testServiceTestParameters)
+            b.append("{\"_type\":\"lambda\",\"body\":[");
+            ProtocolEmitter.valueSpec(b, a.assertion());
+            b.append("],\"parameters\":[]}");
+        }
+        b.append(",\"parametersValues\":[");
+        for (int i = 0; i < a.parametersValues().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            var v = a.parametersValues().get(i);
+            if (v instanceof com.legend.protocol.spec.AppliedFunction af
+                    && "list".equals(af.function())
+                    && af.parameters().size() == 1
+                    && af.parameters().get(0)
+                            instanceof com.legend.protocol.spec.PureCollection pc) {
+                // list([...]) wires as classInstance/listInstance; outer
+                // AND inner si = the whole call's span (probed); a BARE
+                // nested [..] stays a plain collection
+                b.append("{\"_type\":\"classInstance\","
+                        + "\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
+                        af.pos()));
+                b.append(",\"type\":\"listInstance\",\"value\":{"
+                        + "\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
+                        af.pos()));
+                b.append(",\"values\":[");
+                for (int j = 0; j < pc.values().size(); j++) {
+                    if (j > 0) {
+                        b.append(',');
+                    }
+                    ProtocolEmitter.valueSpec(b, pc.values().get(j));
+                }
+                b.append("]}}");
+            } else {
+                ProtocolEmitter.valueSpec(b, v);
+            }
+        }
+        b.append("],\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, a.sourceInformation());
+        b.append('}');
+    }
+
     static void persistenceContext(StringBuilder b,
             Protocol.PPersistenceContext pc) {
         b.append("{\"_type\":\"persistenceContext\",\"name\":");
@@ -1482,12 +1536,7 @@ final class TailEmitter {
                     if (j > 0) {
                         b.append(',');
                     }
-                    b.append("{\"assert\":");
-                    ProtocolEmitter.valueSpec(b, a.assertion());
-                    b.append(",\"parametersValues\":[],"
-                            + "\"sourceInformation\":");
-                    ProtocolEmitter.srcInfo(b, a.sourceInformation());
-                    b.append('}');
+                    legacyAssert(b, a);
                 }
                 b.append("],\"data\":");
                 ProtocolEmitter.str(b, kt.data());
@@ -1508,12 +1557,7 @@ final class TailEmitter {
                 if (i > 0) {
                     b.append(',');
                 }
-                b.append("{\"assert\":");
-                ProtocolEmitter.valueSpec(b, a.assertion());
-                b.append(",\"parametersValues\":[],"
-                        + "\"sourceInformation\":");
-                ProtocolEmitter.srcInfo(b, a.sourceInformation());
-                b.append('}');
+                legacyAssert(b, a);
             }
             b.append("],\"data\":");
             ProtocolEmitter.str(b,

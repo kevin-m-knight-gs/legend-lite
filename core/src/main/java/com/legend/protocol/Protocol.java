@@ -1150,8 +1150,9 @@ public final class Protocol {
         }
 
         /** One assert: {@code { [params], lambda }} — parametersValues
-         *  stay empty in the corpus scope. */
+         *  are spec values (harvest testServiceTestParameters). */
         public record PLegacyAssert(
+                List<com.legend.protocol.spec.ValueSpecification> parametersValues,
                 com.legend.protocol.spec.ValueSpecification assertion,
                 com.legend.protocol.SourceInfo sourceInformation) {
         }
@@ -1955,10 +1956,20 @@ public final class Protocol {
             @com.legend.Nullable String element,
             @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
             List<PMapperPostProcessor> postProcessors,
+            @com.legend.Nullable List<PGenerationFeaturesConfig> queryGenerationConfigs,
+            @com.legend.Nullable Long queryTimeOutInSeconds,
             @com.legend.Nullable Boolean quoteIdentifiers,
             @com.legend.Nullable String timeZone,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
+    }
+
+    /** {@code GenerationFeaturesConfig { enabled: [...]; disabled: [...] }}
+     *  — wire {@code _type:"generationFeaturesConfig"}, disabled/enabled
+     *  alphabetical, span keyword..close (harvest f_qgc probe). */
+    public record PGenerationFeaturesConfig(List<String> enabled,
+                                            List<String> disabled,
+                                            com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"mapper"} post-processor: table/schema mappers; a table

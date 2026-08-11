@@ -874,6 +874,40 @@ public final class ProtocolEmitter {
                     }
                     b.append(']');
                 }
+                if (rc.queryGenerationConfigs() != null) {
+                    b.append(",\"queryGenerationConfigs\":[");
+                    List<Protocol.PGenerationFeaturesConfig> qgs =
+                            rc.queryGenerationConfigs();
+                    for (int i = 0; i < qgs.size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PGenerationFeaturesConfig g = qgs.get(i);
+                        b.append("{\"_type\":\"generationFeaturesConfig\","
+                                + "\"disabled\":[");
+                        for (int j = 0; j < g.disabled().size(); j++) {
+                            if (j > 0) {
+                                b.append(',');
+                            }
+                            str(b, g.disabled().get(j));
+                        }
+                        b.append("],\"enabled\":[");
+                        for (int j = 0; j < g.enabled().size(); j++) {
+                            if (j > 0) {
+                                b.append(',');
+                            }
+                            str(b, g.enabled().get(j));
+                        }
+                        b.append("],\"sourceInformation\":");
+                        srcInfo(b, g.sourceInformation());
+                        b.append('}');
+                    }
+                    b.append(']');
+                }
+                if (rc.queryTimeOutInSeconds() != null) {
+                    b.append(",\"queryTimeOutInSeconds\":")
+                            .append(rc.queryTimeOutInSeconds());
+                }
                 if (rc.quoteIdentifiers() != null) {
                     b.append(",\"quoteIdentifiers\":")
                             .append(rc.quoteIdentifiers());
@@ -2096,6 +2130,19 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case com.legend.protocol.spec.EnumValue e -> {
+                if (e.enumerationPos() == null) {
+                    // legacy-test PARAMETER position (harvest
+                    // testServiceTestParameters): a REAL enumValue node —
+                    // fullPath + value, one span
+                    b.append("{\"_type\":\"enumValue\",\"fullPath\":");
+                    str(b, e.fullPath());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, requirePos(e.pos(), "enumValue " + e.value()));
+                    b.append(",\"value\":");
+                    str(b, e.value());
+                    b.append('}');
+                    break;
+                }
                 // On the wire an enum-value access is a plain PROPERTY on a
                 // packageableElementPtr — there is no enumValue node (ProbeWireShapes cEnum).
                 b.append("{\"_type\":\"property\",\"parameters\":["

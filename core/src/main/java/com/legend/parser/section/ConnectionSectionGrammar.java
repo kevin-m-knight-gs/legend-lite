@@ -499,6 +499,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         Protocol.PAuthStrategy auth = null;
         List<Protocol.PMapperPostProcessor> posts = new ArrayList<>();
         Boolean quoteIdentifiers = null;
+        Long queryTimeOut = null;
+        List<Protocol.PGenerationFeaturesConfig> queryGenConfigs = null;
         String timeZone = null;
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int kS = c.pos();
@@ -520,6 +522,59 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 case "postProcessors" -> parseMapperPostProcessors(c, posts);
                 case "quoteIdentifiers" -> {
                     quoteIdentifiers = parseBoolean(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "queryTimeOutInSeconds" -> {
+                    // wire: bare integer (harvest f_qto probe)
+                    queryTimeOut = Long.parseLong(c.text());
+                    c.expect(TokenType.INTEGER);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "queryGenerationConfigs" -> {
+                    // [ GenerationFeaturesConfig { enabled: ['..'];
+                    //   disabled: ['..']; } ] (harvest f_qgc probe)
+                    queryGenConfigs = new ArrayList<>();
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE
+                            && !c.atEnd()) {
+                        int gS = c.pos();
+                        String gKind = c.parseIdentifier();
+                        if (!"GenerationFeaturesConfig".equals(gKind)) {
+                            throw c.error("unknown query generation config: "
+                                    + gKind);
+                        }
+                        c.expect(TokenType.BRACE_OPEN);
+                        List<String> enabled = new ArrayList<>();
+                        List<String> disabled = new ArrayList<>();
+                        while (c.peek() != TokenType.BRACE_CLOSE
+                                && !c.atEnd()) {
+                            String gk = c.parseIdentifier();
+                            c.expect(TokenType.COLON);
+                            List<String> into = switch (gk) {
+                                case "enabled" -> enabled;
+                                case "disabled" -> disabled;
+                                default -> throw c.error(
+                                        "unknown GenerationFeaturesConfig"
+                                                + " key: " + gk);
+                            };
+                            c.expect(TokenType.BRACKET_OPEN);
+                            while (c.peek() != TokenType.BRACKET_CLOSE
+                                    && !c.atEnd()) {
+                                into.add(stringValue(c));
+                                c.match(TokenType.COMMA);
+                            }
+                            c.expect(TokenType.BRACKET_CLOSE);
+                            c.expect(TokenType.SEMI_COLON);
+                        }
+                        int gE = c.pos();
+                        c.expect(TokenType.BRACE_CLOSE);
+                        queryGenConfigs.add(
+                                new Protocol.PGenerationFeaturesConfig(
+                                        enabled, disabled,
+                                        c.spanOf(gS, gE)));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "timezone" -> {
@@ -546,6 +601,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
         return new Protocol.PRelationalDatabaseConnection(
                 auth, dbType, spec, element, elementSpan, posts,
+                queryGenConfigs, queryTimeOut,
                 quoteIdentifiers, timeZone, c.spanOf(declStart, c.pos() - 1));
     }
 

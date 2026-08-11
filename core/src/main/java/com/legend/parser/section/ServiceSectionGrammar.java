@@ -209,6 +209,113 @@ public final class ServiceSectionGrammar
                         c.spanOf(vs, c.pos() - 1)));
     }
 
+
+    /** One legacy-test parameter VALUE — the engine's primitiveValue
+     *  grammar, which differs from general expressions in three probed
+     *  ways (harvest testServiceTestParameters): signed literals FOLD
+     *  (-54 is integer -54, not minus(54)); Enum.value is an enumValue
+     *  node; a [list] wires as classInstance/listInstance (wrapped at
+     *  the emitter over the PureCollection this returns). */
+    private static com.legend.protocol.spec.ValueSpecification
+            legacyParamValue(TokenStreamCursor c, int from) {
+        var ts = c.tokens();
+        int n = c.pos() - from;
+        // -NUMBER → folded negative literal
+        if (n == 2 && ts.type(from) == TokenType.MINUS) {
+            TokenType lt = ts.type(from + 1);
+            String txt = ts.text(from + 1);
+            var span = c.spanOf(from, from + 1);
+            if (lt == TokenType.INTEGER) {
+                return new com.legend.protocol.spec.CInteger(
+                        Long.parseLong("-" + txt), span);
+            }
+            if (lt == TokenType.FLOAT) {
+                return new com.legend.protocol.spec.CFloat(
+                        Double.parseDouble("-" + txt), span);
+            }
+        }
+        // path DOT ident → enumValue
+        int dot = -1;
+        for (int i = from; i < c.pos(); i++) {
+            if (ts.type(i) == TokenType.DOT) {
+                dot = i;
+            }
+        }
+        if (dot > from && dot == c.pos() - 2
+                && c.isIdentifierToken(ts.type(c.pos() - 1))) {
+            boolean pathish = true;
+            for (int i = from; i < dot; i++) {
+                if (!(c.isIdentifierToken(ts.type(i))
+                        || ts.type(i) == TokenType.PATH_SEPARATOR)) {
+                    pathish = false;
+                    break;
+                }
+            }
+            if (pathish) {
+                StringBuilder path = new StringBuilder();
+                for (int i = from; i < dot; i++) {
+                    path.append(ts.text(i));
+                }
+                return new com.legend.protocol.spec.EnumValue(
+                        Protocol.unquotePath(path.toString()),
+                        ts.text(c.pos() - 1), null,
+                        c.spanOf(from, c.pos() - 1));
+            }
+        }
+        // list([...]) → classInstance/listInstance wire; the span is the
+        // WHOLE call (probed 9..23 over list(['param'])) — build the
+        // marker AppliedFunction with that span so the emitter can wrap
+        if (c.isIdentifierToken(ts.type(from)) && "list".equals(ts.text(from))
+                && from + 1 < c.pos()
+                && ts.type(from + 1) == TokenType.PAREN_OPEN
+                && ts.type(c.pos() - 1) == TokenType.PAREN_CLOSE) {
+            com.legend.protocol.spec.ValueSpecification inner =
+                    com.legend.parser.SpecParser.parse(
+                            c.tokens().slice(from + 2, c.pos() - 1));
+            return new com.legend.protocol.spec.AppliedFunction("list",
+                    java.util.List.of(foldSignedLiterals(inner)),
+                    java.util.List.of(),
+                    c.spanOf(from, c.pos() - 1));
+        }
+        return foldSignedLiterals(com.legend.parser.SpecParser.parse(
+                c.tokens().slice(from, c.pos())));
+    }
+
+    /** The engine's primitiveValue grammar folds SIGNED literals (-3 is
+     *  integer -3, not minus(3)) at every depth of a parameter value —
+     *  rewrite unary-minus-over-literal recursively (harvest
+     *  testServiceTestParameters list([1,2,-3])). */
+    private static com.legend.protocol.spec.ValueSpecification
+            foldSignedLiterals(com.legend.protocol.spec.ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.AppliedFunction af
+                && "minus".equals(af.function())
+                && af.parameters().size() == 1) {
+            var arg = af.parameters().get(0);
+            if (arg instanceof com.legend.protocol.spec.CInteger ci) {
+                return new com.legend.protocol.spec.CInteger(
+                        -ci.value().longValue(), af.pos());
+            }
+            if (arg instanceof com.legend.protocol.spec.CFloat cf) {
+                return new com.legend.protocol.spec.CFloat(-cf.value(),
+                        af.pos());
+            }
+        }
+        java.util.List<com.legend.protocol.spec.ValueSpecification> cs =
+                v.children();
+        if (cs.isEmpty()) {
+            return v;
+        }
+        java.util.List<com.legend.protocol.spec.ValueSpecification> out =
+                new ArrayList<>(cs.size());
+        boolean changed = false;
+        for (var child : cs) {
+            var f = foldSignedLiterals(child);
+            changed |= f != child;
+            out.add(f);
+        }
+        return changed ? v.withChildren(out) : v;
+    }
+
     /** The legacy test BODY loop ({@code data:} / {@code asserts:}),
      *  shared by Single and Multi keyed entries; returns data. */
     private static @com.legend.Nullable String parseLegacyBody(
@@ -229,9 +336,33 @@ public final class ServiceSectionGrammar
                         int as = c.pos();
                         c.expect(TokenType.BRACE_OPEN);
                         c.expect(TokenType.BRACKET_OPEN);
-                        if (c.peek() != TokenType.BRACKET_CLOSE) {
-                            throw c.error("legacy test parameter values are"
-                                    + " out of the corpus-censused scope");
+                        // parametersValues — spec values on the wire
+                        // (harvest testServiceTestParameters)
+                        List<com.legend.protocol.spec.ValueSpecification>
+                                paramValues = new ArrayList<>();
+                        while (c.peek() != TokenType.BRACKET_CLOSE
+                                && !c.atEnd()) {
+                            int pvS = c.pos();
+                            int pd = 0;
+                            while (!c.atEnd()) {
+                                TokenType tk = c.peek();
+                                if (pd == 0 && (tk == TokenType.COMMA
+                                        || tk == TokenType.BRACKET_CLOSE)) {
+                                    break;
+                                }
+                                if (tk == TokenType.PAREN_OPEN
+                                        || tk == TokenType.BRACE_OPEN
+                                        || tk == TokenType.BRACKET_OPEN) {
+                                    pd++;
+                                } else if (tk == TokenType.PAREN_CLOSE
+                                        || tk == TokenType.BRACE_CLOSE
+                                        || tk == TokenType.BRACKET_CLOSE) {
+                                    pd--;
+                                }
+                                c.advance();
+                            }
+                            paramValues.add(legacyParamValue(c, pvS));
+                            c.match(TokenType.COMMA);
                         }
                         c.expect(TokenType.BRACKET_CLOSE);
                         c.expect(TokenType.COMMA);
@@ -258,7 +389,7 @@ public final class ServiceSectionGrammar
                                         c.tokens().slice(ls, c.pos()));
                         c.expect(TokenType.BRACE_CLOSE);
                         asserts.add(new Protocol.PLegacyServiceTest
-                                .PLegacyAssert(lambda,
+                                .PLegacyAssert(paramValues, lambda,
                                         c.spanOf(as, c.pos() - 1)));
                         if (!c.match(TokenType.COMMA)) {
                             break;
