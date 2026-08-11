@@ -106,11 +106,28 @@ and the clean NullAway compile absorbing the server shell. `allgates.sh`
 now stamps per-gate wall time into the log (`GN_EXIT=0 (took Ns)`) — re-pin
 this table from the next run's stamps instead of guessing.
 
-Per-suite execution is NOT the cost: the 4,046-test core gate runs in ~28s
-of test time. The budget lives in the seven maven invocations (JVM + clean
-compile each).
+Measured per-gate 2026-08-11 (the runner now stamps these into the log):
 
-Previous table (2026-08-08 measurements, rows updated for the fold):
+| # | gate | 08-08 | 08-11 |
+|---|------|-------|-------|
+| 1 | core suite (clean; 4,046 tests — engine's suite folded in) | 13s | 29s |
+| 2 | core install | 1s | 8s |
+| 3 | (folded into gate 1 — engine module deleted) | 21s | — |
+| 4 | DuckDB corpus sweep | 92s | 93s |
+| 5 | h2 corpus sweep | 41s | 43s |
+| 6 | PCT full | 73s | 78s |
+| 7 | PCT h2modern guard | 24s | 24s |
+| 8 | parser parity | ~65s | **123s** |
+| | **total** | **~330s** | **398s (6m38)** |
+
+The minute went to GATE 8: it roughly doubled when the whole-document PMCD
+parity test (5,259 sources) joined the element-level sweep (26,168 verdicts)
+— both layers re-parse largely the same source text, and the recorded
+"harness dedupe" follow-up (PMCD-parity notes) is the lever to claw much of
+it back: parse each distinct source once, feed both verdict layers from the
+same parse. Everything else moved by seconds.
+
+Previous table (2026-08-08 measurements) for reference:
 
 | # | gate | time |
 |---|------|------|
