@@ -73,6 +73,10 @@ final class MappingEmitter {
                 case Protocol.PClassMappingRelation rf -> {
                     b.append("{\"_type\":\"relation\",\"class\":");
                     str(b, rf.className());
+                    if (rf.extendsClassMappingId() != null) {
+                        b.append(",\"extendsClassMappingId\":");
+                        str(b, rf.extendsClassMappingId());
+                    }
                     if (rf.id() != null) {
                         b.append(",\"id\":");
                         str(b, rf.id());
@@ -364,6 +368,10 @@ final class MappingEmitter {
                 case Protocol.PModelJoinAssociationMapping mj -> {
                     b.append("{\"_type\":\"modelJoin\",\"association\":");
                     pointer(b, mj.association());
+                    if (mj.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, mj.id());
+                    }
                     b.append(",\"joinCondition\":");
                     valueSpec(b, mj.joinCondition());
                     b.append(",\"sourceInformation\":");

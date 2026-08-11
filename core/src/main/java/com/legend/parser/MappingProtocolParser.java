@@ -516,13 +516,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.VALID_STRING && "ModelJoin".equals(text())) {
             advance();
-            assocMappings.add(parseModelJoin(target, memberStart, targetSpan));
+            assocMappings.add(parseModelJoin(target, memberStart, targetSpan,
+                    id));
             return;
         }
         if (peek() == TokenType.VALID_STRING && "Relation".equals(text())) {
             advance();
             classMappings.add(parseRelationClassMapping(target, memberStart,
-                    targetSpan, id, root));
+                    targetSpan, id, extendsId, root));
             return;
         }
         if (peek() == TokenType.VALID_STRING && "Operation".equals(text())) {
@@ -1806,7 +1807,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  braces are ONE typed ###Pure lambda through SpecParser (probe
      *  modeljoin); member span target..outer close. */
     private Protocol.PModelJoinAssociationMapping parseModelJoin(
-            String target, int memberStart, SourceInfo targetSpan) {
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id) {
         expect(TokenType.BRACE_OPEN);
         int lS = pos;
         int depth = 0;
@@ -1832,7 +1834,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PModelJoinAssociationMapping(
                 new Protocol.PPointer("ASSOCIATION", target, targetSpan),
-                body.get(0), spanOf(memberStart, close));
+                id, body.get(0), spanOf(memberStart, close));
     }
 
     /** {@code cls[id]: Relation { ~func <descriptor> prop: col, ... }} —
@@ -1840,7 +1842,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  with NO spaces); property lines map columns (probe relation-fn). */
     private Protocol.PClassMappingRelation parseRelationClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root) {
+            @com.legend.Nullable String id,
+            @com.legend.Nullable String extendsId, boolean root) {
         int braceTok = pos;
         expect(TokenType.BRACE_OPEN);
         int braceLine = tokens.startLine(braceTok);
@@ -1992,7 +1995,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PClassMappingRelation(target, id, pk, props,
+        return new Protocol.PClassMappingRelation(target, id, extendsId,
+                pk, props,
                 srcForm ? null : desc, srcForm ? null : fnSpan, srcLambda,
                 root, spanOf(memberStart, close));
     }

@@ -129,6 +129,7 @@ public final class Protocol {
      *  condition is a TYPED ###Pure lambda via SpecParser; member span
      *  target..outer brace (probe modeljoin). */
     public record PModelJoinAssociationMapping(PPointer association,
+                                               @com.legend.Nullable String id,
                                                com.legend.protocol.spec.ValueSpecification joinCondition,
                                                com.legend.protocol.SourceInfo sourceInformation)
             implements PAssociationMapping {
@@ -368,6 +369,7 @@ public final class Protocol {
      *  {@code relationFunction}/{@code sourceLambda} is set. */
     public record PClassMappingRelation(String className,
                                         @com.legend.Nullable String id,
+                                        @com.legend.Nullable String extendsClassMappingId,
                                         List<String> primaryKey,
                                         List<PRelationFnPropertyMapping> propertyMappings,
                                         @com.legend.Nullable String relationFunction,

@@ -21,6 +21,29 @@ import java.util.stream.Stream;
  *  Diagnostic. */
 class ZKeywordCoverageProbe {
 
+
+    /** The committed engine-fixture snapshot as census coverage input. */
+    static java.util.List<Corpus.Source> engineFixtures() {
+        java.util.List<Corpus.Source> out = new java.util.ArrayList<>();
+        java.nio.file.Path p = java.nio.file.Path.of("src/test/resources/"
+                + "engine-grammar-fixtures-4.138.2.jsonl");
+        if (!java.nio.file.Files.exists(p)) {
+            return out;
+        }
+        try {
+            var om = new com.fasterxml.jackson.databind.ObjectMapper();
+            int i = 0;
+            for (String line : java.nio.file.Files.readAllLines(p)) {
+                var n = om.readTree(line);
+                out.add(new Corpus.Source("engine-fixture#" + (i++),
+                        n.get("source").asText(), "C6"));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return out;
+    }
+
     @Test
     void keywordCoverage() throws Exception {
         Path engineRoot = Path.of(System.getProperty("legend.engine.root"));
@@ -48,7 +71,10 @@ class ZKeywordCoverageProbe {
         PureGrammarParser oracle = PureGrammarParser.newInstance();
         Set<String> covered = new HashSet<>();
         int accepted = 0;
-        for (Corpus.Source src : Corpus.all()) {
+        java.util.List<Corpus.Source> universe =
+                new java.util.ArrayList<>(Corpus.all());
+        universe.addAll(engineFixtures());
+        for (Corpus.Source src : universe) {
             try {
                 oracle.parseModel(src.text());
             } catch (Throwable t) {

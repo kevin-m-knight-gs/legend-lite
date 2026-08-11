@@ -218,38 +218,34 @@ public final class PmcdParser {
     // Imports
     // ------------------------------------------------------------------
 
-    /** Depth-0 {@code import a::b::*;} statements in the range — the
-     *  sectionIndex lists the path text minus the trailing {@code ::*}. */
+    /** The section's {@code import a::b::*;} PREFIX — the sectionIndex
+     *  lists the path text minus the trailing {@code ::*}. Engine section
+     *  grammars are {@code imports (element)*}: imports can ONLY precede
+     *  the first element, so the scan STOPS at the first non-import
+     *  token. (The old depth-0 whole-range scan fabricated an import out
+     *  of a keyword-as-identifier declaration like
+     *  {@code Class import::Class::…} — caught by the harvested
+     *  identifier-inclusion fixtures, DIFF batch 2026-08-11.) */
     private static List<String> sectionImports(TokenStream ts, long[] r) {
         List<String> out = new ArrayList<>();
         int cursor = skipTo(ts, r[0]);
-        int depth = 0;
-        for (; cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-            TokenType t = ts.type(cursor);
-            switch (t) {
-                case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                case IMPORT -> {
-                    if (depth == 0) {
-                        StringBuilder p = new StringBuilder();
-                        cursor++;
-                        while (cursor < ts.count()
-                                && ts.type(cursor) != TokenType.SEMI_COLON) {
-                            p.append(ts.text(cursor));
-                            cursor++;
-                        }
-                        String imp = Protocol.unquotePath(
-                                stripWildcard(p.toString()));
-                        // the engine DEDUPES section imports keeping the
-                        // FIRST occurrence (PmcdEquivalenceTest:
-                        // storeContract/flatDataToPure)
-                        if (!out.contains(imp)) {
-                            out.add(imp);
-                        }
-                    }
-                }
-                default -> {
-                }
+        while (cursor < ts.count() && ts.start(cursor) < r[1]
+                && ts.type(cursor) == TokenType.IMPORT) {
+            StringBuilder p = new StringBuilder();
+            cursor++;
+            while (cursor < ts.count()
+                    && ts.type(cursor) != TokenType.SEMI_COLON) {
+                p.append(ts.text(cursor));
+                cursor++;
+            }
+            cursor++;                               // past the ';'
+            String imp = Protocol.unquotePath(
+                    stripWildcard(p.toString()));
+            // the engine DEDUPES section imports keeping the
+            // FIRST occurrence (PmcdEquivalenceTest:
+            // storeContract/flatDataToPure)
+            if (!out.contains(imp)) {
+                out.add(imp);
             }
         }
         return out;
