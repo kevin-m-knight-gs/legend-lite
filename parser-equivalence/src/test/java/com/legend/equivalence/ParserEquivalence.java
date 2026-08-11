@@ -855,7 +855,15 @@ public final class ParserEquivalence {
     }
 
     private Ref referenceElements(Corpus.Source src) throws Exception {
-        PureModelContextData pmcd = reference.parseModel(src.text());
+        // shared with the whole-document sweep — ONE oracle parse per source
+        PureModelContextData pmcd;
+        try {
+            pmcd = OracleParses.acquire(src);
+        } catch (Exception | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
         Map<String, List<String>> byFqn = new LinkedHashMap<>();
         Map<String, String> sectionOf = new LinkedHashMap<>();
         for (PackageableElement e : pmcd.getElements()) {

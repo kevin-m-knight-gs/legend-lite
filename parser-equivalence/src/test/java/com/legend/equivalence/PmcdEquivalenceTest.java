@@ -1,6 +1,5 @@
 package com.legend.equivalence;
 
-import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ class PmcdEquivalenceTest {
     void wholeDocumentByteParity() throws Exception {
         var mapper = org.finos.legend.engine.shared.core.ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
-        PureGrammarParser oracle = PureGrammarParser.newInstance();
         int match = 0;
         int oracleRejects = 0;
         List<String> weRefuse = new ArrayList<>();
@@ -36,8 +34,8 @@ class PmcdEquivalenceTest {
         for (Corpus.Source src : Corpus.all()) {
             String expected;
             try {
-                expected = mapper.writeValueAsString(
-                        oracle.parseModel(src.text()));
+                // shared with the element ledger — ONE oracle parse per source
+                expected = mapper.writeValueAsString(OracleParses.acquire(src));
             } catch (Throwable t) {
                 oracleRejects++;
                 continue;

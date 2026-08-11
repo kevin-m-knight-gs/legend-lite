@@ -117,8 +117,8 @@ Measured per-gate 2026-08-11 (the runner now stamps these into the log):
 | 5 | h2 corpus sweep | 41s | 43s |
 | 6 | PCT full | 73s | 78s |
 | 7 | PCT h2modern guard | 24s | 24s |
-| 8 | parser parity | ~65s | **123s** |
-| | **total** | **~330s** | **398s (6m38)** |
+| 8 | parser parity | ~65s | **123s** → 103s after the oracle-parse dedupe |
+| | **total** | **~330s** | **398s (6m38)** → ~6m15 |
 
 The minute went to GATE 8: it roughly doubled when the whole-document PMCD
 parity test (5,259 sources) joined the element-level sweep (26,168 verdicts)
