@@ -1,6 +1,6 @@
-package com.gs.legend.server;
+package com.legend.server;
 
-import com.gs.legend.util.Json;
+
 
 import java.util.*;
 
@@ -59,7 +59,7 @@ public class PureLspServer {
         }
     }
 
-    private String handleInitialize(Object id, Json.Obj params) {
+    private String handleInitialize(@com.legend.Nullable Object id, Json.@com.legend.Nullable Obj params) {
         Map<String, Object> capabilities = new LinkedHashMap<>();
         Map<String, Object> textDocumentSync = new LinkedHashMap<>();
         textDocumentSync.put("openClose", true);
@@ -77,11 +77,11 @@ public class PureLspServer {
         return successResponse(id, result);
     }
 
-    private String handleShutdown(Object id) {
+    private String handleShutdown(@com.legend.Nullable Object id) {
         return successResponse(id, null);
     }
 
-    private List<String> handleDidOpen(Json.Obj params) {
+    private List<String> handleDidOpen(Json.@com.legend.Nullable Obj params) {
         if (params == null) return List.of();
         Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
@@ -96,7 +96,7 @@ public class PureLspServer {
         return List.of();
     }
 
-    private List<String> handleDidChange(Json.Obj params) {
+    private List<String> handleDidChange(Json.@com.legend.Nullable Obj params) {
         if (params == null) return List.of();
         Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
@@ -115,7 +115,7 @@ public class PureLspServer {
         return List.of();
     }
 
-    private List<String> handleDidClose(Json.Obj params) {
+    private List<String> handleDidClose(Json.@com.legend.Nullable Obj params) {
         if (params == null) return List.of();
         Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
@@ -188,7 +188,10 @@ public class PureLspServer {
                             if (colEnd > colStart) character = Integer.parseInt(message.substring(colStart, colEnd));
                         }
                     }
-                } catch (NumberFormatException ignored) { }
+                } catch (NumberFormatException ignored) {
+                    // no parseable line/col in the message — the quoted-name
+                    // scan below still finds a position; 0,0 is the floor
+                }
             }
 
             if (line == 0) {
@@ -249,7 +252,7 @@ public class PureLspServer {
         return Json.toCompact(notification);
     }
 
-    private String successResponse(Object id, Object result) {
+    private String successResponse(@com.legend.Nullable Object id, @com.legend.Nullable Object result) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("jsonrpc", "2.0");
         response.put("id", id);
@@ -257,7 +260,7 @@ public class PureLspServer {
         return Json.toCompact(response);
     }
 
-    private String errorResponse(Object id, int code, String message) {
+    private String errorResponse(@com.legend.Nullable Object id, int code, String message) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("code", code);
         error.put("message", message);
@@ -269,6 +272,6 @@ public class PureLspServer {
         return Json.toCompact(response);
     }
 
-    public String getDocument(String uri) { return documents.get(uri); }
+    public @com.legend.Nullable String getDocument(String uri) { return documents.get(uri); }
     public boolean hasDocument(String uri) { return documents.containsKey(uri); }
 }

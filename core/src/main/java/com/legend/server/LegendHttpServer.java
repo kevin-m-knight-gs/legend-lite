@@ -1,6 +1,6 @@
-package com.gs.legend.server;
+package com.legend.server;
 
-import com.gs.legend.util.Json;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -255,7 +255,7 @@ public class LegendHttpServer {
     /**
      * Extract the Runtime name from the Pure source.
      */
-    private String extractRuntimeName(String source) {
+    private @com.legend.Nullable String extractRuntimeName(String source) {
         Matcher matcher = RUNTIME_PATTERN.matcher(source);
         if (matcher.find()) {
             return matcher.group(1);

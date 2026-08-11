@@ -25,7 +25,7 @@ import com.legend.exec.ExecutionResult.Scalar;
 import com.legend.exec.ExecutionResult.Collection;
 import com.legend.exec.ExecutionResult.Tabular;
 import com.legend.exec.ExecutionResult.Graph;
-import com.gs.legend.server.QueryService;
+import com.legend.server.QueryService;
 
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;

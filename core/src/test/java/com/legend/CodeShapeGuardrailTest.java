@@ -66,6 +66,9 @@ class CodeShapeGuardrailTest {
             // view — same lifecycle as a parser cursor
             "MappingProtocolParser.sectionStartLine",
             "MappingProtocolParser.aggLambdaShift",
+            // JSON writer's field/value alternation cursor — same
+            // lifecycle as a parser cursor, scoped to one document write
+            "Json.awaitingFieldValue",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

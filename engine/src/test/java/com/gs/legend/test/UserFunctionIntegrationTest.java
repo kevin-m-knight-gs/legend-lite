@@ -5,7 +5,7 @@ import com.legend.exec.ExecutionResult;
 import com.gs.legend.parser.PureParseException;
 import com.gs.legend.plan.PlanGenerator;
 import com.legend.exec.QueryPlan;
-import com.gs.legend.server.QueryService;
+import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;

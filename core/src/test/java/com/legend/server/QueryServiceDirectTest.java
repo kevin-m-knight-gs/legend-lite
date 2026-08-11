@@ -1,4 +1,4 @@
-package com.gs.legend.server;
+package com.legend.server;
 
 import org.junit.jupiter.api.*;
 

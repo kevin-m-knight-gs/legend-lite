@@ -1,7 +1,7 @@
-package com.gs.legend.server;
+package com.legend.server;
 
-import com.gs.legend.serial.ResultSerializer;
-import com.gs.legend.serial.SerializerRegistry;
+import com.legend.server.serial.ResultSerializer;
+import com.legend.server.serial.SerializerRegistry;
 import com.legend.exec.ExecutionResult;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
-        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
+        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
         return execute(pureSource, query, runtimeName, conn);
     }
 
@@ -104,7 +104,7 @@ public class QueryService {
             OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
+        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
         execute(pureSource, query, runtimeName, conn, out, format);
     }
 
@@ -114,7 +114,7 @@ public class QueryService {
     public ExecutionResult executeSql(String pureSource, String sql, String runtimeName)
             throws SQLException {
 
-        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
+        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
 
         try (java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
@@ -159,7 +159,7 @@ public class QueryService {
             OutputStream out)
             throws SQLException, IOException {
 
-        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
+        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
         stream(pureSource, query, runtimeName, conn, out);
     }
 

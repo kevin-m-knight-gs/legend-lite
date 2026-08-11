@@ -1,4 +1,4 @@
-package com.gs.legend.serial;
+package com.legend.server.serial;
 
 import java.util.Collections;
 import java.util.Map;
@@ -54,7 +54,7 @@ public final class SerializerRegistry {
     /**
      * Gets a serializer by format ID, or null if not found.
      */
-    public static ResultSerializer getOrNull(String formatId) {
+    public static @com.legend.Nullable ResultSerializer getOrNull(String formatId) {
         return SERIALIZERS.get(formatId);
     }
 

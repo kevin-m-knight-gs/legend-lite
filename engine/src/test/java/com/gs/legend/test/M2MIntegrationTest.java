@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.server.QueryService;
+import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

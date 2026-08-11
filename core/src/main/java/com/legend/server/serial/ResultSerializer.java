@@ -1,4 +1,4 @@
-package com.gs.legend.serial;
+package com.legend.server.serial;
 
 import com.legend.exec.ExecutionResult;
 

@@ -1001,7 +1001,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertThrows(Exception.class,
                 () -> {
                     try (var conn = java.sql.DriverManager.getConnection("jdbc:duckdb:")) {
-                        new com.gs.legend.server.QueryService()
+                        new com.legend.server.QueryService()
                                 .execute(model, invalidQuery, "test::TestRuntime", conn);
                     }
                 },

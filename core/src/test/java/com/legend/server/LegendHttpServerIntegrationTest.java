@@ -1,6 +1,6 @@
-package com.gs.legend.server;
+package com.legend.server;
 
-import com.gs.legend.util.Json;
+
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;

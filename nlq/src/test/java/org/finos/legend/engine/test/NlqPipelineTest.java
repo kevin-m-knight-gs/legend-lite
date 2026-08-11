@@ -162,7 +162,7 @@ class NlqPipelineTest {
 
     // ==================== NlqResult Tests ====================
     // (GeminiClient.escapeJson was removed in the JSON convergence;
-    //  escape behavior is now covered by com.gs.legend.util.JsonTest —
+    //  escape behavior is now covered by com.legend.server.JsonTest —
     //  34 escape + 22 unescape tests against RFC 8259 and JSONTestSuite.)
 
     @Test

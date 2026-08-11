@@ -1,6 +1,6 @@
 package org.finos.legend.engine.nlq;
 
-import com.gs.legend.util.Json;
+import com.legend.server.Json;
 
 import java.net.URI;
 import java.net.http.HttpClient;

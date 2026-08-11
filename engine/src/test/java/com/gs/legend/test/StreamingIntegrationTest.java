@@ -1,9 +1,9 @@
 package com.gs.legend.test;
 
-import com.gs.legend.serial.SerializerRegistry;
-import com.gs.legend.server.OutputFormat;
-import com.gs.legend.server.QueryService;
-import com.gs.legend.util.Json;
+import com.legend.server.serial.SerializerRegistry;
+import com.legend.server.OutputFormat;
+import com.legend.server.QueryService;
+import com.legend.server.Json;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

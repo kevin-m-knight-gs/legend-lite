@@ -1,4 +1,4 @@
-package com.gs.legend.server;
+package com.legend.server;
 
 /**
  * Serialization format for {@link QueryService#execute(String, String, String,
@@ -11,7 +11,7 @@ package com.gs.legend.server;
  * <p>Each constant carries two pieces of metadata:
  * <ul>
  *   <li>{@link #id()} — stable string identifier used by
- *       {@link com.gs.legend.serial.SerializerRegistry} for dispatch.</li>
+ *       {@link com.legend.server.serial.SerializerRegistry} for dispatch.</li>
  *   <li>{@link #contentType()} — the MIME type servers should send with
  *       responses of this format.</li>
  * </ul>

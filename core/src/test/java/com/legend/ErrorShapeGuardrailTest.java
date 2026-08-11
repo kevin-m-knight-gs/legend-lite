@@ -55,6 +55,15 @@ class ErrorShapeGuardrailTest {
             // probe, implicitLeaves' child-source probe — each falls back
             // to the next resolution route, never swallows a verdict
             Map.entry("GraphEmission.java", 4),
+            // 5 = the HTTP request boundary (reviewed): each handler's
+            // catch converts ANY failure into a JSON error response and
+            // keeps the server alive — LSP handler, execute, executeSql,
+            // diagram (whose response-write fallback is the 5th)
+            Map.entry("LegendHttpServer.java", 5),
+            // 2 = the LSP protocol boundary (reviewed): dispatch converts
+            // failures to JSON-RPC error responses; rebuild converts a
+            // compile crash into published diagnostics
+            Map.entry("PureLspServer.java", 2),
             Map.entry("ScanRelations.java", 1),
             Map.entry("StatementExecutor.java", 1),
             Map.entry("StaticFold.java", 1),

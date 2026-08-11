@@ -3,7 +3,7 @@ package com.gs.legend.test;
 import com.legend.exec.ExecutionResult;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.mapping.MappingRegistry;
-import com.gs.legend.server.QueryService;
+import com.legend.server.QueryService;
 import com.gs.legend.sqlgen.SQLDialect;
 
 import java.sql.Connection;

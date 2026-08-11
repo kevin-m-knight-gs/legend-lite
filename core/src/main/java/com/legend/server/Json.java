@@ -1,4 +1,4 @@
-package com.gs.legend.util;
+package com.legend.server;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -112,14 +112,14 @@ public final class Json {
          * {@code *Or} variants (getStringOr, getIntOr, ...) which all treat
          * both cases as "use the default".
          */
-        public Node getOr(String key, Node def) {
+        public @com.legend.Nullable Node getOr(String key, @com.legend.Nullable Node def) {
             Node n = fields.get(key);
             return (n == null || n instanceof Null) ? def : n;
         }
 
         public String getString(String key) { return ((Str) get(key)).value(); }
 
-        public String getStringOr(String key, String def) {
+        public @com.legend.Nullable String getStringOr(String key, @com.legend.Nullable String def) {
             Node n = fields.get(key);
             return n == null || n instanceof Null ? def : ((Str) n).value();
         }
@@ -149,14 +149,14 @@ public final class Json {
 
         public Obj getObj(String key) { return (Obj) get(key); }
 
-        public Obj getObjOr(String key, Obj def) {
+        public @com.legend.Nullable Obj getObjOr(String key, @com.legend.Nullable Obj def) {
             Node n = fields.get(key);
             return n == null || n instanceof Null ? def : (Obj) n;
         }
 
         public Arr getArr(String key) { return (Arr) get(key); }
 
-        public Arr getArrOr(String key, Arr def) {
+        public @com.legend.Nullable Arr getArrOr(String key, @com.legend.Nullable Arr def) {
             Node n = fields.get(key);
             return n == null || n instanceof Null ? def : (Arr) n;
         }
@@ -584,7 +584,7 @@ public final class Json {
      * <p>This is the <b>single source of truth</b> for JSON string escaping across the
      * legend-lite codebase. Other implementations are being migrated away.
      */
-    public static String escape(String s) {
+    public static String escape(@com.legend.Nullable String s) {
         if (s == null) return "";
         StringBuilder out = new StringBuilder(s.length() + 8);
         escapeTo(out, s);
@@ -623,7 +623,7 @@ public final class Json {
     }
 
     /** Reverse of {@link #escape} — decodes escape sequences in a JSON-string payload. */
-    public static String unescape(String s) {
+    public static @com.legend.Nullable String unescape(@com.legend.Nullable String s) {
         if (s == null) return null;
         StringBuilder out = new StringBuilder(s.length());
         int i = 0;

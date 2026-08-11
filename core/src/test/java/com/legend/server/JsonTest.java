@@ -1,4 +1,4 @@
-package com.gs.legend.util;
+package com.legend.server;
 
 import java.io.PipedReader;
 import java.io.PipedWriter;
@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * polymorphic serialization, round-trip fidelity, and Node accessor shape.
  *
  * <p>This test is the authoritative conformance contract for
- * {@link com.gs.legend.util.Json}. Do not weaken assertions; add tests rather
+ * {@link Json}. Do not weaken assertions; add tests rather
  * than modify existing ones when behavior is extended.
  */
 class JsonTest {

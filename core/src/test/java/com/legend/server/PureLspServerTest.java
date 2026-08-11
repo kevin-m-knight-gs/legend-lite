@@ -1,6 +1,6 @@
-package com.gs.legend.server;
+package com.legend.server;
 
-import com.gs.legend.util.Json;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

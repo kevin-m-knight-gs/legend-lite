@@ -131,6 +131,9 @@ final class ArchitectureTest {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
             .and().resideOutsideOfPackage("com.legend.harness")
+            // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
+            // of Compiler) — same standing as the harness, not a phase
+            .and().resideOutsideOfPackage("com.legend.server..")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
@@ -498,7 +501,11 @@ final class ArchitectureTest {
                     "com.legend.builtin", "com.legend",
                     // the harness bridge sits WITH the driver at the top
                     // layer (TestBody.run's string entry parses test bodies)
-                    "com.legend.harness")
+                    "com.legend.harness",
+                    // the server shell receives RAW PURE TEXT over HTTP —
+                    // a parse ENTRY like the driver (LSP diagnostics,
+                    // diagram extraction, runtime->connection resolution)
+                    "com.legend.server..")
             .should().dependOnClassesThat().haveNameMatching(
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
                     + "|MappingGrammarParser|RelationalGrammarParser"

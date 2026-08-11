@@ -2,8 +2,8 @@ package org.finos.legend.engine.nlq;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.gs.legend.server.LegendHttpServer;
-import com.gs.legend.util.Json;
+import com.legend.server.LegendHttpServer;
+import com.legend.server.Json;
 import com.gs.legend.model.PureModelBuilder;
 
 import java.io.IOException;

@@ -1,11 +1,11 @@
-package com.gs.legend.test;
+package com.legend.server;
 
-import com.gs.legend.server.DiagramService;
-import com.gs.legend.server.DiagramService.AssociationInfo;
-import com.gs.legend.server.DiagramService.ClassInfo;
-import com.gs.legend.server.DiagramService.DiagramData;
-import com.gs.legend.server.DiagramService.GeneralisationInfo;
-import com.gs.legend.server.LegendHttpServer;
+import com.legend.server.DiagramService;
+import com.legend.server.DiagramService.AssociationInfo;
+import com.legend.server.DiagramService.ClassInfo;
+import com.legend.server.DiagramService.DiagramData;
+import com.legend.server.DiagramService.GeneralisationInfo;
+import com.legend.server.LegendHttpServer;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;

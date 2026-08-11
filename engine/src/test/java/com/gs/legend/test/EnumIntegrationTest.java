@@ -3,7 +3,7 @@ package com.gs.legend.test;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.def.EnumDefinition;
-import com.gs.legend.server.QueryService;
+import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;

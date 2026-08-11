@@ -1,4 +1,4 @@
-package com.gs.legend.server;
+package com.legend.server;
 
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;
@@ -126,8 +126,8 @@ public final class DiagramService {
     /** Serialise diagram data to the compact JSON the HTTP endpoint
      *  returns (shape unchanged by the core reroute). */
     public String toJson(DiagramData data) {
-        com.gs.legend.util.Json.Writer w =
-                com.gs.legend.util.Json.compactWriter();
+        Json.Writer w =
+                Json.compactWriter();
         w.beginObject();
 
         w.name("classes").beginArray();
@@ -229,7 +229,7 @@ public final class DiagramService {
         return name;
     }
 
-    private static String getTag(ClassDefinition cd, String tagName) {
+    private static @com.legend.Nullable String getTag(ClassDefinition cd, String tagName) {
         for (TaggedValue tv : cd.taggedValues()) {
             if (tagName.equals(tv.tagName())
                     && ("NlqProfile".equals(tv.profileName())
