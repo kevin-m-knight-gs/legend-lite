@@ -29,28 +29,6 @@ import java.util.regex.Pattern;
 class ZFullRosterCensusProbe {
 
 
-    /** The committed engine-fixture snapshot as census coverage input. */
-    static java.util.List<Corpus.Source> engineFixtures() {
-        java.util.List<Corpus.Source> out = new java.util.ArrayList<>();
-        java.nio.file.Path p = java.nio.file.Path.of("src/test/resources/"
-                + "engine-grammar-fixtures-4.138.2.jsonl");
-        if (!java.nio.file.Files.exists(p)) {
-            return out;
-        }
-        try {
-            var om = new com.fasterxml.jackson.databind.ObjectMapper();
-            int i = 0;
-            for (String line : java.nio.file.Files.readAllLines(p)) {
-                var n = om.readTree(line);
-                out.add(new Corpus.Source("engine-fixture#" + (i++),
-                        n.get("source").asText(), "C6"));
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return out;
-    }
-
     @Test
     void completeCensus() throws Exception {
         // ---- roster: every @JsonSubTypes in protocol packages ----
@@ -102,7 +80,7 @@ class ZFullRosterCensusProbe {
         Pattern tag = Pattern.compile("\"_type\"\\s*:\\s*\"([^\"]+)\"");
         Set<String> seen = new TreeSet<>();
         List<Corpus.Source> universe = new ArrayList<>(Corpus.all());
-        universe.addAll(engineFixtures());
+        universe.addAll(Corpus.engineFixtures());
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
         for (String module : new String[]{"core", "pct", "nlq"}) {
             universe.addAll(InlineSnippets.extract(repo.resolve(module),

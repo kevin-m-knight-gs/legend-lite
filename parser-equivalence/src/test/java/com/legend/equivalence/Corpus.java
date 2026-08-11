@@ -78,6 +78,29 @@ public final class Corpus {
      * <p>{@code m3.pure} is excluded: 3,607 lines of {@code ^Root.children[...]} bootstrap-instance
      * syntax with zero normal declarations, which skews every count.
      */
+    /** C6: the committed engine-fixture snapshot (see the harvest note
+     *  in {@link #all()}); empty when the resource is absent. */
+    static List<Source> engineFixtures() {
+        List<Source> out = new ArrayList<>();
+        java.nio.file.Path p = java.nio.file.Path.of("src/test/resources/"
+                + "engine-grammar-fixtures-4.138.2.jsonl");
+        if (!java.nio.file.Files.exists(p)) {
+            return out;
+        }
+        try {
+            var om = new com.fasterxml.jackson.databind.ObjectMapper();
+            int i = 0;
+            for (String line : java.nio.file.Files.readAllLines(p)) {
+                out.add(new Source("engine-fixture#" + (i++),
+                        om.readTree(line).get("source").asText(),
+                        "C6 engine-fixtures"));
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return out;
+    }
+
     public static List<Source> all() {
         List<Source> out = new ArrayList<>();
         // the WHOLE engine checkout — every module's .pure, not a curated subset
@@ -88,6 +111,12 @@ public final class Corpus {
         // parser adjudicates every candidate, so extraction is tolerant by design
         out.addAll(InlineSnippets.extract(engineRoot(), "C4 engine-inline"));
         out.addAll(InlineSnippets.extract(pureRoot(), "C5 pure-inline"));
+        // C6 — the engine's own grammar-test fixtures, harvested by
+        // EXECUTION (ZEngineFixtureHarvest: the 4.138.2 tests-jars run
+        // under recording shims; snapshot committed). The per-production
+        // coverage the static tiers cannot see — the Binding transformer
+        // hid here. Adjudicated like every tier: the oracle decides.
+        out.addAll(engineFixtures());
         out.removeIf(s -> s.id().toLowerCase(Locale.ROOT).endsWith("grammar/m3.pure"));
         String only = System.getProperty("legend.corpus.containing");
         if (only != null) {

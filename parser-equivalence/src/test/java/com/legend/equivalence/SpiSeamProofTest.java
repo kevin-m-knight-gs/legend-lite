@@ -118,7 +118,7 @@ class SpiSeamProofTest {
         diffs.stream().limit(20).forEach(d -> report.append("  DIFF ").append(d).append('\n'));
         asymmetric.stream().filter(a -> a.startsWith("SPI-REJECTS")).limit(20)
                 .forEach(d -> report.append("  ").append(d).append('\n'));
-        asymmetric.stream().filter(a -> a.startsWith("SPI-ACCEPTS")).limit(200)
+        asymmetric.stream().filter(a -> a.startsWith("SPI-ACCEPTS")).limit(400)
                 .forEach(d -> report.append("  ").append(d).append('\n'));
         StringBuilder lense = new StringBuilder();
         strictLenientIds.forEach(d -> lense.append(d).append('\n'));
@@ -174,8 +174,13 @@ class SpiSeamProofTest {
      *  behavior. Ratcheted DOWN only. 200 -> 212 at the 4.138.2 re-pin: the
      *  retired '''-literal gate had masked 12 files whose OTHER constructs
      *  vanilla rejects — every one is catalog-classified (LeniencyCatalogTest),
-     *  so the rows moved from a blanket refusal into the named universe. */
-    private static final int MAX_LENIENT_ACCEPTS = 212;
+     *  so the rows moved from a blanket refusal into the named universe.
+     *  212 -> 215 at the C6 wiring (2026-08-11): three harvested engine
+     *  fixtures carrying island grammars (#{...}# graph trees, #>{...}#
+     *  accessors, function-test sugar) — category (c), the extension-less
+     *  vanilla cannot read islands; the PRODUCTION oracle accepts all
+     *  three and lite byte-matches them (ZFixtureAdjudicationProbe). */
+    private static final int MAX_LENIENT_ACCEPTS = 215;
     // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
     // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
     // incremental fixtures, '>' accessor islands) parse further once the

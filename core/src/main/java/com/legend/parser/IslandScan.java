@@ -158,6 +158,14 @@ final class IslandScan {
     List<com.legend.protocol.spec.GraphFetchLiteral.Node> scanGraphNodes(
             String src, int[] cursor, int limit, boolean[] unsupported,
             List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> subTypesOut) {
+        return scanGraphNodes(src, cursor, limit, unsupported, subTypesOut,
+                true);
+    }
+
+    private List<com.legend.protocol.spec.GraphFetchLiteral.Node> scanGraphNodes(
+            String src, int[] cursor, int limit, boolean[] unsupported,
+            List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> subTypesOut,
+            boolean root) {
         List<com.legend.protocol.spec.GraphFetchLiteral.Node> nodes = new ArrayList<>();
         int i = cursor[0];
         if (i >= limit || src.charAt(i) != '{') {
@@ -192,6 +200,13 @@ final class IslandScan {
                 }
                 if (src.substring(ws, k).equals("subType")
                         && k + 1 < limit && src.charAt(k) == '(' && src.charAt(k + 1) == '@') {
+                    if (!root) {
+                        // ENGINE-VERBATIM (harvest TestDomainGrammarParser
+                        // testGraphFetchTreeWithSubtypeTreeAtPropertyLevel)
+                        throw new com.legend.parser.ParseException(
+                                "->subType() is supported only at root"
+                                        + " level");
+                    }
                     int ts = k + 2;
                     int te = src.indexOf(')', ts);
                     if (te < 0 || te >= limit) {
@@ -208,13 +223,21 @@ final class IslandScan {
                             new ArrayList<>();
                     if (j < limit && src.charAt(j) == '{') {
                         cursor[0] = j;
-                        sub = scanGraphNodes(src, cursor, limit, unsupported, nestedSts);
+                        sub = scanGraphNodes(src, cursor, limit,
+                                unsupported, nestedSts, false);
                         i = cursor[0];
                     } else {
                         i = te + 1;
                     }
                     if (!nestedSts.isEmpty()) {
                         unsupported[0] = true;      // subType inside subType — unprobed
+                    }
+                    if (sub.isEmpty()) {
+                        // the ENGINE's grammar requires a non-empty subType
+                        // body (harvest fixture #18: at the closing '}' it
+                        // wants properties or another ->subType)
+                        throw new com.legend.parser.ParseException(
+                                "a ->subType() body must not be empty");
                     }
                     subTypesOut.add(new com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode(
                             src.substring(ts, te), charSpan(ts, te - 1), sub));
@@ -306,7 +329,8 @@ final class IslandScan {
                         new ArrayList<>();
                 if (j < limit && src.charAt(j) == '{') {
                     cursor[0] = j;
-                    sub = scanGraphNodes(src, cursor, limit, unsupported, nodeSts);
+                    sub = scanGraphNodes(src, cursor, limit, unsupported,
+                            nodeSts, false);
                     i = cursor[0];
                 }
                 nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(

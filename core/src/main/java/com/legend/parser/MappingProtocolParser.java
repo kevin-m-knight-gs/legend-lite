@@ -253,7 +253,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             MappingProtocolParser inner = new MappingProtocolParser(
                     island.tokens(), 0, legendStrict);
             while (!inner.atEnd()) {
-                modelData.add(inner.parseModelEntry(island));
+                Protocol.PModelData entry = inner.parseModelEntry(island);
+                requireUniqueModelType(modelData, entry);
+                modelData.add(entry);
                 inner.match(TokenType.COMMA);
             }
             return new Protocol.PModelStoreData(modelData,
@@ -1150,6 +1152,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PPurePropertyMapping> props = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             if (peek() == TokenType.SRC_CMD) {
+                if (srcClass != null) {
+                    // ENGINE-VERBATIM (harvest TestMappingGrammarParser
+                    // testPureInstanceClassMapping)
+                    throw error("Field '~src' should be specified"
+                            + " only once");
+                }
                 advance();                          // '~src' is ONE token
                 int sS = pos;
                 srcClass = Protocol.unquotePath(parseQualifiedName());
@@ -1157,6 +1165,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if (peek() == TokenType.FILTER_CMD) {
+                if (filterBody != null) {
+                    throw error("Field '~filter' should be specified"
+                            + " only once");
+                }
                 advance();
                 int fStart = pos;
                 int depth = 0;
@@ -2215,10 +2227,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PLegacyInputData> inputData = new ArrayList<>();
         String expected = null;
         SourceInfo assertSpan = null;
+        boolean seenData = false;
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             String key = text();
             if ("query".equals(key)
                     || peek() == TokenType.MAPPING_TESTS_QUERY) {
+                if (query != null) {
+                    // ENGINE-VERBATIM cardinality (harvest
+                    // TestMappingGrammarParser#testMappingTest)
+                    throw error("Field 'query' should be specified"
+                            + " only once");
+                }
                 advance();
                 expect(TokenType.COLON);
                 int fS = pos;
@@ -2250,6 +2269,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if ("data".equals(key)) {
+                if (seenData) {
+                    throw error("Field 'data' should be specified"
+                            + " only once");
+                }
+                seenData = true;
                 advance();
                 expect(TokenType.COLON);
                 expect(TokenType.BRACKET_OPEN);
@@ -2336,6 +2360,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if ("assert".equals(key)) {
+                if (expected != null) {
+                    throw error("Field 'assert' should be specified"
+                            + " only once");
+                }
                 int aS = pos;
                 advance();
                 expect(TokenType.COLON);
@@ -2353,6 +2381,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         int close = pos;
         expect(TokenType.PAREN_CLOSE);
+        if (!seenData) {
+            // ENGINE-VERBATIM (harvest TestMappingGrammarParser)
+            throw error("Field 'data' is required");
+        }
         if (query == null || expected == null || assertSpan == null) {
             throw error("legacy mapping test needs query AND assert");
         }
@@ -2403,6 +2435,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             throw error("mapping test key '" + safeText() + "' is unbuilt");
+        }
+        if (asserts.isEmpty()) {
+            // ENGINE-VERBATIM (harvest TestMappingGrammarParser
+            // testMappingTestSuites)
+            throw error("Field 'asserts' is required");
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
@@ -2484,7 +2521,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         MappingProtocolParser inner = new MappingProtocolParser(
                 island.tokens(), 0, legendStrict);
         while (!inner.atEnd()) {
-            modelData.add(inner.parseModelEntry(island));
+            Protocol.PModelData entry = inner.parseModelEntry(island);
+            requireUniqueModelType(modelData, entry);
+            modelData.add(entry);
             inner.match(TokenType.COMMA);
         }
         // modelStore span = the ModelStore token .. the island close
@@ -2503,6 +2542,18 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  embedded data value, or a {@code [ ^X(...) ]} INSTANCE collection
      *  parsed by the ###Pure expression machinery (probes test-suites,
      *  embedded-reference, data-section, model-instances). */
+    /** ENGINE-VERBATIM (harvest TestDataGrammarParser
+     *  testIncorrectModelStoreData): one ModelStore entry per type. */
+    private void requireUniqueModelType(List<Protocol.PModelData> seen,
+            Protocol.PModelData entry) {
+        for (Protocol.PModelData d : seen) {
+            if (d.model().equals(entry.model())) {
+                throw error("Multiple entries found for type: '"
+                        + entry.model() + "'");
+            }
+        }
+    }
+
     private Protocol.PModelData parseModelEntry(IslandBlock island) {
         int mS = pos;
         String model = Protocol.unquotePath(parseQualifiedName());

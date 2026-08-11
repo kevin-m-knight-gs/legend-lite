@@ -77,7 +77,13 @@ class PmcdEquivalenceTest {
                     r = r.getCause();
                 }
                 String m = String.valueOf(r.getMessage());
-                if (!m.startsWith("Expected 2 properties for an association")) {
+                // the COMPILE-SEAM family: the engine parse-accepts these
+                // and ITS compiler refuses; lite refuses at FromProtocol
+                // with compile-style text (protocol bytes still match —
+                // harvest MODEL-PATH-refuses:BYTES-MATCH 3/3)
+                if (!m.startsWith("Expected 2 properties for an association")
+                        && !m.startsWith("a Relation mapping source must"
+                                + " name a function")) {
                     modelRefuse.add(src.id() + " :: "
                             + m.replaceAll("\\s+", " "));
                 }

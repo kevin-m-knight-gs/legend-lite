@@ -97,8 +97,12 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
         List<Protocol.PPointer> mappings = new ArrayList<>();
         List<Protocol.PStoreConnections> connections = new ArrayList<>();
         List<Protocol.PConnectionStores> connectionStores = new ArrayList<>();
-        parseBodyKeys(c, single, qn, TokenType.BRACE_CLOSE, mappings,
-                connections, connectionStores);
+        int mappingsKeys = parseBodyKeys(c, single, qn,
+                TokenType.BRACE_CLOSE, mappings, connections,
+                connectionStores);
+        if (mappingsKeys == 0) {
+            throw c.error("Field 'mappings' is required");
+        }
         c.expect(TokenType.BRACE_CLOSE);
         return new Protocol.PRuntime(pkg, name, single, mappings, connections,
                 connectionStores, c.spanOf(declStart, c.pos() - 1));
@@ -195,17 +199,40 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
 
     /** The runtime BODY key loop (mappings/connections/connectionStores) —
      *  shared by the section element and embedded service islands
-     *  ({@code close == null} runs to the end of a re-lexed island). */
-    static void parseBodyKeys(TokenStreamCursor c, boolean single, String qn,
+     *  ({@code close == null} runs to the end of a re-lexed island).
+     *  Returns how many times the {@code mappings} key appeared (the
+     *  caller's required-field check). ENGINE-VERBATIM field-cardinality
+     *  validation (harvest TestRuntimeGrammarParser#testRuntime): counts
+     *  are FIELD OCCURRENCES, and the connectionStores once-message names
+     *  the PROTOCOL field ('connectionPointerStores'), not the source
+     *  key. */
+    static int parseBodyKeys(TokenStreamCursor c, boolean single, String qn,
             @com.legend.Nullable TokenType close,
             List<Protocol.PPointer> mappings,
             List<Protocol.PStoreConnections> connections,
             List<Protocol.PConnectionStores> connectionStores) {
+        int seenMappings = 0;
+        int seenConnections = 0;
+        int seenConnStores = 0;
         while (!c.atEnd() && (close == null || c.peek() != close)) {
             TokenType key = c.peek();
             String keyText = c.safeText();
             c.advance();
             c.expect(TokenType.COLON);
+            if (key == TokenType.MAPPINGS && ++seenMappings > 1) {
+                throw c.error("Field 'mappings' should be specified"
+                        + " only once");
+            }
+            if (key == TokenType.CONNECTIONS && !single
+                    && ++seenConnections > 1) {
+                throw c.error("Field 'connections' should be specified"
+                        + " only once");
+            }
+            if ("connectionStores".equals(keyText) && !single
+                    && ++seenConnStores > 1) {
+                throw c.error("Field 'connectionPointerStores' should be"
+                        + " specified only once");
+            }
             if (key == TokenType.MAPPINGS) {
                 c.expect(TokenType.BRACKET_OPEN);
                 while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
@@ -262,6 +289,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
                         + " '" + qn + "'");
             }
         }
+        return seenMappings;
     }
 
     /** An embedded anonymous runtime island body, re-lexed with the walker

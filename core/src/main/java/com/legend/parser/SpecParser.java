@@ -741,9 +741,15 @@ public final class SpecParser implements TokenStreamCursor {
                 }
                 // a BARE `::` in value position is the ROOT-PACKAGE
                 // reference (corpus: ^Database(package = ::)) — a nominal
-                // element pointer; instance-metamodel consumers stay loud
+                // element pointer; instance-metamodel consumers stay loud.
+                // But `::` as a CALLER (`::.all()`) is refused with the
+                // engine's own text (harvest TestMappingGrammarParser
+                // testLambdaWithFunctionAllWithoutFunctionCaller)
                 if (t == TokenType.PATH_SEPARATOR) {
                     advance();
+                    if (!atEnd() && peek() == TokenType.DOT) {
+                        throw error("Expected a non-empty function caller");
+                    }
                     yield new PackageableElementPtr("::", spanOf(pos - 1, pos - 1));
                 }
                 throw error("unsupported expression token: " + t

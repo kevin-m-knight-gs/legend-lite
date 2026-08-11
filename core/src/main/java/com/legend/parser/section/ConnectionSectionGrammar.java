@@ -177,6 +177,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 cls = Protocol.unquotePath(c.parseQualifiedName());
                 clsSpan = c.spanOf(cS, c.pos() - 1);
             } else if ("url".equals(key)) {
+                if (url != null) {
+                    // ENGINE-VERBATIM (harvest TestConnectionGrammarParser)
+                    throw c.error("Field 'url' should be specified"
+                            + " only once");
+                }
                 String quoted = c.text();
                 c.expect(TokenType.STRING);
                 url = TokenStreamCursor.unquoteAndUnescape(quoted, c);
@@ -202,6 +207,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             String key = c.safeText();
             if (c.peek() != TokenType.MAPPINGS) {
                 throw c.error("unknown ModelChainConnection key: " + key);
+            }
+            if (mapSpan != null) {
+                // ENGINE-VERBATIM (harvest TestConnectionGrammarParser)
+                throw c.error("Field 'mappings' should be specified"
+                        + " only once");
             }
             c.advance();
             c.expect(TokenType.COLON);

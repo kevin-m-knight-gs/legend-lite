@@ -38,6 +38,13 @@ class ZOneOffProbe {
                     try {
                         com.legend.parser.ElementParser.parse(src.text());
                         System.out.println("@@ LITE-OK");
+                        System.out.println("@@ LITE-JSON "
+                                + com.legend.parser.PmcdParser
+                                        .parseDocument(src.text())
+                                        .substring(0, Math.min(2000,
+                                                com.legend.parser.PmcdParser
+                                                .parseDocument(src.text())
+                                                .length())));
                     } catch (Throwable lt) {
                         System.out.println("@@ LITE-FAIL " + lt);
                         for (var st : lt.getStackTrace()) {
