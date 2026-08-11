@@ -64,28 +64,24 @@ public final class Protocol {
         }
     }
 
-    /** The TWO ###Data envelope forms, which the engine emits as different
-     *  key sets rather than a nullable one (probes data-section,
-     *  store-keyed): a single {@code data} value, or per-store
-     *  {@code dataResolvers}. Sealed so the emitter never sees a null. */
-    public sealed interface PDataBody permits PDataValueBody, PDataResolverBody {
+    /** A ###Data element's body — engine wire (probes data-section,
+     *  store-keyed; harvest fixtures testDataElementWith*Resolvers): an
+     *  optional {@code data} value AND optional {@code dataResolvers},
+     *  either or both present. */
+    public record PDataBody(@com.legend.Nullable PEmbeddedDataValue value,
+                            List<PDataResolver> resolvers) {
+        public PDataBody {
+            resolvers = List.copyOf(resolvers);
+        }
     }
 
-    /** {@code Data qn { ExternalFormat #{...}# }} — one {@code data} key. */
-    public record PDataValueBody(PEmbeddedDataValue value) implements PDataBody {
-    }
-
-    /** {@code Data qn { store::S: <value>; ... }} — {@code dataResolvers},
-     *  and NO {@code data} key at all (probe store-keyed). */
-    public record PDataResolverBody(List<PDataResolver> resolvers)
-            implements PDataBody {
-    }
-
-    /** One {@code store::S: <value>;} entry: {@code _type:"baseDataResolver"}.
-     *  Its span runs the store path through the value's island close — the
-     *  trailing {@code ';'} is NOT included (probe store-keyed). */
+    /** One resolver entry. {@code store::S: <value>;} is
+     *  {@code _type:"baseDataResolver"} (span store path through island
+     *  close, excluding the ';'); a bare {@code fqn;} is
+     *  {@code _type:"referenceDataResolver"} — {@code data} is null and
+     *  only the {@code elementPointer} rides the wire. */
     public record PDataResolver(PElementRef elementPointer,
-                                PEmbeddedDataValue data,
+                                @com.legend.Nullable PEmbeddedDataValue data,
                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -386,8 +382,9 @@ public final class Protocol {
      *  shifted DOWN by (descriptor line - cm brace line) — the engine
      *  walker's re-parse anchor quirk (probe ZRelationMappingProbe:
      *  srcMapping 41→42 / 92→93). */
-    public record PRelationSrcLambda(String function,
-                                     com.legend.protocol.SourceInfo functionSourceInformation,
+    public record PRelationSrcLambda(@com.legend.Nullable String function,
+                                     @com.legend.Nullable com.legend.protocol.SourceInfo functionSourceInformation,
+                                     @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
                                      com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -408,6 +405,7 @@ public final class Protocol {
      * rides {@code exprLambdaSourceInformation}.
      */
     public record PRelationFnPropertyMapping(@com.legend.Nullable String ownerClass,
+                                             @com.legend.Nullable String bindingTransformer,
                                              String property,
                                              com.legend.protocol.SourceInfo propertySourceInformation,
                                              @com.legend.Nullable String column,
@@ -440,6 +438,7 @@ public final class Protocol {
      *  {@code _type:"mappingTestSuite"}; the query lambda's spec spans
      *  carry the MAPPING's path as sourceId (probe test-suites). */
     public record PMappingTestSuite(String id,
+                                    @com.legend.Nullable String doc,
                                     com.legend.protocol.spec.ValueSpecification func,
                                     List<PMappingTest> tests,
                                     com.legend.protocol.SourceInfo sourceInformation) {

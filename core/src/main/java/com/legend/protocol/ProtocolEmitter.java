@@ -110,21 +110,19 @@ public final class ProtocolEmitter {
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");
-                switch (de.body()) {
-                    case Protocol.PDataValueBody v -> {
-                        b.append(",\"data\":");
-                        MappingEmitter.embeddedDataValue(b, v.value());
-                    }
-                    case Protocol.PDataResolverBody r -> {
-                        b.append(",\"dataResolvers\":[");
-                        for (int i = 0; i < r.resolvers().size(); i++) {
-                            if (i > 0) {
-                                b.append(',');
-                            }
-                            dataResolver(b, r.resolvers().get(i));
+                if (de.body().value() != null) {
+                    b.append(",\"data\":");
+                    MappingEmitter.embeddedDataValue(b, de.body().value());
+                }
+                if (!de.body().resolvers().isEmpty()) {
+                    b.append(",\"dataResolvers\":[");
+                    for (int i = 0; i < de.body().resolvers().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
                         }
-                        b.append(']');
+                        dataResolver(b, de.body().resolvers().get(i));
                     }
+                    b.append(']');
                 }
                 b.append(",\"name\":");
                 str(b, de.name());
@@ -235,6 +233,17 @@ public final class ProtocolEmitter {
     /** {@code _type:"baseDataResolver"} — one {@code store::S: <value>;}
      *  entry of a store-keyed ###Data element (probe store-keyed). */
     private static void dataResolver(StringBuilder b, Protocol.PDataResolver r) {
+        if (r.data() == null) {
+            b.append("{\"_type\":\"referenceDataResolver\"");
+            b.append(",\"elementPointer\":{\"path\":");
+            str(b, r.elementPointer().path());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, r.elementPointer().sourceInformation());
+            b.append("},\"sourceInformation\":");
+            srcInfo(b, r.sourceInformation());
+            b.append('}');
+            return;
+        }
         b.append("{\"_type\":\"baseDataResolver\",\"data\":");
         MappingEmitter.embeddedDataValue(b, r.data());
         b.append(",\"elementPointer\":{\"path\":");

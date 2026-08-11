@@ -15,6 +15,15 @@ import java.util.TreeMap;
  *  accept. Diagnostic. */
 class ZFixtureAdjudicationProbe {
 
+
+    private static Throwable rootOf(Throwable t) {
+        Throwable r = t;
+        while (r.getCause() != null && r.getCause() != r) {
+            r = r.getCause();
+        }
+        return r;
+    }
+
     @Test
     void adjudicate() throws Exception {
         PureGrammarParser oracle = PureGrammarParser.newInstance();
@@ -42,7 +51,26 @@ class ZFixtureAdjudicationProbe {
                 expectedJson = mapper.writeValueAsString(
                         oracle.parseModel(src));
             } catch (Throwable t) {
-                verdicts.merge("oracle-refuses", 1, Integer::sum);
+                boolean liteAccepts;
+                try {
+                    com.legend.parser.ElementParser.parse(src);
+                    liteAccepts = true;
+                } catch (Throwable lt) {
+                    liteAccepts = false;
+                }
+                String cls = liteAccepts
+                        ? com.legend.equivalence.LeniencyCatalogTest
+                                .classify(rootOf(t), src)
+                        : "both-refuse";
+                verdicts.merge("oracle-refuses:" + (liteAccepts
+                        ? (cls == null ? "LENIENT-UNCLASSIFIED" : cls)
+                        : "both-refuse"), 1, Integer::sum);
+                if (liteAccepts && cls == null) {
+                    System.out.println("@@ UNCLASS "
+                            + n.get("origin").asText() + " :: "
+                            + String.valueOf(rootOf(t).getMessage())
+                                    .replaceAll("\\s+", " "));
+                }
                 continue;
             }
             String actual;
@@ -60,8 +88,12 @@ class ZFixtureAdjudicationProbe {
                         .replaceAll("'[^']*'", "'…'");
                 refuseMsgs.merge(m.length() > 70 ? m.substring(0, 70) : m,
                         1, Integer::sum);
-                if (refuseSamples.size() < 10) {
+                if (refuseSamples.size() < 30) {
                     refuseSamples.add(n.get("origin").asText() + " :: " + m);
+                }
+                if (n.get("origin").asText().contains("RelationFunction")
+                        || m.contains("trailing tokens")) {
+                    System.out.println("@@ SRC " + src.replace("\n", " ⏎ "));
                 }
                 continue;
             }

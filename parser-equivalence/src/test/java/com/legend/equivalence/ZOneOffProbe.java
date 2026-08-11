@@ -12,14 +12,29 @@ class ZOneOffProbe {
         String want = System.getProperty("probe.id",
                 "src/test/java/com/legend/integration/DuckDBIntegrationTest.java#238");
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
-        for (Corpus.Source src : Corpus.all()) {
+        java.util.List<Corpus.Source> all = new java.util.ArrayList<>(
+                Corpus.all());
+        String extra = System.getProperty("probe.file");
+        if (extra != null) {
+            all.add(new Corpus.Source("probe-file",
+                    java.nio.file.Files.readString(Path.of(extra)), "Z"));
+        }
+        for (Corpus.Source src : all) {
             {
                 if (!src.id().equals(want)) {
                     continue;
                 }
                 try {
-                    PureGrammarParser.newInstance().parseModel(src.text());
+                    var pmcd = PureGrammarParser.newInstance()
+                            .parseModel(src.text());
                     System.out.println("@@ ACCEPTS");
+                    if (System.getProperty("probe.json") != null) {
+                        System.out.println("@@ JSON "
+                                + org.finos.legend.engine.shared.core
+                                .ObjectMapperFactory
+                                .getNewStandardObjectMapperWithPureProtocolExtensionSupports()
+                                .writeValueAsString(pmcd));
+                    }
                     try {
                         com.legend.parser.ElementParser.parse(src.text());
                         System.out.println("@@ LITE-OK");

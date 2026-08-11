@@ -141,12 +141,23 @@ final class MappingEmitter {
                         // the parser's shifted descriptor span
                         Protocol.PRelationSrcLambda sl = rf.sourceLambda();
                         b.append(",\"sourceLambda\":{\"_type\":\"lambda\","
-                                + "\"body\":[{\"_type\":\"func\","
-                                + "\"function\":");
-                        str(b, sl.function());
-                        b.append(",\"parameters\":[],\"sourceInformation\":");
-                        srcInfo(b, sl.functionSourceInformation());
-                        b.append("}],\"parameters\":[],"
+                                + "\"body\":[");
+                        if (sl.expr() != null) {
+                            // ~src <expression> — the raw expression IS the
+                            // body (harvest '~src 1')
+                            valueSpec(b, sl.expr());
+                        } else {
+                            b.append("{\"_type\":\"func\","
+                                    + "\"function\":");
+                            str(b, java.util.Objects.requireNonNull(
+                                    sl.function()));
+                            b.append(",\"parameters\":[],"
+                                    + "\"sourceInformation\":");
+                            srcInfo(b, java.util.Objects.requireNonNull(
+                                    sl.functionSourceInformation()));
+                            b.append('}');
+                        }
+                        b.append("],\"parameters\":[],"
                                 + "\"sourceInformation\":");
                         srcInfo(b, sl.sourceInformation());
                         b.append('}');
@@ -917,7 +928,12 @@ final class MappingEmitter {
 
     static void testSuite(StringBuilder b,
             Protocol.PMappingTestSuite ts) {
-        b.append("{\"_type\":\"mappingTestSuite\",\"func\":");
+        b.append("{\"_type\":\"mappingTestSuite\"");
+        if (ts.doc() != null) {
+            b.append(",\"doc\":");
+            str(b, ts.doc());
+        }
+        b.append(",\"func\":");
         valueSpec(b, ts.func());
         b.append(",\"id\":");
         str(b, ts.id());
@@ -1092,6 +1108,12 @@ final class MappingEmitter {
     static void relationFnPm(StringBuilder b,
             Protocol.PRelationFnPropertyMapping pm) {
         b.append("{\"_type\":\"relationFunctionPropertyMapping\"");
+        if (pm.bindingTransformer() != null) {
+            // probed wire: {"binding": "<fqn>"} right after _type
+            b.append(",\"bindingTransformer\":{\"binding\":");
+            str(b, pm.bindingTransformer());
+            b.append('}');
+        }
         if (pm.column() != null) {
             b.append(",\"column\":");
             str(b, pm.column());

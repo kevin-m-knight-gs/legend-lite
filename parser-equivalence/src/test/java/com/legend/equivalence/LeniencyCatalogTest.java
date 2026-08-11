@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * no longer grow silently in any class. Row membership is written to
  * {@code target/leniency-catalog.txt}.
  */
-class LeniencyCatalogTest {
+public class LeniencyCatalogTest {
 
     /** Class a refusal by the ORACLE'S OWN evidence (message/exception),
      *  with one mechanical assist: a bare "Unexpected token" is adjudicated
@@ -25,7 +25,7 @@ class LeniencyCatalogTest {
      *  construct row by row (ZSkewResidueProbe), and a strict ACCEPT means
      *  the construct is checkout-unreleased grammar (true version skew).
      *  Returns null when nothing matches — the failing case. */
-    static @com.legend.Nullable String classify(Throwable root, String text) {
+    public static @com.legend.Nullable String classify(Throwable root, String text) {
         String msg = String.valueOf(root.getMessage());
         if ("Unexpected token".equals(msg.trim())) {
             try {

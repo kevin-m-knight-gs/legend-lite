@@ -364,6 +364,12 @@ public final class MappingFromProtocol {
                 ? rel.relationFunction()
                 : java.util.Objects.requireNonNull(rel.sourceLambda())
                         .function();
+        if (funcRef == null) {
+            // ~src <expression>: the engine parse-accepts and its COMPILER
+            // refuses; this transform is lite's corresponding seam
+            throw new IllegalStateException("a Relation mapping source must"
+                    + " name a function (got an expression)");
+        }
         int sig = funcRef.indexOf('(');
         return new ClassMapping.RelationFunction(rel.className(), rel.id(), null,
                 rel.root(), sig < 0 ? funcRef : funcRef.substring(0, sig),
