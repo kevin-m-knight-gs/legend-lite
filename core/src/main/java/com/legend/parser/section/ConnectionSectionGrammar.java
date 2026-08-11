@@ -721,6 +721,29 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PDuckDBSpec(path,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
+            case "SQLite" -> {
+                // LITE BACKEND, engine-extension-shaped on purpose:
+                // SQLite { (path: '...';)* } mirrors DuckDBParserGrammar
+                // exactly, so a future engine SQLite extension finds this
+                // text conformant (own-corpus decision review)
+                c.expect(TokenType.BRACE_OPEN);
+                String path = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    if (!"path".equals(key)) {
+                        throw c.error("unknown SQLite key: " + key);
+                    }
+                    String quoted = c.text();
+                    c.expect(TokenType.STRING);
+                    path = TokenStreamCursor.unquoteAndUnescape(quoted, c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                yield new Protocol.PSQLiteSpec(path,
+                        c.spanOf(keywordTok, c.pos() - 1));
+            }
             case "Snowflake" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 String name = null;

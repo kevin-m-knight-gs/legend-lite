@@ -56,6 +56,18 @@ class ZVariantTrialProbe {
                 "###Runtime\nRuntime r::R { mappings: [m::M]; connections: [d::DB: [c: c::C]]; }");
         trial(oracle, "xstore-dup-props",
                 "###Mapping\nMapping m::M ( a::A: XStore { e[f, p]: $this.a == $that.b, e[f, p]: $this.a == $that.b } )");
+        String bindingModel = "Class m::P { manager: String[1]; }\n"
+                + "###Relational\nDatabase db::D (Table T (X INTEGER, F VARCHAR(10)))\n"
+                + "###Mapping\nMapping m::M ( m::P: Relational { ~mainTable [db::D] T "
+                + "manager: Binding m::B: [db::D] T.F } )";
+        trial(oracle, "binding-transformer-oracle", bindingModel);
+        try {
+            com.legend.parser.ElementParser.parse(bindingModel);
+            System.out.println("@@ LITE-ACCEPT binding-transformer");
+        } catch (Throwable t) {
+            System.out.println("@@ LITE-REFUSE binding-transformer :: "
+                    + String.valueOf(t.getMessage()).replaceAll("\\s+", " "));
+        }
         trial(oracle, "enum-mapping-trailing-comma",
                 "###Mapping\nMapping m::M ( e::E: EnumerationMapping Mid { A: 'a', B: 'b', } )");
     }

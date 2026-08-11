@@ -225,12 +225,15 @@ class OwnCorpusConformanceTest {
         // both references spell lists `x (COMMA x)*`). Every class is
         // PINNED — a new row in any class (or a new class) fails the
         // build, so own-corpus leniency can only shrink.
+        // 74 rows after the 2026-08-11 decision review
+        // (docs/OWN_CORPUS_DECISIONS.md): the LENIENT-TIER service
+        // pattern-default was CONFORMED away (required on both surfaces);
+        // every remaining class is DECIDED-KEEP or proposed-KEEP there.
         Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
                 Map.entry("DIALECT-function-types", 13),
                 Map.entry("DIALECT-generics", 7),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
-                Map.entry("LENIENT-TIER-fixture", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
                 Map.entry("LITE-DESIGN-json-column-get", 11),
                 Map.entry("LITE-DESIGN-mapping-as-function", 20),

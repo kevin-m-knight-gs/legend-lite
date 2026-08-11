@@ -1980,7 +1980,7 @@ public final class Protocol {
      *  DuckDB-first operation. The extension flavors have NO engine wire
      *  shape — {@link ProtocolEmitter} refuses them loudly. */
     public sealed interface PDatasourceSpec
-            permits PH2Local, PStaticSpec, PDuckDBSpec,
+            permits PH2Local, PStaticSpec, PDuckDBSpec, PSQLiteSpec,
             PSnowflakeSpec, PSpannerSpec, PDatabricksSpec, PBigQuerySpec {
     }
 
@@ -1988,6 +1988,16 @@ public final class Protocol {
      *  (DuckDBParserGrammar: {@code DuckDB { (path: '...';)* }}; probe
      *  ZMigrationTargetProbe). No path = in-process/in-memory. */
     public record PDuckDBSpec(@com.legend.Nullable String path,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** The lite SQLite datasource spec — spelled EXACTLY like the engine's
+     *  DuckDB extension pattern ({@code SQLite { (path: '...';)* }}) so a
+     *  future engine SQLite extension finds our text conformant
+     *  (own-corpus decision review 2026-08-11). No engine wire shape —
+     *  the emitter refuses it loudly like the other extension flavors. */
+    public record PSQLiteSpec(@com.legend.Nullable String path,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }

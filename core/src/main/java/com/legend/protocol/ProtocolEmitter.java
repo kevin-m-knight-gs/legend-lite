@@ -1158,6 +1158,11 @@ public final class ProtocolEmitter {
                 srcInfo(b, dd.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PSQLiteSpec sq ->
+                    // a LITE backend with NO engine wire shape — refusing
+                    // loudly beats inventing a _type the engine never reads
+                    throw new IllegalStateException("SQLite datasource specs"
+                            + " have no engine wire shape (lite backend)");
             case Protocol.PStaticSpec st -> {
                 b.append("{\"_type\":\"static\",\"databaseName\":");
                 str(b, st.databaseName());

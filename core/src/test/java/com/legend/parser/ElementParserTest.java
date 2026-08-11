@@ -1533,11 +1533,15 @@ final class ElementParserTest {
     }
 
     @Test
-    void servicePatternDefaultsToSlashWhenAbsent() {
-        ParsedModel m = ElementParser.parse(
-                "\n###Service\nService my::S { execution: Single { query: |1; mapping: my::M; runtime: my::R; } }");
-        ServiceDefinition s = (ServiceDefinition) m.elements().get(0);
-        assertEquals("/", s.pattern());
+    void servicePatternRequiredOnBothSurfaces() {
+        // engine-verbatim (ServiceParserGrammar): the old lenient
+        // default (pattern -> "/") was a lite-only invention, conformed
+        // away in the own-corpus decision review
+        ParseException ex = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "\n###Service\nService my::S { execution: Single { query: |1; mapping: my::M; runtime: my::R; } }"));
+        assertTrue(String.valueOf(ex.getMessage())
+                .contains("Field 'pattern' is required"));
     }
 
     @Test

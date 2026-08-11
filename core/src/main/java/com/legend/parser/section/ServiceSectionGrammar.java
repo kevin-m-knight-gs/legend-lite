@@ -167,16 +167,15 @@ public final class ServiceSectionGrammar
         if (execution == null) {
             throw c.error("Service '" + qn + "' has no execution");
         }
-        if (c.legendStrict()) {
-            // ENGINE-VERBATIM required fields (ServiceParserGrammar): the
-            // lenient tier keeps its defaults (pattern -> "/"), the
-            // drop-in surface refuses like the engine does
-            if (pattern == null) {
-                throw c.error("Field 'pattern' is required");
-            }
-            if (documentation == null) {
-                throw c.error("Field 'documentation' is required");
-            }
+        // ENGINE-VERBATIM required fields (ServiceParserGrammar), BOTH
+        // surfaces: the old lenient default (pattern -> "/") had no
+        // reference in either grammar and nothing depended on it —
+        // conformed away in the own-corpus decision review (2026-08-11)
+        if (pattern == null) {
+            throw c.error("Field 'pattern' is required");
+        }
+        if (documentation == null) {
+            throw c.error("Field 'documentation' is required");
         }
         return new Protocol.PService(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), pattern, title, owners, ownershipKind,

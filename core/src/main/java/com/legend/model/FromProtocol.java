@@ -539,7 +539,10 @@ public final class FromProtocol {
     }
 
     private static ServiceDefinition toServiceDefinition(Protocol.PService s) {
-        String pattern = s.pattern() != null ? s.pattern() : "/";
+        // pattern is grammar-required on both surfaces (ServiceSectionGrammar);
+        // a null here can only come from a hand-built protocol record
+        String pattern = java.util.Objects.requireNonNull(s.pattern(),
+                "service pattern");
         return switch (s.execution()) {
             case Protocol.PSingleExecution single -> new ServiceDefinition(
                     s.qualifiedName(), pattern, modelQuery(single.query()),
@@ -690,6 +693,9 @@ public final class FromProtocol {
             case Protocol.PDuckDBSpec dd -> dd.path() == null
                     ? new ConnectionSpecification.InMemory()
                     : new ConnectionSpecification.LocalFile(dd.path());
+            case Protocol.PSQLiteSpec sq -> sq.path() == null
+                    ? new ConnectionSpecification.InMemory()
+                    : new ConnectionSpecification.LocalFile(sq.path());
             case Protocol.PSnowflakeSpec s -> new ConnectionSpecification
                     .Snowflake(s.databaseName(), s.accountName(),
                             s.warehouseName(), s.region(), s.accountType(),
