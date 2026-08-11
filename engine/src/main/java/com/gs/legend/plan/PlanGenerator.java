@@ -83,78 +83,17 @@ public final class PlanGenerator {
 
     // ===== Static factories =====
 
-    public static SingleExecutionPlan generate(
-            com.gs.legend.model.PureModelBuilder model,
-            String query, String runtimeName) {
-        return generate(model, query, runtimeName, Mode.SNAPSHOT);
-    }
 
     public static SingleExecutionPlan generate(String pureSource, String query, String runtimeName) {
-        // The CORE pipeline is the default (same gate as QueryService.execute:
-        // the engine suite is core's acceptance scoreboard; no silent
-        // fallback). -Dlegend.pipeline=engine restores the legacy path.
-        // CoreBridge.toPlan re-wraps core's QueryPlan verbatim (SQL, root
-        // type, shape) — core-routed EXECUTION goes through QueryService,
-        // never this plan's connection metadata.
-        if (!"engine".equals(System.getProperty("legend.pipeline", "core"))) {
-            return com.gs.legend.server.CoreBridge.toPlan(
-                    com.legend.Compiler.plan(pureSource, query, runtimeName));
-        }
-        var model = new com.gs.legend.model.PureModelBuilder().addSource(pureSource);
-        return generate(model, query, runtimeName);
+        // CORE pipeline only (engine-lite deletion): CoreBridge.toPlan
+        // re-wraps core's QueryPlan verbatim (SQL, root type, shape). The
+        // legacy PureModelBuilder path and its -Dlegend.pipeline=engine
+        // escape are DELETED — the A/B settled (core beat the reference).
+        return com.gs.legend.server.CoreBridge.toPlan(
+                com.legend.Compiler.plan(pureSource, query, runtimeName));
     }
 
-    public static SingleExecutionPlan generate(
-            com.gs.legend.model.PureModelBuilder model,
-            String query, String runtimeName, Mode mode) {
-        SQLDialect dialect = model.resolveDialect(runtimeName);
-        var mappingNames = model.resolveMappingNames(runtimeName);
-        var normalizer = new MappingNormalizer(model, mappingNames);
 
-        var vs = model.resolveQuery(query);
-        var unit = new TypeChecker(normalizer.modelContext()).check(vs);
-
-        // Pass 3: inline TypedUserCalls. Mandatory whole-program β-reduction
-        // — the SQL backend has no notion of a function-call frame, so every
-        // user call must be spliced into its caller before lowering. Same
-        // family as Rust monomorphization or MLton defunctionalization.
-        var inlinedUnit = com.gs.legend.compiler.UserCallInliner.inline(unit);
-
-        // V1 path restored (the V2 experiment lives on in generateV2).
-        var resolved = new MappingResolver(
-                inlinedUnit, normalizer.normalizedMapping(), model).resolve();
-        return new PlanGenerator(resolved, dialect, mode).generate();
-    }
-
-    /**
-     * Experimental V2 pipeline using {@link com.gs.legend.compiler.MappingResolverV2}.
-     * Wraps V2's bare-AST output in a {@link ResolvedExpression} with empty
-     * mapping sidecars; the lowerer should drive entirely off the AST's
-     * baked-in resolution (e.g.
-     * {@link com.gs.legend.compiler.typed.TypedPropertyAccess#physicalColumn}).
-     *
-     * <p>Anything that still requires the sidecar will throw — flushing
-     * out the migration debt one lowering rule at a time.
-     */
-    public static SingleExecutionPlan generateV2(String pureSource, String query, String runtimeName) {
-        var model = new com.gs.legend.model.PureModelBuilder().addSource(pureSource);
-        SQLDialect dialect = model.resolveDialect(runtimeName);
-        var mappingNames = model.resolveMappingNames(runtimeName);
-        var normalizer = new MappingNormalizer(model, mappingNames);
-        var vs = model.resolveQuery(query);
-        var unit = new TypeChecker(normalizer.modelContext()).check(vs);
-        var inlinedUnit = com.gs.legend.compiler.UserCallInliner.inline(unit);
-        TypedSpec rewritten = new com.gs.legend.compiler.MappingResolverV2(
-                inlinedUnit,
-                normalizer.modelContext(),
-                normalizer.normalizedMapping(),
-                inlinedUnit.dependencies().classPropertyAccesses())
-                .resolve(inlinedUnit.hir());
-        var rewrittenUnit = new CompiledExpression(rewritten, inlinedUnit.dependencies());
-        var resolved = new ResolvedExpression(rewrittenUnit,
-                ResolvedMappings.ofStoreResolutions(new IdentityHashMap<>()));
-        return new PlanGenerator(resolved, dialect, Mode.SNAPSHOT).generate();
-    }
 
     // ===== Orchestration =====
 

@@ -5,14 +5,14 @@ wire burn-down (ledger zero), leniency catalog (executable,
 `LeniencyCatalogTest`), dialect quarantine (`legendStrict` total,
 `StrictDialectParityTest`), the 4.138.2 oracle re-pin (W10), the
 extension close-out, and full PMCD (`PmcdParser.parseDocument`,
-`PmcdEquivalenceTest`: 8,186/8,186 whole documents byte-identical).
+`PmcdEquivalenceTest`: 5,259/5,259 distinct accepted sources byte-identical — the earlier 8,186 double-counted the snippet tiers).
 This document is the audit's charter: what is PROVEN, what is OPEN, the
 exact row lists, and the method. Read docs/LENIENCY_CATALOG.md first.
 
 ## State of proof (do not re-derive)
 
 - ACCEPT parity: every oracle-accepted corpus source byte-matches —
-  26,168 elements (G8 ledger) and 8,186 whole PMCD documents
+  26,168 elements (G8 ledger) and 5,259 distinct whole PMCD documents
   (envelope + element order + sectionIndex spans included).
 - REJECT parity: all 742 DIALECT rows refuse on the strict surface with
   the engine's own messages (0 leaks), plus engine-parity field/enum

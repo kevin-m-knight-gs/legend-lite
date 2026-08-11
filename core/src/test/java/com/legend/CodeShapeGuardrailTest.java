@@ -107,6 +107,9 @@ class CodeShapeGuardrailTest {
             // before lower()): engine-parity join-distinct exists form —
             // the standalone-SQL surface constructs without it
             "Lowerer.engineExistsJoinForm",
+            // builder-flag, same lifecycle as engineExistsJoinForm: set
+            // once by the driver before lower(), read during the lowering
+            "Lowerer.streamingGraphRoot",
             // JSON source frames (XStore §1): the execution context's
             // JsonModelConnection map, set per from()-scope — same
             // per-resolution frame lifecycle as `temporal`

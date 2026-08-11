@@ -2,7 +2,6 @@ package com.gs.legend.server;
 
 import com.gs.legend.exec.ExecutionResult;
 import com.gs.legend.exec.PlanExecutor;
-import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.plan.PlanGenerator;
 import com.gs.legend.plan.SingleExecutionPlan;
 import com.gs.legend.serial.ResultSerializer;
@@ -73,22 +72,9 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName,
             Connection connection) throws SQLException {
 
-        // The CORE pipeline is the default (PHASE_K_EXECUTION.md: the engine
-        // suite is core's acceptance scoreboard). -Dlegend.pipeline=engine
-        // restores the legacy path for comparison; there is NO silent
-        // fallback — a fallback would blur the scoreboard.
-        if (!"engine".equals(System.getProperty("legend.pipeline", "core"))) {
-            return CoreBridge.toEngine(
-                    com.legend.Compiler.execute(pureSource, query, runtimeName, connection));
-        }
-
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName, PlanGenerator.Mode.SNAPSHOT);
-
-        System.out.println("Pure Query: " + query);
-        System.out.println("Generated SQL: " + plan.sql());
-
-        return PlanExecutor.execute(plan, connection);
+        // CORE pipeline only (engine-lite deletion; the A/B settled).
+        return CoreBridge.toEngine(
+                com.legend.Compiler.execute(pureSource, query, runtimeName, connection));
     }
 
     /**
@@ -101,8 +87,7 @@ public class QueryService {
         // Connection resolution is pre-existing engine plumbing (not bridge
         // logic); the execution itself routes through the same seam as the
         // 4-arg overload.
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        Connection conn = model.resolveConnection(runtimeName);
+        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
         return execute(pureSource, query, runtimeName, conn);
     }
 
@@ -120,8 +105,7 @@ public class QueryService {
             Connection connection, OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName, PlanGenerator.Mode.SNAPSHOT);
+        SingleExecutionPlan plan = PlanGenerator.generate(pureSource, query, runtimeName);
 
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + plan.sql());
@@ -139,8 +123,7 @@ public class QueryService {
             OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        Connection conn = model.resolveConnection(runtimeName);
+        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
         execute(pureSource, query, runtimeName, conn, out, format);
     }
 
@@ -150,8 +133,7 @@ public class QueryService {
     public ExecutionResult executeSql(String pureSource, String sql, String runtimeName)
             throws SQLException {
 
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        Connection conn = model.resolveConnection(runtimeName);
+        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
 
         try (java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
@@ -181,8 +163,11 @@ public class QueryService {
             Connection connection, OutputStream out)
             throws SQLException, IOException {
 
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName, PlanGenerator.Mode.STREAMING);
+        // CORE streaming plan (engine-lite deletion): per-row json_object
+        // root via Compiler.planStreaming — same wire the legacy
+        // Mode.STREAMING produced, now owned by the one compiler
+        SingleExecutionPlan plan = CoreBridge.toPlan(
+                com.legend.Compiler.planStreaming(pureSource, query, runtimeName));
 
         System.out.println("Pure Query: " + query);
         System.out.println("Generated SQL: " + plan.sql());
@@ -200,8 +185,7 @@ public class QueryService {
             OutputStream out)
             throws SQLException, IOException {
 
-        PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
-        Connection conn = model.resolveConnection(runtimeName);
+        Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
         stream(pureSource, query, runtimeName, conn, out);
     }
 

@@ -1,6 +1,5 @@
 package com.gs.legend.server;
 
-import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.util.Json;
 
 import java.util.*;
@@ -138,12 +137,13 @@ public class PureLspServer {
     private List<String> rebuildAndPublishAll() {
         if (documents.isEmpty()) return List.of();
 
-        PureModelBuilder model = new PureModelBuilder();
+        // CORE parse per document (engine-lite deletion): each open doc
+        // parses independently so one broken file cannot mask another's
+        // diagnostics — same per-file error semantics the builder loop had
         Map<String, Exception> fileErrors = new LinkedHashMap<>();
-
         for (var entry : documents.entrySet()) {
             try {
-                model.addSource(entry.getValue());
+                com.legend.parser.ElementParser.parse(entry.getValue());
             } catch (Exception e) {
                 fileErrors.put(entry.getKey(), e);
             }

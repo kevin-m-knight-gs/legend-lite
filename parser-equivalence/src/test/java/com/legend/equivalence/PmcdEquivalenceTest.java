@@ -30,12 +30,10 @@ class PmcdEquivalenceTest {
         List<String> weRefuse = new ArrayList<>();
         List<String> diffs = new ArrayList<>();
         Map<String, Integer> refuseByMsg = new TreeMap<>();
-        List<Corpus.Source> all = new ArrayList<>(Corpus.all());
-        all.addAll(InlineSnippets.extract(java.nio.file.Path.of(
-                System.getProperty("legend.engine.root")), "inline-engine"));
-        all.addAll(InlineSnippets.extract(java.nio.file.Path.of(
-                System.getProperty("legend.pure.root")), "inline-pure"));
-        for (Corpus.Source src : all) {
+        // Corpus.all() already includes the inline-snippet tiers (C4/C5) —
+        // re-adding them here double-counted accepted rows (the parallel
+        // audit session's correction: 5,259 distinct, not 8,186)
+        for (Corpus.Source src : Corpus.all()) {
             String expected;
             try {
                 expected = mapper.writeValueAsString(

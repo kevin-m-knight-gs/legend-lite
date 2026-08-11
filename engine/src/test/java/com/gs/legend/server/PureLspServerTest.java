@@ -92,7 +92,8 @@ class PureLspServerTest {
         assertEquals(26, diag.character(), "Error should point to column of 'String'");
         assertEquals(1, diag.severity(), "Should be severity 1 (Error)");
         assertEquals("legend-lite", diag.source());
-        assertTrue(diag.message().contains("missing COLON"),
+        // core parser message: "[line:col] expected COLON but found ..."
+        assertTrue(diag.message().contains("COLON"),
                 "Message should mention missing colon, got: " + diag.message());
     }
 

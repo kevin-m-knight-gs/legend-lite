@@ -160,6 +160,15 @@ public final class Lowerer {
         return this;
     }
 
+    /** STREAMING graph root (driver opt-in) — see {@link
+     *  StreamingGraphRoot}; nested serializes keep aggregating. */
+    private boolean streamingGraphRoot;
+
+    public Lowerer withStreamingGraphRoot() {
+        this.streamingGraphRoot = true;
+        return this;
+    }
+
     public Lowerer bindPlanParam(String name, boolean stringTyped) {
         letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
         return this;
@@ -202,7 +211,7 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
-            return serializeGraph(g);
+            return serializeGraph(g, streamingGraphRoot);
         }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
         if (spec instanceof TypedConcatenate c) {
@@ -600,7 +609,8 @@ public final class Lowerer {
         }
     }
 
-    private SqlSelect serializeGraph(TypedSerializeGraph g) {
+    private SqlSelect serializeGraph(TypedSerializeGraph g,
+            boolean streamRoot) {
         SqlSelect src = relation(g.source());
         // json_group_array is an AGGREGATE and the envelope REPLACES the
         // projection list — the groupBy folding constraints are exactly right.
@@ -628,7 +638,8 @@ public final class Lowerer {
             }
             enclosing.push(own);
             try {
-                kv.add(new SqlExpr.ScalarSubquery(serializeGraph(child.node())));
+                kv.add(new SqlExpr.ScalarSubquery(
+                        serializeGraph(child.node(), false)));
             } finally {
                 enclosing.pop();
             }
@@ -675,7 +686,7 @@ public final class Lowerer {
                     enclosing.push(own);
                     try {
                         pkv.add(new SqlExpr.ScalarSubquery(
-                                serializeGraph(child.node())));
+                                serializeGraph(child.node(), false)));
                     } finally {
                         enclosing.pop();
                     }
@@ -750,6 +761,9 @@ public final class Lowerer {
                 okeys.add(0, new SqlExpr.JsonArrayAgg.Key(
                         resolveOrThrow(envelope, UnionSerialOrder.COLUMN), true));
             }
+            if (streamRoot) {
+                return StreamingGraphRoot.select(envelope, obj, okeys);
+            }
             result = new SqlExpr.JsonArrayAgg(obj, okeys);
         } else {
             result = obj;
@@ -758,6 +772,7 @@ public final class Lowerer {
                 List.of(new SqlSelect.Projection(result, "result")),
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
     }
+
 
     /** An INLINE (embedded) child's json object over the parent select:
      * leaves resolve strictly against the SAME base; inline children
@@ -796,7 +811,7 @@ public final class Lowerer {
                 enclosing.push(scopedResolver(base, g.rowVar()));
                 try {
                     kv.add(new SqlExpr.ScalarSubquery(
-                            serializeGraph(child.node())));
+                            serializeGraph(child.node(), false)));
                 } finally {
                     enclosing.pop();
                 }
@@ -2780,7 +2795,7 @@ public final class Lowerer {
             }
             // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
             case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
-                    SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped())));
+                    SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false)));
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
                     scalar(MatchFold.fold(mr), columns);

@@ -58,7 +58,8 @@ class QueryServiceDirectTest {
 
                 RelationalDatabaseConnection store::TestConnection {
                     type: DuckDB;
-                    specification: DuckDB { path: "{{DB_PATH}}"; };
+                    specification: DuckDB { path: '{{DB_PATH}}'; };
+                    auth: Test;
                 }
 
                 Runtime test::TestRuntime {

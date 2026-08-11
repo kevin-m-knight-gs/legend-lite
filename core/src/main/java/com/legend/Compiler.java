@@ -287,7 +287,21 @@ public final class Compiler {
      * {@link com.legend.exec.Executor} would consume, minus execution.
      * Bridges re-wrap these fields verbatim (no invented metadata).
      */
+    /** {@link #plan} with the STREAMING graph root
+     *  ({@code Lowerer#withStreamingGraphRoot}): one json_object per JDBC
+     *  row so a streaming executor stays O(one row) — the core home of the
+     *  capability the legacy engine-lite Mode.STREAMING provided. */
+    public static com.legend.exec.QueryPlan planStreaming(String model,
+            String query, String runtime) {
+        return plan(model, query, runtime, true);
+    }
+
     public static com.legend.exec.QueryPlan plan(String model, String query, String runtime) {
+        return plan(model, query, runtime, false);
+    }
+
+    private static com.legend.exec.QueryPlan plan(String model, String query,
+            String runtime, boolean streaming) {
         ModelContext ctx = compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
@@ -303,6 +317,9 @@ public final class Compiler {
                 f -> ctx.findClass(f).isPresent());
         if (!temporalRoot) {
             planLw = planLw.withEngineExistsJoinForm();
+        }
+        if (streaming) {
+            planLw = planLw.withStreamingGraphRoot();
         }
         String sql = dialectOf(ctx, runtime).render(planLw.lower(body));
         return new com.legend.exec.QueryPlan(sql, root.info(),
