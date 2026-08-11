@@ -37,6 +37,25 @@ public class TestGrammarRoundtrip {
             FixtureRecorder.record(expectedCode, null, "roundtrip-to");
         }
 
+        public void testFrom(String code, String expectedProtocolPath) {
+            FixtureRecorder.record(code, null, "roundtrip-from");
+        }
+
+        public static void testFormat(String code, String unformattedCode) {
+            // BOTH spellings are real grammar the parser must read; the
+            // formatted one is also the composer's byte target
+            FixtureRecorder.record(code, null, "roundtrip-format");
+            FixtureRecorder.record(unformattedCode, null,
+                    "roundtrip-unformatted");
+        }
+
+        public static void testFormatWithSectionInfoPreserved(String code,
+                String unformattedCode) {
+            FixtureRecorder.record(code, null, "roundtrip-format");
+            FixtureRecorder.record(unformattedCode, null,
+                    "roundtrip-unformatted");
+        }
+
         protected void testComposedGrammar(String protocol, String expected) {
             FixtureRecorder.record(expected, null, "roundtrip-composed");
         }
