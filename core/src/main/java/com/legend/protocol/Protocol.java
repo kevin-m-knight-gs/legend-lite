@@ -48,7 +48,7 @@ public final class Protocol {
             PDataQualityValidation, PDataQualityRelationValidation,
             PDataQualityRelationComparison, PSchemaSet, PBinding,
             PServiceStoreDefinition,
-            PMapping, PDataElement {
+            PMapping, PDataElement, PRelationalMapper {
     }
 
     /** {@code ###Data Data [decorations] qn { <body> }} — {@code _type:
@@ -1025,12 +1025,14 @@ public final class Protocol {
                            List<String> owners,
                            @com.legend.Nullable String ownershipKind,
                            @com.legend.Nullable String ownershipId,
+                           @com.legend.Nullable List<String> ownershipUsers,
+                           @com.legend.Nullable String mcpServer,
                            @com.legend.Nullable String documentation,
                            @com.legend.Nullable Boolean autoActivateUpdates,
                            PServiceExecution execution,
                            @com.legend.Nullable PLegacyServiceTest test,
                            @com.legend.Nullable List<PServiceTestSuite> testSuites,
-                           @com.legend.Nullable String postValidationsSource,
+                           @com.legend.Nullable List<PPostValidation> postValidations,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1083,7 +1085,30 @@ public final class Protocol {
                                   @com.legend.Nullable String runtime,
                                   @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
                                   @com.legend.Nullable PEmbeddedRuntime embeddedRuntime,
+                                  @com.legend.Nullable PRuntimeComponents runtimeComponents,
                                   com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code runtimeComponents: { class; binding; runtime; }} — wire
+     *  binding/clazz pointers + runtimePointer, alphabetical (harvest
+     *  testExecutionEnvironment; probe ee3). */
+    public record PRuntimeComponents(PPointer binding, PPointer clazz,
+                                     String runtime,
+                                     com.legend.protocol.SourceInfo runtimeSpan) {
+    }
+
+    /** One {@code postValidations:} entry (harvest
+     *  testServiceWithPostValidation): description + parameters (spec
+     *  values; source key `params`) + assertions ({@code id: lambda;}). */
+    public record PPostValidation(String description,
+                                  List<com.legend.protocol.spec.ValueSpecification> parameters,
+                                  List<PPostValidationAssertion> assertions,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PPostValidationAssertion(String id,
+                                           com.legend.protocol.spec.ValueSpecification assertion,
+                                           com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One {@code testSuites:} entry — wire {@code serviceTestSuite}
@@ -1156,6 +1181,45 @@ public final class Protocol {
                 com.legend.protocol.spec.ValueSpecification assertion,
                 com.legend.protocol.SourceInfo sourceInformation) {
         }
+    }
+
+    /** {@code RelationalMapper qn ( DatabaseMappers/SchemaMappers/
+     *  TableMappers )} — the ###QueryPostProcessor element (harvest
+     *  TestRelationalMapperCompilationFromGrammar; wire probe rm.out):
+     *  {@code _type:"relationalMapper"}, fields alphabetical. */
+    public record PRelationalMapper(String pkg, String name,
+                                    List<PDatabaseMapper> databaseMappers,
+                                    List<PSchemaMapper2> schemaMappers,
+                                    List<PTableMapper2> tableMappers,
+                                    com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** {@code [db.Schema, ...] -> 'name'} — databaseName is the TARGET. */
+    public record PDatabaseMapper(String databaseName,
+                                  List<PSchemaPointer> schemas) {
+    }
+
+    /** {@code db.Schema -> 'name'}. */
+    public record PSchemaMapper2(PSchemaPointer from, String to) {
+    }
+
+    /** {@code db.Schema.Table -> 'name'}. */
+    public record PTableMapper2(PTablePointer2 from, String to) {
+    }
+
+    /** {@code _type:"Schema"} pointer: database + schema + span. */
+    public record PSchemaPointer(String database, String schema,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code _type:"Table"} pointer: database + schema + table + span
+     *  (fields alphabetical on the wire: database, schema, si, table). */
+    public record PTablePointer2(String database, String schema, String table,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** An {@code ExecutionEnvironment} element (###Service section). */

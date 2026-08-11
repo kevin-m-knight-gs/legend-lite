@@ -62,6 +62,8 @@ public final class SectionGrammarRegistry {
                 com.legend.parser.section.RuntimeSectionGrammar.INSTANCE);
         m.put("Service",
                 com.legend.parser.section.ServiceSectionGrammar.INSTANCE);
+        m.put("QueryPostProcessor", com.legend.parser.section
+                .QueryPostProcessorSectionGrammar.INSTANCE);
         m.put("DataSpace",
                 com.legend.parser.section.DataSpaceSectionGrammar.INSTANCE);
         m.put("Persistence",

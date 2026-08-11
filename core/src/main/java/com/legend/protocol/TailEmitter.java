@@ -1482,6 +1482,10 @@ final class TailEmitter {
         }
         b.append(",\"execution\":");
         serviceExecution(b, sv.execution());
+        if (sv.mcpServer() != null) {
+            b.append(",\"mcpServer\":");
+            ProtocolEmitter.str(b, sv.mcpServer());
+        }
         b.append(",\"name\":");
         ProtocolEmitter.str(b, sv.name());
         b.append(",\"owners\":[");
@@ -1493,15 +1497,28 @@ final class TailEmitter {
         }
         b.append(']');
         if (sv.ownershipKind() != null) {
-            if (!"DID".equals(sv.ownershipKind())) {
+            if (!"DID".equals(sv.ownershipKind())
+                    && !"UserList".equals(sv.ownershipKind())) {
                 throw new IllegalStateException("unprobed service ownership"
                         + " kind: " + sv.ownershipKind());
             }
-            b.append(",\"ownership\":{\"_type\":\"deploymentOwnership\","
-                    + "\"identifier\":");
-            ProtocolEmitter.str(b, java.util.Objects.requireNonNull(
-                    sv.ownershipId()));
-            b.append('}');
+            if (sv.ownershipUsers() != null) {
+                b.append(",\"ownership\":{\"_type\":\"userListOwnership\","
+                        + "\"users\":[");
+                for (int i = 0; i < sv.ownershipUsers().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    ProtocolEmitter.str(b, sv.ownershipUsers().get(i));
+                }
+                b.append("]}");
+            } else {
+                b.append(",\"ownership\":{\"_type\":"
+                        + "\"deploymentOwnership\",\"identifier\":");
+                ProtocolEmitter.str(b, java.util.Objects.requireNonNull(
+                        sv.ownershipId()));
+                b.append('}');
+            }
         }
         b.append(",\"package\":");
         ProtocolEmitter.str(b, sv.pkg());
@@ -1509,11 +1526,42 @@ final class TailEmitter {
             b.append(",\"pattern\":");
             ProtocolEmitter.str(b, sv.pattern());
         }
-        if (sv.postValidationsSource() != null) {
-            throw new IllegalStateException(
-                    "unprobed service postValidations wire");
+        b.append(",\"postValidations\":[");
+        if (sv.postValidations() != null) {
+            for (int i = 0; i < sv.postValidations().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                Protocol.PPostValidation pv = sv.postValidations().get(i);
+                b.append("{\"assertions\":[");
+                for (int j = 0; j < pv.assertions().size(); j++) {
+                    if (j > 0) {
+                        b.append(',');
+                    }
+                    var a = pv.assertions().get(j);
+                    b.append("{\"assertion\":");
+                    ProtocolEmitter.valueSpec(b, a.assertion());
+                    b.append(",\"id\":");
+                    ProtocolEmitter.str(b, a.id());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, a.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"description\":");
+                ProtocolEmitter.str(b, pv.description());
+                b.append(",\"parameters\":[");
+                for (int j = 0; j < pv.parameters().size(); j++) {
+                    if (j > 0) {
+                        b.append(',');
+                    }
+                    ProtocolEmitter.valueSpec(b, pv.parameters().get(j));
+                }
+                b.append("],\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, pv.sourceInformation());
+                b.append('}');
+            }
         }
-        b.append(",\"postValidations\":[],\"sourceInformation\":");
+        b.append("],\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, sv.sourceInformation());
         b.append(",\"stereotypes\":");
         ProtocolEmitter.stereotypes(b, sv.stereotypes());
@@ -1602,8 +1650,28 @@ final class TailEmitter {
                 ProtocolEmitter.srcInfo(b,
                         java.util.Objects.requireNonNull(k.mappingSpan()));
             }
-            serviceRuntime(b, k.runtime(), k.runtimeSpan(),
-                    k.embeddedRuntime());
+            if (k.runtime() != null || k.embeddedRuntime() != null) {
+                // "runtime" sorts BEFORE "runtimeComponents"; a keyed
+                // execution may carry BOTH (harvest
+                // testMappingRuntimeCompatibility)
+                serviceRuntime(b, k.runtime(), k.runtimeSpan(),
+                        k.embeddedRuntime());
+            }
+            if (k.runtimeComponents() != null) {
+                // wire: binding/clazz pointers + runtimePointer,
+                // alphabetical (harvest testExecutionEnvironment)
+                Protocol.PRuntimeComponents rc = k.runtimeComponents();
+                b.append(",\"runtimeComponents\":{\"binding\":");
+                ProtocolEmitter.pointer(b, rc.binding());
+                b.append(",\"clazz\":");
+                ProtocolEmitter.pointer(b, rc.clazz());
+                b.append(",\"runtime\":{\"_type\":\"runtimePointer\","
+                        + "\"runtime\":");
+                ProtocolEmitter.str(b, rc.runtime());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, rc.runtimeSpan());
+                b.append("}}");
+            }
             b.append(",\"sourceInformation\":");
             ProtocolEmitter.srcInfo(b, k.sourceInformation());
             b.append('}');

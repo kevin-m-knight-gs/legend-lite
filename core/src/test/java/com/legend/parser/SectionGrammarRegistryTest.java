@@ -19,16 +19,17 @@ class SectionGrammarRegistryTest {
                 "Persistence"}) {
             assertTrue(SectionGrammarRegistry.lookup(s).isPresent(), s);
         }
-        assertTrue(SectionGrammarRegistry.lookup("QueryPostProcessor").isEmpty());
+        assertTrue(SectionGrammarRegistry.lookup("NoSuchSection").isEmpty());
     }
 
-    // QueryPostProcessor is the one roster section with no grammar (and no
-    // corpus presence) — the honest stand-in for "unclaimed" now that
-    // Diagram is a registered RAW grammar (2026-08-09).
+    // Every ROSTER section now has a grammar (QueryPostProcessor claimed
+    // by the RelationalMapper leg, 2026-08-11) — the unclaimed stand-in
+    // is a fictional name, which a production engine refuses with the
+    // SAME "is not a known section parser" message.
     private static final String WITH_UNKNOWN_SECTION = """
             Class my::A { a: String[1]; }
 
-            ###QueryPostProcessor
+            ###NoSuchSection
             Whatever my::D;
 
             ###Pure
@@ -43,7 +44,7 @@ class SectionGrammarRegistryTest {
         ParseException e = assertThrows(ParseException.class,
                 () -> ElementParser.parseStrict(WITH_UNKNOWN_SECTION));
         assertTrue(e.getMessage().contains(
-                        "'QueryPostProcessor' is not a known section parser"),
+                        "'NoSuchSection' is not a known section parser"),
                 e.getMessage());
     }
 
@@ -56,7 +57,7 @@ class SectionGrammarRegistryTest {
         ParsedModel m = ElementParser.parse(WITH_UNKNOWN_SECTION);
         assertEquals(2, m.elements().size(), "both Pure classes parse");
         assertEquals(1, m.unclaimedSections().size());
-        assertEquals("QueryPostProcessor", m.unclaimedSections().get(0).name());
+        assertEquals("NoSuchSection", m.unclaimedSections().get(0).name());
     }
 
     @Test
@@ -88,10 +89,10 @@ class SectionGrammarRegistryTest {
     @Test
     void registeringAGrammarIsHowToleranceIsSpelled() {
         // the escape hatch is EXPLICIT: ###Toy is accepted only because a
-        // grammar claims it (above), while ###QueryPostProcessor is refused.
+        // grammar claims it (above), while ###NoSuchSection is refused.
         // There is no third state where we accept without reading.
         assertTrue(SectionGrammarRegistry.lookup("Toy").isPresent());
-        assertTrue(SectionGrammarRegistry.lookup("QueryPostProcessor").isEmpty());
+        assertTrue(SectionGrammarRegistry.lookup("NoSuchSection").isEmpty());
         assertEquals(1, ElementParser.parse("Class my::A { a: String[1]; }")
                 .elements().size(), "a section-free file is unaffected");
     }

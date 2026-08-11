@@ -93,12 +93,14 @@ public final class ServiceSectionGrammar
         List<String> owners = new ArrayList<>();
         String ownershipKind = null;
         String ownershipId = null;
+        List<String> ownershipUsers = null;
+        String mcpServer = null;
         String documentation = null;
         Boolean autoActivate = null;
         Protocol.PServiceExecution execution = null;
         Protocol.PLegacyServiceTest test = null;
         List<Protocol.PServiceTestSuite> testSuites = null;
-        String postValidationsSource = null;
+        List<Protocol.PPostValidation> postValidations = null;
 
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
@@ -114,26 +116,49 @@ public final class ServiceSectionGrammar
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "ownership" -> {
-                    // ownership: DID { identifier: '...' } — kind + one
-                    // identifier field (probed: deploymentOwnership)
+                    // ownership: DID { identifier: '...' } |
+                    //            UserList { users: [...] }
+                    // (probed: deploymentOwnership / userListOwnership)
                     ownershipKind = c.parseIdentifier();
                     c.expect(TokenType.BRACE_OPEN);
                     String ik = c.parseIdentifier();
                     c.expect(TokenType.COLON);
-                    if (!"identifier".equals(ik)) {
+                    if ("identifier".equals(ik)) {
+                        ownershipId = stringValue(c);
+                    } else if ("users".equals(ik)) {
+                        ownershipUsers = new ArrayList<>();
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (c.peek() != TokenType.BRACKET_CLOSE
+                                && !c.atEnd()) {
+                            ownershipUsers.add(stringValue(c));
+                            c.match(TokenType.COMMA);
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                    } else {
                         throw c.error("unknown ownership key: " + ik);
                     }
-                    ownershipId = stringValue(c);
                     c.match(TokenType.SEMI_COLON);
                     c.expect(TokenType.BRACE_CLOSE);
                     c.expect(TokenType.SEMI_COLON);
                 }
+                case "mcpServer" -> {
+                    // wire: plain string field (harvest
+                    // testServiceWithMcpServer)
+                    mcpServer = c.parseIdentifier();
+                    c.expect(TokenType.SEMI_COLON);
+                }
                 case "postValidations" -> {
-                    // engine: servicePostValidations — [ {...}, ... ]; RAW
-                    int bs = c.pos();
-                    skipBalanced(c, TokenType.BRACKET_OPEN,
-                            TokenType.BRACKET_CLOSE);
-                    postValidationsSource = c.reconstructText(bs, c.pos());
+                    // [ { description: '..'; params: [..];
+                    //     assertions: [ id: <lambda>; ... ]; }, ... ]
+                    // (harvest testServiceWithPostValidation; probe pv2)
+                    postValidations = new ArrayList<>();
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE
+                            && !c.atEnd()) {
+                        postValidations.add(parsePostValidation(c));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "documentation" -> {
@@ -179,8 +204,9 @@ public final class ServiceSectionGrammar
         }
         return new Protocol.PService(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), pattern, title, owners, ownershipKind,
-                ownershipId, documentation, autoActivate, execution, test,
-                testSuites, postValidationsSource,
+                ownershipId, ownershipUsers, mcpServer,
+                documentation, autoActivate, execution, test,
+                testSuites, postValidations,
                 c.spanOf(declStart, c.pos() - 1));
     }
 
@@ -314,6 +340,125 @@ public final class ServiceSectionGrammar
             out.add(f);
         }
         return changed ? v.withChildren(out) : v;
+    }
+
+
+    /** One {@code postValidations} entry — description/params/assertions
+     *  (harvest testServiceWithPostValidation). Assertion lambdas parse
+     *  through SpecParser (typed-lambda spelling). */
+    private static Protocol.PPostValidation parsePostValidation(
+            TokenStreamCursor c) {
+        int eS = c.pos();
+        c.expect(TokenType.BRACE_OPEN);
+        String description = null;
+        List<com.legend.protocol.spec.ValueSpecification> params =
+                new ArrayList<>();
+        List<Protocol.PPostValidationAssertion> assertions =
+                new ArrayList<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "description" -> {
+                    description = stringValue(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "params" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE
+                            && !c.atEnd()) {
+                        int pS = c.pos();
+                        int d = 0;
+                        while (!c.atEnd()) {
+                            TokenType tk = c.peek();
+                            if (d == 0 && (tk == TokenType.COMMA
+                                    || tk == TokenType.BRACKET_CLOSE)) {
+                                break;
+                            }
+                            if (tk == TokenType.PAREN_OPEN
+                                    || tk == TokenType.BRACE_OPEN
+                                    || tk == TokenType.BRACKET_OPEN) {
+                                d++;
+                            } else if (tk == TokenType.PAREN_CLOSE
+                                    || tk == TokenType.BRACE_CLOSE
+                                    || tk == TokenType.BRACKET_CLOSE) {
+                                d--;
+                            }
+                            c.advance();
+                        }
+                        params.add(com.legend.parser.SpecParser.parse(
+                                c.tokens().slice(pS, c.pos())));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "assertions" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE
+                            && !c.atEnd()) {
+                        int aS = c.pos();
+                        String id = c.parseIdentifier();
+                        c.expect(TokenType.COLON);
+                        int ls = c.pos();
+                        int d = 0;
+                        while (!c.atEnd()) {
+                            TokenType tk = c.peek();
+                            if (d == 0 && (tk == TokenType.SEMI_COLON
+                                    || tk == TokenType.BRACKET_CLOSE)) {
+                                break;
+                            }
+                            if (tk == TokenType.PAREN_OPEN
+                                    || tk == TokenType.BRACE_OPEN
+                                    || tk == TokenType.BRACKET_OPEN) {
+                                d++;
+                            } else if (tk == TokenType.PAREN_CLOSE
+                                    || tk == TokenType.BRACE_CLOSE
+                                    || tk == TokenType.BRACKET_CLOSE) {
+                                d--;
+                            }
+                            c.advance();
+                        }
+                        com.legend.protocol.spec.ValueSpecification lambda =
+                                com.legend.parser.SpecParser.parse(
+                                        c.tokens().slice(ls, c.pos()));
+                        c.match(TokenType.SEMI_COLON);
+                        // ALL assertion spans include the trailing ';' —
+                        // the engine's walker parses `<lambda>;` as one
+                        // slice, so the LAMBDA's own span extends through
+                        // it too (probed: endColumn 221 vs 220)
+                        var extended = c.spanOf(aS, c.pos() - 1);
+                        if (lambda instanceof
+                                com.legend.protocol.spec.LambdaFunction lf
+                                && lf.pos() != null) {
+                            var lp = lf.pos();
+                            lambda = new com.legend.protocol.spec
+                                    .LambdaFunction(lf.parameters(),
+                                            lf.body(),
+                                            new com.legend.protocol.SourceInfo(
+                                                    lp.sourceId(),
+                                                    lp.startLine(),
+                                                    lp.startColumn(),
+                                                    extended.endLine(),
+                                                    extended.endColumn()));
+                        }
+                        assertions.add(
+                                new Protocol.PPostValidationAssertion(id,
+                                        lambda, extended));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                default -> throw c.error("unknown postValidation key: "
+                        + key);
+            }
+        }
+        int close = c.pos();
+        c.expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PPostValidation(
+                java.util.Objects.requireNonNull(description), params,
+                assertions, c.spanOf(eS, close));
     }
 
     /** The legacy test BODY loop ({@code data:} / {@code asserts:}),
@@ -852,6 +997,7 @@ public final class ServiceSectionGrammar
         String runtime = null;
         SourceInfo runtimeSpan = null;
         Protocol.PEmbeddedRuntime embedded = null;
+        Protocol.PRuntimeComponents runtimeComponents = null;
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
@@ -870,6 +1016,46 @@ public final class ServiceSectionGrammar
                         runtimeSpan = c.spanOf(rs, c.pos() - 1);
                     }
                 }
+                case "runtimeComponents" -> {
+                    // { class; binding; runtime; } — wire binding/clazz
+                    // pointers + runtimePointer (harvest
+                    // testExecutionEnvironment; probe ee3)
+                    c.expect(TokenType.BRACE_OPEN);
+                    Protocol.PPointer clazz = null;
+                    Protocol.PPointer binding = null;
+                    String rcRuntime = null;
+                    com.legend.protocol.SourceInfo rcRuntimeSpan = null;
+                    while (!c.atEnd()
+                            && c.peek() != TokenType.BRACE_CLOSE) {
+                        int rkS = c.pos();
+                        String rk = c.parseIdentifier();
+                        c.expect(TokenType.COLON);
+                        String path = Protocol.unquotePath(
+                                c.parseQualifiedName());
+                        c.expect(TokenType.SEMI_COLON);
+                        // spans run KEY through ';' (probed 12..31)
+                        var span2 = c.spanOf(rkS, c.pos() - 1);
+                        switch (rk) {
+                            case "class" -> clazz = new Protocol.PPointer(
+                                    "CLASS", path, span2);
+                            case "binding" -> binding = new Protocol.PPointer(
+                                    "BINDING", path, span2);
+                            case "runtime" -> {
+                                rcRuntime = path;
+                                rcRuntimeSpan = span2;
+                            }
+                            default -> throw c.error(
+                                    "unknown runtimeComponents key: " + rk);
+                        }
+                    }
+                    c.expect(TokenType.BRACE_CLOSE);
+                    runtimeComponents = new Protocol.PRuntimeComponents(
+                            java.util.Objects.requireNonNull(binding),
+                            java.util.Objects.requireNonNull(clazz),
+                            java.util.Objects.requireNonNull(rcRuntime),
+                            java.util.Objects.requireNonNull(rcRuntimeSpan));
+                    continue;
+                }
                 default -> throw c.error(
                         "unknown key '" + key + "' inside keyed execution");
             }
@@ -877,7 +1063,7 @@ public final class ServiceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         return new Protocol.PKeyedExecution(keyValue, mapping, mappingSpan,
-                runtime, runtimeSpan, embedded,
+                runtime, runtimeSpan, embedded, runtimeComponents,
                 c.spanOf(start, c.pos() - 1));
     }
 

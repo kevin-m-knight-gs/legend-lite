@@ -108,6 +108,7 @@ public final class ProtocolEmitter {
                     TailEmitter.serviceStore(b, sd);
             case Protocol.PDiagram dg -> TailEmitter.diagram(b, dg);
             case Protocol.PMapping m -> MappingEmitter.mapping(b, m);
+            case Protocol.PRelationalMapper rm -> relationalMapper(b, rm);
             case Protocol.PDataElement de -> {
                 b.append("{\"_type\":\"dataElement\"");
                 if (de.body().value() != null) {
@@ -228,6 +229,79 @@ public final class ProtocolEmitter {
             b.append('}');
         }
         b.append("]}");
+    }
+
+
+    /** {@code _type:"relationalMapper"} — fields alphabetical (probe
+     *  rm.out): databaseMappers, name, package, schemaMappers,
+     *  sourceInformation, tableMappers. */
+    private static void relationalMapper(StringBuilder b,
+            Protocol.PRelationalMapper rm) {
+        b.append("{\"_type\":\"relationalMapper\",\"databaseMappers\":[");
+        for (int i = 0; i < rm.databaseMappers().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PDatabaseMapper dm = rm.databaseMappers().get(i);
+            b.append("{\"databaseName\":");
+            str(b, dm.databaseName());
+            b.append(",\"schemas\":[");
+            for (int j = 0; j < dm.schemas().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                schemaPointer(b, dm.schemas().get(j));
+            }
+            b.append("]}");
+        }
+        b.append("],\"name\":");
+        str(b, rm.name());
+        b.append(",\"package\":");
+        str(b, rm.pkg());
+        b.append(",\"schemaMappers\":[");
+        for (int i = 0; i < rm.schemaMappers().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"from\":");
+            schemaPointer(b, rm.schemaMappers().get(i).from());
+            b.append(",\"to\":");
+            str(b, rm.schemaMappers().get(i).to());
+            b.append('}');
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, rm.sourceInformation());
+        b.append(",\"tableMappers\":[");
+        for (int i = 0; i < rm.tableMappers().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PTablePointer2 tp = rm.tableMappers().get(i).from();
+            b.append("{\"from\":{\"_type\":\"Table\",\"database\":");
+            str(b, tp.database());
+            b.append(",\"schema\":");
+            str(b, tp.schema());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, tp.sourceInformation());
+            b.append(",\"table\":");
+            str(b, tp.table());
+            b.append("},\"to\":");
+            str(b, rm.tableMappers().get(i).to());
+            b.append('}');
+        }
+        b.append("]}");
+    }
+
+    /** {@code _type:"Schema"} pointer: database, schema, si. */
+    private static void schemaPointer(StringBuilder b,
+            Protocol.PSchemaPointer sp) {
+        b.append("{\"_type\":\"Schema\",\"database\":");
+        str(b, sp.database());
+        b.append(",\"schema\":");
+        str(b, sp.schema());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, sp.sourceInformation());
+        b.append('}');
     }
 
     /** {@code _type:"baseDataResolver"} — one {@code store::S: <value>;}

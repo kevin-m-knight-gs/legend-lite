@@ -55,7 +55,7 @@ public final class PmcdParser {
             "GenerationSpecification", "FileGeneration", "Deephaven",
             "MongoDB", "DataQualityValidation", "Elasticsearch",
             "ExternalFormat", "ServiceStore", "DataSpace", "Persistence",
-            "Service");
+            "Service", "QueryPostProcessor");
 
     private static final Set<String> ACTIVATOR_SECTIONS = Set.of("Snowflake",
             "MemSql", "BigQuery", "HostedService", "FunctionJar");
@@ -469,6 +469,8 @@ public final class PmcdParser {
             Map.ofEntries(
                     Map.entry("Text", com.legend.parser.section
                             .TextSectionGrammar.INSTANCE),
+                    Map.entry("QueryPostProcessor", com.legend.parser.section
+                            .QueryPostProcessorSectionGrammar.INSTANCE),
                     Map.entry("GenerationSpecification",
                             com.legend.parser.section
                                     .GenerationSpecificationSectionGrammar

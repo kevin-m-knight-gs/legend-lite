@@ -286,7 +286,8 @@ public final class Lexer {
                     "Snowflake", "ExternalFormat", "FileGeneration", "MemSql",
                     "BigQuery", "HostedService", "FunctionJar", "Text",
                     "GenerationSpecification", "DataQualityValidation",
-                    "ServiceStore", "MongoDB", "Deephaven", "Elasticsearch");
+                    "ServiceStore", "MongoDB", "Deephaven", "Elasticsearch",
+                    "QueryPostProcessor");
 
     /** Opaque sections raw-skipped by {@link #skipSectionHeader} — RECORDED,
      *  never silent (GRAMMAR_EXTENSIBILITY.md step 1): the parser surfaces
