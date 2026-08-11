@@ -1,0 +1,105 @@
+package com.legend.equivalence.harvest;
+
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+
+/** HARVEST BY EXECUTION (tier 1): run every test class from the engine's
+ *  published grammar/compiler tests-jars under the recording shims — the
+ *  fixtures they assemble at runtime land in target/engine-fixtures.jsonl.
+ *  Assertion outcomes are irrelevant here (the shims record, not judge);
+ *  adjudication happens downstream when the dump becomes corpus tier C6.
+ *  Run on demand; the dump is committed as a resource. */
+class ZEngineFixtureHarvest {
+
+    @Test
+    void harvest() throws Exception {
+        List<String> testJars = new ArrayList<>();
+        for (String entry : System.getProperty("java.class.path")
+                .split(java.io.File.pathSeparator)) {
+            if (entry.endsWith("-tests.jar")
+                    && (entry.contains("legend-engine-language-pure-grammar")
+                    || entry.contains("legend-engine-language-pure-compiler"))) {
+                testJars.add(entry);
+            }
+        }
+        System.out.println("@@ tests-jars: " + testJars);
+        java.nio.file.Files.deleteIfExists(
+                java.nio.file.Path.of("target/engine-fixtures.jsonl"));
+        int classes = 0;
+        int methods = 0;
+        int invoked = 0;
+        Map<String, Integer> failuresByKind = new TreeMap<>();
+        for (String jarPath : testJars) {
+            try (JarFile jar = new JarFile(jarPath)) {
+                Enumeration<JarEntry> es = jar.entries();
+                while (es.hasMoreElements()) {
+                    String name = es.nextElement().getName();
+                    if (!name.endsWith(".class") || name.contains("$")) {
+                        continue;
+                    }
+                    String cls = name.substring(0, name.length() - 6)
+                            .replace('/', '.');
+                    if (!cls.substring(cls.lastIndexOf('.') + 1)
+                            .startsWith("Test")) {
+                        continue;
+                    }
+                    Class<?> c;
+                    try {
+                        c = Class.forName(cls, false,
+                                getClass().getClassLoader());
+                    } catch (Throwable t) {
+                        failuresByKind.merge("load", 1, Integer::sum);
+                        continue;
+                    }
+                    if (c.isInterface()
+                            || Modifier.isAbstract(c.getModifiers())) {
+                        continue;
+                    }
+                    Object instance;
+                    try {
+                        instance = c.getDeclaredConstructor().newInstance();
+                    } catch (Throwable t) {
+                        failuresByKind.merge("instantiate", 1, Integer::sum);
+                        continue;
+                    }
+                    classes++;
+                    for (Method m : c.getMethods()) {
+                        if (m.getAnnotation(org.junit.Test.class) == null
+                                || m.getParameterCount() != 0) {
+                            continue;
+                        }
+                        methods++;
+                        try {
+                            m.invoke(instance);
+                            invoked++;
+                        } catch (Throwable t) {
+                            // the shims recorded BEFORE any failure; a
+                            // throw here just means the engine test went
+                            // on to assert something the shim skipped
+                            failuresByKind.merge("invoke-threw", 1,
+                                    Integer::sum);
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println("@@ classes run: " + classes + "; test methods: "
+                + methods + "; completed: " + invoked + "; failures: "
+                + failuresByKind);
+        long lines = java.nio.file.Files.exists(java.nio.file.Path.of(
+                "target/engine-fixtures.jsonl"))
+                ? java.nio.file.Files.lines(java.nio.file.Path.of(
+                        "target/engine-fixtures.jsonl")).count()
+                : 0;
+        System.out.println("@@ fixtures dumped: " + lines);
+    }
+}

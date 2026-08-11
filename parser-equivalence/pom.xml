@@ -41,6 +41,15 @@
             <version>${legend.engine.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- junit4 is compile-support for the recording shims only; it
+             carries no legend ServiceLoader registrations, so the oracle
+             stays production-shaped -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.finos.legend.engine</groupId>
             <artifactId>legend-engine-xt-relationalStore-grammar</artifactId>
@@ -88,4 +97,34 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <!-- HARVEST-ONLY classpath (mvn ... -Pengine-fixture-harvest):
+             the engine's published tests-jars are FIXTURE SOURCES for
+             ZEngineFixtureHarvest — and they carry test-scoped
+             ServiceLoader registrations that would ALTER the oracle
+             (gate 8 caught exactly that: a stale error pin + 3 corpus
+             rows flipping to oracle-accepted). Quarantined here so the
+             gates' oracle stays production-shaped; the committed
+             fixture snapshot is what the gates consume. -->
+        <profile>
+            <id>engine-fixture-harvest</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.finos.legend.engine</groupId>
+                    <artifactId>legend-engine-language-pure-grammar</artifactId>
+                    <version>${legend.engine.version}</version>
+                    <classifier>tests</classifier>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.finos.legend.engine</groupId>
+                    <artifactId>legend-engine-language-pure-compiler</artifactId>
+                    <version>${legend.engine.version}</version>
+                    <classifier>tests</classifier>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

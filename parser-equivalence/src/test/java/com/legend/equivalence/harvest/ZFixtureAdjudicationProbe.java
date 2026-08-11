@@ -1,0 +1,97 @@
+package com.legend.equivalence.harvest;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.TreeMap;
+
+/** PROBE: pre-ingestion adjudication of the harvested engine fixtures —
+ *  oracle verdict x lite verdict per fixture, byte parity where both
+ *  accept. Diagnostic. */
+class ZFixtureAdjudicationProbe {
+
+    @Test
+    void adjudicate() throws Exception {
+        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        ObjectMapper mapper = org.finos.legend.engine.shared.core
+                .ObjectMapperFactory
+                .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        ObjectMapper json = new ObjectMapper();
+        Map<String, Integer> verdicts = new TreeMap<>();
+        Map<String, Integer> refuseMsgs = new TreeMap<>();
+        int diffs = 0;
+        java.util.List<String> diffSamples = new java.util.ArrayList<>();
+        java.util.List<String> refuseSamples = new java.util.ArrayList<>();
+        // fresh harvest dump if present, else the committed snapshot —
+        // NOTE: honest verdicts need the PRODUCTION oracle (run WITHOUT
+        // -Pengine-fixture-harvest; the tests-jars alter the oracle)
+        Path dump = Files.exists(Path.of("target/engine-fixtures.jsonl"))
+                ? Path.of("target/engine-fixtures.jsonl")
+                : Path.of("src/test/resources/"
+                        + "engine-grammar-fixtures-4.138.2.jsonl");
+        for (String line : Files.readAllLines(dump)) {
+            JsonNode n = json.readTree(line);
+            String src = n.get("source").asText();
+            String expectedJson;
+            try {
+                expectedJson = mapper.writeValueAsString(
+                        oracle.parseModel(src));
+            } catch (Throwable t) {
+                verdicts.merge("oracle-refuses", 1, Integer::sum);
+                continue;
+            }
+            String actual;
+            try {
+                actual = com.legend.parser.PmcdParser.parseDocument(src);
+                com.legend.parser.ElementParser.parse(src);
+            } catch (Throwable t) {
+                verdicts.merge("LITE-REFUSES-accepted", 1, Integer::sum);
+                Throwable r = t;
+                while (r.getCause() != null && r.getCause() != r) {
+                    r = r.getCause();
+                }
+                String m = String.valueOf(r.getMessage())
+                        .replaceAll("\\[\\d+:\\d+\\]", "[N:N]")
+                        .replaceAll("'[^']*'", "'…'");
+                refuseMsgs.merge(m.length() > 70 ? m.substring(0, 70) : m,
+                        1, Integer::sum);
+                if (refuseSamples.size() < 10) {
+                    refuseSamples.add(n.get("origin").asText() + " :: " + m);
+                }
+                continue;
+            }
+            if (expectedJson.equals(actual)) {
+                verdicts.merge("MATCH", 1, Integer::sum);
+            } else {
+                diffs++;
+                verdicts.merge("DIFF", 1, Integer::sum);
+                if (diffSamples.size() < 8) {
+                    int i = 0;
+                    int n2 = Math.min(expectedJson.length(), actual.length());
+                    while (i < n2 && expectedJson.charAt(i)
+                            == actual.charAt(i)) {
+                        i++;
+                    }
+                    diffSamples.add(n.get("origin").asText() + " @char" + i
+                            + " …" + expectedJson.substring(
+                                    Math.max(0, i - 30),
+                                    Math.min(expectedJson.length(), i + 40))
+                            + "… vs …" + actual.substring(Math.max(0, i - 30),
+                                    Math.min(actual.length(), i + 40)) + "…");
+                }
+            }
+        }
+        System.out.println("@@ verdicts: " + verdicts);
+        refuseMsgs.entrySet().stream().sorted((a, b) ->
+                b.getValue() - a.getValue()).limit(12).forEach(e ->
+                System.out.println("@@ REFUSE [" + e.getValue() + "] "
+                        + e.getKey()));
+        refuseSamples.forEach(s -> System.out.println("@@ R " + s));
+        diffSamples.forEach(s -> System.out.println("@@ D " + s));
+    }
+}
