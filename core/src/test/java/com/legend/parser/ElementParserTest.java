@@ -1289,14 +1289,14 @@ final class ElementParserTest {
     // ===============================================================
 
     @Test
-    void connectionMinimalInMemoryNoAuth() {
+    void connectionMinimalDuckDbTestAuth() {
         ParsedModel m = ElementParser.parse("""
                 RelationalDatabaseConnection store::C
                 {
                   store: store::PersonDb;
                   type: DuckDB;
-                  specification: InMemory {};
-                  auth: NoAuth {};
+                  specification: DuckDB {};
+                  auth: Test;
                 }
                 """);
         ConnectionDefinition c = assertInstanceOf(ConnectionDefinition.class,
@@ -1306,7 +1306,7 @@ final class ElementParserTest {
                         "store::C", "store::PersonDb",
                         ConnectionDefinition.DatabaseType.DuckDB,
                         new ConnectionSpecification.InMemory(),
-                        new AuthenticationSpec.NoAuth()),
+                        new AuthenticationSpec.TestAuth()),
                 c);
     }
 
@@ -1317,15 +1317,16 @@ final class ElementParserTest {
                 {
                   store: store::PersonDb;
                   type: Postgres;
-                  specification: Static { host: 'db.example.com'; port: 5432; database: 'prod'; };
-                  auth: UsernamePassword { username: 'svc'; passwordVaultRef: 'vault::prod_pw'; };
+                  specification: Static { host: 'db.example.com'; port: 5432; name: 'prod'; };
+                  auth: UserNamePassword { userNameVaultReference: 'vault::svc_user'; passwordVaultReference: 'vault::prod_pw'; };
                 }
                 """);
         ConnectionDefinition c = (ConnectionDefinition) m.elements().get(0);
         assertEquals(ConnectionDefinition.DatabaseType.Postgres, c.databaseType());
         assertEquals(new ConnectionSpecification.StaticDatasource("db.example.com", 5432, "prod"),
                 c.specification());
-        assertEquals(new AuthenticationSpec.UsernamePassword("svc", "vault::prod_pw"),
+        assertEquals(new AuthenticationSpec.VaultUserNamePassword(null,
+                        "vault::svc_user", "vault::prod_pw"),
                 c.authentication());
     }
 
@@ -1336,8 +1337,8 @@ final class ElementParserTest {
                 {
                   store: store::S;
                   type: DuckDB;
-                  specification: LocalFile { path: '/tmp/db.duckdb'; };
-                  auth: NoAuth {};
+                  specification: DuckDB { path: '/tmp/db.duckdb'; };
+                  auth: Test;
                 }
                 """);
         ConnectionDefinition c = (ConnectionDefinition) m.elements().get(0);
@@ -1351,8 +1352,8 @@ final class ElementParserTest {
                 {
                   store: store::S;
                   type: MariaDB;
-                  specification: InMemory {};
-                  auth: NoAuth {};
+                  specification: DuckDB {};
+                  auth: Test;
                 }
                 """));
         assertTrue(String.valueOf(ex.getMessage()).contains("MariaDB"),
@@ -1367,8 +1368,8 @@ final class ElementParserTest {
                 {
                   store: store::S;
                   type: DuckDB;
-                  specification: InMemory {};
-                  auth: NoAuth {};
+                  specification: DuckDB {};
+                  auth: Test;
                   futureKey: 'value';
                 }
                 """));
@@ -1930,7 +1931,7 @@ final class ElementParserTest {
                 Profile my::P { stereotypes: [s]; }
                 function my::f(): String[1] { 'hi' }
                 RelationalDatabaseConnection store::C { store: store::Db; type: DuckDB;
-                  specification: InMemory {}; auth: NoAuth {}; }
+                  specification: DuckDB {}; auth: Test; }
                 Runtime my::R { mappings: [my::M]; connections: []; }
                 Service my::Svc { pattern: '/x';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; } }
@@ -1949,7 +1950,7 @@ final class ElementParserTest {
                 Profile my::P { stereotypes: [s]; }
                 function my::f(): String[1] { 'hi' }
                 RelationalDatabaseConnection store::C { store: store::S; type: DuckDB;
-                  specification: InMemory {}; auth: NoAuth {}; }
+                  specification: DuckDB {}; auth: Test; }
                 Runtime my::R { mappings: [my::M]; connections: []; }
                 Service my::Svc { pattern: '/x';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; } }
@@ -2533,14 +2534,15 @@ final class ElementParserTest {
     }
 
     @Test
-    void localH2ConnectionSpecificationFlavor() {
+    void duckDbSpecFoldsToInProcessExecution() {
+        // ENGINE-REAL spelling (conform-to-engine): a pathless DuckDB spec
+        // is the in-process database the retired InMemory flavor named
         var parsed = ElementParser.parse(
                 "RelationalDatabaseConnection store::C { store: db::DB; type: DuckDB; "
-                + "specification: LocalH2 { url: 'jdbc:duckdb:' }; auth: NoAuth { }; }");
+                + "specification: DuckDB { }; auth: Test; }");
         var conn = (com.legend.model.ConnectionDefinition) parsed.elements().get(0);
-        var spec = (com.legend.model.ConnectionSpecification.LocalH2)
-                conn.specification();
-        assertEquals("jdbc:duckdb:", spec.url());
+        assertEquals(new com.legend.model.ConnectionSpecification.InMemory(),
+                conn.specification());
     }
 
     @Test

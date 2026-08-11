@@ -26,8 +26,8 @@ class ConnectionRuntimeParserTest {
                 {
                     store: store::PersonDb;
                     type: DuckDB;
-                    specification: InMemory {};
-                    auth: NoAuth {};
+                    specification: DuckDB {};
+                    auth: Test;
                 }
                 """;
 
@@ -49,8 +49,8 @@ class ConnectionRuntimeParserTest {
                 {
                     store: store::OrderDb;
                     type: SQLite;
-                    specification: InMemory {};
-                    auth: NoAuth {};
+                    specification: DuckDB {};
+                    auth: Test;
                 }
                 """;
 
@@ -70,8 +70,8 @@ class ConnectionRuntimeParserTest {
                 {
                     store: store::DataDb;
                     type: DuckDB;
-                    specification: LocalFile { path: './data/warehouse.duckdb'; };
-                    auth: NoAuth {};
+                    specification: DuckDB { path: './data/warehouse.duckdb'; };
+                    auth: Test;
                 }
                 """;
 
@@ -94,7 +94,7 @@ class ConnectionRuntimeParserTest {
                     store: store::MainDb;
                     type: Postgres;
                     specification: Static { host: 'db.example.com'; port: 5432; database: 'production'; };
-                    auth: NoAuth {};
+                    auth: Test;
                 }
                 """;
 
@@ -119,7 +119,7 @@ class ConnectionRuntimeParserTest {
                 {
                     store: store::SecureStore;
                     type: Postgres;
-                    specification: InMemory {};
+                    specification: DuckDB {};
                     auth: UsernamePassword { username: 'admin'; passwordVaultRef: 'vault://secrets/db/password'; };
                 }
                 """;
@@ -306,8 +306,8 @@ class ConnectionRuntimeParserTest {
                 {
                     store: store::PersonDb;
                     type: DuckDB;
-                    specification: InMemory {};
-                    auth: NoAuth {};
+                    specification: DuckDB {};
+                    auth: Test;
                 }
 
                 Runtime app::AppRuntime

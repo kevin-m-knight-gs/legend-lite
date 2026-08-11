@@ -59,8 +59,8 @@ class CompileMappingTest {
             {
                 store: model::PersonDb;
                 type: DuckDB;
-                specification: InMemory {};
-                auth: NoAuth {};
+                specification: DuckDB {};
+                auth: Test;
             }
 
             ###Runtime
@@ -241,8 +241,8 @@ class CompileMappingTest {
             {
                 store: model::RawDb;
                 type: DuckDB;
-                specification: InMemory {};
-                auth: NoAuth {};
+                specification: DuckDB {};
+                auth: Test;
             }
 
             ###Runtime

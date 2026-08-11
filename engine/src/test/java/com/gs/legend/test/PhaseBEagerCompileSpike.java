@@ -344,7 +344,7 @@ class PhaseBEagerCompileSpike {
 
                 import test::*;
 
-                RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }

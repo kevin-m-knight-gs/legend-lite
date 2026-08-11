@@ -409,8 +409,8 @@ class M2MChainIntegrationTest {
             RelationalDatabaseConnection store::Conn
             {
                 type: DuckDB;
-                specification: InMemory { };
-                auth: NoAuth { };
+                specification: DuckDB { };
+                auth: Test;
             }
 
             Runtime test::RT

@@ -1980,8 +1980,16 @@ public final class Protocol {
      *  DuckDB-first operation. The extension flavors have NO engine wire
      *  shape — {@link ProtocolEmitter} refuses them loudly. */
     public sealed interface PDatasourceSpec
-            permits PH2Local, PStaticSpec, PInMemory, PLocalFile,
+            permits PH2Local, PStaticSpec, PDuckDBSpec,
             PSnowflakeSpec, PSpannerSpec, PDatabricksSpec, PBigQuerySpec {
+    }
+
+    /** {@code _type:"duckDB"} — the engine's DuckDB datasource spec
+     *  (DuckDBParserGrammar: {@code DuckDB { (path: '...';)* }}; probe
+     *  ZMigrationTargetProbe). No path = in-process/in-memory. */
+    public record PDuckDBSpec(@com.legend.Nullable String path,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
     }
 
     /** {@code _type:"snowflake"} — source keys rename on the wire:
@@ -2024,12 +2032,9 @@ public final class Protocol {
 
     /** {@code _type:"h2Local"}; testDataSetupCsv/Sqls omitted when absent
      *  (source key testDataSetupCSV spells testDataSetupCsv on the wire).
-     *  {@code url} is the legend-lite extension key ({@code LocalH2 { url:
-     *  'jdbc:duckdb:' }}) — engine's LocalH2 has no url field, so a non-null
-     *  url refuses to emit. */
+     */
     public record PH2Local(@com.legend.Nullable String testDataSetupCsv,
                            @com.legend.Nullable List<String> testDataSetupSqls,
-                           @com.legend.Nullable String url,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2042,25 +2047,12 @@ public final class Protocol {
             implements PDatasourceSpec {
     }
 
-    /** legend-lite extension: {@code InMemory {}} — an in-process DuckDB.
-     *  No engine wire shape. */
-    public record PInMemory(com.legend.protocol.SourceInfo sourceInformation)
-            implements PDatasourceSpec {
-    }
-
-    /** legend-lite extension: {@code LocalFile { path: '...' }} — a
-     *  file-backed DuckDB/SQLite. No engine wire shape. */
-    public record PLocalFile(String path,
-                             com.legend.protocol.SourceInfo sourceInformation)
-            implements PDatasourceSpec {
-    }
-
     /** Authentication strategies the corpus actually uses, plus the
      *  legend-lite extension flavors ({@link PNoAuth},
      *  {@link PPlainUserPassword}); the extensions refuse to emit. */
     public sealed interface PAuthStrategy
             permits PH2Default, PTestAuth, PDelegatedKerberos,
-            PUserNamePassword, PNoAuth, PPlainUserPassword,
+            PUserNamePassword,
             PSnowflakePublic, PGCPApplicationDefaultCredentials, PApiToken,
             PMiddleTierUserNamePassword {
     }
@@ -2092,19 +2084,6 @@ public final class Protocol {
             implements PAuthStrategy {
     }
 
-    /** legend-lite extension: {@code NoAuth {}}. No engine wire shape. */
-    public record PNoAuth(com.legend.protocol.SourceInfo sourceInformation)
-            implements PAuthStrategy {
-    }
-
-    /** legend-lite extension: {@code UsernamePassword { username: '...';
-     *  passwordVaultRef: '...' }} — note the literal username and the
-     *  lower-case {@code n}, DISTINCT from engine's vault-reference
-     *  {@link PUserNamePassword}. No engine wire shape. */
-    public record PPlainUserPassword(String username, String passwordVaultRef,
-                                     com.legend.protocol.SourceInfo sourceInformation)
-            implements PAuthStrategy {
-    }
 
     /** {@code _type:"userNamePassword"} — vault references, base optional. */
     public record PUserNamePassword(@com.legend.Nullable String baseVaultReference,

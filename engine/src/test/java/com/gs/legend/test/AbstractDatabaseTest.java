@@ -292,8 +292,8 @@ public abstract class AbstractDatabaseTest {
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: %s;
-                    specification: InMemory { };
-                    auth: NoAuth { };
+                    specification: DuckDB { };
+                    auth: Test;
                 }
                 """.formatted(getDatabaseType());
     }

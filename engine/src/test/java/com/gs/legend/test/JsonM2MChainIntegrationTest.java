@@ -206,8 +206,8 @@ class JsonM2MChainIntegrationTest {
             RelationalDatabaseConnection store::Conn
             {
                 type: DuckDB;
-                specification: InMemory { };
-                auth: NoAuth { };
+                specification: DuckDB { };
+                auth: Test;
             }
 
             Runtime test::ChainRT
@@ -285,8 +285,8 @@ class JsonM2MChainIntegrationTest {
             RelationalDatabaseConnection store::Conn
             {
                 type: DuckDB;
-                specification: InMemory { };
-                auth: NoAuth { };
+                specification: DuckDB { };
+                auth: Test;
             }
 
             Runtime test::SingleRT
@@ -793,8 +793,8 @@ class JsonM2MChainIntegrationTest {
                 RelationalDatabaseConnection store::Conn
                 {
                     type: DuckDB;
-                    specification: InMemory { };
-                    auth: NoAuth { };
+                    specification: DuckDB { };
+                    auth: Test;
                 }
 
                 Runtime test::MultiRT
@@ -967,8 +967,8 @@ class JsonM2MChainIntegrationTest {
                     RelationalDatabaseConnection store::Conn
                     {
                         type: DuckDB;
-                        specification: InMemory { };
-                        auth: NoAuth { };
+                        specification: DuckDB { };
+                        auth: Test;
                     }
 
                     Runtime test::FileRT

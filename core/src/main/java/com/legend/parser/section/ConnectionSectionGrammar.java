@@ -24,13 +24,11 @@ import java.util.List;
  * twin mis-parse {@code testDataSetupSqls} arrays for months cannot recur.
  *
  * <p>Engine-parity shapes are probed byte-for-byte (ZConnectionProbe).
- * legend-lite additionally accepts its OWN extension flavors for
- * engine-independent DuckDB operation — {@code InMemory {}},
- * {@code LocalFile { path }}, {@code LocalH2 { url }}, {@code Static}'s
- * {@code database:} key spelling, {@code NoAuth {}} and the literal-username
- * {@code UsernamePassword} — the same posture as {@code PRelTypeRef}: a NAMED
- * lite superset the corpus never contains and the emitter refuses to put on
- * the wire.
+ * The former lite-only flavors (InMemory/LocalFile/NoAuth/url/database:/
+ * literal UsernamePassword) are DELETED — conform-to-engine migration
+ * (2026-08-10): in-process DuckDB spells the ENGINE's {@code DuckDB {
+ * (path)* }} and test auth spells {@code Test} (ZMigrationTargetProbe,
+ * oracle-verified).
  */
 public final class ConnectionSectionGrammar implements LexableSectionGrammar {
 
@@ -532,15 +530,9 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     + " specification");
         }
         if (auth == null) {
-            // lite-extension posture carried over from the retired
-            // straight-to-model twin: a LOCAL spec (InMemory / LocalFile /
-            // LocalH2) may omit auth and defaults to NoAuth; a remote Static
-            // spec without auth stays the loud error the engine gives (the
-            // corpus always spells auth, so parity never sees this branch)
-            if (spec instanceof Protocol.PStaticSpec) {
-                throw c.error("RelationalDatabaseConnection needs auth");
-            }
-            auth = new Protocol.PNoAuth(c.spanOf(declStart, c.pos() - 1));
+            // ENGINE-TRUE: auth is required (the omit-defaults-to-NoAuth
+            // tolerance died with the lite flavors — conform-to-engine)
+            throw c.error("RelationalDatabaseConnection needs auth");
         }
         return new Protocol.PRelationalDatabaseConnection(
                 auth, dbType, spec, element, elementSpan, posts,
@@ -642,7 +634,6 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "LocalH2" -> {
                 List<String> sqls = null;
                 String csv = null;
-                String url = null;
                 c.expect(TokenType.BRACE_OPEN);
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
@@ -662,11 +653,6 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         String quoted = c.text();
                         c.expect(TokenType.STRING);
                         csv = TokenStreamCursor.unquoteAndUnescape(quoted, c);
-                    } else if ("url".equals(key)) {
-                        // lite extension: engine's LocalH2 has no url key
-                        String quoted = c.text();
-                        c.expect(TokenType.STRING);
-                        url = TokenStreamCursor.unquoteAndUnescape(quoted, c);
                     } else {
                         throw c.error("unknown LocalH2 key: " + key);
                     }
@@ -674,7 +660,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 }
                 c.expect(TokenType.BRACE_CLOSE);
                 c.expect(TokenType.SEMI_COLON); // span INCLUDES the ';' (probe)
-                yield new Protocol.PH2Local(csv, sqls, url,
+                yield new Protocol.PH2Local(csv, sqls,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             case "Static" -> {
@@ -686,9 +672,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     String key = c.parseIdentifier();
                     c.expect(TokenType.COLON);
                     switch (key) {
-                        // 'name' is the engine spelling, 'database' the lite
-                        // one — both name the same wire field (databaseName)
-                        case "name", "database" -> {
+                        // engine spelling: name: IS the databaseName
+                        case "name" -> {
                             String quoted = c.text();
                             c.expect(TokenType.STRING);
                             name = TokenStreamCursor.unquoteAndUnescape(quoted, c);
@@ -715,41 +700,25 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         port == null ? 0 : port,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
-            case "InMemory" -> {
-                // lite extension: an in-process DuckDB, empty body
-                c.expect(TokenType.BRACE_OPEN);
-                c.expect(TokenType.BRACE_CLOSE);
-                c.expect(TokenType.SEMI_COLON);
-                yield new Protocol.PInMemory(c.spanOf(keywordTok, c.pos() - 1));
-            }
-            case "LocalFile" -> {
-                // lite extension: a file-backed DuckDB/SQLite
+            case "DuckDB" -> {
+                // ENGINE-REAL (DuckDBParserGrammar, oracle-verified):
+                // DuckDB { (path: '...';)* } — no path = in-memory
                 c.expect(TokenType.BRACE_OPEN);
                 String path = null;
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
                     c.expect(TokenType.COLON);
                     if (!"path".equals(key)) {
-                        throw c.error("unknown LocalFile key: " + key);
+                        throw c.error("unknown DuckDB key: " + key);
                     }
-                    if (c.peek() == TokenType.STRING) {
-                        path = TokenStreamCursor.unquoteAndUnescape(c.text(), c);
-                        c.advance();
-                    } else if (c.peek() == TokenType.QUOTED_STRING) {
-                        // path: "/tmp/db.duckdb" — the OTHER quote character
-                        path = TokenStreamCursor.stripDoubleQuotes(c.text());
-                        c.advance();
-                    } else {
-                        throw c.error("LocalFile path must be a string");
-                    }
+                    String quoted = c.text();
+                    c.expect(TokenType.STRING);
+                    path = TokenStreamCursor.unquoteAndUnescape(quoted, c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 c.expect(TokenType.BRACE_CLOSE);
                 c.expect(TokenType.SEMI_COLON);
-                if (path == null) {
-                    throw c.error("LocalFile needs path");
-                }
-                yield new Protocol.PLocalFile(path,
+                yield new Protocol.PDuckDBSpec(path,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             case "Snowflake" -> {
@@ -945,43 +914,6 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             + " and passwordVaultReference");
                 }
                 yield new Protocol.PUserNamePassword(base, user, pass,
-                        c.spanOf(keywordTok, c.pos() - 1));
-            }
-            case "NoAuth" -> {
-                // lite extension: empty body optional
-                if (c.peek() == TokenType.BRACE_OPEN) {
-                    c.advance();
-                    c.expect(TokenType.BRACE_CLOSE);
-                }
-                c.expect(TokenType.SEMI_COLON);
-                yield new Protocol.PNoAuth(c.spanOf(keywordTok, c.pos() - 1));
-            }
-            case "UsernamePassword" -> {
-                // lite extension: literal username + vault ref (lower-case n)
-                c.expect(TokenType.BRACE_OPEN);
-                String username = null;
-                String passRef = null;
-                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
-                    String key = c.parseIdentifier();
-                    c.expect(TokenType.COLON);
-                    String quoted = c.text();
-                    c.expect(TokenType.STRING);
-                    String v = TokenStreamCursor.unquoteAndUnescape(quoted, c);
-                    switch (key) {
-                        case "username" -> username = v;
-                        case "passwordVaultRef" -> passRef = v;
-                        default -> throw c.error(
-                                "unknown UsernamePassword key: " + key);
-                    }
-                    c.expect(TokenType.SEMI_COLON);
-                }
-                c.expect(TokenType.BRACE_CLOSE);
-                c.expect(TokenType.SEMI_COLON);
-                if (username == null || passRef == null) {
-                    throw c.error("UsernamePassword needs username and"
-                            + " passwordVaultRef");
-                }
-                yield new Protocol.PPlainUserPassword(username, passRef,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             case "SnowflakePublic" -> {

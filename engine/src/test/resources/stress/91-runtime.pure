@@ -1,8 +1,8 @@
 RelationalDatabaseConnection store::Conn
 {
     type: DuckDB;
-    specification: InMemory { };
-    auth: NoAuth { };
+    specification: DuckDB { };
+    auth: Test;
 }
 
 Runtime stress::RT

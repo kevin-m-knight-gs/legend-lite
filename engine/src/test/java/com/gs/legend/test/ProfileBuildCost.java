@@ -127,7 +127,7 @@ class ProfileBuildCost {
         sb.append(")\n");
 
         sb.append("import test::*;\n");
-        sb.append("RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }\n");
+        sb.append("RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }\n");
         sb.append("Runtime test::RT { mappings: [ test::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }\n");
 
         return sb.toString();

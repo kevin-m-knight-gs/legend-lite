@@ -22,6 +22,6 @@ RelationalDatabaseConnection refdata::RefConn
 {
     store: refdata::RefDB;
     type: DuckDB;
-    specification: InMemory { };
-    auth: NoAuth { };
+    specification: DuckDB { };
+    auth: Test;
 }

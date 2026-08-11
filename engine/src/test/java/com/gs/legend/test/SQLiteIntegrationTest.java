@@ -316,8 +316,8 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: SQLite;
-                    specification: InMemory { };
-                    auth: NoAuth { };
+                    specification: DuckDB { };
+                    auth: Test;
                 }
 
                 Runtime test::TestRuntime
@@ -376,8 +376,8 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: SQLite;
-                    specification: InMemory { };
-                    auth: NoAuth { };
+                    specification: DuckDB { };
+                    auth: Test;
                 }
 
                 Runtime test::TestRuntime

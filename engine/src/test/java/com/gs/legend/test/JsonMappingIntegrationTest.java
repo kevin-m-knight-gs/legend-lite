@@ -102,8 +102,8 @@ class JsonMappingIntegrationTest {
     private static final String CONNECTION = """
             RelationalDatabaseConnection store::TestConnection {
                 type: DuckDB;
-                specification: InMemory { };
-                auth: NoAuth { };
+                specification: DuckDB { };
+                auth: Test;
             }
             """;
 

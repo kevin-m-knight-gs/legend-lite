@@ -681,13 +681,15 @@ public final class FromProtocol {
         }
         ConnectionSpecification spec = switch (r.datasourceSpecification()) {
             case Protocol.PH2Local h -> new ConnectionSpecification.LocalH2(
-                    h.url(), h.testDataSetupCsv(), h.testDataSetupSqls());
+                    null, h.testDataSetupCsv(), h.testDataSetupSqls());
             // engine's name: IS the database name (wire field databaseName)
             case Protocol.PStaticSpec s -> new ConnectionSpecification
                     .StaticDatasource(s.host(), (int) s.port(), s.databaseName());
-            case Protocol.PInMemory im -> new ConnectionSpecification.InMemory();
-            case Protocol.PLocalFile lf ->
-                    new ConnectionSpecification.LocalFile(lf.path());
+            // the ENGINE-REAL DuckDB spec folds to the same execution
+            // semantics: pathless = in-process, path = file-backed
+            case Protocol.PDuckDBSpec dd -> dd.path() == null
+                    ? new ConnectionSpecification.InMemory()
+                    : new ConnectionSpecification.LocalFile(dd.path());
             case Protocol.PSnowflakeSpec s -> new ConnectionSpecification
                     .Snowflake(s.databaseName(), s.accountName(),
                             s.warehouseName(), s.region(), s.accountType(),
@@ -710,10 +712,6 @@ public final class FromProtocol {
                     new AuthenticationSpec.VaultUserNamePassword(
                             u.baseVaultReference(), u.userNameVaultReference(),
                             u.passwordVaultReference());
-            case Protocol.PNoAuth n -> new AuthenticationSpec.NoAuth();
-            case Protocol.PPlainUserPassword p ->
-                    new AuthenticationSpec.UsernamePassword(p.username(),
-                            p.passwordVaultRef());
             case Protocol.PSnowflakePublic s ->
                     new AuthenticationSpec.SnowflakePublic(s.publicUserName(),
                             s.privateKeyVaultReference(),

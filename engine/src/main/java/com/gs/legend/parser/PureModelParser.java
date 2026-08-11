@@ -1111,6 +1111,12 @@ public final class PureModelParser {
                     expect(TokenType.BRACE_OPEN);
                     Map<String, String> specProps = parseKeyValueBlock();
                     specification = switch (specType) {
+                        // ENGINE-REAL spelling: DuckDB { (path)* } — no
+                        // path = in-process (conform-to-engine migration)
+                        case "DuckDB" -> specProps.containsKey("path")
+                                ? new ConnectionSpecification.LocalFile(
+                                        specProps.get("path"))
+                                : new ConnectionSpecification.InMemory();
                         case "InMemory" -> new ConnectionSpecification.InMemory();
                         case "LocalFile" -> new ConnectionSpecification.LocalFile(
                                 specProps.get("path"));

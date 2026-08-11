@@ -49,7 +49,7 @@ class TestBodyTest {
             )
 
             RelationalDatabaseConnection test::Conn
-            { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
             Runtime test::Rt
             { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
@@ -311,7 +311,7 @@ class TestBodyTest {
             )
 
             RelationalDatabaseConnection test::Conn
-            { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
             Runtime test::Rt
             { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }

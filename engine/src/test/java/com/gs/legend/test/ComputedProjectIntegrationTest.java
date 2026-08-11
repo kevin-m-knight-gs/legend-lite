@@ -42,7 +42,7 @@ public class ComputedProjectIntegrationTest {
                 val: Integer[1];
             }
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
-            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 
@@ -115,7 +115,7 @@ public class ComputedProjectIntegrationTest {
                 employees: meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests[*];
             }
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
-            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 
@@ -172,7 +172,7 @@ public class ComputedProjectIntegrationTest {
             import test::*;
 
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
-            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 
@@ -285,7 +285,7 @@ public class ComputedProjectIntegrationTest {
             import test::*;
 
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
-            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
             Runtime test::TestRuntime { mappings: []; connections: [ store::TestDb: [ environment: store::TestConn ] ]; }
             """;
 

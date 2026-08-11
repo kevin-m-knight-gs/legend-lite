@@ -141,7 +141,7 @@ class MultiFileRebuildTest {
             """;
 
     static final String FILE_RUNTIME = """
-            RelationalDatabaseConnection store::Conn { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+            RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
             Runtime trade::RT { mappings: [ trade::TradeMapping ]; connections: [ store::TradeDB: [ environment: store::Conn ] ]; }
             """;
 

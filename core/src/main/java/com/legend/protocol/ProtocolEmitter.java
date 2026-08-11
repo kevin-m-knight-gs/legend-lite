@@ -962,14 +962,7 @@ public final class ProtocolEmitter {
                 str(b, m.vaultReference());
                 b.append('}');
             }
-            case Protocol.PNoAuth n -> require(false,
-                    "lite-extension NoAuth strategy (no engine wire shape)",
-                    "connection");
-            case Protocol.PPlainUserPassword p -> require(false,
-                    "lite-extension UsernamePassword strategy (no engine wire"
-                            + " shape)",
-                    "connection");
-        }
+                                }
     }
 
     private static void mapper(StringBuilder b, Protocol.PMapper m) {
@@ -1136,9 +1129,6 @@ public final class ProtocolEmitter {
     private static void datasourceSpec(StringBuilder b, Protocol.PDatasourceSpec d) {
         switch (d) {
             case Protocol.PH2Local h -> {
-                require(h.url() == null,
-                        "lite-extension LocalH2 url key (no engine wire shape)",
-                        "connection");
                 b.append("{\"_type\":\"h2Local\",\"sourceInformation\":");
                 srcInfo(b, h.sourceInformation());
                 if (h.testDataSetupCsv() != null) {
@@ -1155,6 +1145,17 @@ public final class ProtocolEmitter {
                     }
                     b.append(']');
                 }
+                b.append('}');
+            }
+            case Protocol.PDuckDBSpec dd -> {
+                // probed wire (ZMigrationTargetProbe): _type, [path], si
+                b.append("{\"_type\":\"duckDB\"");
+                if (dd.path() != null) {
+                    b.append(",\"path\":");
+                    str(b, dd.path());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, dd.sourceInformation());
                 b.append('}');
             }
             case Protocol.PStaticSpec st -> {
@@ -1233,13 +1234,7 @@ public final class ProtocolEmitter {
                 srcInfo(b, s.sourceInformation());
                 b.append('}');
             }
-            case Protocol.PInMemory im -> require(false,
-                    "lite-extension InMemory datasource (no engine wire shape)",
-                    "connection");
-            case Protocol.PLocalFile lf -> require(false,
-                    "lite-extension LocalFile datasource (no engine wire shape)",
-                    "connection");
-        }
+                                }
     }
 
     /**

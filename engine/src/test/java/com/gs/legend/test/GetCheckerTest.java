@@ -55,8 +55,8 @@ public class GetCheckerTest {
             RelationalDatabaseConnection store::TestConnection
             {
                 type: DuckDB;
-                specification: InMemory { };
-                auth: NoAuth { };
+                specification: DuckDB { };
+                auth: Test;
             }
             """;
 

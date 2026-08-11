@@ -435,7 +435,7 @@ class EnumIntegrationTest {
                         }
                     )
 
-                    RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                    RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
                     Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
                     """;
@@ -516,7 +516,7 @@ class EnumIntegrationTest {
                         }
                     )
 
-                    RelationalDatabaseConnection store::IssueConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                    RelationalDatabaseConnection store::IssueConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
                     Runtime app::IssueRuntime { mappings: [ model::IssueMapping ]; connections: [ store::IssueDB: [ environment: store::IssueConnection ] ]; }
                     """;
@@ -596,7 +596,7 @@ class EnumIntegrationTest {
                         }
                     )
 
-                    RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                    RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
                     Runtime app::OrderRuntime { mappings: [ model::OrderMapping ]; connections: [ store::OrderDB: [ environment: store::OrderConnection ] ]; }
                     """;
@@ -694,7 +694,7 @@ class EnumIntegrationTest {
                         }
                     )
 
-                    RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                    RelationalDatabaseConnection store::OrderConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
                     Runtime app::OrderRuntime { mappings: [ model::OrderMapping ]; connections: [ store::OrderDB: [ environment: store::OrderConnection ] ]; }
                     """;
@@ -776,7 +776,7 @@ class EnumIntegrationTest {
                         }
                     )
 
-                    RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: InMemory { }; auth: NoAuth { }; }
+                    RelationalDatabaseConnection store::TaskConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
 
                     Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
                     """;

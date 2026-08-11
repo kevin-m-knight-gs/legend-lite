@@ -211,7 +211,7 @@ final class ModelIndexerTest {
                 + "execution: Single { query: |1; mapping: my::M; runtime: my::R; } } "
                 + "Runtime my::R { mappings: [my::M]; } "
                 + "RelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
-                + "specification: InMemory {}; auth: NoAuth {}; }");
+                + "specification: DuckDB {}; auth: Test; }");
         assertEquals(ElementKind.SERVICE, idx.get("my::S").kind());
         assertEquals(ElementKind.RUNTIME, idx.get("my::R").kind());
         assertEquals(ElementKind.CONNECTION, idx.get("my::C").kind());
@@ -336,7 +336,7 @@ final class ModelIndexerTest {
                                 + "execution: Single { query: |1; mapping: my::M; runtime: my::R; } } "
                                 + "Runtime my::R { mappings: [my::M]; } "
                                 + "RelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
-                                + "specification: InMemory {}; auth: NoAuth {}; }"),
+                                + "specification: DuckDB {}; auth: Test; }"),
                 org.junit.jupiter.params.provider.Arguments.of("imports before and between elements",
                         "import my::*; Class my::A {} import my::store::*; Class my::B {}"),
                 org.junit.jupiter.params.provider.Arguments.of("all element kinds mixed",
@@ -351,7 +351,7 @@ final class ModelIndexerTest {
                         Mapping my::M ( *my::C: Relational { ~mainTable [my::DB] T  x: T.X } )
                         Runtime my::R { mappings: [my::M]; }
                         RelationalDatabaseConnection my::Conn { store: my::DB; type: DuckDB;
-                          specification: InMemory {}; auth: NoAuth {}; }
+                          specification: DuckDB {}; auth: Test; }
                         """)
         );
     }

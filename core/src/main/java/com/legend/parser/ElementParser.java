@@ -563,6 +563,20 @@ public final class ElementParser implements TokenStreamCursor {
      */
     private PackageableElement parseSingleElement() {
         TokenType t = peek();
+        // STRICT SECTION BINDING (quarantine doctrine, OwnCorpusConformance):
+        // the engine's default/###Pure section admits ONLY domain elements —
+        // a Mapping/Runtime/Connection/Database/Service declared without its
+        // section header is a LITE convenience (our own tests are written
+        // headerless) that the drop-in surface refuses like the engine does.
+        if (legendStrict && !inNonPureSection(tokens.start(pos))) {
+            switch (t) {
+                case SERVICE, RUNTIME, SINGLE_CONNECTION_RUNTIME,
+                        RELATIONAL_DATABASE_CONNECTION, DATABASE, MAPPING ->
+                        throw error("Unexpected token '" + safeText() + "'");
+                default -> {
+                }
+            }
+        }
         return switch (t) {
             case CLASS -> classElement(false);
             case NATIVE -> nativeElement();
@@ -579,6 +593,35 @@ public final class ElementParser implements TokenStreamCursor {
             default -> throw error("unsupported top-level keyword: " + t
                     + " ('" + safeText() + "')");
         };
+    }
+
+    /** Char ranges of NON-Pure lexed sections — the strict section-binding
+     *  gate's lookup (lazy; only strict parses consult it). */
+    private long @com.legend.Nullable [][] nonPureRanges;
+
+    private boolean inNonPureSection(int offset) {
+        if (nonPureRanges == null) {
+            var headers = tokens.sectionHeaders();
+            java.util.List<long[]> rs = new ArrayList<>();
+            for (int i = 0; i < headers.size(); i++) {
+                var h = headers.get(i);
+                if (!"Pure".equals(h.name())) {
+                    // the LAST section's range is open-ended — membership
+                    // only needs the start bound (no source() re-read)
+                    long end = i + 1 < headers.size()
+                            ? headers.get(i + 1).nameOffset() - 3
+                            : Long.MAX_VALUE;
+                    rs.add(new long[]{h.contentStartOffset(), end});
+                }
+            }
+            nonPureRanges = rs.toArray(new long[0][]);
+        }
+        for (long[] r : nonPureRanges) {
+            if (offset >= r[0] && offset < r[1]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** PROTOCOL-FIRST. */
@@ -649,6 +692,10 @@ public final class ElementParser implements TokenStreamCursor {
             return primitiveElement();
         }
         if ("Data".equals(safeText())) {
+            // strict section binding: Data lives in ###Data only
+            if (legendStrict && !inNonPureSection(tokens.start(pos))) {
+                throw error("Unexpected token '" + safeText() + "'");
+            }
             return dataElement();
         }
         if ("Measure".equals(safeText())) {

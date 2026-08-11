@@ -91,7 +91,8 @@ class LegendHttpServerIntegrationTest {
 
                 RelationalDatabaseConnection store::TestConnection {
                     type: DuckDB;
-                    specification: LocalFile { path: "{{DB_PATH}}"; };
+                    specification: DuckDB { path: '{{DB_PATH}}'; };
+                    auth: Test;
                 }
 
                 Runtime test::TestRuntime {
@@ -352,7 +353,8 @@ class LegendHttpServerIntegrationTest {
 
                 RelationalDatabaseConnection store::EmpConnection {
                     type: DuckDB;
-                    specification: InMemory { };
+                    specification: DuckDB { };
+                    auth: Test;
                 }
 
                 Runtime test::EmpRuntime {

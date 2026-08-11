@@ -74,7 +74,7 @@ class MappingResolverParityTest {
         return body + """
 
                 RelationalDatabaseConnection store::Conn {
-                    type: DuckDB; specification: InMemory { }; auth: NoAuth { };
+                    type: DuckDB; specification: DuckDB { }; auth: Test;
                 }
                 Runtime test::RT {
                     mappings: [ %s ];

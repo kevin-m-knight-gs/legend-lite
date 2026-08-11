@@ -71,6 +71,16 @@
             <version>${legend.engine.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- PRODUCTION store extension the collection does not bundle: the
+             DuckDB connection grammar (main-scoped, published) — the oracle
+             stays production-shaped, and our own tests' DuckDB connections
+             become oracle-verifiable (conform-to-engine migration) -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-relationalStore-duckdb-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>

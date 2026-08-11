@@ -103,7 +103,7 @@ class CompilerFacadeTest {
                 )
                 RelationalDatabaseConnection test::Conn {
                   store: test::DB; type: Postgres;
-                  specification: InMemory { }; auth: NoAuth { }; }
+                  specification: DuckDB { }; auth: Test; }
                 Runtime test::RT { mappings: [test::M];
                   connections: [ test::DB: [ environment: test::Conn ] ]; }
                 """;
