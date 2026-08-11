@@ -214,15 +214,17 @@ class OwnCorpusConformanceTest {
         System.out.println("own-corpus: " + ours.size() + " snippets, "
                 + accepted + " oracle-accepted, " + bothRefuse
                 + " both-refuse, refusal classes: " + byClass);
-        // THE RATCHET (invention census batch 1, 2026-08-11): 753/949
-        // oracle-accepted (OWN_DECL population), 96 classified leniency
+        // THE RATCHET (invention census batch 2, 2026-08-11): 758/949
+        // oracle-accepted (OWN_DECL population), 78 classified leniency
         // rows. Every class is PINNED — a new row in any class (or a new
         // class) fails the build, so own-corpus leniency can only shrink.
-        // Still-unresolved worklist (the ONLY provisional labels):
-        // ORACLE-DEFECT 7 = specific/dup imports (ElementParserTest
-        // 7/10/120/146) + trailing commas (744/801/832); VERSION-SKEW 2 =
-        // mid-file import groups (ModelIndexerTest 51/92). Both families
-        // are neither-reference inventions queued for parser refusal.
+        // The import inventions are DEAD (specific imports and mid-file
+        // import groups refuse on BOTH surfaces; ImportScope is
+        // wildcards-only). Still-unresolved worklist: ORACLE-DEFECT 3 =
+        // the trailing-comma fixtures (ElementParserTest) — the last
+        // neither-reference tolerance, queued for adjudication (its
+        // XStore missing-comma cousin proved CORPUS-NEEDED, so this one
+        // gets the corpus check before any refusal).
         Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
                 Map.entry("DIALECT-function-types", 13),
                 Map.entry("DIALECT-generics", 7),
@@ -233,12 +235,11 @@ class OwnCorpusConformanceTest {
                 Map.entry("LITE-DESIGN-json-column-get", 11),
                 Map.entry("LITE-DESIGN-mapping-as-function", 20),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
-                Map.entry("ORACLE-DEFECT-InputMismatchException", 7),
+                Map.entry("ORACLE-DEFECT-InputMismatchException", 3),
                 Map.entry("PURE-DIALECT-diagram", 1),
                 Map.entry("PURE-DIALECT-signatures", 16),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
-                Map.entry("TEST-MACHINERY-fixture", 1),
-                Map.entry("VERSION-SKEW-grammar", 2)));
+                Map.entry("TEST-MACHINERY-fixture", 1)));
         List<String> overflows = new ArrayList<>();
         for (Map.Entry<String, Integer> e : byClass.entrySet()) {
             int pin = pins.getOrDefault(e.getKey(), 0);

@@ -53,10 +53,15 @@ class AssociationIntegrationTest {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                ###Pure
                 import test::*;
 
 
+                ###Connection
+                import test::*;
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import test::*;
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }
@@ -120,6 +125,7 @@ class AssociationIntegrationTest {
      */
     private String fullModel() {
         return withRuntime("""
+                ###Pure
                 import store::*;
                 import test::*;
 
@@ -332,6 +338,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_PHONE VALUES (1, 1, '555-0001'), (2, 2, '555-0002'), (3, 2, '555-0003')");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -652,6 +659,7 @@ class AssociationIntegrationTest {
         @DisplayName("Association + ~filter (mapping-level filter)")
         void testAssociationWithMappingFilter() throws SQLException {
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -702,6 +710,7 @@ class AssociationIntegrationTest {
         @DisplayName("Association + ~distinct")
         void testAssociationWithMappingDistinct() throws SQLException {
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -748,6 +757,7 @@ class AssociationIntegrationTest {
         @DisplayName("Join chain property AND association nav in same query")
         void testJoinChainAndAssociation() throws SQLException {
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -835,6 +845,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_EMP VALUES (1, 1, 'Alice'), (1, 2, 'Bob'), (2, 1, 'Charlie'), (1, 3, 'Diana')");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -889,6 +900,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_CHILD VALUES (1, 1, 1, 'ActiveChild'), (2, 1, 0, 'InactiveChild'), (3, 2, 1, 'OtherChild')");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -946,6 +958,7 @@ class AssociationIntegrationTest {
             // T_FIRM is empty — no rows
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -996,6 +1009,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_PERSON VALUES (1, 'Alice', NULL), (2, 'Bob', NULL)");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1172,6 +1186,7 @@ class AssociationIntegrationTest {
             // T_EMPTY_PERSON has no rows
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1299,6 +1314,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_EMP2 VALUES (1, 'CEO', NULL), (2, 'VP', 1), (3, 'Dev', 2), (4, 'Intern', 3)");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1338,6 +1354,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_EMP3 VALUES (1, 'CEO', NULL), (2, 'VP', 1), (3, 'Director', 1), (4, 'Dev', 2)");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1381,6 +1398,7 @@ class AssociationIntegrationTest {
          */
         private String combinedModel() {
             return withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1538,6 +1556,7 @@ class AssociationIntegrationTest {
          */
         private String bossModel() {
             return withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1677,6 +1696,7 @@ class AssociationIntegrationTest {
                 "INSERT INTO T_EMP VALUES (1, 'CEO', NULL), (2, 'VP', 1), (3, 'Dev', 2)");
 
             String model = withRuntime("""
+                    ###Pure
                     import store::*;
                     import test::*;
 
@@ -1895,6 +1915,7 @@ class AssociationIntegrationTest {
 
         private String deepModel() {
             return withRuntime("""
+                ###Pure
                 import store::*;
                 import test::*;
 

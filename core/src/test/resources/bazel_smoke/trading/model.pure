@@ -11,6 +11,7 @@
 // See docs/BAZEL_IMPLEMENTATION_PLAN.md §1.2.
 // ============================================================
 
+###Pure
 import refdata::*;
 
 Class <<RefDataProfile.rootEntity>> {RefDataProfile.description = 'A financial trade'} trading::Trade

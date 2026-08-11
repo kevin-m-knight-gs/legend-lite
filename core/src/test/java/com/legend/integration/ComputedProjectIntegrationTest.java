@@ -26,6 +26,7 @@ public class ComputedProjectIntegrationTest {
      * produces from the Pure interpreter.
      */
     private static final String MODEL = """
+            ###Pure
             import meta::pure::functions::relation::tests::project::*;
             import store::*;
             import test::*;
@@ -111,6 +112,7 @@ public class ComputedProjectIntegrationTest {
      * Model for the PCT composition tests (testFilterPostProject etc).
      */
     private static final String COMPOSITION_MODEL = """
+            ###Pure
             import meta::pure::functions::relation::tests::composition::*;
             import store::*;
             import test::*;
@@ -186,9 +188,6 @@ public class ComputedProjectIntegrationTest {
     // ==================== PCT testGroupByCastBeforeAgg / AfterAgg ====================
 
     private static final String TDS_MODEL = """
-            import store::*;
-            import test::*;
-
             ###Relational
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
             ###Connection
@@ -306,9 +305,6 @@ public class ComputedProjectIntegrationTest {
     // ==================== PCT testOLAPAggCastWithPartitionWindow ====================
 
     private static final String TDS_3COL_MODEL = """
-            import store::*;
-            import test::*;
-
             ###Relational
             Database store::TestDb ( Table T_DUMMY ( ID INTEGER ) )
             ###Connection

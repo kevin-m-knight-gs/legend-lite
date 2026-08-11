@@ -46,10 +46,15 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                ###Pure
                 import test::*;
 
 
+                ###Connection
+                import test::*;
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import test::*;
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }
@@ -95,6 +100,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'Doe'), (2, 'Jane', 'Smith')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -118,6 +124,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T1 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T1 VALUES (1, 'ALICE'), (2, 'BOB')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -140,6 +147,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T2 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T2 VALUES (1, 'alice'), (2, 'bob')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -162,6 +170,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T3 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T3 VALUES (1, '  hello  '), (2, ' world ')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -184,6 +193,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE CODES (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO CODES VALUES (1, 'US-CA-01'), (2, 'UK-LN-02')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -206,6 +216,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T4 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T4 VALUES (1, 'foo-bar'), (2, 'foo-baz')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -228,6 +239,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T5 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T5 VALUES (1, 'hi'), (2, 'hello')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -251,6 +263,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T6 (ID INT, NAME VARCHAR(10))",
                 "INSERT INTO T6 VALUES (1, 'ab'), (2, 'x')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -273,6 +286,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T7 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T7 VALUES (1, 'hello')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -295,6 +309,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE T8 (ID INT, NAME VARCHAR(50))",
                 "INSERT INTO T8 VALUES (1, 'hello')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -324,6 +339,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TN1 (ID INT, VAL VARCHAR(50))",
                 "INSERT INTO TN1 VALUES (1, 'present'), (2, NULL)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -347,6 +363,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TN2 (ID INT, VAL VARCHAR(50))",
                 "INSERT INTO TN2 VALUES (1, 'present'), (2, NULL)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -377,6 +394,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TB1 (ID INT)",
                 "INSERT INTO TB1 VALUES (1), (2)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -399,6 +417,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TB2 (ID INT)",
                 "INSERT INTO TB2 VALUES (1), (2)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -428,6 +447,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TA1 (ID INT, A INT, B INT)",
                 "INSERT INTO TA1 VALUES (1, 10, 20), (2, 30, 40)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -451,6 +471,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TA2 (ID INT, A INT, B INT)",
                 "INSERT INTO TA2 VALUES (1, 50, 20), (2, 100, 30)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -474,6 +495,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TA3 (ID INT, A INT, B INT)",
                 "INSERT INTO TA3 VALUES (1, 10, 3), (2, 22, 7)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -508,6 +530,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TC1 (ID INT, A VARCHAR(10), B VARCHAR(10))",
                 "INSERT INTO TC1 VALUES (1, 'x', 'x'), (2, 'x', 'y')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -531,6 +554,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TC2 (ID INT, A VARCHAR(10), B VARCHAR(10))",
                 "INSERT INTO TC2 VALUES (1, 'x', 'x'), (2, 'x', NULL), (3, NULL, NULL)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -564,6 +588,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE STATUS (ID INT, CODE VARCHAR(10))",
                 "INSERT INTO STATUS VALUES (1, 'A'), (2, 'I')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -594,6 +619,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TM1 (ID INT, VAL INT)",
                 "INSERT INTO TM1 VALUES (1, 42), (2, 99)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -617,6 +643,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE TM2 (ID INT)",
                 "INSERT INTO TM2 VALUES (1)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -646,6 +673,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE NAMES (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50))",
                 "INSERT INTO NAMES VALUES (1, 'John', 'DOE')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -667,6 +695,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE EMPS (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), SALARY INT, BONUS INT)",
                 "INSERT INTO EMPS VALUES (1, 'Alice', 'Wonder', 100, 20), (2, 'Bob', 'Builder', 200, 30)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -695,6 +724,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE ITEMS (ID INT, NAME VARCHAR(50), PRICE INT, QTY INT)",
                 "INSERT INTO ITEMS VALUES (1, 'Widget', 10, 5), (2, 'Gadget', 20, 3), (3, 'Doohickey', 5, 100)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -723,6 +753,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE CALC (ID INT, A INT, B INT, C INT)",
                 "INSERT INTO CALC VALUES (1, 10, 20, 5), (2, 100, 50, 25)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -746,6 +777,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE MIX (ID INT, CODE VARCHAR(5), NAME VARCHAR(50))",
                 "INSERT INTO MIX VALUES (1, 'A', 'Hello'), (2, 'B', 'World')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -771,6 +803,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                 "CREATE TABLE EMP (ID INT, NAME VARCHAR(50), DEPT_ID INT)",
                 "INSERT INTO EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -800,6 +833,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE WORDS (ID INT, WORD VARCHAR(50))",
                 "INSERT INTO WORDS VALUES (1, 'banana'), (2, 'apple'), (3, 'cherry')");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -823,6 +857,7 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             sql("CREATE TABLE PEOPLE (ID INT, FIRST VARCHAR(50), LAST VARCHAR(50), AGE INT)",
                 "INSERT INTO PEOPLE VALUES (1, 'John', 'Doe', 30), (2, 'Jane', 'Smith', 25)");
             String model = withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 

@@ -234,7 +234,7 @@ final class ModelIndexerTest {
     void importsInterleavedWithElements() {
         ModelIndex idx = scan(
                 "Class my::A {} "
-                + "import my::store::*; "
+                + "\n###Pure\nimport my::store::*; "
                 + "Class my::B {}");
         assertEquals(1, idx.imports().size());
         assertEquals(List.of("my::A", "my::B"), List.copyOf(idx.fqns()));
@@ -338,9 +338,10 @@ final class ModelIndexerTest {
                                 + "\n###Connection\nRelationalDatabaseConnection my::C { store: my::DB; type: DuckDB; "
                                 + "specification: DuckDB {}; auth: Test; }"),
                 org.junit.jupiter.params.provider.Arguments.of("imports before and between elements",
-                        "import my::*; Class my::A {} import my::store::*; Class my::B {}"),
+                        "import my::*; Class my::A {} \n###Pure\nimport my::store::*; Class my::B {}"),
                 org.junit.jupiter.params.provider.Arguments.of("all element kinds mixed",
                         """
+                        ###Pure
                         import my::*;
                         Class my::C { x: String[1]; }
                         Association my::A { l: my::C[1]; r: my::C[1]; }
@@ -382,6 +383,7 @@ final class ModelIndexerTest {
     @Test
     void shallowAndDeepAgreeOnFqnSet() {
         String src = """
+                ###Pure
                 import my::*;
 
                 Class my::Person extends my::LegalEntity {

@@ -41,6 +41,7 @@ class InheritanceIntegrationTest {
          * Employee inherits 'id', 'firstName', 'lastName' from Person
          */
         private static final String INHERITANCE_MODEL = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;

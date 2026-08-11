@@ -65,6 +65,7 @@ class JsonM2MChainIntegrationTest {
      *   - NumericView (L1 with arithmetic)
      */
     private static final String CHAIN_MODEL = """
+            ###Pure
             import model::*;
             import store::*;
 
@@ -127,6 +128,9 @@ class JsonM2MChainIntegrationTest {
             }
 
             // ===== L1 M2M Mappings =====
+            ###Mapping
+            import model::*;
+            import store::*;
             Mapping model::StaffMemberMapping
             (
                 StaffMember: Pure
@@ -203,6 +207,9 @@ class JsonM2MChainIntegrationTest {
             )
 
             // ===== Connection & Runtime =====
+            ###Connection
+            import model::*;
+            import store::*;
             RelationalDatabaseConnection store::Conn
             {
                 type: DuckDB;
@@ -210,6 +217,9 @@ class JsonM2MChainIntegrationTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import model::*;
+            import store::*;
             Runtime test::ChainRT
             {
                 mappings:
@@ -247,6 +257,7 @@ class JsonM2MChainIntegrationTest {
      * Single-element JSON source — edge case with 1 row.
      */
     private static final String SINGLE_MODEL = """
+            ###Pure
             import model::*;
             import store::*;
 
@@ -269,6 +280,9 @@ class JsonM2MChainIntegrationTest {
                 dept:      String[1];
             }
 
+            ###Mapping
+            import model::*;
+            import store::*;
             Mapping model::StaffMemberMapping
             (
                 StaffMember: Pure
@@ -282,6 +296,9 @@ class JsonM2MChainIntegrationTest {
                 }
             )
 
+            ###Connection
+            import model::*;
+            import store::*;
             RelationalDatabaseConnection store::Conn
             {
                 type: DuckDB;
@@ -289,6 +306,9 @@ class JsonM2MChainIntegrationTest {
                 auth: Test;
             }
 
+            ###Runtime
+            import model::*;
+            import store::*;
             Runtime test::SingleRT
             {
                 mappings: [ model::StaffMemberMapping ];
@@ -734,6 +754,7 @@ class JsonM2MChainIntegrationTest {
          * RawPerson JSON + separate RawDept JSON, joined conceptually via dept name.
          */
         private static final String MULTI_JSON_MODEL = """
+                ###Pure
                 import model::*;
                 import store::*;
 
@@ -768,6 +789,9 @@ class JsonM2MChainIntegrationTest {
                     headcount: Integer[1];
                 }
 
+                ###Mapping
+                import model::*;
+                import store::*;
                 Mapping model::PersonSummaryMapping
                 (
                     PersonSummary: Pure
@@ -790,6 +814,9 @@ class JsonM2MChainIntegrationTest {
                     }
                 )
 
+                ###Connection
+                import model::*;
+                import store::*;
                 RelationalDatabaseConnection store::Conn
                 {
                     type: DuckDB;
@@ -797,6 +824,9 @@ class JsonM2MChainIntegrationTest {
                     auth: Test;
                 }
 
+                ###Runtime
+                import model::*;
+                import store::*;
                 Runtime test::MultiRT
                 {
                     mappings:
@@ -917,6 +947,7 @@ class JsonM2MChainIntegrationTest {
 
         private String fileModel(String resourcePath) {
             return """
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -943,6 +974,9 @@ class JsonM2MChainIntegrationTest {
                         department:  String[1];
                     }
 
+                    ###Mapping
+                    import model::*;
+                    import store::*;
                     Mapping model::StaffMemberMapping
                     (
                         StaffMember: Pure
@@ -964,6 +998,9 @@ class JsonM2MChainIntegrationTest {
                         }
                     )
 
+                    ###Connection
+                    import model::*;
+                    import store::*;
                     RelationalDatabaseConnection store::Conn
                     {
                         type: DuckDB;
@@ -971,6 +1008,9 @@ class JsonM2MChainIntegrationTest {
                         auth: Test;
                     }
 
+                    ###Runtime
+                    import model::*;
+                    import store::*;
                     Runtime test::FileRT
                     {
                         mappings: [ model::StaffMemberMapping, model::StaffCardMapping ];

@@ -537,16 +537,13 @@ public final class NameResolver {
         if (scope.typeParams().contains(name)) return List.of(name);
         if (name.contains("::")) return List.of(name);
         // PRECEDENCE (real pure; NAME_RESOLUTION_BUG.md remediation):
-        // 1. the file's EXPLICIT type imports — most specific, win outright
-        // 2. the file's wildcards + the element's OWN package (implicit
+        // 1. the file's wildcards + the element's OWN package (implicit
         //    same-package import) over the declared+platform universe
-        // 3. the platform prelude — a FALLBACK, shadowed by anything the
+        // 2. the platform prelude — a FALLBACK, shadowed by anything the
         //    user made visible (this tier subsumes the retired
         //    mapping-set-target special case)
-        Map<String, String> typeImports = scope.imports().typeImports();
-        if (typeImports.containsKey(name)) {
-            return List.of(typeImports.get(name));
-        }
+        // (the old explicit-type-import tier died with the specific-import
+        // invention — both references are wildcard-only)
         // DISTINCT candidates: a package listed twice (harness-built
         // scopes, own-package duplicating an explicit import) is ONE
         // referent, never an ambiguity

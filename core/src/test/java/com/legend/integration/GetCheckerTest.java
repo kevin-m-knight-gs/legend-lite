@@ -37,8 +37,6 @@ public class GetCheckerTest {
     private final QueryService queryService = new QueryService();
 
     private static final String EVENT_DATABASE = """
-            import store::*;
-
             ###Relational
             Database store::EventDatabase
             (
@@ -62,8 +60,6 @@ public class GetCheckerTest {
             """;
 
     private static final String RUNTIME_DEF = """
-            import test::*;
-
             ###Runtime
             import test::*;
             Runtime test::TestRuntime

@@ -537,10 +537,8 @@ public final class Runner {
      * (implicit in real pure). */
     private static com.legend.model.ImportScope importScopeOf(ParsedTest t) {
         List<String> wildcards = new ArrayList<>();
-        Map<String, String> typeImports = new LinkedHashMap<>();
         if (t.imports() != null) {
             wildcards.addAll(t.imports().wildcards());
-            typeImports.putAll(t.imports().typeImports());
         }
         int cut = t.fqn().lastIndexOf("::");
         if (cut > 0) {
@@ -551,7 +549,7 @@ public final class Runner {
                 wildcards.add(ownPkg);
             }
         }
-        return new com.legend.model.ImportScope(wildcards, typeImports);
+        return new com.legend.model.ImportScope(wildcards);
     }
 
     /** The MAPPING refs of execute()/-&gt;from() calls, AST-walked and
@@ -1020,9 +1018,6 @@ public final class Runner {
     private String qualify(String name, ParsedTest t) {
         if (name.contains("::")) {
             return name;
-        }
-        if (t.imports() != null && t.imports().typeImports().containsKey(name)) {
-            return t.imports().typeImports().get(name);
         }
         List<String> pkgs = new ArrayList<>();
         if (t.imports() != null) {

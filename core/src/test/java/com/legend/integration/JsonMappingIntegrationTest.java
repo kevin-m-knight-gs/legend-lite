@@ -29,8 +29,6 @@ class JsonMappingIntegrationTest {
     // =========================================================================
 
     private static final String DATABASE_SCALAR = """
-            import store::*;
-
             ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
@@ -49,8 +47,6 @@ class JsonMappingIntegrationTest {
             """;
 
     private static final String DATABASE_ORDER_JSON = """
-            import store::*;
-
             ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
@@ -68,8 +64,6 @@ class JsonMappingIntegrationTest {
             """;
 
     private static final String DATABASE_ITEM_JSON = """
-            import store::*;
-
             ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
@@ -86,8 +80,6 @@ class JsonMappingIntegrationTest {
             """;
 
     private static final String DATABASE_BOTH_JSON = """
-            import store::*;
-
             ###Relational
             Database store::OrderDB (
                 Table T_ORDERS (
@@ -112,8 +104,6 @@ class JsonMappingIntegrationTest {
             """;
 
     private static final String RUNTIME = """
-            import test::*;
-
             ###Runtime
             import test::*;
             Runtime test::TestRuntime {
@@ -182,6 +172,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("Order with scalar properties projects correctly")
         void testOrderScalarProjection() throws SQLException {
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::Order {
@@ -190,9 +181,6 @@ class JsonMappingIntegrationTest {
                         total: Decimal[1];
                     }
                     """ + DATABASE_SCALAR + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -220,6 +208,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("OrderItem with scalar properties projects correctly")
         void testOrderItemScalarProjection() throws SQLException {
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::OrderItem {
@@ -230,9 +219,6 @@ class JsonMappingIntegrationTest {
                         price: Decimal[1];
                     }
                     """ + DATABASE_SCALAR + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -292,6 +278,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("Order with JSON-extracted properties")
         void testOrderJsonProperties() throws SQLException {
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::Order {
@@ -300,9 +287,6 @@ class JsonMappingIntegrationTest {
                         total: Float[1];
                     }
                     """ + DATABASE_ORDER_JSON + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -339,6 +323,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("Mixed: Order ID scalar + name from JSON")
         void testMixedOrderProperties() throws SQLException {
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::Order {
@@ -346,9 +331,6 @@ class JsonMappingIntegrationTest {
                         customerName: String[1];
                     }
                     """ + DATABASE_ORDER_JSON + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -406,6 +388,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("OrderItem with JSON-extracted properties")
         void testOrderItemJsonProperties() throws SQLException {
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::OrderItem {
@@ -416,9 +399,6 @@ class JsonMappingIntegrationTest {
                         price: Float[1];
                     }
                     """ + DATABASE_ITEM_JSON + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -455,6 +435,7 @@ class JsonMappingIntegrationTest {
             // Note: Filter on JSON-extracted properties requires additional work
             // For now, filter on scalar columns works correctly
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::OrderItem {
@@ -463,9 +444,6 @@ class JsonMappingIntegrationTest {
                         quantity: Integer[1];
                     }
                     """ + DATABASE_ITEM_JSON + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -524,6 +502,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("Both Order and OrderItem with JSON-extracted properties")
         void testBothJsonProperties() throws SQLException {
             String pureModel = """
+                    ###Pure
                     import model::*;
 
                     Class model::Order {
@@ -538,9 +517,6 @@ class JsonMappingIntegrationTest {
                         quantity: Integer[1];
                     }
                     """ + DATABASE_BOTH_JSON + """
-                    import model::*;
-                    import store::*;
-
                     ###Mapping
                     import model::*;
                     import store::*;
@@ -617,6 +593,7 @@ class JsonMappingIntegrationTest {
         @DisplayName("Project through association: model::Order.all()->project([o | $o.items.productName])")
         void testProjectThroughAssociation() throws SQLException {
             String pureModel = """
+###Pure
                     import model::*;
                     import store::*;
 
@@ -701,6 +678,7 @@ class JsonMappingIntegrationTest {
             // This test demonstrates filtering on scalar association property while
             // projecting JSON
             String pureModel = """
+###Pure
                     import model::*;
                     import store::*;
 
@@ -778,6 +756,7 @@ class JsonMappingIntegrationTest {
             // Note: Filter on JSON-extracted properties requires additional work
             // This test demonstrates filtering on scalar, projecting JSON via association
             String pureModel = """
+###Pure
                     import model::*;
                     import store::*;
 

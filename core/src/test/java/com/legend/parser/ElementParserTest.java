@@ -148,7 +148,7 @@ final class ElementParserTest {
 
     @Test
     void emptyImportScopeFactoryEqualsExplicitEmpty() {
-        assertEquals(new ImportScope(List.of(), Map.of()), ImportScope.empty());
+        assertEquals(new ImportScope(List.of()), ImportScope.empty());
         assertTrue(ImportScope.empty().isEmpty());
     }
 
@@ -159,25 +159,27 @@ final class ElementParserTest {
     @Test
     void wildcardImport() {
         ParsedModel m = ElementParser.parse("import simple::model::*;");
-        assertEquals(new ImportScope(List.of("simple::model"), Map.of()),
+        assertEquals(new ImportScope(List.of("simple::model")),
                 m.imports());
     }
 
     @Test
-    void specificImport() {
-        ParsedModel m = ElementParser.parse("import simple::model::Firm;");
-        assertEquals(new ImportScope(List.of(), Map.of("Firm", "simple::model::Firm")),
-                m.imports());
+    void specificImportRefused() {
+        // BOTH references are wildcard-only (engine `IMPORT packagePath
+        // STAR`, pure M3 identical) — the specific-import arm was a
+        // lite-only invention (invention census batch 2)
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse("import simple::model::Firm;"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("::*"));
     }
 
     @Test
     void multipleImportsPreserveOrderAndDeduplicate() {
         ParsedModel m = ElementParser.parse(
-                "import a::b::*; import a::b::*; import c::d::Foo; import e::f::*;");
+                "import a::b::*; import a::b::*; import c::d::*; import e::f::*;");
         assertEquals(
                 new ImportScope(
-                        List.of("a::b", "e::f"),                // dedup, preserve order
-                        Map.of("Foo", "c::d::Foo")),
+                        List.of("a::b", "c::d", "e::f")),       // dedup, preserve order
                 m.imports());
     }
 
@@ -424,8 +426,9 @@ final class ElementParserTest {
     @Test
     void importsPlusMultipleClassesFullModel() {
         String src = """
+                ###Pure
                 import my::model::*;
-                import my::store::Firm;
+                import my::store::*;
 
                 Class my::model::Person {
                   firstName: String[1];
@@ -441,8 +444,7 @@ final class ElementParserTest {
         ParsedModel m = ElementParser.parse(src);
 
         ImportScope expectedImports = new ImportScope(
-                List.of("my::model"),
-                Map.of("Firm", "my::store::Firm"));
+                List.of("my::model", "my::store"));
 
         ClassDefinition expectedPerson = new ClassDefinition(
                 "my::model::Person",
@@ -486,11 +488,9 @@ final class ElementParserTest {
 
     @Test
     void importScopeMapsRejectMutation() {
-        ParsedModel m = ElementParser.parse("import a::b::*; import c::d::E;");
+        ParsedModel m = ElementParser.parse("import a::b::*; import c::d::*;");
         assertThrows(UnsupportedOperationException.class,
                 () -> m.imports().wildcards().add("evil::pkg"));
-        assertThrows(UnsupportedOperationException.class,
-                () -> m.imports().typeImports().put("X", "evil::X"));
     }
 
     // ---------------------------------------------------------------
@@ -1351,6 +1351,7 @@ final class ElementParserTest {
     @Test
     void connectionRejectsUnknownDatabaseType() {
         ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse("""
+                ###Connection
                 RelationalDatabaseConnection store::X
                 {
                   store: store::S;
@@ -1367,6 +1368,7 @@ final class ElementParserTest {
     void connectionRejectsUnknownTopLevelKey() {
         // Strict-mode divergence from engine (D-2).
         ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse("""
+                ###Connection
                 RelationalDatabaseConnection store::X
                 {
                   store: store::S;

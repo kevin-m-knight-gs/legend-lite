@@ -27,6 +27,7 @@ public abstract class AbstractDatabaseTest {
      * Pure Class definition for Person.
      */
     protected static final String PERSON_CLASS = """
+            ###Pure
             import model::*;
 
             Class model::Person
@@ -41,6 +42,7 @@ public abstract class AbstractDatabaseTest {
      * Pure Class definition for Address.
      */
     protected static final String ADDRESS_CLASS = """
+            ###Pure
             import model::*;
 
             Class model::Address
@@ -54,6 +56,7 @@ public abstract class AbstractDatabaseTest {
      * Pure Association linking Person to Address (1:*).
      */
     protected static final String PERSON_ADDRESS_ASSOCIATION = """
+            ###Pure
             import model::*;
 
             Association model::Person_Address
@@ -67,6 +70,7 @@ public abstract class AbstractDatabaseTest {
      * Pure Association linking Person to primary Address (to-one).
      */
     protected static final String PERSON_PRIMARY_ADDRESS_ASSOCIATION = """
+            ###Pure
             import model::*;
 
             Association model::Person_PrimaryAddress
@@ -80,8 +84,6 @@ public abstract class AbstractDatabaseTest {
      * Pure Database definition with T_PERSON and T_ADDRESS tables.
      */
     protected static final String PERSON_DATABASE = """
-            import store::*;
-
             ###Relational
             Database store::PersonDatabase
             (
@@ -109,9 +111,6 @@ public abstract class AbstractDatabaseTest {
      * Pure Mapping definition from Person to T_PERSON.
      */
     protected static final String PERSON_MAPPING = """
-            import model::*;
-            import store::*;
-
             ###Mapping
             import model::*;
             import store::*;
@@ -141,6 +140,7 @@ public abstract class AbstractDatabaseTest {
      * Pure Class definitions for struct array tests.
      */
     protected static final String STRUCT_TEST_CLASSES = """
+            ###Pure
             import test::*;
 
             Class test::StructAddress
@@ -166,6 +166,7 @@ public abstract class AbstractDatabaseTest {
      * These were previously injected via TypeEnvironment side-channel.
      */
     protected static final String PCT_CLASS_DEFS = """
+            ###Pure
             import meta::pure::functions::boolean::tests::equalitymodel::*;
             import meta::pure::functions::collection::tests::contains::*;
             import meta::pure::functions::collection::tests::map::model::*;
@@ -288,6 +289,7 @@ public abstract class AbstractDatabaseTest {
      */
     protected String getConnectionDefinition() {
         return """
+                ###Connection
                 RelationalDatabaseConnection store::TestConnection
                 {
                     type: %s;
@@ -302,8 +304,6 @@ public abstract class AbstractDatabaseTest {
      */
     protected String getRuntimeDefinition() {
         return """
-                import test::*;
-
                 ###Runtime
                 import test::*;
                 Runtime test::TestRuntime

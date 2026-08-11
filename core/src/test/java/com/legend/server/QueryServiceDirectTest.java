@@ -30,6 +30,7 @@ class QueryServiceDirectTest {
         // mappings
         String dbPath = tempDbFile.toString().replace("\\", "/");
         sampleModel = """
+                ###Pure
                 import model::*;
 
                 Class model::Person {

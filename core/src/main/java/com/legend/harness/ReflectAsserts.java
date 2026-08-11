@@ -208,10 +208,6 @@ final class ReflectAsserts {
         if (name.contains("::")) {
             return ctx.findClass(name).isPresent() ? name : null;
         }
-        String direct = imports.typeImports().get(name);
-        if (direct != null) {
-            return direct;
-        }
         for (String w : imports.wildcards()) {
             String cand = w + "::" + name;
             if (ctx.findClass(cand).isPresent()) {

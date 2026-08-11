@@ -32,6 +32,7 @@ class M2M2RTabularTest {
     // ==================== Pure Model ====================
 
     private static final String PURE_MODEL = """
+            ###Pure
             import model::*;
             import store::*;
             import test::*;

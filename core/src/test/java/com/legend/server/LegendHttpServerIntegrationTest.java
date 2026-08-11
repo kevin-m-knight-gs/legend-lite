@@ -63,6 +63,7 @@ class LegendHttpServerIntegrationTest {
     private static String buildSampleModel() {
         String dbPath = tempDbFile.toString().replace("\\", "/");
         String template = """
+                ###Pure
                 import model::*;
 
                 Class model::Person {
@@ -332,6 +333,7 @@ class LegendHttpServerIntegrationTest {
     void testFullE2EWorkflow() throws Exception {
         // Use InMemory DuckDB (no file) to test connection caching
         String pureModel = """
+                ###Pure
                 import model::*;
 
                 Class model::Employee {

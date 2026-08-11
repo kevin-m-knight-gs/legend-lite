@@ -59,6 +59,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testParseClassWithOptionalProperty() {
         // GIVEN: A Pure Class with optional and many multiplicity
         String pureClass = """
+                ###Pure
                 import model::*;
 
                 Class model::Employee
@@ -97,8 +98,6 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testParseDatabaseWithMultipleTables() {
         // GIVEN: A Pure Database with multiple tables
         String pureDatabase = """
-                import store::*;
-
                 ###Relational
                 Database store::SalesDB
                 (
@@ -287,6 +286,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithClassQuery_SQLite() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -364,6 +364,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithRelationQuery_SQLite() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;

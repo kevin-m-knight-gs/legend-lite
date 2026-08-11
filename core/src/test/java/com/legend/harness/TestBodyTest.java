@@ -64,7 +64,7 @@ class TestBodyTest {
             """;
 
     private static final ImportScope IMPORTS =
-            new ImportScope(List.of("test"), Map.of());
+            new ImportScope(List.of("test"));
 
     private static Connection seeded() throws Exception {
         Connection conn = DriverManager.getConnection("jdbc:duckdb:");

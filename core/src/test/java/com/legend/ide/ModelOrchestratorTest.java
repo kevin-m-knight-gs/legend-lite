@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
 final class ModelOrchestratorTest {
 
     private static final String SOURCE = """
+            ###Pure
             import my::model::*;
 
             Class my::Person {
@@ -185,12 +186,9 @@ final class ModelOrchestratorTest {
         // No element resolved yet; imports() must still work.
         ImportScope imports = orch.imports();
         // Exact-list equality: SOURCE declares exactly one wildcard import
-        // and no typed imports. A bug that dropped imports, fabricated
-        // extras, or mis-classified wildcards-vs-typed would fail here.
+        // A bug that dropped imports or fabricated extras would fail here.
         assertEquals(List.of("my::model"), imports.wildcards(),
                 () -> "expected single wildcard 'my::model', got " + imports.wildcards());
-        assertTrue(imports.typeImports().isEmpty(),
-                () -> "SOURCE has no typed imports, got " + imports.typeImports());
     }
 
     // ----- specific element shapes through the demand path --------------

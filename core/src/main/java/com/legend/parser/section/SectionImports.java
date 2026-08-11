@@ -18,13 +18,21 @@ final class SectionImports {
         c.expect(TokenType.IMPORT);
         StringBuilder sb = new StringBuilder();
         sb.append(c.parseIdentifier());
+        boolean starred = false;
         while (c.match(TokenType.PATH_SEPARATOR)) {
             sb.append("::");
             if (c.match(TokenType.STAR)) {
                 sb.append("*");
+                starred = true;
                 break;
             }
             sb.append(c.parseIdentifier());
+        }
+        if (!starred) {
+            // both references are star-only (engine `IMPORT packagePath
+            // STAR`, pure M3 identical) — see ElementParser's import arm
+            throw c.error("an import names a package wildcard — expected"
+                    + " '::*' (import " + sb + "::*;)");
         }
         c.expect(TokenType.SEMI_COLON);
         return sb.toString();

@@ -293,6 +293,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testBuildModelWithAssociationAndJoin() {
         // GIVEN: Pure source with classes, association, database with join
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
 
@@ -778,6 +779,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -844,6 +846,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -984,6 +987,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Build model with connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1048,6 +1052,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureSyntaxGroupByOnClassFails() throws Exception {
         // GIVEN: A model with a runtime so we can attempt full execution
         String model = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1093,6 +1098,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureSyntaxSortByAndLimit() throws Exception {
         // GIVEN: A model with connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1165,6 +1171,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testPureSyntaxRelationSortAndSlice() throws Exception {
         // GIVEN: A model with connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1232,6 +1239,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithClassQuery_DuckDB() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1309,6 +1317,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testFunctionWithRelationQuery_DuckDB() throws Exception {
         // GIVEN: A model with a function, connection and runtime
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1427,6 +1436,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Build model
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1507,6 +1517,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Build model
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1571,6 +1582,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1642,6 +1654,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1691,6 +1704,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1739,6 +1753,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1784,6 +1799,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1830,6 +1846,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1875,6 +1892,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1922,6 +1940,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -1973,6 +1992,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2023,6 +2043,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2076,6 +2097,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2134,6 +2156,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2185,6 +2208,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2255,6 +2279,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2319,6 +2344,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2373,6 +2399,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2430,6 +2457,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2481,6 +2509,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Using StrictDate for date-only and DateTime for timestamp
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2539,6 +2568,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2590,6 +2620,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2640,6 +2671,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2690,6 +2722,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2739,6 +2772,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2789,6 +2823,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -2964,6 +2999,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3010,6 +3046,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3058,6 +3095,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3107,6 +3145,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3159,6 +3198,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3206,6 +3246,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3252,6 +3293,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3300,6 +3342,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3353,6 +3396,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3403,6 +3447,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3452,6 +3497,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3500,6 +3546,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3576,6 +3623,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3625,6 +3673,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3668,6 +3717,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testConstantLambdaSimpleArithmetic() throws Exception {
         // Minimal model - we just need a valid runtime context
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3705,6 +3755,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: multiplication |6*7")
     void testConstantLambdaMultiplication() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3741,6 +3792,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: complex expression |(10 + 5) * 2 - 3")
     void testConstantLambdaComplexExpression() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3778,6 +3830,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: string literal |'hello'")
     void testConstantLambdaStringLiteral() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3814,6 +3867,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: boolean expression |true")
     void testConstantLambdaBooleanLiteral() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3850,6 +3904,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: comparison |5 > 3")
     void testConstantLambdaComparison() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3886,6 +3941,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: qualified function |meta::pure::functions::math::abs(-123)")
     void testConstantLambdaQualifiedFunction() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3922,6 +3978,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Constant lambda: string concatenation |'a' + 'b'")
     void testConstantLambdaStringConcatenation() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3961,6 +4018,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Let statement: simple scalar binding |let x = 42; $x")
     void testLetStatementSimpleScalar() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -3997,6 +4055,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Let statement: arithmetic with let-bound variables |let x = 10; let y = 5; $x + $y;")
     void testLetStatementArithmetic() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4033,6 +4092,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("Let statement: with newlines like PCT expressions")
     void testLetStatementWithNewlines() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4069,6 +4129,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("ArrayLiteral: greatest([1, 2]) should return 2")
     void testArrayLiteralGreatest() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4106,6 +4167,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("ArrayLiteral: least([1, 2]) should return 1")
     void testArrayLiteralLeast() throws Exception {
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4160,6 +4222,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4224,6 +4287,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4287,9 +4351,6 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
-                import store::*;
-                import test::*;
-
                 ###Relational
                 Database store::EventDb ( Table T_EVENTS ( ID INTEGER, EVENT_NAME VARCHAR(100), EVENT_DATE DATE ) )
                 ###Connection
@@ -4335,6 +4396,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;
@@ -4400,6 +4462,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         }
 
         String pureSource = """
+                ###Pure
                 import model::*;
                 import store::*;
                 import test::*;

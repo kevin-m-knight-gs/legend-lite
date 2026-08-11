@@ -49,10 +49,15 @@ class RelationalMappingCompositionTest {
 
     private String withRuntime(String model, String dbName, String mappingName) {
         return model + """
+                ###Pure
                 import test::*;
 
 
+                ###Connection
+                import test::*;
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                ###Runtime
+                import test::*;
                 Runtime test::RT { mappings: [ %s ]; connections: [ %s: [ environment: store::Conn ] ]; }
                 """.formatted(mappingName, dbName);
     }
@@ -116,6 +121,7 @@ class RelationalMappingCompositionTest {
     /** Person with local + 1-hop + 2-hop join chain properties. */
     private String threeHopModel() {
         return withRuntime("""
+                ###Pure
                 import model::*;
                 import store::*;
 
@@ -809,6 +815,7 @@ class RelationalMappingCompositionTest {
 
         private String assocToOneModel() {
             return withRuntime("""
+###Pure
                     import model::*;
                     import store::*;
 
@@ -897,6 +904,7 @@ class RelationalMappingCompositionTest {
 
         private String assocToManyModel() {
             return withRuntime("""
+###Pure
                     import model::*;
                     import store::*;
 
@@ -992,6 +1000,7 @@ class RelationalMappingCompositionTest {
 
         private String assocPlusChainModel() {
             return withRuntime("""
+###Pure
                     import model::*;
                     import store::*;
 
@@ -1118,6 +1127,7 @@ class RelationalMappingCompositionTest {
 
         private String m2mModel() {
             return withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -1193,6 +1203,7 @@ class RelationalMappingCompositionTest {
 
         private String m2mJoinChainModel() {
             return withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -1262,6 +1273,7 @@ class RelationalMappingCompositionTest {
 
         private String m2mAssocModel() {
             return withRuntime("""
+###Pure
                     import model::*;
                     import store::*;
 
@@ -1322,6 +1334,7 @@ class RelationalMappingCompositionTest {
 
         private String multiClassModel() {
             return withRuntime("""
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -1407,6 +1420,7 @@ class RelationalMappingCompositionTest {
 
         private String fullComboModel() {
             return withRuntime("""
+###Pure
                     import model::*;
                     import store::*;
 

@@ -40,6 +40,7 @@ class JsonM2MIntegrationTest {
      * - Runtime with JsonModelConnection providing inline JSON data
      */
     private static final String PURE_MODEL = """
+            ###Pure
             import model::*;
             import store::*;
 

@@ -51,6 +51,7 @@ class M2MChainIntegrationTest {
     private final QueryService qs = new QueryService();
 
     private static final String PURE_MODEL = """
+###Pure
             import model::*;
             import store::*;
 

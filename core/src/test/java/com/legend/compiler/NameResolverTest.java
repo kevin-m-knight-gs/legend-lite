@@ -84,8 +84,6 @@ class NameResolverTest {
 
     private static final ImportScope WILDCARD_MODEL = new ImportScope.Builder()
             .add("model::*").build();
-    private static final ImportScope SPECIFIC_PERSON = new ImportScope.Builder()
-            .add("model::Person").build();
     private static final ImportScope WILDCARD_STORE = new ImportScope.Builder()
             .add("store::*").build();
     private static final ImportScope EMPTY = ImportScope.empty();
@@ -136,13 +134,6 @@ class NameResolverTest {
                 r.superClasses().get(0));
     }
 
-    @Test
-    void specificImportResolvesSimpleNameToFqn() {
-        var cd = simpleClass("model::Sub", List.of(nameRef("Person")), List.of());
-        var r = (ClassDefinition) resolveOne(cd, SPECIFIC_PERSON, FQNS);
-        assertEquals(new TypeExpression.NameRef("model::Person"),
-                r.superClasses().get(0));
-    }
 
     @Test
     void alreadyQualifiedNamePassesThrough() {
@@ -1484,39 +1475,7 @@ class NameResolverTest {
     // Name conflicts and precedence
     // =================================================================
 
-    @Test
-    void specificImportWinsOverWildcardMatch() {
-        // Wildcard `wild::*` contains a Person; specific `target::Person`
-        // also names a Person. Specific must win.
-        ImportScope imp = new ImportScope.Builder()
-                .add("wild::*")
-                .add("target::Person")
-                .build();
-        Set<String> fqns = Set.of("wild::Person", "target::Person");
-        var cd = simpleClass("model::Sub",
-                List.of(nameRef("Person")), List.of());
-        var r = (ClassDefinition) resolveOne(cd, imp, fqns);
-        assertEquals("target::Person",
-                ((TypeExpression.NameRef) r.superClasses().get(0)).name(),
-                "specific import has higher precedence than wildcard");
-    }
 
-    @Test
-    void specificImportOverridesEvenWhenWildcardWouldBeAmbiguous() {
-        // Without the specific import, `Person` would be ambiguous across
-        // two wildcards. The specific resolves it deterministically before
-        // ambiguity check runs.
-        ImportScope imp = new ImportScope.Builder()
-                .add("a::*").add("b::*")
-                .add("target::Person")
-                .build();
-        Set<String> fqns = Set.of("a::Person", "b::Person", "target::Person");
-        var cd = simpleClass("model::Sub",
-                List.of(nameRef("Person")), List.of());
-        var r = (ClassDefinition) resolveOne(cd, imp, fqns);
-        assertEquals("target::Person",
-                ((TypeExpression.NameRef) r.superClasses().get(0)).name());
-    }
 
     @Test
     void wildcardThatDoesNotMatchKnownFqnIgnored() {
@@ -1551,26 +1510,6 @@ class NameResolverTest {
         assertEquals("doc::Documentation", r.stereotypes().get(0).profileName());
     }
 
-    @Test
-    void manySpecificImportsResolveCorrectly() {
-        ImportScope imp = new ImportScope.Builder()
-                .add("model::Person")
-                .add("model::Firm")
-                .add("model::Address")
-                .add("store::DB")
-                .build();
-        var cd = new ClassDefinition("x::Sub", List.of(),
-                List.of(nameRef("Person"), nameRef("Firm")),
-                List.of(prop("addr", nameRef("Address"))),
-                List.of(), List.of(), List.of(), List.of(), false);
-        var r = (ClassDefinition) resolveOne(cd, imp, FQNS);
-        assertEquals("model::Person",
-                ((TypeExpression.NameRef) r.superClasses().get(0)).name());
-        assertEquals("model::Firm",
-                ((TypeExpression.NameRef) r.superClasses().get(1)).name());
-        assertEquals("model::Address",
-                ((TypeExpression.NameRef) r.properties().get(0).type()).name());
-    }
 
     // =================================================================
     // Primitives — must pass through (no FQNS entry; not resolver's job)
@@ -1649,19 +1588,6 @@ class NameResolverTest {
                 ((AppliedFunction) r.body().get(0)).function());
     }
 
-    @Test
-    void userFunctionResolvedViaSpecificImport() {
-        ImportScope imp = new ImportScope.Builder()
-                .add("my::pkg::myFn").add("model::*").build();
-        Set<String> fqns = Set.of("my::pkg::myFn", "model::Person");
-        var body = new AppliedFunction("myFn", List.of());
-        var fd = new FunctionDefinition("model::caller", List.of(), List.of(),
-                List.of(), nameRef("Person"), ONE,
-                List.of(body), List.of(), List.of());
-        var r = (FunctionDefinition) resolveOne(fd, imp, fqns);
-        assertEquals("my::pkg::myFn",
-                ((AppliedFunction) r.body().get(0)).function());
-    }
 
     @Test
     void unknownFunctionNamePassesThrough() {
@@ -1689,12 +1615,11 @@ class NameResolverTest {
         // Class Sub extends Person {
         //   name: String[1];      // primitive
         //   addr: Address[0..1];  // user type via wildcard
-        //   firm: Firm[1];        // user type via specific import
+        //   firm: Firm[1];        // user type via the same wildcard
         //   db: DB[1];             // store via separate wildcard
         // }
         ImportScope imp = new ImportScope.Builder()
                 .add("model::*")
-                .add("model::Firm")    // specific to test it works alongside wildcard
                 .add("store::*")
                 .build();
         var cd = new ClassDefinition("app::Sub", List.of(),

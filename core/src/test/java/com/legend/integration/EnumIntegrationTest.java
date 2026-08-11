@@ -50,6 +50,7 @@ class EnumIntegrationTest {
         void testEnumParsedAndStored() {
             // GIVEN: Pure source with enum definition
             String pureSource = """
+                    ###Pure
                     import model::*;
 
                     Enum model::OrderStatus
@@ -80,6 +81,7 @@ class EnumIntegrationTest {
         void testEnumRetrievableByQualifiedName() {
             // GIVEN: Pure source with enum
             String pureSource = """
+                    ###Pure
                     import com::example::*;
 
                     Enum com::example::Priority { LOW, MEDIUM, HIGH }
@@ -99,6 +101,7 @@ class EnumIntegrationTest {
         void testMultipleEnums() {
             // GIVEN: Pure source with multiple enum definitions
             String pureSource = """
+                    ###Pure
                     import model::*;
 
                     Enum model::Priority { LOW, MEDIUM, HIGH, CRITICAL }
@@ -133,6 +136,7 @@ class EnumIntegrationTest {
         void testEnumWithClass() {
             // GIVEN: Full model with enum and class using it
             String pureSource = """
+                    ###Pure
                     import model::*;
 
                     Enum model::OrderStatus
@@ -174,6 +178,7 @@ class EnumIntegrationTest {
         void testCompleteModelWithEnum() {
             // GIVEN: Complete Pure model
             String pureSource = """
+                    ###Pure
                     import model::*;
                     import store::*;
 
@@ -248,6 +253,7 @@ class EnumIntegrationTest {
         void testModelContextFindEnum() {
             // GIVEN: Pure source with enum
             String pureSource = """
+                    ###Pure
                     import model::*;
 
                     Enum model::PaymentMethod
@@ -282,6 +288,7 @@ class EnumIntegrationTest {
         void testEnumWithSingleValue() {
             // GIVEN: Pure source with single-value enum
             String pureSource = """
+                    ###Pure
                     import model::*;
 
                     Enum model::SingletonStatus { ONLY_VALUE }
@@ -329,6 +336,7 @@ class EnumIntegrationTest {
 
             // AND: Complete Pure model with enum, class, db, mapping, connection, runtime
             String pureSource = """
+                    ###Pure
                     import app::*;
                     import model::*;
                     import store::*;
@@ -429,6 +437,7 @@ class EnumIntegrationTest {
             }
 
             String pureSource = """
+                    ###Pure
                     import app::*;
                     import model::*;
                     import store::*;
@@ -522,6 +531,7 @@ class EnumIntegrationTest {
             }
 
             String pureSource = """
+                    ###Pure
                     import app::*;
                     import model::*;
                     import store::*;
@@ -625,6 +635,7 @@ class EnumIntegrationTest {
 
             // Pure source with EnumerationMapping (legend-engine syntax)
             String pureSource = """
+                    ###Pure
                     import app::*;
                     import model::*;
                     import store::*;
@@ -727,6 +738,7 @@ class EnumIntegrationTest {
             stmt.execute("INSERT INTO TASKS VALUES (4, 'Task D', 'COMPLETE')"); // COMPLETE -> DONE
 
             String pureSource = """
+                    ###Pure
                     import app::*;
                     import model::*;
                     import store::*;

@@ -304,10 +304,12 @@ public final class ElementParser implements TokenStreamCursor {
         // instead of element-by-element through this switch.
         java.util.List<ClaimedSection> claimed = claimedSections();
         int nextClaimed = 0;
+        int lastElementStart = -1;
 
         while (!atEnd()) {
             while (nextClaimed < claimed.size() && tokens.start(pos)
                     >= claimed.get(nextClaimed).contentStart()) {
+                lastElementStart = claimed.get(nextClaimed).contentStart();
                 parseClaimedSection(claimed.get(nextClaimed++), elements,
                         offsets, elementImports, imports);
                 sawElementSinceImport = true;   // a section is a scope boundary
@@ -317,6 +319,17 @@ public final class ElementParser implements TokenStreamCursor {
             }
             if (peek() == TokenType.IMPORT) {
                 if (sawElementSinceImport) {
+                    // BOTH references bind imports to a SECTION START:
+                    // engine sections are `imports (element)*`, pure M3 is
+                    // `imports (element)* EOF`. An import after an element
+                    // is legal ONLY across a ### boundary; the old
+                    // anywhere-import scope reset was a lite-only
+                    // invention (invention census batch 2).
+                    if (!sectionBoundaryBetween(lastElementStart,
+                            tokens.start(pos))) {
+                        error("imports are only allowed at the start of a"
+                                + " section (before its first element)");
+                    }
                     sectionImports = new ImportScope.Builder();
                     sawElementSinceImport = false;
                 }
@@ -325,10 +338,12 @@ public final class ElementParser implements TokenStreamCursor {
                 sectionImports.add(imp);
             } else if (skipTopLevelNonElement()) {
                 sawElementSinceImport = true;
+                lastElementStart = tokens.start(Math.max(0, pos - 1));
             } else {
                 int at = tokens.start(pos);
                 PackageableElement e = parseSingleElement();
                 sawElementSinceImport = true;
+                lastElementStart = at;
                 elementImports.putIfAbsent(e.qualifiedName(), sectionImports.build());
                 offsets.putIfAbsent(e.qualifiedName(), at);
                 elements.add(e);
@@ -595,6 +610,21 @@ public final class ElementParser implements TokenStreamCursor {
         };
     }
 
+    /** Whether a {@code ###} section header opens between two char offsets
+     *  — the import-legality lookup ({@code (from, to)} exclusive/inclusive;
+     *  {@code from < 0} means file start, where imports are always legal). */
+    private boolean sectionBoundaryBetween(int from, int to) {
+        if (from < 0) {
+            return true;
+        }
+        for (var h : tokens.sectionHeaders()) {
+            if (h.nameOffset() > from && h.nameOffset() <= to) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Char ranges of NON-Pure lexed sections — the strict section-binding
      *  gate's lookup (lazy; only strict parses consult it). */
     private long @com.legend.Nullable [][] nonPureRanges;
@@ -722,13 +752,23 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.IMPORT);
         StringBuilder sb = new StringBuilder();
         sb.append(parseIdentifier());
+        boolean starred = false;
         while (match(TokenType.PATH_SEPARATOR)) {
             sb.append("::");
             if (match(TokenType.STAR)) {
                 sb.append("*");
+                starred = true;
                 break;
             }
             sb.append(parseIdentifier());
+        }
+        if (!starred) {
+            // BOTH references import a package WILDCARD only — engine
+            // grammar `IMPORT packagePath STAR`, pure M3 identical. The
+            // old specific-import arm (import a::b::C;) was a lite-only
+            // invention (invention census batch 2).
+            error("an import names a package wildcard — expected '::*'"
+                    + " (import " + sb + "::*;)");
         }
         expect(TokenType.SEMI_COLON);
         return sb.toString();

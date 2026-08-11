@@ -31,6 +31,7 @@ class UserFunctionIntegrationTest {
     // ==================== Model Source ====================
 
     private static final String BASE_MODEL = """
+            ###Pure
             import store::*;
 
             Class model::Person
@@ -1008,6 +1009,7 @@ class UserFunctionIntegrationTest {
         void testSubtypeAccepted() throws SQLException {
             // Full standalone model: Employee extends Person, own table, own mapping
             String model = """
+                    ###Pure
                     import store::*;
 
                     Class model::Person
