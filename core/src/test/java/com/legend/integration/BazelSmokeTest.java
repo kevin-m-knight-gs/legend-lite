@@ -24,13 +24,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * superclasses, inherited properties, association navigation, function refs,
  * database/mapping includes, and runtime mapping/connection canonicalization.
  *
- * <p><b>Known divergence from the engine-era canary, pinned deliberately:</b>
- * core's PARSE records keep profile references on stereotypes/tagged values AS
- * WRITTEN ({@code RefDataProfile}), not canonicalized to the profile's FQN —
- * there is no profile canonicalization pass, which is why tag consumers
- * (DiagramService, NlqModel) match profiles with a simple-name fallback. If the
- * Bazel program's element-serialization phase needs canonical profile FQNs,
- * that pass is new work; this pin is where it starts.
+ * <p>Profile references on stereotypes/tagged values canonicalize in
+ * {@code NameResolver.resolve(ParsedModel)} — compileModel's first step —
+ * exactly like the engine-era canary asserted. The RAW parse layer keeps them
+ * as written by design (resolution is a separate pass); consumers that read
+ * {@code ElementParser.parse} output directly (DiagramService, NlqModel)
+ * currently compensate with simple-name fallbacks instead of resolving first
+ * — a layering smell worth fixing at those call sites, not a missing pass.
  */
 class BazelSmokeTest {
 
@@ -90,19 +90,23 @@ class BazelSmokeTest {
                 ctx.findProperty("refdata::Sector", "region").orElseThrow().type(),
                 "refdata::SectorRegion's 'region' end must navigate from Sector");
 
-        // --- cross-project: stereotype + tag survive at parse level, AS WRITTEN ---
-        // (Pinned divergence — see the class javadoc.)
-        var tradeDef = com.legend.parser.ElementParser
-                .parse(loadResource(TRADING_MODEL)).elements().stream()
+        // --- cross-project: profile stereotype + tag canonicalize via the
+        // resolver (NameResolver.resolve is compileModel's first step) ---
+        var tradeDef = com.legend.compiler.NameResolver.resolve(
+                com.legend.parser.ElementParser.parse(
+                        loadResource(REFDATA_MODEL) + "\n" + loadResource(TRADING_MODEL)))
+                .elements().stream()
                 .filter(el -> el instanceof com.legend.model.ClassDefinition c
                         && c.qualifiedName().equals("trading::Trade"))
                 .map(el -> (com.legend.model.ClassDefinition) el)
                 .findFirst().orElseThrow();
         assertEquals(1, tradeDef.stereotypes().size());
-        assertEquals("RefDataProfile", tradeDef.stereotypes().get(0).profileName(),
-                "profile refs are NOT canonicalized to FQN at parse — as-written pin");
+        assertEquals("refdata::RefDataProfile", tradeDef.stereotypes().get(0).profileName(),
+                "Cross-project stereotype profile must canonicalize to the FQN");
         assertEquals("rootEntity", tradeDef.stereotypes().get(0).stereotypeName());
         assertEquals(1, tradeDef.taggedValues().size());
+        assertEquals("refdata::RefDataProfile", tradeDef.taggedValues().get(0).profileName(),
+                "Cross-project taggedValue profile must canonicalize to the FQN");
         assertEquals("description", tradeDef.taggedValues().get(0).tagName());
         assertEquals("A financial trade", tradeDef.taggedValues().get(0).value());
 

@@ -121,8 +121,10 @@ The proposal's initial estimate of "~36 files, ~200-500 lines" was a worst-case 
 > PureModelContext's registry caches) and `NoEagerUserClassLoadsTest`
 > (behavioral — fail-fast ModelContext proxy over SpecCompiler). Engine-era
 > phase/step numbers below that reference engine types are historical; the
-> reasoning governs, the names do not. Known divergence pinned in the canary:
-> parse-level stereotype/tag profile refs are NOT canonicalized to FQNs in core.
+> reasoning governs, the names do not. Profile-FQN canonicalization holds in
+> core too — NameResolver.resolve(ParsedModel) resolves stereotype/tag
+> profile refs (canary asserts refdata::RefDataProfile), matching the
+> engine-era behavior.
 
 Regression canary at `core/src/test/resources/bazel_smoke/`:
 
