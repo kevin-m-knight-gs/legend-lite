@@ -135,6 +135,12 @@ class ZFixtureAdjudicationProbe {
             } else {
                 diffs++;
                 verdicts.merge("DIFF", 1, Integer::sum);
+                Files.writeString(Path.of("target",
+                        "diff-" + diffs + "-src.pure"), src);
+                Files.writeString(Path.of("target",
+                        "diff-" + diffs + "-expected.json"), expectedJson);
+                Files.writeString(Path.of("target",
+                        "diff-" + diffs + "-actual.json"), actual);
                 if (diffSamples.size() < 8) {
                     int i = 0;
                     int n2 = Math.min(expectedJson.length(), actual.length());

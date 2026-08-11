@@ -1346,6 +1346,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PRelAssocPropertyMapping> props = new ArrayList<>();
         List<String> stores = new ArrayList<>();
+        boolean storesClosed = false;
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             int pS = pos;
             String prop = parseIdentifier();
@@ -1368,13 +1369,20 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             expect(TokenType.COLON);
             int oS = pos;
             Protocol.PRelOp op = parseEmbeddedOperation();
-            if (op instanceof Protocol.PElemtWithJoins ej) {
+            if (op instanceof Protocol.PElemtWithJoins ej
+                    && !storesClosed) {
                 for (Protocol.PJoinPtr jp : ej.joins()) {
                     String jdb = jp.db();
                     if (jdb != null && !stores.contains(jdb)) {
                         stores.add(jdb);
                     }
                 }
+            } else if (!(op instanceof Protocol.PElemtWithJoins)) {
+                // ENGINE-TRUE (harvest variant probes av/av2): the walker
+                // collects join stores IN ORDER and STOPS at the first
+                // non-join property mapping — join-then-column keeps the
+                // store, column-then-join collects nothing
+                storesClosed = true;
             }
             props.add(new Protocol.PRelAssocPropertyMapping(prop, propSpan,
                     op, srcId, tgtId, spanOf(oS - 1, pos - 1)));

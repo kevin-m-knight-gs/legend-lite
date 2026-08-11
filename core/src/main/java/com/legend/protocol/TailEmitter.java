@@ -1099,7 +1099,13 @@ final class TailEmitter {
         // deduplication strategies only no/duplicateCount are spanless.
         if (wireType != null
                 && ((SPANLESS_LEAVES.contains(wireType) && !tgt)
-                        || "noDeduplicationStrategy".equals(wireType))) {
+                        || "noDeduplicationStrategy".equals(wireType)
+                        // a BARE-keyword strategy (no body) is spanless;
+                        // one with entries keeps its span — engine emits
+                        // anyVersion bare + duplicateCount spanned in the
+                        // SAME fixture (harvest persistenceMultiFlat)
+                        || ("deduplicationStrategy".equals(slot)
+                                && n.entries().isEmpty()))) {
             withSpan = false;
         }
         b.append('{');
@@ -1130,11 +1136,22 @@ final class TailEmitter {
             }
         }
         final boolean tgtCtx = tgt;
-        entries.sort(java.util.Comparator.comparing(
-                e2 -> wireKey(e2, tgtCtx)));
+        final boolean gfPartition = gf
+                && "fieldBasedForGraphFetch".equals(wireType);
+        java.util.function.Function<Protocol.PPersistenceEntry, String>
+                keyOf = e2 -> {
+                    String k = wireKey(e2, tgtCtx);
+                    // v2 GRAPH-FETCH partitioning renames the field list
+                    // (harvest TestPersistenceGrammarV2Roundtrip
+                    // persistenceSnapshot): source `partitionFields:` wires
+                    // as `partitionFieldPaths` under fieldBasedForGraphFetch
+                    return gfPartition && "partitionFields".equals(k)
+                            ? "partitionFieldPaths" : k;
+                };
+        entries.sort(java.util.Comparator.comparing(keyOf));
         boolean spanEmitted = !withSpan;
         for (Protocol.PPersistenceEntry e : entries) {
-            String key = wireKey(e, tgt);
+            String key = keyOf.apply(e);
             if (!spanEmitted && key.compareTo("sourceInformation") > 0) {
                 if (!first) {
                     b.append(',');

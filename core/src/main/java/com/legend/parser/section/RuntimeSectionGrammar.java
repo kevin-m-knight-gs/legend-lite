@@ -168,9 +168,15 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
         int baseCol = c.tokens().startColumn(embStart);
         if (c instanceof SliceCursorOffset oc) {
             // offsets COMPOSE when the runtime itself is a re-lexed
-            // service island (spans stay file-absolute)
+            // service island — but the ENGINE's walker rule offsets the
+            // COLUMN on the slice's FIRST line only (harvest
+            // testServiceWithEmbeddedRuntimeWithOptionalMapping: a
+            // nested connection island on a later line took the outer
+            // column shift and every first-line span drifted +6)
+            if (c.tokens().startLine(embStart) == 1) {
+                baseCol += oc.colOffset;
+            }
             baseLine += oc.lineOffset;
-            baseCol += oc.colOffset;
         }
         return ConnectionSectionGrammar.parseIslandValue(emb, baseLine,
                 baseCol);
