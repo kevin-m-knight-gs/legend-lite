@@ -76,9 +76,35 @@ class ZFixtureAdjudicationProbe {
             String actual;
             try {
                 actual = com.legend.parser.PmcdParser.parseDocument(src);
+            } catch (Throwable t) {
+                verdicts.merge("PROTOCOL-REFUSES-accepted", 1, Integer::sum);
+                continue;
+            }
+            // model path SEPARATELY — its refusals are lite's COMPILE
+            // stage, adjudicated against the engine's compile verdicts
+            try {
                 com.legend.parser.ElementParser.parse(src);
             } catch (Throwable t) {
-                verdicts.merge("LITE-REFUSES-accepted", 1, Integer::sum);
+                verdicts.merge("MODEL-PATH-refuses", 1, Integer::sum);
+                // STILL byte-compare the protocol parse — the engine also
+                // parse-accepts these and only its COMPILER refuses
+                if (expectedJson.equals(actual)) {
+                    verdicts.merge("MODEL-PATH-refuses:BYTES-MATCH", 1,
+                            Integer::sum);
+                } else {
+                    int i = 0;
+                    int n2 = Math.min(expectedJson.length(), actual.length());
+                    while (i < n2 && expectedJson.charAt(i)
+                            == actual.charAt(i)) {
+                        i++;
+                    }
+                    System.out.println("@@ MPDIFF "
+                            + n.get("origin").asText() + " @char" + i + " …"
+                            + expectedJson.substring(Math.max(0, i - 40),
+                                    Math.min(expectedJson.length(), i + 50))
+                            + "… vs …" + actual.substring(Math.max(0, i - 40),
+                                    Math.min(actual.length(), i + 50)) + "…");
+                }
                 Throwable r = t;
                 while (r.getCause() != null && r.getCause() != r) {
                     r = r.getCause();

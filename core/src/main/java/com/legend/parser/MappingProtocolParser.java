@@ -1926,6 +1926,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     }
                     advance();
                 }
+                // the engine WALKER's re-parse anchor quirk (see
+                // PRelationSrcLambda), same split as the ~src fn form:
+                // INNER expression spans stay RAW; only the lambda
+                // WRAPPER span shifts DOWN by (expr line - brace line)
+                int delta = tokens.startLine(eS) - braceLine;
                 List<com.legend.protocol.spec.ValueSpecification> eBody =
                         SpecParser.parseCodeBlock(tokens.slice(eS, pos),
                                 legendStrict);
@@ -1935,7 +1940,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 return finishRelationClassMapping(target, id, extendsId,
                         root, memberStart, braceLine,
                         new Protocol.PRelationSrcLambda(null, null,
-                                eBody.get(0), spanOf(eS, pos - 1)),
+                                eBody.get(0),
+                                shiftLines(spanOf(eS, pos - 1), delta)),
                         null, null);
             }
         } else if (peek() == TokenType.TILDE
