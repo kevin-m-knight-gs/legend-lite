@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.mapping.MappingRegistry;
 import com.gs.legend.server.QueryService;
@@ -365,8 +365,8 @@ public abstract class AbstractDatabaseTest {
      * @return The generated SQL
      */
     protected String generateSql(String pureQuery) {
-        return com.gs.legend.plan.PlanGenerator
-                .generate(getCompletePureModelWithRuntime(), pureQuery, "test::TestRuntime")
+        return com.legend.Compiler
+                .plan(getCompletePureModelWithRuntime(), pureQuery, "test::TestRuntime")
                 .sql();
     }
 

@@ -155,7 +155,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
         registry.register(def, (pathParams, queryParams, conn) -> {
             // Execute via QueryService (parse → compile → SQL → execute)
             var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", conn);
-            return result.toJsonArray();
+            return com.legend.exec.ResultJson.toJsonArray(result);
         });
     }
 
@@ -178,7 +178,7 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
 
             // Execute via QueryService (parse → compile → SQL → execute)
             var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", conn);
-            return result.toJsonArray();
+            return com.legend.exec.ResultJson.toJsonArray(result);
         });
     }
 
@@ -339,24 +339,18 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("ExecutionResult.toJsonArray produces valid JSON for various types")
     void testJsonSerializer() throws Exception {
-        // Build a TabularResult directly with known types
+        // Build a Tabular result directly with known types
         var columns = java.util.List.of(
-                new com.gs.legend.exec.Column("id", "Integer", "Integer"),
-                new com.gs.legend.exec.Column("name", "String", "String"),
-                new com.gs.legend.exec.Column("active", "Boolean", "Boolean"),
-                new com.gs.legend.exec.Column("value", "Float", "Float"));
+                new com.legend.exec.Column("id", "Integer", com.legend.compiler.element.type.Type.Primitive.INTEGER),
+                new com.legend.exec.Column("name", "String", com.legend.compiler.element.type.Type.Primitive.STRING),
+                new com.legend.exec.Column("active", "Boolean", com.legend.compiler.element.type.Type.Primitive.BOOLEAN),
+                new com.legend.exec.Column("value", "Float", com.legend.compiler.element.type.Type.Primitive.FLOAT));
         var rows = java.util.List.of(
-                new com.gs.legend.exec.Row(java.util.List.of(1, "test", true, 42.5)));
-        var schema = new Type.Schema(
-                java.util.Map.of("id", com.gs.legend.model.m3.Primitive.INTEGER,
-                        "name", com.gs.legend.model.m3.Primitive.STRING,
-                        "active", com.gs.legend.model.m3.Primitive.BOOLEAN,
-                        "value", com.gs.legend.model.m3.Primitive.FLOAT),
-                java.util.List.of());
-        var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
-                columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
+                new com.legend.exec.Row(java.util.List.of(1, "test", true, 42.5)));
+        var result = new com.legend.exec.ExecutionResult.Tabular(
+                columns, rows, relationOf(columns));
 
-        String json = result.toJsonArray();
+        String json = com.legend.exec.ResultJson.toJsonArray(result);
         System.out.println("JSON: " + json);
 
         assertTrue(json.contains("\"id\":1"));
@@ -369,18 +363,14 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("ExecutionResult.toJsonArray handles null values correctly")
     void testJsonSerializerNulls() throws Exception {
         var columns = java.util.List.of(
-                new com.gs.legend.exec.Column("firstName", "String", "String"),
-                new com.gs.legend.exec.Column("street", "String", "String"));
+                new com.legend.exec.Column("firstName", "String", com.legend.compiler.element.type.Type.Primitive.STRING),
+                new com.legend.exec.Column("street", "String", com.legend.compiler.element.type.Type.Primitive.STRING));
         var rows = java.util.List.of(
-                new com.gs.legend.exec.Row(java.util.Arrays.asList("NoAddress", null)));
-        var schema = new Type.Schema(
-                java.util.Map.of("firstName", com.gs.legend.model.m3.Primitive.STRING,
-                        "street", com.gs.legend.model.m3.Primitive.STRING),
-                java.util.List.of());
-        var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
-                columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
+                new com.legend.exec.Row(java.util.Arrays.asList("NoAddress", null)));
+        var result = new com.legend.exec.ExecutionResult.Tabular(
+                columns, rows, relationOf(columns));
 
-        String json = result.toJsonArray();
+        String json = com.legend.exec.ResultJson.toJsonArray(result);
         System.out.println("JSON with nulls: " + json);
 
         assertTrue(json.contains("\"firstName\":\"NoAddress\""));
@@ -391,23 +381,27 @@ class HostedServiceIntegrationTest extends AbstractDatabaseTest {
     @DisplayName("ExecutionResult.toJsonArray escapes special characters in strings")
     void testJsonSerializerEscaping() throws Exception {
         var columns = java.util.List.of(
-                new com.gs.legend.exec.Column("firstName", "String", "String"),
-                new com.gs.legend.exec.Column("lastName", "String", "String"));
+                new com.legend.exec.Column("firstName", "String", com.legend.compiler.element.type.Type.Primitive.STRING),
+                new com.legend.exec.Column("lastName", "String", com.legend.compiler.element.type.Type.Primitive.STRING));
         var rows = java.util.List.of(
-                new com.gs.legend.exec.Row(java.util.List.of("Quote\"Test", "Tab\tPerson")));
-        var schema = new Type.Schema(
-                java.util.Map.of("firstName", com.gs.legend.model.m3.Primitive.STRING,
-                        "lastName", com.gs.legend.model.m3.Primitive.STRING),
-                java.util.List.of());
-        var result = new com.gs.legend.exec.ExecutionResult.TabularResult(
-                columns, rows, schema, new com.gs.legend.model.m3.Type.Relation(schema));
+                new com.legend.exec.Row(java.util.List.of("Quote\"Test", "Tab\tPerson")));
+        var result = new com.legend.exec.ExecutionResult.Tabular(
+                columns, rows, relationOf(columns));
 
-        String json = result.toJsonArray();
+        String json = com.legend.exec.ResultJson.toJsonArray(result);
         System.out.println("JSON with escaping: " + json);
 
         // Should contain escaped quote and tab
         assertTrue(json.contains("\\\"")); // Escaped quote
         assertTrue(json.contains("\\t")); // Escaped tab
+    }
+
+    /** A core relation type over result columns (each to-one). */
+    private static com.legend.compiler.element.type.Type.RelationType relationOf(java.util.List<com.legend.exec.Column> columns) {
+        return new com.legend.compiler.element.type.Type.RelationType(columns.stream()
+                .map(c -> new com.legend.compiler.element.type.Type.Column(c.name(), c.pureType(),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE))
+                .toList());
     }
 
     // ==================== Helper Methods ====================

@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -120,7 +120,7 @@ class JsonM2MIntegrationTest {
 
     private String executeGraphFetch(String pureQuery) throws SQLException {
         var result = queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
-        assertInstanceOf(ExecutionResult.GraphResult.class, result,
+        assertInstanceOf(ExecutionResult.Graph.class, result,
                 "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
         return result.asGraph().json();
     }
@@ -141,7 +141,7 @@ class JsonM2MIntegrationTest {
         assertEquals(3, tabular.rows().size(), "Should have 3 persons from JSON");
 
         var colNames = tabular.columns().stream()
-                .map(com.gs.legend.exec.Column::name).toList();
+                .map(com.legend.exec.Column::name).toList();
         assertTrue(colNames.contains("fullName"), "Should have fullName column");
         assertTrue(colNames.contains("age"), "Should have age column");
 

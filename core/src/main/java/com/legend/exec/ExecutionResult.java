@@ -25,11 +25,42 @@ public sealed interface ExecutionResult {
         return rows().size();
     }
 
+    default int columnCount() {
+        return columns().size();
+    }
+
+    // ===== Typed accessors (ported engine surface) — no cast, clear error =====
+
+    default Scalar asScalar() {
+        throw new IllegalStateException(
+                "Expected Scalar but got " + getClass().getSimpleName());
+    }
+
+    default Collection asCollection() {
+        throw new IllegalStateException(
+                "Expected Collection but got " + getClass().getSimpleName());
+    }
+
+    default Tabular asTabular() {
+        throw new IllegalStateException(
+                "Expected Tabular but got " + getClass().getSimpleName());
+    }
+
+    default Graph asGraph() {
+        throw new IllegalStateException(
+                "Expected Graph but got " + getClass().getSimpleName());
+    }
+
     /** Single scalar value: {@code 1 + 1} → 2. */
     record Scalar(@com.legend.Nullable Object value, Type returnType)
             implements ExecutionResult {
         public Scalar {
             Objects.requireNonNull(returnType, "returnType");
+        }
+
+        @Override
+        public Scalar asScalar() {
+            return this;
         }
 
         @Override
@@ -51,6 +82,11 @@ public sealed interface ExecutionResult {
         }
 
         @Override
+        public Collection asCollection() {
+            return this;
+        }
+
+        @Override
         public List<Column> columns() {
             return List.of(new Column("value", null, returnType));
         }
@@ -69,12 +105,22 @@ public sealed interface ExecutionResult {
             Objects.requireNonNull(rows, "rows");
             Objects.requireNonNull(returnType, "returnType");
         }
+
+        @Override
+        public Tabular asTabular() {
+            return this;
+        }
     }
 
     /** Graph result: the json IS a well-formed JSON array built by the database. */
     record Graph(String json, Type returnType) implements ExecutionResult {
         public Graph {
             Objects.requireNonNull(returnType, "returnType");
+        }
+
+        @Override
+        public Graph asGraph() {
+            return this;
         }
 
         @Override

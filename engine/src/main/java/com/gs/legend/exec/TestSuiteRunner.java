@@ -4,6 +4,7 @@ import com.gs.legend.model.def.MappingDefinition.TestDefinition;
 import com.gs.legend.model.def.MappingDefinition.TestSuiteDefinition;
 import com.gs.legend.server.QueryService;
 import com.gs.legend.util.Json;
+import com.legend.exec.ExecutionResult;
 
 import java.sql.Connection;
 import java.util.ArrayList;

@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.plan.PlanGenerator;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -128,7 +128,7 @@ class WindowFunctionTest {
     }
 
     private String generateSql(String pureQuery) {
-        var plan = PlanGenerator.generate(
+        var plan = com.legend.Compiler.plan(
                 COMPLETE_MODEL,
                 pureQuery,
                 "test::TestRuntime");

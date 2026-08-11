@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.model.PureModelBuilder;
 import com.gs.legend.model.m3.Property;
 import com.gs.legend.model.m3.PureClass;
@@ -1057,7 +1057,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
 
         // Bare class query: JSON-wrapped GraphResult with top 3 salaries
-        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        assertInstanceOf(ExecutionResult.Graph.class, result);
         String json = result.asGraph().json();
         assertNotNull(json);
         // Should contain 3 employees (Jane=80k, Alice=70k, Bob=60k), not John=50k
@@ -1173,7 +1173,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Bare class query → JSON-wrapped GraphResult
-        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        assertInstanceOf(ExecutionResult.Graph.class, result);
         String json = result.asGraph().json();
         assertNotNull(json);
         assertTrue(json.contains("Alice"), "JSON should contain Alice (age 25)");

@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -83,7 +83,7 @@ class AssociationIntegrationTest {
 
     private String execGraph(String model, String query) throws SQLException {
         var result = exec(model, query);
-        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        assertInstanceOf(ExecutionResult.Graph.class, result);
         return result.asGraph().json();
     }
 

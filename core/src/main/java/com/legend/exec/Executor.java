@@ -68,10 +68,7 @@ public final class Executor {
         boolean variantRoot = rootType.type()
                 instanceof com.legend.compiler.element.type.Type.ClassType vct
                 && PlatformTypes.isVariant(vct);
-        // opt-in diagnostic: every executed statement to stderr
-        if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
-            System.err.println("[sql] " + sql);
-        }
+        dumpSql(sql);
         // prepareStatement, not createStatement: DuckDB JDBC 1.5 masks a
         // direct Statement's real error behind 'Attempting to execute an
         // unsuccessful or closed pending query result' (audit: 74 corpus
@@ -87,6 +84,92 @@ public final class Executor {
                 System.err.println("[sql-fail] " + sql);
             }
             throw e;
+        }
+    }
+
+    /**
+     * The STREAMING entry — JSON straight to {@code out}, no materialization
+     * for unbounded shapes. TABULAR iterates the ResultSet lazily through the
+     * SAME cell/column machinery as {@link #execute} (fetch/unwrap/shaping —
+     * one set of rules); GRAPH expects the streaming lowering's one
+     * {@code json_object} per JDBC row ({@code Lowerer#withStreamingGraphRoot})
+     * and writes each row's JSON verbatim inside an enclosing array. SCALAR
+     * and COLLECTION are bounded by contract — materialized, then written.
+     * Flushes after every row so downstream buffers (OutputStreamWriter,
+     * HttpExchange, sockets) release bytes as rows arrive. {@code out} is
+     * never closed — the caller owns its lifecycle.
+     */
+    public static void stream(String sql, SqlQuery plan, ExprType rootType,
+                              ResultShape shape, Connection connection,
+                              com.legend.sql.dialect.SqlDialect dialect,
+                              java.io.Writer out)
+            throws SQLException, java.io.IOException {
+        dumpSql(sql);
+        switch (shape) {
+            case TABULAR -> streamTabular(sql, plan, rootType, connection, dialect, out);
+            case GRAPH -> streamGraph(sql, connection, dialect, out);
+            case SCALAR, COLLECTION -> {
+                out.write(ResultJson.toJsonArray(
+                        execute(sql, plan, rootType, shape, connection, dialect)));
+                out.flush();
+            }
+        }
+    }
+
+    private static void streamTabular(String sql, SqlQuery plan, ExprType rootType,
+            Connection connection, com.legend.sql.dialect.SqlDialect dialect,
+            java.io.Writer out) throws SQLException, java.io.IOException {
+        final Type.RelationType schema = tabularSchema(rootType);
+        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
+             ResultSet rs = st.executeQuery()) {
+            int n = rs.getMetaData().getColumnCount();
+            List<Column> columns = resolveColumns(rs, plan, schema, n);
+            out.write('[');
+            boolean first = true;
+            while (rs.next()) {
+                for (Row row : shapeRow(rs, n, plan, dialect, schema, columns)) {
+                    if (!first) {
+                        out.write(',');
+                    }
+                    first = false;
+                    ResultJson.writeRow(out, columns, row.values());
+                    out.flush();
+                }
+            }
+            out.write(']');
+            out.flush();
+        }
+    }
+
+    private static void streamGraph(String sql, Connection connection,
+            com.legend.sql.dialect.SqlDialect dialect, java.io.Writer out)
+            throws SQLException, java.io.IOException {
+        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
+             ResultSet rs = st.executeQuery()) {
+            out.write('[');
+            boolean first = true;
+            while (rs.next()) {
+                if (!first) {
+                    out.write(',');
+                }
+                first = false;
+                // each cell is one complete json_object — normalized through
+                // the dialect's JSON codec (H2 hands JSON back as byte[]),
+                // then written verbatim: no parsing, no re-escaping.
+                Object cell = dialect.normalize(rs.getObject(1),
+                        com.legend.sql.SqlType.Scalar.JSON);
+                out.write(cell != null ? String.valueOf(cell) : "null");
+                out.flush();
+            }
+            out.write(']');
+            out.flush();
+        }
+    }
+
+    /** Opt-in diagnostic: every executed statement to stderr. */
+    private static void dumpSql(String sql) {
+        if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+            System.err.println("[sql] " + sql);
         }
     }
 
@@ -360,6 +443,18 @@ public final class Executor {
     private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType,
                                                     com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
+        final Type.RelationType schema = tabularSchema(rootType);
+        int n = rs.getMetaData().getColumnCount();
+        List<Column> columns = resolveColumns(rs, plan, schema, n);
+        List<Row> rows = new ArrayList<>();
+        while (rs.next()) {
+            rows.addAll(shapeRow(rs, n, plan, dialect, schema, columns));
+        }
+        return new ExecutionResult.Tabular(columns, rows, rootType.type());
+    }
+
+    /** The relation schema of a TABULAR root, struct columns flattened. */
+    private static Type.RelationType tabularSchema(ExprType rootType) {
         if (!(rootType.type() instanceof Type.RelationType typedSchema)) {
             throw new IllegalStateException("TABULAR result without a relation root type: "
                     + rootType.type().typeName());
@@ -367,8 +462,11 @@ public final class Executor {
         // A ROW-STRUCT column (a user navigate's slot) is typed nesting over
         // a FLAT physical reality — expand to the prefixed columns the join
         // emitted (alias_COL), mirroring the lowerer's output flattening.
-        final Type.RelationType schema = flattenStructColumns(typedSchema);
-        int n = rs.getMetaData().getColumnCount();
+        return flattenStructColumns(typedSchema);
+    }
+
+    private static List<Column> resolveColumns(ResultSet rs, SqlQuery plan,
+            Type.RelationType schema, int n) throws SQLException {
         List<Column> columns = new ArrayList<>();
         if (n == schema.columns().size()) {
             // POSITIONAL on both sides (schemas are ordered); no null types.
@@ -396,54 +494,60 @@ public final class Executor {
             throw new IllegalStateException("result has " + n + " columns but the typed"
                     + " schema has " + schema.columns().size() + " — plan/schema mismatch");
         }
-        List<Row> rows = new ArrayList<>();
-        while (rs.next()) {
-            List<Object> cells = new ArrayList<>(n);
-            int manyCol = -1;
-            for (int i = 1; i <= n; i++) {
-                Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
-                        sqlTypeOf(plan, i - 1), dialect);
-                if ((cell instanceof List<?> || cell instanceof java.sql.Array)
-                        && schema.columns().get(i - 1).type()
-                                instanceof Type.Primitive) {
-                    // TDS cells are SCALAR — a many-valued primitive
-                    // projection column (scalar-stream concatenate)
-                    // EXPLODES ROWS in the engine (union subselect per
-                    // element, row-major; parents with an empty stream
-                    // keep ONE row with a NULL cell — the LEFT join).
-                    // ONE such column per row; a second stays loud
-                    // (zipping is not the engine rule).
-                    if (manyCol >= 0) {
-                        throw new com.legend.error.NotImplementedException(
-                                "two many-valued TDS cells in one row ('"
-                                        + columns.get(manyCol).name() + "', '"
-                                        + columns.get(i - 1).name()
-                                        + "') — only single-column row"
-                                        + " explosion is built");
-                    }
-                    manyCol = i - 1;
+        return columns;
+    }
+
+    /**
+     * Shape ONE JDBC row into 1..k result rows (shared by the materialized
+     * and streaming tabular paths — the shaping rules must never diverge).
+     */
+    private static List<Row> shapeRow(ResultSet rs, int n, SqlQuery plan,
+            com.legend.sql.dialect.SqlDialect dialect, Type.RelationType schema,
+            List<Column> columns) throws SQLException {
+        List<Object> cells = new ArrayList<>(n);
+        int manyCol = -1;
+        for (int i = 1; i <= n; i++) {
+            Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
+                    sqlTypeOf(plan, i - 1), dialect);
+            if ((cell instanceof List<?> || cell instanceof java.sql.Array)
+                    && schema.columns().get(i - 1).type()
+                            instanceof Type.Primitive) {
+                // TDS cells are SCALAR — a many-valued primitive
+                // projection column (scalar-stream concatenate)
+                // EXPLODES ROWS in the engine (union subselect per
+                // element, row-major; parents with an empty stream
+                // keep ONE row with a NULL cell — the LEFT join).
+                // ONE such column per row; a second stays loud
+                // (zipping is not the engine rule).
+                if (manyCol >= 0) {
+                    throw new com.legend.error.NotImplementedException(
+                            "two many-valued TDS cells in one row ('"
+                                    + columns.get(manyCol).name() + "', '"
+                                    + columns.get(i - 1).name()
+                                    + "') — only single-column row"
+                                    + " explosion is built");
                 }
-                cells.add(cell);
+                manyCol = i - 1;
             }
-            if (manyCol < 0) {
-                rows.add(new Row(cells));
-                continue;
-            }
-            List<?> stream = cells.get(manyCol) instanceof java.sql.Array a
-                    ? arrayAsList(a) : (List<?>) cells.get(manyCol);
-            if (stream.isEmpty()) {
-                List<Object> one = new ArrayList<>(cells);
-                one.set(manyCol, null);
-                rows.add(new Row(one));
-                continue;
-            }
-            for (Object el : stream) {
-                List<Object> one = new ArrayList<>(cells);
-                one.set(manyCol, el);
-                rows.add(new Row(one));
-            }
+            cells.add(cell);
         }
-        return new ExecutionResult.Tabular(columns, rows, rootType.type());
+        if (manyCol < 0) {
+            return List.of(new Row(cells));
+        }
+        List<?> stream = cells.get(manyCol) instanceof java.sql.Array a
+                ? arrayAsList(a) : (List<?>) cells.get(manyCol);
+        if (stream.isEmpty()) {
+            List<Object> one = new ArrayList<>(cells);
+            one.set(manyCol, null);
+            return List.of(new Row(one));
+        }
+        List<Row> out = new ArrayList<>(stream.size());
+        for (Object el : stream) {
+            List<Object> one = new ArrayList<>(cells);
+            one.set(manyCol, el);
+            out.add(new Row(one));
+        }
+        return out;
     }
 
     private static List<?> arrayAsList(java.sql.Array a) {

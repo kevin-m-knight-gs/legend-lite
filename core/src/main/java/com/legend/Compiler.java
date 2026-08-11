@@ -302,6 +302,20 @@ public final class Compiler {
 
     private static com.legend.exec.QueryPlan plan(String model, String query,
             String runtime, boolean streaming) {
+        Lowered l = lowerQuery(model, query, runtime, streaming);
+        String sql = dialectOf(l.ctx(), runtime).render(l.plan());
+        return new com.legend.exec.QueryPlan(sql, l.root().info(),
+                com.legend.exec.ResultShape.of(l.root()));
+    }
+
+    /** The lowered plan plus what result shaping needs — shared by the plan
+     *  surface and {@link #executeStreaming} (ONE phase sequence, audit 15). */
+    private record Lowered(com.legend.sql.SqlQuery plan, TypedSpec root,
+                           ModelContext ctx) {
+    }
+
+    private static Lowered lowerQuery(String model, String query,
+            @com.legend.Nullable String runtime, boolean streaming) {
         ModelContext ctx = compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
@@ -321,9 +335,26 @@ public final class Compiler {
         if (streaming) {
             planLw = planLw.withStreamingGraphRoot();
         }
-        String sql = dialectOf(ctx, runtime).render(planLw.lower(body));
-        return new com.legend.exec.QueryPlan(sql, root.info(),
-                com.legend.exec.ResultShape.of(root));
+        return new Lowered(planLw.lower(body), root, ctx);
+    }
+
+    /**
+     * STREAMING execution — the {@link #planStreaming} lowering pushed all
+     * the way through {@link com.legend.exec.Executor#stream}: JSON rows go
+     * to {@code out} as they arrive from JDBC, O(one row) regardless of
+     * result size. The dialect binds to the ACTUAL SESSION (the H5.4
+     * reconciliation), unlike the plan-only surface which has no connection
+     * to consult. {@code out} is flushed per row and never closed.
+     */
+    public static void executeStreaming(String model, String query,
+            @com.legend.Nullable String runtimeFqn, java.sql.Connection connection,
+            java.io.Writer out) throws java.sql.SQLException, java.io.IOException {
+        Lowered l = lowerQuery(model, query, runtimeFqn, true);
+        com.legend.sql.dialect.SqlDialect dialect =
+                dialectOf(l.ctx(), runtimeFqn, connection);
+        com.legend.exec.Executor.stream(dialect.render(l.plan()), l.plan(),
+                l.root().info(), com.legend.exec.ResultShape.of(l.root()),
+                connection, dialect, out);
     }
 
     /**

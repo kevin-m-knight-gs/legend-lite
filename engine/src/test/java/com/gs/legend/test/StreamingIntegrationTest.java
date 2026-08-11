@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Coverage:
  * <ul>
  *   <li>{@code testExecuteJson*} / {@code testExecuteCsv*} — materialized
- *       snapshot path that serializes an {@link com.gs.legend.exec.ExecutionResult}
+ *       snapshot path that serializes an {@link com.legend.exec.ExecutionResult}
  *       to an OutputStream in the given {@link OutputFormat}.</li>
  *   <li>{@code testStream*} — true streaming path (no materialization).
  *       Two of these tests are mutation-verified proofs that streaming is

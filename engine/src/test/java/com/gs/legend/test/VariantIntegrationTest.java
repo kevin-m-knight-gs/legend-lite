@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.plan.PlanGenerator;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -124,7 +124,7 @@ class VariantIntegrationTest {
     }
 
     private String generateSql(String pureQuery) {
-        var plan = PlanGenerator.generate(getCompletePureModel(), pureQuery, "test::TestRuntime");
+        var plan = com.legend.Compiler.plan(getCompletePureModel(), pureQuery, "test::TestRuntime");
         return plan.sql();
     }
 
@@ -374,7 +374,7 @@ class VariantIntegrationTest {
                 """;
 
         // Compile and check SQL
-        var plan = PlanGenerator.generate(pureModel, pureQuery, "test::TestRuntime");
+        var plan = com.legend.Compiler.plan(pureModel, pureQuery, "test::TestRuntime");
         String sql = plan.sql();
         System.out.println("Embedded class SQL: " + sql);
 

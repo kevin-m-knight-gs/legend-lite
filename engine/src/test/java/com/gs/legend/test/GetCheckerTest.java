@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.plan.PlanGenerator;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
@@ -127,7 +127,7 @@ public class GetCheckerTest {
     }
 
     private String sql(String pureQuery) {
-        return PlanGenerator.generate(pureModel(), pureQuery, "test::TestRuntime").sql();
+        return com.legend.Compiler.plan(pureModel(), pureQuery, "test::TestRuntime").sql();
     }
 
     // ==================== Field access: get('key') ====================

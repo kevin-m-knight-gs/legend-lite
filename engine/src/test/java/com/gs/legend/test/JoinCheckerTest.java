@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
 import org.junit.jupiter.api.AfterEach;

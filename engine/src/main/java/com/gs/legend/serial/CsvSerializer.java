@@ -1,8 +1,8 @@
 package com.gs.legend.serial;
 
-import com.gs.legend.exec.Column;
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.Row;
+import com.legend.exec.Column;
+import com.legend.exec.ExecutionResult;
+import com.legend.exec.Row;
 
 import java.io.IOException;
 import java.io.OutputStream;

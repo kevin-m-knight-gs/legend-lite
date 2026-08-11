@@ -159,7 +159,7 @@ public class LegendHttpServer {
 
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", true);
-                response.put("data", result.toJsonArray());
+                response.put("data", com.legend.exec.ResultJson.toJsonArray(result));
                 response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                 response.put("rowCount", result.rowCount());
 
@@ -235,7 +235,7 @@ public class LegendHttpServer {
                     response.put("message", "SQL executed successfully");
                 } else {
                     // SELECT - return results
-                    response.put("data", result.toJsonArray());
+                    response.put("data", com.legend.exec.ResultJson.toJsonArray(result));
                     response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                     response.put("rowCount", result.rowCount());
                 }

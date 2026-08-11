@@ -1,9 +1,7 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.ExecutionResult.ScalarResult;
-import com.gs.legend.exec.ExecutionResult.TabularResult;
-import com.gs.legend.model.m3.Type;
+import com.legend.compiler.element.type.Type;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
 import org.junit.jupiter.api.AfterEach;
@@ -60,8 +58,8 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime",
                 connection);
 
-        assertInstanceOf(ScalarResult.class, result, "Expected ScalarResult for |42");
-        ScalarResult scalar = result.asScalar();
+        assertInstanceOf(ExecutionResult.Scalar.class, result, "Expected ScalarResult for |42");
+        ExecutionResult.Scalar scalar = result.asScalar();
         assertEquals(42L, ((Number) scalar.value()).longValue());
         assertNotNull(scalar.returnType(), "returnType must be non-null");
     }
@@ -75,7 +73,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime",
                 connection);
 
-        assertInstanceOf(ScalarResult.class, result);
+        assertInstanceOf(ExecutionResult.Scalar.class, result);
         assertEquals("hello", result.asScalar().value());
     }
 
@@ -88,7 +86,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime",
                 connection);
 
-        assertInstanceOf(ScalarResult.class, result);
+        assertInstanceOf(ExecutionResult.Scalar.class, result);
         assertEquals(true, result.asScalar().value());
     }
 
@@ -101,7 +99,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime",
                 connection);
 
-        assertInstanceOf(ScalarResult.class, result);
+        assertInstanceOf(ExecutionResult.Scalar.class, result);
         assertEquals(3L, ((Number) result.asScalar().value()).longValue());
     }
 
@@ -116,10 +114,10 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime",
                 connection);
 
-        assertInstanceOf(TabularResult.class, result, "Expected TabularResult for project query");
-        TabularResult tabular = result.asTabular();
+        assertInstanceOf(ExecutionResult.Tabular.class, result, "Expected TabularResult for project query");
+        ExecutionResult.Tabular tabular = result.asTabular();
         assertNotNull(tabular.returnType());
-        assertInstanceOf(Type.Relation.class, tabular.returnType(),
+        assertInstanceOf(Type.RelationType.class, tabular.returnType(),
                 "returnType should be Relation for tabular result");
         assertTrue(tabular.rowCount() > 0, "Should have rows");
         assertEquals(2, tabular.columnCount(), "Should have 2 columns (firstName, lastName)");
@@ -134,8 +132,8 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 "test::TestRuntime",
                 connection);
 
-        assertInstanceOf(TabularResult.class, result);
-        TabularResult tabular = result.asTabular();
+        assertInstanceOf(ExecutionResult.Tabular.class, result);
+        ExecutionResult.Tabular tabular = result.asTabular();
         assertTrue(tabular.rowCount() >= 2, "John(30) and Bob(45) should pass age>25 filter");
     }
 
@@ -151,7 +149,7 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
                 connection);
 
         var ex = assertThrows(IllegalStateException.class, result::asTabular);
-        assertTrue(ex.getMessage().contains("ScalarResult"),
+        assertTrue(ex.getMessage().contains("Scalar"),
                 "Error should mention actual type: " + ex.getMessage());
     }
 

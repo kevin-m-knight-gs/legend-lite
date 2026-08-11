@@ -1,10 +1,10 @@
 package com.gs.legend.test;
 
 import com.gs.legend.compiler.PureCompileException;
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.parser.PureParseException;
 import com.gs.legend.plan.PlanGenerator;
-import com.gs.legend.plan.SingleExecutionPlan;
+import com.legend.exec.QueryPlan;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -120,8 +120,8 @@ class UserFunctionIntegrationTest {
         return BASE_MODEL + "\n" + functions;
     }
 
-    private static SingleExecutionPlan plan(String pureSource, String query) {
-        return PlanGenerator.generate(pureSource, query, "test::TestRuntime");
+    private static QueryPlan plan(String pureSource, String query) {
+        return com.legend.Compiler.plan(pureSource, query, "test::TestRuntime");
     }
 
     private static ExecutionResult exec(String pureSource, String query) throws SQLException {
@@ -1137,7 +1137,7 @@ class UserFunctionIntegrationTest {
         void testGraphFetchBaseline() throws SQLException {
             var result = exec(BASE_MODEL,
                     "|model::Person.all()->graphFetch(#{model::Person{firstName, age}}#)->serialize(#{model::Person{firstName, age}}#)");
-            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            assertInstanceOf(ExecutionResult.Graph.class, result);
             String json = result.asGraph().json();
             assertTrue(json.contains("John"), "JSON: " + json);
             assertTrue(json.contains("Jane"), "JSON: " + json);
@@ -1154,7 +1154,7 @@ class UserFunctionIntegrationTest {
                     """);
             var result = exec(model,
                     "|test::youngPeople()->graphFetch(#{model::Person{firstName, age}}#)->serialize(#{model::Person{firstName, age}}#)");
-            assertInstanceOf(ExecutionResult.GraphResult.class, result);
+            assertInstanceOf(ExecutionResult.Graph.class, result);
             String json = result.asGraph().json();
             assertTrue(json.contains("John"), "JSON: " + json);
             assertTrue(json.contains("Jane"), "JSON: " + json);

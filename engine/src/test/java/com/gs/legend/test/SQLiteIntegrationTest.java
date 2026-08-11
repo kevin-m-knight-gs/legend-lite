@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.model.def.ClassDefinition;
 import com.gs.legend.model.def.DatabaseDefinition;
 import com.gs.legend.model.m3.PureClass;
@@ -347,7 +347,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Bare class query → JSON-wrapped GraphResult
-        assertInstanceOf(ExecutionResult.GraphResult.class, result);
+        assertInstanceOf(ExecutionResult.Graph.class, result);
         String json = result.asGraph().json();
         assertNotNull(json);
         assertTrue(json.contains("Alice"), "JSON should contain Alice (age 25)");

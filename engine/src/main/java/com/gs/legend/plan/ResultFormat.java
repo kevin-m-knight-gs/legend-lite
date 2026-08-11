@@ -13,8 +13,7 @@ import com.gs.legend.model.m3.Type;
  * <p>Separates language type ({@link com.gs.legend.compiler.ExpressionType},
  * stamped by the Compiler) from execution format (stamped by
  * {@link PlanGenerator} via {@link #from(TypedSpec)}).
- * {@link com.gs.legend.exec.ExecutionResult} dispatches on this, not on
- * the expression type.
+ * Result shaping dispatches on this, not on the expression type.
  *
  * <p>Mirrors legend-engine's {@code ResultType} hierarchy
  * (ClassResultType, TDSResultType, DataTypeResultType) without

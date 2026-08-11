@@ -1432,7 +1432,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
 
     /** Collects results into a map keyed by the group column value. */
     private <K> java.util.Map<K, Object> collectResults(
-            com.gs.legend.exec.ExecutionResult result, String keyCol, String valCol) {
+            com.legend.exec.ExecutionResult result, String keyCol, String valCol) {
         int keyIdx = columnIndex(result, keyCol);
         int valIdx = columnIndex(result, valCol);
         java.util.Map<K, Object> map = new java.util.HashMap<>();
@@ -1445,7 +1445,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
     }
 
     /** Finds column index by name. */
-    private int columnIndex(com.gs.legend.exec.ExecutionResult result, String name) {
+    private int columnIndex(com.legend.exec.ExecutionResult result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name())) return i;
         }

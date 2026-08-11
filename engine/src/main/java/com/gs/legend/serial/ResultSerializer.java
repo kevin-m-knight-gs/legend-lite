@@ -1,6 +1,6 @@
 package com.gs.legend.serial;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 
 import java.io.IOException;
 import java.io.OutputStream;

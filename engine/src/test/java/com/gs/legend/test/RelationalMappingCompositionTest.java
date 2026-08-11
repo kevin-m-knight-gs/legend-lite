@@ -1,6 +1,6 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult;
 import com.gs.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -62,7 +62,7 @@ class RelationalMappingCompositionTest {
     }
 
     private String planSql(String model, String query) {
-        return com.gs.legend.plan.PlanGenerator.generate(model, query, "test::RT").sql();
+        return com.legend.Compiler.plan(model, query, "test::RT").sql();
     }
 
     private void sql(String... statements) throws SQLException {

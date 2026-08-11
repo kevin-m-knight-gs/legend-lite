@@ -17,13 +17,14 @@ package org.finos.legend.lite.pct.extension;
 import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.ExecutionResult.ScalarResult;
-import com.gs.legend.exec.ExecutionResult.CollectionResult;
-import com.gs.legend.exec.ExecutionResult.TabularResult;
-import com.gs.legend.exec.ExecutionResult.GraphResult;
-import com.gs.legend.exec.Column;
-import com.gs.legend.model.m3.Type;
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.element.type.Type;
+import com.legend.exec.Column;
+import com.legend.exec.ExecutionResult;
+import com.legend.exec.ExecutionResult.Scalar;
+import com.legend.exec.ExecutionResult.Collection;
+import com.legend.exec.ExecutionResult.Tabular;
+import com.legend.exec.ExecutionResult.Graph;
 import com.gs.legend.server.QueryService;
 
 import org.finos.legend.pure.m3.compiler.Context;
@@ -194,10 +195,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     "test::TestRuntime", connection);
 
             return switch (result) {
-                case ScalarResult s -> handleScalar(s, processorSupport);
-                case CollectionResult c -> handleCollection(c, processorSupport);
-                case TabularResult t -> handleTabular(t, processorSupport);
-                case GraphResult g -> ValueSpecificationBootstrap.newStringLiteral(
+                case Scalar s -> handleScalar(s, processorSupport);
+                case Collection c -> handleCollection(c, processorSupport);
+                case Tabular t -> handleTabular(t, processorSupport);
+                case Graph g -> ValueSpecificationBootstrap.newStringLiteral(
                         modelRepository, g.json(), processorSupport);
             };
         } catch (Exception e) {
@@ -217,7 +218,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
     }
 
-    private CoreInstance handleScalar(ScalarResult result, ProcessorSupport ps) {
+    private CoreInstance handleScalar(Scalar result, ProcessorSupport ps) {
         Object value = result.value();
         if (value == null) {
             return ValueSpecificationBootstrap.wrapValueSpecification(
@@ -252,7 +253,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return ValueSpecificationBootstrap.wrapValueSpecification(ci, true, ps);
     }
 
-    private CoreInstance handleCollection(CollectionResult result, ProcessorSupport ps) {
+    private CoreInstance handleCollection(Collection result, ProcessorSupport ps) {
         Type elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
         for (Object value : result.values()) {
@@ -274,7 +275,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances), true, ps);
     }
 
-    private CoreInstance handleTabular(TabularResult result, ProcessorSupport ps) {
+    private CoreInstance handleTabular(Tabular result, ProcessorSupport ps) {
         String tdsString = formatAsTds(result);
         System.out.println("[LegendLite PCT] TDS: " + tdsString.replace("\n", "\\n"));
         return createTDSResult(tdsString, ps);
@@ -367,7 +368,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             String pf = org.finos.legend.pure.m3.navigation.PackageableElement
                     .PackageableElement.getUserPathForPackageableElement(raw);
             if (pf != null) {
-                return new Type.NameRef(pf);
+                return new Type.ClassType(pf);
             }
         }
         return declared;
@@ -388,7 +389,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         Instance.addValueToProperty(gt, "rawType", rawType, ps);
         int declared = 0;
         if (t instanceof Type.GenericType g) {
-            for (Type arg : g.typeArgs()) {
+            for (Type arg : g.arguments()) {
                 CoreInstance argGt = genericTypeOf(arg, ps);
                 if (argGt == null) {
                     return null;
@@ -412,43 +413,34 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     /** The M3 path of a type's raw classifier (primitives at their simple names). */
     private static String rawPathOf(Type t) {
         return switch (t) {
-            case Type.GenericType g -> rawPathOf(g.rawType());
-            case Type.ClassType ct -> ct.qualifiedName();
-            case Type.NameRef n -> n.qualifiedName();
-            case Primitive p -> p.pureName();
+            case Type.GenericType g -> g.rawFqn();
+            case Type.ClassType ct -> ct.fqn();
+            case Type.Primitive p -> p.typeName();
             default -> null;
         };
     }
 
     private static String classFqnOf(Type t) {
         return switch (t) {
-            case Type.GenericType g when g.rawType() instanceof Type.ClassType ct ->
-                    ct.qualifiedName();
-            case Type.ClassType ct -> ct.qualifiedName();
-            case Type.NameRef n -> n.qualifiedName();
+            case Type.GenericType g -> g.rawFqn();
+            case Type.ClassType ct -> ct.fqn();
             default -> null;
         };
     }
 
     /** Pair's first/second resolve through the generic ARGUMENTS (nesting recurses). */
     private static Type propertyTypeOf(Type declared, String prop) {
-        if (declared instanceof Type.GenericType g && g.typeArgs().size() == 2
+        if (declared instanceof Type.GenericType g && g.arguments().size() == 2
                 && "meta::pure::functions::collection::Pair".equals(classFqnOf(g))) {
-            return "first".equals(prop) ? g.typeArgs().get(0)
-                    : "second".equals(prop) ? g.typeArgs().get(1) : declared;
+            return "first".equals(prop) ? g.arguments().get(0)
+                    : "second".equals(prop) ? g.arguments().get(1) : declared;
         }
         return declared;
     }
 
-    /** The engine-typed return is the Map<U,V> carrier (never a class STRUCT). */
+    /** The declared return is the Map<U,V> carrier (never a class STRUCT). */
     private static boolean isMapReturn(Type t) {
-        return t instanceof Type.GenericType g
-                && g.rawType() instanceof Type.ClassType ct
-                && ct.qualifiedName().equals("meta::pure::functions::collection::Map")
-                || t instanceof Type.ClassType c
-                        && c.qualifiedName().equals("meta::pure::functions::collection::Map")
-                || t instanceof Type.NameRef n
-                        && n.qualifiedName().equals("meta::pure::functions::collection::Map");
+        return "meta::pure::functions::collection::Map".equals(classFqnOf(t));
     }
 
     private CoreInstance toCoreInstance(Object value, Type type, ProcessorSupport ps) {
@@ -470,8 +462,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return modelRepository.newIntegerCoreInstance(bi.toString());
         }
         if (value instanceof BigDecimal bd) {
-            if (type instanceof Primitive p
-                    && (p == Primitive.DECIMAL || p == Primitive.NUMBER)) {
+            if (type instanceof Type.Primitive p
+                    && (p == Type.Primitive.DECIMAL || p == Type.Primitive.NUMBER)) {
                 return modelRepository.newDecimalCoreInstance(bd);
             }
             if (type instanceof Type.PrecisionDecimal) {
@@ -481,7 +473,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return modelRepository.newFloatCoreInstance(bd);
         }
         if (value instanceof Double d) {
-            if (type instanceof Primitive p && p == Primitive.DECIMAL) {
+            if (type instanceof Type.Primitive p && p == Type.Primitive.DECIMAL) {
                 return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d));
             }
             if (type instanceof Type.PrecisionDecimal) {
@@ -504,7 +496,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         if (value instanceof java.sql.Timestamp ts) {
             // Type tells us if this was originally a StrictDate promoted to Timestamp
-            if (type instanceof Primitive p && p == Primitive.STRICT_DATE) {
+            if (type instanceof Type.Primitive p && p == Type.Primitive.STRICT_DATE) {
                 return toPureDateInstance(ts.toLocalDateTime().toLocalDate());
             }
             return toPureDateTimeInstance(ts.toLocalDateTime());
@@ -534,7 +526,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // carries the enumeration — resolve to the CANONICAL enum-value
             // instance (equality on enums is identity in interpreted pure).
             if (type instanceof Type.EnumType et) {
-                CoreInstance enumeration = ps.package_getByUserPath(et.qualifiedName());
+                CoreInstance enumeration = ps.package_getByUserPath(et.fqn());
                 if (enumeration != null) {
                     for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
                             enumeration, M3Properties.values, ps)) {
@@ -547,9 +539,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // Precision-faithful date STRINGS (the wire's date convention:
             // partial dates, subsecond digit counts beyond the TIMESTAMP
             // carrier) — parse preserving every written digit.
-            if (type instanceof Primitive p
-                    && (p == Primitive.DATE || p == Primitive.DATE_TIME
-                            || p == Primitive.STRICT_DATE)
+            if (type instanceof Type.Primitive p
+                    && (p == Type.Primitive.DATE || p == Type.Primitive.DATE_TIME
+                            || p == Type.Primitive.STRICT_DATE)
                     && s.matches("-?\\d{4,}(-\\d{2})?(-\\d{2})?([T ].*)?")) {
                 PureDate pd = DateFunctions.parsePureDate(s);
                 String classifier = pd.hasHour() ? "DateTime"
@@ -736,13 +728,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                                             ProcessorSupport ps) {
         // Resolve class path from Type
         String qualifiedName = switch (type) {
-            case Type.ClassType ct -> ct.qualifiedName();
-            case com.gs.legend.model.m3.LClass lc -> lc.qualifiedName();
-            case Type.GenericType gt -> gt.rawType() instanceof com.gs.legend.model.m3.LClass lc
-                    ? lc.qualifiedName()
-                    : gt.rawType() instanceof Type.ClassType ct
-                            ? ct.qualifiedName()
-                            : "meta::pure::functions::collection::Pair"; // fallback
+            case Type.ClassType ct -> ct.fqn();
+            case Type.GenericType gt -> gt.rawFqn();
             default -> "meta::pure::functions::collection::Pair"; // fallback for unknown struct types
         };
 
@@ -760,7 +747,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
         if (type instanceof Type.GenericType p) {
             // Set type arguments from the compiler-provided Type
-            for (Type typeArg : p.typeArgs()) {
+            for (Type typeArg : p.arguments()) {
                 String argTypeName = typeArg.typeName();
                 CoreInstance argTypeClass = ps.package_getByUserPath(argTypeName);
                 if (argTypeClass != null) {
@@ -779,13 +766,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Object propValue = entry.getValue();
             if (propValue == null) continue;
 
-            // Determine property Type from Parameterized typeArgs if available
-            Type propType = Primitive.ANY;
-            if (type instanceof Type.GenericType p && !p.typeArgs().isEmpty()) {
-                // For Pair: first → typeArgs[0], second → typeArgs[1]
+            // Determine property Type from the generic arguments if available
+            Type propType = new Type.ClassType(PlatformTypes.ANY);
+            if (type instanceof Type.GenericType p && !p.arguments().isEmpty()) {
+                // For Pair: first → arguments[0], second → arguments[1]
                 int idx = indexOf(structMap, propName);
-                if (idx >= 0 && idx < p.typeArgs().size()) {
-                    propType = p.typeArgs().get(idx);
+                if (idx >= 0 && idx < p.arguments().size()) {
+                    propType = p.arguments().get(idx);
                 }
             }
 

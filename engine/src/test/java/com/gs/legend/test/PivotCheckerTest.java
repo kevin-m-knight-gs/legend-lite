@@ -1,7 +1,7 @@
 package com.gs.legend.test;
 
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.Row;
+import com.legend.exec.ExecutionResult;
+import com.legend.exec.Row;
 import com.gs.legend.sqlgen.DuckDBDialect;
 import com.gs.legend.sqlgen.SQLDialect;
 import org.junit.jupiter.api.AfterEach;
@@ -408,8 +408,8 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // All pivot columns should report Integer type, not String
             for (var col : result.columns()) {
                 if (col.name().contains("__|__")) {
-                    assertEquals("Integer", col.javaType(),
-                            "Pivot column '" + col.name() + "' should be Integer, not " + col.javaType());
+                    assertEquals("Integer", col.pureType().typeName(),
+                            "Pivot column '" + col.name() + "' should be Integer, not " + col.pureType().typeName());
                 }
             }
 
@@ -442,7 +442,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
 
             for (var col : result.columns()) {
                 if (col.name().contains("__|__")) {
-                    assertEquals("Integer", col.javaType(),
+                    assertEquals("Integer", col.pureType().typeName(),
                             "Pivot column '" + col.name() + "' should be Integer");
                 }
             }

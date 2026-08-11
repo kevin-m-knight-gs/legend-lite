@@ -1,11 +1,8 @@
 package com.gs.legend.server;
 
-import com.gs.legend.exec.ExecutionResult;
-import com.gs.legend.exec.PlanExecutor;
-import com.gs.legend.plan.PlanGenerator;
-import com.gs.legend.plan.SingleExecutionPlan;
 import com.gs.legend.serial.ResultSerializer;
 import com.gs.legend.serial.SerializerRegistry;
+import com.legend.exec.ExecutionResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,12 +11,14 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Objects;
 
 /**
- * Stateless query execution: parse → compile → plan → execute.
- *
- * <p>QueryService is the mapping entry point. It orchestrates the full pipeline
- * and threads mapping information explicitly to MappingResolver.
+ * Stateless query execution: parse → compile → plan → execute — the CORE
+ * pipeline end to end (engine-lite deletion; the A/B settled). Results are
+ * core records ({@link ExecutionResult}); this class owns orchestration and
+ * connection resolution only.
  *
  * <p>Two orthogonal concerns, two method families:
  *
@@ -40,8 +39,9 @@ import java.sql.SQLException;
  * <ul>
  *   <li>{@link #stream(String, String, String, Connection, OutputStream)} —
  *       iterates the JDBC ResultSet lazily and emits each row directly to the
- *       OutputStream. Memory footprint is O(one row) regardless of result
- *       size. JSON only.</li>
+ *       OutputStream ({@code Compiler.executeStreaming} →
+ *       {@code Executor.stream}). Memory footprint is O(one row) regardless
+ *       of result size. JSON only.</li>
  *   <li>{@link #stream(String, String, String, OutputStream)} — same,
  *       auto-resolves the connection.</li>
  * </ul>
@@ -51,17 +51,6 @@ import java.sql.SQLException;
  *   <li>{@link #executeSql(String, String, String)} — runs arbitrary SQL
  *       against the Runtime's connection (no Pure parsing, no plan).</li>
  * </ul>
- *
- * <pre>
- * // Typed snapshot
- * ExecutionResult result = svc.execute(model, query, runtime);
- *
- * // Snapshot written to an HTTP response body in CSV
- * svc.execute(model, query, runtime, conn, response.getOutputStream(), OutputFormat.CSV);
- *
- * // Streaming JSON to an HTTP response body
- * svc.stream(model, query, runtime, conn, response.getOutputStream());
- * </pre>
  */
 public class QueryService {
 
@@ -72,9 +61,9 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName,
             Connection connection) throws SQLException {
 
-        // CORE pipeline only (engine-lite deletion; the A/B settled).
-        return CoreBridge.toEngine(
-                com.legend.Compiler.execute(pureSource, query, runtimeName, connection));
+        return Objects.requireNonNull(
+                com.legend.Compiler.execute(pureSource, query, runtimeName, connection),
+                "query produced no result");
     }
 
     /**
@@ -84,9 +73,6 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
-        // Connection resolution is pre-existing engine plumbing (not bridge
-        // logic); the execution itself routes through the same seam as the
-        // 4-arg overload.
         Connection conn = CoreConnectionResolver.resolve(pureSource, runtimeName);
         return execute(pureSource, query, runtimeName, conn);
     }
@@ -105,12 +91,7 @@ public class QueryService {
             Connection connection, OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        SingleExecutionPlan plan = PlanGenerator.generate(pureSource, query, runtimeName);
-
-        System.out.println("Pure Query: " + query);
-        System.out.println("Generated SQL: " + plan.sql());
-
-        ExecutionResult result = PlanExecutor.execute(plan, connection);
+        ExecutionResult result = execute(pureSource, query, runtimeName, connection);
         ResultSerializer serializer = SerializerRegistry.get(format.id());
         serializer.serialize(result, out);
     }
@@ -137,7 +118,10 @@ public class QueryService {
 
         try (java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
-            return ExecutionResult.empty();
+            // DDL/DML: no result set — an empty relation, the caller's
+            // "no columns" signal (the legacy empty() contract).
+            return new ExecutionResult.Tabular(List.of(), List.of(),
+                    new com.legend.compiler.element.type.Type.RelationType(List.of()));
         }
     }
 
@@ -149,31 +133,21 @@ public class QueryService {
      * footprint is O(one row) regardless of result size.
      *
      * <p>Internally wraps {@code out} in a UTF-8 {@link OutputStreamWriter}
-     * and delegates to {@link PlanExecutor#streamJson}. After each row is
-     * emitted the writer is flushed, which propagates bytes through the
-     * OutputStreamWriter buffer to the underlying {@code out} — so HTTP
+     * and delegates to {@code Compiler.executeStreaming} (the streaming
+     * lowering's per-row {@code json_object} root pushed through
+     * {@code Executor.stream}). After each row the writer is flushed, so HTTP
      * response bodies, sockets, and other downstream consumers observe
      * incremental delivery.
      *
      * <p>This method does NOT close {@code out}. Caller owns lifecycle.
-     *
-     * @see com.gs.legend.exec.PlanExecutor#streamJson
      */
     public void stream(String pureSource, String query, String runtimeName,
             Connection connection, OutputStream out)
             throws SQLException, IOException {
 
-        // CORE streaming plan (engine-lite deletion): per-row json_object
-        // root via Compiler.planStreaming — same wire the legacy
-        // Mode.STREAMING produced, now owned by the one compiler
-        SingleExecutionPlan plan = CoreBridge.toPlan(
-                com.legend.Compiler.planStreaming(pureSource, query, runtimeName));
-
-        System.out.println("Pure Query: " + query);
-        System.out.println("Generated SQL: " + plan.sql());
-
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        PlanExecutor.streamJson(plan, connection, writer);
+        com.legend.Compiler.executeStreaming(pureSource, query, runtimeName,
+                connection, writer);
         writer.flush();
     }
 

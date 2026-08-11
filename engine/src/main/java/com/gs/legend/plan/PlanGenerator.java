@@ -81,20 +81,6 @@ public final class PlanGenerator {
                 dialect, Mode.SNAPSHOT);
     }
 
-    // ===== Static factories =====
-
-
-    public static SingleExecutionPlan generate(String pureSource, String query, String runtimeName) {
-        // CORE pipeline only (engine-lite deletion): CoreBridge.toPlan
-        // re-wraps core's QueryPlan verbatim (SQL, root type, shape). The
-        // legacy PureModelBuilder path and its -Dlegend.pipeline=engine
-        // escape are DELETED — the A/B settled (core beat the reference).
-        return com.gs.legend.server.CoreBridge.toPlan(
-                com.legend.Compiler.plan(pureSource, query, runtimeName));
-    }
-
-
-
     // ===== Orchestration =====
 
     /** Three-pass pipeline: lower -> classify -> print. */
