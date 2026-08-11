@@ -82,11 +82,16 @@ A mutation study against real gate runs (one single-point fault at a time, `-am`
 | Mongo `validationLevel`/`Action` swapped | **dark** | **SURVIVED everything** |
 | ColSpec lambda slots swapped | **dark** | **SURVIVED everything** — incl. all three newly-gated parity tests |
 
-**7 for 7 predicted by coverage class alone.** Every fault in a method some unit test
-happens to touch was caught by gate 1. Every fault in the 7 dark methods survived gate 1,
-gate 8, `LeniencyCatalogTest`, `StrictDialectParityTest` and `PmcdEquivalenceTest`. **No
-differential gate caught a single one of the four** — gate 8 reported
-`MATCH 26168 / DIFF 0 / REFERENCE_REJECTED 1960`, unchanged, under all of them.
+**7 for 7 predicted by coverage class alone**, zero exceptions. Every fault in a method
+some unit test happens to touch was caught by **gate 1, and by gate 1 only**. Every fault
+in the 7 dark methods survived the entire chain.
+
+**Sharper still: no differential gate caught a single mutation in this study — not even
+the three that were caught.** Byte parity reported `MATCH 26168 / DIFF 0 /
+REFERENCE_REJECTED 1960`, unchanged, under all seven. Gate 8's one catch (removing the
+`allVersionsInRange` keyword) came through `SpiSeamProofTest`'s aggregate leniency
+ratchet — **a count crossing a threshold, not a byte comparison**. On the 1,960 the
+differential machinery contributes nothing; unit tests are the entire defence.
 
 That settles the mechanism with no ambiguity: on the 1,960, **the only thing between a
 value-corrupting parser fault and production is whether someone wrote a unit test asserting
