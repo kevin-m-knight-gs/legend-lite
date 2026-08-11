@@ -2915,23 +2915,17 @@ final class ElementParserTest {
     }
 
     @Test
-    void enumerationMappingTrailingCommaTolerated() {
-        // Regression: trailing comma must yield N entries, not N+1 with a
-        // phantom empty entry silently appended.
-        var em = firstEnumerationMapping(
-                "\n###Mapping\nMapping my::M ( "
-                + "model::S: EnumerationMapping Mid { "
-                + "A: 'a', "
-                + "B: 'b', "
-                + "} )");
-        assertEquals(2, em.valueMappings().size(),
-                "trailing comma must not produce a phantom value mapping");
-        assertEquals("A", em.valueMappings().get(0).enumValue());
-        assertEquals("B", em.valueMappings().get(1).enumValue());
-        // Last entry's source value must be the real 'b', not empty/null.
-        var lastSource = em.valueMappings().get(1).sourceValues().get(0);
-        assertEquals("b",
-                ((EnumerationMapping.SourceValue.StringValue) lastSource).value());
+    void enumerationMappingTrailingCommaRefused() {
+        // BOTH references spell lists `x (COMMA x)*` — a trailing comma
+        // is refused, never silently absorbed (invention census batch 3)
+        ParseException ex = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "\n###Mapping\nMapping my::M ( "
+                        + "model::S: EnumerationMapping Mid { "
+                        + "A: 'a', "
+                        + "B: 'b', "
+                        + "} )"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"));
     }
 
     @Test
@@ -3189,22 +3183,15 @@ final class ElementParserTest {
     }
 
     @Test
-    void pureClassMappingTrailingCommaTolerated() {
-        var cm = firstPureClassMapping(
-                "\n###Mapping\nMapping my::M ( "
-                + "*model::Person: Pure { "
-                + "~src model::Raw "
-                + "name: $src.name, "
-                + "} )");
-        assertEquals(1, cm.propertyBindings().size(),
-                "trailing comma must not produce a phantom property binding");
-        var only = cm.propertyBindings().get(0);
-        assertEquals("name", only.propertyName());
-        // $src.name parses to AppliedProperty(Variable(src), "name") —
-        // confirms the RHS terminator (trailing comma) didn't truncate or extend.
-        AppliedProperty srcName = assertInstanceOf(AppliedProperty.class, only.expression());
-        assertEquals("name", srcName.property());
-        assertEquals(new Variable("src"), srcName.receiver());
+    void pureClassMappingTrailingCommaRefused() {
+        ParseException ex = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "\n###Mapping\nMapping my::M ( "
+                        + "*model::Person: Pure { "
+                        + "~src model::Raw "
+                        + "name: $src.name, "
+                        + "} )"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"));
     }
 
     @Test
@@ -3355,20 +3342,15 @@ final class ElementParserTest {
     }
 
     @Test
-    void embeddedAllowsTrailingComma() {
-        var cm = firstRelational(
-                "\n###Mapping\nMapping my::M ( "
-                + "*model::P: Relational { "
-                + "~mainTable [db::DB] T "
-                + "firm ( legalName: T.NAME, ) "
-                + "} )");
-        var firm = (PropertyMapping.Embedded) cm.propertyMappings().get(0);
-        assertEquals(1, firm.propertyMappings().size(),
-                "trailing comma in embedded body must not produce a phantom sub-mapping");
-        var only = (PropertyMapping.Column) firm.propertyMappings().get(0);
-        assertEquals("legalName", only.propertyName());
-        assertEquals("T", only.table());
-        assertEquals("NAME", only.column());
+    void embeddedTrailingCommaRefused() {
+        ParseException ex = assertThrows(ParseException.class, () ->
+                ElementParser.parse(
+                        "\n###Mapping\nMapping my::M ( "
+                        + "*model::P: Relational { "
+                        + "~mainTable [db::DB] T "
+                        + "firm ( legalName: T.NAME, ) "
+                        + "} )"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"));
     }
 
     @Test

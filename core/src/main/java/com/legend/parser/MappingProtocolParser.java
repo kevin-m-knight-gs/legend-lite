@@ -1263,7 +1263,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             props.add(new Protocol.PPurePropertyMapping(
                     local ? null : target, prop, propSpan, enumId, explode,
                     localProp, body, srcId, tgtId, spanOf(pS, pos - 1)));
-            match(TokenType.COMMA);
+            entryComma(TokenType.BRACE_CLOSE);
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
@@ -1653,7 +1653,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 props.add(new Protocol.PInlineEmbeddedPropertyMapping(target,
                         prop, propSpan, embId, setId,
                         spanOf(parenTok, close)));
-                match(TokenType.COMMA);
+                entryComma(TokenType.BRACE_CLOSE, TokenType.PAREN_CLOSE);
                 return;
             }
             List<Protocol.PPropertyMapping> inner = new ArrayList<>();
@@ -1694,12 +1694,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         target, prop, propSpan, embId, pk, inner, op, tgt,
                         spanOf(parenTok, oClose),
                         spanOf(otherwiseTok, oClose)));
-                match(TokenType.COMMA);
+                entryComma(TokenType.BRACE_CLOSE, TokenType.PAREN_CLOSE);
                 return;
             }
             props.add(new Protocol.PEmbeddedPropertyMapping(target, prop,
                     propSpan, embId, pk, inner, spanOf(parenTok, close)));
-            match(TokenType.COMMA);
+            entryComma(TokenType.BRACE_CLOSE, TokenType.PAREN_CLOSE);
             return;
         }
         int colonTok = pos;
@@ -1741,7 +1741,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 localProp != null ? null : target, prop, propSpan, enumId,
                 localProp, op, srcId, localProp != null ? null : tgtId,
                 spanOf(colonTok, pos - 1)));
-        match(TokenType.COMMA);
+        entryComma(TokenType.BRACE_CLOSE, TokenType.PAREN_CLOSE);
     }
 
     /** {@code scope([db]seg(.seg)?) ( prop-lines )} — the engine FLATTENS
@@ -3114,6 +3114,22 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** {@code path: EnumerationMapping id { V: [src, ...], ... }} — the
      *  mapping's span runs the TARGET path through the closing brace;
      *  pointer type ENUMERATION (probe enum-mapping). */
+    /** Both references spell lists {@code x (COMMA x)*} — a comma PROMISES
+     *  another entry, so a list closer right after one is a refusal
+     *  (invention census batch 3; engine and pure M2 grammars have no
+     *  trailing-comma arm anywhere in the mapping surface). */
+    private void entryComma(TokenType... closers) {
+        if (!match(TokenType.COMMA)) {
+            return;
+        }
+        for (TokenType closer : closers) {
+            if (peek() == closer) {
+                throw error("trailing comma: a comma must be followed by"
+                        + " another entry");
+            }
+        }
+    }
+
     private Protocol.PEnumerationMapping parseEnumerationMapping(
             String target, int targetStart, SourceInfo targetSpan) {
         String id = peek() == TokenType.BRACE_OPEN ? null : parseIdentifier();
@@ -3127,7 +3143,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 advance();
                 while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
                     sources.add(parseSourceValue());
-                    match(TokenType.COMMA);
+                    entryComma(TokenType.BRACKET_CLOSE);
                 }
                 if (sources.isEmpty()) {
                     // `X: []`. Engine's enumerationMapping rule requires a
@@ -3143,7 +3159,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 sources.add(parseSourceValue());
             }
             rows.add(new Protocol.PEnumValueMapping(enumValue, sources));
-            match(TokenType.COMMA);
+            entryComma(TokenType.BRACE_CLOSE);
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);

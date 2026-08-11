@@ -214,17 +214,17 @@ class OwnCorpusConformanceTest {
         System.out.println("own-corpus: " + ours.size() + " snippets, "
                 + accepted + " oracle-accepted, " + bothRefuse
                 + " both-refuse, refusal classes: " + byClass);
-        // THE RATCHET (invention census batch 2, 2026-08-11): 758/949
-        // oracle-accepted (OWN_DECL population), 78 classified leniency
-        // rows. Every class is PINNED — a new row in any class (or a new
-        // class) fails the build, so own-corpus leniency can only shrink.
-        // The import inventions are DEAD (specific imports and mid-file
-        // import groups refuse on BOTH surfaces; ImportScope is
-        // wildcards-only). Still-unresolved worklist: ORACLE-DEFECT 3 =
-        // the trailing-comma fixtures (ElementParserTest) — the last
-        // neither-reference tolerance, queued for adjudication (its
-        // XStore missing-comma cousin proved CORPUS-NEEDED, so this one
-        // gets the corpus check before any refusal).
+        // THE RATCHET (invention census COMPLETE, 2026-08-11): 758/949
+        // oracle-accepted (OWN_DECL population), 75 classified leniency
+        // rows — and ZERO unresolved: every class below is a NAMED,
+        // deliberate classification (pure-dialect constructs our tests
+        // exercise, the explicit lite design surfaces, and two named
+        // fixtures). The invention families are DEAD on both surfaces:
+        // specific imports, mid-file import groups (ImportScope is
+        // wildcards-only) and mapping-list trailing commas (entryComma —
+        // both references spell lists `x (COMMA x)*`). Every class is
+        // PINNED — a new row in any class (or a new class) fails the
+        // build, so own-corpus leniency can only shrink.
         Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
                 Map.entry("DIALECT-function-types", 13),
                 Map.entry("DIALECT-generics", 7),
@@ -235,7 +235,6 @@ class OwnCorpusConformanceTest {
                 Map.entry("LITE-DESIGN-json-column-get", 11),
                 Map.entry("LITE-DESIGN-mapping-as-function", 20),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
-                Map.entry("ORACLE-DEFECT-InputMismatchException", 3),
                 Map.entry("PURE-DIALECT-diagram", 1),
                 Map.entry("PURE-DIALECT-signatures", 16),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
