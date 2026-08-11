@@ -72,6 +72,34 @@ regenerate with the probes):
   `Other` datatypes, ModelConnection/ModelStringInput, legacyRuntime,
   m3 literals byteArray/unitInstance, EqualToTDS assertion, `toBytes`.
 
+## Reachability correction (2026-08-11, same day — heuristics retired)
+
+The package-name triage above OVER-EXCLUDED. `ZPmcdReachabilityProbe`
+computes the definitive scope: a static walk of the protocol type graph
+from `PureModelContextData` (fields + generics + Jackson subtype
+expansions; 762 reachable classes). Verdicts over the 788 uncovered:
+
+- **567 UNREACHABLE — proven out of scope**, no judgment calls:
+  execution-plan nodes, test results, the SQL API AST, and the
+  Elasticsearch QUERY-DSL/aggregations types (request shapes produced
+  by execution translation, not typable in any section).
+- **221 REACHABLE — the true in-scope worklist**, ~3× the heuristic
+  estimate. The corrections the heuristics missed:
+  - **Island STORE CONTENT is in scope**: MongoDB schema/aggregation
+    types (46), Deephaven metamodel (41), Elasticsearch index-mapping
+    property types (~52) ride inside store elements in PMCD. The
+    "island-DSL out of scope" disposition was wrong for definitions —
+    only the request/query DSLs are out.
+  - Legacy `valueSpecification.deprecated` forms and the
+    `pure.v1.model.context` pointers are structurally reachable but
+    likely not producible by the MODERN grammar — each gets adjudicated
+    at fixture time (expected disposition: alias/legacy-wire, proven
+    per item rather than assumed).
+
+Fixture COUNT is far below tag count: one rich MongoDB store fixture
+covers dozens of bsonType tags at once; realistic pack size is ~30–40
+fixtures for the 221 tags plus the ~35 keywords.
+
 ## Method limits (stated, with their nets)
 
 - Keyword presence proves an arm was TOUCHED, not every alternative —
