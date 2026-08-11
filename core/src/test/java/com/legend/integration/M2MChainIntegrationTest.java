@@ -187,7 +187,7 @@ class M2MChainIntegrationTest {
             }
 
             // ===== Database =====
-            ###Relational
+###Relational
             Database store::CompanyDB
             (
                 Table T_EMPLOYEE
@@ -226,7 +226,7 @@ class M2MChainIntegrationTest {
             )
 
             // ===== Relational mappings =====
-            ###Mapping
+###Mapping
             import model::*;
             import store::*;
             Mapping model::RelationalMapping
@@ -410,7 +410,7 @@ class M2MChainIntegrationTest {
             )
 
             // ===== Runtime =====
-            ###Connection
+###Connection
             import model::*;
             import store::*;
             RelationalDatabaseConnection store::Conn
@@ -420,7 +420,7 @@ class M2MChainIntegrationTest {
                 auth: Test;
             }
 
-            ###Runtime
+###Runtime
             import model::*;
             import store::*;
             Runtime test::RT

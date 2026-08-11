@@ -815,13 +815,13 @@ class RelationalMappingCompositionTest {
                     Class model::Person { name: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Association model::Person_Firm { person: Person[*]; firm: Firm[1]; }
-                    ###Relational
+###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER)
                         Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(200))
                         Join Person_Firm(T_PERSON.FIRM_ID = T_FIRM.ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::M (
@@ -903,13 +903,13 @@ class RelationalMappingCompositionTest {
                     Class model::Person { name: String[1]; }
                     Class model::Address { street: String[1]; city: String[1]; }
                     Association model::Person_Address { person: Person[1]; addresses: Address[*]; }
-                    ###Relational
+###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
                         Table T_ADDRESS (ID INTEGER PRIMARY KEY, PERSON_ID INTEGER, STREET VARCHAR(200), CITY VARCHAR(100))
                         Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::M (
@@ -998,7 +998,7 @@ class RelationalMappingCompositionTest {
                     Class model::Employee { name: String[1]; deptName: String[1]; }
                     Class model::Firm { legalName: String[1]; }
                     Association model::Emp_Firm { employee: Employee[*]; firm: Firm[1]; }
-                    ###Relational
+###Relational
                     Database store::DB (
                         Table T_EMP (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER, FIRM_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50))
@@ -1006,7 +1006,7 @@ class RelationalMappingCompositionTest {
                         Join Emp_Dept(T_EMP.DEPT_ID = T_DEPT.ID)
                         Join Emp_Firm(T_EMP.FIRM_ID = T_FIRM.ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::M (
@@ -1269,13 +1269,13 @@ class RelationalMappingCompositionTest {
                     Class model::RawDept { name: String[1]; }
                     Class model::Employee { fullName: String[1]; }
                     Association model::RawEmp_Dept { emps: RawEmp[*]; dept: RawDept[1]; }
-                    ###Relational
+###Relational
                     Database store::DB (
                         Table T_EMP (ID INTEGER, FIRST VARCHAR(50), LAST VARCHAR(50), DEPT_ID INTEGER)
                         Table T_DEPT (ID INTEGER, NAME VARCHAR(50))
                         Join RawEmp_Dept(T_EMP.DEPT_ID = T_DEPT.ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::M (
@@ -1413,7 +1413,7 @@ class RelationalMappingCompositionTest {
                     Class model::Person { name: String[1]; deptName: String[1]; orgName: String[1]; }
                     Class model::Address { city: String[1]; }
                     Association model::Person_Address { person: Person[1]; addresses: Address[*]; }
-                    ###Relational
+###Relational
                     Database store::DB (
                         Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), DEPT_ID INTEGER)
                         Table T_DEPT (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), ORG_ID INTEGER)
@@ -1423,7 +1423,7 @@ class RelationalMappingCompositionTest {
                         Join Dept_Org(T_DEPT.ORG_ID = T_ORG.ID)
                         Join Person_Address(T_PERSON.ID = T_ADDRESS.PERSON_ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::M (

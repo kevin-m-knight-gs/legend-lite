@@ -40,7 +40,7 @@ class UserCallInlinerTest {
             function m::shout(s: String[1]): String[1] { $s->toUpper() + '!' }
             function m::doubleShout(s: String[1]): String[1] { m::shout(m::shout($s)) }
             function m::span(lo: Integer[1], hi: Integer[1], v: Integer[1]): Boolean[1]
-            { let low = $lo <= $v; let high = $v <= $hi; $low && $high }
+            { let low = $lo <= $v; let high = $v <= $hi; $low && $high; }
             function m::adults(): m::Person[*] { m::Person.all()->filter(p|m::isAdult($p)) }
             function m::applyTo(f: Function<{Integer[1]->Integer[1]}>[1], v: Integer[1]): Integer[1]
             { $f->eval($v) }

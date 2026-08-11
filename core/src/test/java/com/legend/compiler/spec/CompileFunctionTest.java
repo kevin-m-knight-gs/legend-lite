@@ -70,7 +70,7 @@ class CompileFunctionTest {
     @Test
     void multiStatementBody() {
         CompiledFunction cf = compile(
-                "function test::addOne(a: Integer[1]): Integer[1] { let x = $a + 1; $x }", "test::addOne");
+                "function test::addOne(a: Integer[1]): Integer[1] { let x = $a + 1; $x; }", "test::addOne");
         assertEquals(Type.Primitive.INTEGER, cf.result().info().type(),
                 "Multi-statement body's last statement must type-check to Integer");
     }
@@ -81,7 +81,7 @@ class CompileFunctionTest {
         // letFunction(String[1], T[1]):T[1] signature (forced [1]). The corrected real-legend-pure
         // letFunction(String[1], T[m]):T[m] makes the standard pipeline preserve the value's [m].
         CompiledFunction cf = compile(
-                "function test::xs(): Integer[*] { let xs = [1, 2, 3]; $xs }", "test::xs");
+                "function test::xs(): Integer[*] { let xs = [1, 2, 3]; $xs; }", "test::xs");
         assertEquals(Type.Primitive.INTEGER, cf.result().info().type());
         assertNotEquals(Multiplicity.Bounded.ONE, cf.result().info().multiplicity(),
                 "a multi-valued let binding must not collapse to [1]");

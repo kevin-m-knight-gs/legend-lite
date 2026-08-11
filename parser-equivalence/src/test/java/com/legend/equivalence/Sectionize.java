@@ -33,6 +33,15 @@ final class Sectionize {
             case com.legend.model.ServiceDefinition s -> "Service";
             case com.legend.model.ExecutionEnvironmentDefinition s -> "Service";
             case com.legend.model.DataSpaceDefinition d -> "DataSpace";
+            // section carriers already know their section — never a move
+            case com.legend.model.GenericSectionElementDefinition g ->
+                    g.section();
+            case com.legend.model.OpaqueElementDefinition o -> o.sectionName();
+            case com.legend.model.PersistenceDefinition p -> "Persistence";
+            case com.legend.model.PersistenceContextDefinition p ->
+                    "Persistence";
+            case com.legend.model.SnowflakeActivatorDefinition s ->
+                    "Snowflake";
             default -> "Pure";
         };
     }
@@ -43,18 +52,21 @@ final class Sectionize {
     }
 
     /**
-     * The insertion plan for a snippet, in source order. Returns null when
-     * the snippet is not sectionizable (already carries {@code ###} headers,
-     * does not lenient-parse, or an element has no recorded offset); an
-     * EMPTY list means the snippet is Pure-only — already normal.
+     * The insertion plan for a snippet, in source order — SECTION-AWARE:
+     * existing {@code ###} headers count (an element already inside its
+     * right section needs nothing; an existing header resets the running
+     * scope, exactly as it will at parse time). Returns null when the
+     * snippet is not sectionizable (does not lenient-parse, or an element
+     * has no recorded offset); an EMPTY list means every element already
+     * sits in its section.
      */
     static @com.legend.Nullable List<Insertion> plan(String text) {
-        if (text.contains("###")) {
-            return null;
-        }
         com.legend.model.ParsedModel pm;
+        java.util.List<com.legend.lexer.TokenStream.SectionHeader> headers;
         try {
-            pm = com.legend.parser.ElementParser.parse(text);
+            var tokens = com.legend.lexer.Lexer.tokenize(text);
+            headers = tokens.sectionHeaders();
+            pm = com.legend.parser.ElementParser.parse(tokens);
         } catch (Throwable t) {
             return null;
         }
@@ -69,10 +81,17 @@ final class Sectionize {
         els.sort(Comparator.comparingInt(e -> offs.get(e.qualifiedName())));
         List<Insertion> inserts = new ArrayList<>();
         String current = "Pure";
+        int nextHeader = 0;
         for (com.legend.model.PackageableElement e : els) {
+            int off = offs.get(e.qualifiedName());
+            while (nextHeader < headers.size()
+                    && headers.get(nextHeader).contentStartOffset() <= off) {
+                current = headers.get(nextHeader).name();   // real header wins
+                nextHeader++;
+            }
             String want = sectionOf(e);
             if (!want.equals(current)) {
-                inserts.add(new Insertion(offs.get(e.qualifiedName()), want));
+                inserts.add(new Insertion(off, want));
                 current = want;
             }
         }

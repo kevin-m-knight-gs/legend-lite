@@ -633,7 +633,7 @@ class JsonMappingIntegrationTest {
                         order: Order[1];
                         items: OrderItem[*];
                     }
-                    ###Relational
+###Relational
                     Database store::OrderDB (
                         Table T_ORDERS (
                             ID INTEGER PRIMARY KEY,
@@ -646,7 +646,7 @@ class JsonMappingIntegrationTest {
                         )
                         Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::OrderMapping (
@@ -717,7 +717,7 @@ class JsonMappingIntegrationTest {
                         order: Order[1];
                         items: OrderItem[*];
                     }
-                    ###Relational
+###Relational
                     Database store::OrderDB (
                         Table T_ORDERS (
                             ID INTEGER PRIMARY KEY,
@@ -730,7 +730,7 @@ class JsonMappingIntegrationTest {
                         )
                         Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::OrderMapping (
@@ -795,7 +795,7 @@ class JsonMappingIntegrationTest {
                         order: Order[1];
                         items: OrderItem[*];
                     }
-                    ###Relational
+###Relational
                     Database store::OrderDB (
                         Table T_ORDERS (
                             ID INTEGER PRIMARY KEY,
@@ -808,7 +808,7 @@ class JsonMappingIntegrationTest {
                         )
                         Join Order_OrderItem(T_ORDERS.ID = T_ORDER_ITEMS.ORDER_ID)
                     )
-                    ###Mapping
+###Mapping
                     import model::*;
                     import store::*;
                     Mapping model::OrderMapping (

@@ -30,10 +30,11 @@ class AssocSimpleNameProbeTest {
             Class a::m::Car extends a::m::RoadVehicle { plate: String[1]; }
             Class a::m::Bicycle extends a::m::RoadVehicle { brand: String[1]; }
             Association a::m::Driver { person: a::m::Person[0..1]; roadVehicles: a::m::RoadVehicle[*]; }
+            ###Relational
             Database a::DB (
-              Table PT (ID INTEGER PRIMARY KEY, NAME VARCHAR)
-              Table CT (ID INTEGER PRIMARY KEY, PLATE VARCHAR, OWNER INTEGER)
-              Table BT (ID INTEGER PRIMARY KEY, BRAND VARCHAR, OWNER INTEGER)
+              Table PT (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+              Table CT (ID INTEGER PRIMARY KEY, PLATE VARCHAR(200), OWNER INTEGER)
+              Table BT (ID INTEGER PRIMARY KEY, BRAND VARCHAR(200), OWNER INTEGER)
               Join PersonCar (PT.ID = CT.OWNER)
               Join PersonBicycle (PT.ID = BT.OWNER)
             )
@@ -70,6 +71,7 @@ class AssocSimpleNameProbeTest {
                 )
               }
             )
+            ###Runtime
             Runtime a::RT { mappings: [a::M]; }
             """;
 
@@ -78,9 +80,9 @@ class AssocSimpleNameProbeTest {
     void simpleNameAssociationMapping() throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             try (Statement st = conn.createStatement()) {
-                st.execute("CREATE TABLE PT (ID INTEGER, NAME VARCHAR)");
-                st.execute("CREATE TABLE CT (ID INTEGER, PLATE VARCHAR, OWNER INTEGER)");
-                st.execute("CREATE TABLE BT (ID INTEGER, BRAND VARCHAR, OWNER INTEGER)");
+                st.execute("CREATE TABLE PT (ID INTEGER, NAME VARCHAR(200))");
+                st.execute("CREATE TABLE CT (ID INTEGER, PLATE VARCHAR(200), OWNER INTEGER)");
+                st.execute("CREATE TABLE BT (ID INTEGER, BRAND VARCHAR(200), OWNER INTEGER)");
                 st.execute("INSERT INTO PT VALUES (1,'ann'),(2,'bob')");
                 st.execute("INSERT INTO CT VALUES (10,'X1',1)");
             }

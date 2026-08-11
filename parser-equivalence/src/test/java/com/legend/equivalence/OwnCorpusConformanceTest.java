@@ -71,7 +71,8 @@ class OwnCorpusConformanceTest {
      * the design that wants it). The engine's own message is the evidence
      * the construct was hit.
      */
-    private static @com.legend.Nullable String liteDesign(Throwable root) {
+    private static @com.legend.Nullable String liteDesign(Throwable root,
+            String text) {
         String msg = String.valueOf(root.getMessage());
         if (msg.contains("No parser for AssociationMapping")) {
             // clean-sheet inline association predicate:
@@ -84,6 +85,57 @@ class OwnCorpusConformanceTest {
             // the SQLite execution backend (BACKEND_PORTABILITY) — a lite
             // connection type the engine's DatabaseType enum lacks
             return "LITE-DESIGN-sqlite-backend";
+        }
+        // mappings-as-functions (the standing design exception): a
+        // CLEAN-SHEET mapping body parses to MappingDefinition (function
+        // form) — the engine's grammar has no arm for it. Also covers the
+        // function-REF service query (query: my::fn; not query: |...).
+        try {
+            for (var e : com.legend.parser.ElementParser.parse(text)
+                    .elements()) {
+                if (e instanceof com.legend.model.MappingDefinition) {
+                    return "LITE-DESIGN-mapping-as-function";
+                }
+            }
+        } catch (Throwable ignored) {
+            // lenient parse failed — not a design row
+        }
+        if (text.matches("(?s).*query:\\s*[\\w$]+(::[\\w$]+)+\\s*;.*")) {
+            return "LITE-DESIGN-mapping-as-function";
+        }
+        // JSON/variant column mapping: COLUMN->get('key'[, @Type]) — the
+        // lite construct mapping a JSON column into a class property
+        if (text.matches("(?s).*\\.\\w+\\s*->\\s*get\\('.*")) {
+            return "LITE-DESIGN-json-column-get";
+        }
+        // legend-pure m2 diagram spelling (geometry attrs) — pure-dialect,
+        // not engine grammar (DiagramAntlrParser.g4 widthFirst/heightFirst)
+        if (text.contains("Diagram ") && text.contains("(width=")) {
+            return "PURE-DIALECT-diagram";
+        }
+        // the RELATION-CONTRACT signature dialect, ported verbatim from
+        // legend-pure (.pure relation contracts; see
+        // verify-signatures-against-real-legend-pure): column-set algebra
+        // (T+R / T-Z+V), subset constraints (⊆), spec column forms — plus
+        // `native function` declarations, pure-dialect by definition
+        if (text.contains("native function") || text.contains("⊆")
+                || text.matches("(?s).*Relation<\\w+[+-].*")
+                || text.contains("AggColSpec<{")
+                || text.contains("FuncColSpec<{")) {
+            return "PURE-DIALECT-signatures";
+        }
+        // the section-registry machinery fixture: a deliberately UNKNOWN
+        // element kind ('Whatever my::D;') proving foreign-section routing
+        if (text.contains("Whatever my::")) {
+            return "TEST-MACHINERY-fixture";
+        }
+        // XStore missing-comma tolerance: CORPUS-PROVEN pure-dialect —
+        // legend-pure's compiler completes the rule and drops the rest
+        // (testMappingCrossStore.pure:238); the fixture pins exactly that
+        // (see ElementParserTest's XStore comment: the engine parser
+        // rejects, the pure compiler tolerates, the golden encodes it)
+        if (text.contains(": XStore {")) {
+            return "PURE-DIALECT-xstore-tolerance";
         }
         return null;
     }
@@ -137,7 +189,7 @@ class OwnCorpusConformanceTest {
             while (root.getCause() != null && root.getCause() != root) {
                 root = root.getCause();
             }
-            String cls = liteDesign(root);
+            String cls = liteDesign(root, src.text());
             if (cls == null) {
                 cls = lenientTierFixture(root, src.text());
             }
@@ -162,25 +214,31 @@ class OwnCorpusConformanceTest {
         System.out.println("own-corpus: " + ours.size() + " snippets, "
                 + accepted + " oracle-accepted, " + bothRefuse
                 + " both-refuse, refusal classes: " + byClass);
-        // THE RATCHET (sections normalization, 2026-08-11): 712/949
-        // oracle-accepted (OWN_DECL population), 127 classified leniency
+        // THE RATCHET (invention census batch 1, 2026-08-11): 753/949
+        // oracle-accepted (OWN_DECL population), 96 classified leniency
         // rows. Every class is PINNED — a new row in any class (or a new
         // class) fails the build, so own-corpus leniency can only shrink.
-        // The remaining rows are the invention census's worklist
-        // (VERSION-SKEW here is a PROVISIONAL label: our strict surface
-        // accepts, but for our own tests the true story is usually a lite
-        // construct to adjudicate).
-        Map<String, Integer> pins = new TreeMap<>(Map.of(
-                "DIALECT-function-types", 13,
-                "DIALECT-generics", 7,
-                "DIALECT-milestoning-range", 1,
-                "DIALECT-native-or-m2", 5,
-                "ENGINE-TEST-SCOPED-section", 1,
-                "LENIENT-TIER-fixture", 1,
-                "LITE-DESIGN-inline-association", 2,
-                "LITE-DESIGN-sqlite-backend", 2,
-                "ORACLE-DEFECT-InputMismatchException", 42,
-                "VERSION-SKEW-grammar", 53));
+        // Still-unresolved worklist (the ONLY provisional labels):
+        // ORACLE-DEFECT 7 = specific/dup imports (ElementParserTest
+        // 7/10/120/146) + trailing commas (744/801/832); VERSION-SKEW 2 =
+        // mid-file import groups (ModelIndexerTest 51/92). Both families
+        // are neither-reference inventions queued for parser refusal.
+        Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
+                Map.entry("DIALECT-function-types", 13),
+                Map.entry("DIALECT-generics", 7),
+                Map.entry("DIALECT-milestoning-range", 1),
+                Map.entry("ENGINE-TEST-SCOPED-section", 1),
+                Map.entry("LENIENT-TIER-fixture", 1),
+                Map.entry("LITE-DESIGN-inline-association", 2),
+                Map.entry("LITE-DESIGN-json-column-get", 11),
+                Map.entry("LITE-DESIGN-mapping-as-function", 20),
+                Map.entry("LITE-DESIGN-sqlite-backend", 2),
+                Map.entry("ORACLE-DEFECT-InputMismatchException", 7),
+                Map.entry("PURE-DIALECT-diagram", 1),
+                Map.entry("PURE-DIALECT-signatures", 16),
+                Map.entry("PURE-DIALECT-xstore-tolerance", 1),
+                Map.entry("TEST-MACHINERY-fixture", 1),
+                Map.entry("VERSION-SKEW-grammar", 2)));
         List<String> overflows = new ArrayList<>();
         for (Map.Entry<String, Integer> e : byClass.entrySet()) {
             int pin = pins.getOrDefault(e.getKey(), 0);

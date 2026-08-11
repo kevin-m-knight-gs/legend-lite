@@ -320,7 +320,7 @@ final class ModelIndexerTest {
                 org.junit.jupiter.params.provider.Arguments.of("profile",
                         "Profile my::P { stereotypes: [s1, s2]; tags: [t1]; }"),
                 org.junit.jupiter.params.provider.Arguments.of("function with multi-statement body",
-                        "function my::f(p: String[1]): String[1] { let x = $p; $x->toUpper() }"),
+                        "function my::f(p: String[1]): String[1] { let x = $p; $x->toUpper(); }"),
                 org.junit.jupiter.params.provider.Arguments.of("function with stereotype + tagged values",
                         "function <<test::profile.Skip>> { meta::pure::profiles::doc.doc = 'd' } "
                                 + "my::f(): String[1] { 'hi' }"),

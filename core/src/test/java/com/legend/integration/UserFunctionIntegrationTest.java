@@ -1372,7 +1372,7 @@ class UserFunctionIntegrationTest {
                     function test::query(): Any[*]
                     {
                         let people = test::adults();
-                        $people->project([p|$p.firstName], ['name'])
+                        $people->project([p|$p.firstName], ['name']);
                     }
                     """);
             var result = exec(model, "|test::query()");
@@ -1408,7 +1408,7 @@ class UserFunctionIntegrationTest {
                     function test::doubleThenInc(x: Integer[1]): Integer[1]
                     {
                         let x = $x * 2;
-                        $x + 1
+                        $x + 1;
                     }
                     """);
             var result = exec(model,

@@ -56,7 +56,7 @@ class TestBodyTest {
 
             ###Runtime
             Runtime test::Rt
-            { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
+            { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ]; }
 
             ###Pure
             function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
@@ -323,7 +323,7 @@ class TestBodyTest {
 
             ###Runtime
             Runtime test::Rt
-            { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
+            { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ]; }
 
             ###Pure
             function test::r(): meta::pure::metamodel::type::Any[1] { 1 }

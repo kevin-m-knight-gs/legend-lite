@@ -789,14 +789,14 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     emp: EmpMC[*];
                     dept: DeptMC[0..1];
                 }
-                ###Relational
+###Relational
                 Database store::McDb
                 (
                     Table T_EMP_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
                     Table T_DEPT_MC (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
                     Join Emp_Dept_MC(T_EMP_MC.DEPT_CODE = T_DEPT_MC.DEPT_CODE and T_EMP_MC.REGION = T_DEPT_MC.REGION)
                 )
-                ###Mapping
+###Mapping
                 import model::*;
                 import store::*;
                 import test::*;
@@ -807,12 +807,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 
                     model::Emp_Dept_MC: Relational { AssociationMapping ( emp: [store::McDb]@Emp_Dept_MC, dept: [store::McDb]@Emp_Dept_MC ) }
 )
-                ###Connection
+###Connection
                 import model::*;
                 import store::*;
                 import test::*;
                 RelationalDatabaseConnection store::McConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
-                ###Runtime
+###Runtime
                 import model::*;
                 import store::*;
                 import test::*;
@@ -855,14 +855,14 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     emp: EmpMC2[*];
                     dept: DeptMC2[0..1];
                 }
-                ###Relational
+###Relational
                 Database store::McDb2
                 (
                     Table T_EMP_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), NAME VARCHAR(100))
                     Table T_DEPT_MC2 (ID INTEGER, DEPT_CODE VARCHAR(10), REGION VARCHAR(10), DEPT_NAME VARCHAR(100))
                     Join Emp_Dept_MC2(T_EMP_MC2.DEPT_CODE = T_DEPT_MC2.DEPT_CODE and T_EMP_MC2.REGION = T_DEPT_MC2.REGION)
                 )
-                ###Mapping
+###Mapping
                 import model::*;
                 import store::*;
                 import test::*;
@@ -873,12 +873,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 
                     model::Emp_Dept_MC2: Relational { AssociationMapping ( emp: [store::McDb2]@Emp_Dept_MC2, dept: [store::McDb2]@Emp_Dept_MC2 ) }
 )
-                ###Connection
+###Connection
                 import model::*;
                 import store::*;
                 import test::*;
                 RelationalDatabaseConnection store::McConn2 { type: DuckDB; specification: DuckDB { }; auth: Test; }
-                ###Runtime
+###Runtime
                 import model::*;
                 import store::*;
                 import test::*;

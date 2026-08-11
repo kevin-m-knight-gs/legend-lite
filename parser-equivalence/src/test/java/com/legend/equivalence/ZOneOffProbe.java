@@ -3,39 +3,51 @@ package com.legend.equivalence;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
-/** PROBE: full oracle message for one remaining skew row. Diagnostic. */
+import java.nio.file.Path;
+
+/** PROBE: full oracle exception chain for one own-corpus row. Diagnostic. */
 class ZOneOffProbe {
     @Test
     void probeOne() throws Exception {
-        String p = "/Users/neemsandv/legend/legend-engine/legend-engine-core/"
-                + "legend-engine-core-pure/legend-engine-pure-code-functions-"
-                + "standard/legend-engine-pure-functions-standard-pure/src/"
-                + "main/resources/core_functions_standard/date/aggregator/min.pure";
-        try {
-            PureGrammarParser.newInstance().parseModel(
-                    java.nio.file.Files.readString(java.nio.file.Path.of(p)));
-            System.out.println("@@ ACCEPTS");
-        } catch (Throwable t) {
-            System.out.println("@@ " + t.getClass().getSimpleName() + " :: "
-                    + String.valueOf(t.getMessage()).replaceAll("\\s+", " "));
-        }
-        // BISECT: parse prefixes of the file to find the refusing line
-        String[] lines = java.nio.file.Files.readString(
-                java.nio.file.Path.of(p)).split("\n", -1);
-        int lastGood = 0;
-        for (int n = 1; n <= lines.length; n++) {
-            String prefix = String.join("\n",
-                    java.util.Arrays.copyOfRange(lines, 0, n));
-            try {
-                PureGrammarParser.newInstance().parseModel(prefix);
-                lastGood = n;
-            } catch (Throwable t) {
-                // keep going; report the last line that ever parsed
+        String want = System.getProperty("probe.id",
+                "src/test/java/com/legend/integration/DuckDBIntegrationTest.java#238");
+        Path repo = Path.of(System.getProperty("user.dir")).getParent();
+        for (String module : new String[]{"core", "pct", "nlq"}) {
+            for (Corpus.Source src : InlineSnippets.extract(
+                    repo.resolve(module), "lite-" + module,
+                    InlineSnippets.OWN_DECL)) {
+                if (!src.id().equals(want)) {
+                    continue;
+                }
+                try {
+                    PureGrammarParser.newInstance().parseModel(src.text());
+                    System.out.println("@@ ACCEPTS");
+                } catch (Throwable t) {
+                    for (Throwable x = t; x != null;
+                            x = x.getCause() == x ? null : x.getCause()) {
+                        String si = "";
+                        if (x instanceof org.finos.legend.engine.shared.core
+                                .operational.errorManagement
+                                .EngineException ee
+                                && ee.getSourceInformation() != null) {
+                            si = " @[" + ee.getSourceInformation().startLine
+                                    + ":" + ee.getSourceInformation()
+                                            .startColumn + "-"
+                                    + ee.getSourceInformation().endLine + ":"
+                                    + ee.getSourceInformation().endColumn
+                                    + "]";
+                        }
+                        System.out.println("@@ " + x.getClass().getName()
+                                + si + " :: " + String.valueOf(x.getMessage())
+                                        .replaceAll("\\s+", " "));
+                    }
+                    // show the named lines
+                    String[] lines = src.text().split("\n", -1);
+                    for (int i = 0; i < lines.length; i++) {
+                        System.out.println("@@ L" + (i + 1) + "| " + lines[i]);
+                    }
+                }
             }
-        }
-        System.out.println("@@ lastGood=" + lastGood + " of " + lines.length);
-        for (int i = lastGood; i < Math.min(lastGood + 8, lines.length); i++) {
-            System.out.println("@@ L" + (i + 1) + ": " + lines[i]);
         }
     }
 }

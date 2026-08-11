@@ -881,7 +881,7 @@ final class ElementParserTest {
         // full body. Two statements: a let-binding (which contains the
         // nested '{x | ...}' lambda) and an arrow-eval.
         ParsedModel m = ElementParser.parse(
-                "function my::f(): Integer[1] { let inc = {x | $x + 1}; $inc->eval(1) }");
+                "function my::f(): Integer[1] { let inc = {x | $x + 1}; $inc->eval(1); }");
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals(2, f.body().size(),
                 () -> "two-statement body should parse to two ValueSpecs, got: " + f.body());
