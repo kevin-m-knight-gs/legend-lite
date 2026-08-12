@@ -22,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * hygiene, relation- and class-returning callees, higher-order eval
  * reduction, and the loud recursion guard.
  */
+// PLATFORM pins: this class tests .allVersionsInRange inlining —
+// platform dialect by purpose (census PLATFORM_TEST_HOSTS member)
 class UserCallInlinerTest {
 
     private static final String MODEL = """
@@ -151,7 +153,7 @@ class UserCallInlinerTest {
                 function t::sweep(s: Date[1], e: Date[1]): t::T[*]
                 { t::T.allVersionsInRange($s, $e) }
                 """;
-        var ctx = Compiler.buildModel(com.legend.parser.ElementParser.parseLegendPlatform(model));
+        var ctx = Compiler.buildModel(com.legend.parser.ElementParser.parse(model, com.legend.parser.Dialect.LEGEND_PLATFORM));
         var specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(
@@ -172,7 +174,7 @@ class UserCallInlinerTest {
         // the hand-written TypedGroupBy arm rebuilt each TypedAggCol through
         // the 3-arg convenience constructor, silently nulling orderKey —
         // graft one on and prove the withChildren rebuild keeps it
-        var ctx = Compiler.buildModel(com.legend.parser.ElementParser.parseLegendPlatform(MODEL));
+        var ctx = Compiler.buildModel(com.legend.parser.ElementParser.parse(MODEL, com.legend.parser.Dialect.LEGEND_PLATFORM));
         var specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(

@@ -28,6 +28,20 @@ import java.util.regex.Pattern;
  */
 public final class Runner {
 
+    /** The m2 corpus's OUTER provenance, named ONCE: legend-pure test
+     *  sources parse at PLATFORM (compileLegendGrammar payloads get
+     *  LEGEND_ENGINE inside TestBody — the engine's own two-level
+     *  architecture). */
+    private static com.legend.model.ParsedModel corpusParse(
+            com.legend.lexer.TokenStream tokens) {
+        return com.legend.parser.ElementParser.parse(tokens,
+                com.legend.parser.Dialect.LEGEND_PLATFORM);
+    }
+
+    private static com.legend.model.ParsedModel corpusParse(String source) {
+        return corpusParse(com.legend.lexer.Lexer.tokenize(source));
+    }
+
     /** {@code -Drcorpus.backend=h2}: the PORTABILITY SWEEP (H2_BACKEND.md
      * §12 step 10) — every test opens a FRESH in-memory H2 with the
      * engine's session settings instead of DuckDB; the dialect follows
@@ -121,7 +135,7 @@ public final class Runner {
             collectSetups(src);
             com.legend.model.ParsedModel unit;
             try {
-                unit = com.legend.parser.ElementParser.parseLegendPlatform(src);
+                unit = corpusParse(src);
             } catch (RuntimeException e) {
                 continue;
             }
@@ -174,7 +188,7 @@ public final class Runner {
     public void registerLibrarySource(String source) {
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parseLegendPlatform(source);
+            unit = corpusParse(source);
         } catch (RuntimeException e) {
             return;   // unparseable library file: its elements stay dark
         }
@@ -232,7 +246,7 @@ public final class Runner {
                 // known parse walls (#50) stay out — one unparseable file
                 // must not dark the whole setup universe
                 try {
-                    com.legend.parser.ElementParser.parseLegendPlatform(src);
+                    corpusParse(src);
                 } catch (RuntimeException unparseable) {
                     continue;
                 }
@@ -253,7 +267,7 @@ public final class Runner {
     private void collectSetups(String source) {
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parseLegendPlatform(source);
+            unit = corpusParse(source);
         } catch (RuntimeException e) {
             return;   // unparseable file: its tests are walled anyway
         }
@@ -452,7 +466,7 @@ public final class Runner {
     public static boolean hasTestFunctions(String source) {
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parseLegendPlatform(source);
+            unit = corpusParse(source);
         } catch (RuntimeException e) {
             return false;   // unparseable file: walled at model-build time
         }
@@ -511,7 +525,7 @@ public final class Runner {
         List<ParsedTest> out = new ArrayList<>();
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parseLegendPlatform(source);
+            unit = corpusParse(source);
         } catch (RuntimeException e) {
             return out;   // unparseable file: walled at model-build time
         }

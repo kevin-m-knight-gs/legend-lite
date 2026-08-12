@@ -31,8 +31,8 @@ class TdsLambdaProbeTest {
     void rowStructLambdaConformsToTdsCarrier() {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "p::concatQ([{|p::Item.all()->project([x|$x.name],['name'])}])", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+                "p::concatQ([{|p::Item.all()->project([x|$x.name],['name'])}])")));
         assertEquals(Type.Primitive.INTEGER,
                 body.get(body.size() - 1).info().type());
     }
@@ -42,11 +42,11 @@ class TdsLambdaProbeTest {
     void letBoundLambdaListConforms() {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
                 "{|let lfs = [%2015-10-16, %2015-10-17]->map(bd|"
                 + "{|p::Item.all()->project([x|$x.name],['name'])}"
                 + "->meta::pure::functions::meta::evaluateAndDeactivate());"
-                + "p::concatQ($lfs);}", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+                + "p::concatQ($lfs);}")));
         Type t = body.get(body.size() - 1).info().type();
         assertEquals(Type.Primitive.INTEGER, t instanceof Type.FunctionType ft
                 ? ft.result().type() : t);

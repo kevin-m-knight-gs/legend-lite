@@ -29,7 +29,8 @@ final class ConnectionResolver {
 
     static Connection resolve(String pureSource, String runtimeName)
             throws SQLException {
-        ParsedModel model = com.legend.parser.ElementParser.parseLegendLite(pureSource);
+        ParsedModel model = com.legend.parser.ElementParser.parse(pureSource,
+                com.legend.parser.Dialect.LEGEND_LITE);
         RuntimeDefinition runtime = null;
         for (var el : model.elements()) {
             if (el instanceof RuntimeDefinition r

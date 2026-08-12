@@ -87,7 +87,7 @@ class OwnDialectCensusTest {
         for (Corpus.Source s : own) {
             boolean platform;
             try {
-                com.legend.parser.ElementParser.parseLegendPlatform(s.text());
+                com.legend.parser.ElementParser.parse(s.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
                 platform = true;
                 platformAccepts++;
             } catch (Throwable t) {
@@ -97,13 +97,13 @@ class OwnDialectCensusTest {
                 continue;               // not even platform-parseable — not this census's row
             }
             boolean engine = accepts(() -> com.legend.parser.ElementParser
-                    .parseLegendEngine(s.text()));
+                    .parse(s.text(), com.legend.parser.Dialect.LEGEND_ENGINE));
             if (engine) {
                 engineAccepts++;
             }
             boolean lite = false;
             try {
-                com.legend.parser.ElementParser.parseLegendLite(s.text());
+                com.legend.parser.ElementParser.parse(s.text(), com.legend.parser.Dialect.LEGEND_LITE);
                 liteAccepts++;
                 lite = true;
             } catch (Throwable t) {

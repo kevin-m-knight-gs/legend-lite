@@ -26,7 +26,7 @@ class PureModelContextTest {
 
     /** Type references are written FQN (post-NameResolver form) to isolate this unit. */
     private static PureModelContext fixture() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Address { street: " + STRING + "[1]; }\n"
               + "Class model::Person {\n"
               + "  name: " + STRING + "[1];\n"
@@ -142,7 +142,7 @@ class PureModelContextTest {
         // F.a is eager + whole-model: the dangling reference fails compileModel
         // itself — an invalid model never becomes a queryable context, even if
         // nothing ever demands the bad class (pipeline stage-failure finding).
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Bad { x: not::a::RealType[1]; }");
         com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> PureModelContext.from(asNormalized(parsed)));

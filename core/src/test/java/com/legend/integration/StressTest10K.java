@@ -320,7 +320,7 @@ class StressTest10K {
             try {
                 long t = System.nanoTime();
                 var vs = com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.parser.SpecParser.parse(dq, com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        com.legend.Own.spec(dq));
                 parseUs = (System.nanoTime() - t) / 1000;
 
                 phase = "typeCheck";
@@ -367,7 +367,7 @@ class StressTest10K {
             try {
                 long t = System.nanoTime();
                 var vs = com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.parser.SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        com.legend.Own.spec(query));
                 parseNs += System.nanoTime() - t;
                 t = System.nanoTime();
                 var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);

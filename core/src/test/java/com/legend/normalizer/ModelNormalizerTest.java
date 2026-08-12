@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelNormalizerTest {
 
     private static NormalizedModel normalize(String source) {
-        return ModelNormalizer.normalize(NameResolver.resolve(ElementParser.parseLegendPlatform(source)));
+        return ModelNormalizer.normalize(NameResolver.resolve(com.legend.Own.model(source)));
     }
 
     /**

@@ -35,7 +35,7 @@ class ModelBuilderTest {
     @Test
     void emptyModelBuildsEmptyView() {
         ModelBuilder mb = ModelBuilder.from(ParsedModel.class.cast(
-                ElementParser.parseLegendPlatform("")));
+                com.legend.Own.model("")));
         assertEquals(0, mb.symbols().size());
         assertTrue(mb.classes().toList().isEmpty());
         assertTrue(mb.mappings().toList().isEmpty());
@@ -45,7 +45,7 @@ class ModelBuilderTest {
 
     @Test
     void importsArePassedThroughUnchanged() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "import model::*; "
               + "Class other::Foo { x: String[1]; }");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -58,7 +58,7 @@ class ModelBuilderTest {
         // but indexes are content-equal: same FQNs interned, same elements
         // retrievable. This documents that ModelBuilder.from is a pure
         // function of its input.
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::A { x: String[1]; }");
         ModelBuilder a = ModelBuilder.from(parsed);
         ModelBuilder b = ModelBuilder.from(parsed);
@@ -75,7 +75,7 @@ class ModelBuilderTest {
 
     @Test
     void findClassReturnsParsedDefinition() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Person { name: String[1]; }");
         ModelBuilder mb = ModelBuilder.from(parsed);
         ClassDefinition found = mb.findClass("model::Person").orElseThrow();
@@ -85,14 +85,14 @@ class ModelBuilderTest {
 
     @Test
     void findClassReturnsEmptyForMissing() {
-        ModelBuilder mb = ModelBuilder.from(ElementParser.parseLegendPlatform(
+        ModelBuilder mb = ModelBuilder.from(com.legend.Own.model(
                 "Class model::Person { name: String[1]; }"));
         assertEquals(Optional.empty(), mb.findClass("model::Missing"));
     }
 
     @Test
     void findEnumReturnsParsedDefinition() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Enum model::Color { RED, GREEN, BLUE }");
         ModelBuilder mb = ModelBuilder.from(parsed);
         EnumDefinition found = mb.findEnum("model::Color").orElseThrow();
@@ -101,7 +101,7 @@ class ModelBuilderTest {
 
     @Test
     void findAssociationReturnsParsedDefinition() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::A { x: String[1]; } "
               + "Class model::B { y: String[1]; } "
               + "Association model::A_B { a: model::A[1]; b: model::B[1]; }");
@@ -116,7 +116,7 @@ class ModelBuilderTest {
 
     @Test
     void findDatabaseReturnsParsedDefinition() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, NAME VARCHAR(64)) "
               + ")");
@@ -128,7 +128,7 @@ class ModelBuilderTest {
 
     @Test
     void findFilterResolvesByDbAndName() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, AGE INTEGER) "
               + "  Filter activeOnly(PERSON.AGE > 18) "
@@ -141,7 +141,7 @@ class ModelBuilderTest {
 
     @Test
     void findFilterReturnsEmptyForMissingFilter() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, AGE INTEGER) "
               + ")");
@@ -151,14 +151,14 @@ class ModelBuilderTest {
 
     @Test
     void findFilterReturnsEmptyForUnknownDatabase() {
-        ModelBuilder mb = ModelBuilder.from(ElementParser.parseLegendPlatform(
+        ModelBuilder mb = ModelBuilder.from(com.legend.Own.model(
                 "Class model::A { x: String[1]; }"));
         assertEquals(Optional.empty(), mb.findFilter("other::DB", "nope"));
     }
 
     @Test
     void findJoinResolvesByDbAndName() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY, FIRM_ID INTEGER) "
               + "  Table FIRM(ID INTEGER PRIMARY KEY, NAME VARCHAR(64)) "
@@ -172,7 +172,7 @@ class ModelBuilderTest {
 
     @Test
     void findJoinReturnsEmptyForMissingJoin() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "\n###Relational\nDatabase model::DB ( "
               + "  Table PERSON(ID INTEGER PRIMARY KEY) "
               + ")");
@@ -186,7 +186,7 @@ class ModelBuilderTest {
 
     @Test
     void findMappingReturnsParsedDefinition() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "\n###Mapping\nMapping pkg::M ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
@@ -199,7 +199,7 @@ class ModelBuilderTest {
 
     @Test
     void isMappedClassTrueForAnyClassWithClassMapping() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "\n###Mapping\nMapping pkg::M ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
@@ -210,7 +210,7 @@ class ModelBuilderTest {
 
     @Test
     void isMappedClassFalseForUnmappedClass() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "Class model::Other  { x:    String[1]; } "
               + "\n###Mapping\nMapping pkg::M ( "
@@ -226,7 +226,7 @@ class ModelBuilderTest {
         // Same class mapped in two different MappingDefinitions: allowed
         // (each is its own setId namespace) and the mapped-class set
         // collapses the duplicates.
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "\n###Mapping\nMapping pkg::M1 ( "
               + "  *model::Person: Pure { ~src model::Person name: $src.name } "
@@ -246,7 +246,7 @@ class ModelBuilderTest {
         // Two ClassMappings for the same class within a single
         // MappingDefinition is a user error: each MappingDefinition
         // may map a given class at most once.
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "Class model::SrcA   { name: String[1]; } "
               + "Class model::SrcB   { name: String[1]; } "
@@ -272,14 +272,14 @@ class ModelBuilderTest {
 
     @Test
     void findFunctionReturnsEmptyListForMissing() {
-        ModelBuilder mb = ModelBuilder.from(ElementParser.parseLegendPlatform(
+        ModelBuilder mb = ModelBuilder.from(com.legend.Own.model(
                 "Class model::A { x: String[1]; }"));
         assertTrue(mb.findFunction("model::nothing").isEmpty());
     }
 
     @Test
     void findFunctionReturnsAllOverloadsForFqn() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "function model::greet(name: String[1]): String[1] { $name } "
               + "function model::greet(name: String[1], greeting: String[1]): String[1] { $greeting }");
         ModelBuilder mb = ModelBuilder.from(parsed);
@@ -298,7 +298,7 @@ class ModelBuilderTest {
     @Test
     @DisplayName("lifted mapping functions resolve through findFunction")
     void mappingFunctionsAreIngestedIntoFindFunction() {
-        ParsedModel raw = ElementParser.parseLegendPlatform(
+        ParsedModel raw = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } "
               + "\n###Mapping\nMapping my::M ( "
@@ -319,7 +319,7 @@ class ModelBuilderTest {
     @Test
     @DisplayName("the function index is a pure function of the normalized input (implicit invalidation)")
     void mappingFunctionIndexIsDrivenByNormalizedInput() {
-        ParsedModel raw = ElementParser.parseLegendPlatform(
+        ParsedModel raw = com.legend.Own.model(
                 "Class model::Person { name: String[1]; } "
               + "Class model::RawPerson { name: String[1]; } "
               + "\n###Mapping\nMapping my::M ( "
@@ -343,7 +343,7 @@ class ModelBuilderTest {
 
     @Test
     void iterationStreamsReturnIngestedElements() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::A { x: String[1]; } "
               + "Class model::B { y: String[1]; } "
               + "\n###Relational\nDatabase model::DB ( Table T(ID INTEGER PRIMARY KEY) ) "
@@ -360,7 +360,7 @@ class ModelBuilderTest {
 
     @Test
     void symbolTableInternsEveryIngestedFqn() {
-        ParsedModel parsed = ElementParser.parseLegendPlatform(
+        ParsedModel parsed = com.legend.Own.model(
                 "Class model::A { x: String[1]; } "
               + "Class model::B { y: String[1]; } "
               + "\n###Relational\nDatabase model::DB ( Table T(ID INTEGER PRIMARY KEY) )");

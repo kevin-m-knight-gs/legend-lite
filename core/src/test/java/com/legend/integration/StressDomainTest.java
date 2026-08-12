@@ -84,7 +84,7 @@ class StressDomainTest {
         var dialect = new com.legend.sql.dialect.DuckDb();
 
         // ---- Phase 3: Discover Services and plan each one (core parse) ----
-        var stressServices = com.legend.parser.ElementParser.parseLegendPlatform(model).elements().stream()
+        var stressServices = com.legend.Own.model(model).elements().stream()
                 .filter(el -> el instanceof com.legend.model.ServiceDefinition svc
                         && svc.qualifiedName().startsWith("stress::"))
                 .map(el -> (com.legend.model.ServiceDefinition) el)

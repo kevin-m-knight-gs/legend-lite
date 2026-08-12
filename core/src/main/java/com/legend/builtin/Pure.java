@@ -144,7 +144,8 @@ public final class Pure {
      * with {@code isNative=false}.
      */
     private static ClassDefinition nativeClass(String pureSource) {
-        var parsed = ElementParser.parseLegendPlatform(pureSource);
+        var parsed = ElementParser.parse(pureSource,
+                com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSource
@@ -601,7 +602,8 @@ public final class Pure {
      * source verbatim. Class-load fails loudly on any malformed declaration.
      */
     private static EnumDefinition nativeEnum(String pureSource) {
-        var parsed = ElementParser.parseLegendPlatform(pureSource);
+        var parsed = ElementParser.parse(pureSource,
+                com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSource
@@ -906,7 +908,8 @@ public final class Pure {
      * the comprehensive parse-coverage guarantee.
      */
     private static NativeFunctionDefinition signature(String pureSignature) {
-        var parsed = ElementParser.parseLegendPlatform(pureSignature);
+        var parsed = ElementParser.parse(pureSignature,
+                com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSignature

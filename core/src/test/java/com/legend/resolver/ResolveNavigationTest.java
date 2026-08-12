@@ -89,7 +89,7 @@ class ResolveNavigationTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
+                NameResolver.resolveQuery(com.legend.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
         return new DuckDb().render(new Lowerer().lower(resolved));
     }
@@ -100,7 +100,7 @@ class ResolveNavigationTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
+                NameResolver.resolveQuery(com.legend.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs)
                 .resolve(body, "m::RT");
         return new DuckDb().render(new Lowerer().lower(resolved));
@@ -229,8 +229,8 @@ class ResolveNavigationTest {
         // unsupported bare shape is the whole-instance VALUE use.)
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Person.all()->project(~[e: p|$p.employer])->from(m::RT)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+                "m::Person.all()->project(~[e: p|$p.employer])->from(m::RT)")));
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
@@ -261,8 +261,8 @@ class ResolveNavigationTest {
             """;
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::P.all()->project(~[o: p|$p.emp.orgName])->from(m::RT)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+                "m::P.all()->project(~[o: p|$p.emp.orgName])->from(m::RT)")));
         // The demanded leaf pulls the TARGET's own @EO slot into its
         // pipeline: assoc hop + nested slot = two LEFT JOINs, and the leaf
         // reads the doubly-prefixed flat column.
@@ -294,7 +294,7 @@ class ResolveNavigationTest {
     private static String sqlOfA7(String query) {
         var ctx = Compiler.compileModel(A7_MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(query)));
         return new DuckDb().render(new Lowerer().lower(
                 new StoreResolver(ctx, specs).resolve(body, null)));
     }
@@ -339,8 +339,8 @@ class ResolveNavigationTest {
     void bareClassTypedHeadsHonest() {
         var ctx = Compiler.compileModel(A7_MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::P.all()->project(~[f: p|$p.firm])->from(m::RT)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+                "m::P.all()->project(~[f: p|$p.firm])->from(m::RT)")));
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
@@ -348,8 +348,8 @@ class ResolveNavigationTest {
 
         var ctx2 = Compiler.compileModel(MODEL);
         SpecCompiler specs2 = new SpecCompiler(ctx2);
-        var body2 = specs2.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Person.all()->project(~[a: p|$p.addr])->from(m::RT)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+        var body2 = specs2.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+                "m::Person.all()->project(~[a: p|$p.addr])->from(m::RT)")));
         var e2 = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx2, specs2).resolve(body2, null));
@@ -648,9 +648,9 @@ class ResolveNavigationTest {
         // onto the exists relation
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
                 "m::Firm.all()->filter(f|$f.staff->exists(s|$s.boss.name == 'Bob'))"
-                        + "->project(~[legal: f|$f.legal])->from(m::RT)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+                        + "->project(~[legal: f|$f.legal])->from(m::RT)")));
         var resolved = new StoreResolver(ctx, specs).resolve(body, null);
         org.junit.jupiter.api.Assertions.assertNotNull(resolved);
     }

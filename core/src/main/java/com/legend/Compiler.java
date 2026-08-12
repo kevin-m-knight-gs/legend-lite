@@ -67,7 +67,8 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        ParsedModel parsed = ElementParser.parseLegendLite(model);
+        ParsedModel parsed = ElementParser.parse(model,
+                com.legend.parser.Dialect.LEGEND_LITE);
         try {
             return buildModel(parsed);
         } catch (com.legend.error.ModelException e) {

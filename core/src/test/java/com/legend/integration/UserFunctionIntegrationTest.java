@@ -571,9 +571,9 @@ class UserFunctionIntegrationTest {
         @DisplayName("Empty function body rejected at parse time")
         void testEmptyBodyThrows() {
             assertThrows(com.legend.parser.ParseException.class, () ->
-                    com.legend.parser.SpecParser.parse("", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                    com.legend.Own.spec(""));
             assertThrows(com.legend.parser.ParseException.class, () ->
-                    com.legend.parser.SpecParser.parse("   ", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                    com.legend.Own.spec("   "));
         }
 
         @Test

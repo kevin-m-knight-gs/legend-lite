@@ -31,7 +31,9 @@ class PlatformSurfaceGuardrailTest {
 
     private static final Set<String> WHITELIST = Set.of(
             // platform/bootstrap loading and internal pipeline
-            "com/legend/parser/ElementParser.java",
+            // (ElementParser left the whitelist 2026-08-12: the named
+            // parseLegendPlatform entries are GONE — ONE parse(src, Dialect)
+            // entry remains and it names nothing)
             "com/legend/parser/Dialect.java",
             // (the parser-internal DEFAULTS left the whitelist 2026-08-12
             // — HONEST_DEBT #9 executed: every cursor and sub-parser now

@@ -120,7 +120,7 @@ class TypeCheckerTest {
 
     private static TypedSpec typeQuery(String query) {
         ModelContext ctx = Compiler.compileModel(DB_MODEL);
-        return new SpecCompiler(ctx).typeBody(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.infer());
+        return new SpecCompiler(ctx).typeBody(com.legend.Own.spec(query), Env.empty(), Expected.infer());
     }
 
     private static Type.RelationType schemaOf(TypedSpec node) {
@@ -1220,7 +1220,7 @@ class TypeCheckerTest {
         String model = "function meta::pure::custom::map(x: Integer[1]): Integer[1] { $x + 1 }";
         ModelContext ctx = Compiler.compileModel(model);
         TypedSpec t = new SpecCompiler(ctx).typeBody(
-                SpecParser.parse("meta::pure::custom::map(41)", com.legend.parser.Dialect.LEGEND_PLATFORM),
+                com.legend.Own.spec("meta::pure::custom::map(41)"),
                 Env.empty(), Expected.infer());
         assertEquals(Type.Primitive.INTEGER, t.info().type());
     }
@@ -1270,12 +1270,12 @@ class TypeCheckerTest {
                 """;
         ModelContext ctx = Compiler.compileModel(model);
         TypedSpec t = new SpecCompiler(ctx).typeBody(
-                SpecParser.parse("test::P.all()->map(p | $p.employer.legal)", com.legend.parser.Dialect.LEGEND_PLATFORM),
+                com.legend.Own.spec("test::P.all()->map(p | $p.employer.legal)"),
                 Env.empty(), Expected.infer());
         assertEquals(Type.Primitive.STRING, t.info().type());
         // And the reverse end, with the association's declared multiplicity:
         TypedSpec back = new SpecCompiler(ctx).typeBody(
-                SpecParser.parse("test::F.all()->map(f | $f.staff)", com.legend.parser.Dialect.LEGEND_PLATFORM),
+                com.legend.Own.spec("test::F.all()->map(f | $f.staff)"),
                 Env.empty(), Expected.infer());
         assertEquals("test::P", ((Type.ClassType) back.info().type()).fqn());
     }
@@ -1336,7 +1336,7 @@ class TypeCheckerTest {
 
     private static TypedSpec typeInModel(String extraModel, String query) {
         ModelContext ctx = Compiler.compileModel(DB_MODEL + "\n" + extraModel);
-        return new SpecCompiler(ctx).typeBody(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.infer());
+        return new SpecCompiler(ctx).typeBody(com.legend.Own.spec(query), Env.empty(), Expected.infer());
     }
 
     @Test

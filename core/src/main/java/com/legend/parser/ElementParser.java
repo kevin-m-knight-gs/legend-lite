@@ -38,8 +38,8 @@ import java.util.Objects;
  *
  * <h2>Usage</h2>
  * <pre>
- *   ParsedModel model = ElementParser.parseLegendPlatform(pureSource);    // text overload
- *   ParsedModel model = ElementParser.parseLegendPlatform(tokenStream);   // pre-lexed overload
+ *   ParsedModel model = ElementParser.parse(pureSource, Dialect.LEGEND_LITE);
+ *   // ONE entry, the caller names the level — see {@link Dialect}
  * </pre>
  *
  * <h2>Status (Phase B.4a)</h2>
@@ -246,44 +246,22 @@ public final class ElementParser implements TokenStreamCursor {
      * (PlatformSurfaceGuardrailTest); user entries route through
      * {@link #parseLegendLite} or {@link #parseStrict}.
      */
-    public static ParsedModel parseLegendPlatform(String source) {
-        return parseLegendPlatform(Lexer.tokenize(
-                Objects.requireNonNull(source, "source")));
-    }
-
-    /** Parse a pre-lexed token stream into a {@link ParsedModel}
-     *  (PLATFORM dialect — see {@link #parseLegendPlatform(String)}). */
-    public static ParsedModel parseLegendPlatform(TokenStream tokens) {
-        return new ElementParser(Objects.requireNonNull(tokens, "tokens"),
-                Dialect.LEGEND_PLATFORM).parseModel();
-    }
-
-    /** DIALECT-EXPLICIT parse — the caller NAMES the level (provenance
-     *  routing); there is no default. Naming LEGEND_PLATFORM in
-     *  production code trips the guardrail like calling
-     *  parseLegendPlatform does. */
+    /** THE parse entry — ONE way in: the caller NAMES the level
+     *  (provenance routing); there is no default and no named-entry
+     *  synonym. {@link Dialect#LEGEND_LITE} is the product surface,
+     *  {@link Dialect#LEGEND_ENGINE} the drop-in/parity surface,
+     *  {@link Dialect#LEGEND_PLATFORM} the bootstrap/m2 superset (naming
+     *  it in production trips the guardrail; Pure.java is the one
+     *  consumer). */
     public static ParsedModel parse(String source, Dialect dialect) {
-        return new ElementParser(Lexer.tokenize(
-                Objects.requireNonNull(source, "source")),
+        return parse(Lexer.tokenize(
+                Objects.requireNonNull(source, "source")), dialect);
+    }
+
+    /** Pre-lexed variant of {@link #parse(String, Dialect)}. */
+    public static ParsedModel parse(TokenStream tokens, Dialect dialect) {
+        return new ElementParser(Objects.requireNonNull(tokens, "tokens"),
                 Objects.requireNonNull(dialect, "dialect")).parseModel();
-    }
-
-    /** The PRODUCT surface ({@link Dialect#LEGEND_LITE}): exact
-     *  legend-engine plus the DECLARED lite extensions
-     *  (OWN_CORPUS_DECISIONS LITE-DESIGN families) — nothing else. */
-    public static ParsedModel parseLegendLite(String source) {
-        return new ElementParser(Lexer.tokenize(
-                Objects.requireNonNull(source, "source")),
-                Dialect.LEGEND_LITE).parseModel();
-    }
-
-    /** The ENGINE-STRICT full parse — the drop-in/rejection-parity surface: everything
-     *  {@link #parse(String)} accepts EXCEPT the constructs engine's PureGrammarParser
-     *  refuses (see {@code dialect.refusesPlatformDialect()}). */
-    public static ParsedModel parseLegendEngine(String source) {
-        return new ElementParser(
-                Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                Dialect.LEGEND_ENGINE).parseModel();
     }
 
     /**

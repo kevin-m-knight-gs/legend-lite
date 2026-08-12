@@ -35,7 +35,7 @@ class ZMissedRowsProbe {
             }
             String ours;
             try {
-                com.legend.parser.ElementParser.parseLegendPlatform(src.text());
+                com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
                 ours = "LITE-ACCEPTS";
             } catch (Throwable t) {
                 ours = "LITE-REFUSES: " + String.valueOf(t.getMessage())

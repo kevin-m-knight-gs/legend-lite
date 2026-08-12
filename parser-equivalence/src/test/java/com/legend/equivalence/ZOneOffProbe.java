@@ -36,7 +36,7 @@ class ZOneOffProbe {
                                 .writeValueAsString(pmcd));
                     }
                     try {
-                        com.legend.parser.ElementParser.parseLegendPlatform(src.text());
+                        com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
                         System.out.println("@@ LITE-OK");
                         System.out.println("@@ LITE-JSON "
                                 + com.legend.parser.PmcdParser

@@ -826,7 +826,8 @@ public final class TestBody {
         List<com.legend.model.FunctionDefinition> fns = new ArrayList<>();
         // engine's two-level seam: the payload is USER GRAMMAR by contract
         for (com.legend.model.PackageableElement el
-                : com.legend.parser.ElementParser.parseLegendEngine(src).elements()) {
+                : com.legend.parser.ElementParser.parse(src,
+                        com.legend.parser.Dialect.LEGEND_ENGINE).elements()) {
             if (el instanceof com.legend.model.FunctionDefinition fd) {
                 fns.add(fd);
             }
