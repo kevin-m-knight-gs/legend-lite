@@ -35,7 +35,7 @@ class ConstraintEmissionTest {
     private static String emitFirstClass(String source) {
         TokenStream ts = Lexer.tokenize(source);
         int idx = ElementParser.topLevelIndexes(ts, TokenType.CLASS).get(0);
-        return ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseClassDefinition(false));
+        return ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx).parseClassDefinition(false));
     }
 
     private static final String EXPECTED_SIMPLE_AND_MESSAGE =
@@ -134,7 +134,7 @@ class ConstraintEmissionTest {
                 """);
         int idx = ElementParser.topLevelIndexes(ts, TokenType.FUNCTION).get(0);
         String json = ProtocolEmitter.emitElement(
-                ElementParser.at(ts, idx).parseFunctionProtocol());
+                com.legend.testing.Engine.at(ts, idx).parseFunctionProtocol());
         assertTrue(json.contains("\"function\":\"equal\""), json);
         assertTrue(json.contains("\"function\":\"plus\",\"parameters\":[{\"_type\":\"collection\""), json);
         // the plus keeps its own operator-run span: `+ 1` at cols 7-9
@@ -251,7 +251,7 @@ class ConstraintEmissionTest {
                 """);
         int idx = ElementParser.topLevelIndexes(ts, TokenType.ENUM).get(0);
         assertEquals(EXPECTED_ENUMERATION,
-                ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseEnumDefinition()));
+                ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx).parseEnumDefinition()));
     }
 
     private static final String EXPECTED_PROFILE =
@@ -270,7 +270,7 @@ class ConstraintEmissionTest {
                 """);
         int idx = ElementParser.topLevelIndexes(ts, TokenType.PROFILE).get(0);
         assertEquals(EXPECTED_PROFILE,
-                ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseProfileDefinition()));
+                ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx).parseProfileDefinition()));
     }
 
     private static final String EXPECTED_ASSOCIATION =
@@ -288,7 +288,7 @@ class ConstraintEmissionTest {
                 """);
         int idx = ElementParser.topLevelIndexes(ts, TokenType.ASSOCIATION).get(0);
         assertEquals(EXPECTED_ASSOCIATION,
-                ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseAssociationDefinition()));
+                ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx).parseAssociationDefinition()));
     }
 
     private static final String EXPECTED_FN_MANGLE_G =
@@ -322,10 +322,10 @@ class ConstraintEmissionTest {
                 """);
         java.util.List<Integer> idx = ElementParser.topLevelIndexes(ts, TokenType.FUNCTION);
         assertEquals(EXPECTED_FN_MANGLE_G,
-                ProtocolEmitter.emitElement(ElementParser.at(ts, idx.get(0)).parseFunctionProtocol()));
+                ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx.get(0)).parseFunctionProtocol()));
         assertEquals(EXPECTED_FN_MANGLE_H,
-                ProtocolEmitter.emitElement(ElementParser.at(ts, idx.get(1)).parseFunctionProtocol()));
+                ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx.get(1)).parseFunctionProtocol()));
         assertEquals(EXPECTED_FN_MANGLE_I,
-                ProtocolEmitter.emitElement(ElementParser.at(ts, idx.get(2)).parseFunctionProtocol()));
+                ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx.get(2)).parseFunctionProtocol()));
     }
 }

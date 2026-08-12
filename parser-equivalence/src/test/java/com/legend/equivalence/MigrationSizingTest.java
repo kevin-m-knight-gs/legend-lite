@@ -139,7 +139,7 @@ class MigrationSizingTest {
                             sectionStartLine(text, ts.start(i)));
                 } else if (ts.type(i) == TokenType.DATABASE
                         && atDeclarationPosition(ts, i)) {
-                    com.legend.parser.DatabaseProtocolParser.parse(ts, i);
+                    Surfaces.databaseAt(ts, i);
                 }
             }
             return null;

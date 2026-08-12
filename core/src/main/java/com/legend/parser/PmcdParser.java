@@ -41,6 +41,16 @@ public final class PmcdParser {
     private PmcdParser() {
     }
 
+    /** THE level this whole class exists for — PmcdParser is the
+     *  drop-in surface — named ONCE, used by {@link #at} and the
+     *  sub-parser entries. */
+    private static final Dialect LEVEL = Dialect.LEGEND_ENGINE;
+
+    /** A parser at {@code site}, at {@link #LEVEL}. */
+    private static ElementParser at(TokenStream ts, int site) {
+        return ElementParser.at(ts, site, LEVEL);
+    }
+
     /** Parsers whose sections are {@code importAware} on the wire — from
      *  the engine's own extension sources (Default vs ImportAware
      *  CodeSection) plus ZPmcdProbe2; everything else emits
@@ -493,35 +503,35 @@ public final class PmcdParser {
         String path;
         switch (kind) {
             case 0 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PClass c = p.parseClassDefinition(false);
                 el = c;
                 path = c.qualifiedName();
                 endOut[0] = p.pos();
             }
             case 1 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PEnumeration e = p.parseEnumDefinition();
                 el = e;
                 path = e.qualifiedName();
                 endOut[0] = p.pos();
             }
             case 2 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PProfile pr = p.parseProfileDefinition();
                 el = pr;
                 path = pr.qualifiedName();
                 endOut[0] = p.pos();
             }
             case 3 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PAssociation a = p.parseAssociationDefinition();
                 el = a;
                 path = a.qualifiedName();
                 endOut[0] = p.pos();
             }
             case 4 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PFunction f = p.parseFunctionProtocol();
                 el = f;
                 path = f.pkg().isEmpty() ? f.mangledName()
@@ -529,21 +539,21 @@ public final class PmcdParser {
                 endOut[0] = p.pos();
             }
             case 5 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PMeasure m = p.parseMeasureDefinition();
                 el = m;
                 path = m.qualifiedName();
                 endOut[0] = p.pos();
             }
             case 6 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PRuntime rt = p.parseRuntimeProtocol();
                 el = rt;
                 path = rt.qualifiedName();
                 endOut[0] = p.pos();
             }
             case 7 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PConnection cn = p.parseConnectionProtocol();
                 el = cn;
                 path = cn.qualifiedName();
@@ -551,7 +561,7 @@ public final class PmcdParser {
             }
             case 8 -> {
                 Protocol.PDatabase db = DatabaseProtocolParser
-                        .parse(ts, site, endOut);
+                        .parse(ts, site, endOut, LEVEL);
                 el = db;
                 path = db.qualifiedName();
             }
@@ -559,18 +569,18 @@ public final class PmcdParser {
                 Protocol.PMapping mp = MappingProtocolParser.parse(ts,
                         site, mappingSectionLine, endOut,
                         // the drop-in surface parses at the engine level
-                        Dialect.LEGEND_ENGINE);
+                        LEVEL);
                 el = mp;
                 path = mp.qualifiedName();
             }
             case 10 -> {
                 Protocol.PDataElement de = MappingProtocolParser
-                        .parseData(ts, site, Dialect.LEGEND_ENGINE, endOut);
+                        .parseData(ts, site, LEVEL, endOut);
                 el = de;
                 path = de.qualifiedName();
             }
             case 11 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 Protocol.PFunctionActivator fa = ACTIVATOR_GRAMMAR
                         .parseElement(p);
                 el = fa;
@@ -578,7 +588,7 @@ public final class PmcdParser {
                 endOut[0] = p.pos();
             }
             case 12 -> {
-                ElementParser p = ElementParser.at(ts, site);
+                ElementParser p = at(ts, site);
                 var g = java.util.Objects.requireNonNull(tailGrammar);
                 Protocol.Element e = g.parseOne(p);
                 el = e;

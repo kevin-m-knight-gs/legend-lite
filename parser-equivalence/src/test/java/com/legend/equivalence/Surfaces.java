@@ -38,6 +38,21 @@ public final class Surfaces {
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
     }
 
+    /** A parser positioned at {@code tokenIndex}, engine level. */
+    public static com.legend.parser.ElementParser engineAt(
+            com.legend.lexer.TokenStream tokens, int tokenIndex) {
+        return com.legend.parser.ElementParser.at(tokens, tokenIndex,
+                com.legend.parser.Dialect.LEGEND_ENGINE);
+    }
+
+    /** One {@code Database} element at {@code tokenIndex}, engine level
+     *  (byte parity's subject is the drop-in surface). */
+    public static com.legend.protocol.Protocol.PDatabase databaseAt(
+            com.legend.lexer.TokenStream tokens, int tokenIndex) {
+        return com.legend.parser.DatabaseProtocolParser.parse(tokens,
+                tokenIndex, com.legend.parser.Dialect.LEGEND_ENGINE);
+    }
+
     public static ParsedModel engine(String source) {
         return com.legend.parser.ElementParser.parse(source,
                 com.legend.parser.Dialect.LEGEND_ENGINE);

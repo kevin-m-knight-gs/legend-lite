@@ -129,7 +129,7 @@ fi
 
 if want 6; then
   g "GATE6 PCT full DuckDB"
-  ( cd pct && mvn "${OFF[@]}" test ) > "$OUT/g6.out" 2>&1
+  ( cd pct && mvn "${OFF[@]}" clean test ) > "$OUT/g6.out" 2>&1
   rec 6 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g6.out" | tail -1 >> "$L"
 fi
 
@@ -170,7 +170,10 @@ if want 8; then
   # -am is REQUIRED: without it Maven resolves legend-lite-core from ~/.m2,
   # not the reactor, so GATES=8 alone silently A/Bs the previously installed
   # jar. Relying on GATE2 having run first institutionalises hazard #1.
-  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am test \
+  # CLEAN is load-bearing here too: a warm target/ runs test classes
+  # compiled against the PREVIOUS core jar (stale-class NoSuchMethodError,
+  # or worse, stale tests silently passing old behavior)
+  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am clean test \
       -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?; if skipped "$OUT/g8.out"; then

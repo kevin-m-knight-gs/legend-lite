@@ -739,12 +739,14 @@ final class ElementParserTest {
         // REFUTED by the inline-snippet corpus: the ENGINE parses 1- and 3-end
         // associations and serializes what it read — arity is a COMPILE error.
         // The parser stays total; both forms round the protocol layer.
-        assertEquals(1, ElementParser.at(
-                com.legend.lexer.Lexer.tokenize("Association A { only: B[1]; }"), 0)
+        assertEquals(1, com.legend.testing.Engine.at(
+                com.legend.lexer.Lexer.tokenize("Association A { only: B[1]; }"),
+                0)
                 .parseAssociationDefinition().properties().size());
-        assertEquals(3, ElementParser.at(
+        assertEquals(3, com.legend.testing.Engine.at(
                 com.legend.lexer.Lexer.tokenize(
-                        "Association A { a: B[1]; b: C[1]; c: D[1]; }"), 0)
+                        "Association A { a: B[1]; b: C[1]; c: D[1]; }"),
+                0)
                 .parseAssociationDefinition().properties().size());
     }
 
@@ -773,7 +775,7 @@ final class ElementParserTest {
     void enumEmptyBodyFailsLoudly() {
         // REFUTED by the inline-snippet corpus: the engine parses an EMPTY enum
         // (values: [] on the wire); rejection, if any, is the compiler's.
-        assertTrue(ElementParser.at(
+        assertTrue(com.legend.testing.Engine.at(
                 com.legend.lexer.Lexer.tokenize("Enum my::S {}"), 0)
                 .parseEnumDefinition().values().isEmpty());
     }

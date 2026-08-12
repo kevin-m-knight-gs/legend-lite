@@ -47,6 +47,7 @@ class ParserBoundaryArchTest {
             "com/legend/harness/HarnessSubstitution.java",
             "com/legend/ide/ModelOrchestrator.java",
             "com/legend/testing/Own.java",
+            "com/legend/testing/Engine.java",
             "com/legend/testing/Platform.java",
             "com/legend/rcorpus/Runner.java",
             "com/legend/harness/EngineTestExecutorTest.java",

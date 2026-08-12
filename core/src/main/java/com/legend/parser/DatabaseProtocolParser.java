@@ -50,26 +50,26 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** Stretch anchor handed to the NESTED nav-element parser. */
     private @com.legend.Nullable SourceInfo schemaStretchSpan;
 
-    /** ###Relational is ENGINE grammar at every level — the json-column-get
-     *  retirement (OWN_CORPUS_DECISIONS §7) removed its last dialect
-     *  lever, so this parser carries no level of its own and NOTHING
-     *  consults this; the abstract cursor contract just requires an
-     *  answer (the one commented wart, kept over a second interface). */
+    /** The caller's level, threaded for UNIFORMITY — every grammar takes
+     *  its caller's dialect and reports it truthfully. No lever inside
+     *  ###Relational consults it today (the last one, json-column-get,
+     *  was retired to the engine's extractFromSemiStructured —
+     *  OWN_CORPUS_DECISIONS §7); it exists so this parser has the same
+     *  shape as every other one, and a future lever threads free. */
+    private final Dialect dialect;
+
     @Override
     public Dialect dialect() {
-        return Dialect.LEGEND_ENGINE;
-    }
-
-    private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn) {
-        this(tokens, pos, dbFqn, null);
+        return dialect;
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
-            @com.legend.Nullable ScopeCtx scope) {
+            @com.legend.Nullable ScopeCtx scope, Dialect dialect) {
         this.scope = scope;
         this.tokens = tokens;
         this.pos = pos;
         this.dbFqn = dbFqn;
+        this.dialect = dialect;
     }
 
     @Override
@@ -103,17 +103,18 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  mappings) that embed relational operations: parse one operation at
      *  {@code start}; the advanced position lands in {@code posOut[0]}. */
     static Protocol.PRelOp operationAt(TokenStream ts, int start,
-            String dbFqn, String schemaCtx, int[] posOut) {
+            String dbFqn, String schemaCtx, int[] posOut, Dialect dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start,
-                dbFqn, null);
+                dbFqn, null, dialect);
         Protocol.PRelOp op = p.parseOperation(schemaCtx);
         posOut[0] = p.pos;
         return op;
     }
 
     /** Parse one {@code Database qn ( ... )} at {@code tokenIndex}. */
-    public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex) {
-        return parse(ts, tokenIndex, null);
+    public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
+            Dialect dialect) {
+        return parse(ts, tokenIndex, null, dialect);
     }
 
     /** As {@link #parse(TokenStream, int)}, but reports where the element
@@ -122,9 +123,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  built from protocol rather than by a second parser
      *  (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
-            int @com.legend.Nullable [] endOut) {
+            int @com.legend.Nullable [] endOut, Dialect dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex,
-                "", null);
+                "", null, dialect);
         Protocol.PDatabase db = p.parseDatabase();
         if (endOut != null) {
             endOut[0] = p.pos;
@@ -141,7 +142,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         DatabaseProtocolParser inner =
-                new DatabaseProtocolParser(tokens, pos, qn, null);
+                new DatabaseProtocolParser(tokens, pos, qn, null, dialect);
         Protocol.PDatabase db = inner.parseBody(declStart, pkg, name,
                 dbDec.stereotypes(), dbDec.taggedValues());
         this.pos = inner.pos;
@@ -697,9 +698,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** One operation under an active {@code scope(...)} header with a
      *  table segment (probe scope-forms). */
     static Protocol.PRelOp scopedOperationAt(TokenStream ts, int start,
-            ScopeCtx scope, int[] posOut) {
+            ScopeCtx scope, int[] posOut, Dialect dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start,
-                scope.db(), scope);
+                scope.db(), scope, dialect);
         Protocol.PRelOp op = p.parseOperation("default");
         posOut[0] = p.pos;
         return op;
@@ -731,7 +732,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return whole ? parseOperation(schemaCtx) : parseAtom(schemaCtx);
         }
         DatabaseProtocolParser p =
-                new DatabaseProtocolParser(tokens, pos, db, scope);
+                new DatabaseProtocolParser(tokens, pos, db, scope, dialect);
         p.schemaStretchSpan = stretch;
         p.currentSchemaDeclSpan = currentSchemaDeclSpan;
         Protocol.PRelOp e = whole ? p.parseOperation(schemaCtx)
@@ -929,7 +930,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 // OUTER op's span starts at the bracket (probe
                 // db-dynafunc)
                 DatabaseProtocolParser p =
-                        new DatabaseProtocolParser(tokens, pos, db, scope);
+                        new DatabaseProtocolParser(tokens, pos, db, scope, dialect);
                 p.currentSchemaDeclSpan = currentSchemaDeclSpan;
                 p.schemaStretchSpan = schemaStretchSpan;
                 Protocol.PDynaFunc f =

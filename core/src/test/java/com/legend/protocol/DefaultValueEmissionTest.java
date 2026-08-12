@@ -23,7 +23,7 @@ class DefaultValueEmissionTest {
     private static String emitFirstClass(String source) {
         TokenStream ts = Lexer.tokenize(source);
         int idx = ElementParser.topLevelIndexes(ts, TokenType.CLASS).get(0);
-        return ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseClassDefinition(false));
+        return ProtocolEmitter.emitElement(com.legend.testing.Engine.at(ts, idx).parseClassDefinition(false));
     }
 
     private static final String EXPECTED_DEFAULTS =

@@ -2019,7 +2019,9 @@ public final class SpecParser implements TokenStreamCursor {
         if ((peek() == TokenType.LESS_THAN && peek(1) == TokenType.LESS_THAN)
                 || (peek() == TokenType.BRACE_OPEN && looksLikeTaggedValues())) {
             annotStart = pos;
-            ElementParser sub = ElementParser.at(tokens, pos);
+            // HOST level: a decoration sub-parse inside a platform/lite spec
+            // must not silently run at another level
+            ElementParser sub = ElementParser.at(tokens, pos, dialect());
             csStereotypes = sub.parseStereotypes();
             csTaggedValues = sub.parseTaggedValues();
             pos = sub.pos();

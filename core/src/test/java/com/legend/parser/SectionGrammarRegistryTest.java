@@ -42,7 +42,7 @@ class SectionGrammarRegistryTest {
         // file whose sections it cannot read — my::B would vanish and any
         // nonsense in the ###Diagram body would be swallowed.
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse(WITH_UNKNOWN_SECTION, com.legend.parser.Dialect.LEGEND_ENGINE));
+                () -> com.legend.testing.Engine.model(WITH_UNKNOWN_SECTION));
         assertTrue(e.getMessage().contains(
                         "'NoSuchSection' is not a known section parser"),
                 e.getMessage());

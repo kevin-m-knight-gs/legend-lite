@@ -108,7 +108,7 @@ class ViewFilterParityTest {
                     && ts.type(i - 1) != TokenType.SEMI_COLON) {
                 continue;
             }
-            var db = com.legend.parser.DatabaseProtocolParser.parse(ts, i);
+            var db = Surfaces.databaseAt(ts, i);
             String actual = com.legend.protocol.ProtocolEmitter.emitElement(db);
             assertEquals(expected.get(db.qualifiedName()), actual,
                     "byte divergence on " + db.qualifiedName());

@@ -170,7 +170,7 @@ class RejectionParityTest {
                 com.legend.lexer.TokenType.PROFILE, com.legend.lexer.TokenType.ASSOCIATION,
                 com.legend.lexer.TokenType.FUNCTION}) {
             for (int i : com.legend.parser.ElementParser.topLevelIndexes(ts, marker)) {
-                var p = com.legend.parser.ElementParser.at(ts, i);
+                var p = Surfaces.engineAt(ts, i);
                 switch (marker) {
                     case CLASS -> p.parseClassDefinition(false);
                     case ENUM -> p.parseEnumDefinition();

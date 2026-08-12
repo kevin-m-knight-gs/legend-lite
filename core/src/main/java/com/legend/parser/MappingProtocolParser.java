@@ -3383,10 +3383,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         Protocol.PRelOp op;
         if (scope != null) {
             op = DatabaseProtocolParser.scopedOperationAt(tokens, pos, scope,
-                    posOut);
+                    posOut, dialect);
         } else if (scopeDb != null) {
             op = DatabaseProtocolParser.operationAt(tokens, pos, scopeDb,
-                    "default", posOut);
+                    "default", posOut, dialect);
         } else {
             return parseEmbeddedOperation();
         }
@@ -3398,7 +3398,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PRelOp parseEmbeddedOperation() {
         int[] posOut = new int[1];
         Protocol.PRelOp op = DatabaseProtocolParser.operationAt(tokens, pos,
-                "", "default", posOut);
+                "", "default", posOut, dialect);
         pos = posOut[0];
         return op;
     }

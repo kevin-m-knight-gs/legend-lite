@@ -58,7 +58,7 @@ class PlatformSurfaceGuardrailTest {
                         try {
                             String t = Files.readString(p);
                             return t.contains("parseLegendPlatform(")
-                                    || t.contains("Dialect.LEGEND_PLATFORM");
+                                    || t.contains("Dialect.LEGEND" + "_PLATFORM");
                         } catch (IOException e) {
                             throw new java.io.UncheckedIOException(e);
                         }

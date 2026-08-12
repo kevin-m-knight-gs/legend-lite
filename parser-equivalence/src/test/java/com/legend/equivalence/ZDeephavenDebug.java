@@ -30,7 +30,7 @@ class ZDeephavenDebug {
         var sites = ElementParser.topLevelIndexes(ts,
                 com.legend.lexer.TokenType.VALID_STRING);
         com.legend.protocol.Protocol.PConnection pc =
-                ElementParser.at(ts, 0).parseConnectionProtocol();
+                Surfaces.engineAt(ts, 0).parseConnectionProtocol();
         System.out.println("OURS: " + com.legend.protocol.ProtocolEmitter
                 .emitElement(pc));
     }

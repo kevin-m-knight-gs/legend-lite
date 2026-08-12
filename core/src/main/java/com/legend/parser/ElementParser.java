@@ -192,12 +192,14 @@ public final class ElementParser implements TokenStreamCursor {
         return dialect;
     }
 
-    public static ElementParser at(TokenStream tokens, int tokenIndex) {
-        // the drop-in surface
-        // the drop-in surface: output is byte-compared to PureGrammarParser's
-        ElementParser p = new ElementParser(tokens, Dialect.LEGEND_ENGINE);
+    /** A parser POSITIONED at {@code tokenIndex}, at the CALLER'S level —
+     *  the per-element protocol entry (PmcdParser and the wire-pin tests
+     *  pass LEGEND_ENGINE; SpecParser's decoration sub-parse passes its
+     *  own host dialect). */
+    public static ElementParser at(TokenStream tokens, int tokenIndex,
+            Dialect dialect) {
+        ElementParser p = new ElementParser(tokens, dialect);
         p.pos = tokenIndex;
-
         return p;
     }
 
@@ -709,7 +711,7 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement databaseElement() {
         int[] endOut = new int[1];
         com.legend.protocol.Protocol.PDatabase db =
-                DatabaseProtocolParser.parse(tokens, pos, endOut);
+                DatabaseProtocolParser.parse(tokens, pos, endOut, dialect);
         pos = endOut[0];
         return com.legend.model.FromProtocol.toDatabaseDefinition(db);
     }
