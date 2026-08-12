@@ -238,9 +238,41 @@ class CorpusEquivalenceTest {
 
         ParserEquivalence eq = new ParserEquivalence();
         List<Verdict> all = new ArrayList<>();
+        int docPassElementFail = 0;
+        List<String> jointViolations = new ArrayList<>();
+        var mapper = org.finos.legend.engine.shared.core.ObjectMapperFactory
+                .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
         for (Corpus.Source s : sources) {
-            all.addAll(eq.compare(s));
+            List<Verdict> vs = eq.compare(s);
+            all.addAll(vs);
+            // PHASE-2 JOINT PROPERTY (HARNESS_SIMPLIFICATION_PLAN): no
+            // source where the DOCUMENT comparison passes and the ELEMENT
+            // comparison fails — the demonstration that the element gate
+            // is implied by the document gate, measured not argued
+            boolean elementFail = vs.stream().anyMatch(v ->
+                    v.kind() != Kind.MATCH
+                            && v.kind() != Kind.REFERENCE_REJECTED);
+            if (elementFail) {
+                boolean docPass;
+                try {
+                    docPass = Comparators.sameBytes(
+                            mapper.writeValueAsString(OracleParses.acquire(s)),
+                            com.legend.parser.PmcdParser.parseDocument(s.text()));
+                } catch (Throwable t) {
+                    docPass = false;
+                }
+                if (docPass) {
+                    docPassElementFail++;
+                    jointViolations.add(s.id());
+                }
+            }
         }
+        assertEquals(0, docPassElementFail,
+                () -> "JOINT-PROPERTY violation — the document gate passed"
+                        + " where the element comparison failed (the"
+                        + " implication argument is broken):\n  "
+                        + String.join("\n  ", jointViolations.subList(0,
+                                Math.min(10, jointViolations.size()))));
 
         Map<Kind, Integer> counts = new EnumMap<>(Kind.class);
         for (Kind k : Kind.values()) {
