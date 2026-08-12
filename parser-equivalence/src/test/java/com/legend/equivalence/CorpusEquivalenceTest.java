@@ -11,227 +11,30 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The gate: run both parsers over the real corpus and compare emitted bytes.
+ * The element-level DIAGNOSTIC sweep, demoted from a gate
+ * (HARNESS_SIMPLIFICATION_PLAN Phase 3). The load-bearing byte claim is
+ * {@code PmcdEquivalenceTest}'s whole-document comparison; this test's
+ * job is (a) the report that localises any future document failure to an
+ * element index and JSON path, and (b) the PHASE-2 JOINT PROPERTY — no
+ * source where the document comparison passes and the positional element
+ * comparison fails — which is the standing proof that demotion lost
+ * nothing.
  *
- * <h2>Anti-false-green rules, and why each exists</h2>
- * <ol>
- *   <li><b>A run that did no work fails.</b> A harness of mine once scored a {@code BUILD FAILURE}
- *       as "0 failures" because it counted failures in a report that was never written.</li>
- *   <li><b>Every comparison asserts a non-zero input count.</b></li>
- *   <li><b>Coverage is reported, not assumed</b> — including what was skipped and why.</li>
- *   <li><b>The corpus may not shrink.</b> A baseline is committed; if fewer elements are compared
- *       than last time, that is a failure, not a quieter green.</li>
- * </ol>
- *
- * <p><b>DIFF is the only outcome that fails.</b> WALL means we refused to emit something, loudly
- * and by name — expected while coverage grows, and the report ranks those walls into the worklist.
+ * <p>The retired ratchets (MIN_ELEMENTS_COMPARED 25,472 / MIN_MATCHES /
+ * MAX_WALLS / MAX_PARSE_FAILS / MAX_LITE_MISSED) and their bump history
+ * live in git — final ledger state before demotion: 30,410 MATCH /
+ * 0 DIFF / 0 WALL / 0 everything else over 32,631 verdicts
+ * (commit 89c5907d).
  */
 class CorpusEquivalenceTest {
 
-    /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit.
-     * 19,269 -> 19,305: Measure sites added + SectionIndex excluded + the
-     * comparator drains both directions (implementation audit §3.2).
-     * 19,305 -> 22,725: the pureOnly gate is deleted — mixed-section files'
-     * Pure elements compare like any other (implementation audit §3.1),
-     * discovered per Pure section, with non-Pure reference elements named
-     * OUT_OF_SCOPE rows and the assertion-island span emulating the engine's
-     * reparse mechanism instead of a curve-fit quirk.
-     * 22,725 -> 22,792: ###Runtime byte parity (Phase D commit 3) — PRuntime
-     * records + emitter, connection IDs and order kept, embedded
-     * JsonModelConnection islands re-lexed under walker offsets; the 18
-     * remaining Runtime rows WALL on embedded RelationalDatabaseConnection,
-     * which is the Connection leg's grammar.
-     * 22,792 -> 22,854: ###Connection byte parity — PConnection + 4 value
-     * flavors, corpus-censused specs/auths (LocalH2, Static, DefaultH2,
-     * Test, DelegatedKerberos), spec/auth/mappings spans INCLUDE the
-     * trailing ';' (probe); embedded runtime islands reuse the ONE
-     * connection grammar, converting 14 runtime walls. 20 walls remain:
-     * testDataSetupCSV, postProcessors, UserNamePassword.
-     * 22,854 -> 22,864: the last Connection shapes (testDataSetupCsv,
-     * mapper postProcessors, userNamePassword vault refs, optional store:,
-     * empty Test body, quote-keeping timeZone) — ###Runtime AND
-     * ###Connection at ZERO walls, every element byte-identical.
-     * 22,864 -> 23,266: ###Relational core (leg 3a) — PDatabase family,
-     * schemas/tables/columns/datatypes/milestoning/joins/filters/views/
-     * includes at byte parity: n-ary and/or chains, operator-anchored
-     * spans, left-operand stretch, qualified table pointers, dimension
-     * reparse +1-column quirk, default schema LAST, strictDate infinity.
-     * 90 walls remain (quoted identifiers, TabularFunction, tail).
-     * 23,266 -> 23,282: leg 3b — bracket-qualified refs, elemtWithJoins
-     * nav ops (engine typo preserved) with @-anchored join spans and
-     * schema-context resolution, businessSnapshotMilestoning, quoted
-     * identifiers keep their quotes, TabularFunction slim shape, view
-     * directives as *_CMD tokens; 58 walls left (cross-schema nav span
-     * resolution + unbuilt tail).
-     * 23,282 -> 23,288: '!=' token, postfix is-null/is-not-null with the
-     * operand swallowing the operator (probe null-postfix).
-     * 23,288 -> 23,300: Database-level stereotypes + column tagged
-     * values (probe db-and-column-decorations); 22 walls left.
-     * 23,300 -> 23,302: literalList (nested literal items), snapshot
-     * milestoning variants span their ARGS context, Json datatype, and
-     * the boolean grammar corrected — NO and/or precedence
-     * (right-recursive), same-op n-ary flatten, mixed-op right sides and
-     * parens wrap as group dynaFuncs. 18 walls left.
-     * 23,302 -> 23,308: joinType chains (@J > (INNER) @K — the type rides
-     * the NEXT pointer), <> as notEqualAnsi vs != as notEqual, RIGHT-
-     * recursive comparison chains, TabularFunction constraints, negative
-     * literals. SIX walls remain: the declaration-site nav-span family
-     * (by design, needs two-pass tracking) + one @-in-operation single.
-     * 23,308 -> 23,375: ###Mapping OPENS (leg 4) — envelope + enumeration
-     * mappings at byte parity; class-mapping families walled by name;
-     * the wall ranking IS the leg's worklist.
-     * 23,375 -> 23,395: mapping includes (mappingIncludeMapping, both
-     * spellings; dataspace includes wall).
-     * 23,395 -> 23,476: RELATIONAL CLASS MAPPINGS — the leg's biggest
-     * family: star-anchored spans, first-ident table anchors (mainTable
-     * AND bracket-qualified op refs), colon..op property spans, source =
-     * enclosing set id, ops through THE relational operation grammar.
-     * 23,476 -> 23,484: PURE (M2M) class mappings — transforms are the
-     * ###Pure ValueSpecification wire, parsed by SpecParser over token
-     * slices and emitted by the SAME spec arms; pm.source = enclosing
-     * set id (empty string when none).
-     * 23,484 -> 23,506: OPERATION class mappings (EXACT-FQN discriminator
-     * mapping, bare set-id parameters) and class mappings unified into ONE
-     * sealed SOURCE-ORDERED list.
-     * 23,506 -> 23,570: ASSOCIATION mappings (Relational AssociationMapping
-     * + XStore cross-expressions) and the [db]@Join bracket-nav form; nav
-     * elements inherit the bracket db; bare embedded refs (no db anywhere)
-     * OMIT database/mainTableDb/join db keys (probe bare-no-db).
-     * 23,570 -> 23,948: seven-family batch — property set-ids (one id =
-     * TARGET, two = source,target), scope() flattening (header-table spans),
-     * extends [id], include [src->tgt] substitution, inline
-     * EnumerationMapping transforms, ~src as SRC_CMD token, merge_ op
-     * (NO discriminator on the wire).
-     * 23,948 -> 24,108: batch 9 — ~filter (named + joined dialects), pure
-     * ~filter lambdas, embedded property mappings (recursive, paren-region
-     * spans), local +props (source=enclosing, walker:1241), association
-     * set-ids + member id, per-step [db] nav re-anchor; single bracket id
-     * is the TARGET, source stays the enclosing id (walker:1211-1216).
-     * 24,108 -> 24,226: batch 10 — inline embedded (prop() Inline[set],
-     * span paren..bracket), otherwise embedded (classMapping span runs
-     * through the Otherwise close; op span stretches back to [tgt]),
-     * embedded ~primaryKey, xstore set-ids, pure decorations (+local
-     * with IDENT-span localMappingProperty, * explode, [id] target),
-     * ~filter (TYPE) join prefix, DOT_DOT multiplicities, per-step nav
-     * [db] re-anchor (batch-9 replace had silently no-op'd).
-     * 24,226 -> 24,295: batch 11 — numeric set ids ("1"), pure inline
-     * EnumerationMapping transforms (enumMappingId FIRST key),
-     * EnumerationMapping members without id (key omitted), UNKNOWN
-     * operation functions emit NO discriminator, [db] dynaFunc + [db]
-     * scoped-bare atoms (outer span starts at the bracket), Otherwise is
-     * a KEYWORD token (batch-10 text check was dead), outer otherwise-PM
-     * span = OTHERWISE..close (classMapping span stays paren..close),
-     * otherwise/primaryKey ops inherit the scope db, include-mapping
-     * keyword vs path-head 'mapping' disambiguated.
-     * 24,295 -> 24,352: ModelJoin (typed ###Pure lambda joinCondition via
-     * SpecParser, member span target..outer brace) + Relation function
-     * class mappings (_type relation, NO classSourceInformation, ~func
-     * descriptor pointer path = tokens joined with NO spaces,
-     * relationFunctionPropertyMapping column lines).
-     * 24,352 -> 24,417: batch 13 — Relation extras (~primaryKey string
-     * list, +local props with class KEPT), merge bracket form (_type
-     * mergeOperation + MERGE + validationFunction whose spans emulate the
-     * engine's getText() CONCAT reparse anchored at the merge FQN token),
-     * enum source enum-refs, multi-substitution includes DROP both keys,
-     * trailing semicolons on operations, dotted refs under two-seg scope
-     * headers (table span stretches header-schema..local-table for 2-part
-     * refs, fully local for 3-part), extends on Pure mappings.
-     * 24,417 -> 24,426: testSuites — mappingTestSuite envelope (func =
-     * the PARSED |-lambda emitted verbatim, spec spans carry the MAPPING
-     * path as sourceId), mappingTest with storeTestData (ModelStore
-     * islands re-lexed with position padding) and equalToJson
-     * assertions; testSuites key rides between sourceInformation and
-     * tests.
-     * 24,426 -> 24,460: Reference test data — Store: Reference
-     * #{ my::DataElement }# -> {_type reference, dataElement DATA
-     * pointer} whose span runs the Reference KEYWORD through the island
-     * close, like ExternalFormat.
-     * 24,460 -> 24,466: AggregationAware — generated ids
-     * (sanitized-class or explicit, +_Aggregate_n/_Main), nested CM
-     * CONTENTS keep TRUE spans while classSourceInformation/CM-SI shift
-     * DOWN by DELTA = memberBraceLine - sectionStart + 1; aggregate
-     * lambdas shift UP by the ~modelOperation tilde-vs-brace line gap
-     * (engine anchors the spec sub-parse at the TILDE but slices after
-     * the BRACE); pm sources keep the EXPLICIT outer id or null (the
-     * engine suffixes ids only AFTER the sub-parse).
-     * 24,466 -> 24,483: batch 17 — agg-with-Pure nested mappings (agg
-     * node copies the main Pure pms as AggregationAwarePropertyMapping),
-     * legacy MappingTests (query lambda with mapping-path sourceId;
-     * assert = fromGrammarString(x,FALSE) raw body, span through ';'),
-     * Reference inside modelData, doc: keys, single-seg scope headers as
-     * SCHEMA prefixes for dotted refs (same stretch), quoted mainTable
-     * spellings, nav elements resolve under the LAST re-anchored db,
-     * extends on Operation parsed-and-DROPPED (engine walker TODO).
-     * 24,483 -> 24,503: the Pure-nested-mapping sentinel collision
-     * (mainBodyTok sign-encodes Pure as -pos; -1 'absent' sentinel
-     * misfired) — 20 walls left, ALL the Relation-store test-data
-     * family.
-     * 24,503 -> 24,506: Relation-island test data — CSV char sub-format
-     * (cells TRIM both sides) -> relationAccessor/relationElements;
-     * equalToRelation assertions whose expected span runs
-     * (braceLine, braceCol+2)..(semiLine-1, semiCol) while DATA elements
-     * span path..semi (probes relation-data-exact + relation-rows).
-     * 24,506 -> 24,508: Relation-CM inline PMs (prop () Inline [set] ->
-     * relationFunctionEmbeddedPropertyMapping, empty propertyMappings)
-     * and legacy Relational inputs (<Relational, CSV, db, 'data'> ->
-     * _type relational with database key).
-     * 24,508 -> 24,510: Relation-CM embedded blocks (prop ( street: COL )
-     * -> relationFunctionEmbeddedPropertyMapping with NESTED classless
-     * pms; span prop..close paren).
-     * 24,510 -> 24,513: ZERO WALLS — the designed cross-schema tail:
-     * dotted refs inside a NAMED schema (nav elements AND plain view
-     * columns, non-explicit-schema) stretch their table pointer span
-     * from the SCHEMA DECLARATION NAME to the local table token (probes
-     * cross-schema-nav + testGrammarSerializationExtension). Every
-     * comparable element in the corpus is now byte-exact.
-     * 24,513 -> 24,590: ###Data OPENS AND CLOSES (leg 5) — the whole
-     * 77-element worklist, zero walls. The lexer stopped raw-skipping the
-     * section; PDataElement carries a SEALED body because the engine emits
-     * two disjoint envelopes (a single "data" value vs per-store
-     * "dataResolvers", never both). Body grammars: relationalCSVData
-     * (2-segment path, escape-decoded literal concatenation, span
-     * path..';'), relationAccessor, externalFormat, modelStore, reference.
-     * The engine's DATA walker builds instance data with its OWN shapes,
-     * not the ###Pure walker's: packageableElementPtr (not
-     * genericTypeInstance) + the literal name "dummy", a span-less
-     * instances collection, unary minus FOLDED into the literal (sign
-     * moves into a decimal's verbatim spelling too), and enum access as a
-     * real enumValue node spanning enumeration..value. Also fixed a shared
-     * wrong answer the leg exposed: Relation CSV cells now split on commas
-     * OUTSIDE double quotes, keeping the quotes in the value
-     * (probes data-section, relational-csv, store-keyed, model-instances,
-     * neg-literals, enum-refs, relation-quoted-cells). */
-    private static final int MIN_ELEMENTS_COMPARED = 25472;
-    private static final int MIN_MATCHES = 25472;
-
-    /**
-     * THE ORACLE IS NOW THE WHOLE ENGINE (audit fix #6). It used to hold
-     * three grammar jars, so every file using ###Service, ###Persistence,
-     * ###DataSpace and the other 30 sections was refused by the reference —
-     * and a refused file yields no elements, so it left the denominator
-     * instead of counting against us. 2,270 files vanished that way.
-     *
-     * <p>Loading all 33 grammars moved 263 files back into reach: 882 more
-     * elements now compare and MATCH (24,590 -> 25,472, still 0 DIFF), and
-     * the gaps that were hiding behind those refusals became visible —
-     * walls 0 -> 108, parse failures 0 -> 14, lite-missed 0 -> 19, and an
-     * OUT_OF_SCOPE worklist of 10 -> 440. None of that is new breakage; it
-     * is the same code measured against an honest reference.
-     *
-     * <p>All three ratchet DOWN only.
-     */
-    private static final int MAX_LITE_MISSED = 19;
-    private static final int MAX_WALLS = 108;
-    private static final int MAX_PARSE_FAILS = 14;
-
     @Test
-    void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
+    void elementDiagnosticAndJointProperty() throws Exception {
         List<Corpus.Source> sources = Corpus.all();
         Assumptions.assumeTrue(!sources.isEmpty(),
                 "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
@@ -245,10 +48,10 @@ class CorpusEquivalenceTest {
         for (Corpus.Source s : sources) {
             List<Verdict> vs = eq.compare(s);
             all.addAll(vs);
-            // PHASE-2 JOINT PROPERTY (HARNESS_SIMPLIFICATION_PLAN): no
-            // source where the DOCUMENT comparison passes and the ELEMENT
-            // comparison fails — the demonstration that the element gate
-            // is implied by the document gate, measured not argued
+            // PHASE-2 JOINT PROPERTY: no source where the DOCUMENT
+            // comparison passes and the ELEMENT comparison fails — the
+            // demonstration that the element gate is implied by the
+            // document gate, measured not argued (zero at demotion)
             boolean elementFail = vs.stream().anyMatch(v ->
                     v.kind() != Kind.MATCH
                             && v.kind() != Kind.REFERENCE_REJECTED);
@@ -267,133 +70,56 @@ class CorpusEquivalenceTest {
                 }
             }
         }
+
+        Map<Kind, Integer> counts = new EnumMap<>(Kind.class);
+        for (Kind k : Kind.values()) {
+            counts.put(k, 0);
+        }
+        List<Verdict> diffs = new ArrayList<>();
+        for (Verdict v : all) {
+            counts.merge(v.kind(), 1, Integer::sum);
+            if (v.kind() == Kind.DIFF) {
+                diffs.add(v);
+            }
+        }
+        String report = report(sources.size(), all, counts, diffs);
+        Files.writeString(Path.of("target", "equivalence-report.txt"), report);
+        StringBuilder pf = new StringBuilder();
+        for (Verdict v : all) {
+            if (v.kind() == Kind.PARSE_FAIL) {
+                pf.append(v.detail().replaceAll("\\s+", " ")).append('\t')
+                        .append(v.sourceId()).append('\n');
+            }
+        }
+        Files.writeString(Path.of("target", "parsefails-detail.txt"), pf.toString());
+        System.out.println(report);
+
+        // a run that did no work is a failure, never a pass
+        assertTrue(all.size() > 0, "no verdicts produced: the harness did not run");
         assertEquals(0, docPassElementFail,
                 () -> "JOINT-PROPERTY violation — the document gate passed"
                         + " where the element comparison failed (the"
                         + " implication argument is broken):\n  "
                         + String.join("\n  ", jointViolations.subList(0,
                                 Math.min(10, jointViolations.size()))));
-
-        Map<Kind, Integer> counts = new EnumMap<>(Kind.class);
-        for (Kind k : Kind.values()) {
-            counts.put(k, 0);
-        }
-        Map<String, Integer> walls = new TreeMap<>();
-        List<Verdict> diffs = new ArrayList<>();
-        for (Verdict v : all) {
-            counts.merge(v.kind(), 1, Integer::sum);
-            if (v.kind() == Kind.WALL) {
-                walls.merge(ParserEquivalence.rule(v.detail()), 1, Integer::sum);
-            } else if (v.kind() == Kind.DIFF) {
-                diffs.add(v);
-            }
-        }
-
-        int compared = counts.get(Kind.MATCH) + counts.get(Kind.DIFF);
-        String report = report(sources.size(), all, counts, compared, walls, diffs);
-        Files.writeString(Path.of("target", "equivalence-report.txt"), report);
-        // per-wall detail — the burn-down worklist, one line per walled element
-        StringBuilder wd = new StringBuilder();
-        StringBuilder pf = new StringBuilder();
-        for (Verdict v : all) {
-            if (v.kind() == Kind.WALL) {
-                wd.append(ParserEquivalence.rule(v.detail())).append('\t')
-                        .append(v.sourceId()).append('\t').append(v.element()).append('\n');
-            } else if (v.kind() == Kind.PARSE_FAIL) {
-                pf.append(v.detail().replaceAll("\\s+", " ")).append('\t')
-                        .append(v.sourceId()).append('\t').append(v.element()).append('\n');
-            }
-        }
-        Files.writeString(Path.of("target", "walls-detail.txt"), wd.toString());
-        Files.writeString(Path.of("target", "parsefails-detail.txt"), pf.toString());
-        System.out.println(report);
-
-        // (1) the run must have done work — an empty run is a failure, never a pass
-        assertTrue(all.size() > 0, "no verdicts produced: the harness did not run");
-        // (2) non-zero comparisons
-        assertTrue(compared > 0, "nothing was actually compared");
-        // (4) the corpus may not shrink — COMPARED rows, so rejection rows
-        // cannot pad the floor
-        assertTrue(compared >= MIN_ELEMENTS_COMPARED,
-                "corpus shrank: " + compared + " compared < baseline " + MIN_ELEMENTS_COMPARED
-                        + ". A smaller corpus is a failure, not a quieter green.");
-        // (5) the comparison is bidirectional: a reference element we never
-        // compared is a front-door disagreement, never background noise.
-        // This was ASSERTED ZERO while the oracle held three grammar jars —
-        // a zero that only meant the blind spots were invisible. Against the
-        // whole engine it is 19, each one nameable (#SQL{} islands in Pure
-        // functions; Deephaven / MongoDB / ServiceStore connection flavours),
-        // and it ratchets DOWN only.
-        assertTrue(counts.get(Kind.LITE_MISSED) <= MAX_LITE_MISSED,
-                "reference elements never compared GREW: "
-                        + counts.get(Kind.LITE_MISSED) + " > " + MAX_LITE_MISSED
-                        + " (site discovery and the reference disagree about"
-                        + " what an element is)");
-        assertTrue(counts.get(Kind.WALL) <= MAX_WALLS,
-                "walls GREW: " + counts.get(Kind.WALL) + " > " + MAX_WALLS);
-        assertTrue(counts.get(Kind.PARSE_FAIL) <= MAX_PARSE_FAILS,
-                "parse failures GREW: " + counts.get(Kind.PARSE_FAIL)
-                        + " > " + MAX_PARSE_FAILS);
-        assertTrue(counts.get(Kind.MATCH) >= MIN_MATCHES,
-                "byte-identical matches regressed: " + counts.get(Kind.MATCH) + " < " + MIN_MATCHES);
-        // the actual gate
-        assertEquals(0, diffs.size(),
-                "byte divergence on elements legend-lite claims to emit:\n"
-                        + diffs.stream().limit(10)
-                        .map(d -> "  " + d.sourceId() + " :: " + d.element() + "\n      " + d.detail())
-                        .reduce("", (x, y) -> x + y + "\n"));
     }
 
-    private static String report(int sources, List<Verdict> all, Map<Kind, Integer> counts, int compared,
-                                 Map<String, Integer> walls, List<Verdict> diffs) {
+    private static String report(int sources, List<Verdict> all,
+            Map<Kind, Integer> counts, List<Verdict> diffs) {
         StringBuilder b = new StringBuilder();
-        b.append("PARSER EQUIVALENCE — legend-lite vs legend-engine, byte comparison\n")
+        b.append("PARSER EQUIVALENCE — element diagnostic (document gate is the claim)\n")
                 .append("=".repeat(72)).append('\n')
                 .append(String.format("corpus sources        : %d files%n", sources))
                 .append(String.format("verdicts              : %d%n", all.size()))
                 .append(String.format("  MATCH (byte-equal)  : %d%n", counts.get(Kind.MATCH)))
-                .append(String.format("  DIFF  (BUG)         : %d%n", counts.get(Kind.DIFF)))
-                .append(String.format("  WALL  (no rule yet) : %d%n", counts.get(Kind.WALL)))
+                .append(String.format("  DIFF                : %d%n", counts.get(Kind.DIFF)))
                 .append(String.format("  PARSE_FAIL          : %d%n", counts.get(Kind.PARSE_FAIL)))
-                .append(String.format("  REFERENCE_REJECTED  : %d files%n", counts.get(Kind.REFERENCE_REJECTED)))
-                .append(String.format("  LITE_EXTRA          : %d%n", counts.get(Kind.LITE_EXTRA)))
-                .append(String.format("  LITE_MISSED         : %d%n", counts.get(Kind.LITE_MISSED)))
-                .append(String.format("  OUT_OF_SCOPE        : %d (section-parity worklist)%n",
-                        counts.get(Kind.OUT_OF_SCOPE)))
-                .append(String.format("%ncoverage: %d of %d comparable (%.1f%%)%n",
-                        counts.get(Kind.MATCH), compared,
-                        compared == 0 ? 0.0 : 100.0 * counts.get(Kind.MATCH) / compared));
-        b.append("\nWALLS — the ranked worklist\n").append("-".repeat(72)).append('\n');
-        walls.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(20)
-                .forEach(e -> b.append(String.format("  %6d  %s%n", e.getValue(), e.getKey())));
-        if (System.getProperty("legend.corpus.wallFiles") != null) {
-            b.append("\nWALL rows with files\n").append("-".repeat(72)).append('\n');
-            all.stream().filter(v -> v.kind() == Kind.WALL).limit(80)
-                    .forEach(v -> b.append("  ").append(v.sourceId())
-                            .append(" :: ").append(v.detail()).append('\n'));
-        }
-        List<Verdict> missed = all.stream()
-                .filter(v -> v.kind() == Kind.LITE_MISSED).toList();
-        if (!missed.isEmpty()) {
-            b.append("\nLITE_MISSED — reference elements we never compared\n")
-                    .append("-".repeat(72)).append('\n');
-            missed.stream().limit(30).forEach(v ->
-                    b.append("  ").append(v.sourceId()).append(" :: ")
-                            .append(v.element()).append('\n'));
-        }
-        Map<String, Integer> oos = new java.util.TreeMap<>();
-        all.stream().filter(v -> v.kind() == Kind.OUT_OF_SCOPE)
-                .forEach(v -> oos.merge(v.detail(), 1, Integer::sum));
-        if (!oos.isEmpty()) {
-            b.append("\nOUT_OF_SCOPE by section — the parity worklist\n")
-                    .append("-".repeat(72)).append('\n');
-            oos.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue())
-                    .forEach(e -> b.append(String.format("  %6d  %s%n",
-                            e.getValue(), e.getKey())));
-        }
+                .append(String.format("  REFERENCE_REJECTED  : %d files%n",
+                        counts.get(Kind.REFERENCE_REJECTED)));
         if (!diffs.isEmpty()) {
-            b.append("\nDIFFS — real divergence, these are bugs\n").append("-".repeat(72)).append('\n');
-            diffs.stream().limit(20).forEach(d ->
+            b.append("\nDIFF rows — element index + first divergent JSON path\n")
+                    .append("-".repeat(72)).append('\n');
+            diffs.stream().limit(30).forEach(d ->
                     b.append("  ").append(d.sourceId()).append(" :: ").append(d.element())
                             .append("\n      ").append(d.detail()).append('\n'));
         }

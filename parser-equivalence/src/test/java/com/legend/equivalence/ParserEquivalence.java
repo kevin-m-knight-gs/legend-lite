@@ -7,54 +7,48 @@ import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextDa
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * The differential comparator: legend-lite's parser and legend-engine's over the same input,
- * compared on <b>emitted bytes</b>.
+ * The ELEMENT-LEVEL diagnostic of the equivalence harness — POSITIONAL
+ * byte comparison of the oracle's element list against the elements of
+ * legend-lite's production document parser ({@code PmcdParser
+ * .parseSections}, the same code {@code parseDocument} runs).
+ *
+ * <p>DEMOTED from a gate to a diagnostic (HARNESS_SIMPLIFICATION_PLAN
+ * Phase 3): the document byte gate implies element byte equality — the
+ * element universe is a strict subset of the document's, proven
+ * empirically by the Phase-2 joint property (zero sources where the
+ * document passes and elements fail, full corpus). What survives here is
+ * the LOCALISER: on a document failure, the positional rows name the
+ * element index and the first divergent JSON path.
+ *
+ * <p>Positional, not FQN-paired: positional comparison is length- and
+ * order-sensitive, so truncation, duplication and reordering — the
+ * escapes FQN pairing is structurally blind to — read as DIFF rows.
  *
  * <h2>Why bytes and not object graphs</h2>
- * Upstream's {@code CString.multiLine} is excluded from {@code equals()} and present in JSON when
- * true. An object-graph comparator would silently miss it. Every verdict here is
- * {@code String.equals} on serialised JSON, produced by
- * {@code getNewStandardObjectMapperWithPureProtocolExtensionSupports()} — the mapper the HTTP
- * endpoint uses. The repo's other mapper is non-deterministic (no sorting, nulls included); using
- * it would silently measure nothing.
- *
- * <h2>Why per element</h2>
- * legend-lite cannot yet emit every element kind. Comparing whole files would collapse to
- * "unsupported" almost everywhere and tell us nothing. Comparing per element by FQN yields a real
- * verdict for what we do support and a <b>named wall</b> for what we do not — which is what turns
- * the corpus into a ranked worklist instead of a pass/fail bit.
+ * Upstream's {@code CString.multiLine} is excluded from {@code equals()}
+ * and present in JSON when true. An object-graph comparator would
+ * silently miss it. Every verdict is byte equality on JSON produced by
+ * {@code getNewStandardObjectMapperWithPureProtocolExtensionSupports()}
+ * — the mapper the HTTP endpoint uses.
  */
 public final class ParserEquivalence {
 
-    /** What happened to one element. */
+    /** What happened to one element (or, for the *_FAIL/*_REJECTED kinds,
+     *  to the whole source). */
     public enum Kind {
-        /** Byte-identical. */
+        /** Byte-identical at the same position. */
         MATCH,
-        /** Both produced bytes; they differ. The only outcome that is a bug. */
+        /** Both produced bytes; they differ (or one side's list is
+         * shorter). The only outcome that is a bug. */
         DIFF,
-        /** We refused to emit, loudly and by name. Expected while coverage grows. */
-        WALL,
-        /** Our parser could not read it. */
+        /** Our parser could not read the source. */
         PARSE_FAIL,
-        /** The reference parser threw on the WHOLE source — one verdict per
-         * file, so the 25% silently-skipped bucket is counted, not invisible
-         * (implementation audit §3.1). */
-        REFERENCE_REJECTED,
-        /** We produced an element the reference did not — the old, misnamed
-         * "REFERENCE_REJECTED" arm. */
-        LITE_EXTRA,
-        /** The reference produced an element we never compared — the
-         * one-directional hole (implementation audit §3.2). Must be zero. */
-        LITE_MISSED,
-        /** A reference element in a section we do not claim yet — the
-         * closed-world row (grammar-compat §8): named, counted, and the
-         * section-parity worklist. */
-        OUT_OF_SCOPE
+        /** The reference parser threw on the WHOLE source — one verdict
+         * per file, so the skipped bucket is counted, not invisible. */
+        REFERENCE_REJECTED
     }
 
     public record Verdict(Kind kind, String sourceId, String element, String detail) {
@@ -64,17 +58,12 @@ public final class ParserEquivalence {
             ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
 
     /**
-     * Compare one source: the ORACLE's elements against the elements of
-     * legend-lite's PRODUCTION document parser — {@code
-     * PmcdParser.parseSections}, the same code {@code parseDocument} runs.
-     * The harness enumerates nothing itself (HARNESS_SIMPLIFICATION_PLAN
-     * Phase 1: the old ~350-line site scanner ran DIFFERENT lite code than
-     * production, with demonstrated divergence — the measuring instrument
-     * was more permissive than the thing measured).
+     * Compare one source POSITIONALLY: the oracle's i-th element against
+     * lite's i-th element, byte for byte.
      */
     public List<Verdict> compare(Corpus.Source src) {
         List<Verdict> out = new ArrayList<>();
-        Ref ref;
+        List<String> ref;
         try {
             ref = referenceElements(src);
         } catch (Throwable t) {
@@ -82,67 +71,43 @@ public final class ParserEquivalence {
             out.add(new Verdict(Kind.REFERENCE_REJECTED, src.id(), "-", root(t)));
             return out;
         }
-        Map<String, List<String>> referenceBytes = ref.byFqn();
-        List<com.legend.parser.PmcdParser.DocSection> sections;
+        List<String> ours = new ArrayList<>();
         try {
-            sections = com.legend.parser.PmcdParser.parseSections(src.text());
+            for (com.legend.parser.PmcdParser.DocSection sec
+                    : com.legend.parser.PmcdParser.parseSections(src.text())) {
+                for (com.legend.parser.PmcdParser.DocElement el : sec.elements()) {
+                    ours.add(el.json());
+                }
+            }
         } catch (Throwable t) {
             out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "-", root(t)));
             return out;
         }
-        for (com.legend.parser.PmcdParser.DocSection sec : sections) {
-            for (com.legend.parser.PmcdParser.DocElement el : sec.elements()) {
-                String fqn = el.path();
-                String actual = el.json();
-                List<String> queue = referenceBytes.get(fqn);
-                // the engine allows DUPLICATE paths across sections (a Class
-                // and a Mapping both named X) — dequeue the entry of OUR
-                // element's wire _type, falling back to the head so a real
-                // kind mismatch still DIFFs
-                String expected = null;
-                if (queue != null && !queue.isEmpty()) {
-                    int tq = actual.indexOf('"', 10);
-                    String prefix = tq > 0 ? actual.substring(0, tq + 1) : actual;
-                    int pick = 0;
-                    for (int q = 0; q < queue.size(); q++) {
-                        if (queue.get(q).startsWith(prefix)) {
-                            pick = q;
-                            break;
-                        }
-                    }
-                    expected = queue.remove(pick);
-                }
-                if (expected == null) {
-                    out.add(new Verdict(Kind.LITE_EXTRA, src.id(), fqn,
-                            "no reference element"));
-                    continue;
-                }
-                out.add(Comparators.sameBytes(expected, actual)
-                        ? new Verdict(Kind.MATCH, src.id(), fqn, "")
-                        : new Verdict(Kind.DIFF, src.id(), fqn,
-                                firstDivergence(expected, actual)));
-            }
-        }
-        // DRAIN: every reference element we never produced is a named row —
-        // the production parser claims EVERY section, so a leftover is a
-        // real front-door disagreement, not a scope gap.
-        for (Map.Entry<String, List<String>> e : referenceBytes.entrySet()) {
-            for (String leftover : e.getValue()) {
-                out.add(new Verdict(Kind.LITE_MISSED, src.id(), e.getKey(),
-                        "reference element never compared ("
-                                + ref.sectionOf().getOrDefault(e.getKey(), "?")
-                                + ")"));
+        int n = Math.max(ref.size(), ours.size());
+        for (int i = 0; i < n; i++) {
+            if (i >= ref.size()) {
+                out.add(new Verdict(Kind.DIFF, src.id(), "#" + i,
+                        "we emitted an element the reference did not: "
+                                + head(ours.get(i))));
+            } else if (i >= ours.size()) {
+                out.add(new Verdict(Kind.DIFF, src.id(), "#" + i,
+                        "reference element we never emitted: "
+                                + head(ref.get(i))));
+            } else {
+                out.add(Comparators.sameBytes(ref.get(i), ours.get(i))
+                        ? new Verdict(Kind.MATCH, src.id(), "#" + i, "")
+                        : new Verdict(Kind.DIFF, src.id(), "#" + i,
+                                firstDivergence(ref.get(i), ours.get(i))));
             }
         }
         return out;
     }
 
-    private record Ref(Map<String, List<String>> byFqn,
-                       Map<String, String> sectionOf) {
-    }
-
-    private Ref referenceElements(Corpus.Source src) throws Exception {
-        // shared with the whole-document sweep — ONE oracle parse per source
+    /** The oracle's element JSONs in PMCD order, SectionIndex skipped
+     *  (lite appends its SectionIndex at document level, not per
+     *  section). Shared with the whole-document sweep — ONE oracle parse
+     *  per source. */
+    private List<String> referenceElements(Corpus.Source src) throws Exception {
         PureModelContextData pmcd;
         try {
             pmcd = OracleParses.acquire(src);
@@ -151,22 +116,20 @@ public final class ParserEquivalence {
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
-        Map<String, List<String>> byFqn = new LinkedHashMap<>();
-        Map<String, String> sectionOf = new LinkedHashMap<>();
+        List<String> out = new ArrayList<>();
         for (PackageableElement e : pmcd.getElements()) {
             if (e instanceof org.finos.legend.engine.protocol.pure.v1.model
-                    .packageableElement.section.SectionIndex si) {
-                for (var sec : si.sections) {
-                    for (String path : sec.elements) {
-                        sectionOf.put(path, sec.parserName);
-                    }
-                }
+                    .packageableElement.section.SectionIndex) {
                 continue;
             }
-            byFqn.computeIfAbsent(e.getPath(), k -> new ArrayList<>())
-                    .add(mapper.writeValueAsString(e));
+            out.add(mapper.writeValueAsString(e));
         }
-        return new Ref(byFqn, sectionOf);
+        return out;
+    }
+
+    /** The {@code _type}/path head of an element JSON, for one-line rows. */
+    private static String head(String json) {
+        return json.length() > 90 ? json.substring(0, 90) + "…" : json;
     }
 
     /** A diff message that names the exact JSON path, not just "differs". */
@@ -228,14 +191,5 @@ public final class ParserEquivalence {
             r = r.getCause();
         }
         return String.valueOf(r.getMessage()).replaceAll("\\s+", " ").trim();
-    }
-
-    /**
-     * The wall message with its element name stripped, so the report ranks by RULE.
-     * Grouping on the raw message fragments one missing rule across hundreds of element names and
-     * buries the actual worklist.
-     */
-    public static String rule(String detail) {
-        return detail.replaceAll("\\(at [^)]*\\)\\s*", "").replaceAll("\\s+", " ").trim();
     }
 }
