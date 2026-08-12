@@ -108,14 +108,13 @@ public final class ParserEquivalence {
      *  section). Shared with the whole-document sweep — ONE oracle parse
      *  per source. */
     private List<String> referenceElements(Corpus.Source src) throws Exception {
-        PureModelContextData pmcd;
-        try {
-            pmcd = OracleParses.acquire(src);
-        } catch (Exception | Error e) {
-            throw e;
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        // the DIAGNOSTIC path parses the oracle locally — it runs on
+        // demand (a document failure, ZCompositionPin), never in the
+        // sweep's hot loop
+        PureModelContextData pmcd =
+                org.finos.legend.engine.language.pure.grammar.from
+                        .PureGrammarParser.newInstance()
+                        .parseModel(src.text());
         List<String> out = new ArrayList<>();
         for (PackageableElement e : pmcd.getElements()) {
             if (e instanceof org.finos.legend.engine.protocol.pure.v1.model

@@ -95,6 +95,29 @@ rule that is recorded, not absorbed. Three ways to settle it, all explicit human
 3. **Split the chain**: the fast seven on every push, the four heavy parity tests
    pre-push/nightly. Riskier — a gate that runs less often is a gate that catches less.
 
+## Budget decision, 2026-08-12 — the sweep collapse: gate 8 143s -> 50s, chain 5m22s
+
+The user's challenge ("time should have gone DOWN — did the parser regress?")
+forced the full decomposition:
+
+- **Lite's parser did NOT regress**: `parseDocument` covers the ENTIRE corpus in
+  ~0.5s, and an A/B against the pre-flip commit measured the strict flip
+  marginally FASTER (477ms vs 514ms avg).
+- The growth was (a) four tests ADDED by the simplification plan (+~35s,
+  RefusalSymmetryTest dominating) and (b) the `OracleParses` evict-after-2
+  policy silently re-running the whole engine oracle on sweeps 3 and 5
+  (~24s each) once five tests consumed it.
+- The REAL fix was the plan's own end state, previously skipped: ONE sweep
+  (`CorpusSweepTest`, ~39s) replacing six classes and the cache entirely —
+  one oracle parse per source, every claim a column, all assertions
+  collected. Two slack ratchets surfaced immediately and tightened
+  (strict census 258 -> 187, JSON-asymmetry 10 -> 9).
+
+Measured 2026-08-12, full chain GREEN: G1 29s, G2 8s, G4 92s, G5 43s,
+G6 76s, G7 24s, G8 50s — **5m22s total, back under the 5.5m ceiling**.
+Standing rule reaffirmed: time a full chain after every harness-shape
+change; a budget breach is an entry here, never an absorbed drift.
+
 ## The time budget: ~6m40s measured 2026-08-11 — re-pin pending
 
 The 5.5-minute lock (measured 2026-08-08) was already exceeded BEFORE the

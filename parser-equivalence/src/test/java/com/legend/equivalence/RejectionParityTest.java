@@ -54,6 +54,7 @@ class RejectionParityTest {
         int colMatch = 0;
         int colOffByOne = 0;
         int mispairedPins = 0;
+        List<String> staleIds = new ArrayList<>();
         List<String> misses = new ArrayList<>();
         List<String> lineDiverges = new ArrayList<>();
         for (Pin p : pins) {
@@ -67,6 +68,10 @@ class RejectionParityTest {
             try {
                 reference.parseModel(p.input());
                 engineAccepts++;                    // stale pin — current engine accepts
+                // NAMED, not anonymous: a stale pin's input is engine-
+                // accepted, so the BYTE gates own it; the pin itself is a
+                // scrape artifact awaiting re-extraction
+                staleIds.add(p.id());
                 continue;
             } catch (Throwable expected) {
                 if (expected instanceof org.finos.legend.engine.shared.core.operational
@@ -108,7 +113,8 @@ class RejectionParityTest {
         report.append("REJECTION PARITY — inputs the engine parser refuses\n")
                 .append("=".repeat(72)).append('\n')
                 .append(String.format("error pins extracted  : %d%n", pins.size()))
-                .append(String.format("stale (engine accepts): %d%n", engineAccepts))
+                .append(String.format("stale (engine accepts): %d%s%n", engineAccepts,
+                        staleIds.isEmpty() ? "" : " — " + staleIds))
                 .append(String.format("REJECT_MATCH          : %d%n", rejectMatch))
                 .append(String.format("REJECT_MISS (BUG)     : %d%n", misses.size()))
                 .append(String.format("error-line agreement  : %d of %d (vs the engine's LIVE position)%n",

@@ -194,7 +194,7 @@ class OwnCorpusConformanceTest {
                 cls = lenientTierFixture(root, src.text());
             }
             if (cls == null) {
-                cls = LeniencyCatalogTest.classify(root, src.text());
+                cls = CorpusSweepTest.classify(root, src.text());
             }
             String msg = String.valueOf(root.getMessage())
                     .replaceAll("\\s+", " ");

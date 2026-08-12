@@ -1908,6 +1908,16 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             throw error("ModelJoin body must be ONE lambda, got "
                     + body.size());
         }
+        if (!(body.get(0)
+                instanceof com.legend.protocol.spec.LambdaFunction)) {
+            // ENGINE-VERBATIM (ModelJoinAssociationMappingParseTreeWalker):
+            // a bare boolean expression is NOT a legal join condition —
+            // the walker re-parses the body and refuses non-lambdas
+            // (refusal-asymmetry engine-fixture#505)
+            throw error("ModelJoin association mapping requires a lambda"
+                    + " join condition of the form '{src: SrcClass[1],"
+                    + " tgt: TgtClass[1] | <boolean expression>}'");
+        }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PModelJoinAssociationMapping(

@@ -10,7 +10,8 @@ class ZModelRefuseIds {
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
         for (Corpus.Source src : Corpus.all()) {
             try {
-                OracleParses.acquire(src);
+                org.finos.legend.engine.language.pure.grammar.from
+                        .PureGrammarParser.newInstance().parseModel(src.text());
             } catch (Throwable t) {
                 continue;
             }

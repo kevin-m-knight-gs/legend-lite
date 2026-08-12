@@ -59,7 +59,7 @@ class ZFixtureAdjudicationProbe {
                     liteAccepts = false;
                 }
                 String cls = liteAccepts
-                        ? com.legend.equivalence.LeniencyCatalogTest
+                        ? com.legend.equivalence.CorpusSweepTest
                                 .classify(rootOf(t), src)
                         : "both-refuse";
                 verdicts.merge("oracle-refuses:" + (liteAccepts
