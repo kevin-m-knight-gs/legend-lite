@@ -18,10 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE SEAM PROOF: two engine parsers in one JVM — VANILLA (no extensions, the four
- * built-ins) and SPI (legend-lite registered for {@code ###Pure} through the engine's
- * own {@code SectionParser} extension point, which {@code visitSection} consults FIRST).
- * Over every Pure-only corpus file both must produce byte-identical FULL
+ * THE SEAM PROOF: two engine parsers in one JVM — VANILLA (the full production
+ * extension set off the ServiceLoader classpath) and SPI (the same set plus
+ * legend-lite registered for {@code ###Pure} through the engine's own
+ * {@code SectionParser} extension point, which {@code visitSection} consults FIRST).
+ * Over every corpus file both must produce byte-identical FULL
  * PureModelContextData JSON — SectionIndex included, so the bridge's Section building
  * (imports, element paths, spans through the walker offsets) is on the hook too, a
  * surface the element-level harness never compared.
@@ -32,11 +33,27 @@ class SpiSeamProofTest {
     void engineWithLegendLiteSpiMatchesVanillaEngineByteForByte() throws Exception {
         ObjectMapper mapper =
                 ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        // FULL production extension set on BOTH sides (the ServiceLoader
+        // classpath — the same oracle shape every other gate-8 test
+        // trusts), lite's ###Pure section parser added on the SPI side
+        // only. The old extension-LESS baseline was the original
+        // ###Pure-only experiment shape; it survived the pureOnly-gate
+        // deletion out of ServiceLoader caution that only ever applied
+        // to TEST-scoped jars. Loading extensions moved ~2,500 files
+        // from the hand-attributed census into VERIFIED byte
+        // comparison (4,051 -> 6,540 matched, 0 DIFF).
+        List<org.finos.legend.engine.language.pure.grammar.from.extension
+                .PureGrammarParserExtension> prod = new ArrayList<>(
+                org.finos.legend.engine.language.pure.grammar.from.extension
+                        .PureGrammarParserExtensionLoader.extensions());
         PureGrammarParser vanilla = PureGrammarParser.newInstance(
-                PureGrammarParserExtensions.fromExtensions(List.of()));
+                PureGrammarParserExtensions.fromExtensions(prod));
+        List<org.finos.legend.engine.language.pure.grammar.from.extension
+                .PureGrammarParserExtension> withLite = new ArrayList<>();
+        withLite.add(LegendLiteSectionParser.extension());
+        withLite.addAll(prod);
         PureGrammarParser spi = PureGrammarParser.newInstance(
-                PureGrammarParserExtensions.fromExtensions(
-                        List.of(LegendLiteSectionParser.extension())));
+                PureGrammarParserExtensions.fromExtensions(withLite));
 
         int match = 0;
         int bothReject = 0;
@@ -161,8 +178,10 @@ class SpiSeamProofTest {
     /** Bumped deliberately as coverage grows.
      * 4,011 -> 4,051: the pureOnly gate is deleted — mixed-section files flow
      * through the seam (the production drop-in shape); most both-reject under
-     * the extension-less vanilla baseline, +40 parse end-to-end. */
-    private static final int MIN_FILES_MATCHED = 4051;
+     * the extension-less vanilla baseline, +40 parse end-to-end.
+     * 4,051 -> 6,540: the baseline loads the FULL extension set — every
+     * island-carrying file now byte-compares instead of both-rejecting. */
+    private static final int MIN_FILES_MATCHED = 6540;
 
     /** The attributed SPI-ACCEPTS census — files VANILLA rejects that we parse. Every
      *  one is (a) m3-only dialect the engine grammar never supported ('Primitive',
@@ -184,8 +203,12 @@ class SpiSeamProofTest {
      *  engine-fixture#1419 carries Relational embedded data ('Unknown
      *  embedded data type: Relational') — the same category (c); the
      *  production oracle accepts it and lite byte-matches (tier-2
-     *  adjudication 515 MATCH / 0 DIFF). */
-    private static final int MAX_LENIENT_ACCEPTS = 216;
+     *  adjudication 515 MATCH / 0 DIFF).
+     *  216 -> 183 when the baseline loads the FULL extension set
+     *  (2026-08-11): category (c) is GONE — the 33 island rows moved
+     *  into byte comparison; what remains is (a) m3-only dialect and
+     *  (b) engine walker defects, inputs NO engine deployment parses. */
+    private static final int MAX_LENIENT_ACCEPTS = 183;
     // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
     // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
     // incremental fixtures, '>' accessor islands) parse further once the
@@ -208,7 +231,9 @@ class SpiSeamProofTest {
      *  (StrictDialectParityTest): every DIALECT row now refuses on the strict
      *  surface; the remainder is EXTENSION/VERSION-SKEW/ORACLE-DEFECT rows,
      *  which the oracle-jar upgrade re-adjudicates. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 302;
+    // 302 -> 258 with the full-extension baseline: vanilla accepts more,
+    // so fewer files reach the census at all — same ratchet direction.
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 258;
     // 742 -> 743 (2026-08-09, Measure element wired): m2m/tests/legend/
     // unitMeasure.pure — an engine PLATFORM source legend-pure compiles in
     // production — now parses to its Measure instead of dying there; the
@@ -221,8 +246,11 @@ class SpiSeamProofTest {
     /** Files where the delta is the engine's OWN serialize-only field (proven: the
      *  engine's readTree -> protocol -> serialize round-trip of ITS OWN output equals
      *  our bytes — e.g. ColSpec classInstance 'multiplicity', dropped by the engine's
-     *  deserializer). Invisible to every JSON-first consumer. */
-    private static final int MAX_ENGINE_JSON_ASYMMETRY = 8;
+     *  deserializer). Invisible to every JSON-first consumer.
+     *  8 -> 10 with the full-extension baseline: two newly
+     *  vanilla-accepted sources (TestDomainGrammarTo#3,
+     *  engine-fixture#42) whose deltas pass the same membership proof. */
+    private static final int MAX_ENGINE_JSON_ASYMMETRY = 10;
 
     private static String trim(String msg) {
         String m = String.valueOf(msg).replaceAll("\\s+", " ");
