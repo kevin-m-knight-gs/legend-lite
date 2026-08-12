@@ -122,7 +122,7 @@ final class ElementParserTest {
     }
 
     private static ClassDefinition parseOneClass(String source) {
-        ParsedModel m = ElementParser.parse(source, com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(source);
         assertEquals(1, m.elements().size(), () -> "expected exactly one element, got " + m.elements());
         PackageableElement el = m.elements().get(0);
         return assertInstanceOf(ClassDefinition.class, el);
@@ -134,14 +134,14 @@ final class ElementParserTest {
 
     @Test
     void emptySourceProducesEmptyModel() {
-        ParsedModel m = ElementParser.parse("", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model("");
         assertEquals(List.of(), m.elements(), "empty source: no elements");
         assertEquals(ImportScope.empty(), m.imports(), "empty source: no imports");
     }
 
     @Test
     void whitespaceAndCommentsOnlyProduceEmptyModel() {
-        ParsedModel m = ElementParser.parse("  // hi\n /* x */\n\n", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model("  // hi\n /* x */\n\n");
         assertEquals(List.of(), m.elements());
         assertEquals(ImportScope.empty(), m.imports());
     }
@@ -158,7 +158,7 @@ final class ElementParserTest {
 
     @Test
     void wildcardImport() {
-        ParsedModel m = ElementParser.parse("import simple::model::*;", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model("import simple::model::*;");
         assertEquals(new ImportScope(List.of("simple::model")),
                 m.imports());
     }
@@ -169,14 +169,14 @@ final class ElementParserTest {
         // STAR`, pure M3 identical) — the specific-import arm was a
         // lite-only invention (invention census batch 2)
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse("import simple::model::Firm;", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model("import simple::model::Firm;"));
         assertTrue(String.valueOf(ex.getMessage()).contains("::*"));
     }
 
     @Test
     void multipleImportsPreserveOrderAndDeduplicate() {
-        ParsedModel m = ElementParser.parse(
-                "import a::b::*; import a::b::*; import c::d::*; import e::f::*;", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "import a::b::*; import a::b::*; import c::d::*; import e::f::*;");
         assertEquals(
                 new ImportScope(
                         List.of("a::b", "c::d", "e::f")),       // dedup, preserve order
@@ -320,8 +320,8 @@ final class ElementParserTest {
     void genericTypeInAssociationEnd() {
         // Association ends also parseType -- pin the generic-support
         // carries through.
-        ParsedModel m = ElementParser.parse(
-                "Association my::A { left: List<B>[*]; right: A[1]; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "Association my::A { left: List<B>[*]; right: A[1]; }");
         AssociationDefinition a = (AssociationDefinition) m.elements().get(0);
         assertEquals(tg("List", nr("B")), a.property1().targetClass());
     }
@@ -330,8 +330,8 @@ final class ElementParserTest {
     void genericTypeInFunctionParameterAndReturn() {
         // Function parameters and the return type both go through
         // parseType. Both must accept generics.
-        ParsedModel m = ElementParser.parse(
-                "function my::f(x: List<String>[*]): Pair<String, Integer>[1] { $x }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "function my::f(x: List<String>[*]): Pair<String, Integer>[1] { $x }");
         FunctionDefinition f = (FunctionDefinition) m.elements().get(0);
         assertEquals(tg("List", nr("String")), f.parameters().get(0).type());
         assertEquals(tg("Pair", nr("String"), nr("Integer")), f.returnType());
@@ -441,7 +441,7 @@ final class ElementParserTest {
                   ceo: Person[0..1];
                 }
                 """;
-        ParsedModel m = ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(src);
 
         ImportScope expectedImports = new ImportScope(
                 List.of("my::model", "my::store"));
@@ -488,7 +488,7 @@ final class ElementParserTest {
 
     @Test
     void importScopeMapsRejectMutation() {
-        ParsedModel m = ElementParser.parse("import a::b::*; import c::d::*;", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model("import a::b::*; import c::d::*;");
         assertThrows(UnsupportedOperationException.class,
                 () -> m.imports().wildcards().add("evil::pkg"));
     }
@@ -504,7 +504,7 @@ final class ElementParserTest {
         // ('Measure' was this test's example until 2026-08-09, when it
         // became a supported element — see measureElementParses.)
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Persistence my::P ( )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model("Persistence my::P ( )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
         assertTrue(e.getMessage().contains("Persistence"),
@@ -513,8 +513,8 @@ final class ElementParserTest {
 
     @Test
     void measureElementParses() {
-        ParsedModel m = ElementParser.parse(
-                "Measure my::Mass { *Gram: x -> $x; Kilogram: x -> $x * 1000; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "Measure my::Mass { *Gram: x -> $x; Kilogram: x -> $x * 1000; }");
         var me = assertInstanceOf(com.legend.model.MeasureDefinition.class,
                 m.elements().get(0));
         assertEquals("my::Mass", me.qualifiedName());
@@ -528,7 +528,7 @@ final class ElementParserTest {
     void missingSemicolonAfterPropertyFails() {
         // 'name: String[1]' followed immediately by '}' — expected SEMI_COLON, got BRACE_CLOSE.
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Class P { name: String[1] }", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model("Class P { name: String[1] }"));
         assertTrue(String.valueOf(e.getMessage()).contains("SEMI_COLON"),
                 () -> "expected SEMI_COLON in message, got: " + e.getMessage());
     }
@@ -536,7 +536,7 @@ final class ElementParserTest {
     @Test
     void missingClosingBraceFails() {
         assertThrows(ParseException.class,
-                () -> ElementParser.parse("Class P { name: String[1];", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model("Class P { name: String[1];"));
     }
 
     @Test
@@ -548,7 +548,7 @@ final class ElementParserTest {
         //   4: }
         // Error fires at 'String' (col 7 in 0-indexed) where ':' was expected.
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Class P\n{\n  name String[1];\n}", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model("Class P\n{\n  name String[1];\n}"));
         assertEquals(3, e.line(), "line should point to the offending token");
         assertTrue(e.column() >= 6 && e.column() <= 8,
                 () -> "column should be near start of 'String' (~7), got " + e.column());
@@ -564,8 +564,8 @@ final class ElementParserTest {
     void parseTokenStreamOverloadAndStringOverloadProduceEqualResults() {
         String src = "import a::b::*; Class Foo { x: Integer[1]; y: String[0..*]; }";
         var stream = com.legend.lexer.Lexer.tokenize(src);
-        ParsedModel viaStream = ElementParser.parse(stream, com.legend.parser.Dialect.LEGEND_PLATFORM);
-        ParsedModel viaString = ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel viaStream = com.legend.testing.Platform.model(stream);
+        ParsedModel viaString = com.legend.testing.Platform.model(src);
         assertEquals(viaString, viaStream,
                 "TokenStream overload must return a ParsedModel record-equal to the String overload");
     }
@@ -722,8 +722,8 @@ final class ElementParserTest {
 
     @Test
     void associationBasicTwoEnds() {
-        ParsedModel m = ElementParser.parse(
-                "Association my::ns::Person_Firm { firm: Firm[1]; employees: Person[*]; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "Association my::ns::Person_Firm { firm: Firm[1]; employees: Person[*]; }");
         assertEquals(1, m.elements().size());
         AssociationDefinition a = assertInstanceOf(AssociationDefinition.class,
                 m.elements().get(0));
@@ -754,7 +754,7 @@ final class ElementParserTest {
 
     @Test
     void enumWithSingleValue() {
-        ParsedModel m = ElementParser.parse("Enum my::S { ONLY }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model("Enum my::S { ONLY }");
         EnumDefinition e = assertInstanceOf(EnumDefinition.class,
                 m.elements().get(0));
         assertEquals(new EnumDefinition("my::S", List.of("ONLY")), e);
@@ -762,8 +762,8 @@ final class ElementParserTest {
 
     @Test
     void enumWithMultipleValuesPreservesOrder() {
-        ParsedModel m = ElementParser.parse(
-                "Enum my::Status { ACTIVE, INACTIVE, PENDING }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "Enum my::Status { ACTIVE, INACTIVE, PENDING }");
         EnumDefinition e = assertInstanceOf(EnumDefinition.class,
                 m.elements().get(0));
         assertEquals(List.of("ACTIVE", "INACTIVE", "PENDING"), e.values());
@@ -784,12 +784,12 @@ final class ElementParserTest {
 
     @Test
     void profileWithStereotypesAndTags() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 Profile doc::Documentation {
                   stereotypes: [deprecated, legacy, experimental];
                   tags: [author, since, description];
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ProfileDefinition p = assertInstanceOf(ProfileDefinition.class,
                 m.elements().get(0));
         assertEquals(new ProfileDefinition(
@@ -801,8 +801,8 @@ final class ElementParserTest {
 
     @Test
     void profileStereotypesOnly() {
-        ParsedModel m = ElementParser.parse(
-                "Profile my::P { stereotypes: [a, b]; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "Profile my::P { stereotypes: [a, b]; }");
         ProfileDefinition p = assertInstanceOf(ProfileDefinition.class,
                 m.elements().get(0));
         assertEquals(List.of("a", "b"), p.stereotypes());
@@ -811,7 +811,7 @@ final class ElementParserTest {
 
     @Test
     void profileEmptyBody() {
-        ParsedModel m = ElementParser.parse("Profile my::P { }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model("Profile my::P { }");
         ProfileDefinition p = assertInstanceOf(ProfileDefinition.class,
                 m.elements().get(0));
         assertEquals(new ProfileDefinition("my::P", List.of(), List.of()), p);
@@ -823,12 +823,12 @@ final class ElementParserTest {
 
     @Test
     void mixedElementKindsAllAppearAsPackageableElements() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 Class my::Person { name: String[1]; }
                 Association my::P_F { person: my::Person[1]; firms: my::Firm[*]; }
                 Enum my::Status { ACTIVE, INACTIVE }
                 Profile my::Doc { stereotypes: [draft]; tags: [author]; }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         assertEquals(4, m.elements().size());
         assertInstanceOf(ClassDefinition.class,       m.elements().get(0));
         assertInstanceOf(AssociationDefinition.class, m.elements().get(1));
@@ -842,8 +842,8 @@ final class ElementParserTest {
 
     @Test
     void functionZeroArgsReturnSimpleType() {
-        ParsedModel m = ElementParser.parse(
-                "function my::pkg::greet(): String[1] { 'hello' }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "function my::pkg::greet(): String[1] { 'hello' }");
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals("my::pkg::greet", f.qualifiedName());
         assertEquals(List.of(), f.parameters());
@@ -857,8 +857,8 @@ final class ElementParserTest {
 
     @Test
     void functionWithMultipleParametersAndOptionalMultiplicity() {
-        ParsedModel m = ElementParser.parse(
-                "function my::add(a: Integer[1], b: Integer[0..1]): Integer[1] { $a + $b }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "function my::add(a: Integer[1], b: Integer[0..1]): Integer[1] { $a + $b }");
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals(
                 List.of(
@@ -880,8 +880,8 @@ final class ElementParserTest {
         // scan must locate the outer '}' correctly so SpecParser sees the
         // full body. Two statements: a let-binding (which contains the
         // nested '{x | ...}' lambda) and an arrow-eval.
-        ParsedModel m = ElementParser.parse(
-                "function my::f(): Integer[1] { let inc = {x | $x + 1}; $inc->eval(1); }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "function my::f(): Integer[1] { let inc = {x | $x + 1}; $inc->eval(1); }");
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class, m.elements().get(0));
         assertEquals(2, f.body().size(),
                 () -> "two-statement body should parse to two ValueSpecs, got: " + f.body());
@@ -901,7 +901,7 @@ final class ElementParserTest {
     @Test
     void functionUpperBoundStarBecomesConcreteUnbounded() {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse("function my::all(): Person[*] { Person.all() }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                com.legend.testing.Platform.model("function my::all(): Person[*] { Person.all() }")
                         .elements().get(0));
         assertEquals(Multiplicity.zeroMany(), f.returnMultiplicity(),
                 "[*] must parse to Concrete(0, null), not a parameter");
@@ -911,8 +911,8 @@ final class ElementParserTest {
     @Test
     void functionWithGenericTypeParameters() {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
-                        "function my::id<T>(x: T[1]): T[1] { $x }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                com.legend.testing.Platform.model(
+                        "function my::id<T>(x: T[1]): T[1] { $x }")
                         .elements().get(0));
         assertEquals(List.of("T"), f.typeParameters());
         assertEquals(List.of(), f.multiplicityParameters());
@@ -923,8 +923,8 @@ final class ElementParserTest {
     @Test
     void functionWithTypeAndMultiplicityParameters() {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
-                        "function my::pick<T,V|m,n>(a: T[m], b: V[n]): T[m] { $a }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                com.legend.testing.Platform.model(
+                        "function my::pick<T,V|m,n>(a: T[m], b: V[n]): T[m] { $a }")
                         .elements().get(0));
         assertEquals(List.of("T", "V"), f.typeParameters());
         assertEquals(List.of("m", "n"), f.multiplicityParameters());
@@ -933,8 +933,8 @@ final class ElementParserTest {
     @Test
     void functionWithMultiplicityParametersOnly() {
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
-                        "function my::take<|m>(xs: Any[m]): Any[m] { $xs }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                com.legend.testing.Platform.model(
+                        "function my::take<|m>(xs: Any[m]): Any[m] { $xs }")
                         .elements().get(0));
         assertEquals(List.of(), f.typeParameters());
         assertEquals(List.of("m"), f.multiplicityParameters());
@@ -946,10 +946,10 @@ final class ElementParserTest {
         // constraint <X\u2286T> inside a parameter's generic must parse,
         // captured verbatim in the type text.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::pickCols<X,T>(rel: Relation<T>[1], "
                                 + "info: SortInfo<X\u2286T>[*]): Relation<T>[1] "
-                                + "{ $rel }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "{ $rel }")
                         .elements().get(0));
         assertEquals(List.of("X", "T"), f.typeParameters());
         assertEquals(tg("Relation", nr("T")), f.parameters().get(0).type());
@@ -963,9 +963,9 @@ final class ElementParserTest {
     void userFunctionWithSchemaAlgebraInReturnType() {
         // Schema add (T+Z) in return type position.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::ext<T,Z>(r: Relation<T>[1]): Relation<T+Z>[1] "
-                                + "{ $r }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "{ $r }")
                         .elements().get(0));
         assertEquals(tg("Relation", sa(nr("T"), Op.UNION, nr("Z"))),
                 f.returnType());
@@ -976,9 +976,9 @@ final class ElementParserTest {
     void userFunctionWithSchemaDropAddInReturnType() {
         // Schema drop-then-add (T-Z+V) in return type position.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::ren<T,Z,V>(r: Relation<T>[1]): Relation<T-Z+V>[1] "
-                                + "{ $r }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "{ $r }")
                         .elements().get(0));
         assertEquals(
                 tg("Relation",
@@ -991,10 +991,10 @@ final class ElementParserTest {
         // The hairiest form from Pure stdlib: ColSpec<Z=(?:K)\u2286T> means
         // 'rename Z to K, where K is a subset of T'. Must parse verbatim.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::ren2<T,Z,K>(r: Relation<T>[1], "
                                 + "spec: ColSpec<Z=(?:K)\u2286T>[1]): Relation<T>[1] "
-                                + "{ $r }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "{ $r }")
                         .elements().get(0));
         // Z=(?:K)⊆T parses to SUBSET wrapping EQUAL; wildcard column (?:K)
         // becomes a RelationType with one Column named "?".
@@ -1010,10 +1010,10 @@ final class ElementParserTest {
         // Function type with three input arrows (matches extend-with-window
         // shape). Captured as raw text by the signature parser.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::win<T,R>(r: Relation<T>[1], "
                                 + "f: FuncColSpec<{Relation<T>[1],_Window<T>[1],T[1]->Any[0..1]},R>[1]"
-                                + "): Relation<T+R>[1] { $r }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "): Relation<T+R>[1] { $r }")
                         .elements().get(0));
         TypeExpression innerFn = new FunctionType(
                 List.of(
@@ -1032,9 +1032,9 @@ final class ElementParserTest {
         // _Window<T> and _Traversal exist as user-visible types; their
         // leading underscore must not trip the identifier rule.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::w<T>(w: _Window<T>[1], t: _Traversal[1]): T[1] "
-                                + "{ $w->cast(@T) }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "{ $w->cast(@T) }")
                         .elements().get(0));
         assertEquals(tg("_Window", nr("T")), f.parameters().get(0).type());
         assertEquals(nr("_Traversal"), f.parameters().get(1).type());
@@ -1047,8 +1047,8 @@ final class ElementParserTest {
     @Test
     void nativeFunctionSimple() {
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
-                        "native function meta::pure::functions::math::abs(x: Number[1]): Number[1];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                com.legend.testing.Platform.model(
+                        "native function meta::pure::functions::math::abs(x: Number[1]): Number[1];")
                         .elements().get(0));
         assertEquals("meta::pure::functions::math::abs", f.qualifiedName());
         assertEquals(List.of(), f.typeParameters());
@@ -1064,9 +1064,9 @@ final class ElementParserTest {
     @Test
     void nativeFunctionWithStereotypeAndGenerics() {
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function <<PCT.function>> meta::pure::functions::lang::cast<T|m>"
-                                + "(source: Any[m], object: T[1]): T[m];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "(source: Any[m], object: T[1]): T[m];")
                         .elements().get(0));
         assertEquals("meta::pure::functions::lang::cast", f.qualifiedName());
         assertEquals(List.of("T"), f.typeParameters());
@@ -1079,9 +1079,9 @@ final class ElementParserTest {
     @Test
     void nativeFunctionWithFunctionTypeParameter() {
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function meta::pure::functions::collection::map<T,V>"
-                                + "(value: T[*], func: Function<{T[1]->V[*]}>[1]): V[*];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "(value: T[*], func: Function<{T[1]->V[*]}>[1]): V[*];")
                         .elements().get(0));
         assertEquals(List.of("T", "V"), f.typeParameters());
         // Function type captured as raw text (structural parse deferred to the model layer).
@@ -1103,9 +1103,9 @@ final class ElementParserTest {
     void nativeFunctionWithRelationAndSubsetConstraint() {
         // sort<X,T>(rel:Relation<T>[1], sortInfo:SortInfo<X⊆T>[*]):Relation<T>[1]
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function meta::pure::functions::relation::sort<X,T>"
-                                + "(rel: Relation<T>[1], sortInfo: SortInfo<X\u2286T>[*]): Relation<T>[1];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "(rel: Relation<T>[1], sortInfo: SortInfo<X\u2286T>[*]): Relation<T>[1];")
                         .elements().get(0));
         assertEquals(List.of("X", "T"), f.typeParameters());
         assertEquals(tg("Relation", nr("T")), f.parameters().get(0).type());
@@ -1119,11 +1119,11 @@ final class ElementParserTest {
     void nativeFunctionWithSchemaAlgebraReturnType() {
         // extend<T,K,V,R>(r:Relation<T>[1], agg:AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):Relation<T+R>[1]
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function meta::pure::functions::relation::extend<T,K,V,R>"
                                 + "(r: Relation<T>[1], "
                                 + "agg: AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]"
-                                + "): Relation<T+R>[1];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "): Relation<T+R>[1];")
                         .elements().get(0));
         assertEquals(List.of("T", "K", "V", "R"), f.typeParameters());
         assertEquals(tg("Relation", sa(nr("T"), Op.UNION, nr("R"))),
@@ -1134,12 +1134,12 @@ final class ElementParserTest {
     void nativeFunctionWithFullSchemaAlgebraRename() {
         // rename<T,Z,K,V>(r:Relation<T>[1], old:ColSpec<Z=(?:K)⊆T>[1], new:ColSpec<V=(?:K)>[1]):Relation<T-Z+V>[1]
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function meta::pure::functions::relation::rename<T,Z,K,V>"
                                 + "(r: Relation<T>[1], "
                                 + "old: ColSpec<Z=(?:K)\u2286T>[1], "
                                 + "new: ColSpec<V=(?:K)>[1]"
-                                + "): Relation<T-Z+V>[1];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "): Relation<T-Z+V>[1];")
                         .elements().get(0));
         assertEquals(List.of("T", "Z", "K", "V"), f.typeParameters());
         // All four algebra operators (=, ⊆, +, -) survive as structured
@@ -1162,11 +1162,11 @@ final class ElementParserTest {
         // Mimics user-level signatures like meta::pure::functions::relation::filter<T>
         //   (rel:Relation<(age:Integer)⊆T>[1], f:Function<{T[1]->Boolean[1]}>[1]):Relation<T>[1]
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function my::filterAdults<T>"
                                 + "(rel: Relation<(age:Integer)\u2286T>[1], "
                                 + "f: Function<{T[1]->Boolean[1]}>[1]"
-                                + "): Relation<T>[1];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "): Relation<T>[1];")
                         .elements().get(0));
         assertEquals(List.of("T"), f.typeParameters());
         // (age:Integer)⊆T parses as SchemaAlgebra(RelationType([age:Integer[1]]), SUBSET, T).
@@ -1180,13 +1180,13 @@ final class ElementParserTest {
     @Test
     void nativeFunctionWithMultipleStereotypesAndTaggedValues() {
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function "
                                 + "<<PCT.function, functionType.SideEffectFunction>> "
                                 + "{ doc.doc = 'writes a relation' } "
                                 + "meta::pure::functions::relation::write<T>"
                                 + "(rel: Relation<T>[1], "
-                                + "acc: RelationElementAccessor<T>[1]): Integer[1];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "acc: RelationElementAccessor<T>[1]): Integer[1];")
                         .elements().get(0));
         assertEquals(2, f.stereotypes().size());
         assertEquals(1, f.taggedValues().size());
@@ -1196,8 +1196,8 @@ final class ElementParserTest {
     @Test
     void nativeFunctionMissingSemicolonFails() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse(
-                        "native function my::oops(x: Integer[1]): Integer[1]", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model(
+                        "native function my::oops(x: Integer[1]): Integer[1]"));
         assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("semi")
                         || ex.getMessage().contains(";")
                         || ex.getMessage().toLowerCase().contains("expected"),
@@ -1206,9 +1206,9 @@ final class ElementParserTest {
 
     @Test
     void nativeAndConcreteFunctionsMixInSameModel() {
-        ParsedModel m = ElementParser.parse(
+        ParsedModel m = com.legend.testing.Platform.model(
                 "native function my::n(x: Integer[1]): Integer[1];\n"
-                        + "function my::u<T>(x: T[1]): T[1] { $x }\n", com.legend.parser.Dialect.LEGEND_PLATFORM);
+                        + "function my::u<T>(x: T[1]): T[1] { $x }\n");
         assertEquals(2, m.elements().size());
         assertInstanceOf(NativeFunctionDefinition.class, m.elements().get(0));
         FunctionDefinition user = assertInstanceOf(FunctionDefinition.class, m.elements().get(1));
@@ -1220,8 +1220,8 @@ final class ElementParserTest {
         // <|m> declares 'm'; Any[m] references it. The parser must store
         // it as Multiplicity.Parameter, not silently coerce to [*].
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
-                        "function my::take<|m>(xs: Any[m]): Any[m] { $xs }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                com.legend.testing.Platform.model(
+                        "function my::take<|m>(xs: Any[m]): Any[m] { $xs }")
                         .elements().get(0));
         Multiplicity paramMult = f.parameters().get(0).multiplicity();
         Multiplicity retMult = f.returnMultiplicity();
@@ -1236,9 +1236,9 @@ final class ElementParserTest {
         // The motivating case: native function signatures use multiplicity
         // parameters to express "preserve cardinality from input to output".
         NativeFunctionDefinition f = assertInstanceOf(NativeFunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "native function meta::pure::functions::collection::cast<T|m>"
-                                + "(source: Any[m], object: T[1]): T[m];", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "(source: Any[m], object: T[1]): T[m];")
                         .elements().get(0));
         assertInstanceOf(Multiplicity.Parameter.class, f.parameters().get(0).multiplicity());
         assertInstanceOf(Multiplicity.Parameter.class, f.returnMultiplicity());
@@ -1251,14 +1251,14 @@ final class ElementParserTest {
     void concreteMultiplicityShapesRoundTrip() {
         // Exercise each concrete shape end-to-end.
         FunctionDefinition f = assertInstanceOf(FunctionDefinition.class,
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "function my::shapes("
                                 + "one: String[1], "
                                 + "opt: String[0..1], "
                                 + "many: String[*], "
                                 + "oneMany: String[1..*], "
                                 + "range: String[2..5]"
-                                + "): String[1] { 'x' }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                                + "): String[1] { 'x' }")
                         .elements().get(0));
         assertEquals(Multiplicity.exactly(1), f.parameters().get(0).multiplicity());
         assertEquals(Multiplicity.range(0, 1), f.parameters().get(1).multiplicity());
@@ -1271,9 +1271,9 @@ final class ElementParserTest {
     void nativeFunctionImplementsSealedFunctionMarker() {
         // The sealed Function marker lets downstream consumers handle both
         // variants uniformly without instanceof per-record.
-        ParsedModel m = ElementParser.parse(
+        ParsedModel m = com.legend.testing.Platform.model(
                 "native function my::n(x: Integer[1]): Integer[1];\n"
-                        + "function my::u(x: Integer[1]): Integer[1] { $x }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+                        + "function my::u(x: Integer[1]): Integer[1] { $x }");
         com.legend.model.Function n =
                 assertInstanceOf(com.legend.model.Function.class, m.elements().get(0));
         com.legend.model.Function u =
@@ -1290,7 +1290,7 @@ final class ElementParserTest {
 
     @Test
     void connectionMinimalDuckDbTestAuth() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 ###Connection
                 RelationalDatabaseConnection store::C
                 {
@@ -1299,7 +1299,7 @@ final class ElementParserTest {
                   specification: DuckDB {};
                   auth: Test;
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ConnectionDefinition c = assertInstanceOf(ConnectionDefinition.class,
                 m.elements().get(0));
         assertEquals(
@@ -1313,7 +1313,7 @@ final class ElementParserTest {
 
     @Test
     void connectionStaticDatasourceWithUsernamePassword() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 ###Connection
                 RelationalDatabaseConnection store::Prod
                 {
@@ -1322,7 +1322,7 @@ final class ElementParserTest {
                   specification: Static { host: 'db.example.com'; port: 5432; name: 'prod'; };
                   auth: UserNamePassword { userNameVaultReference: 'vault::svc_user'; passwordVaultReference: 'vault::prod_pw'; };
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ConnectionDefinition c = (ConnectionDefinition) m.elements().get(0);
         assertEquals(ConnectionDefinition.DatabaseType.Postgres, c.databaseType());
         assertEquals(new ConnectionSpecification.StaticDatasource("db.example.com", 5432, "prod"),
@@ -1334,7 +1334,7 @@ final class ElementParserTest {
 
     @Test
     void connectionLocalFileSpec() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 ###Connection
                 RelationalDatabaseConnection store::F
                 {
@@ -1343,14 +1343,14 @@ final class ElementParserTest {
                   specification: DuckDB { path: '/tmp/db.duckdb'; };
                   auth: Test;
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ConnectionDefinition c = (ConnectionDefinition) m.elements().get(0);
         assertEquals(new ConnectionSpecification.LocalFile("/tmp/db.duckdb"), c.specification());
     }
 
     @Test
     void connectionRejectsUnknownDatabaseType() {
-        ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse("""
+        ParseException ex = assertThrows(ParseException.class, () -> com.legend.testing.Platform.model("""
                 ###Connection
                 RelationalDatabaseConnection store::X
                 {
@@ -1359,7 +1359,7 @@ final class ElementParserTest {
                   specification: DuckDB {};
                   auth: Test;
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM));
+                """));
         assertTrue(String.valueOf(ex.getMessage()).contains("MariaDB"),
                 () -> "should name the unknown type, got: " + ex.getMessage());
     }
@@ -1367,7 +1367,7 @@ final class ElementParserTest {
     @Test
     void connectionRejectsUnknownTopLevelKey() {
         // Strict-mode divergence from engine (D-2).
-        ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse("""
+        ParseException ex = assertThrows(ParseException.class, () -> com.legend.testing.Platform.model("""
                 ###Connection
                 RelationalDatabaseConnection store::X
                 {
@@ -1377,7 +1377,7 @@ final class ElementParserTest {
                   auth: Test;
                   futureKey: 'value';
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM));
+                """));
         assertTrue(String.valueOf(ex.getMessage()).contains("futureKey")
                         && ex.getMessage().toLowerCase().contains("unknown"),
                 () -> "should name the offending key, got: " + ex.getMessage());
@@ -1389,7 +1389,7 @@ final class ElementParserTest {
 
     @Test
     void runtimeMappingsAndConnectionBindings() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 ###Runtime
                 Runtime my::R
                 {
@@ -1400,7 +1400,7 @@ final class ElementParserTest {
                     store::DbB: [ id: store::ConnB ]
                   ];
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         RuntimeDefinition r = assertInstanceOf(RuntimeDefinition.class, m.elements().get(0));
         assertEquals(List.of("my::M1", "my::M2"), r.mappings());
         assertEquals(
@@ -1412,10 +1412,10 @@ final class ElementParserTest {
 
     @Test
     void runtimeEmbeddedJsonModelConnection() {
-        ParsedModel m = ElementParser.parse(
+        ParsedModel m = com.legend.testing.Platform.model(
                 "\n###Runtime\nRuntime my::R { mappings: [my::M]; connections: ["
                 + "ModelStore: [ json: #{ JsonModelConnection { class: model::Raw;"
-                + " url: 'data:application/json,[]'; } }# ] ]; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+                + " url: 'data:application/json,[]'; } }# ] ]; }");
         RuntimeDefinition r = (RuntimeDefinition) m.elements().get(0);
         assertEquals(1, r.jsonConnections().size());
         assertEquals(new JsonModelConnection("model::Raw", "data:application/json,[]"),
@@ -1424,8 +1424,8 @@ final class ElementParserTest {
 
     @Test
     void runtimeRejectsUnknownTopLevelKey() {
-        ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse(
-                "Runtime my::R { mappings: [my::M]; futureKey: foo; }", com.legend.parser.Dialect.LEGEND_PLATFORM));
+        ParseException ex = assertThrows(ParseException.class, () -> com.legend.testing.Platform.model(
+                "Runtime my::R { mappings: [my::M]; futureKey: foo; }"));
         assertTrue(String.valueOf(ex.getMessage()).contains("futureKey"));
     }
 
@@ -1434,9 +1434,9 @@ final class ElementParserTest {
         // The old twin SKIPPED the body (accepting garbage); the protocol
         // grammar parses it for real — mappings kept, the storeless
         // connection pointer binds nothing.
-        ParsedModel m = ElementParser.parse(
+        ParsedModel m = com.legend.testing.Platform.model(
                 "SingleConnectionRuntime my::SCR { mappings: [my::M];"
-                        + " connection: my::C; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+                        + " connection: my::C; }");
         RuntimeDefinition r = (RuntimeDefinition) m.elements().get(0);
         assertEquals("my::SCR", r.qualifiedName());
         assertEquals(List.of("my::M"), r.mappings());
@@ -1447,8 +1447,8 @@ final class ElementParserTest {
     void singleConnectionRuntimeRejectsUnknownKey() {
         // Engine's grammar refuses unknown keys; the twin's body-skip that
         // accepted garbage here died with the Runtime migration.
-        assertThrows(ParseException.class, () -> ElementParser.parse(
-                "SingleConnectionRuntime my::SCR { whatever: foo; }", com.legend.parser.Dialect.LEGEND_PLATFORM));
+        assertThrows(ParseException.class, () -> com.legend.testing.Platform.model(
+                "SingleConnectionRuntime my::SCR { whatever: foo; }"));
     }
 
     // ===============================================================
@@ -1457,7 +1457,7 @@ final class ElementParserTest {
 
     @Test
     void serviceMinimalWithExecutionBlock() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 ###Service
                 Service my::api::GetPerson
                 {
@@ -1470,7 +1470,7 @@ final class ElementParserTest {
                     runtime: my::PersonRuntime;
                   }
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ServiceDefinition s = assertInstanceOf(ServiceDefinition.class, m.elements().get(0));
         assertEquals("my::api::GetPerson", s.qualifiedName());
         assertEquals("/api/person/{id}", s.pattern());
@@ -1492,7 +1492,7 @@ final class ElementParserTest {
         // elements); the model carries a presence marker. The old
         // raw-capture pin used a synthetic shape the real grammar (and
         // the engine) never accepted.
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 ###Service
                 Service my::S
                 {
@@ -1526,7 +1526,7 @@ final class ElementParserTest {
                     }
                   ]
                 }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ServiceDefinition s = (ServiceDefinition) m.elements().get(0);
         assertNotNull(s.testSuitesSource(),
                 "testSuites presence must reach the model");
@@ -1538,16 +1538,16 @@ final class ElementParserTest {
         // default (pattern -> "/") was a lite-only invention, conformed
         // away in the own-corpus decision review
         ParseException ex = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
-                        "\n###Service\nService my::S { execution: Single { query: |1; mapping: my::M; runtime: my::R; } }", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.model(
+                        "\n###Service\nService my::S { execution: Single { query: |1; mapping: my::M; runtime: my::R; } }"));
         assertTrue(String.valueOf(ex.getMessage())
                 .contains("Field 'pattern' is required"));
     }
 
     @Test
     void serviceRejectsUnknownTopLevelKey() {
-        ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse(
-                "Service my::S { pattern: '/x'; futureKey: 'value'; }", com.legend.parser.Dialect.LEGEND_PLATFORM));
+        ParseException ex = assertThrows(ParseException.class, () -> com.legend.testing.Platform.model(
+                "Service my::S { pattern: '/x'; futureKey: 'value'; }"));
         assertTrue(String.valueOf(ex.getMessage()).contains("futureKey"));
     }
 
@@ -1561,7 +1561,7 @@ final class ElementParserTest {
 
     @Test
     void databaseSingleTableColumns() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model("""
                 ###Relational
                 Database store::Db
                 (
@@ -1572,7 +1572,7 @@ final class ElementParserTest {
                     SCORE DECIMAL(10,2)
                   )
                 )
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                """).elements().get(0);
         assertEquals("store::Db", db.qualifiedName());
         assertEquals(1, db.tables().size());
         TableDefinition t = db.tables().get(0);
@@ -1590,7 +1590,7 @@ final class ElementParserTest {
         // engine: %latest REQUIRES the declared INFINITY_DATE and the
         // inclusivity flags flip the boundary operators — all three are
         // load-bearing, never skippable tokens
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model("""
                 ###Relational
                 Database store::Db
                 (
@@ -1608,7 +1608,7 @@ final class ElementParserTest {
                     out_z TIMESTAMP
                   )
                 )
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                """).elements().get(0);
         TableDefinition t = db.tables().get(0);
         // INFINITY_DATE reaches the model through the wire, where a date
         // literal's `value` is the BARE ISO string — the `%` is Pure
@@ -1624,7 +1624,7 @@ final class ElementParserTest {
 
     @Test
     void databaseTableSnapshotMilestoning() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model("""
                 ###Relational
                 Database store::Db
                 (
@@ -1635,7 +1635,7 @@ final class ElementParserTest {
                     snapshotDate DATE
                   )
                 )
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                """).elements().get(0);
         assertEquals(new TableDefinition.Milestoning(
                 new TableDefinition.Milestoning.Business(
                         null, null, false, "snapshotDate", null),
@@ -1645,8 +1645,8 @@ final class ElementParserTest {
 
     @Test
     void databaseQuotedTableAndColumnIdentifiers() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "\n###Relational\nDatabase s::Db ( Table \"Mixed Case\" ( \"Col One\" INTEGER ) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
+                "\n###Relational\nDatabase s::Db ( Table \"Mixed Case\" ( \"Col One\" INTEGER ) )")
                 .elements().get(0);
         TableDefinition t = db.tables().get(0);
         assertEquals("Mixed Case", t.name(), "quotes must be stripped from table name");
@@ -1655,8 +1655,8 @@ final class ElementParserTest {
 
     @Test
     void databaseIncludeStatements() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "\n###Relational\nDatabase s::Child ( include s::Parent1 include other::P2 Table T ( C INTEGER ) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
+                "\n###Relational\nDatabase s::Child ( include s::Parent1 include other::P2 Table T ( C INTEGER ) )")
                 .elements().get(0);
         assertEquals(List.of("s::Parent1", "other::P2"), db.includes());
         assertEquals(1, db.tables().size());
@@ -1664,7 +1664,7 @@ final class ElementParserTest {
 
     @Test
     void databaseSchemaMirrorsTablesAndViewsToFlatLists() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse("""
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model("""
                 ###Relational
                 Database s::Db
                 (
@@ -1675,7 +1675,7 @@ final class ElementParserTest {
                   )
                   Table T3 ( C INTEGER )
                 )
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                """).elements().get(0);
         assertEquals(1, db.schemas().size());
         SchemaDefinition s = db.schemas().get(0);
         assertEquals("S1", s.name());
@@ -1687,7 +1687,7 @@ final class ElementParserTest {
     @Test
     void databaseRejectsUnknownTopLevelElement() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Database s::Db ( Foo X ( ) )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                () -> com.legend.testing.Platform.model("Database s::Db ( Foo X ( ) )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("Foo"),
                 () -> "should name unknown element, got: " + ex.getMessage());
     }
@@ -1698,9 +1698,9 @@ final class ElementParserTest {
 
     @Test
     void joinSimpleEquiCondition() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table A ( ID INTEGER ) Table B ( A_ID INTEGER ) "
-                + "Join AB(A.ID = B.A_ID) )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "Join AB(A.ID = B.A_ID) )").elements().get(0);
         assertEquals(1, db.joins().size());
         JoinDefinition j = db.joins().get(0);
         assertEquals("AB", j.name());
@@ -1712,10 +1712,10 @@ final class ElementParserTest {
 
     @Test
     void joinCompoundAndExpression() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table A ( X INTEGER, Y INTEGER ) "
                 + "Table B ( X INTEGER, Y INTEGER ) "
-                + "Join AB(A.X = B.X and A.Y = B.Y) )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "Join AB(A.X = B.X and A.Y = B.Y) )").elements().get(0);
         JoinDefinition j = db.joins().get(0);
         BooleanOp bo = (BooleanOp) j.operation();
         assertEquals(LogicalOp.AND, bo.op());
@@ -1726,9 +1726,9 @@ final class ElementParserTest {
 
     @Test
     void joinSelfWithTargetColumn() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( ID INTEGER, PARENT_ID INTEGER ) "
-                + "Join SelfJ(T.PARENT_ID = {target}.ID) )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "Join SelfJ(T.PARENT_ID = {target}.ID) )").elements().get(0);
         JoinDefinition j = db.joins().get(0);
         Comparison c = (Comparison) j.operation();
         assertEquals(new ColumnRef(null, "T", "PARENT_ID"), c.left());
@@ -1741,9 +1741,9 @@ final class ElementParserTest {
 
     @Test
     void filterWithFunctionCallAndLiteral() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( N VARCHAR(50) ) "
-                + "Filter NameFilter(upper(T.N) = 'BOB') )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "Filter NameFilter(upper(T.N) = 'BOB') )").elements().get(0);
         FilterDefinition f = db.filters().get(0);
         assertEquals("NameFilter", f.name());
         Comparison c = (Comparison) f.condition();
@@ -1760,18 +1760,18 @@ final class ElementParserTest {
         // identifier appears in a Database-context expression. There is no
         // implicit-table column-ref shape in either engine or core/'s AST.
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Database s::Db ( Table T_PERSON ( IS_ACTIVE INTEGER ) "
-                        + "Filter ActiveFilter(IS_ACTIVE = 1) )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "Filter ActiveFilter(IS_ACTIVE = 1) )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("Missing table or alias for column 'IS_ACTIVE'"),
                 () -> "expected engine-parity error message, got: " + ex.getMessage());
     }
 
     @Test
     void filterIsNullAndIsNotNull() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER, Y INTEGER ) "
-                + "Filter Fa(T.X is null) Filter Fb(T.Y is not null) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                + "Filter Fa(T.X is null) Filter Fb(T.Y is not null) )")
                 .elements().get(0);
         assertInstanceOf(RelationalOperation.IsNull.class,
                 db.filters().get(0).condition());
@@ -1781,8 +1781,8 @@ final class ElementParserTest {
 
     @Test
     void multiGrainFilterTrackedSeparately() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
-                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) MultiGrainFilter MGF(T.X = 1) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) MultiGrainFilter MGF(T.X = 1) )")
                 .elements().get(0);
         assertEquals(0, db.filters().size());
         assertEquals(1, db.multiGrainFilters().size());
@@ -1795,9 +1795,9 @@ final class ElementParserTest {
 
     @Test
     void viewMinimalColumnMapping() {
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
-                + "View V ( a: T.X PRIMARY KEY, b: T.X ) )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "View V ( a: T.X PRIMARY KEY, b: T.X ) )").elements().get(0);
         assertEquals(1, db.views().size());
         ViewDefinition v = db.views().get(0);
         assertEquals("V", v.name());
@@ -1812,10 +1812,10 @@ final class ElementParserTest {
     @Test
     void viewFilterDirectLocal() {
         // ~filter F → Direct(Local("F"))
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER, Y INTEGER ) "
                 + "Filter F(T.X = 1) "
-                + "View V ( ~filter F ~groupBy(T.Y) ~distinct  a: T.X, b: T.Y ) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                + "View V ( ~filter F ~groupBy(T.Y) ~distinct  a: T.X, b: T.Y ) )")
                 .elements().get(0);
         ViewDefinition v = db.views().get(0);
         FilterMapping.Direct direct = (FilterMapping.Direct) v.filter();
@@ -1828,9 +1828,9 @@ final class ElementParserTest {
     @Test
     void viewFilterDirectCross() {
         // ~filter [other::Db] F → Direct(Cross("other::Db", "F"))
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
-                + "View V ( ~filter [other::Db] RemoteFilter  a: T.X ) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                + "View V ( ~filter [other::Db] RemoteFilter  a: T.X ) )")
                 .elements().get(0);
         FilterMapping.Direct direct = (FilterMapping.Direct) db.views().get(0).filter();
         FilterPointer.Cross cross = (FilterPointer.Cross) direct.filter();
@@ -1846,11 +1846,11 @@ final class ElementParserTest {
         // [DB]-qualified. All 36 corpus uses spell it that way. We used to
         // accept the bare form; that leniency died with the legacy parser.
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Database s::Db ( Table T ( X INTEGER ) "
                         + "Join J1(T.X = T.X) Join J2(T.X = T.X) "
                         + "Filter F(T.X = 1) "
-                        + "View V ( ~filter [s::Db] @J1 > @J2 | F  a: T.X ) )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "View V ( ~filter [s::Db] @J1 > @J2 | F  a: T.X ) )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("[DB]"),
                 () -> "expected error about the target [DB] qualifier, got: "
                         + ex.getMessage());
@@ -1859,11 +1859,11 @@ final class ElementParserTest {
     @Test
     void viewFilterJoinMediatedMultiHop() {
         // the same chain, spelled the way engine's grammar requires
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
                 + "Join J1(T.X = T.X) Join J2(T.X = T.X) "
                 + "Filter F(T.X = 1) "
-                + "View V ( ~filter [s::Db] @J1 > @J2 | [s::Db] F  a: T.X ) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                + "View V ( ~filter [s::Db] @J1 > @J2 | [s::Db] F  a: T.X ) )")
                 .elements().get(0);
         FilterMapping.JoinMediated jm = (FilterMapping.JoinMediated) db.views().get(0).filter();
         assertEquals("s::Db", jm.sourceDb());
@@ -1875,10 +1875,10 @@ final class ElementParserTest {
     @Test
     void viewFilterJoinMediatedCrossTarget() {
         // ~filter [s::Db] @J | [other::Db] F → JoinMediated(.., Cross("other::Db", "F"))
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
                 + "Join J(T.X = T.X) "
-                + "View V ( ~filter [s::Db] @J | [other::Db] RemoteFilter  a: T.X ) )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                + "View V ( ~filter [s::Db] @J | [other::Db] RemoteFilter  a: T.X ) )")
                 .elements().get(0);
         FilterMapping.JoinMediated jm = (FilterMapping.JoinMediated) db.views().get(0).filter();
         assertEquals("s::Db", jm.sourceDb());
@@ -1894,9 +1894,9 @@ final class ElementParserTest {
         // join sequence. Without it, our parser cannot tell join-mediation
         // from a malformed direct reference.
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Database s::Db ( Table T ( X INTEGER ) Join J(T.X = T.X) "
-                        + "View V ( ~filter @J | F  a: T.X ) )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "View V ( ~filter @J | F  a: T.X ) )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("[DB]"),
                 () -> "expected error about missing [DB] qualifier, got: " + ex.getMessage());
     }
@@ -1920,10 +1920,10 @@ final class ElementParserTest {
     void joinNavigationMultiHopWithTerminal() {
         // Database-context join navigation: @J1 > @J2 | T.COL
         // Engine permits this in filters; we test parser only here.
-        DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
                 "\n###Relational\nDatabase s::Db ( Table T ( COL INTEGER ) "
                 + "Join J1(T.COL = T.COL) Join J2(T.COL = T.COL) "
-                + "Filter F(@J1 > @J2 | T.COL = 1) )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "Filter F(@J1 > @J2 | T.COL = 1) )").elements().get(0);
         FilterDefinition f = db.filters().get(0);  // joins go in db.joins(), filters in db.filters()
         // Filter condition is a JoinNavigation directly; the comparison
         // T.COL = 1 lives inside its terminal.
@@ -1941,7 +1941,7 @@ final class ElementParserTest {
 
     @Test
     void allNineB4aElementKindsParseInOneSource() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 Class my::Person { name: String[1]; }
                 Association my::A { x: my::Person[1]; y: my::Firm[*]; }
                 Enum my::E { A, B }
@@ -1957,14 +1957,14 @@ final class ElementParserTest {
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; } }
                 ###Relational
                 Database store::Db ( Table T ( ID INTEGER PRIMARY KEY ) )
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         assertEquals(9, m.elements().size());
         assertInstanceOf(DatabaseDefinition.class, m.elements().get(8));
     }
 
     @Test
     void allEightB3ElementKindsParseInOneSource() {
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 Class my::Person { name: String[1]; }
                 Association my::A { x: my::Person[1]; y: my::Firm[*]; }
                 Enum my::E { A, B }
@@ -1978,7 +1978,7 @@ final class ElementParserTest {
                 ###Service
                 Service my::Svc { pattern: '/x'; documentation: '';
                   execution: Single { query: |1; mapping: my::M; runtime: my::R; } }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         assertEquals(8, m.elements().size());
         assertInstanceOf(ClassDefinition.class,       m.elements().get(0));
         assertInstanceOf(AssociationDefinition.class, m.elements().get(1));
@@ -1998,7 +1998,7 @@ final class ElementParserTest {
 
     private static com.legend.model.MappingDefinition canonicalMapping(String src) {
         return (com.legend.model.MappingDefinition)
-                ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                com.legend.testing.Platform.model(src).elements().get(0);
     }
 
     @Test
@@ -2077,10 +2077,10 @@ final class ElementParserTest {
     void cleanSheet_disambiguation_legacyBodyStillParsesAsLegacy() {
         // A `~mainTable` / `prop:` body is legacy DSL even under the same
         // Relational kind tag — the §5.1 rule must NOT misread it as clean-sheet.
-        var parsed = ElementParser.parse(
+        var parsed = com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
               + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
-              + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+              + ")").elements().get(0);
         assertInstanceOf(LegacyMappingDefinition.class, parsed,
                 "a legacy DSL body must still produce the legacy surface tree");
     }
@@ -2090,11 +2090,11 @@ final class ElementParserTest {
         // legacy first, then clean-sheet.
         var ex = assertThrows(
                 com.legend.parser.ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Mapping my::M ( "
                       + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
                       + "  *model::Firm:   Relational { acme::funcs::firmMapping } "
-                      + ")", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                      + ")"));
         assertTrue(String.valueOf(ex.getMessage()).contains(
                         "Mapping 'my::M' mixes legacy DSL bodies with function-form bindings"),
                 () -> "expected the exact mix-rejection message; got: " + ex.getMessage());
@@ -2105,11 +2105,11 @@ final class ElementParserTest {
         // clean-sheet first, then legacy — order must not matter.
         var ex = assertThrows(
                 com.legend.parser.ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Mapping my::M ( "
                       + "  *model::Firm:   Relational { acme::funcs::firmMapping } "
                       + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
-                      + ")", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                      + ")"));
         assertTrue(String.valueOf(ex.getMessage()).contains(
                         "Mapping 'my::M' mixes legacy DSL bodies with function-form bindings"),
                 () -> "expected the exact mix-rejection message; got: " + ex.getMessage());
@@ -2154,14 +2154,14 @@ final class ElementParserTest {
     // ===============================================================
 
     private static ClassMapping.Relational firstRelationalClassMapping(String src) {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(src).elements().get(0);
         return (ClassMapping.Relational) md.classMappings().get(0);
     }
 
     @Test
     void mappingEmpty() {
         LegacyMappingDefinition md = (LegacyMappingDefinition)
-                ElementParser.parse("Mapping my::M ( )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                com.legend.testing.Platform.model("Mapping my::M ( )").elements().get(0);
         assertEquals("my::M", md.qualifiedName());
         assertTrue(md.includes().isEmpty());
         assertTrue(md.classMappings().isEmpty());
@@ -2170,7 +2170,7 @@ final class ElementParserTest {
     @Test
     void mappingIncludeWithoutSubstitutions() {
         LegacyMappingDefinition md = (LegacyMappingDefinition)
-                ElementParser.parse("\n###Mapping\nMapping my::M ( include other::Base )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                com.legend.testing.Platform.model("\n###Mapping\nMapping my::M ( include other::Base )").elements().get(0);
         assertEquals(1, md.includes().size());
         assertEquals("other::Base", md.includes().get(0).mappingPath());
         assertTrue(md.includes().get(0).substitutions().isEmpty());
@@ -2179,9 +2179,9 @@ final class ElementParserTest {
     @Test
     void mappingIncludeWithStoreSubstitutions() {
         LegacyMappingDefinition md = (LegacyMappingDefinition)
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "\n###Mapping\nMapping my::M ( include other::Base "
-                        + "[ store::OldDb -> store::NewDb, store::Old2 -> store::New2 ] )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+                        + "[ store::OldDb -> store::NewDb, store::Old2 -> store::New2 ] )")
                 .elements().get(0);
         var subs = md.includes().get(0).substitutions();
         assertEquals(2, subs.size());
@@ -2276,11 +2276,11 @@ final class ElementParserTest {
     void classMappingFilterRequiresDatabasePointer() {
         // the leniency this replaced: engine's mappingFilter has no bare form
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Mapping my::M ( *model::Person: Relational { "
                         + "~filter ActivePersonFilter "
                         + "~mainTable [db::DB] PERSON "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("[DB]"),
                 () -> "expected a [DB]-required error, got: " + ex.getMessage());
     }
@@ -2309,10 +2309,10 @@ final class ElementParserTest {
         // 'unexpected token' would not help users port from
         // engine-lite (which accepts any order).
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Mapping my::M ( *model::Person: Relational { "
+                () -> com.legend.testing.Platform.model("Mapping my::M ( *model::Person: Relational { "
                         + "~mainTable [db::DB] PERSON "
                         + "~primaryKey([db::DB]PERSON.ID) "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("~primaryKey"),
                 () -> "error must name the offending clause, got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("out of order"),
@@ -2324,11 +2324,11 @@ final class ElementParserTest {
         // Each ~clause is 0..1 per grammar. Two ~distinct in a row
         // is duplicated; the second one is an out-of-order violation.
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Mapping my::M ( *model::Person: Relational { "
+                () -> com.legend.testing.Platform.model("Mapping my::M ( *model::Person: Relational { "
                         + "~distinct "
                         + "~distinct "
                         + "~mainTable [db::DB] PERSON "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("~distinct"),
                 () -> "want duplicated-clause diagnostic, got: " + ex.getMessage());
     }
@@ -2375,11 +2375,11 @@ final class ElementParserTest {
         // ~mainTable is NOT a scope. `scope([db]T)( bareCol )` IS one, and
         // that form still resolves — see the scope-block tests.
         ParseException ex = assertThrows(ParseException.class,
-                () -> ElementParser.parse(
+                () -> com.legend.testing.Platform.model(
                         "Mapping my::M ( *model::Person: Relational { "
                         + "~mainTable [db::DB] PERSON "
                         + "firstName: FIRST_NAME "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage())
                         .contains("Missing table or alias for column 'FIRST_NAME'"),
                 () -> "expected engine's own wording, got: " + ex.getMessage());
@@ -2532,11 +2532,11 @@ final class ElementParserTest {
         // EnumerationMapping is a construct Legend owns, so there is no
         // defensible superset.
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( *model::Task: Relational { "
                         + "~mainTable [db::DB] TASKS "
                         + "status: EnumerationMapping: [db::DB] TASKS.STATUS_CODE "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(e.getMessage()).contains(
                         "requires an enumeration mapping id"),
                 () -> "want the id-required diagnostic, got: " + e.getMessage());
@@ -2561,9 +2561,9 @@ final class ElementParserTest {
     void duckDbSpecFoldsToInProcessExecution() {
         // ENGINE-REAL spelling (conform-to-engine): a pathless DuckDB spec
         // is the in-process database the retired InMemory flavor named
-        var parsed = ElementParser.parse(
+        var parsed = com.legend.testing.Platform.model(
                 "\n###Connection\nRelationalDatabaseConnection store::C { store: db::DB; type: DuckDB; "
-                + "specification: DuckDB { }; auth: Test; }", com.legend.parser.Dialect.LEGEND_PLATFORM);
+                + "specification: DuckDB { }; auth: Test; }");
         var conn = (com.legend.model.ConnectionDefinition) parsed.elements().get(0);
         assertEquals(new com.legend.model.ConnectionSpecification.InMemory(),
                 conn.specification());
@@ -2593,8 +2593,8 @@ final class ElementParserTest {
         // 2026-08-09 the class mapping is SKIPPED (carried on protocol)
         // instead of refusing the file — a query against the class still
         // fails loudly at resolution.
-        ParsedModel m = ElementParser.parse(
-                "\n###Mapping\nMapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(
+                "\n###Mapping\nMapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )");
         var md = assertInstanceOf(com.legend.model.LegacyMappingDefinition.class,
                 m.elements().get(0));
         assertEquals(0, md.classMappings().size(),
@@ -2605,8 +2605,8 @@ final class ElementParserTest {
     void mappingUnsupportedClassMappingTypeThrows() {
         // 'Operation' class mappings aren't part of B.4b's scope.
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
-                        "Mapping my::M ( *model::P: SomethingElse { x: 1 } )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.model(
+                        "Mapping my::M ( *model::P: SomethingElse { x: 1 } )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' message, got: " + e.getMessage());
     }
@@ -2616,7 +2616,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static AssociationMapping.Relational firstAssociationMapping(String src) {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(src).elements().get(0);
         return (AssociationMapping.Relational) md.associationMappings().get(0);
     }
 
@@ -2683,9 +2683,9 @@ final class ElementParserTest {
         // No mainTable in association context → bare-id must error
         // (engine: "Missing table or alias for column 'X'").
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( my::A: Relational { AssociationMapping ( "
-                        + "firm: BARE_NAME ) } )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "firm: BARE_NAME ) } )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("missing table or alias"),
                 () -> "expected bare-id rejection, got: " + e.getMessage());
     }
@@ -2696,9 +2696,9 @@ final class ElementParserTest {
         // [trade_legal]): the reference grammar accepts both on an
         // association mapping header; the star is meaningless and the id
         // names the element - neither changes binding semantics.
-        var m = ElementParser.parse(
+        var m = com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( *my::A[someId]: Relational { AssociationMapping ( "
-                + "firm: [db::DB] @J ) } )", com.legend.parser.Dialect.LEGEND_PLATFORM);
+                + "firm: [db::DB] @J ) } )");
         assertEquals(1, m.elements().size());
     }
 
@@ -2709,7 +2709,7 @@ final class ElementParserTest {
         // local). We must RECORD them too — the [targetSetId] route in
         // particular is the audit-11 wrong-rows shape on the Pure side;
         // dropping it at parse destroys the only copy of the information.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "  *model::T: Pure { "
                 + "    ~src model::S "
@@ -2719,7 +2719,7 @@ final class ElementParserTest {
                 + "    d[setB]*: $src.x, "
                 + "    +loc: String[1]: $src.x "
                 + "  } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         var pcm = (ClassMapping.Pure) md.classMappings().get(0);
         var byName = new java.util.HashMap<String, ClassMapping.Pure.PropertyBinding>();
         pcm.propertyBindings().forEach(pb -> byName.put(pb.propertyName(), pb));
@@ -2754,13 +2754,13 @@ final class ElementParserTest {
         // `firm[person2,firm2]`/`employees[firm2,person2]` pair never reaches
         // the model and the family's golden encodes their absence. A parser
         // that refused it could not read the corpus at all.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( my::A: XStore { "
                 + "  employees[firm1, person1]: $this.a == $that.b, "
                 + "  firm[person1, firm1]: $this.a == $that.b "     // <-- no comma
                 + "  employees[firm2, person2]: $this.a == $that.b, "
                 + "  firm[person2, firm2]: $this.a == $that.b "
-                + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "} )").elements().get(0);
         var cross = (AssociationMapping.Cross) md.associationMappings().get(0);
         assertEquals(2, cross.propertyMappings2().size(),
                 "entries after the missing comma are discarded, legend-pure-identically");
@@ -2771,13 +2771,13 @@ final class ElementParserTest {
     @Test
     void xstoreAllEntriesParseWhenCommasArePresent() {
         // The same fixture, comma-complete: all four entries survive.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( my::A: XStore { "
                 + "  employees[firm1, person1]: $this.a == $that.b, "
                 + "  firm[person1, firm1]: $this.a == $that.b, "
                 + "  employees[firm2, person2]: $this.a == $that.b, "
                 + "  firm[person2, firm2]: $this.a == $that.b "
-                + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + "} )").elements().get(0);
         var cross = (AssociationMapping.Cross) md.associationMappings().get(0);
         assertEquals(4, cross.propertyMappings2().size());
         assertEquals("firm1", cross.propertyMappings2().get(0).sourceSetId());
@@ -2788,20 +2788,20 @@ final class ElementParserTest {
     void associationMappingPropertyJoinRequiresDb() {
         // Plain @J without [db::DB] and no main table → must error.
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( my::A: Relational { AssociationMapping ( "
-                        + "firm: @SomeJoin ) } )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "firm: @SomeJoin ) } )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("requires a database"),
                 () -> "expected db-required error, got: " + e.getMessage());
     }
 
     @Test
     void mappingMixesClassAndAssociationMappings() {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
                 + "my::Person_Firm: Relational { AssociationMapping ( firm: [db::DB] @P_F ) } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertEquals(1, md.classMappings().size());
         assertEquals(1, md.associationMappings().size());
         assertEquals("model::Person",
@@ -2827,7 +2827,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static EnumerationMapping firstEnumerationMapping(String src) {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(src).elements().get(0);
         return md.enumerationMappings().get(0);
     }
 
@@ -2923,21 +2923,21 @@ final class ElementParserTest {
         // BOTH references spell lists `x (COMMA x)*` — a trailing comma
         // is refused, never silently absorbed (invention census batch 3)
         ParseException ex = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "\n###Mapping\nMapping my::M ( "
                         + "model::S: EnumerationMapping Mid { "
                         + "A: 'a', "
                         + "B: 'b', "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"));
     }
 
     @Test
     void enumerationMappingEmptyBracketsRejected() {
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( "
-                        + "model::S: EnumerationMapping Mid { X: [] } )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "model::S: EnumerationMapping Mid { X: [] } )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("at least one source value"),
                 () -> "expected empty-brackets error, got: " + e.getMessage());
     }
@@ -2952,8 +2952,8 @@ final class ElementParserTest {
         // (CorePureGrammarParser:200-212) never reads `ctx.STAR()`: the root
         // marker is a CLASS-mapping notion and is simply dropped here. The
         // real parser accepts this source; we refused it.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "\n###Mapping\nMapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
+                "\n###Mapping\nMapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )")
                 .elements().get(0);
         var em = md.enumerationMappings().get(0);
         assertEquals("Mid", em.mappingId());
@@ -2963,13 +2963,13 @@ final class ElementParserTest {
 
     @Test
     void mappingWithClassAndEnumerationMappingTogether() {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "*model::Order: Relational { ~mainTable [db::DB] ORDERS "
                 + "  status: EnumerationMapping StatusMap : ORDERS.STATUS } "
                 + "model::OrderStatus: EnumerationMapping StatusMap { "
                 + "  PENDING: 'P', SHIPPED: 'S' } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertEquals(1, md.classMappings().size());
         assertEquals(1, md.enumerationMappings().size());
         // The class mapping's status property references the enum mapping by id.
@@ -2984,7 +2984,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static ClassMapping.Pure firstPureClassMapping(String src) {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(src).elements().get(0);
         return (ClassMapping.Pure) md.classMappings().get(0);
     }
 
@@ -3119,8 +3119,8 @@ final class ElementParserTest {
         // a binding that reads $src without a declared type is engine's
         // business to reject later (it has no type to resolve $src.name
         // against), not the parser's.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
-                "\n###Mapping\nMapping my::M ( *model::P: Pure { name: $src.name } )", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
+                "\n###Mapping\nMapping my::M ( *model::P: Pure { name: $src.name } )")
                 .elements().get(0);
         assertNull(((ClassMapping.Pure) md.classMappings().get(0)).sourceClass());
     }
@@ -3132,7 +3132,7 @@ final class ElementParserTest {
         // (DomainParserGrammar.g4:118-121) — and engine's corpus writes one
         // (dataSpace-emptyEnum.pure). A type with an empty extent is
         // useless, not malformed; we refused it in two places.
-        var el = ElementParser.parse("Enum model::EmptyEnum { }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        var el = com.legend.testing.Platform.model("Enum model::EmptyEnum { }")
                 .elements().get(0);
         var e = (com.legend.model.EnumDefinition) el;
         assertEquals("model::EmptyEnum", e.qualifiedName());
@@ -3149,10 +3149,10 @@ final class ElementParserTest {
         // read $src has nothing to declare — engine's own corpus contains
         // these (dataSpaceWithSubstantialMapping.pure binds a constant).
         // We used to refuse all 17 such files.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "*model::Mammal: Pure { noOfLegs: '41231' } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         var pcm = (ClassMapping.Pure) md.classMappings().get(0);
         assertNull(pcm.sourceClass(), "no ~src was written, so none is recorded");
         assertEquals(1, pcm.propertyBindings().size());
@@ -3165,11 +3165,11 @@ final class ElementParserTest {
         // implicit $src as `new PackageableType(srcClass)` with no null
         // check (ClassMappingFirstPassBuilder:127). We refuse in words.
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( "
                         + "*model::Mammal: Pure { ~filter $src.alive "
                         + "  noOfLegs: '4' } "
-                        + ")", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + ")"));
         assertTrue(String.valueOf(e.getMessage()).contains("~filter needs a ~src"),
                 () -> "want the filter/src diagnostic, got: " + e.getMessage());
     }
@@ -3177,11 +3177,11 @@ final class ElementParserTest {
     @Test
     void pureClassMappingEmptyPropertyBodyRejected() {
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( *model::P: Pure { "
                         + "~src model::Raw "
                         + "name: , other: $src.x "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("empty body"),
                 () -> "expected empty-body error, got: " + e.getMessage());
     }
@@ -3189,22 +3189,22 @@ final class ElementParserTest {
     @Test
     void pureClassMappingTrailingCommaRefused() {
         ParseException ex = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "\n###Mapping\nMapping my::M ( "
                         + "*model::Person: Pure { "
                         + "~src model::Raw "
                         + "name: $src.name, "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"));
     }
 
     @Test
     void mappingMixesPureAndRelationalClassMappings() {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Pure { ~src model::RawPerson  name: $src.name } "
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRMS  legalName: FIRMS.NAME } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertEquals(2, md.classMappings().size());
         assertInstanceOf(ClassMapping.Pure.class, md.classMappings().get(0));
         assertInstanceOf(ClassMapping.Relational.class, md.classMappings().get(1));
@@ -3216,7 +3216,7 @@ final class ElementParserTest {
     // ===============================================================
 
     private static ClassMapping.Relational firstRelational(String src) {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(src).elements().get(0);
         return (ClassMapping.Relational) md.classMappings().get(0);
     }
 
@@ -3348,12 +3348,12 @@ final class ElementParserTest {
     @Test
     void embeddedTrailingCommaRefused() {
         ParseException ex = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "\n###Mapping\nMapping my::M ( "
                         + "*model::P: Relational { "
                         + "~mainTable [db::DB] T "
                         + "firm ( legalName: T.NAME, ) "
-                        + "} )", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + "} )"));
         assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"));
     }
 
@@ -3381,10 +3381,10 @@ final class ElementParserTest {
 
     @Test
     void mappingWithoutTestSuitesHasNullSource() {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertNull(md.testSuitesSource());
     }
 
@@ -3409,11 +3409,11 @@ final class ElementParserTest {
 
     @Test
     void mappingTestSuitesBlockCapturedVerbatim() {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "Mapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                 + PERSON_SUITE
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertNotNull(md.testSuitesSource());
         assertTrue(md.testSuitesSource().contains("PersonSuite"));
         assertTrue(md.testSuitesSource().contains("graphFetch"));
@@ -3428,11 +3428,11 @@ final class ElementParserTest {
         // testSuites is the LAST thing in a mapping body — engine's rule is
         // `(mappingElement)* (tests)? (mappingTestableDefinition)?`, so the
         // class mapping goes before it, not after.
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "Mapping my::M ( "
                 + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                 + PERSON_SUITE
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertNotNull(md.testSuitesSource());
         assertTrue(md.testSuitesSource().contains("[1, 2, 3]"),
                 () -> "captured: " + md.testSuitesSource());
@@ -3442,12 +3442,12 @@ final class ElementParserTest {
     @Test
     void mappingClassMappingAfterTestSuitesRejected() {
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( "
                         + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                         + PERSON_SUITE
                         + "*model::Q: Relational { ~mainTable [db::DB] T  y: T.Y } "
-                        + ")", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + ")"));
         assertTrue(String.valueOf(e.getMessage()).contains("out of order"),
                 () -> "expected an ordering error, got: " + e.getMessage());
     }
@@ -3455,23 +3455,23 @@ final class ElementParserTest {
     @Test
     void mappingDuplicateTestSuitesRejected() {
         ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
+                com.legend.testing.Platform.model(
                         "Mapping my::M ( "
                         + "*model::P: Relational { ~mainTable [db::DB] T  x: T.X } "
                         + PERSON_SUITE
                         + PERSON_SUITE
-                        + ")", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                        + ")"));
         assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("duplicate"),
                 () -> "expected duplicate-testSuites error, got: " + e.getMessage());
     }
 
     @Test
     void mappingTwoClassMappingsWithCommonMainTable() {
-        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+        LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "*model::Person: Relational { ~mainTable [db::DB] PERSON  name: PERSON.NAME } "
                 + "*model::Firm: Relational { ~mainTable [db::DB] FIRM  legalName: FIRM.LEGAL_NAME } "
-                + ")", com.legend.parser.Dialect.LEGEND_PLATFORM).elements().get(0);
+                + ")").elements().get(0);
         assertEquals(2, md.classMappings().size());
         var first = (ClassMapping.Relational) md.classMappings().get(0);
         var second = (ClassMapping.Relational) md.classMappings().get(1);

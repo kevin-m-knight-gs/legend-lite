@@ -79,7 +79,7 @@ class LowerRelationTest {
         var ctx = Compiler.compileModel(MODEL);
         var body = new com.legend.compiler.spec.SpecCompiler(ctx).typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.Own.spec(query)));
+                        com.legend.testing.Own.spec(query)));
         return new DuckDb().render(new Lowerer().lower(body));
     }
 

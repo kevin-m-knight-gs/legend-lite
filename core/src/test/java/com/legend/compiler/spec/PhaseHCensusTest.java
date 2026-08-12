@@ -166,7 +166,7 @@ public class PhaseHCensusTest {
             NormalizedModel normalized;
             PureModelContext ctx;
             try {
-                parsed = com.legend.Own.model(fx.getValue());
+                parsed = com.legend.testing.Own.model(fx.getValue());
                 normalized = ModelNormalizer.normalize(NameResolver.resolve(parsed));
                 ctx = PureModelContext.from(normalized);
             } catch (Exception e) {

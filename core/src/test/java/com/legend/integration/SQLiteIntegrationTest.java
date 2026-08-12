@@ -434,7 +434,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
 
     /** Parse one element of the given kind with core's parser. */
     private static <T> T parseOne(String source, Class<T> kind) {
-        return com.legend.Own.model(source).elements().stream()
+        return com.legend.testing.Own.model(source).elements().stream()
                 .filter(kind::isInstance).map(kind::cast)
                 .findFirst().orElseThrow();
     }

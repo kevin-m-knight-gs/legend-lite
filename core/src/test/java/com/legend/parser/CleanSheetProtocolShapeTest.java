@@ -50,7 +50,7 @@ class CleanSheetProtocolShapeTest {
             throw new AssertionError("no Mapping element in: " + source);
         }
         return com.legend.model.MappingFromProtocol.toMappingElement(
-                MappingProtocolParser.parse(ts, at, 1, com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.mapping(ts, at, 1));
     }
 
     private static MappingDefinition cleanSheet(String source) {

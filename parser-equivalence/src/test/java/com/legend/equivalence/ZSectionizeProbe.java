@@ -38,7 +38,7 @@ class ZSectionizeProbe {
                 // a refusal row candidate
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                Surfaces.platform(src.text());
             } catch (Throwable oursToo) {
                 continue;               // both refuse — not our worklist
             }

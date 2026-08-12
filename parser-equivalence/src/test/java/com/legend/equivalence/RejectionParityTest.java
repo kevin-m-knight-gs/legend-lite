@@ -163,7 +163,7 @@ class RejectionParityTest {
      *  same {@code ElementParser.at} path the byte-comparison uses (protocol-only
      *  constructs like test suites live there). */
     private static void parseLegendEngine(String text) {
-        com.legend.parser.ElementParser.parse(text, com.legend.parser.Dialect.LEGEND_ENGINE);
+        Surfaces.engine(text);
         var ts = com.legend.lexer.Lexer.tokenize(text);
         for (com.legend.lexer.TokenType marker : new com.legend.lexer.TokenType[]{
                 com.legend.lexer.TokenType.CLASS, com.legend.lexer.TokenType.ENUM,

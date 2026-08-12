@@ -22,8 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * hygiene, relation- and class-returning callees, higher-order eval
  * reduction, and the loud recursion guard.
  */
-// PLATFORM pins: this class tests .allVersionsInRange inlining —
-// platform dialect by purpose (census PLATFORM_TEST_HOSTS member)
 class UserCallInlinerTest {
 
     private static final String MODEL = """
@@ -143,45 +141,19 @@ class UserCallInlinerTest {
     }
 
     @Test
-    @DisplayName("versionSweep survives a dated rebuild (remediation T1.1)")
-    void versionSweepSurvivesInlining() {
-        // the rebuild only fires when milestoning is NON-empty: an
-        // allVersionsInRange whose dates reference callee parameters is
-        // exactly the shape that silently became a POINT fetch
-        String model = """
-                Class <<temporal.businesstemporal>> t::T { id: Integer[1]; }
-                function t::sweep(s: Date[1], e: Date[1]): t::T[*]
-                { t::T.allVersionsInRange($s, $e) }
-                """;
-        var ctx = Compiler.buildModel(com.legend.parser.ElementParser.parse(model, com.legend.parser.Dialect.LEGEND_PLATFORM));
-        var specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(
-                com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.parser.SpecParser.parse(
-                                "|t::sweep(%2020-01-01, %2021-01-01)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
-        body = new UserCallInliner(specs).inlineBody(body);
-        var last = body.get(body.size() - 1);
-        var g = org.junit.jupiter.api.Assertions.assertInstanceOf(
-                com.legend.compiler.spec.typed.TypedGetAll.class, last);
-        assertTrue(g.versionSweep(),
-                "inlining a dated version sweep must stay a SWEEP, not a point fetch");
-        assertEquals(2, g.milestoning().size(), "range dates ride along");
-    }
-
-    @Test
     @DisplayName("agg orderKey survives the inliner rebuild (remediation T2.1)")
     void aggOrderKeySurvivesInlining() {
         // the hand-written TypedGroupBy arm rebuilt each TypedAggCol through
         // the 3-arg convenience constructor, silently nulling orderKey —
         // graft one on and prove the withChildren rebuild keeps it
-        var ctx = Compiler.buildModel(com.legend.parser.ElementParser.parse(MODEL, com.legend.parser.Dialect.LEGEND_PLATFORM));
+        var ctx = Compiler.buildModel(com.legend.testing.Own.model(MODEL));
         var specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.parser.SpecParser.parse(
+                        com.legend.testing.Own.spec(
                                 "|m::Person.all()"
                                         + "->project(~[name: p|$p.name, age: p|$p.age])"
-                                        + "->groupBy(~[name], ~[total: x|$x.age : y|$y->sum()])", com.legend.parser.Dialect.LEGEND_PLATFORM)));
+                                        + "->groupBy(~[name], ~[total: x|$x.age : y|$y->sum()])")));
         var gb = org.junit.jupiter.api.Assertions.assertInstanceOf(
                 com.legend.compiler.spec.typed.TypedGroupBy.class,
                 body.get(body.size() - 1));

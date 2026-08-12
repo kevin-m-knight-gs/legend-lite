@@ -60,7 +60,7 @@ class ResolveNestedTemporalFrameTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.Own.spec(query)));
+                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs)
                 .resolve(body, "q::RT");
         SqlQuery plan = new Lowerer().lower(resolved);

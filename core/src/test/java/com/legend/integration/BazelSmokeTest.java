@@ -93,7 +93,7 @@ class BazelSmokeTest {
         // --- cross-project: profile stereotype + tag canonicalize via the
         // resolver (NameResolver.resolve is compileModel's first step) ---
         var tradeDef = com.legend.compiler.NameResolver.resolve(
-                com.legend.Own.model(
+                com.legend.testing.Own.model(
                         loadResource(REFDATA_MODEL) + "\n" + loadResource(TRADING_MODEL)))
                 .elements().stream()
                 .filter(el -> el instanceof com.legend.model.ClassDefinition c

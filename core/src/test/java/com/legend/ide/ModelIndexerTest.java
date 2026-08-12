@@ -290,11 +290,7 @@ final class ModelIndexerTest {
     @MethodSource("shallowDeepParityCorpus")
     void shallowAndDeepFqnsAgreeAcrossDiverseSources(String label, String src) {
         ModelIndex idx = scan(src);
-        ParsedModel pm = com.legend.parser.ElementParser.parse(src,
-                // PLATFORM pin: the diverse-sources sweep includes
-                // `native` declarations — the indexer proves shallow/deep
-                // agreement over the FULL superset
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel pm = com.legend.testing.Platform.model(src);
 
         List<String> shallowFqns = List.copyOf(idx.fqns());
         List<String> deepFqns = pm.elements().stream().map(ModelIndexerTest::fqnOf).toList();
@@ -429,11 +425,7 @@ final class ModelIndexerTest {
                 }
                 """;
         ModelIndex idx = scan(src);
-        ParsedModel pm = com.legend.parser.ElementParser.parse(src,
-                // PLATFORM pin: the diverse-sources sweep includes
-                // `native` declarations — the indexer proves shallow/deep
-                // agreement over the FULL superset
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel pm = com.legend.testing.Platform.model(src);
 
         // Same FQN set, same order.
         List<String> shallowFqns = List.copyOf(idx.fqns());

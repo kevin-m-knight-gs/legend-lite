@@ -31,7 +31,7 @@ class InferenceKernelTest {
     private static final String REL = Pure.RELATION.qualifiedName();
 
     private static PureModelContext ctx() {
-        ParsedModel parsed = com.legend.Own.model(
+        ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::Person {}\nClass model::Address {}\n");
         return PureModelContext.from(new NormalizedModel(parsed.elements(), parsed.imports()));
     }

@@ -43,7 +43,7 @@ final class EngineShapeArithmeticTest {
                 nary("plus",
                         new CInteger(2L),
                         nary("times", new CInteger(3L), new CInteger(4L))),
-                SpecParser.parse("2 + 3 * 4", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.spec("2 + 3 * 4"));
     }
 
     @Test
@@ -54,7 +54,7 @@ final class EngineShapeArithmeticTest {
         // times context ('* 4', cols 7-9) by processOp's rebuild — the
         // rule ProtocolEmitter.naryArithmetic used to re-derive at
         // emission and the parse now carries directly.
-        AppliedFunction plus = (AppliedFunction) SpecParser.parse("2 + 3 * 4", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        AppliedFunction plus = (AppliedFunction) com.legend.testing.Platform.spec("2 + 3 * 4");
         assertEquals(new SourceInfo("", 1, 3, 1, 5), plus.pos());
         PureCollection coll = (PureCollection) plus.parameters().get(0);
         assertEquals(new SourceInfo("", 1, 7, 1, 9), coll.pos());
@@ -74,7 +74,7 @@ final class EngineShapeArithmeticTest {
                 nary("plus",
                         binary("and", new CInteger(1L), new CInteger(2L)),
                         new CInteger(3L)),
-                SpecParser.parse("1 && 2 + 3", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.spec("1 && 2 + 3"));
     }
 
     @Test
@@ -90,7 +90,7 @@ final class EngineShapeArithmeticTest {
                                 binary("or", new CInteger(1L), new CInteger(2L)),
                                 new CInteger(3L)),
                         new CInteger(4L)),
-                SpecParser.parse("1 || 2 < 3 && 4", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.spec("1 || 2 < 3 && 4"));
     }
 
     @Test
@@ -106,7 +106,7 @@ final class EngineShapeArithmeticTest {
                                 new CInteger(1L),
                                 nary("times", new CInteger(2L), new CInteger(3L))),
                         new CInteger(4L)),
-                SpecParser.parse("1 + 2 * 3 + 4", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.spec("1 + 2 * 3 + 4"));
     }
 
     @Test
@@ -123,6 +123,6 @@ final class EngineShapeArithmeticTest {
                         nary("times",
                                 nary("plus", new CInteger(2L), new CInteger(3L)),
                                 new CInteger(4L))),
-                SpecParser.parse("1 < 2 + 3 * 4", com.legend.parser.Dialect.LEGEND_PLATFORM));
+                com.legend.testing.Platform.spec("1 < 2 + 3 * 4"));
     }
 }

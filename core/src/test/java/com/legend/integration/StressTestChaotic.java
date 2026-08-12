@@ -315,7 +315,7 @@ class StressTestChaotic {
         // ---- Profile: isolate parse vs full compile (core has no global
         // parse cache on this path — the split is parse-only vs compile) ----
         long pCold0 = System.nanoTime();
-        var parsed = com.legend.Own.model(model);
+        var parsed = com.legend.testing.Own.model(model);
         long parseOnlyMs = (System.nanoTime() - pCold0) / 1_000_000;
 
         System.out.println("\n--- PARSE PROFILING ---");
@@ -477,7 +477,7 @@ class StressTestChaotic {
             try {
                 long t = System.nanoTime();
                 var vs = com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.Own.spec(query));
+                        com.legend.testing.Own.spec(query));
                 parseNs += System.nanoTime() - t;
                 t = System.nanoTime();
                 var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);

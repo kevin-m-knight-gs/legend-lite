@@ -4,15 +4,16 @@ import com.legend.protocol.spec.ColSpecArray;
 import com.legend.protocol.spec.ValueSpecification;
 
 /**
- * The QUOTE/EVAL boundary for graph-tree literals carried as STRINGS:
- * {@code meta::legend::compileLegendValueSpecification('#{...}#')} reifies
- * the parser in pure, and this is its one platform entry &mdash; a parser-package
- * FRONT DOOR (like {@link ElementParser} for elements), so grammar internals
- * never leak into checker code.
+ * Parses QUOTED CODE — the string inside
+ * {@code compileLegendValueSpecification('#{...}#')} — into a spec tree
+ * at the {@code payloadDialect} THE CALLER states. Pure mechanism: this
+ * class holds no dialect and knows no regime. (Why callers differ is
+ * their business, documented at their call sites: SpecParser passes the
+ * host parse's own level, the corpus inliners pass LEGEND_ENGINE.)
  */
-public final class EngineSpecParser {
+public final class QuotedSpecParser {
 
-    private EngineSpecParser() {
+    private QuotedSpecParser() {
     }
 
     /** The quote/eval fold, AT PARSE TIME: when {@code call} is
@@ -27,7 +28,8 @@ public final class EngineSpecParser {
      * {@code AppliedFunction}, typed {@code Any[1]} like the engine's
      * native. */
     public static com.legend.protocol.spec.@com.legend.Nullable QuotedTreeCall
-            fold(com.legend.protocol.spec.AppliedFunction call) {
+            fold(com.legend.protocol.spec.AppliedFunction call,
+                    Dialect payloadDialect) {
         if (!(call.function().equals("compileLegendValueSpecification")
                 || call.function().equals(
                         "meta::legend::compileLegendValueSpecification"))
@@ -38,7 +40,7 @@ public final class EngineSpecParser {
         if (src == null) {
             return null;
         }
-        ValueSpecification tree = parseTree(src, Dialect.LEGEND_ENGINE);
+        ValueSpecification tree = parseTree(src, payloadDialect);
         return tree == null ? null
                 : new com.legend.protocol.spec.QuotedTreeCall(call, tree,
                         call.pos());

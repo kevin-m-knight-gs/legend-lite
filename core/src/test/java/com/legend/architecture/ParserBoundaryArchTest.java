@@ -44,7 +44,7 @@ class ParserBoundaryArchTest {
             Map.entry("com/legend/compiler/spec/SourceSubst.java",
                     "the let-inliner completes the quote/eval fold the"
                             + " moment substitution makes the argument"
-                            + " literal — EngineSpecParser front door, same"
+                            + " literal — QuotedSpecParser front door, same"
                             + " carrier as SpecParser's parse-time fold"),
             Map.entry("com/legend/harness/HarnessSubstitution.java",
                     "the harness inliner completes the quote/eval fold when"

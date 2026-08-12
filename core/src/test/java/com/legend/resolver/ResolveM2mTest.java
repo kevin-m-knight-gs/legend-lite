@@ -73,7 +73,7 @@ class ResolveM2mTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.Own.spec(query)));
+                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
         return new DuckDb().render(new Lowerer().lower(resolved));
     }
@@ -140,7 +140,7 @@ class ResolveM2mTest {
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
-                com.legend.Own.spec("m::Person.all()->project(~[full: p|$p.fullName])")));
+                com.legend.testing.Own.spec("m::Person.all()->project(~[full: p|$p.fullName])")));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
         String sql = new DuckDb().render(new Lowerer().lower(resolved));
         assertEquals(1, count(sql, "SELECT"), sql);
@@ -178,9 +178,9 @@ class ResolveM2mTest {
             SpecCompiler specs = new SpecCompiler(ctx);
             StoreResolver one = new StoreResolver(ctx, specs);
             String q = "m::Person.all()->project(~[l: p|$p.label])";
-            var b1 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(q)));
+            var b1 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
             String sql1 = new DuckDb().render(new Lowerer().lower(one.resolve(b1, "m::RT1")));
-            var b2 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(q)));
+            var b2 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
             String sql2 = new DuckDb().render(new Lowerer().lower(one.resolve(b2, "m::RT2")));
             assertTrue(sql1.contains("FROM A"), sql1);
             assertTrue(sql2.contains("FROM B"),
@@ -198,7 +198,7 @@ class ResolveM2mTest {
             var ctx = Compiler.compileModel(model);
             SpecCompiler specs = new SpecCompiler(ctx);
             var body = specs.typeQueryBody(NameResolver.resolveQuery(
-                    com.legend.Own.spec("m::Person.all()->project(~[f: p|$p.fullName])")));
+                    com.legend.testing.Own.spec("m::Person.all()->project(~[f: p|$p.fullName])")));
             new StoreResolver(ctx, specs).resolve(body, "m::RT");
         });
         assertTrue(String.valueOf(ex.getMessage()).contains("row")
@@ -220,7 +220,7 @@ class ResolveM2mTest {
                     .replace("age: Integer[1]; }", "age: Integer[1]; extra: Integer[1]; }"));
             SpecCompiler specs = new SpecCompiler(ctx);
             List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
-                    com.legend.Own.spec("m::Person.all()->project(~[e: p|$p.extra])")));
+                    com.legend.testing.Own.spec("m::Person.all()->project(~[e: p|$p.extra])")));
             new StoreResolver(ctx, specs).resolve(body, "m::RT");
         });
     }

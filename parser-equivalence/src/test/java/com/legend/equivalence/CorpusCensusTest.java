@@ -81,7 +81,7 @@ class CorpusCensusTest {
                 // A file only we can read is the superset thesis with
                 // evidence; the alternative is that nobody can read it.
                 try {
-                    com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    Surfaces.platform(src.text());
                     onlyWeCanRead++;
                     onlyWeReadByOrigin.merge(origin(src), 1, Integer::sum);
                     onlyWeReadByEngineError.merge(referenceMessage, 1, Integer::sum);
@@ -94,7 +94,7 @@ class CorpusCensusTest {
             try {
                 // FULLY read: parseStrict refuses a section no grammar claims,
                 // so this counts only files we actually read end to end.
-                com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_ENGINE);
+                Surfaces.engine(src.text());
                 fullyParsed++;
                 bothParse++;
             } catch (Throwable strictFailed) {
@@ -103,7 +103,7 @@ class CorpusCensusTest {
                 // a real limitation, so it gets its OWN row rather than being
                 // folded into either success or failure.
                 try {
-                    com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    Surfaces.platform(src.text());
                     parsedOnlyBySkipping++;
                     bothParse++;
                     skipReasons.merge(normalize(strictFailed), 1, Integer::sum);

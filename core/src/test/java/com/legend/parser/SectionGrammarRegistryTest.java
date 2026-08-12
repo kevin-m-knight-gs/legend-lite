@@ -54,7 +54,7 @@ class SectionGrammarRegistryTest {
         // the sections we implement; legend-lite has to load them to compile
         // the parts it owns (refusing cost the relational corpus its whole
         // library layer). The skip is DATA, not silence.
-        ParsedModel m = ElementParser.parse(WITH_UNKNOWN_SECTION, com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ParsedModel m = com.legend.testing.Platform.model(WITH_UNKNOWN_SECTION);
         assertEquals(2, m.elements().size(), "both Pure classes parse");
         assertEquals(1, m.unclaimedSections().size());
         assertEquals("NoSuchSection", m.unclaimedSections().get(0).name());
@@ -65,13 +65,13 @@ class SectionGrammarRegistryTest {
         // the whole Phase M point: a section legend-lite does not know,
         // added WITHOUT forking — ServiceLoader discovery, raw text in,
         // opaque elements out, claimed (not unclaimed)
-        ParsedModel m = ElementParser.parse("""
+        ParsedModel m = com.legend.testing.Platform.model("""
                 Class my::A { a: String[1]; }
 
                 ###Toy
                 Toy my::toys::T1;
                 Toy my::toys::T2;
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         var opaques = m.elements().stream()
                 .filter(e -> e instanceof com.legend.model.OpaqueElementDefinition)
                 .map(e -> (com.legend.model.OpaqueElementDefinition) e)
@@ -93,7 +93,7 @@ class SectionGrammarRegistryTest {
         // There is no third state where we accept without reading.
         assertTrue(SectionGrammarRegistry.lookup("Toy").isPresent());
         assertTrue(SectionGrammarRegistry.lookup("NoSuchSection").isEmpty());
-        assertEquals(1, ElementParser.parse("Class my::A { a: String[1]; }", com.legend.parser.Dialect.LEGEND_PLATFORM)
+        assertEquals(1, com.legend.testing.Platform.model("Class my::A { a: String[1]; }")
                 .elements().size(), "a section-free file is unaffected");
     }
 }

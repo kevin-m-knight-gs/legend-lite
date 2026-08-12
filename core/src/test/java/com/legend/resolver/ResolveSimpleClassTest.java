@@ -100,7 +100,7 @@ class ResolveSimpleClassTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.Own.spec(query)));
+                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         // Context comes from the query's ->from(...); the driver-runtime
         // path is exercised by driverSeamNoFrom through Compiler.execute.
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
@@ -215,7 +215,7 @@ class ResolveSimpleClassTest {
         String model = MODEL.replace("age: T.AGE, ", "");
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(
                 "m::Person.all()->project(~[age: p|$p.age])->from(m::RT)")));
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));

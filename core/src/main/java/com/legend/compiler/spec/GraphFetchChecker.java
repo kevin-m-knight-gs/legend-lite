@@ -244,7 +244,7 @@ final class GraphFetchChecker {
             return inner instanceof ColSpecArray ? inner : v;
         }
         if (v instanceof com.legend.protocol.spec.QuotedTreeCall q) {
-            // the parse-time quote/eval fold (SpecParser via EngineSpecParser):
+            // the parse-time quote/eval fold (SpecParser via QuotedSpecParser):
             // the carrier's pipeline face IS the parsed tree
             return q.tree();
         }

@@ -70,7 +70,13 @@ public final class SourceSubst {
                 // complete the parse-time fold right here, same front door,
                 // same carrier as SpecParser's own fold
                 ValueSpecification folded =
-                        com.legend.parser.EngineSpecParser.fold(sub);
+                        com.legend.parser.QuotedSpecParser.fold(sub,
+                        // ENGINE-run emulation: the only callers that
+                        // reach a late fold are corpus tests (the
+                        // subType family's let-bound tree strings);
+                        // a product host-level late fold would need
+                        // the host dialect threaded to the inliner
+                        com.legend.parser.Dialect.LEGEND_ENGINE);
                 yield folded != null ? folded : sub;
             }
             case AppliedProperty ap -> new AppliedProperty(

@@ -78,7 +78,7 @@ class EngineTestExecutorTest {
     private static EngineTestExecutor.Outcome run(String body) throws Exception {
         ModelContext ctx = Compiler.compileModel(MODEL);
         try (Connection conn = seeded()) {
-            return EngineTestExecutor.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.parser.Dialect.LEGEND_PLATFORM);
+            return EngineTestExecutor.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.testing.Platform.SUITE);
         }
     }
 
@@ -341,7 +341,7 @@ class EngineTestExecutorTest {
                         INSERT INTO PERSON VALUES ('Bob',30,1),('Alice',20,1),
                         ('Cid',40,2),('Dee',10,3)""");
             }
-            return EngineTestExecutor.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.parser.Dialect.LEGEND_PLATFORM);
+            return EngineTestExecutor.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.testing.Platform.SUITE);
         }
     }
 

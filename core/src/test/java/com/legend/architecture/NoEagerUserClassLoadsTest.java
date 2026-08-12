@@ -100,7 +100,7 @@ class NoEagerUserClassLoadsTest {
         // 3. Every query shape type-checks through the strict context.
         for (String query : QUERIES) {
             new SpecCompiler(strict).typeQueryBody(
-                    NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
+                    NameResolver.resolveQuery(com.legend.testing.Platform.spec(query)));
         }
 
         // 4. Sanity: the pipeline actually looked up the warm class — without

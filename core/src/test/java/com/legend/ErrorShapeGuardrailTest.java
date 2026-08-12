@@ -68,7 +68,7 @@ class ErrorShapeGuardrailTest {
             Map.entry("StatementExecutor.java", 1),
             Map.entry("StaticFold.java", 1),
             Map.entry("EngineTestExecutor.java", 3),
-            Map.entry("EngineSpecParser.java", 1),
+            Map.entry("QuotedSpecParser.java", 1),
             Map.entry("Typer.java", 1),
             Map.entry("ValidateDesugar.java", 2));
 

@@ -1129,9 +1129,12 @@ public final class SpecParser implements TokenStreamCursor {
             // Top-level call: span = the function-name tokens (engine call convention).
             AppliedFunction call = new AppliedFunction(fqn, args,
                     java.util.List.of(), spanOf(fqnStart, fqnEnd));
-            // the quote/eval fold: compileLegendValueSpecification('literal')
-            // parses HERE — strings die at the parser (EngineSpecParser)
-            ValueSpecification folded = EngineSpecParser.fold(call);
+            // the quoted-code fold: compileLegendValueSpecification('literal')
+            // parses HERE — strings die at the parser. The payload parses
+            // at the HOST's level: the engine's native uses "the user
+            // grammar" (LegendCompile), and this parse's dialect IS the
+            // host's user grammar — a lite model may quote lite syntax.
+            ValueSpecification folded = QuotedSpecParser.fold(call, dialect());
             return folded != null ? folded : call;
         }
         // Engine convention: a packageableElementPtr spans its FQN tokens.

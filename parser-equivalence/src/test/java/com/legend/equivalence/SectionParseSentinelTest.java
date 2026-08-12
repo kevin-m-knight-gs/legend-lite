@@ -126,7 +126,7 @@ class SectionParseSentinelTest {
                 // whose ###Service/###DataSpace sections legend-lite does not
                 // implement). parseLegendEngine() is the drop-in surface, and it is
                 // the only one whose accept/reject has to match.
-                ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_ENGINE);
+                Surfaces.engine(src.text());
                 parsed++;
                 // ACCEPTING is only right when the reference accepts too. A file
                 // the reference REFUSES and we take is leniency — the divergence

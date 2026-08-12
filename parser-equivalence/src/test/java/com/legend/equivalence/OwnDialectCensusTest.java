@@ -39,7 +39,7 @@ class OwnDialectCensusTest {
                     "SectionGrammarRegistryTest.java",
                     "TdsLambdaProbeTest.java", "ProbeWireShapes.java",
                     "RelationalCorpusRunner.java", "TypeCheckerTest.java",
-                    "UserCallInlinerTest.java", "CompileFunctionTest.java");
+                    "PlatformInliningTest.java", "CompileFunctionTest.java");
 
     /** THE MARKED EXTENSION-TEST SET (user directive 2026-08-12): the
      *  only hosts allowed to carry snippets that pass at LEGEND_LITE and
@@ -87,7 +87,7 @@ class OwnDialectCensusTest {
         for (Corpus.Source s : own) {
             boolean platform;
             try {
-                com.legend.parser.ElementParser.parse(s.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                Surfaces.platform(s.text());
                 platform = true;
                 platformAccepts++;
             } catch (Throwable t) {
@@ -96,14 +96,13 @@ class OwnDialectCensusTest {
             if (!platform) {
                 continue;               // not even platform-parseable — not this census's row
             }
-            boolean engine = accepts(() -> com.legend.parser.ElementParser
-                    .parse(s.text(), com.legend.parser.Dialect.LEGEND_ENGINE));
+            boolean engine = accepts(() -> Surfaces.engine(s.text()));
             if (engine) {
                 engineAccepts++;
             }
             boolean lite = false;
             try {
-                com.legend.parser.ElementParser.parse(s.text(), com.legend.parser.Dialect.LEGEND_LITE);
+                Surfaces.lite(s.text());
                 liteAccepts++;
                 lite = true;
             } catch (Throwable t) {

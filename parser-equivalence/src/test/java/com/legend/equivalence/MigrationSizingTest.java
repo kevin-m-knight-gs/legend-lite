@@ -118,7 +118,7 @@ class MigrationSizingTest {
     /** The path the COMPILER uses. */
     private static String legacyPathError(String text) {
         try {
-            com.legend.parser.ElementParser.parse(text, com.legend.parser.Dialect.LEGEND_ENGINE);
+            Surfaces.engine(text);
             return null;
         } catch (Throwable t) {
             return normalize(t);

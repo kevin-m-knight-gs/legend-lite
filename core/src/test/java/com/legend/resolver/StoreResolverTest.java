@@ -42,7 +42,7 @@ class StoreResolverTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(
-                NameResolver.resolveQuery(com.legend.Own.spec(query)));
+                NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         return new StoreResolver(ctx, specs).resolve(body, driverRuntime);
     }
 
@@ -51,7 +51,7 @@ class StoreResolverTest {
     void reSchemaAndProjectStability() {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
-        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.Own.spec(
+        var body = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(
                 "m::Person.all()->filter(p|$p.age > 30)"
                         + "->project(~[name: p|$p.name])->from(m::RT)")));
         var before = ((TypedFrom) body.get(0)).source();

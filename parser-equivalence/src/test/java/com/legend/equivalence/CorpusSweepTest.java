@@ -171,7 +171,7 @@ public class CorpusSweepTest {
                 // CLAIM 2a: the MODEL transform reads every accepted
                 // source (compile-seam family excepted, BY ID)
                 try {
-                    com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    Surfaces.platform(src.text());
                 } catch (Throwable t) {
                     if (!modelRefuseAllow.containsKey(src.id())) {
                         modelRefuse.add(src.id() + " :: "
@@ -206,10 +206,8 @@ public class CorpusSweepTest {
             // ---------------- oracle REFUSED this source ----------------
             boolean docAccepts = accepts(() -> com.legend.parser.PmcdParser
                     .parseDocument(src.text()));
-            boolean strictAccepts = accepts(() -> com.legend.parser
-                    .ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_ENGINE));
-            boolean lenientAccepts = accepts(() -> com.legend.parser
-                    .ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM));
+            boolean strictAccepts = accepts(() -> Surfaces.engine(src.text()));
+            boolean lenientAccepts = accepts(() -> Surfaces.platform(src.text()));
             boolean pureOnly = !SECTION.matcher(src.text()).find();
 
             if (!docAccepts && !strictAccepts) {
@@ -348,7 +346,7 @@ public class CorpusSweepTest {
         String msg = String.valueOf(root.getMessage());
         if ("Unexpected token".equals(msg.trim())) {
             try {
-                com.legend.parser.ElementParser.parse(text, com.legend.parser.Dialect.LEGEND_ENGINE);
+                Surfaces.engine(text);
                 return "VERSION-SKEW-grammar";
             } catch (Throwable strict) {
                 String sm = String.valueOf(strict.getMessage());

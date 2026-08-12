@@ -34,13 +34,13 @@ class ZSkewResidueProbe {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                Surfaces.platform(src.text());
             } catch (Throwable ours) {
                 continue;               // both refuse — not a leniency row
             }
             String strict;
             try {
-                com.legend.parser.ElementParser.parse(src.text(), com.legend.parser.Dialect.LEGEND_ENGINE);
+                Surfaces.engine(src.text());
                 strict = "STRICT-ACCEPTS";
             } catch (Throwable t) {
                 strict = "STRICT-REFUSES: " + String.valueOf(t.getMessage())
