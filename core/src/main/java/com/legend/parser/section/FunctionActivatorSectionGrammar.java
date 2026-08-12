@@ -47,7 +47,9 @@ public final class FunctionActivatorSectionGrammar
     @Override
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
-        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()));
+        // the SPI feed is the DROP-IN seam: engine-exact grammar
+        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()),
+                com.legend.parser.Dialect.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);
@@ -240,10 +242,17 @@ public final class FunctionActivatorSectionGrammar
     private static final class SliceCursor implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
+        private final com.legend.parser.Dialect dialect;
         private int pos;
 
-        SliceCursor(com.legend.lexer.TokenStream tokens) {
+        SliceCursor(com.legend.lexer.TokenStream tokens, com.legend.parser.Dialect dialect) {
             this.tokens = tokens;
+            this.dialect = dialect;
+        }
+
+        @Override
+        public com.legend.parser.Dialect dialect() {
+            return dialect;
         }
 
         @Override

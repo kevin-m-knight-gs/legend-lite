@@ -25,7 +25,8 @@ class ZLiteRelProbe {
                         || ts.type(i - 1) == com.legend.lexer.TokenType.PAREN_CLOSE)) {
                     var mp = com.legend.parser.MappingProtocolParser
                             .parse(ts, i, ts.sectionContentLine("Mapping",
-                                    ts.start(i)));
+                                    ts.start(i)),
+                                    com.legend.parser.Dialect.LEGEND_PLATFORM);
                     com.legend.protocol.ProtocolEmitter.emitElement(mp);
                     n++;
                 }

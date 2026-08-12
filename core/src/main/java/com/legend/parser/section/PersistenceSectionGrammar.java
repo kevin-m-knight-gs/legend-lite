@@ -290,7 +290,8 @@ public final class PersistenceSectionGrammar
         List<Protocol.PPersistenceEntry> entries = new ArrayList<>();
         parseEntries(new OffsetCursor(com.legend.lexer.Lexer.tokenize(emb),
                 c.tokens().startLine(embStart) - 1,
-                c.tokens().startColumn(embStart) - 1), entries, null);
+                c.tokens().startColumn(embStart) - 1, c.dialect()),
+                entries, null);
         SourceInfo cs = c.spanOf(embStart, embStart);
         int openLine = c.tokens().startLine(embStart - 1);
         int endTok = c.pos();
@@ -308,8 +309,7 @@ public final class PersistenceSectionGrammar
             // a PATH-HEADED node: `#/Class/prop# { ... }` — the graphFetch
             // service output; the path rides the spec wire
             com.legend.protocol.spec.ValueSpecification headPath =
-                    com.legend.parser.SpecParser.parse(
-                            c.tokens().slice(c.pos(), c.pos() + 1));
+                    com.legend.parser.SpecParser.parse(c.tokens().slice(c.pos(), c.pos() + 1), c.dialect());
             c.advance();
             List<Protocol.PPersistenceEntry> pathEntries = new ArrayList<>();
             c.expect(TokenType.BRACE_OPEN);
@@ -352,7 +352,8 @@ public final class PersistenceSectionGrammar
                 baseCol += oc.colOffset;
             }
             OffsetCursor ic = new OffsetCursor(
-                    com.legend.lexer.Lexer.tokenize(emb), baseLine, baseCol);
+                    com.legend.lexer.Lexer.tokenize(emb), baseLine, baseCol,
+                    c.dialect());
             c.expect(TokenType.ISLAND_END);
             parseEntries(ic, entries, null);
         } else {
@@ -414,8 +415,7 @@ public final class PersistenceSectionGrammar
                         List<com.legend.protocol.spec.ValueSpecification>
                                 specs = new ArrayList<>();
                         while (c.peek() != TokenType.BRACKET_CLOSE) {
-                            specs.add(com.legend.parser.SpecParser.parse(
-                                    c.tokens().slice(c.pos(), c.pos() + 1)));
+                            specs.add(com.legend.parser.SpecParser.parse(c.tokens().slice(c.pos(), c.pos() + 1), c.dialect()));
                             c.expect(TokenType.PATH_LITERAL);
                             if (!c.match(TokenType.COMMA)) {
                                 break;
@@ -444,8 +444,7 @@ public final class PersistenceSectionGrammar
                 }
                 case PATH_LITERAL -> {
                     out.add(new Protocol.PPersistenceEntry.PathValue(key,
-                            com.legend.parser.SpecParser.parse(
-                                    c.tokens().slice(c.pos(), c.pos() + 1))));
+                            com.legend.parser.SpecParser.parse(c.tokens().slice(c.pos(), c.pos() + 1), c.dialect())));
                     c.advance();
                     c.expect(TokenType.SEMI_COLON);
                 }
@@ -610,8 +609,7 @@ public final class PersistenceSectionGrammar
                         c.expect(TokenType.SEMI_COLON);
                     }
                     case "graphFetchPath" -> {
-                        graphFetchPath = com.legend.parser.SpecParser.parse(
-                                c.tokens().slice(c.pos(), c.pos() + 1));
+                        graphFetchPath = com.legend.parser.SpecParser.parse(c.tokens().slice(c.pos(), c.pos() + 1), c.dialect());
                         c.expect(TokenType.PATH_LITERAL);
                         c.expect(TokenType.SEMI_COLON);
                     }
@@ -788,8 +786,8 @@ public final class PersistenceSectionGrammar
                     parseEntries(new OffsetCursor(
                             com.legend.lexer.Lexer.tokenize(emb),
                             c.tokens().startLine(embStart) - 1,
-                            c.tokens().startColumn(embStart) - 1), entries,
-                            null);
+                            c.tokens().startColumn(embStart) - 1,
+                            c.dialect()), entries, null);
                     SourceInfo cs = c.spanOf(embStart, embStart);
                     // engine walker start = the line AFTER '#{' even when
                     // content shares the opener's line (DIFF-pinned)
@@ -877,8 +875,7 @@ public final class PersistenceSectionGrammar
                     c.advance();
                 }
                 value = new Protocol.PCtxParamValue.Primitive(
-                        com.legend.parser.SpecParser.parse(
-                                c.tokens().slice(vs, c.pos())));
+                        com.legend.parser.SpecParser.parse(c.tokens().slice(vs, c.pos()), c.dialect()));
             }
             out.add(new Protocol.PCtxParam(name, value,
                     c.spanOf(s, c.pos() - 1)));
@@ -910,7 +907,7 @@ public final class PersistenceSectionGrammar
         String emb = c.reconstructText(embStart, c.pos());
         Protocol.PConnectionValue value = ConnectionSectionGrammar
                 .parseIslandValue(emb, c.tokens().startLine(embStart),
-                        c.tokens().startColumn(embStart));
+                        c.tokens().startColumn(embStart), c.dialect());
         c.expect(TokenType.ISLAND_END);
         return value;
     }
@@ -1156,15 +1153,22 @@ public final class PersistenceSectionGrammar
     private static final class OffsetCursor implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
+        private final com.legend.parser.Dialect dialect;
         private int pos;
         private final int lineOffset;
         private final int colOffset;
 
         OffsetCursor(com.legend.lexer.TokenStream tokens, int lineOffset,
-                int colOffset) {
+                int colOffset, com.legend.parser.Dialect dialect) {
             this.tokens = tokens;
             this.lineOffset = lineOffset;
             this.colOffset = colOffset;
+            this.dialect = dialect;
+        }
+
+        @Override
+        public com.legend.parser.Dialect dialect() {
+            return dialect;
         }
 
         @Override

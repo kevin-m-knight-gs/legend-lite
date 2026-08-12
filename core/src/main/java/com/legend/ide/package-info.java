@@ -25,7 +25,7 @@
  * <h2>What does NOT live here</h2>
  * The batch compiler (parser, name resolver, model builder, type
  * checker, lowerer, dialect, executor) parses eagerly via
- * {@link com.legend.parser.ElementParser#parse(String)} and does not
+ * {@link com.legend.parser.ElementParser#parseLegendLite(String)} and does not
  * consult this package. Compiler layers must not import
  * {@code com.legend.ide.*}.
  *

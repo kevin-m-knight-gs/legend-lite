@@ -29,7 +29,10 @@ public interface ElementwiseSectionGrammar extends LexableSectionGrammar {
     @Override
     default void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
-        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()));
+        // the SPI feed is the DROP-IN seam (engine's
+        // getExtraSectionParsers contract): engine-exact grammar
+        var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()),
+                com.legend.parser.Dialect.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);

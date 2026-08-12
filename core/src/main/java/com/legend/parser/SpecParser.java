@@ -136,7 +136,7 @@ import java.util.Objects;
  *       remaining tokens trip the trailing-tokens check.</li>
  *   <li><strong>Code blocks</strong> &mdash; semicolon-separated
  *       sequences of statements, exposed via
- *       {@link #parseCodeBlock(String)}. The braced lambda body
+ *       {@link #parseCodeBlock(String, Dialect)}. The braced lambda body
  *       uses the same machinery internally.</li>
  * </ul>
  *
@@ -184,12 +184,12 @@ import java.util.Objects;
  *
  * <h2>Entry points</h2>
  * <ul>
- *   <li>{@link #parse(String)} / {@link #parse(TokenStream)} &mdash;
+ *   <li>{@link #parse(String, Dialect)} / {@link #parse(TokenStream, Dialect)} &mdash;
  *       parse a single program line (one expression or one
  *       let-binding). Convenience entry for tests, embedded
  *       expressions (e.g. property defaults), and any context that
  *       admits exactly one statement.</li>
- *   <li>{@link #parseCodeBlock(String)} /
+ *   <li>{@link #parseCodeBlock(String, Dialect)} /
  *       {@link #parseCodeBlock(TokenStream)} &mdash; parse a
  *       semicolon-separated sequence of statements, returning a
  *       {@code List<ValueSpecification>}. Used for function bodies
@@ -252,22 +252,18 @@ public final class SpecParser implements TokenStreamCursor {
     // -------------------------------------------------------------------
 
     /** Lex {@code source} and parse the result as a single expression. */
-    public static ValueSpecification parse(String source) {
-        return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")));
+    public static ValueSpecification parse(String source, Dialect dialect) {
+        return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")),
+                dialect);
     }
 
     /**
-     * Parse the given token stream as a single value specification. The
+     * Parse the given token stream as a single value specification at the
+     * NAMED dialect level — there is no default (HONEST_DEBT #9). The
      * stream may be a {@link TokenStream#slice(int, int)} of a larger
      * file; offsets are preserved so errors point at the original
      * source location.
      */
-    public static ValueSpecification parse(TokenStream tokens) {
-        return parse(tokens, Dialect.LEGEND_PLATFORM);
-    }
-
-    /** As {@link #parse(TokenStream)} with the parse mode carried through
-     *  ({@link TokenStreamCursor#legendStrict()}). */
     public static ValueSpecification parse(TokenStream tokens,
             Dialect dialect) {
         SpecParser parser = new SpecParser(tokens, "", dialect);
@@ -292,21 +288,15 @@ public final class SpecParser implements TokenStreamCursor {
      * as part of a single batch parse. It is also used internally by the
      * braced lambda form to parse the body between {@code {...|...}}.
      */
-    public static List<ValueSpecification> parseCodeBlock(String source) {
-        return parseCodeBlock(Lexer.tokenize(source));
+    public static List<ValueSpecification> parseCodeBlock(String source,
+            Dialect dialect) {
+        return parseCodeBlock(Lexer.tokenize(source), "", dialect);
     }
 
-    /**
-     * Token-stream variant of {@link #parseCodeBlock(String)}.
-     * Consumes the entire stream; trailing tokens after the last
-     * statement raise a fail-fast error.
-     */
-    public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
-        return parseCodeBlock(tokens, "", Dialect.LEGEND_PLATFORM);
-    }
-
-    /** As {@link #parseCodeBlock(TokenStream)} with the parse mode carried
-     *  through ({@link TokenStreamCursor#legendStrict()}). */
+    /** Token-stream variant of {@link #parseCodeBlock(String, Dialect)},
+     *  at the NAMED dialect level — there is no default. Consumes the
+     *  entire stream; trailing tokens after the last statement raise a
+     *  fail-fast error. */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
             Dialect dialect) {
         return parseCodeBlock(tokens, "", dialect);
@@ -2636,7 +2626,7 @@ public final class SpecParser implements TokenStreamCursor {
                 List<ValueSpecification> args = new ArrayList<>();
                 args.add(body);
                 for (String arg : splitTopLevel(datedArgs)) {
-                    args.add(SpecParser.parse("|" + arg.strip())
+                    args.add(SpecParser.parse("|" + arg.strip(), dialect())
                             instanceof LambdaFunction lf && lf.body().size() == 1
                             ? lf.body().get(0)
                             : new Variable(arg.strip()));

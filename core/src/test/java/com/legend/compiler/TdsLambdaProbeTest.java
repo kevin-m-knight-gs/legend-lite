@@ -32,7 +32,7 @@ class TdsLambdaProbeTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "p::concatQ([{|p::Item.all()->project([x|$x.name],['name'])}])")));
+                "p::concatQ([{|p::Item.all()->project([x|$x.name],['name'])}])", com.legend.parser.Dialect.LEGEND_PLATFORM)));
         assertEquals(Type.Primitive.INTEGER,
                 body.get(body.size() - 1).info().type());
     }
@@ -46,7 +46,7 @@ class TdsLambdaProbeTest {
                 "{|let lfs = [%2015-10-16, %2015-10-17]->map(bd|"
                 + "{|p::Item.all()->project([x|$x.name],['name'])}"
                 + "->meta::pure::functions::meta::evaluateAndDeactivate());"
-                + "p::concatQ($lfs);}")));
+                + "p::concatQ($lfs);}", com.legend.parser.Dialect.LEGEND_PLATFORM)));
         Type t = body.get(body.size() - 1).info().type();
         assertEquals(Type.Primitive.INTEGER, t instanceof Type.FunctionType ft
                 ? ft.result().type() : t);

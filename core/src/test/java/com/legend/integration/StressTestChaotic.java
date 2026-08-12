@@ -477,7 +477,7 @@ class StressTestChaotic {
             try {
                 long t = System.nanoTime();
                 var vs = com.legend.compiler.NameResolver.resolveQuery(
-                        com.legend.parser.SpecParser.parse(query));
+                        com.legend.parser.SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM));
                 parseNs += System.nanoTime() - t;
                 t = System.nanoTime();
                 var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);

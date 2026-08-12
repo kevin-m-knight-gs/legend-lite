@@ -71,6 +71,6 @@ final class SectionParse {
             c.advance();
         }
         return com.legend.parser.SpecParser.parse(
-                c.tokens().slice(bs, c.pos()));
+                c.tokens().slice(bs, c.pos()), c.dialect());
     }
 }

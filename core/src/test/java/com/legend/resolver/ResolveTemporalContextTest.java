@@ -146,7 +146,7 @@ class ResolveTemporalContextTest {
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query)));
+                NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
         SqlQuery plan = new Lowerer().lower(resolved);
         return new DuckDb().render(plan);

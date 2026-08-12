@@ -59,16 +59,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     }
 
     /** Parse one {@code Mapping qn ( ... )} at {@code tokenIndex}. */
-    public static Protocol.PMapping parse(TokenStream ts, int tokenIndex) {
-        return parse(ts, tokenIndex, -1);
+    public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
+            Dialect dialect) {
+        return parse(ts, tokenIndex, -1, null, dialect);
     }
 
-    /** As {@link #parse(TokenStream, int)} with the SECTION's first
-     *  content line — AggregationAware nested-CM spans shift by
+    /** As {@link #parse(TokenStream, int, Dialect)} with the SECTION's
+     *  first content line — AggregationAware nested-CM spans shift by
      *  {@code memberLine - sectionStartLine + 2} (probe agg-off-A/B). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
-            int sectionStartLine) {
-        return parse(ts, tokenIndex, sectionStartLine, null);
+            int sectionStartLine, Dialect dialect) {
+        return parse(ts, tokenIndex, sectionStartLine, null, dialect);
     }
 
     /** As above, but reports where the element ENDED in {@code endOut[0]} so
@@ -76,13 +77,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  {@code DatabaseProtocolParser.parse(ts, i, endOut)}, needed now that
      *  the ###Mapping model is built from protocol rather than by a second
      *  parser (PARSER_COMPLETENESS_PLAN.md §1). */
-    public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
-            int sectionStartLine, int @com.legend.Nullable [] endOut) {
-        return parse(ts, tokenIndex, sectionStartLine, endOut, Dialect.LEGEND_PLATFORM);
-    }
-
-    /** As above with the parse mode carried through
-     *  ({@link TokenStreamCursor#legendStrict()}). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
             int sectionStartLine, int @com.legend.Nullable [] endOut,
             Dialect dialect) {
@@ -105,13 +99,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
 
     /** Parse one {@code Data [decorations] qn { <body> }} at
      *  {@code tokenIndex} (probe data-section). */
-    public static Protocol.PDataElement parseData(TokenStream ts,
-            int tokenIndex) {
-        return parseData(ts, tokenIndex, Dialect.LEGEND_PLATFORM);
-    }
-
-    /** As above with the parse mode carried through
-     *  ({@link TokenStreamCursor#legendStrict()}). */
     public static Protocol.PDataElement parseData(TokenStream ts,
             int tokenIndex, Dialect dialect) {
         return parseData(ts, tokenIndex, dialect, null);
@@ -2796,7 +2783,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 inner.advance();
             }
             com.legend.protocol.spec.ValueSpecification value =
-                    SpecParser.parse(inner.tokens().slice(vS, inner.pos()));
+                    SpecParser.parse(inner.tokens().slice(vS, inner.pos()),
+                            dialect);
             return new Protocol.PTestAssertion(assertId,
                     new Protocol.PEqualToValue(value),
                     new SourceInfo("", tokens.startLine(eqTok),

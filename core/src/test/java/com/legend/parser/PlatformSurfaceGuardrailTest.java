@@ -33,12 +33,11 @@ class PlatformSurfaceGuardrailTest {
             // platform/bootstrap loading and internal pipeline
             "com/legend/parser/ElementParser.java",
             "com/legend/parser/Dialect.java",
-            // parser-package INTERNALS: the pure-mode DEFAULT constant in
-            // ctor chains and the cursor interface — machinery, not
-            // consumers (each names LEGEND_PLATFORM as a default value)
-            "com/legend/parser/TokenStreamCursor.java",
-            "com/legend/parser/MappingProtocolParser.java",
-            "com/legend/parser/SpecParser.java",
+            // (the parser-internal DEFAULTS left the whitelist 2026-08-12
+            // — HONEST_DEBT #9 executed: every cursor and sub-parser now
+            // takes its dialect explicitly, TokenStreamCursor.dialect()
+            // is ABSTRACT, and a silent platform-level parse is
+            // unrepresentable)
             // (TestBody left the whitelist 2026-08-12: its ONLY platform
             // call was the compileLegendGrammar payload seam, now
             // LEGEND_ENGINE — matching the engine's own architecture)

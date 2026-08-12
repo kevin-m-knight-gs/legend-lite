@@ -18,9 +18,10 @@ public final class TreeLiterals {
     /** Parse tree-literal SOURCE ({@code #{Class{...}}#}) to its
      * {@link ColSpecArray}, or {@code null} when the text is not a tree
      * literal the grammar carries (callers keep their own loud walls). */
-    public static @com.legend.Nullable ValueSpecification parseTree(String source) {
+    public static @com.legend.Nullable ValueSpecification parseTree(String source,
+            Dialect dialect) {
         try {
-            ValueSpecification v = SpecParser.parse(source.trim());
+            ValueSpecification v = SpecParser.parse(source.trim(), dialect);
             // the parse product became the wire-facing CARRIER when GraphFetchLiteral
             // landed — dissolve to the desugared tree, restoring this method's
             // ColSpecArray contract (regression: every string-built

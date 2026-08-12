@@ -329,15 +329,13 @@ public final class ServiceSectionGrammar
                 && ts.type(from + 1) == TokenType.PAREN_OPEN
                 && ts.type(c.pos() - 1) == TokenType.PAREN_CLOSE) {
             com.legend.protocol.spec.ValueSpecification inner =
-                    com.legend.parser.SpecParser.parse(
-                            c.tokens().slice(from + 2, c.pos() - 1));
+                    com.legend.parser.SpecParser.parse(c.tokens().slice(from + 2, c.pos() - 1), c.dialect());
             return new com.legend.protocol.spec.AppliedFunction("list",
                     java.util.List.of(foldSignedLiterals(inner)),
                     java.util.List.of(),
                     c.spanOf(from, c.pos() - 1));
         }
-        return foldSignedLiterals(com.legend.parser.SpecParser.parse(
-                c.tokens().slice(from, c.pos())));
+        return foldSignedLiterals(com.legend.parser.SpecParser.parse(c.tokens().slice(from, c.pos()), c.dialect()));
     }
 
     /** The folded literal's span runs the '-' through the digits (harvest
@@ -439,8 +437,7 @@ public final class ServiceSectionGrammar
                             }
                             c.advance();
                         }
-                        params.add(com.legend.parser.SpecParser.parse(
-                                c.tokens().slice(pS, c.pos())));
+                        params.add(com.legend.parser.SpecParser.parse(c.tokens().slice(pS, c.pos()), c.dialect()));
                         c.match(TokenType.COMMA);
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
@@ -473,8 +470,7 @@ public final class ServiceSectionGrammar
                             c.advance();
                         }
                         com.legend.protocol.spec.ValueSpecification lambda =
-                                com.legend.parser.SpecParser.parse(
-                                        c.tokens().slice(ls, c.pos()));
+                                com.legend.parser.SpecParser.parse(c.tokens().slice(ls, c.pos()), c.dialect());
                         c.match(TokenType.SEMI_COLON);
                         // ALL assertion spans include the trailing ';' —
                         // the engine's walker parses `<lambda>;` as one
@@ -597,8 +593,7 @@ public final class ServiceSectionGrammar
                             c.advance();
                         }
                         com.legend.protocol.spec.ValueSpecification lambda =
-                                com.legend.parser.SpecParser.parse(
-                                        c.tokens().slice(ls, c.pos()));
+                                com.legend.parser.SpecParser.parse(c.tokens().slice(ls, c.pos()), c.dialect());
                         c.expect(TokenType.BRACE_CLOSE);
                         asserts.add(new Protocol.PLegacyServiceTest
                                 .PLegacyAssert(paramValues, lambda,
@@ -746,8 +741,7 @@ public final class ServiceSectionGrammar
                             c.advance();
                         }
                         parameters.add(new Protocol.PServiceTestSuite
-                                .PSuiteParam(pn, SpecParser.parse(
-                                        c.tokens().slice(vs, c.pos()))));
+                                .PSuiteParam(pn, SpecParser.parse(c.tokens().slice(vs, c.pos()), c.dialect())));
                         c.match(TokenType.COMMA);
                     }
                     c.expect(TokenType.PAREN_CLOSE);
@@ -902,9 +896,8 @@ public final class ServiceSectionGrammar
                                 c.advance();
                             }
                             parameters.add(new Protocol.PServiceTestSuite
-                                    .PSuiteParam(pn, SpecParser.parse(
-                                            c.tokens().slice(vs2,
-                                                    c.pos()))));
+                                    .PSuiteParam(pn, SpecParser.parse(c.tokens().slice(vs2,
+                                                    c.pos()), c.dialect())));
                             c.match(TokenType.COMMA);
                         }
                         c.expect(TokenType.BRACKET_CLOSE);
@@ -1239,7 +1232,7 @@ public final class ServiceSectionGrammar
         String emb = c.reconstructText(embStart, c.pos());
         Protocol.PEmbeddedRuntime value = RuntimeSectionGrammar
                 .parseEmbeddedBody(emb, c.tokens().startLine(embStart),
-                        c.tokens().startColumn(embStart));
+                        c.tokens().startColumn(embStart), c.dialect());
         c.expect(TokenType.ISLAND_END);
         return value;
     }
@@ -1271,7 +1264,7 @@ public final class ServiceSectionGrammar
         }
 
         com.legend.protocol.spec.ValueSpecification v =
-                SpecParser.parse(c.tokens().slice(bs, c.pos()));
+                SpecParser.parse(c.tokens().slice(bs, c.pos()), c.dialect());
         c.expect(TokenType.SEMI_COLON);
         return v;
     }

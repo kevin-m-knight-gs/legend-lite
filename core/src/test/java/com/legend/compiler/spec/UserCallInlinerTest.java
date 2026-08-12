@@ -156,7 +156,7 @@ class UserCallInlinerTest {
         var body = specs.typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(
                         com.legend.parser.SpecParser.parse(
-                                "|t::sweep(%2020-01-01, %2021-01-01)")));
+                                "|t::sweep(%2020-01-01, %2021-01-01)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
         body = new UserCallInliner(specs).inlineBody(body);
         var last = body.get(body.size() - 1);
         var g = org.junit.jupiter.api.Assertions.assertInstanceOf(
@@ -179,7 +179,7 @@ class UserCallInlinerTest {
                         com.legend.parser.SpecParser.parse(
                                 "|m::Person.all()"
                                         + "->project(~[name: p|$p.name, age: p|$p.age])"
-                                        + "->groupBy(~[name], ~[total: x|$x.age : y|$y->sum()])")));
+                                        + "->groupBy(~[name], ~[total: x|$x.age : y|$y->sum()])", com.legend.parser.Dialect.LEGEND_PLATFORM)));
         var gb = org.junit.jupiter.api.Assertions.assertInstanceOf(
                 com.legend.compiler.spec.typed.TypedGroupBy.class,
                 body.get(body.size() - 1));

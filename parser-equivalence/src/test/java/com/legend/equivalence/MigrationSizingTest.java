@@ -136,7 +136,7 @@ class MigrationSizingTest {
                     // section's first content line, exactly as ParserEquivalence
                     // computes it — passing -1 fabricates 31 false "costs"
                     com.legend.parser.MappingProtocolParser.parse(ts, i,
-                            sectionStartLine(text, ts.start(i)));
+                            sectionStartLine(text, ts.start(i)), com.legend.parser.Dialect.LEGEND_PLATFORM);
                 } else if (ts.type(i) == TokenType.DATABASE
                         && atDeclarationPosition(ts, i)) {
                     com.legend.parser.DatabaseProtocolParser.parse(ts, i);

@@ -106,7 +106,7 @@ public final class ModelOrchestrator {
 
     /**
      * Force-parse every declared element and return a {@link ParsedModel}
-     * equivalent to what {@link ElementParser#parse(String)} would
+     * equivalent to what {@link ElementParser#parseLegendLite(String)} would
      * produce. Element order matches source order.
      *
      * <p>Use this for batch validation, CI checks, or tests that want

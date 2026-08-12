@@ -16,8 +16,30 @@ argument linked — never by silence.
 | 7 | Loose threads: stale rejection pin, gate budget, M3 calibration, C6 staleness, moving denominators | PARTLY FIXED — stale pin now NAMED in the report; M3 calibration SELF-MEASURED every run (≥95% gate); manifest pins denominators going forward | C6 re-harvest cadence undefined (GATES.md budget entry landed 2026-08-12 with the sweep) |
 | 8 | `engine-fixture#505` message anomaly | RESOLVED — the message is the ENGINE's own walker text; the row was a real lite leniency, burned engine-verbatim | — |
 
-| 9 | Parser-internal PLATFORM defaults (added 2026-08-12): `SpecParser.parse(tokens)`, `DatabaseProtocolParser`/`MappingProtocolParser` default overloads, `TokenStreamCursor.dialect()` all default to LEGEND_PLATFORM for legacy-caller compatibility — a defaulted overload already hid one real hole (`databaseElement` parsed Database internals at PLATFORM on the strict surfaces; caught by the user's "why does Database need PLATFORM?" question) | OPEN — the guardrail whitelists them as machinery | remove the defaults: dialect explicit end-to-end, whitelist collapses to Pure.java + the definitions |
+| 9 | Parser-internal PLATFORM defaults (added 2026-08-12): `SpecParser.parse(tokens)`, `DatabaseProtocolParser`/`MappingProtocolParser` default overloads, `TokenStreamCursor.dialect()` all default to LEGEND_PLATFORM for legacy-caller compatibility — a defaulted overload already hid one real hole (`databaseElement` parsed Database internals at PLATFORM on the strict surfaces; caught by the user's "why does Database need PLATFORM?" question) | CLOSED 2026-08-12 — every default deleted, `TokenStreamCursor.dialect()` is ABSTRACT (island re-lex cursors inherit the HOST level; the SPI feed is LEGEND_ENGINE, the drop-in seam), whitelist = Pure.java + ElementParser.java + Dialect.java, and `ParserBoundaryArchTest` now guards the package boundary itself | done |
 
 Also from the same review, resolved structurally: the oracle-cache
 eviction hack and five-way sweep fragmentation — see the one-sweep
 harness collapse this ledger rode in with.
+
+## 10. The quote/eval fold parses in a CHECKER (added 2026-08-12)
+
+`GraphFetchChecker.unwrapCompiledTree` implements
+`meta::legend::compileLegendValueSpecification` for string-literal
+arguments by CALLING THE PARSER at check time (`TreeLiterals.parseTree`
+at LEGEND_ENGINE — the level the engine's own `LegendCompile.java:57`
+uses, `PureGrammarParser.parseModel("function a::f():Any[*]{" + code +
+"}")`). The LEVEL is now engine-true, but the LAYERING is wrong:
+parsing belongs to the parser, and lite needs the fold only because
+lowering wants the tree statically ("Java orchestrates, database
+executes"). Caught by the user asking why a checker names a dialect at
+all; `ParserBoundaryArchTest` sanctions the file with a DEBT note so
+the violation can't spread.
+
+**Fix:** fold at the QUOTE boundary inside the parser — when SpecParser
+parses `compileLegendValueSpecification('<literal>')` (including
+foldable string concats), attach the parsed tree as a CARRIER on the
+node (exactly the `GraphFetchLiteral` two-faced pattern: verbatim wire
+emission, desugared tree for the pipeline). The checker then consumes a
+carrier field and never touches `com.legend.parser`.
+

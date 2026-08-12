@@ -100,7 +100,7 @@ class ResolveSimpleClassTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query)));
+                NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
         // Context comes from the query's ->from(...); the driver-runtime
         // path is exercised by driverSeamNoFrom through Compiler.execute.
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
@@ -216,7 +216,7 @@ class ResolveSimpleClassTest {
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
-                "m::Person.all()->project(~[age: p|$p.age])->from(m::RT)")));
+                "m::Person.all()->project(~[age: p|$p.age])->from(m::RT)", com.legend.parser.Dialect.LEGEND_PLATFORM)));
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
         assertEquals("property 'age' of class 'm::Person' has no binding in"

@@ -81,11 +81,11 @@ class SpecCompilerTest {
     private static TypedSpec onPerson(String body) {
         Env env = Env.empty().with("this",
                 new ExprType(new Type.ClassType("model::Person"), Multiplicity.Bounded.ONE));
-        return compilerWith(PERSON_MODEL).typeBody(SpecParser.parse(body), env, Expected.infer());
+        return compilerWith(PERSON_MODEL).typeBody(SpecParser.parse(body, com.legend.parser.Dialect.LEGEND_PLATFORM), env, Expected.infer());
     }
 
     private static TypedSpec infer(String src) {
-        return compiler().typeBody(SpecParser.parse(src), Env.empty(), Expected.infer());
+        return compiler().typeBody(SpecParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.infer());
     }
 
     // ---- literals -------------------------------------------------------
@@ -126,7 +126,7 @@ class SpecCompilerTest {
     @Test
     void variable_resolvesTypeFromEnvironment() {
         Env env = Env.empty().with("x", one(Type.Primitive.INTEGER));
-        TypedSpec n = compiler().typeBody(SpecParser.parse("$x"), env, Expected.infer());
+        TypedSpec n = compiler().typeBody(SpecParser.parse("$x", com.legend.parser.Dialect.LEGEND_PLATFORM), env, Expected.infer());
         assertInstanceOf(TypedVariable.class, n);
         assertEquals("x", ((TypedVariable) n).name());
         assertEquals(one(Type.Primitive.INTEGER), n.info());
@@ -135,7 +135,7 @@ class SpecCompilerTest {
     @Test
     void variable_unboundThrows() {
         assertThrows(TypeInferenceException.class, () -> compiler().typeBody(
-                SpecParser.parse("$y"), Env.empty(), Expected.infer()));
+                SpecParser.parse("$y", com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.infer()));
     }
 
     // ---- bidirectional Check mode --------------------------------------
@@ -143,7 +143,7 @@ class SpecCompilerTest {
     @Test
     void check_conformsToSupertype() {
         // 5 : Integer[1] checked against Number[1] -> conforms (no throw).
-        compiler().typeBody(SpecParser.parse("5"), Env.empty(),
+        compiler().typeBody(SpecParser.parse("5", com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(),
                 Expected.check(one(Type.Primitive.NUMBER)));
     }
 
@@ -151,7 +151,7 @@ class SpecCompilerTest {
     void check_rejectsNonConformingType() {
         // 5 : Integer[1] checked against String[1] -> throws.
         assertThrows(TypeInferenceException.class, () -> compiler().typeBody(
-                SpecParser.parse("5"), Env.empty(), Expected.check(one(Type.Primitive.STRING))));
+                SpecParser.parse("5", com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.check(one(Type.Primitive.STRING))));
     }
 
     @Test
@@ -212,7 +212,7 @@ class SpecCompilerTest {
         SpecCompiler c = compilerWith(
                 "Class model::Person {}\n"
               + "function my::pkg::greet(name:" + s + "[1]):" + s + "[1] { 'hi' }\n");
-        TypedSpec n = c.typeBody(SpecParser.parse("my::pkg::greet('bob')"), Env.empty(), Expected.infer());
+        TypedSpec n = c.typeBody(SpecParser.parse("my::pkg::greet('bob')", com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.infer());
         assertInstanceOf(TypedUserCall.class, n);
         assertEquals("my::pkg::greet", ((TypedUserCall) n).callee().qualifiedName());
         assertEquals(one(Type.Primitive.STRING), n.info());
@@ -246,7 +246,7 @@ class SpecCompilerTest {
     void property_onNonClassTypeThrows() {
         Env env = Env.empty().with("n", one(Type.Primitive.INTEGER));
         assertThrows(TypeInferenceException.class, () -> compilerWith(PERSON_MODEL)
-                .typeBody(SpecParser.parse("$n.anything"), env, Expected.infer()));
+                .typeBody(SpecParser.parse("$n.anything", com.legend.parser.Dialect.LEGEND_PLATFORM), env, Expected.infer()));
     }
 
     @Test
@@ -266,7 +266,7 @@ class SpecCompilerTest {
                      + "Class model::Account extends model::Entity { balance: " + INT + "[1]; }\n";
         Env env = Env.empty().with("this",
                 new ExprType(new Type.ClassType("model::Account"), Multiplicity.Bounded.ONE));
-        TypedSpec n = compilerWith(model).typeBody(SpecParser.parse("$this.id"), env, Expected.infer());
+        TypedSpec n = compilerWith(model).typeBody(SpecParser.parse("$this.id", com.legend.parser.Dialect.LEGEND_PLATFORM), env, Expected.infer());
         assertEquals(one(Type.Primitive.STRING), n.info());   // id is declared on the superclass
     }
 
@@ -285,7 +285,7 @@ class SpecCompilerTest {
         Env env = Env.empty().with("this",
                 new ExprType(new Type.ClassType("model::Person"), Multiplicity.Bounded.ONE));
         assertThrows(TypeInferenceException.class, () -> compilerWith(PERSON_MODEL).typeBody(
-                SpecParser.parse("$this.friends.name"), env, Expected.check(one(Type.Primitive.STRING))));
+                SpecParser.parse("$this.friends.name", com.legend.parser.Dialect.LEGEND_PLATFORM), env, Expected.check(one(Type.Primitive.STRING))));
     }
 
     @Test
@@ -467,7 +467,7 @@ class SpecCompilerTest {
 
     /** Type-check {@code body} against the Person model with no variables in scope (an ad-hoc query). */
     private static TypedSpec query(String body) {
-        return compilerWith(PERSON_MODEL).typeBody(SpecParser.parse(body), Env.empty(), Expected.infer());
+        return compilerWith(PERSON_MODEL).typeBody(SpecParser.parse(body, com.legend.parser.Dialect.LEGEND_PLATFORM), Env.empty(), Expected.infer());
     }
 
     private static final ExprType PERSON_MANY =

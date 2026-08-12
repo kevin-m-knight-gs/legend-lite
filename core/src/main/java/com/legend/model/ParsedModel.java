@@ -9,8 +9,8 @@ import java.util.List;
  * {@link PackageableElement} declarations the parser saw, plus the
  * {@link ImportScope} accumulated from {@code import} statements.
  *
- * <p>Returned by {@link ElementParser#parse(String)} /
- * {@link ElementParser#parse(com.legend.lexer.TokenStream)}.
+ * <p>Returned by {@link ElementParser#parseLegendLite(String)} and the other
+ * named-level entries.
  *
  * <p>Renamed from engine's {@code ParseResult}. {@code ParsedModel} is more
  * descriptive &mdash; "the model the parser produced" &mdash; and avoids the

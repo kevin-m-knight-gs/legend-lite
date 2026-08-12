@@ -218,8 +218,9 @@ public final class TestBody {
      *                   dialect)
      */
     public static @com.legend.Nullable Outcome run(ModelContext ctx, String body, ImportScope imports,
-            String runtimeFqn, Connection conn) throws java.sql.SQLException {
-        return run(ctx, body, imports, runtimeFqn, conn, false);
+            String runtimeFqn, Connection conn,
+            com.legend.parser.Dialect dialect) throws java.sql.SQLException {
+        return run(ctx, body, imports, runtimeFqn, conn, false, dialect);
     }
 
     /**
@@ -230,10 +231,11 @@ public final class TestBody {
      * instead of a hollow pass.
      */
     public static @com.legend.Nullable Outcome run(ModelContext ctx, String body, ImportScope imports,
-            String runtimeFqn, Connection conn, boolean emptinessUnverifiable)
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
+            com.legend.parser.Dialect dialect)
             throws java.sql.SQLException {
-        return run(ctx, SpecParser.parseCodeBlock(body), imports, runtimeFqn,
-                conn, emptinessUnverifiable);
+        return run(ctx, SpecParser.parseCodeBlock(body, dialect), imports,
+                runtimeFqn, conn, emptinessUnverifiable);
     }
 
     /**

@@ -82,7 +82,7 @@ class ResolveOtherwiseTest {
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query)));
+                NameResolver.resolveQuery(SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_PLATFORM)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
         return new DuckDb().render(new Lowerer().lower(resolved));
     }

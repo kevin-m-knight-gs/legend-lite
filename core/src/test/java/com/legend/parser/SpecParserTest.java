@@ -69,7 +69,7 @@ final class SpecParserTest {
     void integerLiteralFits64Bits() {
         // Bytes that fit in a signed long stay a Long; the record holds
         // a Number to leave room for BigInteger overflow.
-        ValueSpecification spec = SpecParser.parse("42");
+        ValueSpecification spec = SpecParser.parse("42", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(new CInteger(42L), spec);
         assertInstanceOf(Long.class, ((CInteger) spec).value(),
                 "small integers should be narrowed to Long for cheap equality");
@@ -80,7 +80,7 @@ final class SpecParserTest {
         // A digit string Larger than Long.MAX_VALUE forces BigInteger so
         // we don't silently lose precision.
         String huge = "92233720368547758980000";
-        ValueSpecification spec = SpecParser.parse(huge);
+        ValueSpecification spec = SpecParser.parse(huge, com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(new CInteger(new BigInteger(huge)), spec);
         assertInstanceOf(BigInteger.class, ((CInteger) spec).value(),
                 "overflowing literal should be carried as BigInteger");
@@ -88,38 +88,38 @@ final class SpecParserTest {
 
     @Test
     void floatLiteralParsesAsDouble() {
-        assertEquals(new CFloat(3.14), SpecParser.parse("3.14"));
+        assertEquals(new CFloat(3.14), SpecParser.parse("3.14", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void floatLiteralWithExponent() {
-        assertEquals(new CFloat(1.5e-3), SpecParser.parse("1.5e-3"));
+        assertEquals(new CFloat(1.5e-3), SpecParser.parse("1.5e-3", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void floatLiteralWithFSuffix() {
         // Pure permits a trailing 'f' on float literals; Java's
         // Double.parseDouble does not, so the parser must strip it.
-        assertEquals(new CFloat(2.5), SpecParser.parse("2.5f"));
+        assertEquals(new CFloat(2.5), SpecParser.parse("2.5f", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void decimalLiteralFromIntegerShape() {
         // The lexer emits DECIMAL for 42d; the parser must round-trip
         // through BigDecimal without losing the integer shape.
-        assertEquals(new CDecimal(new BigDecimal("42")), SpecParser.parse("42d"));
+        assertEquals(new CDecimal(new BigDecimal("42")), SpecParser.parse("42d", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void decimalLiteralFromFloatShape() {
-        assertEquals(new CDecimal(new BigDecimal("3.14")), SpecParser.parse("3.14d"));
+        assertEquals(new CDecimal(new BigDecimal("3.14")), SpecParser.parse("3.14d", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- string literals ---------------------------------------------
 
     @Test
     void stringLiteralStripsQuotes() {
-        assertEquals(new CString("hello"), SpecParser.parse("'hello'"));
+        assertEquals(new CString("hello"), SpecParser.parse("'hello'", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -128,12 +128,12 @@ final class SpecParserTest {
         // assert each round-trips to the expected character so a future
         // refactor can't silently change the table.
         assertEquals(new CString("a\\b'c\nd\te\rf"),
-                SpecParser.parse("'a\\\\b\\'c\\nd\\te\\rf'"));
+                SpecParser.parse("'a\\\\b\\'c\\nd\\te\\rf'", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void stringLiteralEmptyIsLegal() {
-        assertEquals(new CString(""), SpecParser.parse("''"));
+        assertEquals(new CString(""), SpecParser.parse("''", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -142,12 +142,12 @@ final class SpecParserTest {
         // an UNRECOGNIZED escape drops the backslash and keeps the char
         // (the corpus's '\ ' seed literal depends on it). Pin the decoded
         // engine semantics, not a stricter invention.
-        ValueSpecification v = SpecParser.parse("'a\\zb'");
+        ValueSpecification v = SpecParser.parse("'a\\zb'", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals("azb", ((CString) v).value());
         // octal/unicode escapes stay LOUD (drop-backslash would corrupt
         // them silently; unimplemented until a corpus file demands them)
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("'a\\u0041b'"));
+                () -> SpecParser.parse("'a\\u0041b'", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("octal/unicode"),
                 () -> "want octal/unicode-escape error, got: " + ex.getMessage());
     }
@@ -156,12 +156,12 @@ final class SpecParserTest {
 
     @Test
     void booleanTrue() {
-        assertEquals(new CBoolean(true), SpecParser.parse("true"));
+        assertEquals(new CBoolean(true), SpecParser.parse("true", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void booleanFalse() {
-        assertEquals(new CBoolean(false), SpecParser.parse("false"));
+        assertEquals(new CBoolean(false), SpecParser.parse("false", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- temporal literals -------------------------------------------
@@ -170,7 +170,7 @@ final class SpecParserTest {
     void strictDateLiteralYearMonthDay() {
         // %2024-01-15 -> structured StrictDate variant.
         assertEquals(new CDate(new PureDateLiteral.StrictDate(2024, 1, 15)),
-                SpecParser.parse("%2024-01-15"));
+                SpecParser.parse("%2024-01-15", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -179,53 +179,53 @@ final class SpecParserTest {
         // "strict date" (type lie); the structured hierarchy gives it
         // its own variant.
         assertEquals(new CDate(new PureDateLiteral.Year(2024)),
-                SpecParser.parse("%2024"));
+                SpecParser.parse("%2024", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void yearMonthLiteral() {
         assertEquals(new CDate(new PureDateLiteral.YearMonth(2024, 1)),
-                SpecParser.parse("%2024-01"));
+                SpecParser.parse("%2024-01", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void dateWithHourLiteral() {
         // %2024-01-15T10 -> DateWithHour (legal per engine grammar).
         assertEquals(new CDate(new PureDateLiteral.DateWithHour(2024, 1, 15, 10)),
-                SpecParser.parse("%2024-01-15T10"));
+                SpecParser.parse("%2024-01-15T10", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void dateTimeLiteralWithSeconds() {
         assertEquals(new CDate(new PureDateLiteral.DateWithSecond(2024, 1, 15, 10, 30, 0)),
-                SpecParser.parse("%2024-01-15T10:30:00"));
+                SpecParser.parse("%2024-01-15T10:30:00", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void dateTimeLiteralWithSubsecondAndGmtTimezone() {
         // GMT (+0000) -> no shift, just dropped.
         assertEquals(new CDate(new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 0, "123")),
-                SpecParser.parse("%2024-01-15T10:30:00.123+0000"));
+                SpecParser.parse("%2024-01-15T10:30:00.123+0000", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void dateTimeLiteralTimezoneShifts() {
         // %2024-01-15T10:00+0500 -> shift -5h to GMT -> %2024-01-15T05:00.
         assertEquals(new CDate(new PureDateLiteral.DateWithMinute(2024, 1, 15, 5, 0)),
-                SpecParser.parse("%2024-01-15T10:00+0500"));
+                SpecParser.parse("%2024-01-15T10:00+0500", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void strictTimeLiteral() {
         // %hh:mm:ss -> structured TimeWithSecond.
         assertEquals(new CTime(new PureTimeLiteral.TimeWithSecond(10, 30, 45)),
-                SpecParser.parse("%10:30:45"));
+                SpecParser.parse("%10:30:45", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void latestDateSentinel() {
         // CLatestDate is fieldless; equality follows record contract.
-        assertEquals(new CLatestDate(), SpecParser.parse("%latest"));
+        assertEquals(new CLatestDate(), SpecParser.parse("%latest", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- variables ---------------------------------------------------
@@ -233,18 +233,18 @@ final class SpecParserTest {
     @Test
     void variableReference() {
         // $name -> Variable("name"); the $ is NOT in the carried name.
-        assertEquals(new Variable("this"), SpecParser.parse("$this"));
+        assertEquals(new Variable("this"), SpecParser.parse("$this", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void variableWithUnderscoresAndDigits() {
-        assertEquals(new Variable("my_var2"), SpecParser.parse("$my_var2"));
+        assertEquals(new Variable("my_var2"), SpecParser.parse("$my_var2", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void dollarWithoutIdentifierRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("$"));
+                () -> SpecParser.parse("$", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("expected identifier"),
                 () -> "want identifier-after-dollar error, got: " + ex.getMessage());
     }
@@ -253,13 +253,13 @@ final class SpecParserTest {
 
     @Test
     void emptyCollection() {
-        assertEquals(new PureCollection(List.of()), SpecParser.parse("[]"));
+        assertEquals(new PureCollection(List.of()), SpecParser.parse("[]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void singletonCollection() {
         assertEquals(new PureCollection(List.of(new CInteger(1L))),
-                SpecParser.parse("[1]"));
+                SpecParser.parse("[1]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -271,7 +271,7 @@ final class SpecParserTest {
                         new CInteger(1L),
                         new CString("two"),
                         new CBoolean(true))),
-                SpecParser.parse("[1, 'two', true]"));
+                SpecParser.parse("[1, 'two', true]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -280,7 +280,7 @@ final class SpecParserTest {
                 new PureCollection(List.of(
                         new PureCollection(List.of(new CInteger(1L), new CInteger(2L))),
                         new PureCollection(List.of(new CInteger(3L))))),
-                SpecParser.parse("[[1, 2], [3]]"));
+                SpecParser.parse("[[1, 2], [3]]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -288,7 +288,7 @@ final class SpecParserTest {
         // Trailing comma is not legal in Pure; matching engine here
         // keeps test corpora byte-comparable.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("[1, 2,]"));
+                () -> SpecParser.parse("[1, 2,]", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing comma"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
     }
@@ -299,7 +299,7 @@ final class SpecParserTest {
         // direction error ("unexpected ]") would falsely pass that.
         // Pin the exact wording so it must be a missing-close error.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("[1, 2"));
+                () -> SpecParser.parse("[1, 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected ']'"),
                 () -> "want missing-close error, got: " + ex.getMessage());
     }
@@ -314,7 +314,7 @@ final class SpecParserTest {
         // word and the actual token type so a regression that throws a
         // different unsupported-token error fails this test.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("->"));
+                () -> SpecParser.parse("->", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("unsupported expression token"),
                 () -> "want unsupported-token error, got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("ARROW"),
@@ -327,7 +327,7 @@ final class SpecParserTest {
         // pin the exact wording so a regression that conflates the two
         // surfaces here.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse(""));
+                () -> SpecParser.parse("", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("end of input"),
                 () -> "want end-of-input error, got: " + ex.getMessage());
     }
@@ -339,7 +339,7 @@ final class SpecParserTest {
         // that the caller meant to parse a multi-statement body, which
         // is a C.4 feature).
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("1 2"));
+                () -> SpecParser.parse("1 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing"),
                 () -> "want trailing-tokens error, got: " + ex.getMessage());
     }
@@ -353,15 +353,15 @@ final class SpecParserTest {
         // unwrapped form would be over-specified (records don't share
         // identity), so we pin RECORD equality to the same literal
         // the bare form produces.
-        assertEquals(SpecParser.parse("42"), SpecParser.parse("(42)"));
-        assertEquals(SpecParser.parse("$x"), SpecParser.parse(("($x)")));
+        assertEquals(SpecParser.parse("42", com.legend.parser.Dialect.LEGEND_PLATFORM), SpecParser.parse("(42)", com.legend.parser.Dialect.LEGEND_PLATFORM));
+        assertEquals(SpecParser.parse("$x", com.legend.parser.Dialect.LEGEND_PLATFORM), SpecParser.parse(("($x)"), com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void parenthesisedExpressionNests() {
         // Multiple layers of parens must all unwrap to the same AST,
         // since none of them carry semantic info.
-        assertEquals(new CInteger(7L), SpecParser.parse("(((7)))"));
+        assertEquals(new CInteger(7L), SpecParser.parse("(((7)))", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- packageable element references (C.2) -----------------------
@@ -372,13 +372,13 @@ final class SpecParserTest {
         // reference; PackageableElementPtr carries the source name
         // verbatim (no FQN resolution until Phase D).
         assertEquals(new PackageableElementPtr("Person"),
-                SpecParser.parse("Person"));
+                SpecParser.parse("Person", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void qualifiedIdentifierBecomesPackageableElementPtr() {
         assertEquals(new PackageableElementPtr("my::app::Person"),
-                SpecParser.parse("my::app::Person"));
+                SpecParser.parse("my::app::Person", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- prefix function application (C.2) --------------------------
@@ -386,13 +386,13 @@ final class SpecParserTest {
     @Test
     void zeroArgPrefixCall() {
         assertEquals(new AppliedFunction("now", List.of()),
-                SpecParser.parse("now()"));
+                SpecParser.parse("now()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void singleArgPrefixCall() {
         assertEquals(new AppliedFunction("abs", List.of(new CInteger(5L))),
-                SpecParser.parse("abs(5)"));
+                SpecParser.parse("abs(5)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -402,7 +402,7 @@ final class SpecParserTest {
                         new CInteger(1L),
                         new CFloat(2.5),
                         new Variable("x"))),
-                SpecParser.parse("plus(1, 2.5, $x)"));
+                SpecParser.parse("plus(1, 2.5, $x)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -412,7 +412,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("my::pkg::add",
                         List.of(new CInteger(1L), new CInteger(2L))),
-                SpecParser.parse("my::pkg::add(1, 2)"));
+                SpecParser.parse("my::pkg::add(1, 2)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -421,7 +421,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("outer", List.of(
                         new AppliedFunction("inner", List.of(new CInteger(1L))))),
-                SpecParser.parse("outer(inner(1))"));
+                SpecParser.parse("outer(inner(1))", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- property access (C.2) --------------------------------------
@@ -431,7 +431,7 @@ final class SpecParserTest {
         // AppliedProperty(receiver, property) reads left-to-right like
         // source: $x.name -> AppliedProperty($x, "name").
         assertEquals(new AppliedProperty(new Variable("x"), "name"),
-                SpecParser.parse("$x.name"));
+                SpecParser.parse("$x.name", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -443,7 +443,7 @@ final class SpecParserTest {
                 new AppliedProperty(
                         new AppliedProperty(new Variable("x"), "foo"),
                         "bar"),
-                SpecParser.parse("$x.foo.bar"));
+                SpecParser.parse("$x.foo.bar", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -452,7 +452,7 @@ final class SpecParserTest {
         // with single quotes; same lexical rules as a CString literal.
         assertEquals(
                 new AppliedProperty(new Variable("x"), "My Name"),
-                SpecParser.parse("$x.'My Name'"));
+                SpecParser.parse("$x.'My Name'", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- method-on-receiver (C.2) -----------------------------------
@@ -465,7 +465,7 @@ final class SpecParserTest {
                 new AppliedFunction("filter", List.of(
                         new Variable("x"),
                         new Variable("y"))),
-                SpecParser.parse("$x.filter($y)"));
+                SpecParser.parse("$x.filter($y)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -475,7 +475,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("getAll", List.of(
                         new PackageableElementPtr("Person"))),
-                SpecParser.parse("Person.all()"));
+                SpecParser.parse("Person.all()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- arrow form (C.2) -------------------------------------------
@@ -487,8 +487,8 @@ final class SpecParserTest {
         // test pins the desugaring invariant so any future divergence
         // (e.g. accidentally re-introducing a hasReceiver flag) fails
         // here loud and clear.
-        ValueSpecification arrow = SpecParser.parse("$x->foo($y)");
-        ValueSpecification method = SpecParser.parse("$x.foo($y)");
+        ValueSpecification arrow = SpecParser.parse("$x->foo($y)", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ValueSpecification method = SpecParser.parse("$x.foo($y)", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(method, arrow,
                 "$x->foo($y) and $x.foo($y) must produce equal AST");
     }
@@ -505,7 +505,7 @@ final class SpecParserTest {
                                         new PackageableElementPtr("Person"))),
                                 new Variable("p"))),
                         new CInteger(10L))),
-                SpecParser.parse("Person.all()->filter($p)->limit(10)"));
+                SpecParser.parse("Person.all()->filter($p)->limit(10)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -514,7 +514,7 @@ final class SpecParserTest {
         // FQN preserved verbatim on AppliedFunction.function.
         assertEquals(
                 new AppliedFunction("my::pkg::fn", List.of(new Variable("x"))),
-                SpecParser.parse("$x->my::pkg::fn()"));
+                SpecParser.parse("$x->my::pkg::fn()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- C.2 error surfaces -----------------------------------------
@@ -522,7 +522,7 @@ final class SpecParserTest {
     @Test
     void dotWithoutPropertyNameRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("$x."));
+                () -> SpecParser.parse("$x.", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected property name"),
                 () -> "want missing-property-name error, got: " + ex.getMessage());
     }
@@ -534,7 +534,7 @@ final class SpecParserTest {
         // 'expected type name, got EOF'. Pin the new (still descriptive,
         // still source-located) phrase.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("$x->"));
+                () -> SpecParser.parse("$x->", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected type name"),
                 () -> "want missing-identifier error, got: " + ex.getMessage());
     }
@@ -544,7 +544,7 @@ final class SpecParserTest {
         // '->' must be followed by 'fn(...)'. Bare '->foo' with no
         // call-parens is malformed.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("$x->foo"));
+                () -> SpecParser.parse("$x->foo", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected '(' after arrow-call"),
                 () -> "want missing-paren error, got: " + ex.getMessage());
     }
@@ -556,7 +556,7 @@ final class SpecParserTest {
         // — the two productions emit different messages by design and
         // we want refactor-time crosswire bugs to fail here.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("fn(1, 2"));
+                () -> SpecParser.parse("fn(1, 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("close argument list"),
                 () -> "want missing-close error, got: " + ex.getMessage());
     }
@@ -564,7 +564,7 @@ final class SpecParserTest {
     @Test
     void trailingCommaInArgListRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("fn(1, 2,)"));
+                () -> SpecParser.parse("fn(1, 2,)", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
     }
@@ -575,7 +575,7 @@ final class SpecParserTest {
         // phrasing ("parenthesised expression") so these two negative
         // tests cover disjoint code paths.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("(42"));
+                () -> SpecParser.parse("(42", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("close parenthesised expression"),
                 () -> "want missing-close error, got: " + ex.getMessage());
     }
@@ -592,7 +592,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("fn", List.of(
                         new AppliedProperty(new Variable("x"), "foo"))),
-                SpecParser.parse("$x.foo->fn()"));
+                SpecParser.parse("$x.foo->fn()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -604,7 +604,7 @@ final class SpecParserTest {
                 new AppliedProperty(
                         new AppliedFunction("fn", List.of(new Variable("x"))),
                         "bar"),
-                SpecParser.parse("$x->fn().bar"));
+                SpecParser.parse("$x->fn().bar", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- binary operators: arithmetic (C.3) -------------------------
@@ -617,7 +617,7 @@ final class SpecParserTest {
         // same-op run in ONE collection parameter).
         assertEquals(
                 nary("plus", new CInteger(1L), new CInteger(2L)),
-                SpecParser.parse("1 + 2"));
+                SpecParser.parse("1 + 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -628,14 +628,14 @@ final class SpecParserTest {
         // divide stays PAIRWISE (engine buildDivide).
         assertEquals(
                 nary("minus", new CInteger(5L), new CInteger(3L)),
-                SpecParser.parse("5 - 3"));
+                SpecParser.parse("5 - 3", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 nary("times", new CInteger(4L), new CInteger(2L)),
-                SpecParser.parse("4 * 2"));
+                SpecParser.parse("4 * 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 new AppliedFunction("divide", List.of(
                         new CInteger(10L), new CInteger(2L))),
-                SpecParser.parse("10 / 2"));
+                SpecParser.parse("10 / 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -646,7 +646,7 @@ final class SpecParserTest {
         // not per spine).
         assertEquals(
                 nary("plus", new CInteger(1L), new CInteger(2L), new CInteger(3L)),
-                SpecParser.parse("1 + 2 + 3"));
+                SpecParser.parse("1 + 2 + 3", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -654,7 +654,7 @@ final class SpecParserTest {
         // audit M10: let 'my var' = ... and $'my var' previously decoded
         // DIFFERENTLY (one kept its quotes) so the reference could never
         // resolve. Both route through THE shared decoder now.
-        LambdaFunction lf = (LambdaFunction) SpecParser.parse("|let 'my var' = 5; $'my var';");
+        LambdaFunction lf = (LambdaFunction) SpecParser.parse("|let 'my var' = 5; $'my var';", com.legend.parser.Dialect.LEGEND_PLATFORM);
         AppliedFunction let = (AppliedFunction) lf.body().get(0);
         String bound = ((CString) let.parameters().get(0)).value();
         String used = ((Variable) lf.body().get(1)).name();
@@ -666,7 +666,7 @@ final class SpecParserTest {
     void utcSuffixDateLiteralLexes() {
         // audit M5: %2024-01-15T10:30Z was unlexable ('Z' fell out of the
         // date scan) though the literal parser fully supports it.
-        ValueSpecification vs = SpecParser.parse("%2024-01-15T10:30Z");
+        ValueSpecification vs = SpecParser.parse("%2024-01-15T10:30Z", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertInstanceOf(CDate.class, vs);
     }
 
@@ -674,7 +674,7 @@ final class SpecParserTest {
     void schemaQualifiedTableReferenceSplitsAtTheFqnBoundary() {
         // audit M7: #>{db::DB.schema.T}# mis-split at the LAST dot, yielding
         // the structurally invalid FQN "db::DB.schema".
-        AppliedFunction tr = (AppliedFunction) SpecParser.parse("#>{db::DB.schema.T}#");
+        AppliedFunction tr = (AppliedFunction) SpecParser.parse("#>{db::DB.schema.T}#", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals("tableReference", tr.function());
         assertEquals("db::DB",
                 ((PackageableElementPtr) tr.parameters().get(0)).fullPath());
@@ -685,19 +685,19 @@ final class SpecParserTest {
     void pipeLambdaStatementSequenceMatchesRealGrammar() {
         // M3ParserGrammar.g4: codeBlock: programLine (';' (programLine ';')*)?
         // First statement's ';' optional; SUBSEQUENT statements REQUIRE it.
-        assertEquals(1, ((LambdaFunction) SpecParser.parse("|1 + 1")).body().size());
-        assertEquals(1, ((LambdaFunction) SpecParser.parse("|1 + 1;")).body().size());
+        assertEquals(1, ((LambdaFunction) SpecParser.parse("|1 + 1", com.legend.parser.Dialect.LEGEND_PLATFORM)).body().size());
+        assertEquals(1, ((LambdaFunction) SpecParser.parse("|1 + 1;", com.legend.parser.Dialect.LEGEND_PLATFORM)).body().size());
         assertEquals(3, ((LambdaFunction) SpecParser.parse(
-                "|let a = 1; let b = 2; $a + $b;")).body().size());
+                "|let a = 1; let b = 2; $a + $b;", com.legend.parser.Dialect.LEGEND_PLATFORM)).body().size());
         // Missing the required trailing ';' on a subsequent statement: invalid.
-        assertThrows(ParseException.class, () -> SpecParser.parse("|let a = 1; $a"));
+        assertThrows(ParseException.class, () -> SpecParser.parse("|let a = 1; $a", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void booleanPrecedenceMatchesRealPure() {
         // && binds tighter than || (engine DomainParseTreeWalker
         // isLowerPrecedenceBoolean): 'a || b && c' is or(a, and(b, c)).
-        AppliedFunction or = (AppliedFunction) SpecParser.parse("true || true && false");
+        AppliedFunction or = (AppliedFunction) SpecParser.parse("true || true && false", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals("or", or.function());
         assertEquals("and", ((AppliedFunction) or.parameters().get(1)).function());
     }
@@ -715,10 +715,10 @@ final class SpecParserTest {
                 nary("plus",
                         new CInteger(1L),
                         nary("times", new CInteger(2L), new CInteger(3L))),
-                SpecParser.parse("1 + 2 * 3"));
+                SpecParser.parse("1 + 2 * 3", com.legend.parser.Dialect.LEGEND_PLATFORM));
         // Comparisons bind loosest: 1 + 2 * 3 > 4 * 5 + 6 == (7 > 26).
         assertEquals("greaterThan",
-                ((AppliedFunction) SpecParser.parse("1 + 2 * 3 > 4 * 5 + 6")).function());
+                ((AppliedFunction) SpecParser.parse("1 + 2 * 3 > 4 * 5 + 6", com.legend.parser.Dialect.LEGEND_PLATFORM)).function());
     }
 
     @Test
@@ -729,7 +729,7 @@ final class SpecParserTest {
                 nary("plus",
                         new CInteger(1L),
                         nary("times", new CInteger(2L), new CInteger(3L))),
-                SpecParser.parse("1 + (2 * 3)"));
+                SpecParser.parse("1 + (2 * 3)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- binary operators: comparison & equality (C.3) --------------
@@ -742,19 +742,19 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("lessThan", List.of(
                         new CInteger(1L), new CInteger(2L))),
-                SpecParser.parse("1 < 2"));
+                SpecParser.parse("1 < 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 new AppliedFunction("lessThanEqual", List.of(
                         new CInteger(1L), new CInteger(2L))),
-                SpecParser.parse("1 <= 2"));
+                SpecParser.parse("1 <= 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 new AppliedFunction("greaterThan", List.of(
                         new CInteger(3L), new CInteger(2L))),
-                SpecParser.parse("3 > 2"));
+                SpecParser.parse("3 > 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 new AppliedFunction("greaterThanEqual", List.of(
                         new CInteger(3L), new CInteger(2L))),
-                SpecParser.parse("3 >= 2"));
+                SpecParser.parse("3 >= 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -764,20 +764,20 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("equal", List.of(
                         new Variable("x"), new CInteger(1L))),
-                SpecParser.parse("$x == 1"));
+                SpecParser.parse("$x == 1", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 new AppliedFunction("not", List.of(
                         new AppliedFunction("equal", List.of(
                                 new Variable("x"), new CInteger(1L))))),
-                SpecParser.parse("$x != 1"));
+                SpecParser.parse("$x != 1", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void alternateNotEqualSpellingDesugarsIdentically() {
         // Pure spells inequality two ways: '!=' and '<>'. Both desugar to
         // not(equal(...)) — real pure's spelling — identically.
-        ValueSpecification bang = SpecParser.parse("$x != 1");
-        ValueSpecification angle = SpecParser.parse("$x <> 1");
+        ValueSpecification bang = SpecParser.parse("$x != 1", com.legend.parser.Dialect.LEGEND_PLATFORM);
+        ValueSpecification angle = SpecParser.parse("$x <> 1", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(bang, angle,
                 "'$x != 1' and '$x <> 1' must produce equal AST");
         assertEquals(
@@ -796,7 +796,7 @@ final class SpecParserTest {
                 new AppliedFunction("equal", List.of(
                         new Variable("a"),
                         nary("plus", new Variable("b"), new Variable("c")))),
-                SpecParser.parse("$a == $b + $c"));
+                SpecParser.parse("$a == $b + $c", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -819,7 +819,7 @@ final class SpecParserTest {
                         new Variable("a"),
                         new AppliedFunction("equal", List.of(
                                 new Variable("b"), new Variable("c")))),
-                SpecParser.parse("$a + $b == $c"));
+                SpecParser.parse("$a + $b == $c", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- binary operators: boolean (C.3) ----------------------------
@@ -830,11 +830,11 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("and", List.of(
                         new CBoolean(true), new CBoolean(false))),
-                SpecParser.parse("true && false"));
+                SpecParser.parse("true && false", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(
                 new AppliedFunction("or", List.of(
                         new CBoolean(true), new CBoolean(false))),
-                SpecParser.parse("true || false"));
+                SpecParser.parse("true || false", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -849,7 +849,7 @@ final class SpecParserTest {
                         new AppliedFunction("and", List.of(
                                 new Variable("a"), new Variable("b"))),
                         new Variable("c"))),
-                SpecParser.parse("$a && $b && $c"));
+                SpecParser.parse("$a && $b && $c", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -867,7 +867,7 @@ final class SpecParserTest {
                                         new Variable("x"), new CInteger(10L))),
                                 new Variable("x"))),
                         new CInteger(20L))),
-                SpecParser.parse("$x > 10 && $x < 20"));
+                SpecParser.parse("$x > 10 && $x < 20", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- unary operators (C.3) --------------------------------------
@@ -876,7 +876,7 @@ final class SpecParserTest {
     void unaryNotDesugarsToAppliedFunctionNot() {
         assertEquals(
                 new AppliedFunction("not", List.of(new Variable("x"))),
-                SpecParser.parse("!$x"));
+                SpecParser.parse("!$x", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -888,7 +888,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("minus", List.of(
                         new AppliedProperty(new Variable("x"), "foo"))),
-                SpecParser.parse("-$x.foo"));
+                SpecParser.parse("-$x.foo", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -898,7 +898,7 @@ final class SpecParserTest {
         // it keeps round-trip parity with the engine corpus).
         assertEquals(
                 new AppliedFunction("plus", List.of(new CInteger(42L))),
-                SpecParser.parse("+42"));
+                SpecParser.parse("+42", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- new-instance (C.3) -----------------------------------------
@@ -920,7 +920,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
                         new NewInstance("Foo", List.of(), Map.of()))),
-                SpecParser.parse("^Foo()"));
+                SpecParser.parse("^Foo()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -934,7 +934,7 @@ final class SpecParserTest {
                         new NewInstance("Person", List.of(), Map.of(
                                 "name", new KeyExpression(new CString("Alice"), false, false),
                                 "age", new KeyExpression(new CInteger(30L), false, false))))),
-                SpecParser.parse("^Person(name='Alice', age=30)"));
+                SpecParser.parse("^Person(name='Alice', age=30)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -949,7 +949,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("my::app::Person"),
                         new NewInstance("my::app::Person", List.of(), Map.of(
                                 "name", new KeyExpression(new CString("Bob"), false, false))))),
-                SpecParser.parse("^my::app::Person(name='Bob')"));
+                SpecParser.parse("^my::app::Person(name='Bob')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -964,7 +964,7 @@ final class SpecParserTest {
                                 Map.of(
                                         "first", new KeyExpression(new CInteger(1L), false, false),
                                         "second", new KeyExpression(new CString("a"), false, false))))),
-                SpecParser.parse("^Pair<Integer, String>(first=1, second='a')"));
+                SpecParser.parse("^Pair<Integer, String>(first=1, second='a')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -979,7 +979,7 @@ final class SpecParserTest {
                                         nary("plus", new CInteger(1L), new CInteger(2L)),
                                         false, false)))
                 )),
-                SpecParser.parse("^Box(value=1+2)"));
+                SpecParser.parse("^Box(value=1+2)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1002,7 +1002,7 @@ final class SpecParserTest {
                                         new CString("Alice"), false, false),
                                 "tags", new KeyExpression(
                                         new CString("admin"), true, false))))),
-                SpecParser.parse("^Person(name='Alice', tags+='admin')"));
+                SpecParser.parse("^Person(name='Alice', tags+='admin')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1020,13 +1020,13 @@ final class SpecParserTest {
                         new PackageableElementPtr("Foo"),
                         new NewInstance("Foo", List.of(), Map.of(
                                 "x", new KeyExpression(new CInteger(2L), false, false))))),
-                SpecParser.parse("^Foo(x=1, x=2)"));
+                SpecParser.parse("^Foo(x=1, x=2)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
     void newInstanceMissingEqualsRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("^Foo(x 5)"));
+                () -> SpecParser.parse("^Foo(x 5)", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected '='"),
                 () -> "want missing-equals error, got: " + ex.getMessage());
     }
@@ -1037,7 +1037,7 @@ final class SpecParserTest {
         // test cannot also pass against the collection or argument-list
         // trailing-comma errors, all of which contain "trailing comma".
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("^Foo(x=1,)"));
+                () -> SpecParser.parse("^Foo(x=1,)", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("^NewInstance binding list"),
                 () -> "want NewInstance-specific trailing-comma error, got: "
                         + ex.getMessage());
@@ -1063,7 +1063,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("Firm"),
                         new NewInstanceCast("Firm", List.of(),
                                 new Variable("x")))),
-                SpecParser.parse("^Firm($x)"));
+                SpecParser.parse("^Firm($x)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1076,7 +1076,7 @@ final class SpecParserTest {
                         new NewInstanceCast("DeptInfo", List.of(),
                                 new AppliedProperty(
                                         new Variable("emp"), "department")))),
-                SpecParser.parse("^DeptInfo($emp.department)"));
+                SpecParser.parse("^DeptInfo($emp.department)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1089,7 +1089,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("my::pkg::Firm"),
                         new NewInstanceCast("my::pkg::Firm", List.of(),
                                 new Variable("src")))),
-                SpecParser.parse("^my::pkg::Firm($src)"));
+                SpecParser.parse("^my::pkg::Firm($src)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1102,7 +1102,7 @@ final class SpecParserTest {
                         new NewInstanceCast("Pair",
                                 List.of(nr("Integer"), nr("String")),
                                 new Variable("p")))),
-                SpecParser.parse("^Pair<Integer, String>($p)"));
+                SpecParser.parse("^Pair<Integer, String>($p)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1115,7 +1115,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("Person"),
                         new NewInstance("Person", List.of(), Map.of(
                                 "name", new KeyExpression(new CString("Alice"), false, false))))),
-                SpecParser.parse("^Person(name='Alice')"));
+                SpecParser.parse("^Person(name='Alice')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1127,7 +1127,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
                         new NewInstance("Foo", List.of(), Map.of()))),
-                SpecParser.parse("^Foo()"));
+                SpecParser.parse("^Foo()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1140,7 +1140,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("Result"),
                         new NewInstanceCast("Result", List.of(),
                                 nary("plus", new CInteger(1L), new CInteger(2L))))),
-                SpecParser.parse("^Result(1 + 2)"));
+                SpecParser.parse("^Result(1 + 2)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1150,7 +1150,7 @@ final class SpecParserTest {
         // expression inside must surface as a binding-shape parse
         // error so callers can't accidentally write a cast there.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("^$existing($src)"));
+                () -> SpecParser.parse("^$existing($src)", com.legend.parser.Dialect.LEGEND_PLATFORM));
         // We don't pin the exact error text; the key contract is that
         // this does NOT parse to a NewInstanceCast.
         assertTrue(String.valueOf(ex.getMessage()).contains("^NewInstance")
@@ -1175,7 +1175,7 @@ final class SpecParserTest {
         // Pin: map(rel, @Person) parses to an AppliedFunction("map",
         // ...) whose 2nd arg is a TypeAnnotation.Named carrying the
         // class NameRef.
-        ValueSpecification parsed = SpecParser.parse("$rel->map(@Person)");
+        ValueSpecification parsed = SpecParser.parse("$rel->map(@Person)", com.legend.parser.Dialect.LEGEND_PLATFORM);
         AppliedFunction af = assertInstanceOf(AppliedFunction.class, parsed);
         assertEquals("map", af.function());
         assertEquals(2, af.parameters().size());
@@ -1199,7 +1199,7 @@ final class SpecParserTest {
                         new AppliedFunction("greaterThan", List.of(
                                 new AppliedProperty(new Variable("p"), "age"),
                                 new CInteger(21L))))),
-                SpecParser.parse("Person.all()->filter($p.age > 21)"));
+                SpecParser.parse("Person.all()->filter($p.age > 21)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1210,7 +1210,7 @@ final class SpecParserTest {
                 new PureCollection(List.of(
                         nary("plus", new CInteger(1L), new CInteger(2L)),
                         nary("times", new CInteger(3L), new CInteger(4L)))),
-                SpecParser.parse("[1+2, 3*4]"));
+                SpecParser.parse("[1+2, 3*4]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- let-binding (C.4) ------------------------------------------
@@ -1228,7 +1228,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("letFunction", List.of(
                         new CString("x"), new CInteger(5L))),
-                SpecParser.parse("let x = 5"));
+                SpecParser.parse("let x = 5", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1240,7 +1240,7 @@ final class SpecParserTest {
                 new AppliedFunction("letFunction", List.of(
                         new CString("result"),
                         nary("plus", new CInteger(1L), new CInteger(2L)))),
-                SpecParser.parse("let result = 1 + 2"));
+                SpecParser.parse("let result = 1 + 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1253,7 +1253,7 @@ final class SpecParserTest {
         // scope-registration code reads it via
         //   ((CString) appliedFunction.parameters().get(0)).value()
         // matching engine's letFunction-name guard pattern.
-        AppliedFunction parsed = (AppliedFunction) SpecParser.parse("let myVar = 42");
+        AppliedFunction parsed = (AppliedFunction) SpecParser.parse("let myVar = 42", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals("letFunction", parsed.function());
         assertInstanceOf(CString.class, parsed.parameters().get(0));
         assertEquals("myVar", ((CString) parsed.parameters().get(0)).value());
@@ -1275,7 +1275,7 @@ final class SpecParserTest {
         // emit a different (clearer) message; flipping this test
         // would be the signal that the change happened.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("1 + let x = 2"));
+                () -> SpecParser.parse("1 + let x = 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing"),
                 () -> "want trailing-tokens error (LET absorbed as identifier, "
                         + "subsequent 'x' is trailing), got: " + ex.getMessage());
@@ -1284,7 +1284,7 @@ final class SpecParserTest {
     @Test
     void letMissingVariableNameRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("let = 5"));
+                () -> SpecParser.parse("let = 5", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("variable name after 'let'"),
                 () -> "want missing-var-name error, got: " + ex.getMessage());
     }
@@ -1292,7 +1292,7 @@ final class SpecParserTest {
     @Test
     void letMissingEqualsRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("let x 5"));
+                () -> SpecParser.parse("let x 5", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected '=' after 'let x'"),
                 () -> "want missing-equals error, got: " + ex.getMessage());
     }
@@ -1307,7 +1307,7 @@ final class SpecParserTest {
                 new LambdaFunction(
                         List.of(new Variable("p")),
                         List.of(new Variable("p"))),
-                SpecParser.parse("{p | $p}"));
+                SpecParser.parse("{p | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1318,7 +1318,7 @@ final class SpecParserTest {
                         List.of(new Variable("p"), new Variable("q")),
                         List.of(nary("plus",
                                 new Variable("p"), new Variable("q")))),
-                SpecParser.parse("{p, q | $p + $q}"));
+                SpecParser.parse("{p, q | $p + $q}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1327,7 +1327,7 @@ final class SpecParserTest {
         // body is a single statement.
         assertEquals(
                 new LambdaFunction(List.of(), List.of(new CInteger(42L))),
-                SpecParser.parse("{| 42}"));
+                SpecParser.parse("{| 42}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1345,7 +1345,7 @@ final class SpecParserTest {
                                         new CString("x"), new Variable("p"))),
                                 nary("plus",
                                         new Variable("x"), new CInteger(1L)))),
-                SpecParser.parse("{p | let x = $p; $x + 1}"));
+                SpecParser.parse("{p | let x = $p; $x + 1}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- lambdas: shorthand forms (C.4) ------------------------------
@@ -1363,7 +1363,7 @@ final class SpecParserTest {
                         List.of(new AppliedFunction("greaterThan", List.of(
                                 new AppliedProperty(new Variable("p"), "age"),
                                 new CInteger(21L))))),
-                SpecParser.parse("p | $p.age > 21"));
+                SpecParser.parse("p | $p.age > 21", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1371,7 +1371,7 @@ final class SpecParserTest {
         // '| 42' \u2014 PIPE at start, zero params.
         assertEquals(
                 new LambdaFunction(List.of(), List.of(new CInteger(42L))),
-                SpecParser.parse("| 42"));
+                SpecParser.parse("| 42", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1393,7 +1393,7 @@ final class SpecParserTest {
                                 List.of(nary("plus",
                                         new Variable("p"),
                                         new Variable("q")))))),
-                SpecParser.parse("{p | {q | $p + $q}}"));
+                SpecParser.parse("{p | {q | $p + $q}}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1412,7 +1412,7 @@ final class SpecParserTest {
                                 List.of(nary("plus",
                                         new Variable("p"),
                                         new CInteger(1L)))))),
-                SpecParser.parse("let f = {p | $p + 1}"));
+                SpecParser.parse("let f = {p | $p + 1}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1434,7 +1434,7 @@ final class SpecParserTest {
                                 List.of(nary("plus",
                                         new Variable("q"),
                                         new CInteger(1L)))))),
-                SpecParser.parse("[{p | $p}, {q | $q + 1}]"));
+                SpecParser.parse("[{p | $p}, {q | $q + 1}]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1467,7 +1467,7 @@ final class SpecParserTest {
                                                 new CInteger(2L)))),
                                 new Variable("y"))),
                 SpecParser.parse(
-                        "{p | let x = $p + 1; let y = $x * 2; $y}"));
+                        "{p | let x = $p + 1; let y = $x * 2; $y}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1483,7 +1483,7 @@ final class SpecParserTest {
         // independence of each let (each desugars to its own
         // letFunction call without any cross-statement state).
         List<ValueSpecification> stmts = SpecParser.parseCodeBlock(
-                "let f = {p | $p + 1}; let g = {q | $q * 2}; $f");
+                "let f = {p | $p + 1}; let g = {q | $q * 2}; $f", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(
                 List.of(
                         new AppliedFunction("letFunction", List.of(
@@ -1520,7 +1520,7 @@ final class SpecParserTest {
                         new LambdaFunction(
                                 List.of(),
                                 List.of(new CInteger(42L))))),
-                SpecParser.parse("$opt->orElse(| 42)"));
+                SpecParser.parse("$opt->orElse(| 42)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1539,7 +1539,7 @@ final class SpecParserTest {
                                 List.of(new AppliedFunction("greaterThan", List.of(
                                         new AppliedProperty(new Variable("p"), "age"),
                                         new CInteger(21L))))))),
-                SpecParser.parse("Person.all()->filter(p | $p.age > 21)"));
+                SpecParser.parse("Person.all()->filter(p | $p.age > 21)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- lambda error cases (C.4) ------------------------------------
@@ -1558,7 +1558,7 @@ final class SpecParserTest {
                         List.of(new Variable(
                                 "p", nr("Integer"), Multiplicity.Concrete.PURE_ONE)),
                         List.of(new Variable("p"))),
-                SpecParser.parse("{p: Integer[1] | $p}"));
+                SpecParser.parse("{p: Integer[1] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1576,7 +1576,7 @@ final class SpecParserTest {
                                         Multiplicity.Concrete.ZERO_MANY)),
                         List.of(nary("plus",
                                 new Variable("p"), new Variable("q")))),
-                SpecParser.parse("{p: Integer[1], q: String[*] | $p + $q}"));
+                SpecParser.parse("{p: Integer[1], q: String[*] | $p + $q}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1592,7 +1592,7 @@ final class SpecParserTest {
                                 "p", nr("Integer"), Multiplicity.Concrete.PURE_ONE)),
                         List.of(nary("plus",
                                 new Variable("p"), new CInteger(1L)))),
-                SpecParser.parse("p: Integer[1] | $p + 1"));
+                SpecParser.parse("p: Integer[1] | $p + 1", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1606,7 +1606,7 @@ final class SpecParserTest {
                                 Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedProperty(
                                 new Variable("p"), "age"))),
-                SpecParser.parse("{p: my::pkg::Person[1] | $p.age}"));
+                SpecParser.parse("{p: my::pkg::Person[1] | $p.age}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1628,7 +1628,7 @@ final class SpecParserTest {
                                 Multiplicity.Concrete.PURE_ONE)),
                         List.of(new AppliedProperty(
                                 new Variable("p"), "first"))),
-                SpecParser.parse("{p: Pair<Integer, String>[1] | $p.first}"));
+                SpecParser.parse("{p: Pair<Integer, String>[1] | $p.first}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1639,24 +1639,24 @@ final class SpecParserTest {
         assertEquals(
                 Multiplicity.Concrete.PURE_ONE,
                 ((Variable) ((LambdaFunction) SpecParser.parse(
-                        "{p: T[1] | $p}")).parameters().get(0)).multiplicity());
+                        "{p: T[1] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM)).parameters().get(0)).multiplicity());
         assertEquals(
                 Multiplicity.Concrete.ZERO_ONE,
                 ((Variable) ((LambdaFunction) SpecParser.parse(
-                        "{p: T[0..1] | $p}")).parameters().get(0)).multiplicity());
+                        "{p: T[0..1] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM)).parameters().get(0)).multiplicity());
         assertEquals(
                 Multiplicity.Concrete.PURE_MANY,
                 ((Variable) ((LambdaFunction) SpecParser.parse(
-                        "{p: T[1..*] | $p}")).parameters().get(0)).multiplicity());
+                        "{p: T[1..*] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM)).parameters().get(0)).multiplicity());
         assertEquals(
                 Multiplicity.Concrete.ZERO_MANY,
                 ((Variable) ((LambdaFunction) SpecParser.parse(
-                        "{p: T[*] | $p}")).parameters().get(0)).multiplicity());
+                        "{p: T[*] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM)).parameters().get(0)).multiplicity());
         // Explicit bounded form not covered by a constant.
         assertEquals(
                 new Multiplicity.Concrete(3, 7),
                 ((Variable) ((LambdaFunction) SpecParser.parse(
-                        "{p: T[3..7] | $p}")).parameters().get(0)).multiplicity());
+                        "{p: T[3..7] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM)).parameters().get(0)).multiplicity());
     }
 
     @Test
@@ -1676,7 +1676,7 @@ final class SpecParserTest {
                         List.of(new Variable(
                                 "p", nr("T"), new Multiplicity.Parameter("m"))),
                         List.of(new Variable("p"))),
-                SpecParser.parse("{p: T[m] | $p}"));
+                SpecParser.parse("{p: T[m] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1696,7 +1696,7 @@ final class SpecParserTest {
                                         new AppliedProperty(new Variable("p"), "age"),
                                         new CInteger(21L))))))),
                 SpecParser.parse(
-                        "Person.all()->filter(p: Person[1] | $p.age > 21)"));
+                        "Person.all()->filter(p: Person[1] | $p.age > 21)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1707,7 +1707,7 @@ final class SpecParserTest {
         // silently accept missing multiplicity (which would lose
         // type information that the type-checker needs).
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p: Integer | $p}"));
+                () -> SpecParser.parse("{p: Integer | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
         // Error comes from the shared TypeExpressionParser when its
         // parseMultiplicity sees a non-'[' token after the type.
         assertTrue(String.valueOf(ex.getMessage()).contains("BRACKET_OPEN"),
@@ -1718,7 +1718,7 @@ final class SpecParserTest {
     void multiplicityWithBadSyntaxRejected() {
         // 'p: T[1..]' \u2014 missing upper bound after '..'.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p: T[1..] | $p}"));
+                () -> SpecParser.parse("{p: T[1..] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("after '..' in multiplicity"),
                 () -> "want missing-upper-bound error, got: " + ex.getMessage());
     }
@@ -1740,7 +1740,7 @@ final class SpecParserTest {
                                         Multiplicity.Concrete.PURE_ONE)),
                         List.of(nary("plus",
                                 new Variable("p"), new Variable("q")))),
-                SpecParser.parse("{p, q: String[1] | $p + $q}"));
+                SpecParser.parse("{p, q: String[1] | $p + $q}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1752,7 +1752,7 @@ final class SpecParserTest {
         // 'Pair<Integer' as the typeName (a silent truncation) would
         // pass; the explicit error path is the right behaviour.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p: Pair<Integer | $p}"));
+                () -> SpecParser.parse("{p: Pair<Integer | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
         // With multiplicity type parameters supported (Pair<T|m>), the
         // '|' legally OPENS the multiplicity-argument section and '$p'
         // rejects there — still a loud error, never a silent truncation
@@ -1769,7 +1769,7 @@ final class SpecParserTest {
         // so a future change that accidentally treats empty brackets
         // as ZERO_MANY or PURE_ONE would fail this test.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p: T[] | $p}"));
+                () -> SpecParser.parse("{p: T[] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("multiplicity bound or parameter"),
                 () -> "want empty-multiplicity error, got: " + ex.getMessage());
     }
@@ -1784,7 +1784,7 @@ final class SpecParserTest {
         // the error class (ParseException, not Runtime/IAE) and the
         // diagnostic content so the user gets a useful error.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p: T[5..3] | $p}"));
+                () -> SpecParser.parse("{p: T[5..3] | $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("upper bound")
                         && ex.getMessage().contains(">= lower bound"),
                 () -> "want bound-order error, got: " + ex.getMessage());
@@ -1793,7 +1793,7 @@ final class SpecParserTest {
     @Test
     void lambdaMissingPipeRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p $p}"));
+                () -> SpecParser.parse("{p $p}", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected '|'"),
                 () -> "want missing-pipe error, got: " + ex.getMessage());
     }
@@ -1801,7 +1801,7 @@ final class SpecParserTest {
     @Test
     void lambdaMissingCloseBraceRejected() {
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{p | $p"));
+                () -> SpecParser.parse("{p | $p", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected '}'"),
                 () -> "want missing-close-brace error, got: " + ex.getMessage());
     }
@@ -1811,7 +1811,7 @@ final class SpecParserTest {
         // '{| }' is not legal \u2014 lambda body must have at least
         // one statement.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("{| }"));
+                () -> SpecParser.parse("{| }", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("at least one statement"),
                 () -> "want empty-body error, got: " + ex.getMessage());
     }
@@ -1823,7 +1823,7 @@ final class SpecParserTest {
         // A code block with one statement is a list of one element;
         // not collapsed to the bare value. Consumers always get a
         // List<ValueSpecification>.
-        List<ValueSpecification> stmts = SpecParser.parseCodeBlock("42");
+        List<ValueSpecification> stmts = SpecParser.parseCodeBlock("42", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(List.of(new CInteger(42L)), stmts);
     }
 
@@ -1833,7 +1833,7 @@ final class SpecParserTest {
         // program line (so 'let' is admitted on each, each desugaring
         // independently to its own letFunction call).
         List<ValueSpecification> stmts = SpecParser.parseCodeBlock(
-                "let x = 1; let y = 2; $x + $y");
+                "let x = 1; let y = 2; $x + $y", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(
                 List.of(
                         new AppliedFunction("letFunction", List.of(
@@ -1849,7 +1849,7 @@ final class SpecParserTest {
     void parseCodeBlockTrailingSemicolonAllowed() {
         // Engine permits a trailing ';' after the last statement
         // ('1; 2;' is equivalent to '1; 2'). We match.
-        List<ValueSpecification> stmts = SpecParser.parseCodeBlock("1; 2;");
+        List<ValueSpecification> stmts = SpecParser.parseCodeBlock("1; 2;", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertEquals(
                 List.of(new CInteger(1L), new CInteger(2L)),
                 stmts);
@@ -1859,7 +1859,7 @@ final class SpecParserTest {
     void parseCodeBlockEmptyInputIsEmptyList() {
         // No statements at all is a degenerate but well-defined
         // case: empty list, no error.
-        assertEquals(List.of(), SpecParser.parseCodeBlock(""));
+        assertEquals(List.of(), SpecParser.parseCodeBlock("", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- coverage gap markers (C.4+ features) -----------------------
@@ -1874,7 +1874,7 @@ final class SpecParserTest {
         // CInteger(-42L) directly) would fail loud.
         assertEquals(
                 new AppliedFunction("minus", List.of(new CInteger(42L))),
-                SpecParser.parse("-42"));
+                SpecParser.parse("-42", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1884,9 +1884,9 @@ final class SpecParserTest {
         // expected. SpecParser borrows TokenStreamCursor.IDENTIFIER_TOKENS
         // for this. Pin the bridge so a future tightening of the
         // keyword list doesn't silently break variable parsing.
-        assertEquals(new Variable("let"), SpecParser.parse("$let"));
-        assertEquals(new Variable("class"), SpecParser.parse("$class"));
-        assertEquals(new Variable("all"), SpecParser.parse("$all"));
+        assertEquals(new Variable("let"), SpecParser.parse("$let", com.legend.parser.Dialect.LEGEND_PLATFORM));
+        assertEquals(new Variable("class"), SpecParser.parse("$class", com.legend.parser.Dialect.LEGEND_PLATFORM));
+        assertEquals(new Variable("all"), SpecParser.parse("$all", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- column builders (C.6): ~col / ~[a, b] / ~name:lambda --------
@@ -1898,7 +1898,7 @@ final class SpecParserTest {
         // the column passes through unchanged.
         assertEquals(
                 new ColSpec("name", null, null),
-                SpecParser.parse("~name"));
+                SpecParser.parse("~name", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1913,7 +1913,7 @@ final class SpecParserTest {
                                 List.of(new AppliedProperty(
                                         new Variable("x"), "amount"))),
                         null),
-                SpecParser.parse("~total:x|$x.amount"));
+                SpecParser.parse("~total:x|$x.amount", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1933,7 +1933,7 @@ final class SpecParserTest {
                                 List.of(new Variable("y")),
                                 List.of(new AppliedFunction("sum", List.of(
                                         new Variable("y")))))),
-                SpecParser.parse("~total:x|$x.amount:y|$y->sum()"));
+                SpecParser.parse("~total:x|$x.amount:y|$y->sum()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1945,7 +1945,7 @@ final class SpecParserTest {
                         new ColSpec("name"),
                         new ColSpec("age"),
                         new ColSpec("salary"))),
-                SpecParser.parse("~[name, age, salary]"));
+                SpecParser.parse("~[name, age, salary]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1962,7 +1962,7 @@ final class SpecParserTest {
                                         List.of(new AppliedProperty(
                                                 new Variable("x"), "amount"))),
                                 null))),
-                SpecParser.parse("~[name, total:x|$x.amount]"));
+                SpecParser.parse("~[name, total:x|$x.amount]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1973,7 +1973,7 @@ final class SpecParserTest {
         // this test loudly.
         assertEquals(
                 new ColSpecArray(List.of()),
-                SpecParser.parse("~[]"));
+                SpecParser.parse("~[]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -1983,7 +1983,7 @@ final class SpecParserTest {
         // ColSpec-specific so this test cannot crosswire to other
         // trailing-comma cases.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("~[a, b,]"));
+                () -> SpecParser.parse("~[a, b,]", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("ColSpec array"),
                 () -> "want ColSpec-array trailing-comma error, got: "
                         + ex.getMessage());
@@ -1995,7 +1995,7 @@ final class SpecParserTest {
         // expectation so a future regression couldn't silently
         // consume to EOF.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("~[a, b"));
+                () -> SpecParser.parse("~[a, b", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("']'")
                         && ex.getMessage().contains("ColSpec array"),
                 () -> "want ColSpec-array close-bracket error, got: "
@@ -2014,7 +2014,7 @@ final class SpecParserTest {
                                 List.of(new AppliedProperty(
                                         new Variable("x"), "amount"))),
                         null),
-                SpecParser.parse("~total:{x | $x.amount}"));
+                SpecParser.parse("~total:{x | $x.amount}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2030,7 +2030,7 @@ final class SpecParserTest {
                                         Multiplicity.Concrete.PURE_ONE)),
                                 List.of(new Variable("x"))),
                         null),
-                SpecParser.parse("~total:x: Integer[1] | $x"));
+                SpecParser.parse("~total:x: Integer[1] | $x", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2046,7 +2046,7 @@ final class SpecParserTest {
                         new ColSpecArray(List.of(
                                 new ColSpec("name"),
                                 new ColSpec("age"))))),
-                SpecParser.parse("Person.all()->project(~[name, age])"));
+                SpecParser.parse("Person.all()->project(~[name, age])", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2054,7 +2054,7 @@ final class SpecParserTest {
         // '~' followed by something that isn't an identifier or '['
         // \u2014 e.g. '~123' or '~+'. Pin the error phrase.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("~123"));
+                () -> SpecParser.parse("~123", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("column name after '~'"),
                 () -> "want missing-column-name error, got: " + ex.getMessage());
     }
@@ -2074,7 +2074,7 @@ final class SpecParserTest {
         // The fix mirrors readPropertyName's STRING-first dispatch.
         assertEquals(
                 new ColSpec("My Column", null, null),
-                SpecParser.parse("~'My Column'"));
+                SpecParser.parse("~'My Column'", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2087,7 +2087,7 @@ final class SpecParserTest {
                         new ColSpec("name"),
                         new ColSpec("Full Name"),
                         new ColSpec("age"))),
-                SpecParser.parse("~[name, 'Full Name', age]"));
+                SpecParser.parse("~[name, 'Full Name', age]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2104,7 +2104,7 @@ final class SpecParserTest {
                                         new AppliedProperty(new Variable("x"), "amount"),
                                         new CInteger(2L)))),
                         null),
-                SpecParser.parse("~total:x|$x.amount * 2"));
+                SpecParser.parse("~total:x|$x.amount * 2", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2125,7 +2125,7 @@ final class SpecParserTest {
                                 List.of(new Variable("y")),
                                 List.of(new AppliedFunction("sum", List.of(
                                         new Variable("y")))))),
-                SpecParser.parse("~total:{x | $x.amount}:y|$y->sum()"));
+                SpecParser.parse("~total:{x | $x.amount}:y|$y->sum()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2150,7 +2150,7 @@ final class SpecParserTest {
                                                 new Variable("y"),
                                                 new CInteger(2L)))),
                         null),
-                SpecParser.parse("~total:{x | let y = 1; $y + 2}"));
+                SpecParser.parse("~total:{x | let y = 1; $y + 2}", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2161,7 +2161,7 @@ final class SpecParserTest {
         // by the audit; the existing 'non-lambda after colon' test
         // covers '~name:42' but not '~name:<EOF>'.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("~name:"));
+                () -> SpecParser.parse("~name:", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("expected lambda")
                         && ex.getMessage().contains("column spec"),
                 () -> "want EOF-after-colon error, got: " + ex.getMessage());
@@ -2173,7 +2173,7 @@ final class SpecParserTest {
         // (the clean-sheet navigate form `~firm: acme::Firm.all()`,
         // MAPPING_CLEAN_SHEET.md §3.1). The checker decides which enclosing
         // calls admit expression bodies; the parser stays uniform.
-        ColSpec cs = assertInstanceOf(ColSpec.class, SpecParser.parse("~name:42"));
+        ColSpec cs = assertInstanceOf(ColSpec.class, SpecParser.parse("~name:42", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals("name", cs.name());
         assertTrue(cs.function1().parameters().isEmpty(), "expression body = zero-param thunk");
         assertInstanceOf(CInteger.class, cs.function1().body().get(0));
@@ -2188,7 +2188,7 @@ final class SpecParserTest {
         // record equality.
         assertEquals(
                 new TypeAnnotation.Named(nr("Integer")),
-                SpecParser.parse("@Integer"));
+                SpecParser.parse("@Integer", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2198,7 +2198,7 @@ final class SpecParserTest {
         // and the result is one Named with the full path preserved.
         assertEquals(
                 new TypeAnnotation.Named(nr("my::pkg::Foo")),
-                SpecParser.parse("@my::pkg::Foo"));
+                SpecParser.parse("@my::pkg::Foo", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2211,7 +2211,7 @@ final class SpecParserTest {
         // collection.
         assertEquals(
                 new TypeAnnotation.Named(tg("List", nr("Integer"))),
-                SpecParser.parse("@List<Integer>"));
+                SpecParser.parse("@List<Integer>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2222,7 +2222,7 @@ final class SpecParserTest {
         // prematurely.
         assertEquals(
                 new TypeAnnotation.Named(tg("Map", nr("String"), tg("List", nr("Integer")))),
-                SpecParser.parse("@Map<String, List<Integer>>"));
+                SpecParser.parse("@Map<String, List<Integer>>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2241,7 +2241,7 @@ final class SpecParserTest {
                                 "age",
                                 new TypeAnnotation.Named(nr("Integer")),
                                 null))),
-                SpecParser.parse("@Relation<(name:String, age:Integer)>"));
+                SpecParser.parse("@Relation<(name:String, age:Integer)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2263,7 +2263,7 @@ final class SpecParserTest {
                                 new TypeAnnotation.Named(nr("String")),
                                 Multiplicity.Concrete.ZERO_ONE))),
                 SpecParser.parse(
-                        "@Relation<(id:Integer[1], optional:String[0..1])>"));
+                        "@Relation<(id:Integer[1], optional:String[0..1])>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2283,7 +2283,7 @@ final class SpecParserTest {
                                 new TypeAnnotation.Named(nr("Integer")),
                                 null))),
                 SpecParser.parse(
-                        "@Relation<(city:String, '2011__|__newCol':Integer)>"));
+                        "@Relation<(city:String, '2011__|__newCol':Integer)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2303,7 +2303,7 @@ final class SpecParserTest {
                                 "name",
                                 new TypeAnnotation.Named(nr("String")),
                                 null))),
-                SpecParser.parse("@Relation<(?:?, name:String)>"));
+                SpecParser.parse("@Relation<(?:?, name:String)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2325,7 +2325,7 @@ final class SpecParserTest {
                                 "name",
                                 new TypeAnnotation.Wildcard(),
                                 null))),
-                SpecParser.parse("@Relation<(?:String, name:?)>"));
+                SpecParser.parse("@Relation<(?:String, name:?)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2348,7 +2348,7 @@ final class SpecParserTest {
                                 new TypeAnnotation.Named(tg("List", nr("String"))),
                                 null))),
                 SpecParser.parse(
-                        "@Relation<(owner:my::pkg::Firm, tags:List<String>)>"));
+                        "@Relation<(owner:my::pkg::Firm, tags:List<String>)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2358,7 +2358,7 @@ final class SpecParserTest {
         // (e.g. require >= 1 column) doesn't silently break this.
         assertEquals(
                 new TypeAnnotation.RelationShape(List.of()),
-                SpecParser.parse("@Relation<()>"));
+                SpecParser.parse("@Relation<()>", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2371,7 +2371,7 @@ final class SpecParserTest {
                 new AppliedFunction("cast", List.of(
                         new Variable("x"),
                         new TypeAnnotation.Named(nr("Integer")))),
-                SpecParser.parse("$x->cast(@Integer)"));
+                SpecParser.parse("$x->cast(@Integer)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2392,7 +2392,7 @@ final class SpecParserTest {
                                         new TypeAnnotation.Named(nr("String")),
                                         null))))),
                 SpecParser.parse(
-                        "$rel->cast(@Relation<(city:String, country:String)>)"));
+                        "$rel->cast(@Relation<(city:String, country:String)>)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2400,7 +2400,7 @@ final class SpecParserTest {
         // '@' followed by something that isn't a type name \u2014
         // e.g. '@123' or '@*'. Pin the error phrase.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("@123"));
+                () -> SpecParser.parse("@123", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("type name after '@'"),
                 () -> "want missing-type-name error, got: " + ex.getMessage());
     }
@@ -2411,7 +2411,7 @@ final class SpecParserTest {
         // explicit error path so a future regression couldn't
         // silently consume to EOF.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("@Relation<(a:Integer"));
+                () -> SpecParser.parse("@Relation<(a:Integer", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("')'")
                         && ex.getMessage().contains("@Relation"),
                 () -> "want unterminated-relation error, got: "
@@ -2424,7 +2424,7 @@ final class SpecParserTest {
         // ColSpec-style error phrase so this cannot crosswire with
         // ColSpec-array trailing-comma errors.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("@Relation<(a:Integer,)>"));
+                () -> SpecParser.parse("@Relation<(a:Integer,)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma")
                         && ex.getMessage().contains("@Relation"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
@@ -2436,7 +2436,7 @@ final class SpecParserTest {
         // name and type. Pin the explicit error vs silent
         // consumption.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("@Relation<(a Integer)>"));
+                () -> SpecParser.parse("@Relation<(a Integer)>", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("':'")
                         && ex.getMessage().contains("@Relation"),
                 () -> "want missing-colon error, got: " + ex.getMessage());
@@ -2447,7 +2447,7 @@ final class SpecParserTest {
         // '@List<Integer' \u2014 missing closing '>'. Pin that the
         // depth-tracker reaches the EOF guard and throws.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("@List<Integer"));
+                () -> SpecParser.parse("@List<Integer", com.legend.parser.Dialect.LEGEND_PLATFORM));
         // parseTypeArguments delegates the closing '>' check directly;
         // the missing token surfaces as a 'close type arguments' error.
         assertTrue(String.valueOf(ex.getMessage()).contains("close type arguments"),
@@ -2466,7 +2466,7 @@ final class SpecParserTest {
         // match so downstream dispatch on AST shape stays uniform.
         assertEquals(
                 new EnumValue("JoinKind", "INNER"),
-                SpecParser.parse("JoinKind.INNER"));
+                SpecParser.parse("JoinKind.INNER", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2475,7 +2475,7 @@ final class SpecParserTest {
         // preserved verbatim in EnumValue.fullPath.
         assertEquals(
                 new EnumValue("my::pkg::Status", "ACTIVE"),
-                SpecParser.parse("my::pkg::Status.ACTIVE"));
+                SpecParser.parse("my::pkg::Status.ACTIVE", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2487,7 +2487,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("getAll",
                         List.of(new PackageableElementPtr("Person"))),
-                SpecParser.parse("Person.all()"));
+                SpecParser.parse("Person.all()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- C.7a: bracket postfix ($x[0], $x['key']) --------------------
@@ -2503,7 +2503,7 @@ final class SpecParserTest {
                 new AppliedFunction("at", List.of(
                         new Variable("x"),
                         new CInteger(0L))),
-                SpecParser.parse("$x[0]"));
+                SpecParser.parse("$x[0]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2514,7 +2514,7 @@ final class SpecParserTest {
         // quoted-property form '$x.\\'key\\''.
         assertEquals(
                 new AppliedProperty(new Variable("x"), "key"),
-                SpecParser.parse("$x['key']"));
+                SpecParser.parse("$x['key']", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2527,7 +2527,7 @@ final class SpecParserTest {
                 new AppliedFunction("at", List.of(
                         new AppliedProperty(new Variable("x"), "items"),
                         new CInteger(0L))),
-                SpecParser.parse("$x.items[0]"));
+                SpecParser.parse("$x.items[0]", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2535,7 +2535,7 @@ final class SpecParserTest {
         // '$x[$i]' \u2014 a variable inside brackets is rejected;
         // the grammar only admits INTEGER or STRING literals here.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("$x[$i]"));
+                () -> SpecParser.parse("$x[$i]", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("integer or string"),
                 () -> "want bracket-index error, got: " + ex.getMessage());
     }
@@ -2544,7 +2544,7 @@ final class SpecParserTest {
     void bracketIndexRejectsUnterminated() {
         // '$x[0' \u2014 missing ']'.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("$x[0"));
+                () -> SpecParser.parse("$x[0", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("']'"),
                 () -> "want unterminated-bracket error, got: " + ex.getMessage());
     }
@@ -2559,7 +2559,7 @@ final class SpecParserTest {
                 new AppliedFunction("getAll", List.of(
                         new PackageableElementPtr("Person"),
                         new CDate(new PureDateLiteral.StrictDate(2024, 1, 1)))),
-                SpecParser.parse("Person.all(%2024-01-01)"));
+                SpecParser.parse("Person.all(%2024-01-01)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2572,7 +2572,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("Person"),
                         new CDate(new PureDateLiteral.StrictDate(2024, 1, 1)),
                         new CLatestDate())),
-                SpecParser.parse("Person.all(%2024-01-01, %latest)"));
+                SpecParser.parse("Person.all(%2024-01-01, %latest)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2583,7 +2583,7 @@ final class SpecParserTest {
                 new AppliedFunction("getAll", List.of(
                         new PackageableElementPtr("Person"),
                         new Variable("asOfDate"))),
-                SpecParser.parse("Person.all($asOfDate)"));
+                SpecParser.parse("Person.all($asOfDate)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2592,7 +2592,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("getAllVersions",
                         List.of(new PackageableElementPtr("Person"))),
-                SpecParser.parse("Person.allVersions()"));
+                SpecParser.parse("Person.allVersions()", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2603,7 +2603,7 @@ final class SpecParserTest {
                         new PackageableElementPtr("Person"),
                         new CDate(new PureDateLiteral.StrictDate(2024, 1, 1)),
                         new CDate(new PureDateLiteral.StrictDate(2024, 12, 31)))),
-                SpecParser.parse("Person.allVersionsInRange(%2024-01-01, %2024-12-31)"));
+                SpecParser.parse("Person.allVersionsInRange(%2024-01-01, %2024-12-31)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2612,7 +2612,7 @@ final class SpecParserTest {
         // milestoning expression. Pin parser-level rejection so a
         // non-date value doesn't silently flow through to type-check.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("Person.all(42)"));
+                () -> SpecParser.parse("Person.all(42)", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("milestoning"),
                 () -> "want milestoning error, got: " + ex.getMessage());
     }
@@ -2625,7 +2625,7 @@ final class SpecParserTest {
         // whose fullPath embeds the unit marker verbatim.
         assertEquals(
                 new PackageableElementPtr("Mass~kilogram"),
-                SpecParser.parse("Mass~kilogram"));
+                SpecParser.parse("Mass~kilogram", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2633,7 +2633,7 @@ final class SpecParserTest {
         // 'my::pkg::Mass~kilogram'.
         assertEquals(
                 new PackageableElementPtr("my::pkg::Mass~kilogram"),
-                SpecParser.parse("my::pkg::Mass~kilogram"));
+                SpecParser.parse("my::pkg::Mass~kilogram", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- C.7a: CFloat -> CDecimal precision promotion ----------------
@@ -2641,7 +2641,7 @@ final class SpecParserTest {
     @Test
     void floatWithinDoublePrecisionStaysCFloat() {
         // '1.5' round-trips exactly through double. Pin CFloat.
-        assertEquals(new CFloat(1.5), SpecParser.parse("1.5"));
+        assertEquals(new CFloat(1.5), SpecParser.parse("1.5", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2653,7 +2653,7 @@ final class SpecParserTest {
         // This is the main motivation for precision promotion.
         assertEquals(
                 new CDecimal(new BigDecimal("1.0000000000000001")),
-                SpecParser.parse("1.0000000000000001"));
+                SpecParser.parse("1.0000000000000001", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- C.7a: comparator expressions --------------------------------
@@ -2676,7 +2676,7 @@ final class SpecParserTest {
                                 new Variable("a"),
                                 new Variable("b")))),
                 SpecParser.parse(
-                        "comparator(a: Integer[1], b: Integer[1]): Bool[1] { $a - $b }"));
+                        "comparator(a: Integer[1], b: Integer[1]): Bool[1] { $a - $b }", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- C.7a: TDS literal -------------------------------------------
@@ -2688,7 +2688,7 @@ final class SpecParserTest {
         // parser emits 'tds("TDS", rawText)' so the stdlib tds
         // function resolves the overload.
         String src = "#TDS\n  name, age\n  alice, 30\n#";
-        ValueSpecification result = SpecParser.parse(src);
+        ValueSpecification result = SpecParser.parse(src, com.legend.parser.Dialect.LEGEND_PLATFORM);
         // Assertion on the structural shape rather than the full
         // raw text (which contains the entire source chunk); the
         // first argument 'TDS' is the discriminator.
@@ -2725,7 +2725,7 @@ final class SpecParserTest {
                                 List.of(new AppliedProperty(
                                         new Variable("_gf0"), "age"))),
                         null)));
-        assertEquals(expected, desugar(SpecParser.parse("#{Person {name, age}}#")));
+        assertEquals(expected, desugar(SpecParser.parse("#{Person {name, age}}#", com.legend.parser.Dialect.LEGEND_PLATFORM)));
     }
 
     @Test
@@ -2756,7 +2756,7 @@ final class SpecParserTest {
                         null),
                 new ColSpec("firm", firmFn1, firmFn2)));
         assertEquals(expected, desugar(
-                SpecParser.parse("#{Person {name, firm {legalName}}}#")));
+                SpecParser.parse("#{Person {name, firm {legalName}}}#", com.legend.parser.Dialect.LEGEND_PLATFORM)));
     }
 
     /** Graph-fetch parses to the wire-facing literal; these pins assert its desugared tree. */
@@ -2778,7 +2778,7 @@ final class SpecParserTest {
                                         new Variable("_gf0"), "name"))),
                         null, "alias")));
         assertEquals(expected, desugar(
-                SpecParser.parse("#{Person {'alias': name}}#")));
+                SpecParser.parse("#{Person {'alias': name}}#", com.legend.parser.Dialect.LEGEND_PLATFORM)));
     }
 
     @Test
@@ -2797,7 +2797,7 @@ final class SpecParserTest {
                         null, null,
                         List.of(new CDate(new PureDateLiteral.StrictDate(2024, 1, 1))))));
         assertEquals(expected, desugar(
-                SpecParser.parse("#{Person {name(%2024-01-01)}}#")));
+                SpecParser.parse("#{Person {name(%2024-01-01)}}#", com.legend.parser.Dialect.LEGEND_PLATFORM)));
     }
 
     @Test
@@ -2807,7 +2807,7 @@ final class SpecParserTest {
         // Pins the lenient-termination behaviour so a future
         // tightening doesn't silently break compatibility.
         ColSpecArray result = (ColSpecArray) desugar(
-                SpecParser.parse("#{Person {name, age,}}#"));
+                SpecParser.parse("#{Person {name, age,}}#", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(2, result.colSpecs().size());
     }
 
@@ -2824,7 +2824,7 @@ final class SpecParserTest {
                 new AppliedFunction("tableReference", List.of(
                         new PackageableElementPtr("my::db"),
                         new CString("CUSTOMER"))),
-                SpecParser.parse("#>{my::db.CUSTOMER}#"));
+                SpecParser.parse("#>{my::db.CUSTOMER}#", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2834,7 +2834,7 @@ final class SpecParserTest {
         // REFUTED by the inline-snippet corpus: a store-only reference
         // (#>{my::Store}#) is legal — ONE path element, no table split.
         AppliedFunction af = assertInstanceOf(AppliedFunction.class,
-                SpecParser.parse("#>{no_table}#"));
+                SpecParser.parse("#>{no_table}#", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals("tableReference", af.function());
         assertEquals(1, af.parameters().size());
     }
@@ -2847,7 +2847,7 @@ final class SpecParserTest {
         // Pin the arrow-chain continuation works: the DSL result
         // becomes the first parameter of the outer 'serialize' call.
         ValueSpecification result = SpecParser.parse(
-                "#{Person {name}}->serialize()");
+                "#{Person {name}}->serialize()", com.legend.parser.Dialect.LEGEND_PLATFORM);
         assertTrue(result instanceof AppliedFunction af
                         && af.function().equals("serialize")
                         && af.parameters().size() == 1
@@ -2862,7 +2862,7 @@ final class SpecParserTest {
         // '#x{content}#' \u2014 unknown DSL discriminator 'x'.
         // Engine-lite throws; we match.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("#x{content}#"));
+                () -> SpecParser.parse("#x{content}#", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("DSL"),
                 () -> "want unknown-DSL error, got: " + ex.getMessage());
     }
@@ -2883,7 +2883,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new Variable("existing"),
                         new NewInstance("", List.of(), props))),
-                SpecParser.parse("^$existing(name='new')"));
+                SpecParser.parse("^$existing(name='new')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2897,7 +2897,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new Variable("list"),
                         new NewInstance("", List.of(), props))),
-                SpecParser.parse("^$list(items+=$x)"));
+                SpecParser.parse("^$list(items+=$x)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2906,7 +2906,7 @@ final class SpecParserTest {
         // at parse time with a specific message pinning the
         // copy-with-update context.
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("^$(foo=1)"));
+                () -> SpecParser.parse("^$(foo=1)", com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertTrue(String.valueOf(ex.getMessage()).contains("copy-with-update"),
                 () -> "want copy-with-update error, got: " + ex.getMessage());
     }
@@ -2923,7 +2923,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
                         new NewInstance("Foo", List.of(), props))),
-                SpecParser.parse("^Foo(addr.city = 'NYC')"));
+                SpecParser.parse("^Foo(addr.city = 'NYC')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2935,7 +2935,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
                         new NewInstance("Foo", List.of(), props))),
-                SpecParser.parse("^Foo(a.b.c.d = 1)"));
+                SpecParser.parse("^Foo(a.b.c.d = 1)", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2950,7 +2950,7 @@ final class SpecParserTest {
                 new AppliedFunction("letFunction", List.of(
                         new CString("my var"),
                         new CInteger(42L))),
-                SpecParser.parse("let 'my var' = 42"));
+                SpecParser.parse("let 'my var' = 42", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     @Test
@@ -2963,7 +2963,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new Variable("x"),
                         new NewInstance("", List.of(), props))),
-                SpecParser.parse("^$x(addr.city = 'NYC')"));
+                SpecParser.parse("^$x(addr.city = 'NYC')", com.legend.parser.Dialect.LEGEND_PLATFORM));
     }
 
     // ----- slice entry point -------------------------------------------
@@ -2984,7 +2984,7 @@ final class SpecParserTest {
         TokenStream all = Lexer.tokenize(src);
         TokenStream slice = all.slice(all.count() - 1, all.count());
         ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse(slice));
+                () -> SpecParser.parse(slice, com.legend.parser.Dialect.LEGEND_PLATFORM));
         assertEquals(2, ex.line(),
                 () -> "error in slice should report ORIGINAL line 2, got: " + ex.getMessage());
     }
@@ -2996,13 +2996,13 @@ final class SpecParserTest {
         // paren-opened type (parseType already owns the grammar); before,
         // '(id:' was misread as a parenthesised expression.
         var vs = SpecParser.parse(
-                "|#TDS\n id, v\n 1, 2\n#->filter(x: (id:Integer, v:Integer)[1]|$x.v > 1)");
+                "|#TDS\n id, v\n 1, 2\n#->filter(x: (id:Integer, v:Integer)[1]|$x.v > 1)", com.legend.parser.Dialect.LEGEND_PLATFORM);
         org.junit.jupiter.api.Assertions.assertNotNull(vs);
     }
 
     @Test
     void functionTypeTypedLambdaParam() {
-        var vs = SpecParser.parse("|apply(f: {Integer[1]->Integer[1]}[1]|$f->eval(1))");
+        var vs = SpecParser.parse("|apply(f: {Integer[1]->Integer[1]}[1]|$f->eval(1))", com.legend.parser.Dialect.LEGEND_PLATFORM);
         org.junit.jupiter.api.Assertions.assertNotNull(vs);
     }
 

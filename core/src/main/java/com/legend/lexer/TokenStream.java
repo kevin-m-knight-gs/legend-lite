@@ -320,7 +320,12 @@ public final class TokenStream {
         System.arraycopy(types,  fromInclusive, tSlice, 0, len);
         System.arraycopy(starts, fromInclusive, sSlice, 0, len);
         System.arraycopy(ends,   fromInclusive, eSlice, 0, len);
-        TokenStream s = new TokenStream(source, len, tSlice, sSlice, eSlice);
+        // the slice is a WINDOW over the same file: section headers and
+        // skipped sections are file-absolute facts and travel with it (a
+        // slice that forgot its ###section made parseSingle refuse a
+        // Mapping that sat inside ###Mapping — ModelOrchestrator, LITE)
+        TokenStream s = new TokenStream(source, len, tSlice, sSlice, eSlice,
+                skippedSections, sectionHeaders);
         // SHARE the parent's line index: rebuilding it rescans the WHOLE source per
         // slice, and span-everywhere parsing made that quadratic (corpus-gate profile:
         // the lineStarts/tokenPositions BUILD dominated every sample). lineStarts

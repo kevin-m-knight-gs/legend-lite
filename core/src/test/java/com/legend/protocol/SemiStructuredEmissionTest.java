@@ -35,7 +35,7 @@ class SemiStructuredEmissionTest {
             }
         }
         StringBuilder b = new StringBuilder();
-        MappingEmitter.mapping(b, MappingProtocolParser.parse(ts, at, 1));
+        MappingEmitter.mapping(b, MappingProtocolParser.parse(ts, at, 1, com.legend.parser.Dialect.LEGEND_PLATFORM));
         return b.toString();
     }
 

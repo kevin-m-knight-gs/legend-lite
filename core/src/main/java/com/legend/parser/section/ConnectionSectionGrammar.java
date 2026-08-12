@@ -52,7 +52,9 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     @Override
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
-        Cursor c = new Cursor(Lexer.tokenize(src.text()), 0, 0);
+        // the SPI feed is the DROP-IN seam: engine-exact grammar
+        Cursor c = new Cursor(Lexer.tokenize(src.text()), 0, 0,
+                com.legend.parser.Dialect.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);
@@ -118,9 +120,9 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
      *  offset every line, column offset first line only) so spans stay
      *  file-absolute. */
     public static Protocol.PConnectionValue parseIslandValue(String islandText,
-            int baseLine, int baseColumn) {
+            int baseLine, int baseColumn, com.legend.parser.Dialect dialect) {
         Cursor c = new Cursor(Lexer.tokenize(islandText),
-                baseLine - 1, baseColumn - 1);
+                baseLine - 1, baseColumn - 1, dialect);
         String flavor = c.safeText();
         int fStart = c.pos();
         c.advance();
@@ -486,7 +488,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         c.expect(TokenType.ISLAND_END);
         Cursor ic = new Cursor(Lexer.tokenize(emb),
                 c.tokens().startLine(embStart) - 1,
-                c.tokens().startColumn(embStart) - 1);
+                c.tokens().startColumn(embStart) - 1, c.dialect());
         return new IslandParse(ic, endTok);
     }
 
@@ -1210,14 +1212,22 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     private static final class Cursor implements TokenStreamCursor {
 
         private final TokenStream tokens;
+        private final com.legend.parser.Dialect dialect;
         private int pos;
         private final int lineOffset;
         private final int colOffset;
 
-        Cursor(TokenStream tokens, int lineOffset, int colOffset) {
+        Cursor(TokenStream tokens, int lineOffset, int colOffset,
+                com.legend.parser.Dialect dialect) {
             this.tokens = tokens;
             this.lineOffset = lineOffset;
             this.colOffset = colOffset;
+            this.dialect = dialect;
+        }
+
+        @Override
+        public com.legend.parser.Dialect dialect() {
+            return dialect;
         }
 
         @Override

@@ -152,19 +152,11 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** Grammar-section parsers sharing this parser's cursor and scope state. */
 
-    ElementParser(TokenStream tokens) {
-        this(tokens, Dialect.LEGEND_PLATFORM);
-    }
-
     ElementParser(TokenStream tokens, Dialect dialect) {
         this(tokens, 0, 0, dialect);
     }
 
     /** Embedded-island reparse form: spans map through walker offsets. */
-    ElementParser(TokenStream tokens, int islandLineOffset, int islandColOffset) {
-        this(tokens, islandLineOffset, islandColOffset, Dialect.LEGEND_PLATFORM);
-    }
-
     ElementParser(TokenStream tokens, int islandLineOffset,
             int islandColOffset, Dialect dialect) {
         this.tokens = tokens;
@@ -262,7 +254,8 @@ public final class ElementParser implements TokenStreamCursor {
     /** Parse a pre-lexed token stream into a {@link ParsedModel}
      *  (PLATFORM dialect — see {@link #parseLegendPlatform(String)}). */
     public static ParsedModel parseLegendPlatform(TokenStream tokens) {
-        return new ElementParser(Objects.requireNonNull(tokens, "tokens")).parseModel();
+        return new ElementParser(Objects.requireNonNull(tokens, "tokens"),
+                Dialect.LEGEND_PLATFORM).parseModel();
     }
 
     /** DIALECT-EXPLICIT parse — the caller NAMES the level (provenance
@@ -307,7 +300,8 @@ public final class ElementParser implements TokenStreamCursor {
      * via the shallow indexer. Not used by the batch compiler.
      */
     public static PackageableElement parseSingle(TokenStream slice) {
-        ElementParser parser = new ElementParser(slice);
+        // the IDE layer serves the PRODUCT surface
+        ElementParser parser = new ElementParser(slice, Dialect.LEGEND_LITE);
         PackageableElement element = parser.parseSingleElement();
         if (!parser.atEnd()) {
             parser.error("trailing tokens after element body: expected slice to be fully consumed");
@@ -317,7 +311,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** Parse one {@code import path::* ;} statement from a token-stream slice. */
     public static String parseSingleImport(TokenStream slice) {
-        ElementParser parser = new ElementParser(slice);
+        ElementParser parser = new ElementParser(slice, Dialect.LEGEND_LITE);
         String imp = parser.parseImportStatement();
         if (!parser.atEnd()) {
             parser.error("trailing tokens after import statement");

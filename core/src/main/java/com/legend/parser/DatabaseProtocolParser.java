@@ -50,6 +50,15 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** Stretch anchor handed to the NESTED nav-element parser. */
     private @com.legend.Nullable SourceInfo schemaStretchSpan;
 
+    /** ###Relational is ENGINE grammar at every level — the json-column-get
+     *  retirement (OWN_CORPUS_DECISIONS §7) removed its last dialect
+     *  lever, so this parser carries no level of its own and nothing
+     *  consults this. */
+    @Override
+    public Dialect dialect() {
+        return Dialect.LEGEND_ENGINE;
+    }
+
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn) {
         this(tokens, pos, dbFqn, null);
     }

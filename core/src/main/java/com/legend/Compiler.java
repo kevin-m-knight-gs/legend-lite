@@ -329,7 +329,8 @@ public final class Compiler {
         ModelContext ctx = compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(SpecParser.parse(query)));
+                NameResolver.resolveQuery(SpecParser.parse(query,
+                        com.legend.parser.Dialect.LEGEND_LITE)));
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
         boolean temporalRoot = com.legend.compiler.element.Temporal
                 .anyTemporalGetAll(body, ctx);
@@ -522,8 +523,10 @@ public final class Compiler {
         ModelContext ctx = compileModel(model);
         return executeResolved(
                 imports == null
-                        ? NameResolver.resolveQuery(SpecParser.parse(query))
-                        : NameResolver.resolveQuery(SpecParser.parse(query),
+                        ? NameResolver.resolveQuery(SpecParser.parse(query,
+                                com.legend.parser.Dialect.LEGEND_LITE))
+                        : NameResolver.resolveQuery(SpecParser.parse(query,
+                                com.legend.parser.Dialect.LEGEND_LITE),
                                 imports, ctx.elementFqns()),
                 ctx, runtimeFqn, connection);
     }
@@ -649,6 +652,7 @@ public final class Compiler {
         Objects.requireNonNull(query, "query");
         ModelContext ctx = compileModel(model);
         return new SpecCompiler(ctx).typeExpression(
-                NameResolver.resolveQuery(SpecParser.parse(query)));
+                NameResolver.resolveQuery(SpecParser.parse(query,
+                        com.legend.parser.Dialect.LEGEND_LITE)));
     }
 }

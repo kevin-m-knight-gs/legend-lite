@@ -250,8 +250,14 @@ final class GraphFetchChecker {
                 && cf.parameters().size() == 1) {
             String src = foldStringConcat(cf.parameters().get(0));
             if (src != null) {
+                // the engine parses this string with its USER grammar —
+                // meta::legend::compileVS is LegendCompile.java:57,
+                // PureGrammarParser.parseModel("function a::f():Any[*]{"
+                // + code + "}") — the same quote/eval routing as
+                // compileLegendGrammar (TestBody's LEGEND_ENGINE seam)
                 ValueSpecification parsed =
-                        com.legend.parser.TreeLiterals.parseTree(src);
+                        com.legend.parser.TreeLiterals.parseTree(src,
+                                com.legend.parser.Dialect.LEGEND_ENGINE);
                 if (parsed != null) {
                     return parsed;
                 }
