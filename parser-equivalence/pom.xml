@@ -41,6 +41,17 @@
             <version>${legend.engine.version}</version>
             <scope>test</scope>
         </dependency>
+        <!-- the SECOND reference grammar: legend-pure's own M3Parser
+             adjudicates the m3-dialect rows of the refusal-asymmetry
+             report mechanically (HARNESS_SIMPLIFICATION_PLAN Phase 4;
+             calibrated 98.9% agreement on engine-accepted section-free
+             files, AUDIT_FINDINGS_FOR_LEG1.md) -->
+        <dependency>
+            <groupId>org.finos.legend.pure</groupId>
+            <artifactId>legend-pure-m3-core</artifactId>
+            <version>5.92.0</version>
+            <scope>test</scope>
+        </dependency>
         <!-- junit4 is compile-support for the recording shims only; it
              carries no legend ServiceLoader registrations, so the oracle
              stays production-shaped -->
