@@ -47,15 +47,32 @@ public record ConnectionDefinition(
      *  Corpus-censused types beyond the executable set (Spanner, MemSQL,
      *  Databricks) parse and carry; dialect selection refuses them loudly at
      *  execution time ({@code Compiler.dialectOf}). */
+    /** The ENGINE's DatabaseType enum verbatim (protocol
+     *  connection/DatabaseType.java, 4.138.2) plus lite's SQLite
+     *  extension flavor — the MODEL accepts what the engine parses;
+     *  whether a backend can EXECUTE a type is the lowering's concern. */
     public enum DatabaseType {
-        DuckDB,
-        SQLite,
+        DB2,
         H2,
-        Postgres,
-        Snowflake,
-        BigQuery,
-        Spanner,
         MemSQL,
-        Databricks
+        Sybase,
+        SybaseIQ,
+        Composite,
+        Postgres,
+        SqlServer,
+        Hive,
+        Snowflake,
+        Presto,
+        Trino,
+        BigQuery,
+        Redshift,
+        Databricks,
+        Spanner,
+        Athena,
+        DuckDB,
+        Oracle,
+        ClickHouse,
+        Aurora,
+        SQLite
     }
 }

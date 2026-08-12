@@ -179,8 +179,13 @@ class SpiSeamProofTest {
      *  fixtures carrying island grammars (#{...}# graph trees, #>{...}#
      *  accessors, function-test sugar) — category (c), the extension-less
      *  vanilla cannot read islands; the PRODUCTION oracle accepts all
-     *  three and lite byte-matches them (ZFixtureAdjudicationProbe). */
-    private static final int MAX_LENIENT_ACCEPTS = 215;
+     *  three and lite byte-matches them (ZFixtureAdjudicationProbe).
+     *  215 -> 216 at the tier-2 C6 extension (2026-08-11):
+     *  engine-fixture#1419 carries Relational embedded data ('Unknown
+     *  embedded data type: Relational') — the same category (c); the
+     *  production oracle accepts it and lite byte-matches (tier-2
+     *  adjudication 515 MATCH / 0 DIFF). */
+    private static final int MAX_LENIENT_ACCEPTS = 216;
     // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
     // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
     // incremental fixtures, '>' accessor islands) parse further once the
