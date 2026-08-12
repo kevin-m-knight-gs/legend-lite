@@ -10,81 +10,60 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * PARSING HAPPENS IN THE PARSER. Outside {@code com.legend.parser},
- * production code may not reference the parser package — no parse entry
- * calls, no {@code Dialect} levels — except the SANCTIONED consumers
- * below, each of which is a deliberate seam with a stated reason.
- * (Javadoc references are fine; the scan skips comment lines.)
+ * TWO rules guard the parser boundary (user contract 2026-08-12):
  *
- * <p>Born 2026-08-12 after the collapse audit found a CHECKER parsing
- * strings (GraphFetchChecker's quote/eval fold, since moved to the
- * parser as the QuotedTreeCall carrier) with nothing guarding the
- * boundary. The servers and nlq left the list the same day: product
- * endpoints route through the Compiler (parseModel/parseQuery),
- * which is the provenance router.
- *
- * <p>SHRINK-ONLY: a new entry here is a reviewed architectural decision,
- * not a convenience.
+ * <ol>
+ *   <li><b>The compiler layer never touches the parser.</b>
+ *       {@code com.legend.compiler.**} (checkers, typer, resolver,
+ *       inliners) may not reference {@code com.legend.parser} AT ALL —
+ *       which subsumes {@code Dialect}. NO allowlist, NO exceptions,
+ *       ever: the one violation that existed (a speculative quoted-code
+ *       fold in SourceSubst, with zero callers) was deleted rather than
+ *       sanctioned.</li>
+ *   <li><b>{@code Dialect} is confined by an explicit CLASS list.</b>
+ *       Outside {@code com.legend.parser.**}, only the classes below may
+ *       name a dialect — and the list STRUCTURALLY refuses entries under
+ *       the compiler layer (adding one fails this test before it fails
+ *       review). Shrink-only.</li>
+ * </ol>
  */
 class ParserBoundaryArchTest {
 
-    /** file suffix (path under src/main/java) → why it may parse. */
-    private static final Map<String, String> SANCTIONED = Map.ofEntries(
-            Map.entry("com/legend/Compiler.java",
-                    "THE pipeline driver — the provenance router; the product parse"
-                            + " facades (parseModel/parseQuery) live here"),
-            Map.entry("com/legend/builtin/Pure.java",
-                    "the bootstrap loader — the platform surface's one"
-                            + " consumer"),
-            Map.entry("com/legend/compiler/spec/SourceSubst.java",
-                    "the let-inliner completes the quote/eval fold the"
-                            + " moment substitution makes the argument"
-                            + " literal — QuotedSpecParser front door, same"
-                            + " carrier as SpecParser's parse-time fold"),
-            Map.entry("com/legend/harness/HarnessSubstitution.java",
-                    "the harness inliner completes the quote/eval fold when"
-                            + " let-substitution makes the argument literal"
-                            + " — same front door and carrier as SpecParser"),
-            Map.entry("com/legend/harness/EngineTestExecutor.java",
-                    "quote/eval natives (compileLegendGrammar) — the"
-                            + " engine's LegendCompile equivalent"),
-            Map.entry("com/legend/ide/ModelIndex.java",
-                    "the IDE incremental-parse orchestrator"),
-            Map.entry("com/legend/ide/ModelIndexer.java",
-                    "the IDE incremental-parse orchestrator"),
-            Map.entry("com/legend/ide/ModelOrchestrator.java",
-                    "the IDE incremental-parse orchestrator — a product"
-                            + " surface parsing token slices"));
+    /** Classes (path suffixes) allowed to reference {@code Dialect}
+     *  outside the parser package — each a door or regime definition:
+     *  the Compiler DRIVER (product policy + facades), the bootstrap
+     *  loader, the two corpus quote/eval implementations, the ide
+     *  product surface, the two test-regime fixtures, the corpus
+     *  runner's provenance, and the parity harness's surface fixture. */
+    private static final Set<String> DIALECT_CLASSES = Set.of(
+            "com/legend/Compiler.java",
+            "com/legend/builtin/Pure.java",
+            "com/legend/harness/EngineTestExecutor.java",
+            "com/legend/harness/HarnessSubstitution.java",
+            "com/legend/ide/ModelOrchestrator.java",
+            "com/legend/testing/Own.java",
+            "com/legend/testing/Platform.java",
+            "com/legend/rcorpus/Runner.java",
+            "com/legend/harness/EngineTestExecutorTest.java",
+            "com/legend/equivalence/Surfaces.java");
 
     @Test
-    void parsingHappensInTheParser() throws IOException {
-        List<Path> roots = new ArrayList<>();
-        roots.add(Path.of("src/main/java"));
-        // sibling product modules compile against core's parser too
-        for (String sibling : new String[] {"../nlq/src/main/java",
-                "../server/src/main/java", "../pct/src/main/java"}) {
-            Path p = Path.of(sibling);
-            if (Files.isDirectory(p)) {
-                roots.add(p);
-            }
-        }
+    void theCompilerLayerNeverTouchesTheParser() throws IOException {
         List<String> violations = new ArrayList<>();
-        for (Path root : roots) {
+        for (Path root : roots()) {
             try (var walk = Files.walk(root)) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".java"))
                         .toList()) {
-                    String rel = root.relativize(f).toString()
-                            .replace('\\', '/');
-                    if (rel.startsWith("com/legend/parser/")
-                            || SANCTIONED.containsKey(rel)) {
+                    String rel = rel(root, f);
+                    if (!rel.contains("com/legend/compiler/")) {
                         continue;
                     }
-                    int line = firstParserReference(f);
+                    int line = firstHit(f, "com.legend." + "parser");
                     if (line > 0) {
                         violations.add(rel + ":" + line);
                     }
@@ -92,15 +71,69 @@ class ParserBoundaryArchTest {
             }
         }
         assertTrue(violations.isEmpty(),
-                () -> "parsing (or a Dialect level) outside com.legend.parser"
-                        + " in unsanctioned files — parsing happens in the"
-                        + " parser; if this seam is deliberate, sanction it"
-                        + " with a reason:\n  "
+                () -> "the COMPILER LAYER references the parser — there are"
+                        + " no exceptions to this rule; move the code to a"
+                        + " door (parser/harness) or delete it:\n  "
                         + String.join("\n  ", violations));
     }
 
-    /** First non-comment line referencing the parser package, or -1. */
-    private static int firstParserReference(Path f) throws IOException {
+    @Test
+    void dialectIsConfinedToTheNamedClasses() throws IOException {
+        // the list itself may never sanction the compiler layer
+        for (String entry : DIALECT_CLASSES) {
+            assertTrue(!entry.contains("com/legend/compiler/"),
+                    () -> "DIALECT_CLASSES may not include compiler-layer"
+                            + " classes: " + entry);
+        }
+        List<String> violations = new ArrayList<>();
+        for (Path root : roots()) {
+            try (var walk = Files.walk(root)) {
+                for (Path f : walk.filter(p -> p.toString().endsWith(".java"))
+                        .toList()) {
+                    String rel = rel(root, f);
+                    if (rel.startsWith("com/legend/parser/")
+                            || DIALECT_CLASSES.contains(rel)) {
+                        continue;
+                    }
+                    int line = firstHit(f, "Dialect.LEGEND" + "_");
+                    if (line < 0) {
+                        line = firstHit(f, "com.legend.parser." + "Dialect");
+                    }
+                    if (line > 0) {
+                        violations.add(rel + ":" + line);
+                    }
+                }
+            }
+        }
+        assertTrue(violations.isEmpty(),
+                () -> "Dialect referenced outside the parser package and the"
+                        + " named classes — name the class here (WITH its"
+                        + " reason) or route through a door:\n  "
+                        + String.join("\n  ", violations));
+    }
+
+    private static List<Path> roots() {
+        List<Path> roots = new ArrayList<>();
+        roots.add(Path.of("src/main/java"));
+        roots.add(Path.of("src/test/java"));
+        for (String sibling : new String[] {"../nlq/src", "../server/src",
+                "../pct/src", "../parser-equivalence/src"}) {
+            Path p = Path.of(sibling);
+            if (Files.isDirectory(p)) {
+                roots.add(p);
+            }
+        }
+        return roots;
+    }
+
+    private static String rel(Path root, Path f) {
+        String s = root.relativize(f).toString().replace('\\', '/');
+        int i = s.indexOf("java/");
+        return i >= 0 ? s.substring(i + 5) : s;
+    }
+
+    /** First non-comment line containing {@code token}, or -1. */
+    private static int firstHit(Path f, String token) throws IOException {
         List<String> lines = Files.readAllLines(f);
         boolean inBlockComment = false;
         for (int i = 0; i < lines.size(); i++) {
@@ -120,7 +153,7 @@ class ParserBoundaryArchTest {
                 }
                 continue;
             }
-            if (t.contains("com.legend.parser.")) {
+            if (t.contains(token)) {
                 return i + 1;
             }
         }

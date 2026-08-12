@@ -30,6 +30,14 @@ public final class Surfaces {
                 com.legend.parser.Dialect.LEGEND_LITE);
     }
 
+    public static com.legend.protocol.Protocol.PMapping platformMapping(
+            com.legend.lexer.TokenStream tokens, int tokenIndex,
+            int sectionStartLine) {
+        return com.legend.parser.MappingProtocolParser.parse(tokens,
+                tokenIndex, sectionStartLine,
+                com.legend.parser.Dialect.LEGEND_PLATFORM);
+    }
+
     public static ParsedModel engine(String source) {
         return com.legend.parser.ElementParser.parse(source,
                 com.legend.parser.Dialect.LEGEND_ENGINE);

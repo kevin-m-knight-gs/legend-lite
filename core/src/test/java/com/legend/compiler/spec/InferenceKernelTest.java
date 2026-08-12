@@ -8,7 +8,6 @@ import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.model.NormalizedModel;
-import com.legend.parser.ElementParser;
 import com.legend.model.ParsedModel;
 import org.junit.jupiter.api.Test;
 

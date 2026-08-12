@@ -135,8 +135,8 @@ class MigrationSizingTest {
                     // AggregationAware span emulation needs the enclosing
                     // section's first content line, exactly as ParserEquivalence
                     // computes it — passing -1 fabricates 31 false "costs"
-                    com.legend.parser.MappingProtocolParser.parse(ts, i,
-                            sectionStartLine(text, ts.start(i)), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    Surfaces.platformMapping(ts, i,
+                            sectionStartLine(text, ts.start(i)));
                 } else if (ts.type(i) == TokenType.DATABASE
                         && atDeclarationPosition(ts, i)) {
                     com.legend.parser.DatabaseProtocolParser.parse(ts, i);

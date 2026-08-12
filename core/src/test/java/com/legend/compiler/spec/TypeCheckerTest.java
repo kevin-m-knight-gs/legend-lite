@@ -38,7 +38,6 @@ import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 

@@ -60,25 +60,15 @@ public final class SourceSubst {
         }
         return switch (v) {
             case Variable var -> env.getOrDefault(var.name(), var);
-            case AppliedFunction af -> {
-                AppliedFunction sub = new AppliedFunction(af.function(),
-                        af.parameters().stream().map(p -> substitute(p, env))
-                                .toList(),
-                        af.candidateFqns());
-                // substitution is the moment a quote/eval argument can BECOME
-                // literal (let-bound tree strings, the subType family) —
-                // complete the parse-time fold right here, same front door,
-                // same carrier as SpecParser's own fold
-                ValueSpecification folded =
-                        com.legend.parser.QuotedSpecParser.fold(sub,
-                        // ENGINE-run emulation: the only callers that
-                        // reach a late fold are corpus tests (the
-                        // subType family's let-bound tree strings);
-                        // a product host-level late fold would need
-                        // the host dialect threaded to the inliner
-                        com.legend.parser.Dialect.LEGEND_ENGINE);
-                yield folded != null ? folded : sub;
-            }
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream().map(p -> substitute(p, env))
+                            .toList(),
+                    af.candidateFqns());
+            // NO quoted-code fold here: the compiler layer names no
+            // dialect (a speculative fold once lived here with ZERO
+            // callers — the harness inliner is where corpus late folds
+            // actually happen). An unfolded call types Any and walls
+            // loudly at lowering, exactly like the engine's compiler.
             case AppliedProperty ap -> new AppliedProperty(
                     substitute(ap.receiver(), env), ap.property());
             case LambdaFunction lf -> {

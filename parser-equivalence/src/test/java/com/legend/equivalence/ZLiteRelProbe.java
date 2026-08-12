@@ -23,10 +23,8 @@ class ZLiteRelProbe {
                         || ts.type(i - 1) == com.legend.lexer.TokenType.BRACE_CLOSE
                         || ts.type(i - 1) == com.legend.lexer.TokenType.SEMI_COLON
                         || ts.type(i - 1) == com.legend.lexer.TokenType.PAREN_CLOSE)) {
-                    var mp = com.legend.parser.MappingProtocolParser
-                            .parse(ts, i, ts.sectionContentLine("Mapping",
-                                    ts.start(i)),
-                                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    var mp = Surfaces.platformMapping(ts, i,
+                            ts.sectionContentLine("Mapping", ts.start(i)));
                     com.legend.protocol.ProtocolEmitter.emitElement(mp);
                     n++;
                 }

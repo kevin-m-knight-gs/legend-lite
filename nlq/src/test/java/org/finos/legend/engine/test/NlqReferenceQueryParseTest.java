@@ -52,7 +52,7 @@ class NlqReferenceQueryParseTest {
     @DisplayName("Sales-Trading reference queries parse")
     void testSalesTradingReferenceQueryParses(QueryCase qc) {
         assertDoesNotThrow(
-                () -> com.legend.parser.SpecParser.parse(qc.referenceQuery(), com.legend.parser.Dialect.LEGEND_PLATFORM),
+                () -> com.legend.Compiler.parseQuery(qc.referenceQuery()),
                 qc.id() + " referenceQuery failed to parse: " + qc.referenceQuery()
         );
     }
@@ -62,7 +62,7 @@ class NlqReferenceQueryParseTest {
     @DisplayName("CDM reference queries parse")
     void testCdmReferenceQueryParses(QueryCase qc) {
         assertDoesNotThrow(
-                () -> com.legend.parser.SpecParser.parse(qc.referenceQuery(), com.legend.parser.Dialect.LEGEND_PLATFORM),
+                () -> com.legend.Compiler.parseQuery(qc.referenceQuery()),
                 qc.id() + " referenceQuery failed to parse: " + qc.referenceQuery()
         );
     }

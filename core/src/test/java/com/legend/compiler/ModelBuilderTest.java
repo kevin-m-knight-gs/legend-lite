@@ -1,6 +1,5 @@
 package com.legend.compiler;
 
-import com.legend.parser.ElementParser;
 import com.legend.model.ParsedModel;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;

@@ -3,7 +3,6 @@ package com.legend.compiler;
 import com.legend.Compiler;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
