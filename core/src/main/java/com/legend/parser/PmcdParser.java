@@ -257,26 +257,57 @@ public final class PmcdParser {
 
     private static List<DocElement> sectionElements(TokenStream ts,
             String source, String parserName, long[] r, int headerStart) {
-        List<long[]> range = List.of(r);
+        boolean importsOk = IMPORT_AWARE.contains(parserName);
         return switch (parserName) {
-            case "Pure" -> parseSites(ts, pureSites(ts, range), -1);
-            case "Runtime" -> parseSites(ts, runtimeSites(ts, range), -1);
-            case "Connection" -> parseSites(ts, connectionSites(ts, range), -1);
-            case "Relational" -> parseSites(ts,
-                    markerSites(ts, range, TokenType.DATABASE, 8), -1);
+            case "Pure" -> strictWalk(ts, r, PmcdParser::pureHead, importsOk,
+                    -1, null, null);
+            case "Runtime" -> {
+                // the engine's runtime walker collects BY GRAMMAR RULE:
+                // every `Runtime` first, then every
+                // `SingleConnectionRuntime` — NOT source order
+                // (PmcdEquivalenceTest join-relational)
+                List<TokenType> heads = new ArrayList<>();
+                List<DocElement> parsed = strictWalk(ts, r,
+                        (t, c) -> ts.type(c) == TokenType.RUNTIME
+                                || ts.type(c)
+                                        == TokenType.SINGLE_CONNECTION_RUNTIME
+                                ? 6 : -1,
+                        importsOk, -1, null, heads);
+                List<DocElement> out2 = new ArrayList<>();
+                for (int i = 0; i < parsed.size(); i++) {
+                    if (heads.get(i) == TokenType.RUNTIME) {
+                        out2.add(parsed.get(i));
+                    }
+                }
+                for (int i = 0; i < parsed.size(); i++) {
+                    if (heads.get(i) != TokenType.RUNTIME) {
+                        out2.add(parsed.get(i));
+                    }
+                }
+                yield out2;
+            }
+            case "Connection" -> strictWalk(ts, r,
+                    (t, c) -> CONNECTION_FLAVORS.contains(ts.text(c)) ? 7 : -1,
+                    importsOk, -1, null, null);
+            case "Relational" -> strictWalk(ts, r,
+                    (t, c) -> ts.type(c) == TokenType.DATABASE ? 8 : -1,
+                    importsOk, -1, null, null);
             case "Mapping" -> {
                 // the aggLambdaShift anchor is the HEADER line + 1 (the
                 // engine sub-parses content whose text starts at the
                 // header's own newline)
                 int line = ts.lineOf(Math.max(headerStart, 0)) + 1;
-                yield parseSites(ts,
-                        markerSites(ts, range, TokenType.MAPPING, 9), line);
+                yield strictWalk(ts, r,
+                        (t, c) -> ts.type(c) == TokenType.MAPPING ? 9 : -1,
+                        importsOk, line, null, null);
             }
-            case "Data" -> parseSites(ts,
-                    textMarkerSites(ts, range, Set.of("Data"), 10), -1);
+            case "Data" -> strictWalk(ts, r,
+                    (t, c) -> "Data".equals(ts.text(c)) ? 10 : -1,
+                    importsOk, -1, null, null);
             case "Snowflake", "MemSql", "BigQuery", "HostedService",
-                    "FunctionJar" -> parseSites(ts,
-                    textMarkerSites(ts, range, ACTIVATOR_KINDS, 11), -1);
+                    "FunctionJar" -> strictWalk(ts, r,
+                    (t, c) -> ACTIVATOR_KINDS.contains(ts.text(c)) ? 11 : -1,
+                    importsOk, -1, null, null);
             case "Diagram" -> diagramElements(source, r);
             default -> {
                 int idx = TAIL_SECTIONS.indexOf(parserName);
@@ -285,10 +316,99 @@ public final class PmcdParser {
                             + "' is not a known section parser",
                             ts.lineOf((int) r[0]), 1);
                 }
-                yield ruleGroup(parserName,
-                        parseTail(ts, tailSites(ts, range, idx)));
+                var g = java.util.Objects.requireNonNull(
+                        TAIL_GRAMMARS.get(parserName));
+                yield ruleGroup(parserName, strictWalk(ts, r,
+                        (t, c) -> TokenStreamCursor.IDENTIFIER_TOKENS
+                                .contains(ts.type(c))
+                                && (c + 1 >= ts.count() || ts.type(c + 1)
+                                        != TokenType.PATH_SEPARATOR)
+                                ? 12 : -1,
+                        importsOk, -1, g, null));
             }
         };
+    }
+
+    /** Head rule for {@code ###Pure}: the domain markers, {@code Measure},
+     *  nothing else. A marker followed by {@code ::} is a REFERENCE, not a
+     *  declaration. */
+    private static int pureHead(TokenStream ts, int cursor) {
+        TokenType t = ts.type(cursor);
+        Integer kind = MARKERS.get(t);
+        if (kind != null && (cursor + 1 >= ts.count()
+                || ts.type(cursor + 1) != TokenType.PATH_SEPARATOR)) {
+            return kind;
+        }
+        if (t == TokenType.VALID_STRING && "Measure".equals(ts.text(cursor))) {
+            return 5;
+        }
+        return -1;
+    }
+
+    /** {@code (stream, cursor) -> site kind, or -1}. */
+    private interface HeadRule {
+        int kindOf(TokenStream ts, int cursor);
+    }
+
+    /** THE STRICT WALK (the endgame's lenient->strict flip): parse the
+     *  section range SEQUENTIALLY — leading imports (import-aware sections
+     *  only), then one element after another, each parse consuming its own
+     *  extent. Anything else REFUSES with the engine's refusal shape; the
+     *  old scan-and-skip silently dropped unrecognised content (m3
+     *  dialect, native declarations, top-level ^instances), which is how
+     *  the document surface stayed lenient. */
+    private static List<DocElement> strictWalk(TokenStream ts, long[] r,
+            HeadRule rule, boolean importsAllowed, int mappingSectionLine,
+            com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
+            @com.legend.Nullable List<TokenType> headsOut) {
+        List<DocElement> out = new ArrayList<>();
+        int cursor = skipTo(ts, r[0]);
+        boolean sawElement = false;
+        while (cursor < ts.count() && ts.start(cursor) < r[1]) {
+            TokenType t = ts.type(cursor);
+            if (t == TokenType.IMPORT) {
+                if (!importsAllowed || sawElement) {
+                    // imports are PREFIX-only (engine: imports (element)*)
+                    throw orphan(ts, cursor);
+                }
+                // the engine's import statement is EXACTLY
+                // `import pkg(::pkg)*::*;` — a dotted Java import the
+                // snippet extractor scraped, or a wildcard-less path,
+                // REFUSES (the flip closed the skip-to-semicolon hole)
+                cursor++;
+                boolean wildcard = false;
+                while (cursor < ts.count()
+                        && ts.type(cursor) != TokenType.SEMI_COLON) {
+                    TokenType it = ts.type(cursor);
+                    if (it == TokenType.STAR) {
+                        wildcard = true;
+                    } else if (it != TokenType.PATH_SEPARATOR
+                            && !TokenStreamCursor.IDENTIFIER_TOKENS
+                                    .contains(it)) {
+                        throw orphan(ts, cursor);
+                    }
+                    cursor++;
+                }
+                if (!wildcard || cursor >= ts.count()) {
+                    throw orphan(ts, Math.min(cursor, ts.count() - 1));
+                }
+                cursor++;
+                continue;
+            }
+            int kind = rule.kindOf(ts, cursor);
+            if (kind < 0) {
+                throw orphan(ts, cursor);
+            }
+            sawElement = true;
+            if (headsOut != null) {
+                headsOut.add(t);
+            }
+            int[] end = new int[1];
+            out.add(parseOneAt(ts, cursor, kind, mappingSectionLine,
+                    tailGrammar, end));
+            cursor = end[0];
+        }
+        return out;
     }
 
     /** The engine's walkers collect BY GRAMMAR RULE, not source order,
@@ -363,105 +483,108 @@ public final class PmcdParser {
         return out;
     }
 
-    private static List<DocElement> parseSites(TokenStream ts,
-            List<int[]> sites, int mappingSectionLine) {
-        List<DocElement> out = new ArrayList<>();
-        for (int[] site : sites) {
-            Protocol.Element el;
-            String path;
-            switch (site[1]) {
-                case 0 -> {
-                    Protocol.PClass c = ElementParser.at(ts, site[0])
-                            .parseClassDefinition(false);
-                    el = c;
-                    path = c.qualifiedName();
-                }
-                case 1 -> {
-                    Protocol.PEnumeration e = ElementParser.at(ts, site[0])
-                            .parseEnumDefinition();
-                    el = e;
-                    path = e.qualifiedName();
-                }
-                case 2 -> {
-                    Protocol.PProfile p = ElementParser.at(ts, site[0])
-                            .parseProfileDefinition();
-                    el = p;
-                    path = p.qualifiedName();
-                }
-                case 3 -> {
-                    Protocol.PAssociation a = ElementParser.at(ts, site[0])
-                            .parseAssociationDefinition();
-                    el = a;
-                    path = a.qualifiedName();
-                }
-                case 4 -> {
-                    Protocol.PFunction f = ElementParser.at(ts, site[0])
-                            .parseFunctionProtocol();
-                    el = f;
-                    path = f.pkg().isEmpty() ? f.mangledName()
-                            : f.pkg() + "::" + f.mangledName();
-                }
-                case 5 -> {
-                    Protocol.PMeasure m = ElementParser.at(ts, site[0])
-                            .parseMeasureDefinition();
-                    el = m;
-                    path = m.qualifiedName();
-                }
-                case 6 -> {
-                    Protocol.PRuntime rt = ElementParser.at(ts, site[0])
-                            .parseRuntimeProtocol();
-                    el = rt;
-                    path = rt.qualifiedName();
-                }
-                case 7 -> {
-                    Protocol.PConnection cn = ElementParser.at(ts, site[0])
-                            .parseConnectionProtocol();
-                    el = cn;
-                    path = cn.qualifiedName();
-                }
-                case 8 -> {
-                    Protocol.PDatabase db = DatabaseProtocolParser
-                            .parse(ts, site[0]);
-                    el = db;
-                    path = db.qualifiedName();
-                }
-                case 9 -> {
-                    Protocol.PMapping mp = MappingProtocolParser.parse(ts,
-                            site[0], mappingSectionLine, null, true);
-                    el = mp;
-                    path = mp.qualifiedName();
-                }
-                case 10 -> {
-                    Protocol.PDataElement de = MappingProtocolParser
-                            .parseData(ts, site[0], true);
-                    el = de;
-                    path = de.qualifiedName();
-                }
-                case 11 -> {
-                    Protocol.PFunctionActivator fa = ACTIVATOR_GRAMMAR
-                            .parseElement(ElementParser.at(ts, site[0]));
-                    el = fa;
-                    path = fa.qualifiedName();
-                }
-                default -> throw new IllegalStateException(
-                        "unknown site kind " + site[1]);
+    private static DocElement parseOneAt(TokenStream ts, int site, int kind,
+            int mappingSectionLine,
+            com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
+            int[] endOut) {
+        Protocol.Element el;
+        String path;
+        switch (kind) {
+            case 0 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PClass c = p.parseClassDefinition(false);
+                el = c;
+                path = c.qualifiedName();
+                endOut[0] = p.pos();
             }
-            out.add(new DocElement(path, ProtocolEmitter.emitElement(el)));
+            case 1 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PEnumeration e = p.parseEnumDefinition();
+                el = e;
+                path = e.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 2 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PProfile pr = p.parseProfileDefinition();
+                el = pr;
+                path = pr.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 3 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PAssociation a = p.parseAssociationDefinition();
+                el = a;
+                path = a.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 4 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PFunction f = p.parseFunctionProtocol();
+                el = f;
+                path = f.pkg().isEmpty() ? f.mangledName()
+                        : f.pkg() + "::" + f.mangledName();
+                endOut[0] = p.pos();
+            }
+            case 5 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PMeasure m = p.parseMeasureDefinition();
+                el = m;
+                path = m.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 6 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PRuntime rt = p.parseRuntimeProtocol();
+                el = rt;
+                path = rt.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 7 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PConnection cn = p.parseConnectionProtocol();
+                el = cn;
+                path = cn.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 8 -> {
+                Protocol.PDatabase db = DatabaseProtocolParser
+                        .parse(ts, site, endOut);
+                el = db;
+                path = db.qualifiedName();
+            }
+            case 9 -> {
+                Protocol.PMapping mp = MappingProtocolParser.parse(ts,
+                        site, mappingSectionLine, endOut, true);
+                el = mp;
+                path = mp.qualifiedName();
+            }
+            case 10 -> {
+                Protocol.PDataElement de = MappingProtocolParser
+                        .parseData(ts, site, true, endOut);
+                el = de;
+                path = de.qualifiedName();
+            }
+            case 11 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                Protocol.PFunctionActivator fa = ACTIVATOR_GRAMMAR
+                        .parseElement(p);
+                el = fa;
+                path = fa.qualifiedName();
+                endOut[0] = p.pos();
+            }
+            case 12 -> {
+                ElementParser p = ElementParser.at(ts, site);
+                var g = java.util.Objects.requireNonNull(tailGrammar);
+                Protocol.Element e = g.parseOne(p);
+                el = e;
+                path = g.qualifiedNameOf(e);
+                endOut[0] = p.pos();
+            }
+            default -> throw new IllegalStateException(
+                    "unknown site kind " + kind);
         }
-        return out;
-    }
-
-    private static List<DocElement> parseTail(TokenStream ts,
-            List<int[]> sites) {
-        List<DocElement> out = new ArrayList<>();
-        for (int[] site : sites) {
-            var g = java.util.Objects.requireNonNull(
-                    TAIL_GRAMMARS.get(TAIL_SECTIONS.get(site[2])));
-            Protocol.Element el = g.parseOne(ElementParser.at(ts, site[0]));
-            out.add(new DocElement(g.qualifiedNameOf(el),
-                    ProtocolEmitter.emitElement(el)));
-        }
-        return out;
+        return new DocElement(path, ProtocolEmitter.emitElement(el));
     }
 
     private static final Map<String,
@@ -509,136 +632,17 @@ public final class PmcdParser {
             TokenType.ASSOCIATION, 3,
             TokenType.FUNCTION, 4);
 
-    private static int skipTo(TokenStream ts, long offset) {
-        int cursor = 0;
-        while (cursor < ts.count() && ts.start(cursor) < offset) {
-            cursor++;
-        }
-        return cursor;
-    }
-
-    private static List<int[]> pureSites(TokenStream ts, List<long[]> ranges) {
-        List<int[]> sites = new ArrayList<>();
-        for (long[] r : ranges) {
-            int depth = 0;
-            boolean declPos = true;
-            for (int cursor = skipTo(ts, r[0]);
-                    cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-                TokenType t = ts.type(cursor);
-                switch (t) {
-                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                    default -> {
-                        Integer kind = MARKERS.get(t);
-                        if (depth == 0 && declPos && kind != null
-                                && (cursor + 1 >= ts.count()
-                                        || ts.type(cursor + 1)
-                                                != TokenType.PATH_SEPARATOR)) {
-                            sites.add(new int[]{cursor, kind});
-                        } else if (depth == 0 && declPos
-                                && t == TokenType.VALID_STRING
-                                && "Measure".equals(ts.text(cursor))) {
-                            sites.add(new int[]{cursor, 5});
-                        }
-                    }
-                }
-                declPos = t == TokenType.BRACE_CLOSE
-                        || t == TokenType.SEMI_COLON;
-            }
-        }
-        return sites;
-    }
-
-    private static List<int[]> markerSites(TokenStream ts, List<long[]> ranges,
-            TokenType marker, int kind) {
-        List<int[]> sites = new ArrayList<>();
-        for (long[] r : ranges) {
-            int depth = 0;
-            boolean declPos = true;
-            for (int cursor = skipTo(ts, r[0]);
-                    cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-                TokenType t = ts.type(cursor);
-                switch (t) {
-                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                    default -> {
-                        if (depth == 0 && declPos && t == marker) {
-                            sites.add(new int[]{cursor, kind});
-                        }
-                    }
-                }
-                declPos = t == TokenType.BRACE_CLOSE
-                        || t == TokenType.SEMI_COLON
-                        || t == TokenType.PAREN_CLOSE;
-            }
-        }
-        return sites;
-    }
-
-    private static List<int[]> textMarkerSites(TokenStream ts,
-            List<long[]> ranges, Set<String> markers, int kind) {
-        List<int[]> sites = new ArrayList<>();
-        for (long[] r : ranges) {
-            int depth = 0;
-            boolean declPos = true;
-            for (int cursor = skipTo(ts, r[0]);
-                    cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-                TokenType t = ts.type(cursor);
-                switch (t) {
-                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                    default -> {
-                        if (depth == 0 && declPos
-                                && markers.contains(ts.text(cursor))) {
-                            sites.add(new int[]{cursor, kind});
-                        }
-                    }
-                }
-                declPos = t == TokenType.BRACE_CLOSE
-                        || t == TokenType.SEMI_COLON;
-            }
-        }
-        return sites;
-    }
-
-    private static List<int[]> tailSites(TokenStream ts, List<long[]> ranges,
-            int sectionIdx) {
-        List<int[]> sites = new ArrayList<>();
-        for (long[] r : ranges) {
-            int depth = 0;
-            boolean declPos = true;
-            for (int cursor = skipTo(ts, r[0]);
-                    cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-                TokenType t = ts.type(cursor);
-                switch (t) {
-                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                    case IMPORT -> {
-                        if (depth == 0 && declPos) {
-                            while (cursor < ts.count() && ts.type(cursor)
-                                    != TokenType.SEMI_COLON) {
-                                cursor++;
-                            }
-                            t = TokenType.SEMI_COLON;
-                        }
-                    }
-                    default -> {
-                        if (depth == 0 && declPos
-                                && TokenStreamCursor.IDENTIFIER_TOKENS
-                                        .contains(t)
-                                && (cursor + 1 >= ts.count()
-                                        || ts.type(cursor + 1)
-                                                != TokenType.PATH_SEPARATOR)) {
-                            sites.add(new int[]{cursor, 12, sectionIdx});
-                        }
-                    }
-                }
-                declPos = t == TokenType.BRACE_CLOSE
-                        || t == TokenType.SEMI_COLON
-                        || t == TokenType.PAREN_CLOSE;
-            }
-        }
-        return sites;
+    /** THE STRICT FLIP (endgame charter): a token at a depth-0
+     *  declaration position that no scanner recognises REFUSES — the
+     *  old scan-and-skip silently dropped unrecognised content (m3
+     *  dialect, native declarations, top-level ^instances), which is
+     *  how the document surface stayed lenient. Engine-shaped sources
+     *  are untouched: every recognised head parses exactly as before,
+     *  in the same order. */
+    private static ParseException orphan(TokenStream ts, int cursor) {
+        return new ParseException("Unexpected token '" + ts.text(cursor)
+                + "'", ts.lineOf(ts.start(cursor)),
+                ts.startColumn(cursor));
     }
 
     private static final Set<String> CONNECTION_FLAVORS = Set.of(
@@ -647,63 +651,12 @@ public final class PmcdParser {
             "ServiceStoreConnection", "DeephavenConnection",
             "MongoDBConnection");
 
-    private static List<int[]> connectionSites(TokenStream ts,
-            List<long[]> ranges) {
-        List<int[]> sites = new ArrayList<>();
-        for (long[] r : ranges) {
-            int depth = 0;
-            boolean declPos = true;
-            for (int cursor = skipTo(ts, r[0]);
-                    cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-                TokenType t = ts.type(cursor);
-                switch (t) {
-                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                    default -> {
-                        if (depth == 0 && declPos
-                                && CONNECTION_FLAVORS.contains(ts.text(cursor))) {
-                            sites.add(new int[]{cursor, 7});
-                        }
-                    }
-                }
-                declPos = t == TokenType.BRACE_CLOSE
-                        || t == TokenType.SEMI_COLON;
-            }
+    private static int skipTo(TokenStream ts, long offset) {
+        int cursor = 0;
+        while (cursor < ts.count() && ts.start(cursor) < offset) {
+            cursor++;
         }
-        return sites;
+        return cursor;
     }
 
-    private static List<int[]> runtimeSites(TokenStream ts,
-            List<long[]> ranges) {
-        // the engine's runtime walker collects BY GRAMMAR RULE: every
-        // `Runtime` first, then every `SingleConnectionRuntime` — NOT
-        // source order (PmcdEquivalenceTest join-relational)
-        List<int[]> runtimes = new ArrayList<>();
-        List<int[]> singles = new ArrayList<>();
-        for (long[] r : ranges) {
-            int depth = 0;
-            boolean declPos = true;
-            for (int cursor = skipTo(ts, r[0]);
-                    cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
-                TokenType t = ts.type(cursor);
-                switch (t) {
-                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                    default -> {
-                        if (depth == 0 && declPos
-                                && t == TokenType.RUNTIME) {
-                            runtimes.add(new int[]{cursor, 6});
-                        } else if (depth == 0 && declPos
-                                && t == TokenType.SINGLE_CONNECTION_RUNTIME) {
-                            singles.add(new int[]{cursor, 6});
-                        }
-                    }
-                }
-                declPos = t == TokenType.BRACE_CLOSE
-                        || t == TokenType.SEMI_COLON;
-            }
-        }
-        runtimes.addAll(singles);
-        return runtimes;
-    }
 }

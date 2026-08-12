@@ -110,8 +110,21 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  ({@link TokenStreamCursor#legendStrict()}). */
     public static Protocol.PDataElement parseData(TokenStream ts,
             int tokenIndex, boolean legendStrict) {
-        return new MappingProtocolParser(ts, tokenIndex, legendStrict)
-                .parseDataElement();
+        return parseData(ts, tokenIndex, legendStrict, null);
+    }
+
+    /** As above, reporting where the element ENDED (the strict document
+     *  walk resumes there). */
+    public static Protocol.PDataElement parseData(TokenStream ts,
+            int tokenIndex, boolean legendStrict,
+            int @com.legend.Nullable [] endOut) {
+        MappingProtocolParser p =
+                new MappingProtocolParser(ts, tokenIndex, legendStrict);
+        Protocol.PDataElement d = p.parseDataElement();
+        if (endOut != null) {
+            endOut[0] = p.pos;
+        }
+        return d;
     }
 
     private Protocol.PDataElement parseDataElement() {

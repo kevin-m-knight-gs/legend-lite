@@ -1,0 +1,10 @@
+# MODEL-PATH REFUSAL ALLOWLIST — oracle parse-accepted sources lite's MODEL transform refuses (the compile-seam family).
+# The ENGINE also refuses these at ITS compile stage; lite refuses at FromProtocol with the engine's compile text, and the
+# PROTOCOL bytes still match (harvest MODEL-PATH-refuses:BYTES-MATCH). Id-level, replacing the old message-prefix pardon
+# (HARNESS_SIMPLIFICATION_PLAN 5c: a prefix absorbs unrelated future refusals; a file cannot).
+# id	reason
+engine-fixture#339	a Relation mapping source must name a function — engine compile-refuses; parse bytes match
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/test/java/org/finos/legend/engine/language/pure/compiler/test/fromGrammar/TestDomainCompilationFromGrammar.java#72	wrong-arity association — engine compile-refuses; parse bytes match
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/test/java/org/finos/legend/engine/language/pure/compiler/test/fromGrammar/TestDomainCompilationFromGrammar.java#74	wrong-arity association — engine compile-refuses; parse bytes match
+legend-pure-core/legend-pure-m3-core/src/test/java/org/finos/legend/pure/m3/tests/elements/association/TestAssociation.java#5	wrong-arity association — engine compile-refuses; parse bytes match
+legend-pure-core/legend-pure-m3-core/src/test/java/org/finos/legend/pure/m3/tests/elements/association/TestAssociation.java#9	wrong-arity association — engine compile-refuses; parse bytes match

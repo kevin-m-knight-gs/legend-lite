@@ -79,11 +79,11 @@ class PmcdEquivalenceTest {
                 String m = String.valueOf(r.getMessage());
                 // the COMPILE-SEAM family: the engine parse-accepts these
                 // and ITS compiler refuses; lite refuses at FromProtocol
-                // with compile-style text (protocol bytes still match —
-                // harvest MODEL-PATH-refuses:BYTES-MATCH 3/3)
-                if (!m.startsWith("Expected 2 properties for an association")
-                        && !m.startsWith("a Relation mapping source must"
-                                + " name a function")) {
+                // with compile-style text (protocol bytes still match).
+                // ID-LEVEL allowlist, not a message prefix — a prefix
+                // absorbs unrelated future refusals
+                // (HARNESS_SIMPLIFICATION_PLAN 5c)
+                if (!modelRefuseAllowlist().contains(src.id())) {
                     modelRefuse.add(src.id() + " :: "
                             + m.replaceAll("\\s+", " "));
                 }
@@ -128,5 +128,27 @@ class PmcdEquivalenceTest {
                 + actual.substring(Math.max(0, i - 30),
                         Math.min(actual.length(), i + 50))
                 + "…";
+    }
+
+    private static java.util.Set<String> modelRefuseIds;
+
+    /** The id-level compile-seam allowlist (docs/model-refuse-allowlist.tsv). */
+    private static java.util.Set<String> modelRefuseAllowlist() {
+        if (modelRefuseIds == null) {
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            try {
+                for (String line : java.nio.file.Files.readAllLines(
+                        java.nio.file.Path.of("..", "docs",
+                                "model-refuse-allowlist.tsv"))) {
+                    if (!line.startsWith("#") && !line.isBlank()) {
+                        ids.add(line.split("\t", 2)[0]);
+                    }
+                }
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            modelRefuseIds = ids;
+        }
+        return modelRefuseIds;
     }
 }

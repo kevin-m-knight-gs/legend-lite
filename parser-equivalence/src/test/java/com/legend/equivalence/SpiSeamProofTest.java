@@ -210,8 +210,15 @@ class SpiSeamProofTest {
      *  216 -> 183 when the baseline loads the FULL extension set
      *  (2026-08-11): category (c) is GONE — the 33 island rows moved
      *  into byte comparison; what remains is (a) m3-only dialect and
-     *  (b) engine walker defects, inputs NO engine deployment parses. */
-    private static final int MAX_LENIENT_ACCEPTS = 183;
+     *  (b) engine walker defects, inputs NO engine deployment parses.
+     *  183 -> 22 at THE STRICT FLIP (2026-08-12): the document parser's
+     *  scan-and-skip became a sequential strict walk (orphan tokens at
+     *  declaration positions REFUSE; imports validated to the engine's
+     *  exact `import pkg::..::*;` shape, prefix-only) and the SPI bridge
+     *  feeds from that same production parse. The 22 = upstream walker
+     *  defects + the reviewed post-flip residue of
+     *  docs/refusal-allowlist.tsv. */
+    private static final int MAX_LENIENT_ACCEPTS = 22;
     // 170 -> 176 (2026-08-09, burn-to-zero batch A): six more legend-pure
     // fixtures in the SAME extension-less-vanilla category (Mapping-in-Pure
     // incremental fixtures, '>' accessor islands) parse further once the

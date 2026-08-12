@@ -1109,6 +1109,14 @@ public final class ElementParser implements TokenStreamCursor {
                     ValueSpecification lv =
                             SpecParser.parse(tokens.slice(vStart, pos), legendStrict);
                     level = enforcementLevelName(lv);
+                    if (!"Error".equals(level) && !"Warn".equals(level)) {
+                        // BOTH reference grammars admit only Error|Warn
+                        // (DomainParserGrammar constraintEnforcementLevelType;
+                        // legend-pure M3 agrees — refusal-asymmetry
+                        // INVESTIGATE row AbstractTestConstraints#110)
+                        throw error("constraint enforcementLevel must be"
+                                + " Error or Warn, got '" + level + "'");
+                    }
                 }
             }
             expect(TokenType.PAREN_CLOSE);
@@ -2491,6 +2499,13 @@ public final class ElementParser implements TokenStreamCursor {
                 value = SpecParser.parse(tokens.slice(defStart, pos), legendStrict);
             } catch (ParseException unsupportedExpression) {
                 value = null;   // parser stays total; the emitter walls on the null, loudly
+            }
+            if (value instanceof com.legend.protocol.spec.LambdaFunction) {
+                // BOTH reference grammars refuse a lambda default
+                // (defaultValueExpression admits references, ^instances,
+                // literals and arrays only; legend-pure M3 agrees —
+                // refusal-asymmetry INVESTIGATE row TestDefaultValue#41)
+                throw error("a lambda is not a legal property default value");
             }
             defaultValue = new com.legend.protocol.Protocol.PDefaultValue(
                     value, spanOf(defStart, pos - 1));

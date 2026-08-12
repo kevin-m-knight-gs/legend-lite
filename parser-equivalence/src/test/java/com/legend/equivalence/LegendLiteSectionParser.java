@@ -3,10 +3,6 @@ package com.legend.equivalence;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
-import com.legend.lexer.TokenType;
-import com.legend.parser.ElementParser;
 import org.finos.legend.engine.language.pure.grammar.from.SectionSourceCode;
 import org.finos.legend.engine.language.pure.grammar.from.extension.PureGrammarParserExtension;
 import org.finos.legend.engine.language.pure.grammar.from.extension.SectionParser;
@@ -14,7 +10,6 @@ import org.finos.legend.engine.protocol.pure.m3.PackageableElement;
 import org.finos.legend.engine.protocol.pure.v1.model.packageableElement.section.ImportAwareCodeSection;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -62,107 +57,33 @@ final class LegendLiteSectionParser {
         String sourceId = section.walkerSourceInformation.getSourceId();
         int lineOffset = section.walkerSourceInformation.getLineOffset();
 
-        TokenStream ts = Lexer.tokenize(section.code);
-
-        // leading imports: import a::b::*;
-        int pos = 0;
-        while (pos < ts.count() && ts.type(pos) == TokenType.IMPORT) {
-            StringBuilder path = new StringBuilder();
-            pos++;
-            while (pos < ts.count() && ts.type(pos) != TokenType.SEMI_COLON) {
-                if (ts.type(pos) != TokenType.STAR
-                        || !path.toString().endsWith("::")) {
-                    path.append(ts.text(pos));
+        // ONE lite path (HARNESS_SIMPLIFICATION_PLAN 5a + Phase-1 doctrine):
+        // the bridge derives imports AND elements from the PRODUCTION
+        // document parser — the same parseSections that parseDocument
+        // serializes. The old bridge-local site scanner re-implemented
+        // element discovery (and needed a hand-rolled native-declaration
+        // throw because its scanner would SKIP natives silently); the
+        // production parse consumes tokens sequentially, so the strict
+        // surface's own 'Unsupported syntax' refusal fires naturally.
+        List<com.legend.parser.PmcdParser.DocSection> sections =
+                com.legend.parser.PmcdParser.parseSections(section.code);
+        for (com.legend.parser.PmcdParser.DocSection sec : sections) {
+            out.imports.addAll(sec.imports());
+            for (com.legend.parser.PmcdParser.DocElement el : sec.elements()) {
+                try {
+                    JsonNode tree = MAPPER.readTree(el.json());
+                    // 5b DEFERRED BY DECISION: the offset seam stays at the
+                    // JSON boundary until the lexer grows native offsets —
+                    // the formula is bytecode-verified; only its placement
+                    // is impure
+                    shiftSpans(tree, sourceId, lineOffset);
+                    elementConsumer.accept(
+                            MAPPER.treeToValue(tree, PackageableElement.class));
+                    out.elements.add(el.path());
+                } catch (Exception e) {
+                    throw new RuntimeException(
+                            "SPI bridge failed on " + el.path(), e);
                 }
-                pos++;
-            }
-            pos++;                                   // past ';'
-            String p = path.toString();
-            if (p.endsWith("::*")) {
-                p = p.substring(0, p.length() - 3);
-            } else if (p.endsWith("::")) {
-                p = p.substring(0, p.length() - 2);
-            }
-            // QUOTED segments unquote on the wire (import a::'b c'::* ->
-            // "a::b c", the vanilla engine's bytes) — the bridge's local
-            // loop had dropped Protocol.unquotePath
-            // (HARNESS_SIMPLIFICATION_PLAN 5e, a live byte bug no corpus
-            // file exercised)
-            out.imports.add(com.legend.protocol.Protocol.unquotePath(p));
-        }
-
-        // ENGINE PARITY: the Legend flavor refuses native functions ('Unsupported
-        // syntax') — legend-lite's own dialect keeps them, so the drop-in surface
-        // rejects here at the seam
-        for (int i : ElementParser.topLevelIndexes(ts, TokenType.NATIVE)) {
-            throw new RuntimeException(
-                    "Unsupported syntax: native declarations are not supported in Legend"
-                            + " (token " + i + ")");
-        }
-        // ('''...''' literals parse since the 4.138.2 re-pin — expression
-        // and tagged-value positions ride the normal element parse; the
-        // gate that rejected them against the 4.133.0 jar is retired)
-
-        // element sites in SOURCE order — the engine emits interleaved kinds as written
-        record Site(int tok, TokenType kind) {
-        }
-        List<Site> sites = new ArrayList<>();
-        for (TokenType marker : new TokenType[]{TokenType.CLASS, TokenType.ENUM,
-                TokenType.PROFILE, TokenType.ASSOCIATION, TokenType.FUNCTION}) {
-            for (int i : ElementParser.topLevelIndexes(ts, marker)) {
-                sites.add(new Site(i, marker));
-            }
-        }
-        for (int i : ElementParser.measureSites(ts)) {
-            sites.add(new Site(i, TokenType.VALID_STRING));
-        }
-        sites.sort(java.util.Comparator.comparingInt(Site::tok));
-
-        for (Site site : sites) {
-            ElementParser p = ElementParser.at(ts, site.tok());
-            com.legend.protocol.Protocol.Element el;
-            String path;
-            switch (site.kind()) {
-                case CLASS -> {
-                    var c = p.parseClassDefinition(false);
-                    el = c;
-                    path = c.qualifiedName();
-                }
-                case ENUM -> {
-                    var e = p.parseEnumDefinition();
-                    el = e;
-                    path = e.qualifiedName();
-                }
-                case PROFILE -> {
-                    var pr = p.parseProfileDefinition();
-                    el = pr;
-                    path = pr.qualifiedName();
-                }
-                case ASSOCIATION -> {
-                    var a = p.parseAssociationDefinition();
-                    el = a;
-                    path = a.qualifiedName();
-                }
-                case VALID_STRING -> {
-                    var me = p.parseMeasureDefinition();
-                    el = me;
-                    path = me.qualifiedName();
-                }
-                default -> {
-                    var f = p.parseFunctionProtocol();
-                    el = f;
-                    path = f.pkg().isEmpty() ? f.mangledName()
-                            : f.pkg() + "::" + f.mangledName();
-                }
-            }
-            try {
-                String json = com.legend.protocol.ProtocolEmitter.emitElement(el);
-                JsonNode tree = MAPPER.readTree(json);
-                shiftSpans(tree, sourceId, lineOffset);
-                elementConsumer.accept(MAPPER.treeToValue(tree, PackageableElement.class));
-                out.elements.add(path);
-            } catch (Exception e) {
-                throw new RuntimeException("SPI bridge failed on " + path, e);
             }
         }
         return out;
