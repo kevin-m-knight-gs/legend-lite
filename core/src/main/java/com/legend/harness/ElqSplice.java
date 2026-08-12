@@ -54,7 +54,7 @@ final class ElqSplice {
                 || !TestBody.simpleName(elq.function())
                         .equals("executeLegendQuery")
                 || elq.parameters().isEmpty()
-                || !(TestBody.substitute(elq.parameters().get(0), lets)
+                || !(HarnessSubstitution.substitute(elq.parameters().get(0), lets)
                         instanceof LambdaFunction qlf)
                 || qlf.body().isEmpty()) {
             return null;
@@ -65,7 +65,7 @@ final class ElqSplice {
                 return null;
             }
             Map<String, ValueSpecification> vars = varPairs(
-                    TestBody.substitute(elq.parameters().get(1), lets), lets);
+                    HarnessSubstitution.substitute(elq.parameters().get(1), lets), lets);
             if (vars == null) {
                 return null;
             }
@@ -175,12 +175,12 @@ final class ElqSplice {
             if (!(e instanceof AppliedFunction pair)
                     || !TestBody.simpleName(pair.function()).equals("pair")
                     || pair.parameters().size() != 2
-                    || !(TestBody.substitute(pair.parameters().get(0), lets)
+                    || !(HarnessSubstitution.substitute(pair.parameters().get(0), lets)
                             instanceof CString key)) {
                 return null;
             }
             out.put(key.value(),
-                    TestBody.substitute(pair.parameters().get(1), lets));
+                    HarnessSubstitution.substitute(pair.parameters().get(1), lets));
         }
         return out;
     }

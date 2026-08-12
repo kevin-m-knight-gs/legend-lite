@@ -14,8 +14,8 @@
  *
  * <h2>Public surface</h2>
  * <pre>
- *   ParsedModel model = ElementParser.parseLegendPlatform(pureSource);   // text overload
- *   ParsedModel model = ElementParser.parseLegendPlatform(tokenStream);  // pre-lexed overload
+ *   ParsedModel model = ElementParser.parseLegendLite(pureSource);    // the product surface
+ *   // three dialect levels — see {@link com.legend.parser.Dialect}
  * </pre>
  *
  * <h2>Records</h2>

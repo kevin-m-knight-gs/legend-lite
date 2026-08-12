@@ -33,9 +33,9 @@ class PlatformSurfaceGuardrailTest {
             // platform/bootstrap loading and internal pipeline
             "com/legend/builtin/Pure.java",
             "com/legend/parser/ElementParser.java",
-            "com/legend/parser/package-info.java",   // javadoc mention
-            // the test harness IS platform-side (it loads platform sources)
-            "com/legend/harness/TestBody.java",
+            // (TestBody left the whitelist 2026-08-12: its ONLY platform
+            // call was the compileLegendGrammar payload seam, now
+            // LEGEND_ENGINE — matching the engine's own architecture)
             // (servers MIGRATED to parseLegendLite 2026-08-12; the
             // Compiler user path is the remaining migration candidate)
             "com/legend/Compiler.java");

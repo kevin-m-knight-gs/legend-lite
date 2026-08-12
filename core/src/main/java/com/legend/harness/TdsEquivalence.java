@@ -29,17 +29,17 @@ final class TdsEquivalence {
             com.legend.model.ImportScope imports,
             String runtimeFqn,
             java.sql.Connection conn) throws java.sql.SQLException {
-        TestBody.Eval exp = TestBody.eval(TestBody.subst(args.get(0), lets),
+        TestBody.Eval exp = TestBody.eval(HarnessSubstitution.subst(args.get(0), lets),
                 lets, execStmts, execVars, execChains, ctx, imports,
                 runtimeFqn, conn);
-        TestBody.Eval got = TestBody.eval(TestBody.subst(args.get(1), lets),
+        TestBody.Eval got = TestBody.eval(HarnessSubstitution.subst(args.get(1), lets),
                 lets, execStmts, execVars, execChains, ctx, imports,
                 runtimeFqn, conn);
-        double delta = asNumber(TestBody.eval(TestBody.subst(args.get(2), lets),
+        double delta = asNumber(TestBody.eval(HarnessSubstitution.subst(args.get(2), lets),
                 lets, execStmts, execVars, execChains, ctx, imports,
                 runtimeFqn, conn).values());
         double timeDelta = args.size() == 4 ? asNumber(TestBody.eval(
-                TestBody.subst(args.get(3), lets), lets, execStmts, execVars,
+                HarnessSubstitution.subst(args.get(3), lets), lets, execStmts, execVars,
                 execChains, ctx, imports, runtimeFqn, conn).values()) : 0.0;
         return compare(exp.values(), got.values(), delta, timeDelta);
     }

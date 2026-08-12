@@ -56,7 +56,7 @@ final class ExecCallFinder {
         if (v == null) {
             return null;
         }
-        ValueSpecification cur = TestBody.substitute(v, lets);
+        ValueSpecification cur = HarnessSubstitution.substitute(v, lets);
         // CYCLE GUARD: a self-referential binding (let result = $result —
         // the helper-expansion rebinding shape) must terminate, not spin
         java.util.Set<String> seenVars = new java.util.HashSet<>();
@@ -82,7 +82,7 @@ final class ExecCallFinder {
                         TestBody.simpleName(af.function()))) {
                     return null;
                 }
-                cur = TestBody.substitute(af.parameters().get(0), lets);
+                cur = HarnessSubstitution.substitute(af.parameters().get(0), lets);
                 continue;
             }
             if (cur instanceof com.legend.protocol.spec.AppliedProperty ap) {
@@ -126,7 +126,7 @@ final class ExecCallFinder {
                     return null;
                 }
                 List<ValueSpecification> ps = new java.util.ArrayList<>();
-                ps.add(TestBody.substitute(term.parameters().get(0), lets));
+                ps.add(HarnessSubstitution.substitute(term.parameters().get(0), lets));
                 ps.add(term.parameters().get(1));
                 ps.add(new com.legend.protocol.spec.EnumValue(
                         "meta::relational::runtime::DatabaseType", "H2"));
