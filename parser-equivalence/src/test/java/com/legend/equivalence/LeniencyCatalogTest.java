@@ -92,6 +92,15 @@ public class LeniencyCatalogTest {
             return "ORACLE-DEFECT-crash";
         }
         if ("null".equals(msg)) {
+            // an InputMismatchException with a null message is ANTLR's
+            // ORDINARY grammar-refusal path, NOT an oracle defect — the
+            // audit found 346 rows laundered under the old label
+            // (HARNESS_SIMPLIFICATION_PLAN Phase 7). Real crashes carry
+            // messages and classify above.
+            if (root.getClass().getSimpleName()
+                    .equals("InputMismatchException")) {
+                return "GRAMMAR-REFUSAL-nullmsg";
+            }
             return "ORACLE-DEFECT-" + root.getClass().getSimpleName();
         }
         // VERSION-SKEW — generic grammar refusals from the 5.88 oracle
