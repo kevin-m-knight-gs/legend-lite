@@ -158,6 +158,17 @@ Clean-sheet inline association predicate:
 
 - **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (part of the mappings-as-functions
   design family — M5 in MAPPING_CLEAN_SHEET).
+- **2026-08-12 retirement probe** (`ZInlineAssocSpellingProbe`): the
+  engine's `ModelJoin` accepts the UNTYPED lambda verbatim
+  (`assoc: ModelJoin { {p, f | $p.x == $f.y} }` is oracle-accepted),
+  so the GRAMMAR is subsumable — but a respell was tried and reverted:
+  the construct's identity is the CLEAN-SHEET association binding
+  (`Realization.Inline` on a `MappingDefinition`), and a ModelJoin
+  member drops the mapping into the legacy-DSL world (all-or-nothing
+  mixing rule fires; realization differs). This family rises and falls
+  with §8 mapping-as-function — treat §6+§8 as ONE design family. Any
+  future respelling decision belongs to the clean-sheet surface design
+  (dedicated member keyword / section), not to a keyword swap.
 
 ## 7. LITE-DESIGN-json-column-get — RETIRED 2026-08-12 (was 11 rows)
 
