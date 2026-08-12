@@ -41,16 +41,47 @@ public final class Corpus {
 
     /** Every {@code .pure} under a root, excluding build output. */
     private static List<Path> pureFiles(Path root) {
+        return filesWith(root, ".pure");
+    }
+
+    private static List<Path> filesWith(Path root, String ext) {
         if (!Files.isDirectory(root)) {
             return List.of();
         }
         try (Stream<Path> s = Files.walk(root)) {
-            return s.filter(p -> p.toString().endsWith(".pure"))
+            return s.filter(p -> p.toString().endsWith(ext))
                     .filter(p -> !p.toString().contains("/target/"))
                     .sorted()
                     .toList();
         } catch (IOException e) {
             throw new IllegalStateException("cannot walk corpus root " + root, e);
+        }
+    }
+
+    /** C11 — Pure DOCUMENTS living in {@code .txt} resources (the
+     *  persistence test-runner's models and scattered
+     *  json/xml/lineage/graphQL fixtures): the first non-blank line is a
+     *  {@code ###Section} header or a top-level declaration. 55 files at
+     *  enrollment (2026-08-12); the oracle adjudicates each like every
+     *  tier. */
+    private static void addTxtDocuments(List<Source> out, Path root,
+            String tier) {
+        for (Path p : filesWith(root, ".txt")) {
+            String t;
+            try {
+                t = Files.readString(p);
+            } catch (Exception e) {
+                // NOT counted in UNREADABLE: most .txt resources are not
+                // Pure and non-UTF8 ones cannot be candidates
+                continue;
+            }
+            String head = t.lines().filter(l -> !l.isBlank()).findFirst()
+                    .orElse("").strip();
+            if (head.matches("###\\w+")
+                    || head.matches("(Class|Enum|Association|Profile"
+                            + "|function|import)\\b.*")) {
+                out.add(new Source(root.relativize(p).toString(), t, tier));
+            }
         }
     }
 
@@ -126,6 +157,9 @@ public final class Corpus {
         // coverage the static tiers cannot see — the Binding transformer
         // hid here. Adjudicated like every tier: the oracle decides.
         out.addAll(engineFixtures());
+        // C11 — Pure documents in .txt resources (resource sweep,
+        // 2026-08-12); legend-pure has none (measured)
+        addTxtDocuments(out, engineRoot(), "C11 resource-txt");
         out.removeIf(s -> s.id().toLowerCase(Locale.ROOT).endsWith("grammar/m3.pure"));
         // DEDUPE by exact text, first occurrence wins (tier order above):
         // the reported count IS the distinct count — the audit measured a

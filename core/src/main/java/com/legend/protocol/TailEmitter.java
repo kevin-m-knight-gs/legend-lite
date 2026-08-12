@@ -932,7 +932,12 @@ final class TailEmitter {
                             "processingTime"),
                     java.util.Map.entry(
                             "processingDimension:BatchIdAndDateTime",
-                            "batchIdAndDateTime"),
+                            // the RELATIONAL-target protocol names this
+                            // subtype batchIdAndProcessingTime, NOT the
+                            // kind spelling (ProcessingDimension
+                            // @JsonSubTypes; C11 resource sweep caught 4
+                            // files)
+                            "batchIdAndProcessingTime"),
                     java.util.Map.entry("sourceDerivedDimension:DateTime",
                             "sourceDerivedTime"),
                     java.util.Map.entry("appendStrategy:AllowDuplicates",
