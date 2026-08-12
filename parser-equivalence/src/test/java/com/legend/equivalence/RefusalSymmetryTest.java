@@ -22,8 +22,7 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * VERDICT SYMMETRY, step 1 — REPORT ONLY (HARNESS_SIMPLIFICATION_PLAN
- * Phase 4). The byte gates skip every source the oracle rejects, so
+ * VERDICT SYMMETRY (HARNESS_SIMPLIFICATION_PLAN Phase 4, steps 1-3). The byte gates skip every source the oracle rejects, so
  * nothing asserts what lite does on that quarter of the corpus — a
  * keyword-deletion mutation once survived every gate because the
  * reference rejected each file exercising it. The target assertion is
@@ -45,9 +44,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       M3Parser's reach; needs per-row review.</li>
  * </ul>
  *
- * <p>Step 2 turns this report into a checked-in ALLOWLIST asserted
- * exactly; step 3 ratchets the file shrink-only; step 4 burns it down
- * (the strict flip removes the dialect lines wholesale).
+ * <p>The ASSERTION (step 2): every asymmetric source is a line of the
+ * checked-in {@code docs/refusal-allowlist.tsv} with a stated reason.
+ * The RATCHET (step 3) is the file itself — adding a line is a
+ * reviewed diff, stale lines are reported for removal, and the strict
+ * flip (step 4) removes every "dies at the strict flip" row wholesale.
  */
 class RefusalSymmetryTest {
 
@@ -115,9 +116,47 @@ class RefusalSymmetryTest {
                 + " oracle-rejected, " + symmetric + " symmetric, "
                 + rows.size() + " asymmetric — " + byCategory);
 
-        // REPORT ONLY at step 1 — the single guard is that the sweep ran
+        // STEP 2 — THE ALLOWLIST ASSERTION: every asymmetric source is a
+        // line of docs/refusal-allowlist.tsv, a checked-in file with a
+        // per-row reason. Unlike a runtime classifier, a file cannot
+        // absorb a NEW asymmetry — it fails here until a human adds the
+        // line (a reviewed diff) or fixes the parity. Ratchet: the file
+        // only shrinks; stale lines (no longer asymmetric) are reported
+        // for removal.
+        java.util.Map<String, String> allow = new java.util.LinkedHashMap<>();
+        for (String line : Files.readAllLines(
+                Path.of("..", "docs", "refusal-allowlist.tsv"))) {
+            if (line.startsWith("#") || line.isBlank()) {
+                continue;
+            }
+            String[] f = line.split("\t", 3);
+            allow.put(f[0], f.length > 2 ? f[2] : "");
+        }
+        List<String> unlisted = new ArrayList<>();
+        java.util.Set<String> asymmetricIds = new java.util.HashSet<>();
+        for (String r : rows) {
+            String id = r.substring(0, r.indexOf('\t'));
+            asymmetricIds.add(id);
+            if (!allow.containsKey(id)) {
+                unlisted.add(r);
+            }
+        }
+        List<String> stale = allow.keySet().stream()
+                .filter(id -> !asymmetricIds.contains(id)).toList();
+        if (!stale.isEmpty()) {
+            System.out.println("refusal-allowlist STALE rows (fixed parity —"
+                    + " REMOVE the lines): " + stale.size());
+            stale.stream().limit(10).forEach(s ->
+                    System.out.println("  STALE " + s));
+        }
         assertTrue(oracleRejects > 0,
                 "the oracle rejected nothing: the corpus did not load");
+        org.junit.jupiter.api.Assertions.assertEquals(0, unlisted.size(),
+                () -> unlisted.size() + " NEW refusal asymmetries not in"
+                        + " docs/refusal-allowlist.tsv — fix the parity or"
+                        + " add a line WITH A REASON:\n  "
+                        + String.join("\n  ", unlisted.subList(0,
+                                Math.min(10, unlisted.size()))));
     }
 
     private static boolean accepts(ThrowingRunnable parse) {
