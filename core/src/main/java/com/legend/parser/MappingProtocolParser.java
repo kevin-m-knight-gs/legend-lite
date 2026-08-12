@@ -1899,8 +1899,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     new Protocol.PRelLiteral(l.value(), w);
             case Protocol.PRelLiteralList ll ->
                     new Protocol.PRelLiteralList(ll.values(), w);
-            // a type reference is a leaf token; its span is its own
-            case Protocol.PRelTypeRef t -> t;
         };
     }
 
@@ -3376,7 +3374,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     posOut);
         } else if (scopeDb != null) {
             op = DatabaseProtocolParser.operationAt(tokens, pos, scopeDb,
-                    "default", posOut, dialect);
+                    "default", posOut);
         } else {
             return parseEmbeddedOperation();
         }
@@ -3388,7 +3386,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PRelOp parseEmbeddedOperation() {
         int[] posOut = new int[1];
         Protocol.PRelOp op = DatabaseProtocolParser.operationAt(tokens, pos,
-                "", "default", posOut, dialect);
+                "", "default", posOut);
         pos = posOut[0];
         return op;
     }

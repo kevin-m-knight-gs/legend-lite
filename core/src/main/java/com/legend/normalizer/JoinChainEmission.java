@@ -717,7 +717,6 @@ final class JoinChainEmission {
             case RelationalOperation.ColumnRef ignored -> { }
             case RelationalOperation.TargetColumnRef ignored -> { }
             case RelationalOperation.Literal ignored -> { }
-            case RelationalOperation.TypeRef ignored -> { }
         }
     }
     /** PASS-2 source-side substitution + target determination. A VIEW

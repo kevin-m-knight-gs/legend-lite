@@ -159,27 +159,28 @@ Clean-sheet inline association predicate:
 - **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (part of the mappings-as-functions
   design family — M5 in MAPPING_CLEAN_SHEET).
 
-## 7. LITE-DESIGN-json-column-get — 11 rows
+## 7. LITE-DESIGN-json-column-get — RETIRED 2026-08-12 (was 11 rows)
 
 `COLUMN->get('key'[, @Type])` in relational property mappings — the
 lite construct binding a JSON/variant column into a class property.
-The engine's semistructured mapping spelling is different
-(`meta::pure::mapping::modelToModel`-side / semi-structured
-flatten+extract with Binding). **This is the one class you never
-explicitly blessed** (it was a Leg-3 hunt target).
 
-| # | row |
-|---|---|
-| 26–33 | integration/JsonMappingIntegrationTest#36/49/61/69/80/96/113/126 |
-| 34 | integration/VariantIntegrationTest#57 |
-| 35–36 | protocol/RelationalTypeRefEmissionTest#0/7 |
-
-- **DECISION:** DECIDED: **KEEP for now** (2026-08-11 review). The
-  engine-parity path is the BINDING TRANSFORMER
-  (`prop: Binding my::B : [db] T.COL` — RelationalParserGrammar
-  `transformer: enumTransformer | bindingTransformer`), which requires
-  external-format Binding machinery: a named FUTURE leg. See the
-  Binding parity gap below.
+- **DECISION:** **RETIRED — respelled to the ENGINE's own grammar.**
+  The 2026-08-11 "KEEP for now" rationale (engine parity = Binding
+  transformer, a future leg) was WRONG for the scalar case: the
+  engine's `core_relational` semistructured tests use plain scalar
+  property mappings with NO Binding —
+  `recordId: extractFromSemiStructured([SemiDB]SCHEMA.T.CONTENT,
+  'payload.recordId', 'VARCHAR')` — an ordinary prefix `dynaFunc`
+  (RelationalParserGrammar `functionOperation`), oracle
+  parse-accepted (probe `ZJsonGetSpellingProbe`, which also pinned
+  that ANY `->` in a relational operation is rejected: the engine
+  relational grammar has no ARROW token). All 11 rows were respelled
+  to `extractFromSemiStructured(col, 'path', 'SQLTYPE')`; the parser
+  extension (arrowChain, `PRelTypeRef`, the Dialect gate in
+  DatabaseProtocolParser) was DELETED, and the SQL-type→pure-type
+  mapping lives in `RelOpTranslator.pureTypeFor` at NORMALIZE. The
+  Binding transformer remains a future leg for the class-typed case
+  only.
 
 ## 8. LITE-DESIGN-mapping-as-function — 20 rows
 

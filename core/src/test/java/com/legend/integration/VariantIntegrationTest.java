@@ -345,8 +345,8 @@ class VariantIntegrationTest {
                         ~mainTable [EventDatabase] T_EVENTS
                         id: [EventDatabase] T_EVENTS.ID,
                         eventType: [EventDatabase] T_EVENTS.EVENT_TYPE,
-                        price: [EventDatabase] T_EVENTS.PAYLOAD->get('price'),
-                        qty: [EventDatabase] T_EVENTS.PAYLOAD->get('qty')
+                        price: get([EventDatabase] T_EVENTS.PAYLOAD, 'price'),
+                        qty: get([EventDatabase] T_EVENTS.PAYLOAD, 'qty')
                     }
                 )
 

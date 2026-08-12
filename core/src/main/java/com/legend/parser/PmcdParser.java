@@ -549,7 +549,7 @@ public final class PmcdParser {
             }
             case 8 -> {
                 Protocol.PDatabase db = DatabaseProtocolParser
-                        .parse(ts, site, endOut, Dialect.LEGEND_ENGINE);
+                        .parse(ts, site, endOut);
                 el = db;
                 path = db.qualifiedName();
             }

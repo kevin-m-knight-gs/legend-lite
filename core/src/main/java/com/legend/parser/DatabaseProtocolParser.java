@@ -50,29 +50,16 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** Stretch anchor handed to the NESTED nav-element parser. */
     private @com.legend.Nullable SourceInfo schemaStretchSpan;
 
-    private final Dialect dialect;
-
-    @Override
-    public Dialect dialect() {
-        return dialect;
-    }
-
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn) {
-        this(tokens, pos, dbFqn, null, Dialect.LEGEND_PLATFORM);
+        this(tokens, pos, dbFqn, null);
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
             @com.legend.Nullable ScopeCtx scope) {
-        this(tokens, pos, dbFqn, scope, Dialect.LEGEND_PLATFORM);
-    }
-
-    private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
-            @com.legend.Nullable ScopeCtx scope, Dialect dialect) {
         this.scope = scope;
         this.tokens = tokens;
         this.pos = pos;
         this.dbFqn = dbFqn;
-        this.dialect = dialect;
     }
 
     @Override
@@ -107,14 +94,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  {@code start}; the advanced position lands in {@code posOut[0]}. */
     static Protocol.PRelOp operationAt(TokenStream ts, int start,
             String dbFqn, String schemaCtx, int[] posOut) {
-        return operationAt(ts, start, dbFqn, schemaCtx, posOut,
-                Dialect.LEGEND_PLATFORM);
-    }
-
-    static Protocol.PRelOp operationAt(TokenStream ts, int start,
-            String dbFqn, String schemaCtx, int[] posOut, Dialect dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start,
-                dbFqn, null, dialect);
+                dbFqn, null);
         Protocol.PRelOp op = p.parseOperation(schemaCtx);
         posOut[0] = p.pos;
         return op;
@@ -132,13 +113,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
             int @com.legend.Nullable [] endOut) {
-        return parse(ts, tokenIndex, endOut, Dialect.LEGEND_PLATFORM);
-    }
-
-    public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
-            int @com.legend.Nullable [] endOut, Dialect dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex,
-                "", null, dialect);
+                "", null);
         Protocol.PDatabase db = p.parseDatabase();
         if (endOut != null) {
             endOut[0] = p.pos;
@@ -155,7 +131,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         DatabaseProtocolParser inner =
-                new DatabaseProtocolParser(tokens, pos, qn, null, dialect);
+                new DatabaseProtocolParser(tokens, pos, qn, null);
         Protocol.PDatabase db = inner.parseBody(declStart, pkg, name,
                 dbDec.stereotypes(), dbDec.taggedValues());
         this.pos = inner.pos;
@@ -670,7 +646,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     }
 
     private Protocol.PRelOp parseComparison(String schemaCtx) {
-        Protocol.PRelOp left = arrowChain(parseAtom(schemaCtx), schemaCtx);
+        Protocol.PRelOp left = parseAtom(schemaCtx);
         // postfix null tests bind tighter than comparisons
         while (peek() == TokenType.IS_NULL || peek() == TokenType.IS_NOT_NULL) {
             String nf = peek() == TokenType.IS_NULL ? "isNull" : "isNotNull";
@@ -706,60 +682,6 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         // end; the comparison NODE spans operator..right
         left = withSpanEnd(left, compSpan);
         return new Protocol.PDynaFunc(fn, List.of(left, right), compSpan);
-    }
-
-    /**
-     * Postfix ARROW chain: {@code DATA->get('price', @Float)} is the
-     * dynafunction with the receiver as its FIRST argument — the same shape
-     * {@code RelationalGrammarParser#parseArrowChain} built, so the model is
-     * unchanged by the migration.
-     *
-     * <p>Binds tighter than the null tests and the comparisons below it.
-     * See {@link Protocol.PRelTypeRef} for why this is an extension rather
-     * than a leniency.
-     */
-    private Protocol.PRelOp arrowChain(Protocol.PRelOp receiver,
-            String schemaCtx) {
-        Protocol.PRelOp expr = receiver;
-        if (dialect.refusesLiteExtensions() && peek() == TokenType.ARROW) {
-            // ->get(...) in a relational operation is the DECLARED
-            // json-column-get LITE extension (OWN_CORPUS_DECISIONS §7) —
-            // the exact-engine surface refuses it
-            throw error("Unexpected token '->'");
-        }
-        while (!atEnd() && peek() == TokenType.ARROW) {
-            int s = pos;
-            advance();
-            String fn = parseIdentifier();
-            expect(TokenType.PAREN_OPEN);
-            List<Protocol.PRelOp> args = new ArrayList<>();
-            args.add(expr);
-            while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-                args.add(chainArg(schemaCtx));
-                match(TokenType.COMMA);
-            }
-            expect(TokenType.PAREN_CLOSE);
-            expr = new Protocol.PDynaFunc(fn, args, spanOf(s, pos - 1));
-        }
-        return expr;
-    }
-
-    /** {@code @Type} in argument position is a TYPE REFERENCE; a bare join
-     *  navigation never terminates at ',' or ')', which is what tells the
-     *  two apart. */
-    private Protocol.PRelOp chainArg(String schemaCtx) {
-        if (peek() == TokenType.AT) {
-            int save = pos;
-            int s = pos;
-            advance();
-            String name = parseQualifiedName();
-            if (!atEnd() && (peek() == TokenType.COMMA
-                    || peek() == TokenType.PAREN_CLOSE)) {
-                return new Protocol.PRelTypeRef(name, spanOf(s, pos - 1));
-            }
-            pos = save;
-        }
-        return parseOperation(schemaCtx);
     }
 
     /** One operation under an active {@code scope(...)} header with a
@@ -799,7 +721,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return whole ? parseOperation(schemaCtx) : parseAtom(schemaCtx);
         }
         DatabaseProtocolParser p =
-                new DatabaseProtocolParser(tokens, pos, db, scope, dialect);
+                new DatabaseProtocolParser(tokens, pos, db, scope);
         p.schemaStretchSpan = stretch;
         p.currentSchemaDeclSpan = currentSchemaDeclSpan;
         Protocol.PRelOp e = whole ? p.parseOperation(schemaCtx)
@@ -900,8 +822,6 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case Protocol.PElemtWithJoins ej -> ej;   // nav spans stay put
             case Protocol.PRelLiteralList ll -> new Protocol.PRelLiteralList(
                     ll.values(), stretch(ll.sourceInformation(), end));
-            // a type reference is a leaf token; nothing swallows it
-            case Protocol.PRelTypeRef t -> t;
         };
     }
 
@@ -999,7 +919,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 // OUTER op's span starts at the bracket (probe
                 // db-dynafunc)
                 DatabaseProtocolParser p =
-                        new DatabaseProtocolParser(tokens, pos, db, scope, dialect);
+                        new DatabaseProtocolParser(tokens, pos, db, scope);
                 p.currentSchemaDeclSpan = currentSchemaDeclSpan;
                 p.schemaStretchSpan = schemaStretchSpan;
                 Protocol.PDynaFunc f =

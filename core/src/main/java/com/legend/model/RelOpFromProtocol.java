@@ -55,8 +55,6 @@ public final class RelOpFromProtocol {
                     l.values().stream().map(v -> op(v, enclosingDb)).toList());
             case Protocol.PElemtWithJoins j -> joinNavigation(j, enclosingDb);
             case Protocol.PDynaFunc f -> dynaFunc(f, enclosingDb);
-            case Protocol.PRelTypeRef t ->
-                    new RelationalOperation.TypeRef(t.typeName());
         };
     }
 

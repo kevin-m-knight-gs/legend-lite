@@ -901,25 +901,8 @@ public final class Protocol {
     /** A relational OPERATION node (join/filter/view expressions). */
     public sealed interface PRelOp
             permits PDynaFunc, PColumnRef, PRelLiteral, PRelLiteralList,
-            PElemtWithJoins, PRelTypeRef {
+            PElemtWithJoins {
         com.legend.protocol.SourceInfo sourceInformation();
-    }
-
-    /**
-     * {@code @String} in an operation's ARGUMENT position, as written by
-     * legend-lite's Variant accessor: {@code DATA->get('price', @Float)}.
-     *
-     * <p>A legend-lite EXTENSION, and deliberately so. Engine's
-     * `relationalPropertyMapping` admits no postfix arrow at all, so the
-     * whole shape — chain and type argument alike — is additive rather than
-     * a relaxation of anything engine requires: the underlying capability is
-     * legend-pure's Variant plus {@code get}, which engine's relational
-     * mapping grammar subsets away. Nothing engine emits carries this node,
-     * so it cannot disturb wire parity.
-     */
-    public record PRelTypeRef(String typeName,
-                              com.legend.protocol.SourceInfo sourceInformation)
-            implements PRelOp {
     }
 
     /** {@code [1,2,3]} — items emit the NESTED literal form

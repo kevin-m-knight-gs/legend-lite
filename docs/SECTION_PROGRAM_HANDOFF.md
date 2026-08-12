@@ -481,7 +481,9 @@ Model-level only — `DIFF 0` proves they never reach the wire.
 
 **legend-lite supersets** (engine cannot read these; no oracle can check them):
 `->get('k', @Type)` in a relational property mapping (`PRelTypeRef`, pinned by
-`RelationalTypeRefEmissionTest` which states outright that it is not parity),
+`RelationalTypeRefEmissionTest`, since RETIRED 2026-08-12 with the
+json-column-get extension itself — the construct is now the engine's own
+`extractFromSemiStructured`, pinned by `SemiStructuredEmissionTest`),
 and the clean-sheet function-form mapping (`CleanSheetProtocolShapeTest` — the
 corpus has ZERO of these, so it is the arm's ONLY net).
 

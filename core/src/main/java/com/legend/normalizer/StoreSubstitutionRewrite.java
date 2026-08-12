@@ -155,7 +155,6 @@ final class StoreSubstitutionRewrite {
                     new RelationalOperation.IsNotNull(op(n.operand(), m));
             case RelationalOperation.Group g ->
                     new RelationalOperation.Group(op(g.inner(), m));
-            case RelationalOperation.TypeRef t -> t;
             case RelationalOperation.ArrayLiteral a ->
                     new RelationalOperation.ArrayLiteral(
                             a.elements().stream().map(e -> op(e, m)).toList());

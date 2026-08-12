@@ -735,7 +735,7 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement databaseElement() {
         int[] endOut = new int[1];
         com.legend.protocol.Protocol.PDatabase db =
-                DatabaseProtocolParser.parse(tokens, pos, endOut, dialect);
+                DatabaseProtocolParser.parse(tokens, pos, endOut);
         pos = endOut[0];
         return com.legend.model.FromProtocol.toDatabaseDefinition(db);
     }

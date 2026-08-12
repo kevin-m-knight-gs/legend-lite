@@ -21,8 +21,8 @@ package com.legend.parser;
  *       messages.</li>
  *   <li>{@link #LEGEND_LITE} — {@link #LEGEND_ENGINE} plus the DECLARED lite
  *       extensions (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN families:
- *       mapping-as-function, inline-association, json-column-get,
- *       sqlite-backend). The product surface for lite's users. Its whole
+ *       mapping-as-function, inline-association, sqlite-backend,
+ *       function-types-generics). The product surface for lite's users. Its whole
  *       delta vs LEGEND must classify to a declared family — nothing
  *       undeclared rides along.</li>
  * </ol>

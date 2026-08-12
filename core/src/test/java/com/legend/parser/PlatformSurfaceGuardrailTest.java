@@ -37,7 +37,6 @@ class PlatformSurfaceGuardrailTest {
             // ctor chains and the cursor interface — machinery, not
             // consumers (each names LEGEND_PLATFORM as a default value)
             "com/legend/parser/TokenStreamCursor.java",
-            "com/legend/parser/DatabaseProtocolParser.java",
             "com/legend/parser/MappingProtocolParser.java",
             "com/legend/parser/SpecParser.java",
             // (TestBody left the whitelist 2026-08-12: its ONLY platform

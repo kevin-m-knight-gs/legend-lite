@@ -103,11 +103,6 @@ class OwnCorpusConformanceTest {
         if (text.matches("(?s).*query:\\s*[\\w$]+(::[\\w$]+)+\\s*;.*")) {
             return "LITE-DESIGN-mapping-as-function";
         }
-        // JSON/variant column mapping: COLUMN->get('key'[, @Type]) — the
-        // lite construct mapping a JSON column into a class property
-        if (text.matches("(?s).*\\.\\w+\\s*->\\s*get\\('.*")) {
-            return "LITE-DESIGN-json-column-get";
-        }
         // legend-pure m2 diagram spelling (geometry attrs) — pure-dialect,
         // not engine grammar (DiagramAntlrParser.g4 widthFirst/heightFirst)
         if (text.contains("Diagram ") && text.contains("(width=")) {
@@ -235,7 +230,6 @@ class OwnCorpusConformanceTest {
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
-                Map.entry("LITE-DESIGN-json-column-get", 11),
                 Map.entry("LITE-DESIGN-mapping-as-function", 20),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
                 Map.entry("PURE-DIALECT-diagram", 1),

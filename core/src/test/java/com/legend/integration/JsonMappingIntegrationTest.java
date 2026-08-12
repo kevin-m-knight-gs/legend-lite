@@ -16,7 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Integration tests for Order/OrderItem mappings with various combinations
  * of scalar columns and JSON-extracted properties.
  * 
- * Tests the expression-based property mapping feature: ->get('key', @Type)
+ * Tests the expression-based property mapping feature — the engine's
+ * semistructured scalar extraction:
+ * {@code extractFromSemiStructured(col, 'path', 'SQLTYPE')}.
  */
 @DisplayName("JSON Mapping Integration Tests")
 class JsonMappingIntegrationTest {
@@ -294,8 +296,8 @@ class JsonMappingIntegrationTest {
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
                             id: [OrderDB] T_ORDERS.ID,
-                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String),
-                            total: [OrderDB] T_ORDERS.DATA->get('total', @Float)
+                            customerName: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'customerName', 'VARCHAR'),
+                            total: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'total', 'FLOAT')
                         }
                     )
                     """ + CONNECTION + RUNTIME;
@@ -338,7 +340,7 @@ class JsonMappingIntegrationTest {
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
                             id: [OrderDB] T_ORDERS.ID,
-                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                            customerName: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'customerName', 'VARCHAR')
                         }
                     )
                     """ + CONNECTION + RUNTIME;
@@ -407,9 +409,9 @@ class JsonMappingIntegrationTest {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
                             id: [OrderDB] T_ORDER_ITEMS.ID,
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
-                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String),
-                            quantity: [OrderDB] T_ORDER_ITEMS.DATA->get('quantity', @Integer),
-                            price: [OrderDB] T_ORDER_ITEMS.DATA->get('price', @Float)
+                            productName: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'productName', 'VARCHAR'),
+                            quantity: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'quantity', 'INTEGER'),
+                            price: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'price', 'FLOAT')
                         }
                     )
                     """ + CONNECTION + RUNTIME;
@@ -452,7 +454,7 @@ class JsonMappingIntegrationTest {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
                             id: [OrderDB] T_ORDER_ITEMS.ID,
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
-                            quantity: [OrderDB] T_ORDER_ITEMS.DATA->get('quantity', @Integer)
+                            quantity: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'quantity', 'INTEGER')
                         }
                     )
                     """ + CONNECTION + RUNTIME;
@@ -524,15 +526,15 @@ class JsonMappingIntegrationTest {
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
                             id: [OrderDB] T_ORDERS.ID,
-                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String),
-                            status: [OrderDB] T_ORDERS.DATA->get('status', @String)
+                            customerName: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'customerName', 'VARCHAR'),
+                            status: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'status', 'VARCHAR')
                         }
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
                             id: [OrderDB] T_ORDER_ITEMS.ID,
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
-                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String),
-                            quantity: [OrderDB] T_ORDER_ITEMS.DATA->get('quantity', @Integer)
+                            productName: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'productName', 'VARCHAR'),
+                            quantity: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'quantity', 'INTEGER')
                         }
                     )
                     """ + CONNECTION + RUNTIME;
@@ -630,13 +632,13 @@ class JsonMappingIntegrationTest {
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
                             id: [OrderDB] T_ORDERS.ID,
-                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                            customerName: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'customerName', 'VARCHAR')
                         }
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
                             id: [OrderDB] T_ORDER_ITEMS.ID,
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
-                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String)
+                            productName: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'productName', 'VARCHAR')
                         }
                     
                         model::Order_OrderItem: Relational { AssociationMapping ( order: [store::OrderDB]@Order_OrderItem, items: [store::OrderDB]@Order_OrderItem ) }
@@ -715,13 +717,13 @@ class JsonMappingIntegrationTest {
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
                             id: [OrderDB] T_ORDERS.ID,
-                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                            customerName: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'customerName', 'VARCHAR')
                         }
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
                             id: [OrderDB] T_ORDER_ITEMS.ID,
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
-                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String)
+                            productName: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'productName', 'VARCHAR')
                         }
                     
                         model::Order_OrderItem: Relational { AssociationMapping ( order: [store::OrderDB]@Order_OrderItem, items: [store::OrderDB]@Order_OrderItem ) }
@@ -794,14 +796,14 @@ class JsonMappingIntegrationTest {
                         Order: Relational {
                             ~mainTable [OrderDB] T_ORDERS
                             id: [OrderDB] T_ORDERS.ID,
-                            customerName: [OrderDB] T_ORDERS.DATA->get('customerName', @String)
+                            customerName: extractFromSemiStructured([OrderDB] T_ORDERS.DATA, 'customerName', 'VARCHAR')
                         }
                         OrderItem: Relational {
                             ~mainTable [OrderDB] T_ORDER_ITEMS
                             id: [OrderDB] T_ORDER_ITEMS.ID,
                             orderId: [OrderDB] T_ORDER_ITEMS.ORDER_ID,
-                            productName: [OrderDB] T_ORDER_ITEMS.DATA->get('productName', @String),
-                            quantity: [OrderDB] T_ORDER_ITEMS.DATA->get('quantity', @Integer)
+                            productName: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'productName', 'VARCHAR'),
+                            quantity: extractFromSemiStructured([OrderDB] T_ORDER_ITEMS.DATA, 'quantity', 'INTEGER')
                         }
                     
                         model::Order_OrderItem: Relational { AssociationMapping ( order: [store::OrderDB]@Order_OrderItem, items: [store::OrderDB]@Order_OrderItem ) }

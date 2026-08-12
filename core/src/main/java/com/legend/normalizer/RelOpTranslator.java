@@ -87,7 +87,6 @@ final class RelOpTranslator {
             case RelationalOperation.ColumnRef cr            -> sink.add(cr.table());
             case RelationalOperation.TargetColumnRef ignored -> { }
             case RelationalOperation.Literal ignored         -> { }
-            case RelationalOperation.TypeRef ignored          -> { }
             case RelationalOperation.FunctionCall fc         -> fc.args().forEach(a -> collectTablesIn(a, sink));
             case RelationalOperation.Comparison c            -> { collectTablesIn(c.left(), sink); collectTablesIn(c.right(), sink); }
             case RelationalOperation.BooleanOp b             -> { collectTablesIn(b.left(), sink); collectTablesIn(b.right(), sink); }
@@ -151,6 +150,24 @@ final class RelOpTranslator {
         return new AppliedFunction("cast", List.of(v,
                 new TypeAnnotation.Named(
                         new TypeExpression.NameRef("String"))));
+    }
+
+    /** The SQL type name in {@code extractFromSemiStructured}'s third
+     *  argument, as the pure primitive it extracts to (the engine's own
+     *  tests spell 'VARCHAR'/'INTEGER'/...). */
+    private static String pureTypeFor(String sqlType) {
+        return switch (sqlType.toUpperCase(java.util.Locale.ROOT)) {
+            case "VARCHAR", "CHAR" -> "String";
+            case "INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT" -> "Integer";
+            case "FLOAT", "DOUBLE", "REAL", "DECIMAL", "NUMERIC" -> "Float";
+            case "BOOLEAN", "BIT" -> "Boolean";
+            case "DATE" -> "StrictDate";
+            case "TIMESTAMP" -> "DateTime";
+            default -> throw new ModelException(
+                    LegendCompileException.Phase.NORMALIZE,
+                    "Unsupported SQL type '" + sqlType
+                            + "' in extractFromSemiStructured");
+        };
     }
 
     private static ModelException ambiguousTableRef(String table, String column) {
@@ -354,12 +371,16 @@ final class RelOpTranslator {
                     }
                     yield chain;
             }
-            // get(col, 'key', @Type): TYPED variant extraction — real pure's
-            // to(get(col, 'key'), @Type) (the same emission the JSON-source
-            // synthesizer uses: text-extraction then cast).
+            // extractFromSemiStructured(col, 'path', 'SQLTYPE'): the ENGINE's
+            // semistructured scalar extraction (core_relational grammar —
+            // probe json-get-spelling) — real pure's to(get(col, 'path'),
+            // @Type) (the same emission the JSON-source synthesizer uses:
+            // text-extraction then cast).
             case RelationalOperation.FunctionCall call
-                    when call.name().equals("get") && call.args().size() == 3
-                    && call.args().get(2) instanceof RelationalOperation.TypeRef tr ->
+                    when call.name().equals("extractFromSemiStructured")
+                    && call.args().size() == 3
+                    && call.args().get(2) instanceof RelationalOperation.Literal lit
+                    && lit.value() instanceof String sqlType ->
                     new AppliedFunction("to", List.of(
                             new AppliedFunction("get", List.of(
                                     translate(call.args().get(0), tableScope, targetVarOrNull,
@@ -367,7 +388,7 @@ final class RelOpTranslator {
                                     translate(call.args().get(1), tableScope, targetVarOrNull,
                                             rowBindOrNull, pipeline))),
                             new TypeAnnotation.Named(
-                                    new TypeExpression.NameRef(tr.typeName()))));
+                                    new TypeExpression.NameRef(pureTypeFor(sqlType)))));
             // Dynafunction spellings with no same-named pure native:
             // isNull/isNotNull ARE isEmpty/isNotEmpty on [0..1] values;
             // group(x) is parenthesization; if's branches must be THUNKS
@@ -504,10 +525,6 @@ final class RelOpTranslator {
             case RelationalOperation.Group g ->
                     translate(g.inner(), tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline);
-            case RelationalOperation.TypeRef tr -> throw new ModelException(
-                    LegendCompileException.Phase.NORMALIZE,
-                    "'@" + tr.typeName() + "' type argument is only supported as"
-                            + " the third argument of get(col, key, @Type)");
             case RelationalOperation.ArrayLiteral arr -> new PureCollection(
                     arr.elements().stream()
                             .map(e -> translate(e, tableScope, targetVarOrNull,

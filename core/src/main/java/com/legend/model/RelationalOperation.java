@@ -38,7 +38,6 @@ public sealed interface RelationalOperation
                 RelationalOperation.IsNotNull,
                 RelationalOperation.Group,
                 RelationalOperation.ArrayLiteral,
-                RelationalOperation.TypeRef,
                 RelationalOperation.JoinNavigation {
 
     /**
@@ -54,7 +53,6 @@ public sealed interface RelationalOperation
             case ColumnRef ignored -> java.util.List.of();
             case TargetColumnRef ignored -> java.util.List.of();
             case Literal ignored -> java.util.List.of();
-            case TypeRef ignored -> java.util.List.of();
             case FunctionCall f -> f.args();
             case Comparison c -> java.util.List.of(c.left(), c.right());
             case BooleanOp b -> java.util.List.of(b.left(), b.right());
@@ -74,7 +72,6 @@ public sealed interface RelationalOperation
             case ColumnRef ignored -> this;
             case TargetColumnRef ignored -> this;
             case Literal ignored -> this;
-            case TypeRef ignored -> this;
             case FunctionCall f -> new FunctionCall(f.name(), cs);
             case Comparison c -> new Comparison(cs.get(0), c.op(), cs.get(1));
             case BooleanOp b -> new BooleanOp(cs.get(0), b.op(), cs.get(1));
@@ -244,10 +241,6 @@ public sealed interface RelationalOperation
     }
 
     /** Array literal: {@code [e1, e2, ...]} as it appears inside function args. */
-    /** A {@code @Type} argument of a dynafunction ({@code get(col, 'k', @String)}). */
-    record TypeRef(String typeName) implements RelationalOperation {
-    }
-
     record ArrayLiteral(List<RelationalOperation> elements) implements RelationalOperation {
         public ArrayLiteral {
             elements = elements != null ? List.copyOf(elements) : List.of();

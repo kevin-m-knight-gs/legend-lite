@@ -53,14 +53,13 @@ class OwnDialectCensusTest {
                     "UserCallInlinerTest.java", "CompileFunctionTest.java",
                     "TypeCheckerTest.java",
                     // LITE-DESIGN mapping-as-function / inline-association
-                    // / json-column-get / sqlite (§6-§9) pin hosts
+                    // / sqlite (§6, §8, §9) pin hosts — json-column-get
+                    // (§7) RETIRED 2026-08-12: respelled to the engine's
+                    // extractFromSemiStructured (probe json-get-spelling)
                     "ElementParserTest.java", "MappingNormalizerTest.java",
                     "LegacyCleanSheetConvergenceTest.java",
                     "ModelNormalizerTest.java", "PureModelContextTest.java",
                     "CleanSheetProtocolShapeTest.java",
-                    "JsonMappingIntegrationTest.java",
-                    "VariantIntegrationTest.java",
-                    "RelationalTypeRefEmissionTest.java",
                     "SQLiteIntegrationTest.java");
 
     private static String hostOf(String id) {
