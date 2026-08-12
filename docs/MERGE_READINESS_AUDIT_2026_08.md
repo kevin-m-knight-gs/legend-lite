@@ -527,20 +527,77 @@ Ranked by value-to-threat ratio. This is the blue team's ordering and I endorse 
 **1. Bug reports plus failing tests — this week.** Near-zero cost, immediate credibility. Two
 findings are ready:
 
-- **Operator-precedence mis-association**, root-caused: `DomainParseTreeWalker.java:1857-1874`.
-  When the accumulator is a relational comparison, the branch at `:1863-1867` replaces the
-  comparison's **entire RHS**, where the non-relational branch at `:1869-1874` correctly descends
-  into the RHS collection and replaces only its last element. One missing level of descent.
-  Executed: `2 + 3 * 4` → `plus(2, times(3,4))` correct, but `1 < 2 + 3 * 4` →
-  `lessThan(1, times(plus(2,3), 4))` — `1 < 20` instead of `1 < 14`. Silently changes arithmetic
-  in any `a < b + c * d` predicate.
-- **The engine's own serialize/deserialize round-trip is not a fixed point** on 8 files — e.g.
-  `ColSpec classInstance multiplicity` is dropped by the deserializer. Found by legend-lite's
-  harness, independent of legend-lite's parser.
-- **The engine's parser is locale-sensitive.** Under `-Duser.language=tr -Duser.country=TR` it
-  rejects 5 files it accepts under the default locale (`REFERENCE_REJECTED` 2,270 → 2,275).
-  Isolated: legend-lite's own unlocalised case-fold is *not* the cause — with and without a
-  `Locale.ROOT` fix, `DIFF` stays 0 and `MATCH` stays 24,371 under `tr_TR`.
+> **Re-verified by execution 2026-08-11, against the 4.138.2 jars. Two of the claims below as
+> originally stated were WRONG and are corrected here; the defect count grew from 3 to 6.**
+
+**D1 — Operator-precedence mis-association.** `DomainParseTreeWalker.processOp:1847-1885`. The
+relational branch (`:1863-1868`) re-parents `params.get(size-1)` — the whole right-hand subtree —
+where the sibling branch (`:1869-1875`) correctly descends into the flattened collection's last
+element.
+
+**Correction: the examples previously circulated do not reproduce.** `1 < 2 + 3` parses
+*correctly*; a two-term RHS only takes the first, correct pass. **The defect needs ≥2 operators to
+the right of the comparison.** Executed minimal case:
+
+```
+function test::f(): Boolean[1] { 17 < 2 + 3 * 4; }
+  →  lessThan( 17, times( [ plus([2,3]), 4 ] ) )        i.e.  17 < (2+3)*4
+  correct:  lessThan( 17, plus([2, times([3,4])]) )     i.e.  17 < 2+(3*4)
+```
+
+**And the engine's own composer confirms the misreading** — it re-emits that PMCD as
+`17 < (2 + 3) * 4`. Input text and output text differ, and the truth value changes (20 vs 14).
+The non-relational path is right: `1 + 2 * 3` → `plus([1, times([2,3])])`.
+
+**D2 — grammar → PMCD → composer → grammar is not a fixed point.** **Correction: the count is
+550 of 5,259 documents, not 8.** Three independently filable classes:
+
+- **The composer mutates its own input — 302 files.** `HelperDomainGrammarComposer:264` does
+  `constraint.functionDefinition.parameters = Collections.emptyList()`. Measured on one object:
+  parameters `[{"_type":"var","name":"this"}]` before `renderPureModelContextData`, `[]` after.
+  The caller's in-memory model is left uncompilable, with byte-identical output text.
+- **Lambda braces dropped, collapsing multi-statement bodies — 77 files.**
+  `let f = {|1}; let b = 2; true;` re-emits as `let f = |1;` and reparses as **one** statement,
+  the other two swallowed into the lambda body. Worst observed: 18 statements → 1.
+- **The composer emits text its own parser rejects — 43 files** (25 of one kind):
+  `runtime: #{ connections: []; }#` → `#{ }#` → `Embedded runtime must not be empty`.
+
+Plus silent field losses: embedded property-mapping set ids (10), `ColSpec` multiplicity (8),
+legacy service `test:` blocks (10), and 5 composer NPEs.
+
+**D3 — locale sensitivity.** Verified: **exactly 5 files**, engine-accepted under `en_US` and
+rejected under `tr_TR`, all `Unsupported column data type`. **Correction: the offending call is
+not in the core grammar module** — it is `RelationalParseTreeWalker.java:272` in
+`legend-engine-xt-relationalStore-grammar`: `RelationalDataType.valueOf(dataType.toUpperCase())`
+with no `Locale`. Only a lowercase `i` triggers it (`int`, `integer`, `bigint`, `Decimal` fail;
+`INTEGER` and `Integer` pass). Two further locale-less conversions found and latent:
+`PackageableElementPointerFactory.java:41` and `HelperRuntimeGrammarComposer.java:122`.
+
+**D4 — NPE crashes in the public parser: 368 corpus files, 6 sites, 3 one-line reproducers.**
+All surface as `An exception of type 'NullPointerException' occurred, please notify developer`.
+The two largest are grammar/walker mismatches:
+
+| files | site | reproducer |
+|---|---|---|
+| 193 | `DomainParseTreeWalker.newFunction:961` — `ExpressionInstanceContext.qualifiedName()` null | `function t::f(): Any[*] { let x = ^$v(a = 1); }` |
+| 34 | `visitClass:329` — `ClassDefinitionContext.classBody()` null | `Class t::P projects #{ t::C {a} }#` |
+| 2 | `buildMultiplicity:1954` | `function t::f(): Any[*] { ^Any<\|m>(); }` |
+
+`M3ParserGrammar.g4:162` declares `expressionInstance: NEW_SYMBOL (variable | qualifiedName)` but
+the walker handles only `qualifiedName`; `DomainParserGrammar.g4:50` declares a `PROJECTS`
+alternative that `visitClass` never checks for.
+
+**D5 — `NumberFormatException` escapes unicode handling.** `PureGrammarParserUtility:67,155` call
+`StringEscapeUtils.unescapeJava` unguarded. `'C:\users'` → `Unable to parse unicode value: sers`,
+no `SourceInformation`, raw commons-text message. **And legend-pure's own `TestProfile.java:189`
+asserts that exact string round-trips** — so the reference implementation accepts input the engine
+rejects.
+
+**D6 — PMCD → JSON → PMCD is not a fixed point on 111 files.** 84 `postProcessors` null→`[]`;
+18 `EmbeddedData.sourceInformation`; **8 `ColSpec.multiplicity`** — declared `public` and
+serialized, but the hand-written `ColSpecDeserializer` never reads it, while
+`DomainParseTreeWalker:1461` sets it and `ValueSpecificationBuilder:546-548` consumes it. A client
+that POSTs grammar, gets JSON, and POSTs that JSON back silently loses column multiplicity.
 
 **2. Contribute the differential harness.** The most valuable artifact here, and not a
 consolation prize. Upstream has **no differential parser oracle**. Cost: one test-scope module,
