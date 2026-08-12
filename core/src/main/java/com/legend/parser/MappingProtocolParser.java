@@ -1786,6 +1786,30 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 String tgt = parseSetId();
                 expect(TokenType.BRACKET_CLOSE);
                 expect(TokenType.COLON);
+                if (dialect.refusesPlatformDialect()) {
+                    // engine otherwisePropertyMapping is `databasePointer?
+                    // joinSequence` — a JOIN target only. m2 additionally
+                    // allows a plain column pointer ([id]: [db]T.col);
+                    // that form is pure-dialect. Messages are the
+                    // oracle's own (probe ZOtherwiseSpellingProbe).
+                    int look = pos;
+                    boolean hasDb = tokens.type(look) == TokenType.BRACKET_OPEN;
+                    if (hasDb) {
+                        while (look < tokens.count()
+                                && tokens.type(look) != TokenType.BRACKET_CLOSE) {
+                            look++;
+                        }
+                        look++;
+                    }
+                    if (look < tokens.count()
+                            && tokens.type(look) != TokenType.AT
+                            && tokens.type(look) != TokenType.PAREN_OPEN) {
+                        pos = look;
+                        throw error("Unexpected token '" + safeText()
+                                + "'. Valid alternatives: "
+                                + (hasDb ? "['(', '@']" : "['[', '(', '@']"));
+                    }
+                }
                 Protocol.PRelOp op = parseOpInCtx(scopeDb, scope);
                 op = withSpanStart(op, oS);
                 int oClose = pos;
