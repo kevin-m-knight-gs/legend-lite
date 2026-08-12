@@ -49,8 +49,8 @@ class ResolveUnionMultiHopProbeTest {
             Database m::DB (
               Table O1 (ID INTEGER PRIMARY KEY, PRODFK INTEGER)
               Table O2 (ID INTEGER PRIMARY KEY, PRODFK INTEGER)
-              Table PT (ID INTEGER PRIMARY KEY, PNAME VARCHAR, CTYPE VARCHAR)
-              Table CT (CTYPE VARCHAR PRIMARY KEY, DESCRIPTION VARCHAR)
+              Table PT (ID INTEGER PRIMARY KEY, PNAME VARCHAR(200), CTYPE VARCHAR(200))
+              Table CT (CTYPE VARCHAR(200) PRIMARY KEY, DESCRIPTION VARCHAR(200))
               Join O1P (O1.PRODFK = PT.ID)
               Join O2P (O2.PRODFK = PT.ID)
               Join PC (PT.CTYPE = CT.CTYPE)

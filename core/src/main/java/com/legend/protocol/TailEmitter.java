@@ -1346,6 +1346,17 @@ final class TailEmitter {
         b.append(",\"platform\":");
         if (pc.platform() == null) {
             b.append("{\"_type\":\"default\"}");
+        } else if (pc.platform().entries().isEmpty()) {
+            // BARE kind: `platform: Default;` — _type is the kind
+            // lowercased-first, WITH the key..';' span (a SPELLED default
+            // differs from an unspelled one exactly by carrying its span)
+            String k = pc.platform().kind();
+            b.append("{\"_type\":\"")
+                    .append(Character.toLowerCase(k.charAt(0)))
+                    .append(k.substring(1))
+                    .append("\",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, pc.platform().sourceInformation());
+            b.append('}');
         } else {
             persistenceNode(b, "platform", pc.platform(), true);
         }
@@ -1636,10 +1647,41 @@ final class TailEmitter {
         b.append("{\"_type\":\"executionEnvironmentInstance\","
                 + "\"executionParameters\":[");
         for (int i = 0; i < ee.executions().size(); i++) {
-            Protocol.PKeyedExecution k = ee.executions().get(i);
             if (i > 0) {
                 b.append(',');
             }
+            switch (ee.executions().get(i)) {
+                case Protocol.PKeyedExecution single ->
+                        singleExecutionParameters(b, single);
+                case Protocol.PMultiKeyedExecution m -> {
+                    // no span of its own; masterKey then the singles
+                    // (harvest testExecutionEnvironmentInMultiExecService)
+                    b.append("{\"_type\":\"multiExecutionParameters\","
+                            + "\"masterKey\":");
+                    ProtocolEmitter.str(b, m.masterKey());
+                    b.append(",\"singleExecutionParameters\":[");
+                    for (int j = 0; j < m.singles().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        singleExecutionParameters(b, m.singles().get(j));
+                    }
+                    b.append("]}");
+                }
+            }
+        }
+        b.append("],\"name\":");
+        ProtocolEmitter.str(b, ee.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, ee.pkg());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, ee.sourceInformation());
+        b.append('}');
+    }
+
+    private static void singleExecutionParameters(StringBuilder b,
+            Protocol.PKeyedExecution k) {
+        {
             b.append("{\"_type\":\"singleExecutionParameters\","
                     + "\"key\":");
             ProtocolEmitter.str(b, k.keyValue());
@@ -1676,13 +1718,6 @@ final class TailEmitter {
             ProtocolEmitter.srcInfo(b, k.sourceInformation());
             b.append('}');
         }
-        b.append("],\"name\":");
-        ProtocolEmitter.str(b, ee.name());
-        b.append(",\"package\":");
-        ProtocolEmitter.str(b, ee.pkg());
-        b.append(",\"sourceInformation\":");
-        ProtocolEmitter.srcInfo(b, ee.sourceInformation());
-        b.append('}');
     }
 
     private static void serviceTestSuite(StringBuilder b,
@@ -1771,6 +1806,11 @@ final class TailEmitter {
                         b.append("{\"_type\":\"equalToRelation\","
                                 + "\"expected\":");
                         MappingEmitter.relationElement(b, re);
+                    }
+                    case Protocol.PEqualToValue ev -> {
+                        b.append("{\"_type\":\"equalTo\","
+                                + "\"expected\":");
+                        ProtocolEmitter.valueSpec(b, ev.value());
                     }
                 }
                 b.append(",\"id\":");

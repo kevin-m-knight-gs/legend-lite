@@ -145,6 +145,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         List<Protocol.PDbView> defaultViews = new ArrayList<>();
         List<Protocol.PDbTable> defaultTabFns = new ArrayList<>();
         List<Protocol.PDbSchema> schemas = new ArrayList<>();
+        List<Protocol.PIncludedStoreSpec> includeSpecs = new ArrayList<>();
         List<Protocol.PDbJoin> joins = new ArrayList<>();
         List<Protocol.PDbFilter> filters = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
@@ -152,9 +153,23 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 case INCLUDE -> {
                     int s = pos;
                     advance();
-                    String path = Protocol.unquotePath(parseQualifiedName());
-                    includes.add(new Protocol.PPointer("STORE", path,
-                            spanOf(s, pos - 1)));
+                    String first = Protocol.unquotePath(parseQualifiedName());
+                    if (!first.contains("::") && isIdentifierToken(peek())
+                            && tokens.type(Math.min(pos + 1,
+                                    tokens.count() - 1))
+                                    == TokenType.PATH_SEPARATOR) {
+                        // include <storeType> <path> — a TYPED include:
+                        // bare single-word type followed by a QUALIFIED
+                        // path (harvest testDatabaseIncludeStoreOrder);
+                        // `include db::X` and `include X` stay plain
+                        String path = Protocol.unquotePath(
+                                parseQualifiedName());
+                        includeSpecs.add(new Protocol.PIncludedStoreSpec(
+                                path, first, spanOf(s, pos - 1)));
+                    } else {
+                        includes.add(new Protocol.PPointer("STORE", first,
+                                spanOf(s, pos - 1)));
+                    }
                 }
                 case SCHEMA -> schemas.add(parseSchema());
                 case TABLE -> defaultTables.add(parseTable());
@@ -201,7 +216,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             schemas.add(new Protocol.PDbSchema("default", defaultTables,
                     defaultViews, defaultTabFns, List.of(), List.of(), dbSpan));
         }
-        return new Protocol.PDatabase(pkg, name, includes, schemas, joins,
+        return new Protocol.PDatabase(pkg, name, includes, includeSpecs,
+                schemas, joins,
                 filters, dbStereotypes, dbTaggedValues, dbSpan);
     }
 
@@ -254,7 +270,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             int cS = pos;
             String colName = parseIdentifier();
-            Protocol.PDbType type = parseDbType();
+            Protocol.PDbType type = parseDbType(colName);
             boolean nullable = true;
             while (peek() == TokenType.PRIMARY_KEY
                     || peek() == TokenType.NOT_NULL) {
@@ -291,7 +307,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             // columns take stereotypes AND tagged values before the type
             // (probes column-stereotypes + db-and-column-decorations)
             Decorations colDec = parseDecorations();
-            Protocol.PDbType type = parseDbType();
+            Protocol.PDbType type = parseDbType(colName);
             boolean nullable = true;
             // PRIMARY KEY / NOT NULL lex as single tokens
             while (peek() == TokenType.PRIMARY_KEY
@@ -314,7 +330,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     /** Datatype spelling &rarr; wire {@code _type} (probe TYPES): sized,
      *  precision/scale and plain kinds; unknown kinds refuse loudly. */
-    private Protocol.PDbType parseDbType() {
+    private Protocol.PDbType parseDbType(String colName) {
+        int typeStart = pos;
         String kindWord = parseIdentifier().toUpperCase(java.util.Locale.ROOT);
         Long size = null;
         Long precision = null;
@@ -354,19 +371,43 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         boolean precise = kind.equals("Decimal") || kind.equals("Numeric");
         if ((sized || precise) && peek() == TokenType.PAREN_OPEN) {
             advance();
-            long first = Long.parseLong(text());
+            List<Long> args = new ArrayList<>();
+            args.add(Long.parseLong(text()));
             expect(TokenType.INTEGER);
-            if (precise) {
-                precision = first;
-                expect(TokenType.COMMA);
-                scale = Long.parseLong(text());
+            while (match(TokenType.COMMA)) {
+                args.add(Long.parseLong(text()));
                 expect(TokenType.INTEGER);
-            } else {
-                size = first;
             }
             expect(TokenType.PAREN_CLOSE);
+            if (precise && args.size() == 2) {
+                precision = args.get(0);
+                scale = args.get(1);
+            } else if (sized && args.size() == 1) {
+                size = args.get(0);
+            } else {
+                throw dbTypeArityError(colName, kindWord, sized, typeStart);
+            }
+        } else if (sized || precise) {
+            // the engine REQUIRES the parameter list on these kinds
+            // (RelationalParseTreeWalker per-type arms)
+            throw dbTypeArityError(colName, kindWord, sized, typeStart);
         }
         return new Protocol.PDbType(kind, size, precision, scale);
+    }
+
+    /** Engine-verbatim arity refusal: the quoted declaration is ANTLR's
+     *  ctx.getText() — column name + type tokens with no whitespace. */
+    private RuntimeException dbTypeArityError(String colName,
+            String kindWord, boolean sized, int typeStart) {
+        StringBuilder decl = new StringBuilder(colName);
+        for (int i = typeStart; i < pos; i++) {
+            decl.append(tokens.text(i));
+        }
+        return error("Column data type " + kindWord + (sized
+                ? " requires 1 parameter (size) in declaration '"
+                : " requires 2 parameters (precision, scale) in"
+                        + " declaration '")
+                + decl + "'");
     }
 
     /** ENGINE QUIRK (probed + walker-read): each dimension reparses through
@@ -749,16 +790,24 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             }
             i++;
         }
+        if (i + 3 < tokens.count() && tokens.type(i) == TokenType.PAREN_OPEN
+                && tokens.type(i + 2) == TokenType.PAREN_CLOSE
+                && tokens.type(i + 3) == TokenType.AT) {
+            // [db] (INNER) @Join — the FIRST pointer may carry a type
+            // (harvest testInnerJoinReferenceInRelationalMapping)
+            return true;
+        }
         return i < tokens.count() && tokens.type(i) == TokenType.AT;
     }
 
     /** {@code @J [> (TYPE) @K]* [| element]} — a join-only nav
-     *  (association sides) has NO element. */
+     *  (association sides) has NO element. {@code firstType} is a
+     *  {@code (INNER)}/{@code (OUTER)} spelled BEFORE the first '@'. */
     private Protocol.PRelOp parseJoinNav(String db, String schemaCtx,
-            int s) {
+            int s, @com.legend.Nullable String firstType) {
         List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
         String curDb = db;
-        String pendingType = null;
+        String pendingType = firstType;
         while (peek() == TokenType.AT) {
             int jS = pos;                           // span INCLUDES the '@'
             advance();
@@ -896,7 +945,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             advance();
             String db = Protocol.unquotePath(parseQualifiedName());
             expect(TokenType.BRACKET_CLOSE);
-            return parseJoinNav(db, schemaCtx, bS);
+            String firstType = null;
+            if (peek() == TokenType.PAREN_OPEN) {
+                advance();
+                firstType = parseIdentifier();
+                validateJoinType(firstType);
+                expect(TokenType.PAREN_CLOSE);
+            }
+            return parseJoinNav(db, schemaCtx, bS, firstType);
         }
         if (peek() == TokenType.BRACKET_OPEN && !looksLikeLiteralList()) {
             // [db]table.col — bracket-qualified ref: the bracket db becomes
@@ -976,7 +1032,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return new Protocol.PRelLiteralList(items, spanOf(lS, pos - 1));
         }
         if (peek() == TokenType.AT) {
-            return parseJoinNav(dbFqn, schemaCtx, pos);
+            return parseJoinNav(dbFqn, schemaCtx, pos, null);
         }
         // identifier: function call, or dotted column ref
         String first = parseIdentifier();

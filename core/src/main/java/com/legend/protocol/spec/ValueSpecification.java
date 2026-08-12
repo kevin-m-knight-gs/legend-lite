@@ -172,7 +172,7 @@ public sealed interface ValueSpecification permits
             }
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
                     nc.typeArguments(), cs.get(0), nc.targetSetId());
-            case PureCollection ignored -> new PureCollection(cs);
+            case PureCollection old -> new PureCollection(cs, old.pos());
             case ColSpecArray ignored -> new ColSpecArray(
                     cs.stream().map(x -> (ColSpec) x).toList());
             case ColSpec old -> {

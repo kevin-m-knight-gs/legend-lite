@@ -9,6 +9,7 @@ import com.legend.lexer.TokenType;
 import com.legend.parser.TokenStreamCursor;
 import com.legend.protocol.Protocol;
 import com.legend.protocol.ProtocolEmitter;
+import com.legend.protocol.SourceInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -497,15 +498,20 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String dbType = null;
         Protocol.PDatasourceSpec spec = null;
         Protocol.PAuthStrategy auth = null;
-        List<Protocol.PMapperPostProcessor> posts = new ArrayList<>();
+        List<Protocol.PPostProcessor> posts = new ArrayList<>();
         Boolean quoteIdentifiers = null;
         Long queryTimeOut = null;
         List<Protocol.PGenerationFeaturesConfig> queryGenConfigs = null;
         String timeZone = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int kS = c.pos();
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seenKeys.add(key)) {
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "store" -> {
                     int eS = c.pos();
@@ -546,10 +552,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         c.expect(TokenType.BRACE_OPEN);
                         List<String> enabled = new ArrayList<>();
                         List<String> disabled = new ArrayList<>();
+                        java.util.Set<String> seenGk =
+                                new java.util.HashSet<>();
                         while (c.peek() != TokenType.BRACE_CLOSE
                                 && !c.atEnd()) {
                             String gk = c.parseIdentifier();
                             c.expect(TokenType.COLON);
+                            if (!seenGk.add(gk)) {
+                                throw c.error("Field '" + gk
+                                        + "' should be specified only once");
+                            }
                             List<String> into = switch (gk) {
                                 case "enabled" -> enabled;
                                 case "disabled" -> disabled;
@@ -578,9 +590,26 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "timezone" -> {
-                    // the VALUE keeps its quotes on the wire (probe timezone)
-                    timeZone = c.text();
-                    c.expect(TokenType.STRING);
+                    if (c.peek() == TokenType.STRING) {
+                        // a QUOTED value keeps its quotes on the wire
+                        // (probe timezone)
+                        timeZone = c.text();
+                        c.advance();
+                    } else {
+                        // UNQUOTED offset: +0700 / -0500 (harvest
+                        // testTimezoneConfiguration) — sign + digits
+                        StringBuilder z = new StringBuilder();
+                        if (c.peek() == TokenType.PLUS) {
+                            z.append('+');
+                            c.advance();
+                        } else if (c.peek() == TokenType.MINUS) {
+                            z.append('-');
+                            c.advance();
+                        }
+                        z.append(c.text());
+                        c.expect(TokenType.INTEGER);
+                        timeZone = z.toString();
+                    }
                     c.expect(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error(
@@ -628,10 +657,42 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
      *  {...} ]; } ]} — only the mapper flavor exists in the corpus; table
      *  mappers carry from/to/schemaFrom/schemaTo (probe post-processors). */
     private static void parseMapperPostProcessors(TokenStreamCursor c,
-            List<Protocol.PMapperPostProcessor> out) {
+            List<Protocol.PPostProcessor> out) {
         c.expect(TokenType.BRACKET_OPEN);
         while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
+            int kindTok = c.pos();
             String kind = c.parseIdentifier();
+            if ("relationalMapper".equals(kind)) {
+                // relationalMapper { qn, qn } — a pointer per path, typed
+                // QUERYPOSTPROCESSOR (harvest testRelationalMapperRoundTrip).
+                // The engine re-parses spec.getText() — keyword + '{' +
+                // raw island content with the HIDDEN whitespace between
+                // keyword and '{' dropped — offset by the KEYWORD token
+                // (PostProcessorParseTreeWalker + ParseTreeWalkerSource
+                // Information.offset), so content lines compose one line
+                // per keyword..'{' line break HIGH.
+                int braceTok = c.pos();
+                c.expect(TokenType.BRACE_OPEN);
+                int shift = c.spanOf(braceTok, braceTok).startLine()
+                        - c.spanOf(kindTok, kindTok).startLine();
+                List<Protocol.PPointer> ptrs = new ArrayList<>();
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    int at = c.pos();
+                    String qn = Protocol.unquotePath(c.parseQualifiedName());
+                    SourceInfo real = c.spanOf(at, c.pos() - 1);
+                    ptrs.add(new Protocol.PPointer("QUERYPOSTPROCESSOR", qn,
+                            new SourceInfo(real.sourceId(),
+                                    real.startLine() - shift,
+                                    real.startColumn(),
+                                    real.endLine() - shift,
+                                    real.endColumn())));
+                    c.match(TokenType.COMMA);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                out.add(new Protocol.PRelationalMapperPostProcessor(ptrs));
+                c.match(TokenType.COMMA);
+                continue;
+            }
             if (!"mapper".equals(kind)) {
                 throw c.error("unsupported postProcessor flavor: " + kind);
             }
@@ -705,6 +766,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     String key = c.parseIdentifier();
                     c.expect(TokenType.COLON);
                     if ("testDataSetupSqls".equals(key)) {
+                        if (sqls != null) {
+                            throw c.error("Field 'testDataSetupSqls' should"
+                                    + " be specified only once");
+                        }
                         sqls = new ArrayList<>();
                         c.expect(TokenType.BRACKET_OPEN);
                         while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
@@ -716,6 +781,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         c.expect(TokenType.BRACKET_CLOSE);
                     } else if ("testDataSetupCSV".equals(key)) {
                         // wire spelling flips case: testDataSetupCsv (probe)
+                        if (csv != null) {
+                            throw c.error("Field 'testDataSetupCsv' should"
+                                    + " be specified only once");
+                        }
                         String quoted = c.text();
                         c.expect(TokenType.STRING);
                         csv = TokenStreamCursor.unquoteAndUnescape(quoted, c);
@@ -954,6 +1023,31 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 }
                 c.expect(TokenType.SEMI_COLON);
                 yield new Protocol.PTestAuth(c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "OAuth" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String oauthKey = null;
+                String scopeName = null;
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    c.expect(TokenType.COLON);
+                    String quoted = c.text();
+                    c.expect(TokenType.STRING);
+                    String v = TokenStreamCursor.unquoteAndUnescape(quoted, c);
+                    switch (key) {
+                        case "oauthKey" -> oauthKey = v;
+                        case "scopeName" -> scopeName = v;
+                        default -> throw c.error("unknown OAuth key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (oauthKey == null || scopeName == null) {
+                    throw c.error("OAuth needs oauthKey and scopeName");
+                }
+                yield new Protocol.POAuth(oauthKey, scopeName,
+                        c.spanOf(keywordTok, c.pos() - 1));
             }
             case "DelegatedKerberos" -> {
                 String principal = null;

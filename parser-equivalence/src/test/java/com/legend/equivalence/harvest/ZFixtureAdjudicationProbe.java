@@ -85,6 +85,13 @@ class ZFixtureAdjudicationProbe {
                 System.out.println("@@ PREF " + n.get("origin").asText()
                         .replaceAll(".*\\.", "") + " :: "
                         + (m.length() > 90 ? m.substring(0, 90) : m));
+                try {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(
+                            "target/pref-" + Math.abs(src.hashCode())
+                                    + ".pure"), src);
+                } catch (Exception e) {
+                    // best-effort dump
+                }
                 continue;
             }
             // model path SEPARATELY — its refusals are lite's COMPILE

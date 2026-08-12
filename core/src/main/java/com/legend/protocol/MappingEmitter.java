@@ -962,6 +962,11 @@ final class MappingEmitter {
                                 + "\"expected\":");
                         relationElement(b, re);
                     }
+                    case Protocol.PEqualToValue ev -> {
+                        b.append("{\"_type\":\"equalTo\","
+                                + "\"expected\":");
+                        valueSpec(b, ev.value());
+                    }
                 }
                 b.append(",\"id\":");
                 str(b, a.id());

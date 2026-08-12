@@ -542,7 +542,13 @@ public final class FromProtocol {
             case Protocol.PService s -> toServiceDefinition(s);
             case Protocol.PExecutionEnvironment ee ->
                     new ExecutionEnvironmentDefinition(ee.qualifiedName(),
-                            keyedExecutions(ee.executions()));
+                            keyedExecutions(ee.executions().stream()
+                                    .flatMap(p -> switch (p) {
+                                        case Protocol.PKeyedExecution k ->
+                                                java.util.stream.Stream.of(k);
+                                        case Protocol.PMultiKeyedExecution m ->
+                                                m.singles().stream();
+                                    }).toList()));
             default -> throw new IllegalStateException(
                     "not a service-section element: " + e.getClass());
         };
@@ -739,6 +745,8 @@ public final class FromProtocol {
             case Protocol.PMiddleTierUserNamePassword m ->
                     new AuthenticationSpec.MiddleTierUserNamePassword(
                             m.vaultReference());
+            case Protocol.POAuth o -> new AuthenticationSpec.OAuth(
+                    o.oauthKey(), o.scopeName());
         };
         // quoteIdentifiers rides the PROTOCOL record only (wire parity);
         // lite's SQL renderers decide quoting themselves, so the model

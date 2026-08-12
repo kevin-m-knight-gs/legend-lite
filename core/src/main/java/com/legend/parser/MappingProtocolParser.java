@@ -2695,6 +2695,46 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             tokens.startColumn(rTok), ri.endLine(),
                             ri.endColumn()));
         }
+        if (peek() == TokenType.VALID_STRING && "EqualTo".equals(text())) {
+            // EqualTo #{ expected: <value>; }# — wire _type:"equalTo",
+            // expected is a SPEC value; span kind..island close (harvest
+            // testServiceTestSuite)
+            int eqTok = pos;
+            advance();
+            IslandBlock island = readIsland();
+            MappingProtocolParser inner = new MappingProtocolParser(
+                    island.tokens(), 0, legendStrict);
+            if (!"expected".equals(inner.text())) {
+                throw inner.error("assertion key '" + inner.safeText()
+                        + "' is unbuilt");
+            }
+            inner.advance();
+            inner.expect(TokenType.COLON);
+            int vS = inner.pos();
+            int d = 0;
+            while (!inner.atEnd()) {
+                TokenType tk = inner.peek();
+                if (d == 0 && tk == TokenType.SEMI_COLON) {
+                    break;
+                }
+                if (tk == TokenType.PAREN_OPEN || tk == TokenType.BRACE_OPEN
+                        || tk == TokenType.BRACKET_OPEN) {
+                    d++;
+                } else if (tk == TokenType.PAREN_CLOSE
+                        || tk == TokenType.BRACE_CLOSE
+                        || tk == TokenType.BRACKET_CLOSE) {
+                    d--;
+                }
+                inner.advance();
+            }
+            com.legend.protocol.spec.ValueSpecification value =
+                    SpecParser.parse(inner.tokens().slice(vS, inner.pos()));
+            return new Protocol.PTestAssertion(assertId,
+                    new Protocol.PEqualToValue(value),
+                    new SourceInfo("", tokens.startLine(eqTok),
+                            tokens.startColumn(eqTok), island.endLine(),
+                            island.endColumn()));
+        }
         if (!(peek() == TokenType.VALID_STRING
                 && "EqualToJson".equals(text()))) {
             throw error("test assertion kind '" + safeText()

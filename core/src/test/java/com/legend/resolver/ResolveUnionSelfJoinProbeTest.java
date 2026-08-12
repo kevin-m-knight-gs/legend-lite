@@ -31,8 +31,8 @@ class ResolveUnionSelfJoinProbeTest {
             Class u::Person { lastName: String[1]; manager: u::Person[0..1]; }
             ###Relational
             Database u::DB (
-              Table P1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR)
-              Table P2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR)
+              Table P1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR(200))
+              Table P2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR(200))
               Join person_person_join (P1.lastName_s1 = {target}.lastName_s1)
               Join person_person2_join (P1.lastName_s1 = P2.lastName_s2)
               Join person2_person_join (P2.lastName_s2 = P1.lastName_s1)

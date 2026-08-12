@@ -557,7 +557,14 @@ public final class Protocol {
     /** {@code id: EqualToJson #{...}#} or {@code id: Relation #{...}#}
      *  (probe relation-data-exact). */
     public sealed interface PAssertionValue
-            permits PExternalFormatData, PRelationElement {
+            permits PExternalFormatData, PRelationElement, PEqualToValue {
+    }
+
+    /** {@code EqualTo #{ expected: <value>; }#} — wire
+     *  {@code _type:"equalTo"} with a SPEC value (harvest
+     *  testServiceTestSuite ak2_9). */
+    public record PEqualToValue(com.legend.protocol.spec.ValueSpecification value)
+            implements PAssertionValue {
     }
 
     public record PTestAssertion(String id, PAssertionValue expected,
@@ -798,6 +805,7 @@ public final class Protocol {
      *  database's span. */
     public record PDatabase(String pkg, String name,
                             List<PPointer> includedStores,
+                            List<PIncludedStoreSpec> includedStoreSpecifications,
                             List<PDbSchema> schemas,
                             List<PDbJoin> joins,
                             List<PDbFilter> filters,
@@ -1086,7 +1094,8 @@ public final class Protocol {
                                   @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
                                   @com.legend.Nullable PEmbeddedRuntime embeddedRuntime,
                                   @com.legend.Nullable PRuntimeComponents runtimeComponents,
-                                  com.legend.protocol.SourceInfo sourceInformation) {
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PExecutionParameters {
     }
 
     /** {@code runtimeComponents: { class; binding; runtime; }} — wire
@@ -1222,9 +1231,24 @@ public final class Protocol {
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
+    /** One {@code executions:} entry of an {@code ExecutionEnvironment} —
+     *  either a keyed single or a keyed LIST of singles (multi). */
+    public sealed interface PExecutionParameters
+            permits PKeyedExecution, PMultiKeyedExecution {
+    }
+
+    /** {@code KEY: [ subKey: {..}, .. ]} — wire
+     *  {@code _type:"multiExecutionParameters"} with masterKey +
+     *  singleExecutionParameters, no span of its own (harvest
+     *  testExecutionEnvironmentInMultiExecService). */
+    public record PMultiKeyedExecution(String masterKey,
+                                       List<PKeyedExecution> singles)
+            implements PExecutionParameters {
+    }
+
     /** An {@code ExecutionEnvironment} element (###Service section). */
     public record PExecutionEnvironment(String pkg, String name,
-                                        List<PKeyedExecution> executions,
+                                        List<PExecutionParameters> executions,
                                         com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -2019,7 +2043,7 @@ public final class Protocol {
             PDatasourceSpec datasourceSpecification,
             @com.legend.Nullable String element,
             @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
-            List<PMapperPostProcessor> postProcessors,
+            List<PPostProcessor> postProcessors,
             @com.legend.Nullable List<PGenerationFeaturesConfig> queryGenerationConfigs,
             @com.legend.Nullable Long queryTimeOutInSeconds,
             @com.legend.Nullable Boolean quoteIdentifiers,
@@ -2036,10 +2060,31 @@ public final class Protocol {
                                             com.legend.protocol.SourceInfo sourceInformation) {
     }
 
+    /** {@code include <storeType> <path>} — a TYPED include rides
+     *  includedStoreSpecifications (harvest testDatabaseIncludeStoreOrder):
+     *  packageableElementPointer + the SAME span + storeType. */
+    public record PIncludedStoreSpec(String path, String storeType,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** Connection post-processor flavors: the {@code mapper} table/schema
+     *  renamer and the {@code relationalMapper} pointer list. */
+    public sealed interface PPostProcessor
+            permits PMapperPostProcessor, PRelationalMapperPostProcessor {
+    }
+
     /** {@code _type:"mapper"} post-processor: table/schema mappers; a table
      *  mapper's schemaFrom/schemaTo synthesize a NESTED schema object on the
      *  wire; mappers carry no sourceInformation (probe post-processors). */
-    public record PMapperPostProcessor(List<PMapper> mappers) {
+    public record PMapperPostProcessor(List<PMapper> mappers)
+            implements PPostProcessor {
+    }
+
+    /** {@code _type:"relationalMapper"} post-processor — pointers typed
+     *  {@code QUERYPOSTPROCESSOR}, no span of its own (harvest
+     *  testRelationalMapperRoundTrip). */
+    public record PRelationalMapperPostProcessor(
+            List<PPointer> relationalMappers) implements PPostProcessor {
     }
 
     public sealed interface PMapper permits PTableMapper, PSchemaMapper {
@@ -2140,9 +2185,16 @@ public final class Protocol {
      *  {@link PPlainUserPassword}); the extensions refuse to emit. */
     public sealed interface PAuthStrategy
             permits PH2Default, PTestAuth, PDelegatedKerberos,
-            PUserNamePassword,
+            PUserNamePassword, POAuth,
             PSnowflakePublic, PGCPApplicationDefaultCredentials, PApiToken,
             PMiddleTierUserNamePassword {
+    }
+
+    /** {@code _type:"oauth"} — oauthKey + scopeName, both required
+     *  (harvest testRelationalDatabaseConnection). */
+    public record POAuth(String oauthKey, String scopeName,
+                         com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
     }
 
     /** {@code _type:"snowflakePublic"} (probe ZConnWidenProbe). */

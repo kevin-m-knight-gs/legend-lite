@@ -78,6 +78,27 @@ public final class ServiceSectionGrammar
     // Service
     // ============================================================
 
+    /** The walker's mcpServer shape gate, spelled without a regex (the
+     *  drop-in surface freezes regex-family sites): {@code
+     *  [a-zA-Z_][a-zA-Z0-9_]*}. */
+    private static boolean isPlainIdentifier(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        char h = s.charAt(0);
+        if (!(Character.isLetter(h) && h < 128) && h != '_') {
+            return false;
+        }
+        for (int i = 1; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (!((Character.isLetterOrDigit(ch) && ch < 128)
+                    || ch == '_')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static Protocol.PService parseService(TokenStreamCursor c) {
         int declStart = c.pos();
         c.expect(TokenType.SERVICE);
@@ -102,9 +123,16 @@ public final class ServiceSectionGrammar
         List<Protocol.PServiceTestSuite> testSuites = null;
         List<Protocol.PPostValidation> postValidations = null;
 
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seenKeys.add(key)) {
+                // every service field validates at most once
+                // (ServiceParseTreeWalker validateAndExtract*Field)
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "pattern" -> {
                     pattern = stringValue(c);
@@ -143,8 +171,13 @@ public final class ServiceSectionGrammar
                 }
                 case "mcpServer" -> {
                     // wire: plain string field (harvest
-                    // testServiceWithMcpServer)
+                    // testServiceWithMcpServer); the walker re-validates
+                    // the IDENTIFIER shape (quoted names parse but refuse)
                     mcpServer = c.parseIdentifier();
+                    if (!isPlainIdentifier(mcpServer)) {
+                        throw c.error("Service mcpServer should be a valid"
+                                + " identifier ([a-zA-Z_][a-zA-Z0-9_]*)");
+                    }
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "postValidations" -> {
@@ -190,7 +223,7 @@ public final class ServiceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (execution == null) {
-            throw c.error("Service '" + qn + "' has no execution");
+            throw c.error("Field 'execution' is required");
         }
         // ENGINE-VERBATIM required fields (ServiceParserGrammar), BOTH
         // surfaces: the old lenient default (pattern -> "/") had no
@@ -307,6 +340,20 @@ public final class ServiceSectionGrammar
                 c.tokens().slice(from, c.pos())));
     }
 
+    /** The folded literal's span runs the '-' through the digits (harvest
+     *  testServiceTestParameters [1.8, 2, -3] → cols 65-66). */
+    private static com.legend.protocol.@com.legend.Nullable SourceInfo
+            signedSpan(
+            com.legend.protocol.@com.legend.Nullable SourceInfo minus,
+            com.legend.protocol.@com.legend.Nullable SourceInfo lit) {
+        if (minus == null || lit == null) {
+            return minus;
+        }
+        return new com.legend.protocol.SourceInfo(minus.sourceId(),
+                minus.startLine(), minus.startColumn(),
+                lit.endLine(), lit.endColumn());
+    }
+
     /** The engine's primitiveValue grammar folds SIGNED literals (-3 is
      *  integer -3, not minus(3)) at every depth of a parameter value —
      *  rewrite unary-minus-over-literal recursively (harvest
@@ -319,11 +366,12 @@ public final class ServiceSectionGrammar
             var arg = af.parameters().get(0);
             if (arg instanceof com.legend.protocol.spec.CInteger ci) {
                 return new com.legend.protocol.spec.CInteger(
-                        -ci.value().longValue(), af.pos());
+                        -ci.value().longValue(),
+                        signedSpan(af.pos(), ci.pos()));
             }
             if (arg instanceof com.legend.protocol.spec.CFloat cf) {
                 return new com.legend.protocol.spec.CFloat(-cf.value(),
-                        af.pos());
+                        signedSpan(af.pos(), cf.pos()));
             }
         }
         java.util.List<com.legend.protocol.spec.ValueSpecification> cs =
@@ -355,9 +403,14 @@ public final class ServiceSectionGrammar
                 new ArrayList<>();
         List<Protocol.PPostValidationAssertion> assertions =
                 new ArrayList<>();
+        java.util.Set<String> seenPvKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seenPvKeys.add(key)) {
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "description" -> {
                     description = stringValue(c);
@@ -456,8 +509,17 @@ public final class ServiceSectionGrammar
         }
         int close = c.pos();
         c.expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PPostValidation(
-                java.util.Objects.requireNonNull(description), params,
+        // visitPostValidation: description, params, assertions ALL required
+        if (description == null) {
+            throw c.error("Field 'description' is required");
+        }
+        if (!seenPvKeys.contains("params")) {
+            throw c.error("Field 'params' is required");
+        }
+        if (!seenPvKeys.contains("assertions")) {
+            throw c.error("Field 'assertions' is required");
+        }
+        return new Protocol.PPostValidation(description, params,
                 assertions, c.spanOf(eS, close));
     }
 
@@ -467,9 +529,14 @@ public final class ServiceSectionGrammar
             TokenStreamCursor c,
             List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts) {
         String data = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seenKeys.add(key)) {
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "data" -> {
                     data = stringValue(c);
@@ -573,18 +640,30 @@ public final class ServiceSectionGrammar
             Protocol.PServiceTestSuite.PSuiteData data = null;
             List<Protocol.PServiceTestSuite.PSuiteTest> tests =
                     new ArrayList<>();
+            boolean testsSpelled = false;
+            java.util.Set<String> seenSuiteKeys = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
+                if (!seenSuiteKeys.add(key)) {
+                    throw c.error("Field '" + key
+                            + "' should be specified only once");
+                }
                 switch (key) {
                     case "data" -> data = parseSuiteData(c, keyStart);
-                    case "tests" -> parseSuiteTests(c, tests);
+                    case "tests" -> {
+                        testsSpelled = true;
+                        parseSuiteTests(c, tests);
+                    }
                     default -> throw c.error("unknown testSuite key '"
                             + key + "'");
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
+            if (!testsSpelled) {
+                throw c.error("Field 'tests' is required");
+            }
             out.add(new Protocol.PServiceTestSuite(id, null, data, tests,
                     c.spanOf(ss, c.pos() - 1)));
             c.match(TokenType.COMMA);
@@ -713,12 +792,18 @@ public final class ServiceSectionGrammar
         c.expect(TokenType.BRACKET_OPEN);
         List<Protocol.PServiceTestSuite.PSuiteConnData> conns =
                 new ArrayList<>();
+        boolean connectionsSpelled = false;
         while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
             String k = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!"connections".equals(k)) {
                 throw c.error("unknown suite data key '" + k + "'");
             }
+            if (connectionsSpelled) {
+                throw c.error("Field 'connections' should be specified"
+                        + " only once");
+            }
+            connectionsSpelled = true;
             c.expect(TokenType.BRACKET_OPEN);
             while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
                 int cs = c.pos();
@@ -750,9 +835,18 @@ public final class ServiceSectionGrammar
             List<String> keys = new ArrayList<>();
             List<Protocol.PServiceTestSuite.PSuiteParam> parameters = null;
             List<Protocol.PTestAssertion> asserts = new ArrayList<>();
+            boolean assertsSpelled = false;
+            java.util.Set<String> seenTestKeys = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
+                if (!seenTestKeys.add(key)) {
+                    throw c.error("Field '" + key
+                            + "' should be specified only once");
+                }
+                if ("asserts".equals(key)) {
+                    assertsSpelled = true;
+                }
                 switch (key) {
                     case "serializationFormat" -> {
                         serializationFormat = c.parseIdentifier();
@@ -827,6 +921,9 @@ public final class ServiceSectionGrammar
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
+            if (!assertsSpelled) {
+                throw c.error("Field 'asserts' is required");
+            }
             out.add(new Protocol.PServiceTestSuite.PSuiteTest(id, null,
                     serializationFormat, keys, parameters, asserts,
                     c.spanOf(ts, c.pos() - 1)));
@@ -908,9 +1005,14 @@ public final class ServiceSectionGrammar
                 String runtime = null;
                 SourceInfo runtimeSpan = null;
                 Protocol.PEmbeddedRuntime embedded = null;
+                java.util.Set<String> seenExecKeys = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
                     c.expect(TokenType.COLON);
+                    if (!seenExecKeys.add(key)) {
+                        throw c.error("Field '" + key
+                                + "' should be specified only once");
+                    }
                     switch (key) {
                         case "query" -> query = parseQuery(c, qn);
                         case "mapping" -> {
@@ -936,7 +1038,17 @@ public final class ServiceSectionGrammar
                 }
                 c.expect(TokenType.BRACE_CLOSE);
                 if (query == null) {
-                    throw c.error("Service '" + qn + "' has no query expression");
+                    throw c.error("Field 'query' is required");
+                }
+                // mapping and runtime come TOGETHER or not at all — the
+                // walker names whichever is missing (visitExecution)
+                boolean hasMapping = mapping != null;
+                boolean hasRuntime = runtime != null || embedded != null;
+                if (hasMapping && !hasRuntime) {
+                    throw c.error("Field 'runtime' is required");
+                }
+                if (hasRuntime && !hasMapping) {
+                    throw c.error("Field 'mapping' is required");
                 }
                 yield new Protocol.PSingleExecution(query, mapping,
                         mappingSpan, runtime, runtimeSpan, embedded,
@@ -947,9 +1059,15 @@ public final class ServiceSectionGrammar
                 com.legend.protocol.spec.ValueSpecification query = null;
                 String executionKey = null;
                 List<Protocol.PKeyedExecution> executions = null;
+                java.util.Set<String> seenMultiKeys = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     int keyTok = c.pos();
                     String key = c.parseIdentifier();
+                    if (!"executions".equals(key)
+                            && !seenMultiKeys.add(key)) {
+                        throw c.error("Field '" + key
+                                + "' should be specified only once");
+                    }
                     if ("executions".equals(key)) {
                         // executions['QA']: { mapping: ...; runtime: ...; }
                         // — the wire span starts at the KEY token (probed)
@@ -960,7 +1078,7 @@ public final class ServiceSectionGrammar
                         if (executions == null) {
                             executions = new ArrayList<>();
                         }
-                        executions.add(parseKeyedBody(c, keyValue, keyTok));
+                        executions.add(parseKeyedBody(c, keyValue, keyTok, true));
                         c.match(TokenType.COMMA);
                         continue;
                     }
@@ -977,8 +1095,13 @@ public final class ServiceSectionGrammar
                 }
                 c.expect(TokenType.BRACE_CLOSE);
                 if (query == null) {
-                    throw c.error("Multi execution of '" + qn
-                            + "' needs a query");
+                    throw c.error("Field 'query' is required");
+                }
+                if (executions != null && !executions.isEmpty()
+                        && executionKey == null) {
+                    // key is REQUIRED once keyed executions appear
+                    // (visitExecution multiExec)
+                    throw c.error("Field 'key' is required");
                 }
                 yield new Protocol.PMultiExecution(query, executionKey,
                         executions, c.spanOf(execStart, c.pos() - 1));
@@ -988,9 +1111,13 @@ public final class ServiceSectionGrammar
         };
     }
 
-    /** {@code { mapping: ...; runtime: ...; }} for one keyed environment. */
+    /** {@code { mapping: ...; runtime: ...; }} for one keyed environment.
+     *  {@code requireRuntime}: a Multi service's keyed execution REQUIRES
+     *  runtime (visitKeyedExecutionParameter); an ExecutionEnvironment
+     *  single does not (visitSingleExecutionParameters). */
     private static Protocol.PKeyedExecution parseKeyedBody(
-            TokenStreamCursor c, String keyValue, int start) {
+            TokenStreamCursor c, String keyValue, int start,
+            boolean requireRuntime) {
         c.expect(TokenType.BRACE_OPEN);
         String mapping = null;
         SourceInfo mappingSpan = null;
@@ -998,9 +1125,14 @@ public final class ServiceSectionGrammar
         SourceInfo runtimeSpan = null;
         Protocol.PEmbeddedRuntime embedded = null;
         Protocol.PRuntimeComponents runtimeComponents = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seenKeys.add(key)) {
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "mapping" -> {
                     int ms = c.pos();
@@ -1062,6 +1194,12 @@ public final class ServiceSectionGrammar
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
+        if (mapping == null) {
+            throw c.error("Field 'mapping' is required");
+        }
+        if (requireRuntime && runtime == null && embedded == null) {
+            throw c.error("Field 'runtime' is required");
+        }
         return new Protocol.PKeyedExecution(keyValue, mapping, mappingSpan,
                 runtime, runtimeSpan, embedded, runtimeComponents,
                 c.spanOf(start, c.pos() - 1));
@@ -1140,7 +1278,7 @@ public final class ServiceSectionGrammar
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         c.expect(TokenType.BRACE_OPEN);
-        List<Protocol.PKeyedExecution> executions = new ArrayList<>();
+        List<Protocol.PExecutionParameters> executions = new ArrayList<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
@@ -1156,7 +1294,26 @@ public final class ServiceSectionGrammar
                 int keyTok2 = c.pos();
                 String keyValue = c.parseIdentifier();
                 c.expect(TokenType.COLON);
-                executions.add(parseKeyedBody(c, keyValue, keyTok2));
+                if (c.peek() == TokenType.BRACKET_OPEN) {
+                    // KEY: [ subKey: {..}, .. ] — a MULTI entry (harvest
+                    // testExecutionEnvironmentInMultiExecService)
+                    c.advance();
+                    List<Protocol.PKeyedExecution> singles =
+                            new ArrayList<>();
+                    while (c.peek() != TokenType.BRACKET_CLOSE
+                            && !c.atEnd()) {
+                        int subTok = c.pos();
+                        String subKey = c.parseIdentifier();
+                        c.expect(TokenType.COLON);
+                        singles.add(parseKeyedBody(c, subKey, subTok, false));
+                        c.match(TokenType.COMMA);
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    executions.add(new Protocol.PMultiKeyedExecution(
+                            keyValue, singles));
+                } else {
+                    executions.add(parseKeyedBody(c, keyValue, keyTok2, false));
+                }
                 c.match(TokenType.COMMA);
             }
             c.expect(TokenType.BRACKET_CLOSE);

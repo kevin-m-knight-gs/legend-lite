@@ -464,6 +464,28 @@ public interface TokenStreamCursor {
         return sb.toString();
     }
 
+    /** Persistence-dialect qualified name: that grammar's identifier rule
+     *  ALSO admits {@code TRUE|FALSE} as segments (its g4 lists every
+     *  keyword including the boolean literals), unlike ###Pure where
+     *  {@code Class false::me} is a parse error. */
+    default String parseQualifiedNameAdmittingBooleans() {
+        StringBuilder sb = new StringBuilder(boolOrFqnSegmentText());
+        while (peek() == TokenType.PATH_SEPARATOR) {
+            advance();
+            sb.append("::").append(boolOrFqnSegmentText());
+        }
+        return sb.toString();
+    }
+
+    default String boolOrFqnSegmentText() {
+        if (peek() == TokenType.TRUE || peek() == TokenType.FALSE) {
+            String seg = text();
+            advance();
+            return seg;
+        }
+        return fqnSegmentText();
+    }
+
     /**
      * One FQN segment: a plain identifier, a QUOTED name ({@code test::'p a c k'::A} —
      * unescaped, engine emits it raw), or a DIGIT-LEADING run ({@code pkg::2_0_0::A} —

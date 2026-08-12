@@ -75,7 +75,7 @@ public final class PersistenceSectionGrammar
         int declStart = c.pos();
         c.advance();                                // 'Persistence'
         TokenStreamCursor.Decorations dec = c.parseDecorations();
-        String qn = Protocol.unquotePath(c.parseQualifiedName());
+        String qn = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
@@ -90,17 +90,22 @@ public final class PersistenceSectionGrammar
         List<Protocol.PServiceOutputTarget> outputTargets = null;
         List<Protocol.PPersistenceTest> tests = null;
 
+        java.util.Set<String> seen = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int keyStart = c.pos();
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seen.add(key)) {
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "doc" -> {
                     doc = stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "service" -> {
-                    service = Protocol.unquotePath(c.parseQualifiedName());
+                    service = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
                     c.expect(TokenType.SEMI_COLON);
                     serviceSpan = c.spanOf(keyStart, c.pos() - 1);
                 }
@@ -110,7 +115,7 @@ public final class PersistenceSectionGrammar
                 }
                 case "persister" -> {
                     persister = parseNode(c);
-                    validateSink(c, persister);
+                    validateNode(c, "persister", persister);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceOutputTargets" -> {
@@ -130,6 +135,12 @@ public final class PersistenceSectionGrammar
             }
         }
         c.expect(TokenType.BRACE_CLOSE);
+        // walker-required trio (visitPersistence)
+        for (String r : new String[] {"doc", "trigger", "service"}) {
+            if (!seen.contains(r)) {
+                throw c.error("Field '" + r + "' is required");
+            }
+        }
         return new Protocol.PPersistence(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), doc,
                 java.util.Objects.requireNonNull(triggerKind), service,
@@ -137,22 +148,114 @@ public final class PersistenceSectionGrammar
                 c.spanOf(declStart, c.pos() - 1));
     }
 
-    /** The engine REQUIRES a Relational sink to spell {@code database:}
-     *  and an ObjectStorage sink {@code binding:} — structured validation,
-     *  not a lenient accept (sentinel parity). */
-    private static void validateSink(TokenStreamCursor c,
-            Protocol.PPersistenceNode persister) {
-        for (Protocol.PPersistenceEntry e : persister.entries()) {
-            if (e instanceof Protocol.PPersistenceEntry.Node nd
-                    && "sink".equals(nd.key())) {
-                String need = switch (nd.node().kind()) {
-                    case "Relational" -> "database";
-                    case "ObjectStorage" -> "binding";
-                    default -> null;
-                };
-                if (need != null && nd.node().entries().stream()
-                        .noneMatch(se -> need.equals(se.key()))) {
-                    throw c.error("Field '" + need + "' is required");
+    /** The engine walker's cardinality contract, keyed {@code slot/kind}:
+     *  which fields each node REQUIRES (PersistenceParseTreeWalker's
+     *  validateAndExtractRequiredField calls, transcribed 1:1). Every
+     *  field — required or optional — additionally validates at most
+     *  once (validateAndExtract*Field both enforce size <= 1). */
+    private static final java.util.Map<String, List<String>> REQUIRED_FIELDS =
+            java.util.Map.ofEntries(
+                    java.util.Map.entry("persister/Batch",
+                            List.of("sink", "targetShape", "ingestMode")),
+                    java.util.Map.entry("persister/Streaming",
+                            List.of("sink")),
+                    java.util.Map.entry("sink/Relational",
+                            List.of("database")),
+                    java.util.Map.entry("sink/ObjectStorage",
+                            List.of("binding")),
+                    java.util.Map.entry("targetShape/Flat",
+                            List.of("modelClass", "targetName")),
+                    java.util.Map.entry("targetShape/MultiFlat",
+                            List.of("modelClass", "transactionScope",
+                                    "parts")),
+                    java.util.Map.entry("parts/__part__",
+                            List.of("modelProperty", "targetName")),
+                    java.util.Map.entry("deduplicationStrategy/MaxVersion",
+                            List.of("versionField")),
+                    java.util.Map.entry(
+                            "deduplicationStrategy/DuplicateCount",
+                            List.of("duplicateCountName")),
+                    java.util.Map.entry("ingestMode/NontemporalSnapshot",
+                            List.of("auditing")),
+                    java.util.Map.entry("ingestMode/UnitemporalSnapshot",
+                            List.of("transactionMilestoning")),
+                    java.util.Map.entry("ingestMode/BitemporalSnapshot",
+                            List.of("transactionMilestoning",
+                                    "validityMilestoning")),
+                    java.util.Map.entry("ingestMode/NontemporalDelta",
+                            List.of("mergeStrategy", "auditing")),
+                    java.util.Map.entry("ingestMode/UnitemporalDelta",
+                            List.of("mergeStrategy",
+                                    "transactionMilestoning")),
+                    java.util.Map.entry("ingestMode/BitemporalDelta",
+                            List.of("mergeStrategy", "transactionMilestoning",
+                                    "validityMilestoning")),
+                    java.util.Map.entry("ingestMode/AppendOnly",
+                            List.of("auditing", "filterDuplicates")),
+                    java.util.Map.entry("mergeStrategy/DeleteIndicator",
+                            List.of("deleteField", "deleteValues")),
+                    java.util.Map.entry("auditing/DateTime",
+                            List.of("dateTimeName")),
+                    java.util.Map.entry("transactionMilestoning/BatchId",
+                            List.of("batchIdInName", "batchIdOutName")),
+                    java.util.Map.entry("transactionMilestoning/DateTime",
+                            List.of("dateTimeInName", "dateTimeOutName")),
+                    java.util.Map.entry(
+                            "transactionMilestoning/BatchIdAndDateTime",
+                            List.of("batchIdInName", "batchIdOutName",
+                                    "dateTimeInName", "dateTimeOutName")),
+                    java.util.Map.entry(
+                            "derivation/SourceSpecifiesInDateTime",
+                            List.of("sourceDateTimeInField")),
+                    java.util.Map.entry(
+                            "derivation/SourceSpecifiesInAndOutDateTime",
+                            List.of("sourceDateTimeInField",
+                                    "sourceDateTimeOutField")),
+                    java.util.Map.entry("validityMilestoning/DateTime",
+                            List.of("dateTimeFromName", "dateTimeThruName",
+                                    "derivation")),
+                    java.util.Map.entry(
+                            "derivation/SourceSpecifiesFromDateTime",
+                            List.of("sourceDateTimeFromField")),
+                    java.util.Map.entry(
+                            "derivation/SourceSpecifiesFromAndThruDateTime",
+                            List.of("sourceDateTimeFromField",
+                                    "sourceDateTimeThruField")),
+                    java.util.Map.entry("notifyees/Email",
+                            List.of("address")),
+                    java.util.Map.entry("notifyees/PagerDuty",
+                            List.of("url")));
+
+    /** Recursive engine-walker cardinality over the generic node tree:
+     *  every key at most once; the {@link #REQUIRED_FIELDS} set for the
+     *  node's {@code slot/kind} present. */
+    private static void validateNode(TokenStreamCursor c, String slot,
+            Protocol.PPersistenceNode node) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            if (!seen.add(e.key())) {
+                throw c.error("Field '" + e.key()
+                        + "' should be specified only once");
+            }
+        }
+        List<String> req = REQUIRED_FIELDS.get(slot + "/" + node.kind());
+        if (req != null) {
+            for (String r : req) {
+                if (!seen.contains(r)) {
+                    throw c.error("Field '" + r + "' is required");
+                }
+            }
+        }
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            switch (e) {
+                case Protocol.PPersistenceEntry.Node nd ->
+                        validateNode(c, nd.key(), nd.node());
+                case Protocol.PPersistenceEntry.NodeList nl -> {
+                    for (Protocol.PPersistenceNode n : nl.nodes()) {
+                        validateNode(c, nl.key(), n);
+                    }
+                }
+                default -> {
                 }
             }
         }
@@ -354,7 +457,7 @@ public final class PersistenceSectionGrammar
                     c.expect(TokenType.SEMI_COLON);
                 }
                 default -> {
-                    String head = Protocol.unquotePath(c.parseQualifiedName());
+                    String head = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
                     // dotted table names: `table: schemaA.personTable;`
                     while (c.peek() == TokenType.DOT) {
                         c.advance();
@@ -441,15 +544,23 @@ public final class PersistenceSectionGrammar
             TokenStreamCursor c, int keyStart) {
         c.expect(TokenType.BRACE_OPEN);
         List<Protocol.PPersistenceNode> notifyees = new ArrayList<>();
+        boolean notifyeesSpelled = false;
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!"notifyees".equals(key)) {
                 throw c.error("unknown notifier key '" + key + "'");
             }
+            if (notifyeesSpelled) {
+                throw c.error("Field 'notifyees' should be specified"
+                        + " only once");
+            }
+            notifyeesSpelled = true;
             c.expect(TokenType.BRACKET_OPEN);
             while (c.peek() != TokenType.BRACKET_CLOSE) {
-                notifyees.add(parseNode(c));
+                Protocol.PPersistenceNode n = parseNode(c);
+                validateNode(c, "notifyees", n);
+                notifyees.add(n);
                 if (!c.match(TokenType.COMMA)) {
                     break;
                 }
@@ -458,6 +569,9 @@ public final class PersistenceSectionGrammar
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
+        if (!notifyeesSpelled) {
+            throw c.error("Field 'notifyees' is required");
+        }
         return new Protocol.PPersistenceNotifier(notifyees,
                 c.spanOf(keyStart, c.pos() - 1));
     }
@@ -474,11 +588,20 @@ public final class PersistenceSectionGrammar
             List<Protocol.PPersistenceTestBatch> batches = new ArrayList<>();
             boolean fromServiceOutput = false;
             com.legend.protocol.spec.ValueSpecification graphFetchPath = null;
+            java.util.Set<String> seenKeys = new java.util.HashSet<>();
+            boolean batchesSpelled = false;
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
+                if (!seenKeys.add(key)) {
+                    throw c.error("Field '" + key
+                            + "' should be specified only once");
+                }
                 switch (key) {
-                    case "testBatches" -> parseTestBatches(c, batches);
+                    case "testBatches" -> {
+                        batchesSpelled = true;
+                        parseTestBatches(c, batches);
+                    }
                     case "isTestDataFromServiceOutput" -> {
                         fromServiceOutput = c.match(TokenType.TRUE);
                         if (!fromServiceOutput) {
@@ -497,6 +620,9 @@ public final class PersistenceSectionGrammar
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
+            if (!batchesSpelled) {
+                throw c.error("Field 'testBatches' is required");
+            }
             out.add(new Protocol.PPersistenceTest(id, batches,
                     fromServiceOutput, graphFetchPath,
                     c.spanOf(s, c.pos() - 1)));
@@ -519,10 +645,15 @@ public final class PersistenceSectionGrammar
             SourceInfo dataSpan = null;
             List<Protocol.PPersistenceAssert> asserts = new ArrayList<>();
             boolean assertsSpelled = false;
+            java.util.Set<String> seenBatchKeys = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
                 c.expect(TokenType.COLON);
+                if (!seenBatchKeys.add(key)) {
+                    throw c.error("Field '" + key
+                            + "' should be specified only once");
+                }
                 switch (key) {
                     case "data" -> {
                         c.expect(TokenType.BRACE_OPEN);
@@ -563,7 +694,7 @@ public final class PersistenceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (connData == null || connSpan == null || dataSpan == null) {
-                throw c.error("testBatch '" + id + "' needs data");
+                throw c.error("Field 'data' is required");
             }
             if (!assertsSpelled) {
                 // engine deserializer parity (leniency audit row #30)
@@ -581,7 +712,7 @@ public final class PersistenceSectionGrammar
         int declStart = c.pos();
         c.advance();                                // 'PersistenceContext'
         TokenStreamCursor.Decorations dec = c.parseDecorations();
-        String qn = Protocol.unquotePath(c.parseQualifiedName());
+        String qn = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
@@ -593,19 +724,44 @@ public final class PersistenceSectionGrammar
         List<Protocol.PCtxParam> params = new ArrayList<>();
         Protocol.PConnectionValue sinkConnection = null;
 
+        java.util.Set<String> seenCtx = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int keyStart = c.pos();
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
+            if (!seenCtx.add(key)) {
+                throw c.error("Field '" + key
+                        + "' should be specified only once");
+            }
             switch (key) {
                 case "persistence" -> {
-                    persistence = Protocol.unquotePath(c.parseQualifiedName());
+                    persistence = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
                     c.expect(TokenType.SEMI_COLON);
                     persistenceSpan = c.spanOf(keyStart, c.pos() - 1);
                 }
                 case "platform" -> {
                     // span quirk: CONTENT start .. '}#' end + 1 (probed)
                     String kind = c.parseIdentifier();
+                    if (!"Default".equals(kind) && !"AwsGlue".equals(kind)) {
+                        // extension dispatch (IPersistenceParserExtension
+                        // .process over the ServiceLoader set): the oracle
+                        // registers Default + the cloud extension's
+                        // AwsGlue (gate-8 corpus carries its tests)
+                        throw c.error("Unsupported persistence platform"
+                                + " type '" + kind + "'");
+                    }
+                    if (c.peek() == TokenType.SEMI_COLON) {
+                        // BARE kind: `platform: Default;` — wire
+                        // {"_type":"<kind lowercased>"} whose span is the
+                        // kind WORD alone (harvest
+                        // persistenceContextPersistencePlatform)
+                        int kindTok = c.pos() - 1;
+                        c.advance();
+                        platform = new Protocol.PPersistenceNode(kind,
+                                java.util.List.of(),
+                                c.spanOf(kindTok, kindTok));
+                        continue;
+                    }
                     if (c.peek() != TokenType.ISLAND_OPEN
                             && c.peek() != TokenType.ISLAND_START) {
                         throw c.error("platform '" + kind
@@ -661,7 +817,7 @@ public final class PersistenceSectionGrammar
                         // pointer form: `sinkConnection: test::conn;`
                         int vs = c.pos();
                         String path = Protocol.unquotePath(
-                                c.parseQualifiedName());
+                                c.parseQualifiedNameAdmittingBooleans());
                         sinkConnection = new Protocol.PConnectionPointer(
                                 path, c.spanOf(vs, c.pos() - 1));
                     }
@@ -673,8 +829,7 @@ public final class PersistenceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (persistence == null) {
-            throw c.error("PersistenceContext '" + qn
-                    + "' needs a persistence pointer");
+            throw c.error("Field 'persistence' is required");
         }
         return new Protocol.PPersistenceContext(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), persistence,
@@ -700,7 +855,7 @@ public final class PersistenceSectionGrammar
                     && c.tokens().text(c.pos()).length() > 0
                     && !c.tokens().text(c.pos()).startsWith("'")) {
                 int vs = c.pos();
-                String head = Protocol.unquotePath(c.parseQualifiedName());
+                String head = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
                 value = new Protocol.PCtxParamValue.ConnectionPtr(head,
                         c.spanOf(vs, c.pos() - 1));
             } else {
@@ -784,7 +939,7 @@ public final class PersistenceSectionGrammar
                     while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                         String sk = c.parseIdentifier();
                         c.expect(TokenType.COLON);
-                        c.parseQualifiedName();
+                        c.parseQualifiedNameAdmittingBooleans();
                         c.expect(TokenType.SEMI_COLON);
                         seen.add(sk);
                     }
@@ -929,7 +1084,7 @@ public final class PersistenceSectionGrammar
         }
         // a POINTER value (sinkConnection: test::Conn) parses the same way
         // a kind does — qualified, then no body follows
-        String kind = Protocol.unquotePath(c.parseQualifiedName());
+        String kind = Protocol.unquotePath(c.parseQualifiedNameAdmittingBooleans());
         if (c.peek() == TokenType.BRACE_OPEN) {
             int bs = c.pos();
             skipBalanced(c, TokenType.BRACE_OPEN, TokenType.BRACE_CLOSE);

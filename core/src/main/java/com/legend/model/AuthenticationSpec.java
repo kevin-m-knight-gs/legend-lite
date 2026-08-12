@@ -16,7 +16,8 @@ public sealed interface AuthenticationSpec
                 AuthenticationSpec.SnowflakePublic,
                 AuthenticationSpec.GCPApplicationDefaultCredentials,
                 AuthenticationSpec.ApiToken,
-                AuthenticationSpec.MiddleTierUserNamePassword {
+                AuthenticationSpec.MiddleTierUserNamePassword,
+                AuthenticationSpec.OAuth {
 
     /** No authentication. Used for in-memory databases and local development. */
     record NoAuth() implements AuthenticationSpec {}
@@ -59,5 +60,9 @@ public sealed interface AuthenticationSpec
 
     /** Engine's middle-tier vault-reference auth. */
     record MiddleTierUserNamePassword(String vaultReference)
+            implements AuthenticationSpec {}
+
+    /** Engine's {@code auth: OAuth { oauthKey; scopeName; };}. */
+    record OAuth(String oauthKey, String scopeName)
             implements AuthenticationSpec {}
 }

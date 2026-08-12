@@ -44,10 +44,10 @@ class ResolveUnionJtcProbeTest {
             Association j::PF { firm: j::Firm[0..1]; employees: j::Person[*]; }
             ###Relational
             Database j::DB (
-              Table PersonMaster (ID INTEGER PRIMARY KEY, firstName VARCHAR, lastName VARCHAR, FirmID INTEGER)
-              Table PersonAdditional (ID INTEGER PRIMARY KEY, otherName VARCHAR, extrainfo VARCHAR)
-              Table FirmSet1 (ID INTEGER PRIMARY KEY, name VARCHAR)
-              Table FirmSet2 (ID INTEGER PRIMARY KEY, name VARCHAR)
+              Table PersonMaster (ID INTEGER PRIMARY KEY, firstName VARCHAR(200), lastName VARCHAR(200), FirmID INTEGER)
+              Table PersonAdditional (ID INTEGER PRIMARY KEY, otherName VARCHAR(200), extrainfo VARCHAR(200))
+              Table FirmSet1 (ID INTEGER PRIMARY KEY, name VARCHAR(200))
+              Table FirmSet2 (ID INTEGER PRIMARY KEY, name VARCHAR(200))
               Join PersonMasterPersonAdditional (PersonMaster.ID = PersonAdditional.ID)
               Join PersonMasterFirmSet1 (PersonMaster.FirmID = FirmSet1.ID)
               Join PersonMasterFirmSet2 (PersonMaster.FirmID = FirmSet2.ID)

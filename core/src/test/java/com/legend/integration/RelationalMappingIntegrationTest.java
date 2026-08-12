@@ -1726,7 +1726,7 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO LONG_STR VALUES (1, '" + longStr + "')");
             String m = singleTableModel("P", "LONG_STR", "store::DB", "model::M",
                     "Class model::P { data: String[1]; }",
-                    "ID INTEGER, DATA VARCHAR",
+                    "ID INTEGER, DATA VARCHAR(16384)",
                     "data: [store::DB] LONG_STR.DATA");
             var r = exec(m, "model::P.all()->project(~[data:x|$x.data])");
             assertEquals(1, r.rowCount());

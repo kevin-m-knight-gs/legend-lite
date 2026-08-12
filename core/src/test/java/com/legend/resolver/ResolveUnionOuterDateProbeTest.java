@@ -48,9 +48,9 @@ class ResolveUnionOuterDateProbeTest {
               Table CarDetails (id INTEGER PRIMARY KEY, time DATE)
               Table Cars (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
-                id INTEGER PRIMARY KEY, description VARCHAR,
+                id INTEGER PRIMARY KEY, description VARCHAR(200),
                 from_z DATE, thru_z DATE)
-              Table Bicycles (id INTEGER PRIMARY KEY, bdescription VARCHAR)
+              Table Bicycles (id INTEGER PRIMARY KEY, bdescription VARCHAR(200))
               Join Car_CarDetails (CarDetails.id = Cars.id)
               Join CarBicycle (Cars.id = Bicycles.id)
             )

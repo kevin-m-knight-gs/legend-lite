@@ -310,11 +310,14 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
             String islandText, int baseLine, int baseColumn) {
         var tokens = com.legend.lexer.Lexer.tokenize(islandText);
         var ic = new SliceCursorOffset(tokens, baseLine - 1, baseColumn - 1);
+        if (tokens.count() == 0) {
+            // RuntimeParseTreeWalker.visitEmbeddedRuntime refuses a
+            // contentless `#{ }#` island
+            throw ic.error("Embedded runtime must not be empty");
+        }
         // the wire span is CONTENT-anchored: first..last re-lexed token
-        com.legend.protocol.SourceInfo contentSpan = tokens.count() > 0
-                ? ic.spanOf(0, tokens.count() - 1)
-                : new com.legend.protocol.SourceInfo("", baseLine,
-                        baseColumn, baseLine, baseColumn);
+        com.legend.protocol.SourceInfo contentSpan =
+                ic.spanOf(0, tokens.count() - 1);
         List<Protocol.PPointer> mappings = new ArrayList<>();
         List<Protocol.PStoreConnections> connections = new ArrayList<>();
         List<Protocol.PConnectionStores> connectionStores = new ArrayList<>();
