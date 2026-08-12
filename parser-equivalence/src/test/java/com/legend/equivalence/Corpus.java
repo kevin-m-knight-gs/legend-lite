@@ -54,13 +54,22 @@ public final class Corpus {
         }
     }
 
+    /** Files the loader could not read this run — COUNTED, never a silent
+     *  {@code continue} (HARNESS_SIMPLIFICATION_PLAN Phase 6). */
+    static final List<String> UNREADABLE = new ArrayList<>();
+
+    /** Exact-text duplicates dropped by {@link #all()} this run. */
+    static final java.util.concurrent.atomic.AtomicInteger DEDUPED =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     private static void add(List<Source> out, Path root, String tier, java.util.function.Predicate<String> accept) {
         for (Path p : pureFiles(root)) {
             String t;
             try {
                 t = Files.readString(p);
             } catch (Exception e) {
-                continue;                       // unreadable/non-UTF8 — counted by the caller's totals
+                UNREADABLE.add(root.relativize(p) + " :: " + e);
+                continue;
             }
             if (accept.test(t)) {
                 out.add(new Source(root.relativize(p).toString(), t, tier));
@@ -118,6 +127,14 @@ public final class Corpus {
         // hid here. Adjudicated like every tier: the oracle decides.
         out.addAll(engineFixtures());
         out.removeIf(s -> s.id().toLowerCase(Locale.ROOT).endsWith("grammar/m3.pure"));
+        // DEDUPE by exact text, first occurrence wins (tier order above):
+        // the reported count IS the distinct count — the audit measured a
+        // 6.6% inflation from fixture rows duplicating inline snippets
+        // verbatim (HARNESS_SIMPLIFICATION_PLAN Phase 6)
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        int before = out.size();
+        out.removeIf(s -> !seen.add(s.text()));
+        DEDUPED.set(before - out.size());
         String only = System.getProperty("legend.corpus.containing");
         if (only != null) {
             // ITERATION ONLY — a section leg's inner loop. The ratchet gate is

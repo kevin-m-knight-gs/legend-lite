@@ -180,8 +180,11 @@ class SpiSeamProofTest {
      * through the seam (the production drop-in shape); most both-reject under
      * the extension-less vanilla baseline, +40 parse end-to-end.
      * 4,051 -> 6,540: the baseline loads the FULL extension set — every
-     * island-carrying file now byte-compares instead of both-rejecting. */
-    private static final int MIN_FILES_MATCHED = 6540;
+     * island-carrying file now byte-compares instead of both-rejecting.
+     * 6,540 -> 5,858: the corpus DEDUPES by exact text (Phase 6 manifest)
+     * — 682 of the matches were verbatim duplicates; the distinct
+     * coverage is unchanged. */
+    private static final int MIN_FILES_MATCHED = 5858;
 
     /** The attributed SPI-ACCEPTS census — files VANILLA rejects that we parse. Every
      *  one is (a) m3-only dialect the engine grammar never supported ('Primitive',
