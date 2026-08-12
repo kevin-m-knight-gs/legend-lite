@@ -1438,18 +1438,18 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 // side[srcSet, tgtSet] (probe xstore-ids)
                 advance();
                 String first = parseSetId();
-                if (peek() == TokenType.COMMA) {
-                    advance();
-                    srcId = first;
-                    tgtId = parseSetId();
-                } else {
-                    if (dialect.refusesPlatformDialect()) {
-                        // engine crossExpr requires BOTH ids: side[src, tgt]
-                        // (negative fixture engine-fixture#119)
-                        throw error("Unexpected token '" + safeText() + "'");
-                    }
-                    tgtId = first;
+                if (peek() != TokenType.COMMA) {
+                    // engine crossExpr requires BOTH ids: side[src, tgt]
+                    // (negative fixture engine-fixture#119). No m2 corpus
+                    // source, no engine test, and no own test writes a
+                    // single id (census 2026-08-12), so the old
+                    // platform-level tolerance had ZERO users: every
+                    // dialect refuses.
+                    throw error("Unexpected token '" + safeText() + "'");
                 }
+                advance();
+                srcId = first;
+                tgtId = parseSetId();
                 expect(TokenType.BRACKET_CLOSE);
             }
             expect(TokenType.COLON);
