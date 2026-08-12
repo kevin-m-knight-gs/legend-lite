@@ -52,6 +52,7 @@ public sealed interface ValueSpecification permits
         CInteger,
         CLatestDate,
         GraphFetchLiteral,
+        QuotedTreeCall,
         PathLiteral,
         SqlIsland,
         TdsLiteral,
@@ -84,6 +85,8 @@ public sealed interface ValueSpecification permits
         return switch (this) {
             case PathLiteral pl -> java.util.List.of(pl.desugared());
             case GraphFetchLiteral gf -> java.util.List.of(gf.desugared());
+            case QuotedTreeCall q ->
+                    java.util.List.of(q.original(), q.tree());
             case CBoolean ignored -> java.util.List.of();
             case CByteArray ignored -> java.util.List.of();
             case CDate ignored -> java.util.List.of();
@@ -137,6 +140,8 @@ public sealed interface ValueSpecification permits
                     pl.pos(), pl.literalLength());
             case GraphFetchLiteral gf -> new GraphFetchLiteral(gf.className(),
                     gf.subTrees(), cs.get(0), gf.unsupported(), gf.pos());
+            case QuotedTreeCall q -> new QuotedTreeCall(
+                    (AppliedFunction) cs.get(0), cs.get(1), q.pos());
             case CBoolean ignored -> this;
             case CDate ignored -> this;
             case CDecimal ignored -> this;

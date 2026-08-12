@@ -1127,7 +1127,12 @@ public final class SpecParser implements TokenStreamCursor {
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             // Top-level call: span = the function-name tokens (engine call convention).
-            return new AppliedFunction(fqn, args, java.util.List.of(), spanOf(fqnStart, fqnEnd));
+            AppliedFunction call = new AppliedFunction(fqn, args,
+                    java.util.List.of(), spanOf(fqnStart, fqnEnd));
+            // the quote/eval fold: compileLegendValueSpecification('literal')
+            // parses HERE — strings die at the parser (TreeLiterals)
+            ValueSpecification folded = TreeLiterals.foldQuoteEval(call);
+            return folded != null ? folded : call;
         }
         // Engine convention: a packageableElementPtr spans its FQN tokens.
         return new PackageableElementPtr(fqn, spanOf(fqnStart, fqnEnd));

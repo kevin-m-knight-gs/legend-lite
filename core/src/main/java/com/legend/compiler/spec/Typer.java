@@ -133,6 +133,11 @@ final class Typer {
                             "byte-array literals type only in service-test"
                                     + " parameters");
             case com.legend.protocol.spec.GraphFetchLiteral gf -> synth(gf.desugared(), env);
+            // the quote/eval carrier TYPES as the call it wraps (the
+            // engine's native is Any[1]; the ->cast supplies the type) —
+            // the TREE face is consumed by GraphFetchChecker only
+            case com.legend.protocol.spec.QuotedTreeCall q ->
+                    synth(q.original(), env);
             case com.legend.protocol.spec.TdsLiteral tl -> synth(tl.desugared(), env);
             case com.legend.protocol.spec.SqlIsland si ->
                     throw new com.legend.error.NotImplementedException(

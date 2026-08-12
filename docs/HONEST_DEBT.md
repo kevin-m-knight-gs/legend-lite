@@ -36,10 +36,13 @@ executes"). Caught by the user asking why a checker names a dialect at
 all; `ParserBoundaryArchTest` sanctions the file with a DEBT note so
 the violation can't spread.
 
-**Fix:** fold at the QUOTE boundary inside the parser — when SpecParser
-parses `compileLegendValueSpecification('<literal>')` (including
-foldable string concats), attach the parsed tree as a CARRIER on the
-node (exactly the `GraphFetchLiteral` two-faced pattern: verbatim wire
-emission, desugared tree for the pipeline). The checker then consumes a
-carrier field and never touches `com.legend.parser`.
+**Fix:** CLOSED 2026-08-12, same day — `QuotedTreeCall` (sealed spec
+variant): SpecParser folds `compileLegendValueSpecification('<literal>')`
+at the quote boundary via `TreeLiterals.foldQuoteEval` (LEGEND_ENGINE,
+the level the engine's `LegendCompile` routing implies); wire face =
+the original call byte-verbatim (the engine's wire carries the string
+opaque too — its native parses at RUNTIME), pipeline face = the parsed
+tree; typing/resolution delegate to the original (behavior identical);
+`GraphFetchChecker` reads `q.tree()` and left the arch-test sanctioned
+list — no checker touches `com.legend.parser` anymore.
 

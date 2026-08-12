@@ -58,14 +58,27 @@ final class HarnessSubstitution {
             return new CString("TDSNull");
         }
         return switch (v) {
+            // a folded quote/eval carrier is a CLOSED term (built from
+            // literals): nothing to substitute, and rebuilding would
+            // re-fold its own original
+            case com.legend.protocol.spec.QuotedTreeCall q -> q;
             // RECURSIVE: the pulled RHS may itself read lets bound earlier
             // (the per-driver loop's toSQLString($driver) — audit 19d B3
             // exposed the shallow pull when the K-native began TYPING what
             // the old harness arm resolved by hand)
             case Variable var when lets.containsKey(var.name()) ->
                     substitute(lets.get(var.name()), lets);
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    substituteAll(af.parameters(), lets));
+            case AppliedFunction af -> {
+                AppliedFunction sub = new AppliedFunction(af.function(),
+                        substituteAll(af.parameters(), lets));
+                // let-substitution is the moment a quote/eval argument can
+                // BECOME literal (the subType family's let-bound tree
+                // strings) — complete the parse-time fold right here, the
+                // same TreeLiterals front door and carrier as SpecParser
+                ValueSpecification folded =
+                        com.legend.parser.TreeLiterals.foldQuoteEval(sub);
+                yield folded != null ? folded : sub;
+            }
             case AppliedProperty ap3 -> {
                 ValueSpecification recv = substitute(ap3.receiver(), lets);
                 // pair(a, b).first/.second is a CONSTANT fold (real pure

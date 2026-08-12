@@ -2135,6 +2135,11 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CTime t -> literal(b, "strictTime",
                     quotedWritten(t.written(), "time literal"), t.pos());
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf);
+            // quote/eval carrier: the WIRE face is the original call —
+            // the string stays opaque on the wire, exactly as the engine
+            // (its native parses at runtime)
+            case com.legend.protocol.spec.QuotedTreeCall q ->
+                    valueSpec(b, q.original());
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
                 // The value is the SOURCE SPELLING, verbatim. DAY precision emits strictDate;
@@ -2255,6 +2260,8 @@ public final class ProtocolEmitter {
             // (caught by the harness on QueryWithLet).
             case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf, span);
+            case com.legend.protocol.spec.QuotedTreeCall q ->
+                    appliedFunction(b, q.original(), span);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl, span);
             case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, span);
             case com.legend.protocol.spec.TdsLiteral tl -> tdsLiteral(b, tl, span);

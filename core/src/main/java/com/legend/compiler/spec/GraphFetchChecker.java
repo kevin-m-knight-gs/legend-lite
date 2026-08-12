@@ -243,60 +243,14 @@ final class GraphFetchChecker {
             ValueSpecification inner = unwrapCompiledTree(c.parameters().get(0));
             return inner instanceof ColSpecArray ? inner : v;
         }
-        if (v instanceof AppliedFunction cf
-                && (cf.function().equals("compileLegendValueSpecification")
-                        || cf.function().equals(
-                                "meta::legend::compileLegendValueSpecification"))
-                && cf.parameters().size() == 1) {
-            String src = foldStringConcat(cf.parameters().get(0));
-            if (src != null) {
-                // the engine parses this string with its USER grammar —
-                // meta::legend::compileVS is LegendCompile.java:57,
-                // PureGrammarParser.parseModel("function a::f():Any[*]{"
-                // + code + "}") — the same quote/eval routing as
-                // compileLegendGrammar (TestBody's LEGEND_ENGINE seam)
-                ValueSpecification parsed =
-                        com.legend.parser.TreeLiterals.parseTree(src,
-                                com.legend.parser.Dialect.LEGEND_ENGINE);
-                if (parsed != null) {
-                    return parsed;
-                }
-            }
+        if (v instanceof com.legend.protocol.spec.QuotedTreeCall q) {
+            // the parse-time quote/eval fold (SpecParser via TreeLiterals):
+            // the carrier's pipeline face IS the parsed tree
+            return q.tree();
         }
         return v;
     }
 
-    /** Fold a literal string-concatenation chain ('a' + 'b' + ...) to its
-     * value, or null when any operand is not a literal string. */
-    private static @com.legend.Nullable String foldStringConcat(ValueSpecification v) {
-        if (v instanceof com.legend.protocol.spec.CString cs) {
-            return cs.value();
-        }
-        if (v instanceof AppliedFunction pf
-                && (pf.function().equals("plus")
-                        || pf.function().equals("meta::pure::functions::math::plus"))) {
-            StringBuilder sb = new StringBuilder();
-            for (ValueSpecification p : pf.parameters()) {
-                if (p instanceof com.legend.protocol.spec.PureCollection pc) {
-                    for (ValueSpecification e : pc.values()) {
-                        String part = foldStringConcat(e);
-                        if (part == null) {
-                            return null;
-                        }
-                        sb.append(part);
-                    }
-                    continue;
-                }
-                String part = foldStringConcat(p);
-                if (part == null) {
-                    return null;
-                }
-                sb.append(part);
-            }
-            return sb.toString();
-        }
-        return null;
-    }
 
     /** The nested sub-tree a colspec's {@code function2} wraps, or {@code null} for a leaf. */
     private static @com.legend.Nullable ColSpecArray nestedTree(ColSpec cs) {

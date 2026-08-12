@@ -1479,6 +1479,12 @@ public final class NameResolver {
                     resolveVs(tl.desugared(), scope);
             case com.legend.protocol.spec.GraphFetchLiteral gf ->
                     resolveVs(gf.desugared(), scope);
+            case com.legend.protocol.spec.QuotedTreeCall q ->
+                    new com.legend.protocol.spec.QuotedTreeCall(
+                            (com.legend.protocol.spec.AppliedFunction)
+                                    java.util.Objects.requireNonNull(
+                                            resolveVs(q.original(), scope)),
+                            q.tree(), q.pos());
             case PackageableElementPtr ptr -> {
                 String r = resolveName(ptr.fullPath(), scope);
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);

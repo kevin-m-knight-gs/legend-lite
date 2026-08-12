@@ -60,10 +60,19 @@ public final class SourceSubst {
         }
         return switch (v) {
             case Variable var -> env.getOrDefault(var.name(), var);
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    af.parameters().stream().map(p -> substitute(p, env))
-                            .toList(),
-                    af.candidateFqns());
+            case AppliedFunction af -> {
+                AppliedFunction sub = new AppliedFunction(af.function(),
+                        af.parameters().stream().map(p -> substitute(p, env))
+                                .toList(),
+                        af.candidateFqns());
+                // substitution is the moment a quote/eval argument can BECOME
+                // literal (let-bound tree strings, the subType family) —
+                // complete the parse-time fold right here, same front door,
+                // same carrier as SpecParser's own fold
+                ValueSpecification folded =
+                        com.legend.parser.TreeLiterals.foldQuoteEval(sub);
+                yield folded != null ? folded : sub;
+            }
             case AppliedProperty ap -> new AppliedProperty(
                     substitute(ap.receiver(), env), ap.property());
             case LambdaFunction lf -> {
@@ -95,6 +104,10 @@ public final class SourceSubst {
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
                     nc.typeArguments(), substitute(nc.src(), env),
                     nc.targetSetId());
+            // a folded quote/eval carrier is a CLOSED term (built from
+            // literals — no free variables); substituting through it would
+            // re-fold its own original
+            case com.legend.protocol.spec.QuotedTreeCall q -> q;
             // leaves pass; any composite not special-cased above recurses
             default -> v.mapChildren(x -> substitute(x, env));
         };

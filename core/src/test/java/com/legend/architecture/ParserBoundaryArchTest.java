@@ -38,14 +38,18 @@ class ParserBoundaryArchTest {
                             + " levels for whole-model compiles"),
             Map.entry("com/legend/builtin/Pure.java",
                     "the bootstrap loader — the one LEGEND_PLATFORM consumer"),
+            Map.entry("com/legend/compiler/spec/SourceSubst.java",
+                    "the let-inliner completes the quote/eval fold the"
+                            + " moment substitution makes the argument"
+                            + " literal — TreeLiterals front door, same"
+                            + " carrier as SpecParser's parse-time fold"),
+            Map.entry("com/legend/harness/HarnessSubstitution.java",
+                    "the harness inliner completes the quote/eval fold when"
+                            + " let-substitution makes the argument literal"
+                            + " — same front door and carrier as SpecParser"),
             Map.entry("com/legend/harness/TestBody.java",
                     "quote/eval natives (compileLegendGrammar) — the"
                             + " engine's LegendCompile equivalent"),
-            Map.entry("com/legend/compiler/spec/GraphFetchChecker.java",
-                    "DEBT: the compileLegendValueSpecification quote/eval"
-                            + " fold parses in a CHECKER; chartered fix ="
-                            + " parser-side carrier (the GraphFetchLiteral"
-                            + " pattern) — see HONEST_DEBT.md"),
             Map.entry("com/legend/ide/ModelIndex.java",
                     "the IDE incremental-parse orchestrator"),
             Map.entry("com/legend/ide/ModelIndexer.java",
