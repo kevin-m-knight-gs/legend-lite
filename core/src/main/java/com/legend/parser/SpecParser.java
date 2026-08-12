@@ -3070,10 +3070,20 @@ public final class SpecParser implements TokenStreamCursor {
             while (!atEnd() && peek() == TokenType.COMMA) {
                 pos++;
                 if (!atEnd() && peek() == TokenType.BRACE_CLOSE) {
-                    break; // trailing comma tolerated
+                    if (legendStrict) {
+                        // engine graphPaths has no trailing comma
+                        throw error("Unexpected token '}'");
+                    }
+                    break; // trailing comma tolerated (lite dialect)
                 }
                 specs.add(parseGraphPath(depth));
             }
+        }
+        if (specs.isEmpty() && legendStrict) {
+            // the engine's graphDefinition requires at least ONE path —
+            // an EMPTY #{Class{}}# body is a parse error (negative
+            // fixture engine-fixture#128, refusal at the '}')
+            throw error("Unexpected token '}'");
         }
         expect(TokenType.BRACE_CLOSE, "expected '}' to close graph-fetch body");
         return new ColSpecArray(specs);

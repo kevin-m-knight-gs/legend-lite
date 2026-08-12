@@ -1431,6 +1431,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     srcId = first;
                     tgtId = parseSetId();
                 } else {
+                    if (legendStrict) {
+                        // engine crossExpr requires BOTH ids: side[src, tgt]
+                        // (negative fixture engine-fixture#119)
+                        throw error("Unexpected token '" + safeText() + "'");
+                    }
                     tgtId = first;
                 }
                 expect(TokenType.BRACKET_CLOSE);
@@ -1445,13 +1450,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     break;
                 }
                 // ...or the head of the NEXT entry, when the comma that
-                // should separate them is missing. See the drain below.
+                // should separate them is missing. The engine REFUSES the
+                // missing comma (negative fixture engine-fixture#118) —
+                // the drop-in surface does too; lite's own dialect keeps
+                // the tolerant break.
                 if (depth == 0 && pos > exprStart && isIdentifierToken(t)
                         && (tokens.type(Math.min(pos + 1, tokens.count() - 1))
                                     == TokenType.BRACKET_OPEN
                                 || tokens.type(Math.min(pos + 1,
                                         tokens.count() - 1))
                                     == TokenType.COLON)) {
+                    if (legendStrict) {
+                        throw error("Unexpected token '" + safeText() + "'");
+                    }
                     break;
                 }
                 if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN

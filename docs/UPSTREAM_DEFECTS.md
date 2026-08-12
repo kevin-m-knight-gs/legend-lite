@@ -22,7 +22,7 @@ been filed upstream yet; both are open actions.
 | `TestProjectionCompilation.java#38` | `ClassBodyContext.properties()` NPE in the class-projection walker | m3 grammar has a projection rule — corroborated |
 | `TestPureRuntimeProjection.java#60` | same NPE, same walker | corroborated (same construct) |
 | `TestProfile.java#52` | `NumberFormatException: For input string "sers" under radix 16` — the unicode-escape reader consumes `\users` inside a string literal as `\u` + hex | the escape is legal text by both lite and m3 lexing |
-| `TestModelMapping.java#33` | walker crash (`please notify developer` family) | UNVERIFIED — needs a look |
+| `TestModelMapping.java#33` | the SAME `DomainParserGrammar` walker NPE family as the projection rows (`Cannot invoke ...DomainParserGrammar$...`, read 2026-08-12) | same construct family — corroborated with the projection rows |
 
 **Reproduce:** each row's id is a corpus source (manifest-pinned); run
 `ZOneOffProbe` with `-Dprobe.id=<id>` to see the engine's full exception
@@ -33,5 +33,4 @@ chain live.
    fixed upstream, the rows re-classify on the next oracle re-pin.
 2. File the projection-walker NPE and the unicode-escape crash upstream
    with the reproducers above.
-3. `TestModelMapping.java#33` has not had its crash read closely — do so
-   before defending the row.
+3. ~~`TestModelMapping.java#33` crash read~~ — done 2026-08-12: same NPE family as the projection rows.

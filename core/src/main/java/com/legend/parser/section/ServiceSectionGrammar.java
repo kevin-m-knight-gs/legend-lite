@@ -854,6 +854,11 @@ public final class ServiceSectionGrammar
                     }
                     case "keys" -> {
                         c.expect(TokenType.BRACKET_OPEN);
+                        if (c.peek() == TokenType.BRACKET_CLOSE) {
+                            // the engine's keys list requires at least ONE
+                            // entry (negative fixture engine-fixture#1490)
+                            throw c.error("Unexpected token ']'");
+                        }
                         while (c.peek() != TokenType.BRACKET_CLOSE) {
                             keys.add(stringValue(c));
                             if (!c.match(TokenType.COMMA)) {
@@ -1199,6 +1204,12 @@ public final class ServiceSectionGrammar
         }
         if (requireRuntime && runtime == null && embedded == null) {
             throw c.error("Field 'runtime' is required");
+        }
+        if (runtime == null && embedded == null && runtimeComponents == null) {
+            // the EE GRAMMAR itself requires runtime OR runtimeComponents
+            // — a mapping-only single is a parse error (negative fixture
+            // engine-fixture#1508, refusal at the '}')
+            throw c.error("Unexpected token '}'");
         }
         return new Protocol.PKeyedExecution(keyValue, mapping, mappingSpan,
                 runtime, runtimeSpan, embedded, runtimeComponents,
