@@ -219,7 +219,7 @@ final class ModelOrchestratorTest {
         // eager path produced.
         ModelOrchestrator orch = new ModelOrchestrator(SOURCE);
         LegacyMappingDefinition viaResolve = (LegacyMappingDefinition) orch.resolve("my::M");
-        LegacyMappingDefinition viaEager = (LegacyMappingDefinition) ElementParser.parsePlatform(SOURCE)
+        LegacyMappingDefinition viaEager = (LegacyMappingDefinition) ElementParser.parseLegendPlatform(SOURCE)
                 .elements().stream()
                 .filter(e -> e instanceof LegacyMappingDefinition m && m.qualifiedName().equals("my::M"))
                 .findFirst().orElseThrow();

@@ -42,7 +42,7 @@ class SectionGrammarRegistryTest {
         // file whose sections it cannot read — my::B would vanish and any
         // nonsense in the ###Diagram body would be swallowed.
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parseStrict(WITH_UNKNOWN_SECTION));
+                () -> ElementParser.parseLegendEngine(WITH_UNKNOWN_SECTION));
         assertTrue(e.getMessage().contains(
                         "'NoSuchSection' is not a known section parser"),
                 e.getMessage());
@@ -54,7 +54,7 @@ class SectionGrammarRegistryTest {
         // the sections we implement; legend-lite has to load them to compile
         // the parts it owns (refusing cost the relational corpus its whole
         // library layer). The skip is DATA, not silence.
-        ParsedModel m = ElementParser.parsePlatform(WITH_UNKNOWN_SECTION);
+        ParsedModel m = ElementParser.parseLegendPlatform(WITH_UNKNOWN_SECTION);
         assertEquals(2, m.elements().size(), "both Pure classes parse");
         assertEquals(1, m.unclaimedSections().size());
         assertEquals("NoSuchSection", m.unclaimedSections().get(0).name());
@@ -65,7 +65,7 @@ class SectionGrammarRegistryTest {
         // the whole Phase M point: a section legend-lite does not know,
         // added WITHOUT forking — ServiceLoader discovery, raw text in,
         // opaque elements out, claimed (not unclaimed)
-        ParsedModel m = ElementParser.parsePlatform("""
+        ParsedModel m = ElementParser.parseLegendPlatform("""
                 Class my::A { a: String[1]; }
 
                 ###Toy
@@ -93,7 +93,7 @@ class SectionGrammarRegistryTest {
         // There is no third state where we accept without reading.
         assertTrue(SectionGrammarRegistry.lookup("Toy").isPresent());
         assertTrue(SectionGrammarRegistry.lookup("NoSuchSection").isEmpty());
-        assertEquals(1, ElementParser.parsePlatform("Class my::A { a: String[1]; }")
+        assertEquals(1, ElementParser.parseLegendPlatform("Class my::A { a: String[1]; }")
                 .elements().size(), "a section-free file is unaffected");
     }
 }

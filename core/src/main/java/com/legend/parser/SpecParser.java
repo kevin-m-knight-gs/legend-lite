@@ -263,7 +263,7 @@ public final class SpecParser implements TokenStreamCursor {
      * source location.
      */
     public static ValueSpecification parse(TokenStream tokens) {
-        return parse(tokens, Dialect.PLATFORM);
+        return parse(tokens, Dialect.LEGEND_PLATFORM);
     }
 
     /** As {@link #parse(TokenStream)} with the parse mode carried through
@@ -302,7 +302,7 @@ public final class SpecParser implements TokenStreamCursor {
      * statement raise a fail-fast error.
      */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
-        return parseCodeBlock(tokens, "", Dialect.PLATFORM);
+        return parseCodeBlock(tokens, "", Dialect.LEGEND_PLATFORM);
     }
 
     /** As {@link #parseCodeBlock(TokenStream)} with the parse mode carried

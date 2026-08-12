@@ -166,7 +166,7 @@ public class PhaseHCensusTest {
             NormalizedModel normalized;
             PureModelContext ctx;
             try {
-                parsed = ElementParser.parsePlatform(fx.getValue());
+                parsed = ElementParser.parseLegendPlatform(fx.getValue());
                 normalized = ModelNormalizer.normalize(NameResolver.resolve(parsed));
                 ctx = PureModelContext.from(normalized);
             } catch (Exception e) {

@@ -67,7 +67,7 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        ParsedModel parsed = ElementParser.parsePlatform(model);
+        ParsedModel parsed = ElementParser.parseLegendPlatform(model);
         try {
             return buildModel(parsed);
         } catch (com.legend.error.ModelException e) {
@@ -143,7 +143,7 @@ public final class Compiler {
             sourceTexts.put(src.name(), src.text());
             ParsedModel unit;
             try {
-                unit = ElementParser.parsePlatform(src.text());
+                unit = ElementParser.parseLegendPlatform(src.text());
             } catch (com.legend.error.LegendCompileException e) {
                 if (parseWallSink == null) {
                     throw e;

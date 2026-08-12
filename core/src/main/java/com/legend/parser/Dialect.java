@@ -9,17 +9,17 @@ package com.legend.parser;
  * default a caller can grab by accident.
  *
  * <ol>
- *   <li>{@link #PLATFORM} — legend-lite's OWN legend-pure dialect (m3/m2:
+ *   <li>{@link #LEGEND_PLATFORM} — legend-lite's OWN legend-pure dialect (m3/m2:
  *       {@code #TDS}, {@code ^$x(...)}, {@code native}, generics,
  *       function-type literals, m2 mapping forms). Reachable ONLY from
  *       built-in/bootstrap/platform-source loading and the test harness —
  *       the analogue of legend-engine depending on precompiled legend-pure
  *       jars. Caller-whitelisted ({@code PlatformSurfaceGuardrailTest}).</li>
- *   <li>{@link #LEGEND} — user-facing EXACT legend-engine. The drop-in
+ *   <li>{@link #LEGEND_ENGINE} — user-facing EXACT legend-engine. The drop-in
  *       surface: PmcdParser, the SPI bridge, byte parity. Refuses BOTH the
  *       platform dialect and the lite extensions, with the engine's own
  *       messages.</li>
- *   <li>{@link #LEGEND_LITE} — {@link #LEGEND} plus the DECLARED lite
+ *   <li>{@link #LEGEND_LITE} — {@link #LEGEND_ENGINE} plus the DECLARED lite
  *       extensions (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN families:
  *       mapping-as-function, inline-association, json-column-get,
  *       sqlite-backend). The product surface for lite's users. Its whole
@@ -28,17 +28,17 @@ package com.legend.parser;
  * </ol>
  */
 public enum Dialect {
-    PLATFORM,
+    LEGEND_PLATFORM,
     LEGEND_LITE,
-    LEGEND;
+    LEGEND_ENGINE;
 
     /** The platform dialect (m3/m2 constructs) refuses here. */
     public boolean refusesPlatformDialect() {
-        return this != PLATFORM;
+        return this != LEGEND_PLATFORM;
     }
 
     /** The declared LITE-DESIGN extensions refuse here. */
     public boolean refusesLiteExtensions() {
-        return this == LEGEND;
+        return this == LEGEND_ENGINE;
     }
 }

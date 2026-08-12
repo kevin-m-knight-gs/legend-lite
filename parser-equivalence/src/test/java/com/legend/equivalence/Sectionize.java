@@ -66,7 +66,7 @@ final class Sectionize {
         try {
             var tokens = com.legend.lexer.Lexer.tokenize(text);
             headers = tokens.sectionHeaders();
-            pm = com.legend.parser.ElementParser.parsePlatform(tokens);
+            pm = com.legend.parser.ElementParser.parseLegendPlatform(tokens);
         } catch (Throwable t) {
             return null;
         }

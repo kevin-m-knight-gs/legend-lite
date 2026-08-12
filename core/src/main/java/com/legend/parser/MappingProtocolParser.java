@@ -78,7 +78,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  parser (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
             int sectionStartLine, int @com.legend.Nullable [] endOut) {
-        return parse(ts, tokenIndex, sectionStartLine, endOut, Dialect.PLATFORM);
+        return parse(ts, tokenIndex, sectionStartLine, endOut, Dialect.LEGEND_PLATFORM);
     }
 
     /** As above with the parse mode carried through
@@ -107,7 +107,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  {@code tokenIndex} (probe data-section). */
     public static Protocol.PDataElement parseData(TokenStream ts,
             int tokenIndex) {
-        return parseData(ts, tokenIndex, Dialect.PLATFORM);
+        return parseData(ts, tokenIndex, Dialect.LEGEND_PLATFORM);
     }
 
     /** As above with the parse mode carried through

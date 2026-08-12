@@ -198,7 +198,7 @@ public interface TokenStreamCursor {
      *  ({@link Dialect}); the default is the PLATFORM superset —
      *  dialect-carrying parsers override. */
     default Dialect dialect() {
-        return Dialect.PLATFORM;
+        return Dialect.LEGEND_PLATFORM;
     }
 
     /** Token texts {@code [fromTok, toTok]} joined with NO separators —

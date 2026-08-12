@@ -52,13 +52,13 @@ class ZAuditBisectProbe {
                 continue;               // named refusals: already adjudicated
             }
             try {
-                com.legend.parser.ElementParser.parsePlatform(src.text());
+                com.legend.parser.ElementParser.parseLegendPlatform(src.text());
             } catch (Throwable ours) {
                 continue;               // both fail — not a leniency row
             }
             String strictVerdict;
             try {
-                com.legend.parser.ElementParser.parseStrict(src.text());
+                com.legend.parser.ElementParser.parseLegendEngine(src.text());
                 strictVerdict = "strict-accepts";
             } catch (Throwable t) {
                 String sm = String.valueOf(t.getMessage());

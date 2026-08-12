@@ -53,7 +53,7 @@ class ZFixtureAdjudicationProbe {
             } catch (Throwable t) {
                 boolean liteAccepts;
                 try {
-                    com.legend.parser.ElementParser.parsePlatform(src);
+                    com.legend.parser.ElementParser.parseLegendPlatform(src);
                     liteAccepts = true;
                 } catch (Throwable lt) {
                     liteAccepts = false;
@@ -97,7 +97,7 @@ class ZFixtureAdjudicationProbe {
             // model path SEPARATELY — its refusals are lite's COMPILE
             // stage, adjudicated against the engine's compile verdicts
             try {
-                com.legend.parser.ElementParser.parsePlatform(src);
+                com.legend.parser.ElementParser.parseLegendPlatform(src);
             } catch (Throwable t) {
                 verdicts.merge("MODEL-PATH-refuses", 1, Integer::sum);
                 // STILL byte-compare the protocol parse — the engine also

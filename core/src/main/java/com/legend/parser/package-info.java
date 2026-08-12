@@ -14,8 +14,8 @@
  *
  * <h2>Public surface</h2>
  * <pre>
- *   ParsedModel model = ElementParser.parsePlatform(pureSource);   // text overload
- *   ParsedModel model = ElementParser.parsePlatform(tokenStream);  // pre-lexed overload
+ *   ParsedModel model = ElementParser.parseLegendPlatform(pureSource);   // text overload
+ *   ParsedModel model = ElementParser.parseLegendPlatform(tokenStream);  // pre-lexed overload
  * </pre>
  *
  * <h2>Records</h2>

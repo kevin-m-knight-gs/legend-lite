@@ -31,17 +31,14 @@ class PlatformSurfaceGuardrailTest {
 
     private static final Set<String> WHITELIST = Set.of(
             // platform/bootstrap loading and internal pipeline
-            "com/legend/Compiler.java",
             "com/legend/builtin/Pure.java",
             "com/legend/parser/ElementParser.java",
             "com/legend/parser/package-info.java",   // javadoc mention
             // the test harness IS platform-side (it loads platform sources)
             "com/legend/harness/TestBody.java",
-            // FROZEN AT INTRODUCTION — migration candidates to
-            // parseLegendLite, each its own reviewed batch:
-            "com/legend/server/PureLspServer.java",
-            "com/legend/server/DiagramService.java",
-            "com/legend/server/ConnectionResolver.java");
+            // (servers MIGRATED to parseLegendLite 2026-08-12; the
+            // Compiler user path is the remaining migration candidate)
+            "com/legend/Compiler.java");
 
     @Test
     void platformSurfaceCallersAreWhitelisted() throws IOException {
@@ -53,7 +50,7 @@ class PlatformSurfaceGuardrailTest {
                     .filter(p -> {
                         try {
                             return Files.readString(p)
-                                    .contains("parsePlatform(");
+                                    .contains("parseLegendPlatform(");
                         } catch (IOException e) {
                             throw new java.io.UncheckedIOException(e);
                         }

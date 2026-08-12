@@ -820,7 +820,7 @@ public final class TestBody {
         }
         List<com.legend.model.FunctionDefinition> fns = new ArrayList<>();
         for (com.legend.model.PackageableElement el
-                : com.legend.parser.ElementParser.parsePlatform(src).elements()) {
+                : com.legend.parser.ElementParser.parseLegendPlatform(src).elements()) {
             if (el instanceof com.legend.model.FunctionDefinition fd) {
                 fns.add(fd);
             }

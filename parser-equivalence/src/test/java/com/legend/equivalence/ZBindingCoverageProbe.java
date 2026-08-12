@@ -38,7 +38,7 @@ class ZBindingCoverageProbe {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parsePlatform(src.text());
+                com.legend.parser.ElementParser.parseLegendPlatform(src.text());
             } catch (Throwable lite) {
                 liteRefusesOfAccepted++;
                 String msg = String.valueOf(lite.getMessage())

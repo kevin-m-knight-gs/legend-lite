@@ -171,7 +171,7 @@ public class CorpusSweepTest {
                 // CLAIM 2a: the MODEL transform reads every accepted
                 // source (compile-seam family excepted, BY ID)
                 try {
-                    com.legend.parser.ElementParser.parsePlatform(src.text());
+                    com.legend.parser.ElementParser.parseLegendPlatform(src.text());
                 } catch (Throwable t) {
                     if (!modelRefuseAllow.containsKey(src.id())) {
                         modelRefuse.add(src.id() + " :: "
@@ -207,9 +207,9 @@ public class CorpusSweepTest {
             boolean docAccepts = accepts(() -> com.legend.parser.PmcdParser
                     .parseDocument(src.text()));
             boolean strictAccepts = accepts(() -> com.legend.parser
-                    .ElementParser.parseStrict(src.text()));
+                    .ElementParser.parseLegendEngine(src.text()));
             boolean lenientAccepts = accepts(() -> com.legend.parser
-                    .ElementParser.parsePlatform(src.text()));
+                    .ElementParser.parseLegendPlatform(src.text()));
             boolean pureOnly = !SECTION.matcher(src.text()).find();
 
             if (!docAccepts && !strictAccepts) {
@@ -348,7 +348,7 @@ public class CorpusSweepTest {
         String msg = String.valueOf(root.getMessage());
         if ("Unexpected token".equals(msg.trim())) {
             try {
-                com.legend.parser.ElementParser.parseStrict(text);
+                com.legend.parser.ElementParser.parseLegendEngine(text);
                 return "VERSION-SKEW-grammar";
             } catch (Throwable strict) {
                 String sm = String.valueOf(strict.getMessage());

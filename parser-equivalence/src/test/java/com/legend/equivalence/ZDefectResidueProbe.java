@@ -44,13 +44,13 @@ class ZDefectResidueProbe {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parsePlatform(src.text());
+                com.legend.parser.ElementParser.parseLegendPlatform(src.text());
             } catch (Throwable ours) {
                 continue;               // both fail — not a leniency row
             }
             String verdict;
             try {
-                com.legend.parser.ElementParser.parseStrict(src.text());
+                com.legend.parser.ElementParser.parseLegendEngine(src.text());
                 verdict = "STRICT-ACCEPTS";
                 accepts++;
                 if (accepts <= 12) {

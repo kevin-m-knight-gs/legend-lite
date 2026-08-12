@@ -58,12 +58,12 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn) {
-        this(tokens, pos, dbFqn, null, Dialect.PLATFORM);
+        this(tokens, pos, dbFqn, null, Dialect.LEGEND_PLATFORM);
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
             @com.legend.Nullable ScopeCtx scope) {
-        this(tokens, pos, dbFqn, scope, Dialect.PLATFORM);
+        this(tokens, pos, dbFqn, scope, Dialect.LEGEND_PLATFORM);
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
@@ -108,7 +108,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     static Protocol.PRelOp operationAt(TokenStream ts, int start,
             String dbFqn, String schemaCtx, int[] posOut) {
         return operationAt(ts, start, dbFqn, schemaCtx, posOut,
-                Dialect.PLATFORM);
+                Dialect.LEGEND_PLATFORM);
     }
 
     static Protocol.PRelOp operationAt(TokenStream ts, int start,
@@ -132,7 +132,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
             int @com.legend.Nullable [] endOut) {
-        return parse(ts, tokenIndex, endOut, Dialect.PLATFORM);
+        return parse(ts, tokenIndex, endOut, Dialect.LEGEND_PLATFORM);
     }
 
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,

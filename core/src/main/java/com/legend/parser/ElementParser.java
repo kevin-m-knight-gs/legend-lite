@@ -38,8 +38,8 @@ import java.util.Objects;
  *
  * <h2>Usage</h2>
  * <pre>
- *   ParsedModel model = ElementParser.parsePlatform(pureSource);    // text overload
- *   ParsedModel model = ElementParser.parsePlatform(tokenStream);   // pre-lexed overload
+ *   ParsedModel model = ElementParser.parseLegendPlatform(pureSource);    // text overload
+ *   ParsedModel model = ElementParser.parseLegendPlatform(tokenStream);   // pre-lexed overload
  * </pre>
  *
  * <h2>Status (Phase B.4a)</h2>
@@ -153,7 +153,7 @@ public final class ElementParser implements TokenStreamCursor {
     /** Grammar-section parsers sharing this parser's cursor and scope state. */
 
     ElementParser(TokenStream tokens) {
-        this(tokens, Dialect.PLATFORM);
+        this(tokens, Dialect.LEGEND_PLATFORM);
     }
 
     ElementParser(TokenStream tokens, Dialect dialect) {
@@ -162,7 +162,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** Embedded-island reparse form: spans map through walker offsets. */
     ElementParser(TokenStream tokens, int islandLineOffset, int islandColOffset) {
-        this(tokens, islandLineOffset, islandColOffset, Dialect.PLATFORM);
+        this(tokens, islandLineOffset, islandColOffset, Dialect.LEGEND_PLATFORM);
     }
 
     ElementParser(TokenStream tokens, int islandLineOffset,
@@ -202,7 +202,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     public static ElementParser at(TokenStream tokens, int tokenIndex) {
         // the drop-in surface
-        ElementParser p = new ElementParser(tokens, Dialect.LEGEND);
+        ElementParser p = new ElementParser(tokens, Dialect.LEGEND_ENGINE);
         p.pos = tokenIndex;
 
         return p;
@@ -254,14 +254,14 @@ public final class ElementParser implements TokenStreamCursor {
      * (PlatformSurfaceGuardrailTest); user entries route through
      * {@link #parseLegendLite} or {@link #parseStrict}.
      */
-    public static ParsedModel parsePlatform(String source) {
-        return parsePlatform(Lexer.tokenize(
+    public static ParsedModel parseLegendPlatform(String source) {
+        return parseLegendPlatform(Lexer.tokenize(
                 Objects.requireNonNull(source, "source")));
     }
 
     /** Parse a pre-lexed token stream into a {@link ParsedModel}
-     *  (PLATFORM dialect — see {@link #parsePlatform(String)}). */
-    public static ParsedModel parsePlatform(TokenStream tokens) {
+     *  (PLATFORM dialect — see {@link #parseLegendPlatform(String)}). */
+    public static ParsedModel parseLegendPlatform(TokenStream tokens) {
         return new ElementParser(Objects.requireNonNull(tokens, "tokens")).parseModel();
     }
 
@@ -277,10 +277,10 @@ public final class ElementParser implements TokenStreamCursor {
     /** The ENGINE-STRICT full parse — the drop-in/rejection-parity surface: everything
      *  {@link #parse(String)} accepts EXCEPT the constructs engine's PureGrammarParser
      *  refuses (see {@code dialect.refusesPlatformDialect()}). */
-    public static ParsedModel parseStrict(String source) {
+    public static ParsedModel parseLegendEngine(String source) {
         return new ElementParser(
                 Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                Dialect.LEGEND).parseModel();
+                Dialect.LEGEND_ENGINE).parseModel();
     }
 
     /**
