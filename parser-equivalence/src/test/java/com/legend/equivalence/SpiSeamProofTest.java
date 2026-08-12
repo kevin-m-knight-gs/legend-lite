@@ -103,10 +103,10 @@ class SpiSeamProofTest {
                 asymmetric.add("SPI-REJECTS " + src.id() + " :: " + trim(t.getMessage()));
                 continue;
             }
-            if (vanillaJson.equals(spiJson)) {
+            if (Comparators.sameBytes(vanillaJson, spiJson)) {
                 match++;
-            } else if (spiJson.equals(mapper.writeValueAsString(mapper.readTree(vanillaJson)
-                    .traverse(mapper).readValueAs(PureModelContextData.class)))) {
+            } else if (Comparators.engineSerializeOnlyDelta(mapper,
+                    vanillaJson, spiJson)) {
                 // the ENGINE'S OWN JSON round-trip (readTree -> protocol -> serialize)
                 // produces OUR bytes: the delta is an engine serialize-only field (e.g.
                 // ColSpec classInstance multiplicity), invisible to every JSON-first

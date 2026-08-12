@@ -57,7 +57,7 @@ class PmcdEquivalenceTest {
                         1, Integer::sum);
                 continue;
             }
-            if (expected.equals(actual)) {
+            if (Comparators.sameBytes(expected, actual)) {
                 match++;
             } else {
                 diffs.add(src.id() + " :: "

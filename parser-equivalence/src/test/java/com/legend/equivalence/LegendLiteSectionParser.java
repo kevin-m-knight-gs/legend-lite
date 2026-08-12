@@ -83,7 +83,12 @@ final class LegendLiteSectionParser {
             } else if (p.endsWith("::")) {
                 p = p.substring(0, p.length() - 2);
             }
-            out.imports.add(p);
+            // QUOTED segments unquote on the wire (import a::'b c'::* ->
+            // "a::b c", the vanilla engine's bytes) — the bridge's local
+            // loop had dropped Protocol.unquotePath
+            // (HARNESS_SIMPLIFICATION_PLAN 5e, a live byte bug no corpus
+            // file exercised)
+            out.imports.add(com.legend.protocol.Protocol.unquotePath(p));
         }
 
         // ENGINE PARITY: the Legend flavor refuses native functions ('Unsupported
