@@ -31,14 +31,21 @@ class PlatformSurfaceGuardrailTest {
 
     private static final Set<String> WHITELIST = Set.of(
             // platform/bootstrap loading and internal pipeline
-            "com/legend/builtin/Pure.java",
             "com/legend/parser/ElementParser.java",
+            "com/legend/parser/Dialect.java",
+            // parser-package INTERNALS: the pure-mode DEFAULT constant in
+            // ctor chains and the cursor interface — machinery, not
+            // consumers (each names LEGEND_PLATFORM as a default value)
+            "com/legend/parser/TokenStreamCursor.java",
+            "com/legend/parser/DatabaseProtocolParser.java",
+            "com/legend/parser/MappingProtocolParser.java",
+            "com/legend/parser/SpecParser.java",
             // (TestBody left the whitelist 2026-08-12: its ONLY platform
             // call was the compileLegendGrammar payload seam, now
             // LEGEND_ENGINE — matching the engine's own architecture)
-            // (servers MIGRATED to parseLegendLite 2026-08-12; the
-            // Compiler user path is the remaining migration candidate)
-            "com/legend/Compiler.java");
+            // (servers AND the Compiler migrated to parseLegendLite
+            // 2026-08-12 — the platform surface is bootstrap-only now)
+            "com/legend/builtin/Pure.java");
 
     @Test
     void platformSurfaceCallersAreWhitelisted() throws IOException {
@@ -49,8 +56,9 @@ class PlatformSurfaceGuardrailTest {
                     .filter(p -> p.toString().endsWith(".java"))
                     .filter(p -> {
                         try {
-                            return Files.readString(p)
-                                    .contains("parseLegendPlatform(");
+                            String t = Files.readString(p);
+                            return t.contains("parseLegendPlatform(")
+                                    || t.contains("Dialect.LEGEND_PLATFORM");
                         } catch (IOException e) {
                             throw new java.io.UncheckedIOException(e);
                         }

@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping funding::FundingMapping
 (
     funding::CashFlow: Relational {

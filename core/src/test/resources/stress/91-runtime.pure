@@ -1,3 +1,5 @@
+
+###Connection
 RelationalDatabaseConnection store::Conn
 {
     type: DuckDB;
@@ -5,6 +7,8 @@ RelationalDatabaseConnection store::Conn
     auth: Test;
 }
 
+
+###Runtime
 Runtime stress::RT
 {
     mappings:

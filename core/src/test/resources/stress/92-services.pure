@@ -1,6 +1,8 @@
 // Stress test queries as portable Service definitions.
 // Any legend-engine compatible engine can load these and execute them.
 
+
+###Service
 Service stress::Q0_TradeInstrSectorCptyTraderBook
 {
     pattern: '/stress/q0';

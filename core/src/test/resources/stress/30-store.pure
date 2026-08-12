@@ -2,6 +2,8 @@
 // Engine-lite silently UNIONED same-named Database declarations across
 // sources; real Legend (and core) treats a duplicate FQN as an error,
 // so the tables/joins live in this single declaration.
+
+###Relational
 Database store::DB
 (
     // ---- from 31-products-store.pure ----

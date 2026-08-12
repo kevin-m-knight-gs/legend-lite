@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping accounting::AccountingMapping
 (
     accounting::JournalEntry: Relational {

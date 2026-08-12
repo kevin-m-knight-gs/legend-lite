@@ -240,7 +240,9 @@ public final class Runner {
                         "setup-" + (i++) + ".pure", src));
             }
             setupUniverseCtx = com.legend.Compiler.buildModule(
-                    com.legend.Compiler.parseSources(sources).model()).context();
+                    com.legend.Compiler.parseSources(sources, null,
+                            com.legend.parser.Dialect.LEGEND_PLATFORM)
+                            .model()).context();
             setupUniverseSize = setupUniverse.size();
         }
         return setupUniverseCtx;
@@ -1519,7 +1521,8 @@ public final class Runner {
         }
         globalParsed = com.legend.Compiler.parseSources(sources,
                 (name, err) -> parseWalls.add(name + " => " + err
-                        + wallContext(byName.get(name), err)));
+                        + wallContext(byName.get(name), err)),
+                com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (!parseWalls.isEmpty()) {
             throw new IllegalStateException(
                     "corpus parse walls (expected ZERO): " + parseWalls);

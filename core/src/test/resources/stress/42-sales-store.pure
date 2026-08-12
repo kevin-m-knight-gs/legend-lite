@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping sales::SalesMapping
 (
     sales::SalesCredit: Relational {

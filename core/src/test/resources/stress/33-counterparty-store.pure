@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping counterparty::CounterpartyMapping
 (
     counterparty::Counterparty: Relational {

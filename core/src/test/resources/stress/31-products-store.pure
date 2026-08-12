@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping products::ProductsMapping
 (
     products::Instrument: Relational {

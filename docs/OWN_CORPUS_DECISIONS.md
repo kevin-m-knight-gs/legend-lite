@@ -298,3 +298,15 @@ it is the engine-parity migration path for `->get()` (row class 7).
   optional final `;` in multi-statement bodies is still ACCEPTED by
   the lenient parser — tests were conformed, the tolerance itself was
   not removed). The strict flip adjudicates the tier wholesale.
+
+## 11. LITE-DESIGN-function-types-generics — declared 2026-08-12
+
+Higher-order function-type literals (`{Integer[1]->Integer[1]}`) and
+type/multiplicity parameters (generics) on declarations. The engine's own
+refusal message is "is not supported **yet**" — reserved-but-unbuilt
+grammar; lite's type checker supports the constructs end-to-end
+(CompileFunctionTest, UserFunctionIntegrationTest). Declared as the fifth
+LITE-DESIGN family after the own-dialect census (2026-08-12: the ENTIRE
+compiler-reachable census was this one family — 11 rows). Parses at
+LEGEND_LITE; LEGEND_ENGINE refuses with the engine's own messages.
+Extension tests are whitelisted and asserted in OwnDialectCensusTest.

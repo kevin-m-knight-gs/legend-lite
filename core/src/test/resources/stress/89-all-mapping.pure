@@ -4,6 +4,8 @@
 // runtime's mapping list; real Legend (and core) resolves association
 // bindings through the INCLUDE closure, so the bindings live where
 // both end classes are visible.
+
+###Mapping
 Mapping stress::AllMapping
 (
     include products::ProductsMapping

@@ -265,6 +265,16 @@ public final class ElementParser implements TokenStreamCursor {
         return new ElementParser(Objects.requireNonNull(tokens, "tokens")).parseModel();
     }
 
+    /** DIALECT-EXPLICIT parse — the caller NAMES the level (provenance
+     *  routing); there is no default. Naming LEGEND_PLATFORM in
+     *  production code trips the guardrail like calling
+     *  parseLegendPlatform does. */
+    public static ParsedModel parse(String source, Dialect dialect) {
+        return new ElementParser(Lexer.tokenize(
+                Objects.requireNonNull(source, "source")),
+                Objects.requireNonNull(dialect, "dialect")).parseModel();
+    }
+
     /** The PRODUCT surface ({@link Dialect#LEGEND_LITE}): exact
      *  legend-engine plus the DECLARED lite extensions
      *  (OWN_CORPUS_DECISIONS LITE-DESIGN families) — nothing else. */
@@ -725,7 +735,7 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement databaseElement() {
         int[] endOut = new int[1];
         com.legend.protocol.Protocol.PDatabase db =
-                DatabaseProtocolParser.parse(tokens, pos, endOut);
+                DatabaseProtocolParser.parse(tokens, pos, endOut, dialect);
         pos = endOut[0];
         return com.legend.model.FromProtocol.toDatabaseDefinition(db);
     }
@@ -821,8 +831,10 @@ public final class ElementParser implements TokenStreamCursor {
         String qualifiedName = parseQualifiedName();
 
         List<String> typeParams = parseClassTypeParams();
-        if (dialect.refusesPlatformDialect() && !typeParams.isEmpty()) {
-            // engine-verbatim (dialect quarantine): pure mode keeps them
+        if (dialect.refusesLiteExtensions() && !typeParams.isEmpty()) {
+            // DECLARED extension LITE-DESIGN-function-types-generics
+            // (OWN_CORPUS_DECISIONS §11): LEGEND_LITE parses generics,
+            // the exact-engine surface refuses engine-verbatim
             throw error("Type and/or multiplicity parameters are not"
                     + " authorized in Legend Engine");
         }
@@ -1440,8 +1452,9 @@ public final class ElementParser implements TokenStreamCursor {
         List<String> typeParams = new ArrayList<>();
         List<String> multParams = new ArrayList<>();
         parseTypeAndMultiplicityParameters(typeParams, multParams);
-        if (dialect.refusesPlatformDialect() && (!typeParams.isEmpty() || !multParams.isEmpty())) {
-            // engine-verbatim (dialect quarantine): pure mode keeps them
+        if (dialect.refusesLiteExtensions() && (!typeParams.isEmpty() || !multParams.isEmpty())) {
+            // DECLARED extension LITE-DESIGN-function-types-generics
+            // (OWN_CORPUS_DECISIONS §11)
             throw error("Type and/or multiplicity parameters are not"
                     + " authorized in Legend Engine");
         }

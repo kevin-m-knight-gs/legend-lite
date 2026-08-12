@@ -67,7 +67,7 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        ParsedModel parsed = ElementParser.parseLegendPlatform(model);
+        ParsedModel parsed = ElementParser.parseLegendLite(model);
         try {
             return buildModel(parsed);
         } catch (com.legend.error.ModelException e) {
@@ -130,6 +130,16 @@ public final class Compiler {
      */
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.Nullable BiConsumer<String, String> parseWallSink) {
+        return parseSources(sources, parseWallSink,
+                com.legend.parser.Dialect.LEGEND_LITE);
+    }
+
+    /** As above, DIALECT-EXPLICIT: the caller declares its sources'
+     *  provenance level (the corpus runner's m2 corpus is
+     *  LEGEND_PLATFORM; user batches are LEGEND_LITE). */
+    public static ParsedModule parseSources(List<ModelSource> sources,
+            java.util.function.@com.legend.Nullable BiConsumer<String, String> parseWallSink,
+            com.legend.parser.Dialect dialect) {
         Objects.requireNonNull(sources, "sources");
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
         java.util.Map<String, Integer> offsets = new java.util.HashMap<>();
@@ -143,7 +153,7 @@ public final class Compiler {
             sourceTexts.put(src.name(), src.text());
             ParsedModel unit;
             try {
-                unit = ElementParser.parseLegendPlatform(src.text());
+                unit = ElementParser.parse(src.text(), dialect);
             } catch (com.legend.error.LegendCompileException e) {
                 if (parseWallSink == null) {
                     throw e;

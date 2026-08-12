@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping risk::RiskMapping
 (
     risk::VaRResult: Relational {

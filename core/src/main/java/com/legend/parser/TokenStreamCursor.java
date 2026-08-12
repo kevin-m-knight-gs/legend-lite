@@ -1119,9 +1119,11 @@ public interface TokenStreamCursor {
         TypeExpression resultType = parseType();
         Multiplicity resultMult = parseMultiplicity();
         expect(TokenType.BRACE_CLOSE);
-        if (legendStrict()) {
-            // engine-verbatim refusal (dialect quarantine): function-type
-            // literals are pure-dialect only
+        if (dialect().refusesLiteExtensions()) {
+            // DECLARED extension LITE-DESIGN-function-types-generics
+            // (OWN_CORPUS_DECISIONS §11): the engine's own message says
+            // "yet" — LEGEND_LITE parses what lite's type checker fully
+            // supports; the exact-engine surface refuses engine-verbatim
             throw error("The type " + compactText(startTok, pos() - 1)
                     + " is not supported yet");
         }

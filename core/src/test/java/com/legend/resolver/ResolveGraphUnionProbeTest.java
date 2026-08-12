@@ -38,6 +38,7 @@ class ResolveGraphUnionProbeTest {
             Class g::Address { name: String[1]; }
             Association g::FP { firm: g::Firm[0..1]; employees: g::Person[*]; }
             Association g::PA { resident: g::Person[0..1]; address: g::Address[0..1]; }
+            ###Relational
             Database g::DB (
               Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
               Table F2 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
@@ -54,6 +55,7 @@ class ResolveGraphUnionProbeTest {
               Join P2_A1 (P2.AID = A1.ID)
               Join P2_A2 (P2.AID = A2.ID)
             )
+            ###Mapping
             Mapping g::M (
               *g::Firm : Operation { %s(f1, f2) }
               *g::Person : Operation { %s(p1, p2) }
@@ -77,6 +79,7 @@ class ResolveGraphUnionProbeTest {
               g::Address[a1] : Relational { ~mainTable [g::DB] A1 name: A1.NAME }
               g::Address[a2] : Relational { ~mainTable [g::DB] A2 name: A2.NAME }
             )
+            ###Runtime
             Runtime g::RT { mappings: [g::M]; }
             """).formatted(UNION_FQN, UNION_FQN, UNION_FQN);
 
@@ -110,6 +113,7 @@ class ResolveGraphUnionProbeTest {
             Class g::Firm { legalName: String[1]; }
             Class g::Person { lastName: String[1]; }
             Association g::FP { firm: g::Firm[0..1]; employees: g::Person[*]; }
+            ###Relational
             Database g::DB (
               Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
               Table F2 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(200))
@@ -117,6 +121,7 @@ class ResolveGraphUnionProbeTest {
               Join F1_P1 (F1.ID = P1.FID)
               Join F2_P1 (F2.ID = P1.FID)
             )
+            ###Mapping
             Mapping g::M2 (
               *g::Firm : Operation { %s(f1, f2) }
               g::Firm[f1] : Relational { ~mainTable [g::DB] F1
@@ -128,6 +133,7 @@ class ResolveGraphUnionProbeTest {
               g::Person[p1] : Relational { ~mainTable [g::DB] P1
                 lastName: P1.NAME }
             )
+            ###Runtime
             Runtime g::RT2 { mappings: [g::M2]; }
             """).formatted(UNION_FQN);
 
@@ -135,6 +141,7 @@ class ResolveGraphUnionProbeTest {
             Class g::Trade { tradeId: Integer[1]; }
             Class g::Product { productId: String[1]; productName: String[1]; }
             Association g::TP { trade: g::Trade[0..1]; product: g::Product[0..1]; }
+            ###Relational
             Database g::DB3 (
               Table T1 (tradeId INTEGER PRIMARY KEY, productId VARCHAR(200))
               Table T2 (tradeId INTEGER PRIMARY KEY, productId VARCHAR(200))
@@ -143,6 +150,7 @@ class ResolveGraphUnionProbeTest {
               Join trade_product (PR1.productId = T1.productId)
               Join trade2_product2 (PR2.productId = T2.productId)
             )
+            ###Mapping
             Mapping g::M3 (
               *g::Trade : Operation { %s(t1, t2) }
               *g::Product : Operation { %s(p1, p2) }
@@ -160,6 +168,7 @@ class ResolveGraphUnionProbeTest {
                 productId: PR2.productId,
                 productName: PR2.NAME }
             )
+            ###Runtime
             Runtime g::RT3 { mappings: [g::M3]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
@@ -186,6 +195,7 @@ class ResolveGraphUnionProbeTest {
             Class g::MOrder { oid: Integer[1]; }
             Class g::MProduct { pname: String[1]; }
             Association g::OP { order: g::MOrder[0..1]; product: g::MProduct[*]; }
+            ###Relational
             Database g::DB5 (
               Table OT1 (oid INTEGER PRIMARY KEY, pfk INTEGER)
               Table OT2 (oid INTEGER PRIMARY KEY, pfk INTEGER)
@@ -196,6 +206,7 @@ class ResolveGraphUnionProbeTest {
               Join O2_P1 (OT2.pfk = PT1.pid)
               Join O2_P2 (OT2.pfk = PT2.pid)
             )
+            ###Mapping
             Mapping g::M5 (
               *g::MOrder : Operation { %s(o1, o2) }
               *g::MProduct : Operation { %s(p1, p2) }
@@ -212,6 +223,7 @@ class ResolveGraphUnionProbeTest {
               g::MProduct[p2] : Relational { ~mainTable [g::DB5] PT2
                 pname: PT2.pname }
             )
+            ###Runtime
             Runtime g::RT5 { mappings: [g::M5]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
@@ -219,6 +231,7 @@ class ResolveGraphUnionProbeTest {
             Class g::NOrder { oid: Integer[1]; }
             Class g::NProduct { pname: String[1]; }
             Association g::NOP { order: g::NOrder[0..1]; product: g::NProduct[0..1]; }
+            ###Relational
             Database g::DB7 (
               Table NOT1 (oid INTEGER PRIMARY KEY)
               Table NOT2 (oid INTEGER PRIMARY KEY, pfk INTEGER)
@@ -226,6 +239,7 @@ class ResolveGraphUnionProbeTest {
               Table NPT2 (pid INTEGER PRIMARY KEY, pname VARCHAR(200))
               Join N_OP (NOT2.pfk = NPT2.pid)
             )
+            ###Mapping
             Mapping g::M7 (
               *g::NOrder : Operation { %s(no1, no2) }
               g::NOrder[no1] : Relational { ~mainTable [g::DB7] NOT1
@@ -238,6 +252,7 @@ class ResolveGraphUnionProbeTest {
               g::NProduct[np2] : Relational { ~mainTable [g::DB7] NPT2
                 pname: NPT2.pname }
             )
+            ###Runtime
             Runtime g::RT7 { mappings: [g::M7]; }
             """).formatted(UNION_FQN);
 

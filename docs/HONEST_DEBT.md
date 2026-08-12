@@ -16,6 +16,8 @@ argument linked — never by silence.
 | 7 | Loose threads: stale rejection pin, gate budget, M3 calibration, C6 staleness, moving denominators | PARTLY FIXED — stale pin now NAMED in the report; M3 calibration SELF-MEASURED every run (≥95% gate); manifest pins denominators going forward | C6 re-harvest cadence undefined (GATES.md budget entry landed 2026-08-12 with the sweep) |
 | 8 | `engine-fixture#505` message anomaly | RESOLVED — the message is the ENGINE's own walker text; the row was a real lite leniency, burned engine-verbatim | — |
 
+| 9 | Parser-internal PLATFORM defaults (added 2026-08-12): `SpecParser.parse(tokens)`, `DatabaseProtocolParser`/`MappingProtocolParser` default overloads, `TokenStreamCursor.dialect()` all default to LEGEND_PLATFORM for legacy-caller compatibility — a defaulted overload already hid one real hole (`databaseElement` parsed Database internals at PLATFORM on the strict surfaces; caught by the user's "why does Database need PLATFORM?" question) | OPEN — the guardrail whitelists them as machinery | remove the defaults: dialect explicit end-to-end, whitelist collapses to Pure.java + the definitions |
+
 Also from the same review, resolved structurally: the oracle-cache
 eviction hack and five-way sweep fragmentation — see the one-sweep
 harness collapse this ledger rode in with.

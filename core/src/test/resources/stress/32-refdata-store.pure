@@ -1,4 +1,6 @@
 
+
+###Mapping
 Mapping refdata::RefdataMapping
 (
     refdata::Currency: Relational {
