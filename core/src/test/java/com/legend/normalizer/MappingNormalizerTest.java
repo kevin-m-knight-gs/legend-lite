@@ -67,7 +67,7 @@ class MappingNormalizerTest {
 
     @Test
     void passthroughForNonMappingElements() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firstName: String[1]; }");
         NormalizedModel normalized = normalizeViaPipeline(parsed);
         assertEquals(1, normalized.elements().size());
@@ -77,7 +77,7 @@ class MappingNormalizerTest {
 
     @Test
     void preNormalize_noLiftedFunctions_postNormalize_oneFnPerClassMapping() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::Firm   { legalName: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
@@ -118,7 +118,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("M3: legacy mapping rewrites to a canonical binding table; bindings point at the lifted FQNs")
     void legacyRewritesToCanonicalBindingTable() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::Firm   { legalName: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
@@ -154,7 +154,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("M3: no LegacyMappingDefinition survives into the NormalizedModel (§7.4 guard)")
     void noLegacyMappingSurvivesPhaseE() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -175,7 +175,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("M3: a single-hop association mapping produces an association binding")
     void associationBindingProduced() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { id: Integer[1]; } "
                         + "Class model::Person { firmId: Integer[1]; } "
                         + "Association model::Person_Firm { "
@@ -209,7 +209,7 @@ class MappingNormalizerTest {
         // A function-form mapping parses straight to the canonical binding
         // table (Door 1); its realizing functions are user-authored, so the
         // normalizer lifts NOTHING and the binding table flows through verbatim.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "function acme::funcs::personMapping(): model::Person[*] "
                         + "  { model::Person.all() } "
@@ -240,7 +240,7 @@ class MappingNormalizerTest {
         // Door 3: the body is an inline pipeline (NOT a named function). Phase E
         // lambda-lifts it to <mapping>$class$<classFqn>(): Class[*] and rewrites
         // the binding to a function ref.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Mapping\nMapping acme::M ( "
                         + "  *model::Person: Relational { model::Person.all() } "
@@ -270,7 +270,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("M5: an inline association lambda lifts to a 2-param Boolean predicate typed from the ends")
     void cleanSheetInlineAssociationIsLifted() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmId: Integer[1]; } "
                         + "Class model::Firm { id: Integer[1]; } "
                         + "Association model::Person_Firm { "
@@ -304,7 +304,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("M5: inline works for Pure (M2M) bindings too — same lift, kind-agnostic")
     void cleanSheetInlinePureBindingIsLifted() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
                         + "\n###Mapping\nMapping acme::M ( "
@@ -323,7 +323,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("M5: §7.4 guard — no inline realization survives a NormalizedModel")
     void noInlineRealizationSurvivesPhaseE() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Mapping\nMapping acme::M ( "
                         + "  *model::Person: Relational { model::Person.all() } "
@@ -350,7 +350,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("m2mSimpleBindings_producesGetAllThenMap")
     void m2mSimpleBindings_producesGetAllThenMap() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { fullName: String[1]; age: Integer[1]; } "
                         + "Class model::RawPerson { firstName: String[1]; lastName: String[1]; age: Integer[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -429,7 +429,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("simpleColumnsPM_producesTableRefThenMap")
     void simpleColumnsPM_producesTableRefThenMap() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firstName: String[1]; lastName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (FIRST VARCHAR(50), LAST VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -491,7 +491,7 @@ class MappingNormalizerTest {
         // mapping FQN, the $class$ hat segment, and the FULL class FQN (not
         // its simple name — the encoding is injective so distinct classes
         // never collide; docs/CLEAN_SHEET_INVERSION.md §3, SynthFqn.mappingClass).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
                         + "\n###Mapping\nMapping pkg::M::PersonMap ( "
@@ -521,7 +521,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("m2mWithFilter_wrapsGetAllWithFilter")
     void m2mWithFilter_wrapsGetAllWithFilter() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::ActivePerson { name: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; isActive: Boolean[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -565,7 +565,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("relationalDirectFilter_wrapsTableRefWithFilter")
     void relationalDirectFilter_wrapsTableRefWithFilter() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (NAME VARCHAR(50), IS_ACTIVE BIT) "
@@ -618,7 +618,7 @@ class MappingNormalizerTest {
         // ~filter [other::DB] ActiveOnly  - the cross-db filter pointer
         // references a database that isn't in the model. Phase E should
         // throw clearly.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -635,7 +635,7 @@ class MappingNormalizerTest {
 
     @Test
     void relationalFilter_unknownFilterNameThrows() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -664,7 +664,7 @@ class MappingNormalizerTest {
         // Sibling materialization is owned by DeptInfo's own synth fn;
         // the lowerer dispatches by FQN. This decouples M2M-class binding
         // emission from the sibling's shape and removes a recursion path.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::DeptInfo { name: String[1]; location: String[1]; } "
                         + "Class model::Department { name: String[1]; location: String[1]; } "
                         + "Class model::Employee { firstName: String[1]; department: model::Department[*]; } "
@@ -728,7 +728,7 @@ class MappingNormalizerTest {
         // which requires the target to have its own synth fn. Without one,
         // the lowerer would emit a dangling reference, so the normalizer
         // refuses at synth time.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::DeptInfo { name: String[1]; } "
                         + "Class model::Department { name: String[1]; } "
                         + "Class model::Employee { department: model::Department[*]; } "
@@ -755,7 +755,7 @@ class MappingNormalizerTest {
         // emit `^B($src.b)` / `^A($src.a)` (NewInstanceCast). Dispatch is
         // by FQN at lower time, so structural mutual reference no longer
         // recurses through synth and no cycle exception is thrown.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::A { b: model::B[1]; } "
                         + "Class model::B { a: model::A[1]; } "
                         + "Class model::SrcA { b: model::SrcB[1]; } "
@@ -790,7 +790,7 @@ class MappingNormalizerTest {
         // A non-trivial expression body (function call) must be preserved
         // referentially in the KeyExpression value -- the normalizer must
         // not rebuild parsed M2M ValueSpecs for primitive bindings.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { fullName: String[1]; } "
                         + "Class model::RawPerson { firstName: String[1]; lastName: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -825,7 +825,7 @@ class MappingNormalizerTest {
         // not the old `associate(...)` form. A single-hop JoinTerminalColumn
         // PM yields one `join` between the main `tableReference` and the
         // terminal `map` lambda.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER) "
@@ -901,7 +901,7 @@ class MappingNormalizerTest {
         // After hop 1, $s sees T_PERSON cols at top and Person_Firm as a
         // sub-row for T_FIRM. So hop 2's condition T_FIRM.ORG_ID = T_ORG.ID
         // becomes $s.Person_Firm.ORG_ID == $t.ID.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { orgName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER) "
@@ -981,7 +981,7 @@ class MappingNormalizerTest {
     void selfJoinViaTargetColumnRef_targetTableEqualsSourceTable() {
         // Person joined to Person via MANAGER_ID using {target} marker.
         // The condition T_PERSON.MGR_ID = {target}.ID is a self-join.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { managerId: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, MGR_ID INTEGER) "
@@ -1036,7 +1036,7 @@ class MappingNormalizerTest {
         // physical-column join condition lives verbatim in the lambda.
         // The terminal map reads $row.firm — no +propFk lift, no
         // top-level legacyAssociate.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { legalName: String[1]; revenue: Integer[1]; } "
                         + "Class model::Person { name: String[1]; firm: model::Firm[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -1138,7 +1138,7 @@ class MappingNormalizerTest {
         //   legalName     = $row.FIRM_NAME,
         //   employeeCount = $row.FIRM_COUNT)
         // Sub-PMs read from OUTER mainTable (no associate emitted).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { legalName: String[1]; employeeCount: Integer[1]; } "
                         + "Class model::Person { name: String[1]; firm: model::Firm[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -1191,7 +1191,7 @@ class MappingNormalizerTest {
         // firm ( legalName: T_PERSON.FIRM_NAME, owner: @Person_Other )
         // The Embedded contains a Join PM sub-PM, which would need a
         // hoisted associate -- not yet supported in value-position embeds.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Other  { name: String[1]; } "
                         + "Class model::Firm   { legalName: String[1]; owner: model::Other[1]; } "
                         + "Class model::Person { firm: model::Firm[1]; } "
@@ -1219,7 +1219,7 @@ class MappingNormalizerTest {
     void inlineEmbeddedPM_splicesSiblingMappingsPMs() {
         // broker() Inline[broker_set]   - splice Broker[broker_set]'s PMs
         // as if they were sub-PMs of an Embedded named "broker".
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Broker { name: String[1]; license: String[1]; } "
                         + "Class model::Person { broker: model::Broker[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -1262,7 +1262,7 @@ class MappingNormalizerTest {
 
     @Test
     void inlineEmbeddedPM_unknownSetId_throws() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Broker { name: String[1]; } "
                         + "Class model::Person { broker: model::Broker[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50)) ) "
@@ -1288,7 +1288,7 @@ class MappingNormalizerTest {
         // name (Person_Firm), the SAME alias a PM using @Person_Firm
         // would emit. The chain join is shared. No reserved __filter
         // prefix.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (NAME VARCHAR(50), FIRM_ID INTEGER) "
@@ -1344,7 +1344,7 @@ class MappingNormalizerTest {
     void distinct_appendsDistinctBeforeMap() {
         // ~distinct deduplicates the joined rowset BEFORE materialization,
         // not the class collection AFTER. Pipeline: tableRef -> distinct -> map.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -1381,7 +1381,7 @@ class MappingNormalizerTest {
         //   if(equal($row.STATUS, 'A'), {| app::Status.Active},
         //   if(equal($row.STATUS, 'I'), {| app::Status.Inactive},
         //   {| []}))
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Enum app::Status { Active, Inactive } "
                         + "Class model::Person { status: app::Status[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (STATUS VARCHAR(50)) ) "
@@ -1449,7 +1449,7 @@ class MappingNormalizerTest {
         // +localTag: String[1]: T_PERSON.TAG produces the same value
         // expression as a Column PM (just with a different name + declared
         // type, which is parser-level metadata).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50), EXTRA VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -1476,7 +1476,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("localProperty_wrappingExpression_behavesLikeExpression")
     void localProperty_wrappingExpression_behavesLikeExpression() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50), A VARCHAR(50), B VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -1510,7 +1510,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("otherwiseEmbedded_inlineAndJoinedProperties (R4.5 main case)")
     void otherwiseEmbedded_inlineAndJoinedProperties() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { legalName: String[1]; } "
                         + "Class model::Person { name: String[1]; firm: model::Firm[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -1586,7 +1586,7 @@ class MappingNormalizerTest {
         // in this LegacyMappingDefinition. Lifting the fallback to a class-level
         // association requires Firm to have a class mapping (so Firm.all()
         // can be resolved).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { legalName: String[1]; } "
                         + "Class model::Person { name: String[1]; firm: model::Firm[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -1619,7 +1619,7 @@ class MappingNormalizerTest {
         // emitJoinChain path: the intermediate hop is emitted as a clean
         // join() step and the final hop as a legacyNavigate(~firm). The
         // terminal map composes otherwise(^Firm(<inline>), $row.firm).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Org    { name: String[1]; } "
                         + "Class model::Firm   { org: model::Org[1]; legalName: String[1]; } "
                         + "Class model::Person { name: String[1]; firm: model::Firm[1]; } "
@@ -1699,9 +1699,9 @@ class MappingNormalizerTest {
                         + ")";
 
         FunctionDefinition fnWithout = soleSynth(normalizeViaPipeline(
-                ElementParser.parse(shared + mappingWithoutAnnotation)));
+                ElementParser.parsePlatform(shared + mappingWithoutAnnotation)));
         FunctionDefinition fnWith = soleSynth(normalizeViaPipeline(
-                ElementParser.parse(shared + mappingWithOuterAnnotation)));
+                ElementParser.parsePlatform(shared + mappingWithOuterAnnotation)));
 
         assertEquals(fnWithout.body(), fnWith.body(),
                 "(OUTER) annotation must not affect the synth function's AST -- "
@@ -1712,14 +1712,14 @@ class MappingNormalizerTest {
                 mappingWithOuterAnnotation.replace("(OUTER)", "(LEFT)");
         var ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.parser.ParseException.class,
-                () -> ElementParser.parse(shared + mappingWithLeftAnnotation));
+                () -> ElementParser.parsePlatform(shared + mappingWithLeftAnnotation));
         org.junit.jupiter.api.Assertions.assertTrue(
                 ex.getMessage().contains("Unsupported join type 'LEFT'"));
     }
 
     @Test
     void unknownJoinName_throws() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER) "
@@ -1741,7 +1741,7 @@ class MappingNormalizerTest {
         // After a join PM puts T_FIRM in scope as $row.firmName_h1, a
         // later Expression PM can reference T_FIRM columns -- the
         // tableScope tracks the alias across PMs in declaration order.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; firmIdStr: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER) "
@@ -1783,7 +1783,7 @@ class MappingNormalizerTest {
     void threeHopChain_pinsScopeWalkingAtDepth3() {
         // Person -> Firm -> Org -> Country | T_COUNTRY.NAME
         // Hop 3's source side must reach hop 2's target via the hop-2 alias.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { countryName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON  (ID INTEGER, FIRM_ID INTEGER) "
@@ -1852,7 +1852,7 @@ class MappingNormalizerTest {
         // it depends on. The normalizer's two-pass design (joins first,
         // then project) means the Column PM still resolves -- AND the
         // project keys preserve source declaration order.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { "
                         + "  firmIdStr: String[1]; "
                         + "  fullName: String[1]; "
@@ -1922,7 +1922,7 @@ class MappingNormalizerTest {
         // and a JoinMediated filter. A Direct filter (no joins) runs
         // AFTER the joins; since it only references the main table,
         // ordering vs. joins is semantically equivalent here.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, IS_ACTIVE BIT) "
@@ -1959,7 +1959,7 @@ class MappingNormalizerTest {
         // PMs going through the same join (Person_Firm) share ONE join
         // (aliased "Person_Firm") and read different columns from the
         // shared sub-row.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; firmId: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER) "
@@ -2013,7 +2013,7 @@ class MappingNormalizerTest {
     void expressionPMSpanningTwoJoinedTables_bothAliasesResolve() {
         // After joins to T_FIRM (firmName PM) and T_DEPT (deptName PM),
         // an Expression PM can reference BOTH tables in a single call.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; deptName: String[1]; combo: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, DEPT_ID INTEGER) "
@@ -2065,7 +2065,7 @@ class MappingNormalizerTest {
         // emission threads scope mutably across hops, the two-pass
         // structure walks PMs twice, and tableScope is a fresh
         // LinkedHashMap per mapping. Verify all of this is idempotent.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; orgName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, IS_ACTIVE BIT) "
@@ -2101,7 +2101,7 @@ class MappingNormalizerTest {
 
     @Test
     void normalizeIsIdempotent() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::RawPerson { name: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -2231,7 +2231,7 @@ class MappingNormalizerTest {
 
         Set<String> emitted = new TreeSet<>();
         for (String src : models) {
-            NormalizedModel normalized = normalizeViaPipeline(ElementParser.parse(src));
+            NormalizedModel normalized = normalizeViaPipeline(ElementParser.parsePlatform(src));
             for (FunctionDefinition fn : liftedFunctions(normalized)) {
                 for (ValueSpecification stmt : fn.body()) {
                     collectEmittedFunctionNames(stmt, emitted);
@@ -2588,7 +2588,7 @@ class MappingNormalizerTest {
         //   legacyAssociate(~address: Address.all(),
         //       {p,t | and(equal($p.addressFk_REGION,  $t.REGION),
         //                  equal($p.addressFk_ADDR_ID, $t.ID))})
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Address { region: String[1]; } "
                         + "Class model::Person  { address: model::Address[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2642,7 +2642,7 @@ class MappingNormalizerTest {
         // properly recursive (the parser left-associates 'and', so this
         // produces and(and(a, b), c) — the walker must descend both
         // sides).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { ka: Integer[1]; } "
                         + "Class model::Source { tgt: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2703,7 +2703,7 @@ class MappingNormalizerTest {
         // becomes $t.<col>, and the OR is reconstructed verbatim. The
         // multiplicity contract (declared [1]) is enforced at runtime
         // by the lowerer's cardinality fence, NOT statically here.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { id: Integer[1]; } "
                         + "Class model::Source { tgt: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2750,7 +2750,7 @@ class MappingNormalizerTest {
         // preserves the operator; the only requirement is side-
         // separability of column references, which is satisfied here
         // (T_SRC.* on left side of each conjunct, T_TGT.* on right).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { id: Integer[1]; } "
                         + "Class model::Source { tgt: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2791,7 +2791,7 @@ class MappingNormalizerTest {
         // isNull on a TARGET column: pure-target conjunct, becomes
         // isNull($t.DELETED_AT) in the predicate with no +local needed.
         // Combined with an equality FK that DOES generate a +local.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { id: Integer[1]; } "
                         + "Class model::Source { active: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2837,7 +2837,7 @@ class MappingNormalizerTest {
         // Function call wrapping source columns: upper(T_SRC.NAME) == T_TGT.NAME.
         // The rewriter walks INTO the function call: T_SRC.NAME becomes
         // $p.tgtFk_NAME and the upper(...) wrapper is preserved.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { id: Integer[1]; } "
                         + "Class model::Source { tgt: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2884,7 +2884,7 @@ class MappingNormalizerTest {
         // by replacing EACH ColumnRef individually — T_SRC.A becomes
         // $p.tgtFk_A, T_TGT.B becomes $t.B, and the plus/equal wrappers
         // are preserved. (Engine handles this natively; we are at parity.)
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { id: Integer[1]; } "
                         + "Class model::Source { tgt: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2934,7 +2934,7 @@ class MappingNormalizerTest {
         // defensive check ("neither the source nor the target") for any
         // such ColumnRef that reaches it, but in practice
         // determineTargetTable rejects multi-table joins first.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Target { id: Integer[1]; } "
                         + "Class model::Source { tgt: model::Target[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -2978,7 +2978,7 @@ class MappingNormalizerTest {
         // source-side column ORG_ID lives on the FIRM sub-row at
         // $row.Person_Firm; +orgFk = $row.Person_Firm.ORG_ID.
         // Predicate: $p.orgFk == $t.ID.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Org    { name: String[1]; } "
                         + "Class model::Person { name: String[1]; org: model::Org[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -3042,7 +3042,7 @@ class MappingNormalizerTest {
         // Last hop's condition: T_ORG.DIV_ID == T_DIV.ID.
         // Source-side sub-row at second-to-last alias `Person_Firm__Firm_Org`.
         // +divisionFk = $row.Person_Firm__Firm_Org.DIV_ID.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Division { name: String[1]; } "
                         + "Class model::Person   { division: model::Division[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -3100,7 +3100,7 @@ class MappingNormalizerTest {
         // path) and verify that the prelude entry IS present — proving
         // the success path establishes the invariant the diagnostic
         // guards against.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Org    { name: String[1]; } "
                         + "Class model::Person { org: model::Org[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -3148,7 +3148,7 @@ class MappingNormalizerTest {
         // which is a self-join: T_FIRM.PARENT_ID == {target}.ID.
         // Source side: T_FIRM (via $row.Person_Firm); column = PARENT_ID.
         // Target side: {target}.ID → column = ID.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { name: String[1]; } "
                         + "Class model::Person { parentFirm: model::Firm[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -3209,7 +3209,7 @@ class MappingNormalizerTest {
         // — two independent JoinNavigation chains in one Expression PM
         // body. Each chain must hoist a separate join() in the prelude;
         // the project lambda references both via $row.<alias>.<col>.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { displayName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, ADDR_ID INTEGER) "
@@ -3286,7 +3286,7 @@ class MappingNormalizerTest {
         // The chain hoists one join; the main column resolves through
         // $row directly. Pins coexistence of joined-row and main-row
         // reads in a single body.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { line: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, NAME VARCHAR(50)) "
@@ -3334,7 +3334,7 @@ class MappingNormalizerTest {
         //   Filter ActiveFirms( [db]@Person_Firm | T_FIRM.IS_ACTIVE = 1 )
         // The chain must hoist BEFORE the filter; the filter's
         // condition lambda references $row.Person_Firm.IS_ACTIVE.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, NAME VARCHAR(50)) "
@@ -3384,7 +3384,7 @@ class MappingNormalizerTest {
         // is an Expression `tagLine: concat(@Person_Firm | T_FIRM.NAME, '!')`.
         // Both reference the SAME Person_Firm chain. emitChain must
         // dedupe via aliasToTargetTable — exactly one join in the prelude.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { firmName: String[1]; tagLine: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER) "
@@ -3417,7 +3417,7 @@ class MappingNormalizerTest {
         // collectJoinNavigationsInPMs is the only thing standing between
         // "works" and "throws"; without it the visitor silently skips
         // the wrapped body and translateRelOp later throws.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (ID INTEGER, FIRM_ID INTEGER, NAME VARCHAR(50)) "
@@ -3469,7 +3469,7 @@ class MappingNormalizerTest {
         // hop 2's source side reaching hop 1's target through the hop-1
         // alias) — same invariant pinned by threeHopChain for structural
         // JTCs, but here the chain is nested inside a function call body.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { tagline: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (FIRM_ID INTEGER, ID INTEGER) "
@@ -3531,7 +3531,7 @@ class MappingNormalizerTest {
         // is itself a JoinNavigation. The chain must hoist before
         // groupBy; the key ColSpec's value lambda reads
         // $row.Person_Firm.NAME.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Bucket { firmName: String[1]; count: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (FIRM_ID INTEGER, ID INTEGER) "
@@ -3583,7 +3583,7 @@ class MappingNormalizerTest {
         // Two declared keys + one aggregate. The emitted groupBy must
         // carry exactly two keys in declaration order, even though the
         // class has three properties total.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Position { acctNum: String[1]; gsn: String[1]; quantity: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_TRADE (ACC_NUM VARCHAR(50), GSN VARCHAR(50), QTY INTEGER) "
@@ -3634,7 +3634,7 @@ class MappingNormalizerTest {
         // by it for entity identity but never projects it. Core's
         // emission must carry it in the groupBy keys with a synth name
         // (`k<i>__PRODUCT_ID`) and NOT in the terminal constructor.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Position { acctNum: String[1]; gsn: String[1]; quantity: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_TRADE (ACC_NUM VARCHAR(50), PRODUCT_ID INTEGER, GSN VARCHAR(50), QTY INTEGER) "
@@ -3680,7 +3680,7 @@ class MappingNormalizerTest {
     void groupByAggregatePmSplitsIntoSelectorAndAggregator() {
         // sum(QTY) splits into a selector lambda (row | $row.QTY) and an
         // aggregator lambda (vals | $vals -> sum()) on the ColSpec.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::P { k: String[1]; total: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T (K VARCHAR(10), QTY INTEGER) "
@@ -3721,7 +3721,7 @@ class MappingNormalizerTest {
         // PM `extra: T.K + '_x'` is a per-row formula. It's neither an
         // aggregate nor a declared groupBy key, so the normalizer must
         // refuse — otherwise SQL would reject the GROUP BY clause.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::P { k: String[1]; extra: String[1]; total: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T (K VARCHAR(10), QTY INTEGER) "
@@ -3748,7 +3748,7 @@ class MappingNormalizerTest {
         // The terminal ^Class(...) reads each property as $row.<pmName>,
         // NOT as $row.<originalColumn>. The key ColSpec was aliased to
         // the PM name in applyGroupBy precisely so this dispatch works.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::P { k: String[1]; total: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T (K VARCHAR(10), QTY INTEGER) "
@@ -3794,7 +3794,7 @@ class MappingNormalizerTest {
         // Two M2M ClassMappings, both targeting model::Person, in a single
         // LegacyMappingDefinition. Differ only by setId (one default, one named).
         // The deferred multi-set-id path should trip the index-build check.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::SrcA { name: String[1]; } "
                         + "Class model::SrcB { name: String[1]; } "
@@ -3817,7 +3817,7 @@ class MappingNormalizerTest {
         // Each LegacyMappingDefinition is its own setId namespace; mapping the
         // same class from two LegacyMappingDefinitions is a legitimate setup
         // (e.g. test vs prod). The R2 index is a Set, idempotent on union.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::SrcA { name: String[1]; } "
                         + "Class model::SrcB { name: String[1]; } "
@@ -3846,7 +3846,7 @@ class MappingNormalizerTest {
         // scheme (<mapping>$class$Person) would collapse both to one FQN and
         // silently drop a mapping from findFunction — the injectivity bug the
         // full-FQN encoding rules out by construction (CLEAN_SHEET_INVERSION §3).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class a::Person { name: String[1]; } "
                         + "Class b::Person { name: String[1]; } "
                         + "Class src::RawA { name: String[1]; } "
@@ -3882,7 +3882,7 @@ class MappingNormalizerTest {
         //                   person -> model::Person (end2 = classB).
         // classA's main table (T_FIRM) is the predicate's source row; the
         // join's other table (T_PERSON) is the target row.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Firm   { id: Integer[1]; } "
                         + "Class model::Person { firmId: Integer[1]; } "
                         + "Association model::Person_Firm { "
@@ -3963,7 +3963,7 @@ class MappingNormalizerTest {
         // graph-fetch consumer yet, so it is parsed but produces no pipeline
         // step: the body is just tableReference -> map, with no distinct /
         // distinctBy between source and map.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Trade { acct: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_TRADE (ACC_NUM VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -3998,7 +3998,7 @@ class MappingNormalizerTest {
     void m2mSrcChainCycle_rejected() {
         // A.~src = B and B.~src = A forms a circular source chain; the
         // normalizer's DFS must reject it with a clear diagnostic.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::A { x: String[1]; } "
                         + "Class model::B { x: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -4023,7 +4023,7 @@ class MappingNormalizerTest {
     void pmName_notDeclaredOnClass_rejected() {
         // PM 'bogus' has no corresponding property on model::Person. The
         // normalizer rejects it (a +local would be exempt; this is not one).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (NAME VARCHAR(50), AGE INTEGER) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -4057,7 +4057,7 @@ class MappingNormalizerTest {
         // and the view-level ~distinct layers a distinct() into the pipeline.
         // Engine parity: the source is the view's inferred underlying physical
         // table (T_PERSON), not the view name.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (NAME VARCHAR(50)) "
@@ -4104,7 +4104,7 @@ class MappingNormalizerTest {
         // A view whose non-join columns reference two different physical
         // tables cannot resolve to a single root; inferViewMainTable must
         // reject it loudly (engine parity: a view has one main table).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Mix { a: String[1]; b: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_A (X VARCHAR(50)) "
@@ -4133,7 +4133,7 @@ class MappingNormalizerTest {
         // @Person_Firm connects T_PERSON to the terminal T_FIRM, so the
         // root is T_PERSON (engine inferMainTable; the corpus
         // PersonViewWithDistinct shape). The mapping normalizes cleanly.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::J { fname: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (FIRM_ID INTEGER) "
@@ -4161,7 +4161,7 @@ class MappingNormalizerTest {
         // PM into a JoinTerminalColumn: the pipeline emits a join() step over
         // the inferred root table (T_PERSON), and the property reads the
         // terminal column off the joined sub-row.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; firmName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (NAME VARCHAR(50), FIRM_ID INTEGER) "
@@ -4212,7 +4212,7 @@ class MappingNormalizerTest {
         // SOURCE pipeline (pre-map row dedup), not the map terminal, so the
         // both-filters layering composes with it. Sequencing: view filter ->
         // distinct (the view's contract) -> mapping filter -> map.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; age: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (NAME VARCHAR(50), AGE INTEGER, ACTIVE INTEGER) "
@@ -4262,7 +4262,7 @@ class MappingNormalizerTest {
         // Layering the mapping filter over the grouped relation silently
         // turned WHERE amount > 10 into HAVING sum(amount) > 10 whenever a
         // grouped column kept the filtered physical name.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Sale { region: String[1]; amount: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_SALE (REGION VARCHAR(50), AMOUNT INTEGER, ACTIVE INTEGER) "
@@ -4308,7 +4308,7 @@ class MappingNormalizerTest {
         // ~filter. Both must survive: the engine sequences the view filter
         // first, then the mapping filter, over the physical table rows. The
         // pipeline therefore nests two filter() steps over tableReference.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; age: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (NAME VARCHAR(50), AGE INTEGER, ACTIVE INTEGER) "
@@ -4361,7 +4361,7 @@ class MappingNormalizerTest {
     void viewGroupBy_layersGroupByStep() {
         // A view-level ~groupBy is merged into the effective mapping and
         // emitted as a groupBy() pipeline step over the inferred root table.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::G { k: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T (K VARCHAR(10), V VARCHAR(10)) "
@@ -4400,7 +4400,7 @@ class MappingNormalizerTest {
         //
         // Before the fix this threw "ColumnRef references table 'T_OTHER'
         // not in scope" because the single join was deduped away.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { endName: String[1]; otherName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_ROOT  (MID_ID INTEGER, OTHER_ID INTEGER) "
@@ -4451,7 +4451,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("jsonSourceMapping_emitsToWrappedGet")
     void jsonSourceMapping_emitsToWrappedGet() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Raw { name: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( ) "
                         + "\n###Runtime\nRuntime my::R { mappings: [my::M]; connections: [ "
@@ -4507,7 +4507,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("multiHopAssociation_injectedAsPerEndNavigation")
     void multiHopAssociation_injectedAsPerEndNavigation() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::City   { name: String[1]; } "
                         + "Class model::Person { x: Integer[1]; } "
                         + "Association model::Person_City { "
@@ -4599,7 +4599,7 @@ class MappingNormalizerTest {
     void inheritedProperty_isAcceptedByValidation() {
         // model::Person extends model::Base; the `id` PM targets the
         // inherited property. Pre-fix this threw "not declared".
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Base { id: Integer[1]; } "
                         + "Class model::Person extends model::Base { name: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T_PERSON (ID INTEGER, NAME VARCHAR(50)) ) "
@@ -4642,7 +4642,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("extends_mergesInheritedPropertyMappings")
     void extends_mergesInheritedPropertyMappings() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::Employee extends model::Person { salary: Integer[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T (NAME VARCHAR(50), SAL INTEGER) ) "
@@ -4666,7 +4666,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("extends_childOverridesParentOnPropertyNameConflict")
     void extends_childOverridesParentOnPropertyNameConflict() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { name: String[1]; } "
                         + "Class model::Employee extends model::Person { } "
                         + "\n###Relational\nDatabase db::DB ( Table T (NAME VARCHAR(50), FULL_NAME VARCHAR(50)) ) "
@@ -4689,7 +4689,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("extends_multiLevelResolvesRecursively")
     void extends_multiLevelResolvesRecursively() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::A { pa: String[1]; } "
                         + "Class model::B extends model::A { pb: String[1]; } "
                         + "Class model::C extends model::B { pc: String[1]; } "
@@ -4707,7 +4707,7 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("extends_unknownParentSetIdThrows")
     void extends_unknownParentSetIdThrows() {
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Employee { x: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( Table T (X VARCHAR(9)) ) "
                         + "\n###Mapping\nMapping my::M ( "
@@ -4738,7 +4738,7 @@ class MappingNormalizerTest {
     void sameTableTwoJoins_terminalColumnsPinTheirOwnSubRow() {
         // Two FKs to T_FIRM => two sub-rows of the same table. Each
         // join-terminal column reads from its own slot; no ambiguity.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { primaryFirmName: String[1]; secondaryFirmName: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
                         + "  Table T_PERSON (PRIMARY_FIRM_ID INTEGER, SECONDARY_FIRM_ID INTEGER) "
@@ -4770,7 +4770,7 @@ class MappingNormalizerTest {
         // Same two-FK shape, but a third PM reads T_FIRM.NAME by bare table
         // name. The chain reaches T_FIRM via two paths, so the bare ref
         // cannot identify which firm — must fail loudly with guidance.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::Person { "
                         + "  primaryFirmName: String[1]; secondaryFirmName: String[1]; label: String[1]; } "
                         + "\n###Relational\nDatabase db::DB ( "
@@ -4804,7 +4804,7 @@ class MappingNormalizerTest {
         // the local head was dropped at parse and the binding silently
         // RETARGETED the class property (the engine keeps locals distinct).
         // Now: designed poison, checked BEFORE declaration lookup.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::T { name: String[1]; } "
                         + "Class model::S { x: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -4824,7 +4824,7 @@ class MappingNormalizerTest {
         // was dropped and this compiled SILENTLY (the corpus site was loud
         // only via a [*]-into-[1] multiplicity accident). Now: designed
         // poison naming the real feature gap.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::T { name: String[1]; } "
                         + "Class model::S { x: String[1]; } "
                         + "\n###Mapping\nMapping my::M ( "
@@ -4843,7 +4843,7 @@ class MappingNormalizerTest {
         // 'u[u2]' routes the class-typed property to a NON-root set of U.
         // Emitting an unrouted NewInstanceCast would root-route it — wrong
         // rows with zero signal (the audit-11 shape). Designed poison.
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::T { u: model::U[1]; } "
                         + "Class model::U { c: String[1]; } "
                         + "Class model::S { x: String[1]; } "
@@ -4865,7 +4865,7 @@ class MappingNormalizerTest {
         // 'u[u1]' where u1 is U's ONLY set: root-routing is identical to
         // honoring the route — no poison, the synth proceeds (the corpus's
         // trader[trader_set] shape).
-        ParsedModel parsed = ElementParser.parse(
+        ParsedModel parsed = ElementParser.parsePlatform(
                 "Class model::T { u: model::U[1]; } "
                         + "Class model::U { c: String[1]; } "
                         + "Class model::S { x: String[1]; } "

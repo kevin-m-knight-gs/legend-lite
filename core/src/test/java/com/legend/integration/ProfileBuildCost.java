@@ -21,7 +21,7 @@ class ProfileBuildCost {
 
         // Parse only
         long t0 = System.nanoTime();
-        var parsed = com.legend.parser.ElementParser.parse(model);
+        var parsed = com.legend.parser.ElementParser.parsePlatform(model);
         long parseOnlyMs = (System.nanoTime() - t0) / 1_000_000;
 
         // Full compile (parse + build)

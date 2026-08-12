@@ -549,19 +549,19 @@ public final class PmcdParser {
             }
             case 8 -> {
                 Protocol.PDatabase db = DatabaseProtocolParser
-                        .parse(ts, site, endOut);
+                        .parse(ts, site, endOut, Dialect.LEGEND);
                 el = db;
                 path = db.qualifiedName();
             }
             case 9 -> {
                 Protocol.PMapping mp = MappingProtocolParser.parse(ts,
-                        site, mappingSectionLine, endOut, true);
+                        site, mappingSectionLine, endOut, Dialect.LEGEND);
                 el = mp;
                 path = mp.qualifiedName();
             }
             case 10 -> {
                 Protocol.PDataElement de = MappingProtocolParser
-                        .parseData(ts, site, true, endOut);
+                        .parseData(ts, site, Dialect.LEGEND, endOut);
                 el = de;
                 path = de.qualifiedName();
             }

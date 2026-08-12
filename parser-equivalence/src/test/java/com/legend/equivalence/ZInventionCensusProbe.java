@@ -34,7 +34,7 @@ class ZInventionCensusProbe {
                 refusal = t;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable oursToo) {
                 continue;
             }

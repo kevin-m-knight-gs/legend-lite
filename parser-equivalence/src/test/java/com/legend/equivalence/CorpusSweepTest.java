@@ -171,7 +171,7 @@ public class CorpusSweepTest {
                 // CLAIM 2a: the MODEL transform reads every accepted
                 // source (compile-seam family excepted, BY ID)
                 try {
-                    com.legend.parser.ElementParser.parse(src.text());
+                    com.legend.parser.ElementParser.parsePlatform(src.text());
                 } catch (Throwable t) {
                     if (!modelRefuseAllow.containsKey(src.id())) {
                         modelRefuse.add(src.id() + " :: "
@@ -209,7 +209,7 @@ public class CorpusSweepTest {
             boolean strictAccepts = accepts(() -> com.legend.parser
                     .ElementParser.parseStrict(src.text()));
             boolean lenientAccepts = accepts(() -> com.legend.parser
-                    .ElementParser.parse(src.text()));
+                    .ElementParser.parsePlatform(src.text()));
             boolean pureOnly = !SECTION.matcher(src.text()).find();
 
             if (!docAccepts && !strictAccepts) {

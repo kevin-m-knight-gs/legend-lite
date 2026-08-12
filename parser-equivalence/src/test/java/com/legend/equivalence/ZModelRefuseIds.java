@@ -16,7 +16,7 @@ class ZModelRefuseIds {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable t) {
                 Throwable r = t;
                 while (r.getCause() != null && r.getCause() != r) r = r.getCause();

@@ -62,7 +62,7 @@ class ZVariantTrialProbe {
                 + "manager: Binding m::B: [db::D] T.F } )";
         trial(oracle, "binding-transformer-oracle", bindingModel);
         try {
-            com.legend.parser.ElementParser.parse(bindingModel);
+            com.legend.parser.ElementParser.parsePlatform(bindingModel);
             System.out.println("@@ LITE-ACCEPT binding-transformer");
         } catch (Throwable t) {
             System.out.println("@@ LITE-REFUSE binding-transformer :: "

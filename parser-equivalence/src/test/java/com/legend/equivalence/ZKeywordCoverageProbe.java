@@ -59,7 +59,7 @@ class ZKeywordCoverageProbe {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable t) {
                 continue;
             }

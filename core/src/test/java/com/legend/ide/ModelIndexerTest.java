@@ -290,7 +290,7 @@ final class ModelIndexerTest {
     @MethodSource("shallowDeepParityCorpus")
     void shallowAndDeepFqnsAgreeAcrossDiverseSources(String label, String src) {
         ModelIndex idx = scan(src);
-        ParsedModel pm = ElementParser.parse(src);
+        ParsedModel pm = ElementParser.parsePlatform(src);
 
         List<String> shallowFqns = List.copyOf(idx.fqns());
         List<String> deepFqns = pm.elements().stream().map(ModelIndexerTest::fqnOf).toList();
@@ -425,7 +425,7 @@ final class ModelIndexerTest {
                 }
                 """;
         ModelIndex idx = scan(src);
-        ParsedModel pm = ElementParser.parse(src);
+        ParsedModel pm = ElementParser.parsePlatform(src);
 
         // Same FQN set, same order.
         List<String> shallowFqns = List.copyOf(idx.fqns());

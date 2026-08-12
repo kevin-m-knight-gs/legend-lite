@@ -25,18 +25,22 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** See {@link TokenStreamCursor#legendStrict()} — carried from the
      *  constructing parser so m2-only mapping forms and body-level dialect
      *  constructs gate on the drop-in surface. */
-    private final boolean legendStrict;
+    private final Dialect dialect;
 
     @Override
+    public Dialect dialect() {
+        return dialect;
+    }
+
     public boolean legendStrict() {
-        return legendStrict;
+        return dialect.refusesPlatformDialect();
     }
 
     private MappingProtocolParser(TokenStream tokens, int pos,
-            boolean legendStrict) {
+            Dialect dialect) {
         this.tokens = tokens;
         this.pos = pos;
-        this.legendStrict = legendStrict;
+        this.dialect = dialect;
     }
 
     @Override
@@ -74,16 +78,16 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  parser (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
             int sectionStartLine, int @com.legend.Nullable [] endOut) {
-        return parse(ts, tokenIndex, sectionStartLine, endOut, false);
+        return parse(ts, tokenIndex, sectionStartLine, endOut, Dialect.PLATFORM);
     }
 
     /** As above with the parse mode carried through
      *  ({@link TokenStreamCursor#legendStrict()}). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
             int sectionStartLine, int @com.legend.Nullable [] endOut,
-            boolean legendStrict) {
+            Dialect dialect) {
         MappingProtocolParser p = new MappingProtocolParser(ts, tokenIndex,
-                legendStrict);
+                dialect);
         p.sectionStartLine = sectionStartLine;
         Protocol.PMapping m = p.parseMapping();
         if (endOut != null) {
@@ -103,23 +107,23 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  {@code tokenIndex} (probe data-section). */
     public static Protocol.PDataElement parseData(TokenStream ts,
             int tokenIndex) {
-        return parseData(ts, tokenIndex, false);
+        return parseData(ts, tokenIndex, Dialect.PLATFORM);
     }
 
     /** As above with the parse mode carried through
      *  ({@link TokenStreamCursor#legendStrict()}). */
     public static Protocol.PDataElement parseData(TokenStream ts,
-            int tokenIndex, boolean legendStrict) {
-        return parseData(ts, tokenIndex, legendStrict, null);
+            int tokenIndex, Dialect dialect) {
+        return parseData(ts, tokenIndex, dialect, null);
     }
 
     /** As above, reporting where the element ENDED (the strict document
      *  walk resumes there). */
     public static Protocol.PDataElement parseData(TokenStream ts,
-            int tokenIndex, boolean legendStrict,
+            int tokenIndex, Dialect dialect,
             int @com.legend.Nullable [] endOut) {
         MappingProtocolParser p =
-                new MappingProtocolParser(ts, tokenIndex, legendStrict);
+                new MappingProtocolParser(ts, tokenIndex, dialect);
         Protocol.PDataElement d = p.parseDataElement();
         if (endOut != null) {
             endOut[0] = p.pos;
@@ -213,7 +217,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     public static Protocol.PEmbeddedDataValue parseEmbeddedValueAt(
             com.legend.parser.TokenStreamCursor host) {
         MappingProtocolParser p = new MappingProtocolParser(host.tokens(),
-                host.pos(), host.legendStrict());
+                host.pos(), host.dialect());
         Protocol.PEmbeddedDataValue v = p.parseEmbeddedValue();
         host.setPos(p.pos());
         return v;
@@ -235,7 +239,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             advance();
             IslandBlock ri = readIsland();
             MappingProtocolParser rp = new MappingProtocolParser(
-                    ri.tokens(), 0, legendStrict);
+                    ri.tokens(), 0, dialect);
             String dataPath = Protocol.unquotePath(rp.parseQualifiedName());
             SourceInfo si = new SourceInfo("", tokens.startLine(rTok),
                     tokens.startColumn(rTok), ri.endLine(), ri.endColumn());
@@ -264,7 +268,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             IslandBlock island = readIsland();
             List<Protocol.PModelData> modelData = new ArrayList<>();
             MappingProtocolParser inner = new MappingProtocolParser(
-                    island.tokens(), 0, legendStrict);
+                    island.tokens(), 0, dialect);
             while (!inner.atEnd()) {
                 Protocol.PModelData entry = inner.parseModelEntry(island);
                 requireUniqueModelType(modelData, entry);
@@ -283,7 +287,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             advance();
             IslandBlock si = readIsland();
             MappingProtocolParser inner = new MappingProtocolParser(
-                    si.tokens(), 0, legendStrict);
+                    si.tokens(), 0, dialect);
             List<Protocol.PServiceStub> stubs = new ArrayList<>();
             inner.expect(TokenType.BRACKET_OPEN);
             while (inner.peek() != TokenType.BRACKET_CLOSE && !inner.atEnd()) {
@@ -309,7 +313,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         IslandBlock island = readIsland();
         List<Protocol.PRelationalCsvTable> tables = new ArrayList<>();
         MappingProtocolParser in = new MappingProtocolParser(
-                island.tokens(), 0, legendStrict);
+                island.tokens(), 0, dialect);
         while (!in.atEnd()) {
             int tS = in.pos;
             String schema = Protocol.unquotePath(in.parseIdentifier());
@@ -766,7 +770,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             advance();
         }
-        return com.legend.parser.SpecParser.parse(tokens.slice(bs, pos), legendStrict);
+        return com.legend.parser.SpecParser.parse(tokens.slice(bs, pos), dialect);
     }
 
     /** {@code *Class[id]: MongoDB { ~mainCollection [db] Coll }} — the wire
@@ -818,7 +822,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
         }
         List<com.legend.protocol.spec.ValueSpecification> body =
-                SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), legendStrict);
+                SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), dialect);
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         if (body.isEmpty()) {
@@ -843,6 +847,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  opening brace; peek PAST it to ask the shared cursor whether this is
      *  a clean-sheet body. */
     private boolean cleanSheetAhead() {
+        if (dialect.refusesLiteExtensions()) {
+            // the clean-sheet forms (mapping-as-function, inline
+            // association — OWN_CORPUS_DECISIONS §6/§8) are DECLARED lite
+            // extensions: the exact-engine surface never detects them, so
+            // the engine-shaped parse (and its engine-shaped refusals)
+            // takes over
+            return false;
+        }
         if (peek() != TokenType.BRACE_OPEN) {
             return false;
         }
@@ -880,7 +892,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
         }
         List<com.legend.protocol.spec.ValueSpecification> body =
-                SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), legendStrict);
+                SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), dialect);
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         if (body.isEmpty()) {
@@ -1012,7 +1024,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             advance();
         }
         com.legend.protocol.spec.ValueSpecification rhs =
-                SpecParser.parse(tokens.slice(exprStart, pos), legendStrict);
+                SpecParser.parse(tokens.slice(exprStart, pos), dialect);
         SourceInfo span = spanOf(exprStart, pos - 1);
         // NO $src.COL→column fold: the 4.138 wire keeps `$src.ID` as a
         // valueFn expression — only a BARE identifier (or quoted name) is a
@@ -1213,7 +1225,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     advance();
                 }
                 filterBody = SpecParser.parseCodeBlock(
-                        tokens.slice(fStart, pos), legendStrict);
+                        tokens.slice(fStart, pos), dialect);
                 continue;
             }
             if (peek() == TokenType.TILDE) {
@@ -1311,7 +1323,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // refuses too. Caught by SectionParseSentinelTest's LENIENT
             // ratchet when the switch exposed it (57 -> 59).
             List<com.legend.protocol.spec.ValueSpecification> body =
-                    SpecParser.parseCodeBlock(tokens.slice(exprStart, pos), legendStrict);
+                    SpecParser.parseCodeBlock(tokens.slice(exprStart, pos), dialect);
             if (body.isEmpty()) {
                 throw error("a property mapping has an empty body");
             }
@@ -1431,7 +1443,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     srcId = first;
                     tgtId = parseSetId();
                 } else {
-                    if (legendStrict) {
+                    if (dialect.refusesPlatformDialect()) {
                         // engine crossExpr requires BOTH ids: side[src, tgt]
                         // (negative fixture engine-fixture#119)
                         throw error("Unexpected token '" + safeText() + "'");
@@ -1460,7 +1472,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                                 || tokens.type(Math.min(pos + 1,
                                         tokens.count() - 1))
                                     == TokenType.COLON)) {
-                    if (legendStrict) {
+                    if (dialect.refusesPlatformDialect()) {
                         throw error("Unexpected token '" + safeText() + "'");
                     }
                     break;
@@ -1476,7 +1488,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 advance();
             }
             List<com.legend.protocol.spec.ValueSpecification> body =
-                    SpecParser.parseCodeBlock(tokens.slice(exprStart, pos), legendStrict);
+                    SpecParser.parseCodeBlock(tokens.slice(exprStart, pos), dialect);
             props.add(new Protocol.PXStorePropertyMapping(target, prop,
                     propSpan, body, srcId, tgtId, spanOf(pS, pos - 1)));
             if (!match(TokenType.COMMA) && peek() != TokenType.BRACE_CLOSE) {
@@ -1577,7 +1589,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             List<com.legend.protocol.spec.ValueSpecification> body =
                     SpecParser.parseCodeBlock(
                             com.legend.lexer.Lexer.tokenize(
-                                    padded.toString()), legendStrict);
+                                    padded.toString()), dialect);
             if (body.size() != 1) {
                 throw error("merge validation must be ONE lambda");
             }
@@ -1914,7 +1926,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             advance();
         }
         List<com.legend.protocol.spec.ValueSpecification> body =
-                SpecParser.parseCodeBlock(tokens.slice(lS, pos), legendStrict);
+                SpecParser.parseCodeBlock(tokens.slice(lS, pos), dialect);
         if (body.size() != 1) {
             throw error("ModelJoin body must be ONE lambda, got "
                     + body.size());
@@ -1989,7 +2001,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 int delta = tokens.startLine(eS) - braceLine;
                 List<com.legend.protocol.spec.ValueSpecification> eBody =
                         SpecParser.parseCodeBlock(tokens.slice(eS, pos),
-                                legendStrict);
+                                dialect);
                 if (eBody.size() != 1) {
                     throw error("~src expression must be ONE expression");
                 }
@@ -2227,7 +2239,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 List<com.legend.protocol.spec.ValueSpecification> body =
                         SpecParser.parseCodeBlock(tokens.slice(fS, pos),
-                                mappingFqn, legendStrict);
+                                mappingFqn, dialect);
                 if (body.size() != 1) {
                     throw error("suite function must be ONE lambda");
                 }
@@ -2304,7 +2316,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 List<com.legend.protocol.spec.ValueSpecification> body =
                         SpecParser.parseCodeBlock(tokens.slice(fS, pos),
-                                mappingFqn, legendStrict);
+                                mappingFqn, dialect);
                 if (body.size() != 1) {
                     throw error("legacy test query must be ONE lambda");
                 }
@@ -2505,7 +2517,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             advance();
             IslandBlock refIsland = readIsland();
             MappingProtocolParser ri = new MappingProtocolParser(
-                    refIsland.tokens(), 0, legendStrict);
+                    refIsland.tokens(), 0, dialect);
             String dataPath = Protocol.unquotePath(ri.parseQualifiedName());
             Protocol.PPointer de = new Protocol.PPointer("DATA", dataPath,
                     new SourceInfo("",
@@ -2563,7 +2575,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         IslandBlock island = readIsland();
         List<Protocol.PModelData> modelData = new ArrayList<>();
         MappingProtocolParser inner = new MappingProtocolParser(
-                island.tokens(), 0, legendStrict);
+                island.tokens(), 0, dialect);
         while (!inner.atEnd()) {
             Protocol.PModelData entry = inner.parseModelEntry(island);
             requireUniqueModelType(modelData, entry);
@@ -2609,7 +2621,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             List<com.legend.protocol.spec.ValueSpecification> vs =
                     SpecParser.parseCodeBlock(
                             island.tokens().slice(lS, pos), spanSourceId(),
-                            legendStrict);
+                            dialect);
             if (vs.size() != 1) {
                 throw error("model instance data must be ONE collection");
             }
@@ -2664,7 +2676,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     public static Protocol.PTestAssertion parseTestAssertionAt(
             com.legend.parser.TokenStreamCursor host) {
         MappingProtocolParser p = new MappingProtocolParser(host.tokens(),
-                host.pos(), host.legendStrict());
+                host.pos(), host.dialect());
         Protocol.PTestAssertion v = p.parseTestAssertion();
         host.setPos(p.pos());
         return v;
@@ -2676,7 +2688,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     public static Protocol.PTestAssertion parseDefaultAssertionAt(
             com.legend.parser.TokenStreamCursor host) {
         MappingProtocolParser p = new MappingProtocolParser(host.tokens(),
-                host.pos(), host.legendStrict());
+                host.pos(), host.dialect());
         Protocol.PTestAssertion v = p.assertionValue("default");
         host.setPos(p.pos());
         return v;
@@ -2737,7 +2749,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             advance();
             IslandBlock island = readIsland();
             MappingProtocolParser inner = new MappingProtocolParser(
-                    island.tokens(), 0, legendStrict);
+                    island.tokens(), 0, dialect);
             if (!"expected".equals(inner.text())) {
                 throw inner.error("assertion key '" + inner.safeText()
                         + "' is unbuilt");
@@ -2778,7 +2790,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         advance();                                  // EqualToJson
         IslandBlock island = readIsland();
         MappingProtocolParser inner = new MappingProtocolParser(
-                island.tokens(), 0, legendStrict);
+                island.tokens(), 0, dialect);
         if (!"expected".equals(inner.text())) {
             throw inner.error("assertion key '" + inner.safeText()
                     + "' is unbuilt");
@@ -2869,7 +2881,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         advance();                                  // ExternalFormat
         IslandBlock island = readIsland();
         MappingProtocolParser inner = new MappingProtocolParser(
-                island.tokens(), 0, legendStrict);
+                island.tokens(), 0, dialect);
         String contentType = null;
         String dataStr = null;
         while (!inner.atEnd()) {
@@ -3132,7 +3144,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             SourceInfo shiftedMember) {
         if (signedBodyTok < 0) {
             MappingProtocolParser p = new MappingProtocolParser(tokens,
-                    -signedBodyTok, legendStrict);
+                    -signedBodyTok, dialect);
             Protocol.PClassMappingPure cm = p.parsePureClassMapping(target,
                     -signedBodyTok, shiftedTarget, explicitOuterId, root,
                     null);
@@ -3150,7 +3162,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String target, SourceInfo shiftedTarget, String cmId,
             @com.legend.Nullable String explicitOuterId, boolean root,
             SourceInfo shiftedMember) {
-        MappingProtocolParser p = new MappingProtocolParser(tokens, bodyTok, legendStrict);
+        MappingProtocolParser p = new MappingProtocolParser(tokens, bodyTok, dialect);
         // pm sources keep the EXPLICIT outer id (or null) — the engine
         // suffixes the CM id only AFTER the sub-parse
         // (AggregationAwareMappingParseTreeWalker:218)
@@ -3196,7 +3208,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<com.legend.protocol.spec.ValueSpecification> body =
                 SpecParser.parseCodeBlock(
                         com.legend.lexer.Lexer.tokenize(padded.toString()),
-                        legendStrict);
+                        dialect);
         if (body.size() != 1) {
             throw error("aggregate lambda must be ONE expression");
         }
@@ -3364,7 +3376,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     posOut);
         } else if (scopeDb != null) {
             op = DatabaseProtocolParser.operationAt(tokens, pos, scopeDb,
-                    "default", posOut);
+                    "default", posOut, dialect);
         } else {
             return parseEmbeddedOperation();
         }
@@ -3376,7 +3388,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PRelOp parseEmbeddedOperation() {
         int[] posOut = new int[1];
         Protocol.PRelOp op = DatabaseProtocolParser.operationAt(tokens, pos,
-                "", "default", posOut);
+                "", "default", posOut, dialect);
         pos = posOut[0];
         return op;
     }

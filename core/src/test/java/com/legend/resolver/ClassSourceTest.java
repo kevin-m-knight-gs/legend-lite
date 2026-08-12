@@ -38,7 +38,7 @@ class ClassSourceTest {
 
     private static Ctx load(String source) {
         NormalizedModel normalized = ModelNormalizer.normalize(
-                NameResolver.resolve(ElementParser.parse(source)));
+                NameResolver.resolve(ElementParser.parsePlatform(source)));
         PureModelContext ctx = PureModelContext.from(normalized);
         return new Ctx(ctx, new ClassSources(ctx, new SpecCompiler(ctx)));
     }
@@ -56,7 +56,7 @@ class ClassSourceTest {
         int extracted = 0;
         for (var fx : PhaseHCensusTest.FIXTURES.entrySet()) {
             NormalizedModel normalized = ModelNormalizer.normalize(
-                    NameResolver.resolve(ElementParser.parse(fx.getValue())));
+                    NameResolver.resolve(ElementParser.parsePlatform(fx.getValue())));
             PureModelContext ctx = PureModelContext.from(normalized);
             ClassSources sources = new ClassSources(ctx, new SpecCompiler(ctx));
             for (MappingDefinition md : mappingsOf(normalized)) {

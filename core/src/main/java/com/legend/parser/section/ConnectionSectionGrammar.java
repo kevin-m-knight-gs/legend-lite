@@ -857,27 +857,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             case "SQLite" -> {
-                // LITE BACKEND, engine-extension-shaped on purpose:
-                // SQLite { (path: '...';)* } mirrors DuckDBParserGrammar
-                // exactly, so a future engine SQLite extension finds this
-                // text conformant (own-corpus decision review)
-                c.expect(TokenType.BRACE_OPEN);
-                String path = null;
-                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
-                    String key = c.parseIdentifier();
-                    c.expect(TokenType.COLON);
-                    if (!"path".equals(key)) {
-                        throw c.error("unknown SQLite key: " + key);
-                    }
-                    String quoted = c.text();
-                    c.expect(TokenType.STRING);
-                    path = TokenStreamCursor.unquoteAndUnescape(quoted, c);
-                    c.expect(TokenType.SEMI_COLON);
-                }
-                c.expect(TokenType.BRACE_CLOSE);
-                c.expect(TokenType.SEMI_COLON);
-                yield new Protocol.PSQLiteSpec(path,
-                        c.spanOf(keywordTok, c.pos() - 1));
+                yield parseSqliteSpec(c, keywordTok);
             }
             case "Snowflake" -> {
                 c.expect(TokenType.BRACE_OPEN);
@@ -1004,6 +984,41 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
 
     /** Auth span runs the {@code auth} KEYWORD through the last body token
      *  (bodyless: through the kind identifier). */
+    /** The SQLite datasource spec — a DECLARED lite extension
+     *  (OWN_CORPUS_DECISIONS §9); split from parseDatasourceSpec
+     *  (method-size guardrail). */
+    private static Protocol.PDatasourceSpec parseSqliteSpec(
+            TokenStreamCursor c, int keywordTok) {
+        if (c.dialect().refusesLiteExtensions()) {
+            // the sqlite-backend is a DECLARED lite extension
+            // (OWN_CORPUS_DECISIONS §9) — the exact-engine
+            // surface refuses it like any unknown spec
+            throw c.error("unsupported datasource specification:"
+                    + " SQLite");
+        }
+        // LITE BACKEND, engine-extension-shaped on purpose:
+        // SQLite { (path: '...';)* } mirrors DuckDBParserGrammar
+        // exactly, so a future engine SQLite extension finds this
+        // text conformant (own-corpus decision review)
+        c.expect(TokenType.BRACE_OPEN);
+        String path = null;
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            if (!"path".equals(key)) {
+                throw c.error("unknown SQLite key: " + key);
+            }
+            String quoted = c.text();
+            c.expect(TokenType.STRING);
+            path = TokenStreamCursor.unquoteAndUnescape(quoted, c);
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        return new Protocol.PSQLiteSpec(path,
+                c.spanOf(keywordTok, c.pos() - 1));
+    }
+
     private static Protocol.PAuthStrategy parseAuthStrategy(
             TokenStreamCursor c, int keywordTok) {
         String kind = c.parseIdentifier();

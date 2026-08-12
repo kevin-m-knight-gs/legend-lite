@@ -44,7 +44,7 @@ class ZDefectResidueProbe {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable ours) {
                 continue;               // both fail — not a leniency row
             }

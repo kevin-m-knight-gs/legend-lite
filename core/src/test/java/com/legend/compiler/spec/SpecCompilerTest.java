@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class SpecCompilerTest {
 
     private static SpecCompiler compilerWith(String model) {
-        ParsedModel p = ElementParser.parse(model);
+        ParsedModel p = ElementParser.parsePlatform(model);
         return new SpecCompiler(PureModelContext.from(
                 new NormalizedModel(p.elements(), p.imports())));
     }
@@ -56,7 +56,7 @@ class SpecCompilerTest {
 
     /** Parse a model, find the one overload of {@code fnFqn}, and type-check its body. */
     private static CompiledFunction checkOnly(String model, String fnFqn) {
-        ParsedModel p = ElementParser.parse(model);
+        ParsedModel p = ElementParser.parsePlatform(model);
         PureModelContext c = PureModelContext.from(new NormalizedModel(p.elements(), p.imports()));
         List<TypedFunction> fns = c.findFunction(fnFqn);
         assertEquals(1, fns.size(), fnFqn + " should have exactly one overload");
@@ -336,7 +336,7 @@ class SpecCompilerTest {
 
     @Test
     void check_nativeFunctionHasNoBodyThrows() {
-        ParsedModel p = ElementParser.parse("Class model::Person {}\n");
+        ParsedModel p = ElementParser.parsePlatform("Class model::Person {}\n");
         PureModelContext c = PureModelContext.from(new NormalizedModel(p.elements(), p.imports()));
         TypedFunction nativeLength = c.findFunction("length").get(0);
         assertThrows(TypeInferenceException.class, () -> new SpecCompiler(c).compile(nativeLength));
@@ -345,7 +345,7 @@ class SpecCompilerTest {
     // ---- demand-driven memoization + reachability ----------------------
 
     private static SpecCompiler compilerAndCtx(String model, PureModelContext[] outCtx) {
-        ParsedModel p = ElementParser.parse(model);
+        ParsedModel p = ElementParser.parsePlatform(model);
         PureModelContext c = PureModelContext.from(new NormalizedModel(p.elements(), p.imports()));
         outCtx[0] = c;
         return new SpecCompiler(c);

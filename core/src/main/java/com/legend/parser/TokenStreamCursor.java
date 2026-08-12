@@ -191,7 +191,14 @@ public interface TokenStreamCursor {
      * and the parsers they construct).
      */
     default boolean legendStrict() {
-        return false;
+        return dialect().refusesPlatformDialect();
+    }
+
+    /** Which of the THREE dialect levels this parse serves
+     *  ({@link Dialect}); the default is the PLATFORM superset —
+     *  dialect-carrying parsers override. */
+    default Dialect dialect() {
+        return Dialect.PLATFORM;
     }
 
     /** Token texts {@code [fromTok, toTok]} joined with NO separators —

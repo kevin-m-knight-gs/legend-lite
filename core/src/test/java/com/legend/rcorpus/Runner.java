@@ -121,7 +121,7 @@ public final class Runner {
             collectSetups(src);
             com.legend.model.ParsedModel unit;
             try {
-                unit = com.legend.parser.ElementParser.parse(src);
+                unit = com.legend.parser.ElementParser.parsePlatform(src);
             } catch (RuntimeException e) {
                 continue;
             }
@@ -174,7 +174,7 @@ public final class Runner {
     public void registerLibrarySource(String source) {
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parse(source);
+            unit = com.legend.parser.ElementParser.parsePlatform(source);
         } catch (RuntimeException e) {
             return;   // unparseable library file: its elements stay dark
         }
@@ -232,7 +232,7 @@ public final class Runner {
                 // known parse walls (#50) stay out — one unparseable file
                 // must not dark the whole setup universe
                 try {
-                    com.legend.parser.ElementParser.parse(src);
+                    com.legend.parser.ElementParser.parsePlatform(src);
                 } catch (RuntimeException unparseable) {
                     continue;
                 }
@@ -251,7 +251,7 @@ public final class Runner {
     private void collectSetups(String source) {
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parse(source);
+            unit = com.legend.parser.ElementParser.parsePlatform(source);
         } catch (RuntimeException e) {
             return;   // unparseable file: its tests are walled anyway
         }
@@ -450,7 +450,7 @@ public final class Runner {
     public static boolean hasTestFunctions(String source) {
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parse(source);
+            unit = com.legend.parser.ElementParser.parsePlatform(source);
         } catch (RuntimeException e) {
             return false;   // unparseable file: walled at model-build time
         }
@@ -509,7 +509,7 @@ public final class Runner {
         List<ParsedTest> out = new ArrayList<>();
         com.legend.model.ParsedModel unit;
         try {
-            unit = com.legend.parser.ElementParser.parse(source);
+            unit = com.legend.parser.ElementParser.parsePlatform(source);
         } catch (RuntimeException e) {
             return out;   // unparseable file: walled at model-build time
         }

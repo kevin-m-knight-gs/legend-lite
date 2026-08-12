@@ -214,11 +214,16 @@ public final class SpecParser implements TokenStreamCursor {
     /** See {@link TokenStreamCursor#legendStrict()} — body-level dialect
      *  constructs ({@code .allVersionsInRange}, function-type literals)
      *  gate on it. */
-    private final boolean legendStrict;
+    private final Dialect dialect;
 
     @Override
     public boolean legendStrict() {
-        return legendStrict;
+        return dialect.refusesPlatformDialect();
+    }
+
+    @Override
+    public Dialect dialect() {
+        return dialect;
     }
 
     /** The character-level island scanner (extracted seam — see
@@ -226,10 +231,10 @@ public final class SpecParser implements TokenStreamCursor {
     private final IslandScan islandScan;
 
     private SpecParser(TokenStream tokens, String spanSourceId,
-            boolean legendStrict) {
+            Dialect dialect) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.spanSourceId = spanSourceId;
-        this.legendStrict = legendStrict;
+        this.dialect = dialect;
         this.islandScan = new IslandScan(tokens, spanSourceId, this);
     }
 
@@ -258,14 +263,14 @@ public final class SpecParser implements TokenStreamCursor {
      * source location.
      */
     public static ValueSpecification parse(TokenStream tokens) {
-        return parse(tokens, false);
+        return parse(tokens, Dialect.PLATFORM);
     }
 
     /** As {@link #parse(TokenStream)} with the parse mode carried through
      *  ({@link TokenStreamCursor#legendStrict()}). */
     public static ValueSpecification parse(TokenStream tokens,
-            boolean legendStrict) {
-        SpecParser parser = new SpecParser(tokens, "", legendStrict);
+            Dialect dialect) {
+        SpecParser parser = new SpecParser(tokens, "", dialect);
         ValueSpecification result = parser.parseProgramLine();
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after expression: "
@@ -297,20 +302,20 @@ public final class SpecParser implements TokenStreamCursor {
      * statement raise a fail-fast error.
      */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
-        return parseCodeBlock(tokens, "", false);
+        return parseCodeBlock(tokens, "", Dialect.PLATFORM);
     }
 
     /** As {@link #parseCodeBlock(TokenStream)} with the parse mode carried
      *  through ({@link TokenStreamCursor#legendStrict()}). */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
-            boolean legendStrict) {
-        return parseCodeBlock(tokens, "", legendStrict);
+            Dialect dialect) {
+        return parseCodeBlock(tokens, "", dialect);
     }
 
     /** As above with a span source id (mapping test-suite lambdas). */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
-            String spanSourceId, boolean legendStrict) {
-        SpecParser parser = new SpecParser(tokens, spanSourceId, legendStrict);
+            String spanSourceId, Dialect dialect) {
+        SpecParser parser = new SpecParser(tokens, spanSourceId, dialect);
         List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after code block: "
@@ -2778,6 +2783,12 @@ public final class SpecParser implements TokenStreamCursor {
      * uses to distinguish bag-of-values overloads.
      */
     private ValueSpecification parseTdsLiteral() {
+        // NOT platform-gated: the ENGINE's xt-tds extension parses #TDS
+        // accessors (6 oracle-accepted TestTDSAccessor/TestTDSCompiler
+        // files byte-match through here — a 2026-08-12 gate attempt went
+        // red on exactly those). The allowlisted TDS rows are the FINER
+        // leniency: content/contexts the engine's TDS parser refuses and
+        // lite's accepts.
         String raw = text();
         int tok = pos;
         pos++;
@@ -3044,7 +3055,7 @@ public final class SpecParser implements TokenStreamCursor {
 
     private ValueSpecification parseGraphFetchTree(String content) {
         TokenStream innerTokens = Lexer.tokenize(content);
-        SpecParser inner = new SpecParser(innerTokens, "", legendStrict);
+        SpecParser inner = new SpecParser(innerTokens, "", dialect);
         inner.parseQualifiedName();          // skip root class name
         ValueSpecification tree = inner.parseGraphDefinition(0);
         if (!inner.atEnd()) {
@@ -3070,7 +3081,7 @@ public final class SpecParser implements TokenStreamCursor {
             while (!atEnd() && peek() == TokenType.COMMA) {
                 pos++;
                 if (!atEnd() && peek() == TokenType.BRACE_CLOSE) {
-                    if (legendStrict) {
+                    if (dialect.refusesPlatformDialect()) {
                         // engine graphPaths has no trailing comma
                         throw error("Unexpected token '}'");
                     }
@@ -3079,7 +3090,7 @@ public final class SpecParser implements TokenStreamCursor {
                 specs.add(parseGraphPath(depth));
             }
         }
-        if (specs.isEmpty() && legendStrict) {
+        if (specs.isEmpty() && dialect.refusesPlatformDialect()) {
             // the engine's graphDefinition requires at least ONE path —
             // an EMPTY #{Class{}}# body is a parse error (negative
             // fixture engine-fixture#128, refusal at the '}')

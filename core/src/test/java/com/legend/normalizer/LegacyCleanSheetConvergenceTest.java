@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class LegacyCleanSheetConvergenceTest {
 
     private static NormalizedModel norm(String src) {
-        return ModelNormalizer.normalize(NameResolver.resolve(ElementParser.parse(src)));
+        return ModelNormalizer.normalize(NameResolver.resolve(ElementParser.parsePlatform(src)));
     }
 
     private static MappingDefinition mapping(NormalizedModel m, String fqn) {

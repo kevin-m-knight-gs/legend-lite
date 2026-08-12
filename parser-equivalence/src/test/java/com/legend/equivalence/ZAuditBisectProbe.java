@@ -52,7 +52,7 @@ class ZAuditBisectProbe {
                 continue;               // named refusals: already adjudicated
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable ours) {
                 continue;               // both fail — not a leniency row
             }

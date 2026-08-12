@@ -91,7 +91,7 @@ class OwnCorpusConformanceTest {
         // form) — the engine's grammar has no arm for it. Also covers the
         // function-REF service query (query: my::fn; not query: |...).
         try {
-            for (var e : com.legend.parser.ElementParser.parse(text)
+            for (var e : com.legend.parser.ElementParser.parsePlatform(text)
                     .elements()) {
                 if (e instanceof com.legend.model.MappingDefinition) {
                     return "LITE-DESIGN-mapping-as-function";
@@ -180,7 +180,7 @@ class OwnCorpusConformanceTest {
                 refusal = t;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable oursToo) {
                 bothRefuse++;
                 continue;       // we refuse it too — a negative fixture

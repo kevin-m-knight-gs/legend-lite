@@ -34,7 +34,7 @@ class ZSkewResidueProbe {
                 continue;
             }
             try {
-                com.legend.parser.ElementParser.parse(src.text());
+                com.legend.parser.ElementParser.parsePlatform(src.text());
             } catch (Throwable ours) {
                 continue;               // both refuse — not a leniency row
             }

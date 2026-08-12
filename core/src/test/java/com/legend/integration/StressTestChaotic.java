@@ -315,7 +315,7 @@ class StressTestChaotic {
         // ---- Profile: isolate parse vs full compile (core has no global
         // parse cache on this path — the split is parse-only vs compile) ----
         long pCold0 = System.nanoTime();
-        var parsed = com.legend.parser.ElementParser.parse(model);
+        var parsed = com.legend.parser.ElementParser.parsePlatform(model);
         long parseOnlyMs = (System.nanoTime() - pCold0) / 1_000_000;
 
         System.out.println("\n--- PARSE PROFILING ---");
