@@ -36,6 +36,8 @@ import java.util.Set;
  */
 public final class PmcdParser {
 
+
+
     private PmcdParser() {
     }
 
@@ -555,7 +557,9 @@ public final class PmcdParser {
             }
             case 9 -> {
                 Protocol.PMapping mp = MappingProtocolParser.parse(ts,
-                        site, mappingSectionLine, endOut, Dialect.LEGEND_ENGINE);
+                        site, mappingSectionLine, endOut,
+                        // the drop-in surface parses at the engine level
+                        Dialect.LEGEND_ENGINE);
                 el = mp;
                 path = mp.qualifiedName();
             }

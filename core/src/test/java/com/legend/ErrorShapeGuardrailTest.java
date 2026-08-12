@@ -45,7 +45,7 @@ class ErrorShapeGuardrailTest {
             // sideSqlText's generation probe (reviewed): rebuilding a
             // side's engine text may throw anywhere in compile/lowering;
             // null return falls back to the row-replay/advisory channel —
-            // the same boundary TestBody's sqlTextVerify catch owned
+            // the same boundary EngineTestExecutor's sqlTextVerify catch owned
             // before the extraction (LL_SQLTEXT_DEBUG surfaces the cause)
             Map.entry("ExecCallFinder.java", 1),
             Map.entry("FunctionCompiler.java", 1),
@@ -67,13 +67,13 @@ class ErrorShapeGuardrailTest {
             Map.entry("ScanRelations.java", 1),
             Map.entry("StatementExecutor.java", 1),
             Map.entry("StaticFold.java", 1),
-            Map.entry("TestBody.java", 3),
-            Map.entry("TreeLiterals.java", 1),
+            Map.entry("EngineTestExecutor.java", 3),
+            Map.entry("EngineSpecParser.java", 1),
             Map.entry("Typer.java", 1),
             Map.entry("ValidateDesugar.java", 2));
 
     /** Broad type ANYWHERE in the catch parameter — multi-catch included
-     * (the first version anchored it first and missed TestBody's
+     * (the first version anchored it first and missed EngineTestExecutor's
      * {@code catch (SQLException | RuntimeException)}). */
     private static final Pattern BROAD_CATCH = Pattern.compile(
             "catch \\(([^)]*)\\)");

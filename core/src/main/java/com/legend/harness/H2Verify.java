@@ -84,7 +84,7 @@ public final class H2Verify {
     /** The ONE decline funnel: prints (the frozen System.err site) and
      * counts under the canonical bucket. */
     /** An ARRAY-valued scalar cell's element list, or null when the
-     * value is no collection carrier. Two carrier arrivals (TestBody's
+     * value is no collection carrier. Two carrier arrivals (EngineTestExecutor's
      * Eval.flatten, hoisted here for the file cap): the native
      * {@code java.sql.Array} (DuckDB), and the JSON carrier's byte[]
      * text on a list-less backend (§2b — H2 hands JSON back as bytes;

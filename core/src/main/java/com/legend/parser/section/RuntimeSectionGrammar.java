@@ -41,8 +41,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
     @Override
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
-        // the SPI feed is the DROP-IN seam: engine-exact grammar
-        var c = new SliceCursor(Lexer.tokenize(src.text()),
+        var c = new SliceCursor(Lexer.tokenize(src.text()), // SPI overlay hosting = the drop-in seam: engine grammar
                 com.legend.parser.Dialect.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {

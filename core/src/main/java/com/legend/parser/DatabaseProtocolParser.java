@@ -52,8 +52,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     /** ###Relational is ENGINE grammar at every level — the json-column-get
      *  retirement (OWN_CORPUS_DECISIONS §7) removed its last dialect
-     *  lever, so this parser carries no level of its own and nothing
-     *  consults this. */
+     *  lever, so this parser carries no level of its own and NOTHING
+     *  consults this; the abstract cursor contract just requires an
+     *  answer (the one commented wart, kept over a second interface). */
     @Override
     public Dialect dialect() {
         return Dialect.LEGEND_ENGINE;

@@ -58,7 +58,7 @@ final class RuntimeIfForm {
             ModelContext ctx, ImportScope imports, String runtimeFqn,
             Connection conn) throws java.sql.SQLException {
         if (!(stmt instanceof AppliedFunction iff)
-                || !TestBody.simpleName(iff.function()).equals("if")
+                || !EngineTestExecutor.simpleName(iff.function()).equals("if")
                 || iff.parameters().size() != 3
                 || !(iff.parameters().get(1) instanceof LambdaFunction tb)
                 || !tb.parameters().isEmpty()
@@ -66,7 +66,7 @@ final class RuntimeIfForm {
                 || !eb.parameters().isEmpty()) {
             return null;
         }
-        TestBody.Eval cv = TestBody.eval(iff.parameters().get(0), lets,
+        EngineTestExecutor.Eval cv = EngineTestExecutor.eval(iff.parameters().get(0), lets,
                 execStmts, execVars, execChains, ctx, imports, runtimeFqn,
                 conn);
         Boolean b = cv.result() instanceof

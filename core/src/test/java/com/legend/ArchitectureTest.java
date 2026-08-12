@@ -123,7 +123,7 @@ final class ArchitectureTest {
      * <strong>Invariant 4c — the root package is the TOP layer.</strong>
      * The acyclic-slices matcher {@code com.legend.(*)..} skips root
      * classes, so nothing structural prevented a phase from importing the
-     * driver (Compiler/StatementExecutor) or the harness bridge (TestBody)
+     * driver (Compiler/StatementExecutor) or the harness bridge (EngineTestExecutor)
      * — audit 19's blind spot. Phases never call up into orchestration.
      */
     @Test
@@ -138,7 +138,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
                     com.legend.StatementExecutor.class,
-                    com.legend.harness.TestBody.class)
+                    com.legend.harness.EngineTestExecutor.class)
             .as("Invariant 4c: the com.legend root (driver/harness) is the top"
                     + " layer — audit 19")
             .check(CORE_PROD_CLASSES);
@@ -500,7 +500,7 @@ final class ArchitectureTest {
                     "com.legend.parser..", "com.legend.ide..",
                     "com.legend.builtin", "com.legend",
                     // the harness bridge sits WITH the driver at the top
-                    // layer (TestBody.run's string entry parses test bodies)
+                    // layer (EngineTestExecutor.run's string entry parses test bodies)
                     "com.legend.harness",
                     // the server shell receives RAW PURE TEXT over HTTP —
                     // a parse ENTRY like the driver (LSP diagnostics,

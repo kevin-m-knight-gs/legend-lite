@@ -40,6 +40,23 @@ public final class Compiler {
 
     private Compiler() {}
 
+    /** Parse a model at the PRODUCT level (LEGEND_LITE) — the front door
+     *  for product endpoints (servers, nlq), so they never touch the
+     *  parser package directly. The Compiler is the product's provenance
+     *  router: which level users get is decided HERE. */
+    public static ParsedModel parseModel(String source) {
+        return com.legend.parser.ElementParser.parse(source,
+                com.legend.parser.Dialect.LEGEND_LITE);
+    }
+
+    /** Parse one query/expression at the PRODUCT level. */
+    public static com.legend.protocol.spec.ValueSpecification
+            parseQuery(String query) {
+        return com.legend.parser.SpecParser.parse(query,
+                com.legend.parser.Dialect.LEGEND_LITE);
+    }
+
+
     /**
      * Frontend pipeline: Pure model source &rarr; typed {@link ModelContext}.
      *
@@ -535,7 +552,7 @@ public final class Compiler {
     /**
      * Phases G&frac12;&rarr;K for an already NAME-RESOLVED query AST — THE
      * one back-half sequence. Every driver path (text queries above,
-     * TestBody's handle-splice path) comes through here; a second
+     * EngineTestExecutor's handle-splice path) comes through here; a second
      * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
      */
     public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(

@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Let-binding substitution over harness value-spec trees — split from
- *  {@link TestBody} (file-size guardrail), same package seam. */
+ *  {@link EngineTestExecutor} (file-size guardrail), same package seam. */
 final class HarnessSubstitution {
 
     private HarnessSubstitution() {
@@ -74,9 +74,9 @@ final class HarnessSubstitution {
                 // let-substitution is the moment a quote/eval argument can
                 // BECOME literal (the subType family's let-bound tree
                 // strings) — complete the parse-time fold right here, the
-                // same TreeLiterals front door and carrier as SpecParser
+                // same EngineSpecParser front door and carrier as SpecParser
                 ValueSpecification folded =
-                        com.legend.parser.TreeLiterals.foldQuoteEval(sub);
+                        com.legend.parser.EngineSpecParser.fold(sub);
                 yield folded != null ? folded : sub;
             }
             case AppliedProperty ap3 -> {
@@ -85,7 +85,7 @@ final class HarnessSubstitution {
                 // anonymousCollections semantics) — the datetime plan
                 // helpers return Pair<ExecutionPlan, String>
                 if (recv instanceof AppliedFunction pf
-                        && TestBody.simpleName(pf.function()).equals("pair")
+                        && EngineTestExecutor.simpleName(pf.function()).equals("pair")
                         && pf.parameters().size() == 2) {
                     if (ap3.property().equals("first")) {
                         yield pf.parameters().get(0);

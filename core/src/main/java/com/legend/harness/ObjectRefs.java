@@ -38,7 +38,7 @@ final class ObjectRefs {
         if (!(rhs instanceof AppliedFunction af)) {
             return null;
         }
-        String fn = TestBody.simpleName(af.function());
+        String fn = EngineTestExecutor.simpleName(af.function());
         boolean forSet = fn.equals("generateObjectReferencesForGivenSetId");
         if (!forSet && !fn.equals("generateObjectReferences")) {
             return null;
@@ -89,16 +89,16 @@ final class ObjectRefs {
             ValueSpecification rhs, ModelContext ctx,
             java.util.function.Function<ValueSpecification, Object> parsedEval) {
         if (!(rhs instanceof AppliedFunction js)
-                || !TestBody.simpleName(js.function()).equals("joinStrings")
+                || !EngineTestExecutor.simpleName(js.function()).equals("joinStrings")
                 || js.parameters().size() != 4
                 || !(js.parameters().get(0) instanceof AppliedFunction mapAf)
-                || !TestBody.simpleName(mapAf.function()).equals("map")
+                || !EngineTestExecutor.simpleName(mapAf.function()).equals("map")
                 || mapAf.parameters().size() != 2
                 || !(mapAf.parameters().get(1) instanceof
                         com.legend.protocol.spec.LambdaFunction lf)
                 || lf.body().size() != 1
                 || !(lf.body().get(0) instanceof AppliedFunction dec)
-                || !TestBody.simpleName(dec.function())
+                || !EngineTestExecutor.simpleName(dec.function())
                         .equals("decodeObjectReferencesAndGetPkMap")) {
             return null;
         }
@@ -135,7 +135,7 @@ final class ObjectRefs {
      * convention — the INNER exec read evaluates, wrappers are ours). */
     private static ValueSpecification stripJson(ValueSpecification v) {
         while (v instanceof AppliedFunction af) {
-            String f = TestBody.simpleName(af.function());
+            String f = EngineTestExecutor.simpleName(af.function());
             if (af.parameters().size() == 1
                     && (f.equals("parseJSON") || f.equals("toOne")
                             || f.equals("toPrettyJSONString"))) {
@@ -296,7 +296,7 @@ final class ObjectRefs {
         List<Map<String, Object>> out = new ArrayList<>();
         for (ValueSpecification mv : maps) {
             if (!(mv instanceof AppliedFunction nm)
-                    || !TestBody.simpleName(nm.function()).equals("newMap")) {
+                    || !EngineTestExecutor.simpleName(nm.function()).equals("newMap")) {
                 return null;
             }
             ValueSpecification pairs = nm.parameters().get(0);
@@ -305,7 +305,7 @@ final class ObjectRefs {
             Map<String, Object> m = new LinkedHashMap<>();
             for (ValueSpecification pv : ps) {
                 if (!(pv instanceof AppliedFunction pr)
-                        || !TestBody.simpleName(pr.function()).equals("pair")
+                        || !EngineTestExecutor.simpleName(pr.function()).equals("pair")
                         || pr.parameters().size() != 2
                         || !(pr.parameters().get(0) instanceof CString k)) {
                     return null;

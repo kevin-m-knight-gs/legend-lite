@@ -40,7 +40,7 @@ class PlatformSurfaceGuardrailTest {
             // takes its dialect explicitly, TokenStreamCursor.dialect()
             // is ABSTRACT, and a silent platform-level parse is
             // unrepresentable)
-            // (TestBody left the whitelist 2026-08-12: its ONLY platform
+            // (EngineTestExecutor left the whitelist 2026-08-12: its ONLY platform
             // call was the compileLegendGrammar payload seam, now
             // LEGEND_ENGINE — matching the engine's own architecture)
             // (servers AND the Compiler migrated to parseLegendLite

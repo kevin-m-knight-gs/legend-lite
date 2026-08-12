@@ -144,6 +144,7 @@ public final class Pure {
      * with {@code isNative=false}.
      */
     private static ClassDefinition nativeClass(String pureSource) {
+        // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ElementParser.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
@@ -602,6 +603,7 @@ public final class Pure {
      * source verbatim. Class-load fails loudly on any malformed declaration.
      */
     private static EnumDefinition nativeEnum(String pureSource) {
+        // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ElementParser.parse(pureSource,
                 com.legend.parser.Dialect.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {

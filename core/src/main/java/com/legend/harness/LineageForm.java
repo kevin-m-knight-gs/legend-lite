@@ -53,7 +53,7 @@ final class LineageForm {
 
     /** Runs the body when it IS the canonical scanColumns form; null
      * when the form doesn't match (the caller proceeds normally). */
-    static TestBody.@com.legend.Nullable Outcome tryRun(ModelContext ctx,
+    static EngineTestExecutor.@com.legend.Nullable Outcome tryRun(ModelContext ctx,
             List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn) {
         LambdaFunction query = null;
@@ -108,12 +108,12 @@ final class LineageForm {
             List<String> want = new ArrayList<>(expected);
             want.sort(String::compareTo);
             if (want.equals(got)) {
-                return new TestBody.Outcome.Ran(1, 0, 0, List.of());
+                return new EngineTestExecutor.Outcome.Ran(1, 0, 0, List.of());
             }
-            return new TestBody.Outcome.Ran(1, 0, 0, List.of(
+            return new EngineTestExecutor.Outcome.Ran(1, 0, 0, List.of(
                     "scanColumns: expected " + want + ", got " + got));
         } catch (com.legend.error.NotImplementedException e) {
-            return new TestBody.Outcome.Unsupported("scanColumns query: "
+            return new EngineTestExecutor.Outcome.Unsupported("scanColumns query: "
                     + String.valueOf(e.getMessage()).split("\\n")[0]);
         }
     }

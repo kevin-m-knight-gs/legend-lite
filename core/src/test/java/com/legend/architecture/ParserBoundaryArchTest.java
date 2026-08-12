@@ -22,9 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (Javadoc references are fine; the scan skips comment lines.)
  *
  * <p>Born 2026-08-12 after the collapse audit found a CHECKER parsing
- * strings ({@code GraphFetchChecker}'s quote/eval fold) with nothing
- * guarding the boundary — a dialect decision was being made in checker
- * code and no architecture rule existed to catch it.
+ * strings (GraphFetchChecker's quote/eval fold, since moved to the
+ * parser as the QuotedTreeCall carrier) with nothing guarding the
+ * boundary. The servers and nlq left the list the same day: product
+ * endpoints route through the Compiler (parseModel/parseQuery),
+ * which is the provenance router.
  *
  * <p>SHRINK-ONLY: a new entry here is a reviewed architectural decision,
  * not a convenience.
@@ -34,20 +36,21 @@ class ParserBoundaryArchTest {
     /** file suffix (path under src/main/java) → why it may parse. */
     private static final Map<String, String> SANCTIONED = Map.ofEntries(
             Map.entry("com/legend/Compiler.java",
-                    "THE pipeline driver — the provenance router that names"
-                            + " levels for whole-model compiles"),
+                    "THE pipeline driver — the provenance router; the product parse"
+                            + " facades (parseModel/parseQuery) live here"),
             Map.entry("com/legend/builtin/Pure.java",
-                    "the bootstrap loader — the one LEGEND_PLATFORM consumer"),
+                    "the bootstrap loader — the platform surface's one"
+                            + " consumer"),
             Map.entry("com/legend/compiler/spec/SourceSubst.java",
                     "the let-inliner completes the quote/eval fold the"
                             + " moment substitution makes the argument"
-                            + " literal — TreeLiterals front door, same"
+                            + " literal — EngineSpecParser front door, same"
                             + " carrier as SpecParser's parse-time fold"),
             Map.entry("com/legend/harness/HarnessSubstitution.java",
                     "the harness inliner completes the quote/eval fold when"
                             + " let-substitution makes the argument literal"
                             + " — same front door and carrier as SpecParser"),
-            Map.entry("com/legend/harness/TestBody.java",
+            Map.entry("com/legend/harness/EngineTestExecutor.java",
                     "quote/eval natives (compileLegendGrammar) — the"
                             + " engine's LegendCompile equivalent"),
             Map.entry("com/legend/ide/ModelIndex.java",
@@ -55,19 +58,8 @@ class ParserBoundaryArchTest {
             Map.entry("com/legend/ide/ModelIndexer.java",
                     "the IDE incremental-parse orchestrator"),
             Map.entry("com/legend/ide/ModelOrchestrator.java",
-                    "the IDE incremental-parse orchestrator"),
-            Map.entry("com/legend/server/ConnectionResolver.java",
-                    "product endpoint — parse(…, LEGEND_LITE) only"),
-            Map.entry("com/legend/server/DiagramService.java",
-                    "product endpoint — parse(…, LEGEND_LITE) only"),
-            Map.entry("com/legend/server/PureLspServer.java",
-                    "product endpoint — parse(…, LEGEND_LITE) only"),
-            Map.entry("org/finos/legend/engine/nlq/NlqModel.java",
-                    "product endpoint — parse(…, LEGEND_LITE) only"),
-            Map.entry("org/finos/legend/engine/nlq/NlqService.java",
-                    "product endpoint — SpecParser at LEGEND_LITE"),
-            Map.entry("org/finos/legend/engine/nlq/eval/NlqEvalMetrics.java",
-                    "product endpoint — SpecParser at LEGEND_LITE"));
+                    "the IDE incremental-parse orchestrator — a product"
+                            + " surface parsing token slices"));
 
     @Test
     void parsingHappensInTheParser() throws IOException {

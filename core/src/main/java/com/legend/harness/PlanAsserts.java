@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The PLAN-TEXT assert channel (relocated from {@link TestBody} at the
+ * The PLAN-TEXT assert channel (relocated from {@link EngineTestExecutor} at the
  * file guardrail): planToString-family subtrees inline as literal text
  * through the K-native; plan asserts compare the literal strings; walls
  * stay SHAPE, scoped to plan asserts only.
@@ -31,8 +31,8 @@ final class PlanAsserts {
      * executionPlan call — its terminal value (sqlQuery text) compares
      * LITERALLY like plan text. */
     static boolean containsPlanWalk(@com.legend.Nullable ValueSpecification v) {
-        return (TestBody.walkHasProp(v, "rootExecutionNode")
-                && TestBody.walkHasCall(v))
+        return (EngineTestExecutor.walkHasProp(v, "rootExecutionNode")
+                && EngineTestExecutor.walkHasCall(v))
                 // ->sqlRemoveFormatting() over an executionPlan binding is
                 // the literal plan-text read by another spelling — there
                 // are no rows to verify (execute()-based reads never carry
@@ -43,7 +43,7 @@ final class PlanAsserts {
 
     private static boolean hasCallNamed(@com.legend.Nullable ValueSpecification v, String simple) {
         if (v instanceof AppliedFunction af) {
-            if (TestBody.simpleName(af.function()).equals(simple)) {
+            if (EngineTestExecutor.simpleName(af.function()).equals(simple)) {
                 return true;
             }
             for (ValueSpecification x : af.parameters()) {
@@ -58,7 +58,7 @@ final class PlanAsserts {
     }
 
     /** A planToString/planWalk operand routes to the LITERAL plan-text
-     * compare (shared by TestBody's assertEquals and assertSameSQL arms). */
+     * compare (shared by EngineTestExecutor's assertEquals and assertSameSQL arms). */
     static boolean wantsPlanText(
             java.util.List<com.legend.protocol.spec.ValueSpecification> args,
             java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
@@ -70,8 +70,8 @@ final class PlanAsserts {
 
     static boolean containsPlanToString(@com.legend.Nullable ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
-            if (TestBody.simpleName(af.function()).equals("planToString")
-                    || TestBody.simpleName(af.function())
+            if (EngineTestExecutor.simpleName(af.function()).equals("planToString")
+                    || EngineTestExecutor.simpleName(af.function())
                             .equals("planToStringWithoutFormatting")) {
                 return true;
             }
@@ -100,7 +100,7 @@ final class PlanAsserts {
             ValueSpecification inlined = inlinePlanText(
                     HarnessSubstitution.subst(args.get(0), lets), lets, execStmts,
                     execVars, execChains, ctx, imports, runtimeFqn, conn);
-            Object pv = TestBody.evalScalar(java.util.Objects.requireNonNull(inlined,
+            Object pv = EngineTestExecutor.evalScalar(java.util.Objects.requireNonNull(inlined,
                     "plan-text assert without an inlined plan"),
                     lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn);
@@ -111,7 +111,7 @@ final class PlanAsserts {
         } catch (com.legend.error.NotImplementedException
                 | com.legend.error.LegendCompileException
                 | UnsupportedOperationException pw) {
-            return TestBody.unsupported("plan wall: " + pw.getMessage());
+            return EngineTestExecutor.unsupported("plan wall: " + pw.getMessage());
         }
     }
 
@@ -125,10 +125,10 @@ final class PlanAsserts {
             ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
         if (v instanceof AppliedFunction af) {
-            String fn = TestBody.simpleName(af.function());
+            String fn = EngineTestExecutor.simpleName(af.function());
             if (fn.equals("planToString")
                     || fn.equals("planToStringWithoutFormatting")) {
-                TestBody.Eval e = TestBody.eval(v, lets, execStmts, execVars, execChains,
+                EngineTestExecutor.Eval e = EngineTestExecutor.eval(v, lets, execStmts, execVars, execChains,
                         ctx, imports, runtimeFqn, conn);
                 return new CString(String.valueOf(e.values().get(0)));
             }
@@ -167,17 +167,17 @@ final class PlanAsserts {
             ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
         try {
-            TestBody.Eval pa = TestBody.eval(args.get(args.size() - 1), lets, execStmts,
+            EngineTestExecutor.Eval pa = EngineTestExecutor.eval(args.get(args.size() - 1), lets, execStmts,
                     execVars, execChains, ctx, imports, runtimeFqn, conn);
-            TestBody.Eval pe = TestBody.eval(args.get(0), lets, execStmts, execVars,
+            EngineTestExecutor.Eval pe = EngineTestExecutor.eval(args.get(0), lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn);
-            if (TestBody.compare(pe, pa, true)) {
+            if (EngineTestExecutor.compare(pe, pa, true)) {
                 return null;
             }
             if (args.size() == 3) {
-                TestBody.Eval p2 = TestBody.eval(args.get(1), lets, execStmts, execVars,
+                EngineTestExecutor.Eval p2 = EngineTestExecutor.eval(args.get(1), lets, execStmts, execVars,
                         execChains, ctx, imports, runtimeFqn, conn);
-                if (TestBody.compare(p2, pa, true)) {
+                if (EngineTestExecutor.compare(p2, pa, true)) {
                     return null;
                 }
                 planGoldenDebug("plan-2golden", p2.render(), pa.render());
@@ -195,7 +195,7 @@ final class PlanAsserts {
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[plan-wall] " + pw);
             }
-            return TestBody.unsupported("plan wall: " + pw.getMessage());
+            return EngineTestExecutor.unsupported("plan wall: " + pw.getMessage());
         }
     }
 }

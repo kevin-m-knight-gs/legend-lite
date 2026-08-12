@@ -52,8 +52,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     @Override
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
-        // the SPI feed is the DROP-IN seam: engine-exact grammar
-        Cursor c = new Cursor(Lexer.tokenize(src.text()), 0, 0,
+        Cursor c = new Cursor(Lexer.tokenize(src.text()), 0, 0, // SPI overlay hosting = the drop-in seam: engine grammar
                 com.legend.parser.Dialect.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {

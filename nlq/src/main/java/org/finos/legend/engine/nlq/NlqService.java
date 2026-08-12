@@ -273,7 +273,7 @@ public class NlqService {
             for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
                 try {
-                    com.legend.parser.SpecParser.parse(pureQuery, com.legend.parser.Dialect.LEGEND_LITE);
+                    com.legend.Compiler.parseQuery(pureQuery);
                     lastParseError = null;
                     break;
                 } catch (Exception e) {

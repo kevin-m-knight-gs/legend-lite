@@ -41,13 +41,13 @@ final class ConnEquality {
             com.legend.model.ImportScope imports) {
         boolean negate = false;
         if (v instanceof AppliedFunction nf
-                && TestBody.simpleName(nf.function()).equals("not")
+                && EngineTestExecutor.simpleName(nf.function()).equals("not")
                 && nf.parameters().size() == 1) {
             v = nf.parameters().get(0);
             negate = true;
         }
         if (!(v instanceof AppliedFunction af
-                && TestBody.simpleName(af.function()).equals(
+                && EngineTestExecutor.simpleName(af.function()).equals(
                         "runRelationalRouterExtensionConnectionEquality")
                 && af.parameters().size() == 2)) {
             Boolean r = v == null ? null
@@ -61,7 +61,7 @@ final class ConnEquality {
 
     /** The LET-arm host folds: JSON-metamodel plumbing defers verbatim
      * (to the assert), predicate VERDICTS bind as booleans, and
-     * generateObjectReferences builds — one funnel so the TestBody let
+     * generateObjectReferences builds — one funnel so the EngineTestExecutor let
      * arm stays a single call (file at its size cap). */
     static @com.legend.Nullable ValueSpecification letFold(
             ValueSpecification rhs, ValueSpecification substituted,

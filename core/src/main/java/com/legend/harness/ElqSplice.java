@@ -50,8 +50,8 @@ final class ElqSplice {
             CString name, ValueSpecification rhs,
             Map<String, ValueSpecification> lets) {
         if (!(rhs instanceof AppliedFunction elq)
-                || !TestBody.harnessVocabName(elq.function())
-                || !TestBody.simpleName(elq.function())
+                || !EngineTestExecutor.harnessVocabName(elq.function())
+                || !EngineTestExecutor.simpleName(elq.function())
                         .equals("executeLegendQuery")
                 || elq.parameters().isEmpty()
                 || !(HarnessSubstitution.substitute(elq.parameters().get(0), lets)
@@ -109,7 +109,7 @@ final class ElqSplice {
      * spelled as a let-bound VARIABLE keeps its source form in the engine
      * key ({@code customer($processingDate, $businessDate)}) even though
      * the value inlines for execution — precomputed HERE, the last point
-     * that still sees the variable spelling (TestBody.substitute's
+     * that still sees the variable spelling (EngineTestExecutor.substitute's
      * ColSpecArray arm). Null-alias pass-through otherwise. */
     static @com.legend.Nullable String keyAlias(
             com.legend.protocol.spec.ColSpec cs,
@@ -149,7 +149,7 @@ final class ElqSplice {
         ValueSpecification cur = vs;
         while (cur instanceof AppliedFunction af
                 && !af.parameters().isEmpty()) {
-            if (TestBody.simpleName(af.function()).equals(fn)) {
+            if (EngineTestExecutor.simpleName(af.function()).equals(fn)) {
                 return true;
             }
             cur = af.parameters().get(0);
@@ -173,7 +173,7 @@ final class ElqSplice {
         Map<String, ValueSpecification> out = new LinkedHashMap<>();
         for (ValueSpecification e : entries) {
             if (!(e instanceof AppliedFunction pair)
-                    || !TestBody.simpleName(pair.function()).equals("pair")
+                    || !EngineTestExecutor.simpleName(pair.function()).equals("pair")
                     || pair.parameters().size() != 2
                     || !(HarnessSubstitution.substitute(pair.parameters().get(0), lets)
                             instanceof CString key)) {

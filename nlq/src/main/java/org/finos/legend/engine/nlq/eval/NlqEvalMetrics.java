@@ -180,7 +180,7 @@ public final class NlqEvalMetrics {
 
         boolean parseable;
         try {
-            com.legend.parser.SpecParser.parse(pureQuery, com.legend.parser.Dialect.LEGEND_LITE);
+            com.legend.Compiler.parseQuery(pureQuery);
             parseable = true;
         } catch (Exception e) {
             parseable = false;

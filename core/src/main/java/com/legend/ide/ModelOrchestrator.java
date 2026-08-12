@@ -55,6 +55,8 @@ import java.util.Objects;
  */
 public final class ModelOrchestrator {
 
+
+
     private final TokenStream tokens;
     private final ModelIndex index;
     private final Map<String, PackageableElement> cache = new HashMap<>();
@@ -99,7 +101,10 @@ public final class ModelOrchestrator {
             throw new UnknownFqnException(fqn);
         }
         TokenStream slice = tokens.slice(entry.startTokenInclusive(), entry.endTokenExclusive());
-        PackageableElement parsed = ElementParser.parseSingle(slice);
+        PackageableElement parsed = ElementParser.parseSingle(slice,
+                // the IDE is a product surface (see Compiler.parseModel);
+                // it parses token SLICES, so it names the level itself
+                com.legend.parser.Dialect.LEGEND_LITE);
         cache.put(fqn, parsed);
         return parsed;
     }
@@ -132,7 +137,8 @@ public final class ModelOrchestrator {
             ImportScope.Builder builder = new ImportScope.Builder();
             for (ModelIndex.ImportEntry imp : index.imports()) {
                 TokenStream slice = tokens.slice(imp.startTokenInclusive(), imp.endTokenExclusive());
-                builder.add(ElementParser.parseSingleImport(slice));
+                builder.add(ElementParser.parseSingleImport(slice,
+                        com.legend.parser.Dialect.LEGEND_LITE));
             }
             cachedImports = builder.build();
         }

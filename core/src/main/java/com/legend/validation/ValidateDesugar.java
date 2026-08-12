@@ -35,7 +35,7 @@ import java.util.List;
  * user query (constraint bodies with exists/aggregates compile like any
  * predicate; the feature is THIN GLUE, per the feature map §14.1).
  *
- * <p>Runs BEFORE name resolution (TestBody entry), so the call matches
+ * <p>Runs BEFORE name resolution (EngineTestExecutor entry), so the call matches
  * by simple name + validation-import scope; the constraint bodies are
  * the parser's own {@code ValueSpecification}s ($this references become
  * the filter lambda's parameter).
@@ -209,7 +209,7 @@ public final class ValidateDesugar {
         // addDriverTablePkForProject=true) to execute; that metamodel
         // class is unloadable in PARTIAL corpus modules (its file drags
         // the relational metamodel), so the flag travels as a Java-side
-        // execution option instead (TestBody -> ExecEnv -> DriverPkAppend)
+        // execution option instead (EngineTestExecutor -> ExecEnv -> DriverPkAppend)
         return new AppliedFunction("execute", List.of(
                 new LambdaFunction(List.of(), List.of(tds)),
                 mapping, runtime, extensions));

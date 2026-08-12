@@ -43,7 +43,7 @@ final class ReflectAsserts {
     static @com.legend.Nullable Boolean tryEval(ValueSpecification v,
             ModelContext ctx, ImportScope imports) {
         if (!(v instanceof AppliedFunction af
-                && TestBody.simpleName(af.function()).equals(
+                && EngineTestExecutor.simpleName(af.function()).equals(
                         "expressionSequenceReturnsAtLeastToOneDataType")
                 && af.parameters().size() == 1)) {
             return null;
@@ -122,7 +122,7 @@ final class ReflectAsserts {
                                 : r.upper() * pm.upper());
             }
             case AppliedFunction f
-                    when TestBody.simpleName(f.function()).equals("toOne")
+                    when EngineTestExecutor.simpleName(f.function()).equals("toOne")
                     && f.parameters().size() == 1 -> {
                 Walk r = walk(f.parameters().get(0), param, ctx, imports);
                 return r == null ? null
@@ -130,7 +130,7 @@ final class ReflectAsserts {
             }
             // filter keeps the element class; matches may be empty
             case AppliedFunction f
-                    when TestBody.simpleName(f.function()).equals("filter")
+                    when EngineTestExecutor.simpleName(f.function()).equals("filter")
                     && f.parameters().size() == 2 -> {
                 Walk r = walk(f.parameters().get(0), param, ctx, imports);
                 return r == null ? null
@@ -138,7 +138,7 @@ final class ReflectAsserts {
             }
             // ->cast(@T): multiplicity-preserving retype
             case AppliedFunction f
-                    when TestBody.simpleName(f.function()).equals("cast")
+                    when EngineTestExecutor.simpleName(f.function()).equals("cast")
                     && f.parameters().size() == 2 -> {
                 Walk r = walk(f.parameters().get(0), param, ctx, imports);
                 if (r == null) {
@@ -170,7 +170,7 @@ final class ReflectAsserts {
                     return null;
                 }
                 var dp = ctx.findProperty(r.classFqn(),
-                        TestBody.simpleName(f.function())).orElse(null);
+                        EngineTestExecutor.simpleName(f.function())).orElse(null);
                 if (!(dp instanceof com.legend.compiler.element
                         .Property.Derived d
                         && d.parameters().size()
@@ -220,9 +220,9 @@ final class ReflectAsserts {
     /** cast/toOne wrappers are identity for this navigation. */
     private static ValueSpecification stripCasts(ValueSpecification v) {
         while (v instanceof AppliedFunction f
-                && (TestBody.simpleName(f.function()).equals("cast")
+                && (EngineTestExecutor.simpleName(f.function()).equals("cast")
                         && f.parameters().size() == 2
-                    || TestBody.simpleName(f.function()).equals("toOne")
+                    || EngineTestExecutor.simpleName(f.function()).equals("toOne")
                         && f.parameters().size() == 1)) {
             v = f.parameters().get(0);
         }
@@ -233,7 +233,7 @@ final class ReflectAsserts {
     private static ValueSpecification stripAt(ValueSpecification v,
             int[] idx) {
         if (v instanceof AppliedFunction f
-                && TestBody.simpleName(f.function()).equals("at")
+                && EngineTestExecutor.simpleName(f.function()).equals("at")
                 && f.parameters().size() == 2
                 && f.parameters().get(1) instanceof CInteger k) {
             idx[0] = k.value().intValue();
@@ -253,13 +253,13 @@ final class ReflectAsserts {
                     return lf;
                 }
                 case AppliedFunction f when f.parameters().size() >= 1
-                        && (TestBody.simpleName(f.function())
+                        && (EngineTestExecutor.simpleName(f.function())
                                         .equals("deactivate")
-                                || TestBody.simpleName(f.function())
+                                || EngineTestExecutor.simpleName(f.function())
                                         .equals("cast")
-                                || TestBody.simpleName(f.function())
+                                || EngineTestExecutor.simpleName(f.function())
                                         .equals("at")
-                                || TestBody.simpleName(f.function())
+                                || EngineTestExecutor.simpleName(f.function())
                                         .equals("toOne")) ->
                         v = f.parameters().get(0);
                 case AppliedProperty ap

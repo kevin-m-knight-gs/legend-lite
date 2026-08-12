@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * idioms: an execute bound to a let, downstream reads splicing the query,
  * asserts comparing both sides through ONE wire convention.
  */
-class TestBodyTest {
+class EngineTestExecutorTest {
 
     private static final String MODEL = """
             Class test::Person
@@ -75,16 +75,16 @@ class TestBodyTest {
         return conn;
     }
 
-    private static TestBody.Outcome run(String body) throws Exception {
+    private static EngineTestExecutor.Outcome run(String body) throws Exception {
         ModelContext ctx = Compiler.compileModel(MODEL);
         try (Connection conn = seeded()) {
-            return TestBody.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.parser.Dialect.LEGEND_PLATFORM);
+            return EngineTestExecutor.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.parser.Dialect.LEGEND_PLATFORM);
         }
     }
 
-    private static void assertHeld(TestBody.Outcome o, int verified) {
-        assertInstanceOf(TestBody.Outcome.Ran.class, o, String.valueOf(o));
-        TestBody.Outcome.Ran ran = (TestBody.Outcome.Ran) o;
+    private static void assertHeld(EngineTestExecutor.Outcome o, int verified) {
+        assertInstanceOf(EngineTestExecutor.Outcome.Ran.class, o, String.valueOf(o));
+        EngineTestExecutor.Outcome.Ran ran = (EngineTestExecutor.Outcome.Ran) o;
         assertEquals(List.of(), ran.failures());
         assertEquals(verified, ran.verified());
     }
@@ -112,24 +112,24 @@ class TestBodyTest {
 
     @Test
     void wrongValuesFail() throws Exception {
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 let result = execute(|Person.all()->project([p|$p.age], ['age']),
                         test::M, r(), e());
                 assertEquals([1, 2, 3], $result.values->at(0)->map(r|$r.age));
                 """);
-        TestBody.Outcome.Ran ran = (TestBody.Outcome.Ran) o;
+        EngineTestExecutor.Outcome.Ran ran = (EngineTestExecutor.Outcome.Ran) o;
         assertEquals(1, ran.failures().size());
     }
 
     @Test
     void numericKindIsStrict() throws Exception {
         // 30 (Integer) must NOT equal 30.0 (Float) — pure kind semantics
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 let result = execute(|Person.all()->filter(p|$p.name == 'Bob')
                         ->project([p|$p.age], ['age']), test::M, r(), e());
                 assertEquals([30.0], $result.values->at(0)->map(r|$r.age));
                 """);
-        assertEquals(1, ((TestBody.Outcome.Ran) o).failures().size());
+        assertEquals(1, ((EngineTestExecutor.Outcome.Ran) o).failures().size());
     }
 
     @Test
@@ -183,23 +183,23 @@ class TestBodyTest {
         // toSQLString rendering (EngineStyleH2) byte-exact — a matching
         // golden VERIFIES, a divergent one is an honest text-diff FAIL
         // (never a silent advisory skip)
-        TestBody.Outcome ok = run("""
+        EngineTestExecutor.Outcome ok = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
                 assertEquals('select "root".NAME as "name" from PERSON as "root"',
                         $result->sqlRemoveFormatting());
                 assertSize($result.values->at(0), 3);
                 """);
-        TestBody.Outcome.Ran ran = (TestBody.Outcome.Ran) ok;
+        EngineTestExecutor.Outcome.Ran ran = (EngineTestExecutor.Outcome.Ran) ok;
         assertEquals(List.of(), ran.failures());
         assertEquals(2, ran.verified());
         assertEquals(0, ran.advisory());
-        TestBody.Outcome bad = run("""
+        EngineTestExecutor.Outcome bad = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
                 assertEquals('select whatever', $result->sqlRemoveFormatting());
                 """);
-        TestBody.Outcome.Ran ranBad = (TestBody.Outcome.Ran) bad;
+        EngineTestExecutor.Outcome.Ran ranBad = (EngineTestExecutor.Outcome.Ran) bad;
         assertEquals(List.of(), ranBad.failures());
         assertEquals(0, ranBad.verified());
         assertEquals(1, ranBad.sqlDiffs().size());
@@ -330,7 +330,7 @@ class TestBodyTest {
             function test::e(): meta::pure::metamodel::type::Any[*] { [] }
             """;
 
-    private static TestBody.Outcome runFirm(String body) throws Exception {
+    private static EngineTestExecutor.Outcome runFirm(String body) throws Exception {
         ModelContext ctx = Compiler.compileModel(FIRM_MODEL);
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             try (var st = conn.createStatement()) {
@@ -341,7 +341,7 @@ class TestBodyTest {
                         INSERT INTO PERSON VALUES ('Bob',30,1),('Alice',20,1),
                         ('Cid',40,2),('Dee',10,3)""");
             }
-            return TestBody.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.parser.Dialect.LEGEND_PLATFORM);
+            return EngineTestExecutor.run(ctx, body, IMPORTS, "test::Rt", conn, com.legend.parser.Dialect.LEGEND_PLATFORM);
         }
     }
 
@@ -376,12 +376,12 @@ class TestBodyTest {
 
     @Test
     void unknownAssertFormIsLoudUnsupported() throws Exception {
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
                 assertContainsExactly($result.values, 'Bob');
                 """);
-        assertInstanceOf(TestBody.Outcome.Unsupported.class, o);
+        assertInstanceOf(EngineTestExecutor.Outcome.Unsupported.class, o);
     }
 
     @Test
@@ -397,14 +397,14 @@ class TestBodyTest {
 
     @Test
     void assertContainsMissReportsBothSides() throws Exception {
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
                 assertContains($result.values.rows.values, 'Zed');
                 """);
-        assertInstanceOf(TestBody.Outcome.Ran.class, o);
+        assertInstanceOf(EngineTestExecutor.Outcome.Ran.class, o);
         org.junit.jupiter.api.Assertions.assertFalse(
-                ((TestBody.Outcome.Ran) o).failures().isEmpty());
+                ((EngineTestExecutor.Outcome.Ran) o).failures().isEmpty());
     }
 
     @Test
@@ -421,12 +421,12 @@ class TestBodyTest {
 
     @org.junit.jupiter.api.Test
     void printlnIsHarnessNoiseAndSkips() throws Exception {
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 println('debug noise');
                 assertEquals(1, 1);
                 """);
-        assertInstanceOf(TestBody.Outcome.Ran.class, o);
-        assertTrue(((TestBody.Outcome.Ran) o).failures().isEmpty());
+        assertInstanceOf(EngineTestExecutor.Outcome.Ran.class, o);
+        assertTrue(((EngineTestExecutor.Outcome.Ran) o).failures().isEmpty());
     }
 
     @Test
@@ -436,15 +436,15 @@ class TestBodyTest {
         // Any[*] raw cells, column names OUT of the comparison. Two
         // projections of the same data under DIFFERENT column aliases
         // compare equal through the flat-cells read...
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 let r1 = execute(|test::Person.all()->project([p | $p.name], ['colA']), test::M, test::r(), test::e());
                 let r2 = execute(|test::Person.all()->project([p | $p.name], ['colB']), test::M, test::r(), test::e());
                 assertEquals($r1.values.rows.values, $r2.values.rows.values);
                 """);
-        assertInstanceOf(TestBody.Outcome.Ran.class, o);
-        assertTrue(((TestBody.Outcome.Ran) o).failures().isEmpty(),
+        assertInstanceOf(EngineTestExecutor.Outcome.Ran.class, o);
+        assertTrue(((EngineTestExecutor.Outcome.Ran) o).failures().isEmpty(),
                 () -> "flat-cells compare must ignore column names: "
-                        + ((TestBody.Outcome.Ran) o).failures());
+                        + ((EngineTestExecutor.Outcome.Ran) o).failures());
     }
 
     @Test
@@ -452,13 +452,13 @@ class TestBodyTest {
         // ...but the WHOLE-TDS compare stays structural: same data,
         // different column names => NOT equal (the grid arm's column-name
         // pin is engine behavior for TDS equality and must not relax).
-        TestBody.Outcome o = run("""
+        EngineTestExecutor.Outcome o = run("""
                 let r1 = execute(|test::Person.all()->project([p | $p.name], ['colA']), test::M, test::r(), test::e());
                 let r2 = execute(|test::Person.all()->project([p | $p.name], ['colB']), test::M, test::r(), test::e());
                 assertEquals($r1.values, $r2.values);
                 """);
-        assertInstanceOf(TestBody.Outcome.Ran.class, o);
-        assertEquals(1, ((TestBody.Outcome.Ran) o).failures().size(),
+        assertInstanceOf(EngineTestExecutor.Outcome.Ran.class, o);
+        assertEquals(1, ((EngineTestExecutor.Outcome.Ran) o).failures().size(),
                 "whole-TDS compare must still pin column names");
     }
 }

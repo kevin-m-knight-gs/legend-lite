@@ -70,7 +70,7 @@ public final class SourceSubst {
                 // complete the parse-time fold right here, same front door,
                 // same carrier as SpecParser's own fold
                 ValueSpecification folded =
-                        com.legend.parser.TreeLiterals.foldQuoteEval(sub);
+                        com.legend.parser.EngineSpecParser.fold(sub);
                 yield folded != null ? folded : sub;
             }
             case AppliedProperty ap -> new AppliedProperty(

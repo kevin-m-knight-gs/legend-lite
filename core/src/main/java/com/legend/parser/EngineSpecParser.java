@@ -10,9 +10,9 @@ import com.legend.protocol.spec.ValueSpecification;
  * FRONT DOOR (like {@link ElementParser} for elements), so grammar internals
  * never leak into checker code.
  */
-public final class TreeLiterals {
+public final class EngineSpecParser {
 
-    private TreeLiterals() {
+    private EngineSpecParser() {
     }
 
     /** The quote/eval fold, AT PARSE TIME: when {@code call} is
@@ -27,7 +27,7 @@ public final class TreeLiterals {
      * {@code AppliedFunction}, typed {@code Any[1]} like the engine's
      * native. */
     public static com.legend.protocol.spec.@com.legend.Nullable QuotedTreeCall
-            foldQuoteEval(com.legend.protocol.spec.AppliedFunction call) {
+            fold(com.legend.protocol.spec.AppliedFunction call) {
         if (!(call.function().equals("compileLegendValueSpecification")
                 || call.function().equals(
                         "meta::legend::compileLegendValueSpecification"))

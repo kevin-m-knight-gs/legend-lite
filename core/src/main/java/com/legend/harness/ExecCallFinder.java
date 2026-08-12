@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Locates the {@code execute(...)} call that feeds a golden-SQL read
- * chain (extracted from TestBody at the file-size guardrail). */
+ * chain (extracted from EngineTestExecutor at the file-size guardrail). */
 final class ExecCallFinder {
 
     private ExecCallFinder() {
@@ -25,7 +25,7 @@ final class ExecCallFinder {
             List<ValueSpecification> execStmts) {
         AppliedFunction t = findTerminal(v, lets, execStmts,
                 java.util.Set.of("execute"));
-        return t != null && TestBody.simpleName(t.function())
+        return t != null && EngineTestExecutor.simpleName(t.function())
                 .equals("execute") ? t : null;
     }
 
@@ -76,10 +76,10 @@ final class ExecCallFinder {
                 continue;
             }
             if (cur instanceof AppliedFunction af
-                    && !stops.contains(TestBody.simpleName(af.function()))
+                    && !stops.contains(EngineTestExecutor.simpleName(af.function()))
                     && !af.parameters().isEmpty()) {
                 if (through != null && !through.contains(
-                        TestBody.simpleName(af.function()))) {
+                        EngineTestExecutor.simpleName(af.function()))) {
                     return null;
                 }
                 cur = HarnessSubstitution.substitute(af.parameters().get(0), lets);
@@ -92,7 +92,7 @@ final class ExecCallFinder {
             break;
         }
         return cur instanceof AppliedFunction ex
-                && stops.contains(TestBody.simpleName(ex.function()))
+                && stops.contains(EngineTestExecutor.simpleName(ex.function()))
                 ? ex : null;
     }
 
@@ -121,7 +121,7 @@ final class ExecCallFinder {
         }
         try {
             ValueSpecification call = term;
-            if (TestBody.simpleName(term.function()).equals("execute")) {
+            if (EngineTestExecutor.simpleName(term.function()).equals("execute")) {
                 if (term.parameters().size() < 2) {
                     return null;
                 }
@@ -145,7 +145,7 @@ final class ExecCallFinder {
                 call = new AppliedFunction("meta::relational::functions"
                         + "::sqlstring::toSQLString", ps);
             }
-            return TestBody.evalScalar(call, lets, execStmts, execVars,
+            return EngineTestExecutor.evalScalar(call, lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn)
                     instanceof String s ? s : null;
         } catch (RuntimeException | java.sql.SQLException e) {

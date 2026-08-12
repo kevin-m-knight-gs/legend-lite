@@ -54,9 +54,9 @@ import java.util.Map;
  * compile error propagates; assertion evaluation STOPS at the first
  * failing assert (real pure {@code assert} raises).
  */
-public final class TestBody {
+public final class EngineTestExecutor {
 
-    private TestBody() {
+    private EngineTestExecutor() {
     }
 
     /** The result of driving one test body. */
@@ -93,12 +93,12 @@ public final class TestBody {
         }
         return switch (v) {
             case AppliedFunction af -> af.parameters().stream()
-                    .anyMatch(TestBody::containsExecute);
+                    .anyMatch(EngineTestExecutor::containsExecute);
             case AppliedProperty ap -> containsExecute(ap.receiver());
             case PureCollection pc -> pc.values().stream()
-                    .anyMatch(TestBody::containsExecute);
+                    .anyMatch(EngineTestExecutor::containsExecute);
             case LambdaFunction lf -> lf.body().stream()
-                    .anyMatch(TestBody::containsExecute);
+                    .anyMatch(EngineTestExecutor::containsExecute);
             default -> false;
         };
     }
@@ -827,6 +827,7 @@ public final class TestBody {
         // engine's two-level seam: the payload is USER GRAMMAR by contract
         for (com.legend.model.PackageableElement el
                 : com.legend.parser.ElementParser.parse(src,
+                        // LegendCompile parses quote/eval payloads with the USER grammar
                         com.legend.parser.Dialect.LEGEND_ENGINE).elements()) {
             if (el instanceof com.legend.model.FunctionDefinition fd) {
                 fns.add(fd);
@@ -1141,7 +1142,7 @@ public final class TestBody {
         if (v instanceof AppliedFunction af) {
             return simpleName(af.function()).equals("executionPlan")
                     || af.parameters().stream()
-                            .anyMatch(TestBody::walkHasCall);
+                            .anyMatch(EngineTestExecutor::walkHasCall);
         }
         if (v instanceof AppliedProperty ap) {
             return walkHasCall(ap.receiver());

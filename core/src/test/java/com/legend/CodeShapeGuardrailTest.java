@@ -143,7 +143,7 @@ class CodeShapeGuardrailTest {
             "TokenStreamCursor.IDENTIFIER_TOKENS",
             // nested-class cursors: ExecJson JSON reader, PureDateLiteral
             // date parser (keys are filename-scoped)
-            "TestBody.i", "PureDateLiteral.pos");
+            "EngineTestExecutor.i", "PureDateLiteral.pos");
 
     private static final Pattern SIG = Pattern.compile(
             "^    (?! )(?:private |public |protected |static |final |synchronized )*"

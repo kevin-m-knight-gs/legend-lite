@@ -64,8 +64,7 @@ public final class DiagramService {
      * @return Structured diagram data
      */
     public DiagramData extract(String pureSource) {
-        ParsedModel model = com.legend.parser.ElementParser.parse(pureSource,
-                com.legend.parser.Dialect.LEGEND_LITE);
+        ParsedModel model = com.legend.Compiler.parseModel(pureSource);
 
         List<ClassInfo> classes = new ArrayList<>();
         List<AssociationInfo> associations = new ArrayList<>();

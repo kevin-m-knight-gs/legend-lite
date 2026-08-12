@@ -143,8 +143,7 @@ public class PureLspServer {
         Map<String, Exception> fileErrors = new LinkedHashMap<>();
         for (var entry : documents.entrySet()) {
             try {
-                com.legend.parser.ElementParser.parse(entry.getValue(),
-                        com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.Compiler.parseModel(entry.getValue());
             } catch (Exception e) {
                 fileErrors.put(entry.getKey(), e);
             }

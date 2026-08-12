@@ -36,7 +36,7 @@ final class LineageRelationsForm {
     private LineageRelationsForm() {
     }
 
-    static TestBody.@com.legend.Nullable Outcome tryRun(ModelContext ctx,
+    static EngineTestExecutor.@com.legend.Nullable Outcome tryRun(ModelContext ctx,
             List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn) {
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
@@ -132,11 +132,11 @@ final class LineageRelationsForm {
                             + "got\n" + got);
                 }
             } catch (com.legend.error.NotImplementedException e) {
-                return new TestBody.Outcome.Unsupported("scanRelations: "
+                return new EngineTestExecutor.Outcome.Unsupported("scanRelations: "
                         + String.valueOf(e.getMessage()).split("\\n")[0]);
             }
         }
-        return new TestBody.Outcome.Ran(verified, advisory, 0, failures);
+        return new EngineTestExecutor.Outcome.Ran(verified, advisory, 0, failures);
     }
 
     /** Strip the engine's alias BREADCRUMBS from tree labels before

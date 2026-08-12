@@ -55,7 +55,7 @@ final class JsonAssertCanon {
         }
         ValueSpecification values = ni.properties().get("values").value();
         if (!(values instanceof AppliedFunction sb)
-                || !TestBody.simpleName(sb.function()).equals("sortBy")
+                || !EngineTestExecutor.simpleName(sb.function()).equals("sortBy")
                 || sb.parameters().size() != 2
                 || !(stripWrappers(sb.parameters().get(0))
                         instanceof AppliedProperty ap)
@@ -98,7 +98,7 @@ final class JsonAssertCanon {
         }
         boolean sawParse = false;
         while (v instanceof AppliedFunction af) {
-            String f = TestBody.simpleName(af.function());
+            String f = EngineTestExecutor.simpleName(af.function());
             if (af.parameters().size() == 1
                     && (f.equals("parseJSON") || f.equals("toPrettyJSONString")
                             || f.equals("toOne"))) {
@@ -126,7 +126,7 @@ final class JsonAssertCanon {
             java.util.function.Function<ValueSpecification,
                     Object> parsedEval) {
         if (!(rhs instanceof AppliedFunction mapAf)
-                || !TestBody.simpleName(mapAf.function()).equals("map")
+                || !EngineTestExecutor.simpleName(mapAf.function()).equals("map")
                 || mapAf.parameters().size() != 2
                 || !(mapAf.parameters().get(1)
                         instanceof LambdaFunction lf)
@@ -147,7 +147,7 @@ final class JsonAssertCanon {
         }
         ValueSpecification g = stripWrappers(vp.receiver());
         if (!(g instanceof AppliedFunction gv)
-                || !TestBody.simpleName(gv.function()).equals("getValue")
+                || !EngineTestExecutor.simpleName(gv.function()).equals("getValue")
                 || gv.parameters().size() != 2
                 || !(gv.parameters().get(1) instanceof CString key)) {
             return null;
@@ -170,7 +170,7 @@ final class JsonAssertCanon {
      * toPrettyJSONString / toOne (1-arg) and cast (value, type). */
     private static ValueSpecification stripWrappers(ValueSpecification v) {
         while (v instanceof AppliedFunction af) {
-            String f = TestBody.simpleName(af.function());
+            String f = EngineTestExecutor.simpleName(af.function());
             if (af.parameters().size() == 1
                     && (f.equals("parseJSON") || f.equals("toPrettyJSONString")
                             || f.equals("toOne"))) {
@@ -191,7 +191,7 @@ final class JsonAssertCanon {
         while (!work.isEmpty()) {
             ValueSpecification x = work.poll();
             if (x instanceof AppliedFunction af
-                    && TestBody.simpleName(af.function()).equals("getValue")
+                    && EngineTestExecutor.simpleName(af.function()).equals("getValue")
                     && af.parameters().size() == 2
                     && af.parameters().get(1) instanceof CString k) {
                 return k.value();

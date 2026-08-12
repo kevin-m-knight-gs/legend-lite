@@ -21,8 +21,7 @@ public final class NlqModel {
     }
 
     public static ParsedModel parse(String pureSource) {
-        return com.legend.parser.ElementParser.parse(pureSource,
-                com.legend.parser.Dialect.LEGEND_LITE);
+        return com.legend.Compiler.parseModel(pureSource);
     }
 
     /** All classes keyed by qualified name, in declaration order. */

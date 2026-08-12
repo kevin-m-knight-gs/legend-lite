@@ -194,6 +194,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     public static ElementParser at(TokenStream tokens, int tokenIndex) {
         // the drop-in surface
+        // the drop-in surface: output is byte-compared to PureGrammarParser's
         ElementParser p = new ElementParser(tokens, Dialect.LEGEND_ENGINE);
         p.pos = tokenIndex;
 
@@ -277,9 +278,9 @@ public final class ElementParser implements TokenStreamCursor {
      * to deep-parse a single element sliced out of a larger token stream
      * via the shallow indexer. Not used by the batch compiler.
      */
-    public static PackageableElement parseSingle(TokenStream slice) {
-        // the IDE layer serves the PRODUCT surface
-        ElementParser parser = new ElementParser(slice, Dialect.LEGEND_LITE);
+    public static PackageableElement parseSingle(TokenStream slice,
+            Dialect dialect) {
+        ElementParser parser = new ElementParser(slice, dialect);
         PackageableElement element = parser.parseSingleElement();
         if (!parser.atEnd()) {
             parser.error("trailing tokens after element body: expected slice to be fully consumed");
@@ -288,8 +289,9 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** Parse one {@code import path::* ;} statement from a token-stream slice. */
-    public static String parseSingleImport(TokenStream slice) {
-        ElementParser parser = new ElementParser(slice, Dialect.LEGEND_LITE);
+    public static String parseSingleImport(TokenStream slice,
+            Dialect dialect) {
+        ElementParser parser = new ElementParser(slice, dialect);
         String imp = parser.parseImportStatement();
         if (!parser.atEnd()) {
             parser.error("trailing tokens after import statement");

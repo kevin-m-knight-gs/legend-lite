@@ -9,7 +9,7 @@ package com.legend.validation;
  * {@code RelationalExecutionContext} argument of {@code execute()}; that
  * metamodel class is unloadable in PARTIAL corpus modules (its defining
  * file drags the relational metamodel), so the option travels run-scoped
- * here — {@code TestBody.run} sets it FRESH (true or false) for every
+ * here — {@code EngineTestExecutor.run} sets it FRESH (true or false) for every
  * body, the executor reads it into the {@code ExecEnv}. Replace with the
  * typed exeCtx argument once the metamodel family loads.
  */

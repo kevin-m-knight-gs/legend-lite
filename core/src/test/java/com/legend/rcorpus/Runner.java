@@ -30,7 +30,7 @@ public final class Runner {
 
     /** The m2 corpus's OUTER provenance, named ONCE: legend-pure test
      *  sources parse at PLATFORM (compileLegendGrammar payloads get
-     *  LEGEND_ENGINE inside TestBody — the engine's own two-level
+     *  LEGEND_ENGINE inside EngineTestExecutor — the engine's own two-level
      *  architecture). */
     private static com.legend.model.ParsedModel corpusParse(
             com.legend.lexer.TokenStream tokens) {
@@ -278,7 +278,7 @@ public final class Runner {
             }
             // EVERY parsed function joins the expansion index: test bodies
             // that reach execute()/toSQLString() through a HELPER call were
-            // invisible to discovery AND to TestBody (audit 19d B1 — the
+            // invisible to discovery AND to EngineTestExecutor (audit 19d B1 — the
             // 498-SHAPE cliff). Statement-position calls β-expand with the
             // callee's parameters bound as lets.
             // OVERLOAD-aware key (fqn/arity): the corpus's wrapper idiom
@@ -599,7 +599,7 @@ public final class Runner {
             if (stmt instanceof com.legend.protocol.spec.AppliedFunction af
                     && !af.function().equals("letFunction")
                     // assertEqualsH2Compatible is HARNESS vocabulary
-                    // (TestBody's /3 arm verifies by rows through the H2
+                    // (EngineTestExecutor's /3 arm verifies by rows through the H2
                     // second target) — expanding its corpus body would
                     // splice in getH2Versions()/executeInDb plumbing the
                     // module never pulls (forced-milestoning walls)
@@ -826,7 +826,7 @@ public final class Runner {
         List<String> out = new ArrayList<>();
         // LET-BOUND mapping refs (the corpus's dominant graphFetch idiom:
         // `let mapping = X; ... execute($q, $mapping, ...)`) resolve through
-        // this binding table — TestBody substitutes them at run time, so
+        // this binding table — EngineTestExecutor substitutes them at run time, so
         // the DISCOVERY gate must see through them too (bucket analysis:
         // 133/150 graphFetch execute calls were walled by this alone).
         Map<String, com.legend.protocol.spec.ValueSpecification> lets =
@@ -864,16 +864,16 @@ public final class Runner {
                 boolean executeShape = (simple.equals("execute")
                                 || simple.equals("toSQLString")
                                 // validate(func, MAPPING, runtime, ...) —
-                                // #45: desugars to execute at TestBody
+                                // #45: desugars to execute at EngineTestExecutor
                                 || simple.equals("validate")
                                 // scanColumns(tree, MAPPING) /
                                 // scanRelations(q, MAPPING, ...) — #44:
-                                // the lineage forms route at TestBody
+                                // the lineage forms route at EngineTestExecutor
                                 || simple.equals("scanColumns")
                                 || simple.equals("scanRelations")
                                 // generateTestData(q, MAPPING, runtime,
                                 // ids, ...) — #46: TestDataGenForm routes
-                                // at TestBody
+                                // at EngineTestExecutor
                                 || simple.equals("generateTestData")
                                 || simple.equals("planTestDataGeneration")
                                 || simple.equals(
@@ -1118,8 +1118,8 @@ public final class Runner {
                     moduleContextFor(moduleRefs, fileOnly);
             try (Connection conn = openSession()) {
                 List<String> ledger = new ArrayList<>();
-                com.legend.harness.TestBody.Outcome o =
-                        com.legend.harness.TestBody.run(ctx, body,
+                com.legend.harness.EngineTestExecutor.Outcome o =
+                        com.legend.harness.EngineTestExecutor.run(ctx, body,
                                 importScopeOf(t), "rcorpus::Rt", conn,
                                 false, ledger);
                 if (System.getenv("LL_TMP_DEBUG") != null
@@ -1249,7 +1249,7 @@ public final class Runner {
         // calls inside helpers to assemble the right module; (b) ASSERT
         // VISIBILITY — a helper body carrying assertEquals is HARNESS
         // vocabulary the platform can never type (G: unknown function),
-        // so TestBody must see the expanded statements to intercept them.
+        // so EngineTestExecutor must see the expanded statements to intercept them.
         // The original execute-visibility rationale (audit 19d B1) is
         // OBSOLETE since B2b made execute a platform native — the sweep
         // with raw bodies regressed ONLY the assert-in-helper shape.
@@ -1361,7 +1361,7 @@ public final class Runner {
                     // prints that follow belong to THIS test
                     System.err.println("[run] " + t.fqn());
                 }
-                com.legend.harness.TestBody.Outcome o = com.legend.harness.TestBody.run(
+                com.legend.harness.EngineTestExecutor.Outcome o = com.legend.harness.EngineTestExecutor.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
                 // body-time setup failures (added via the sink DURING the
@@ -1410,11 +1410,11 @@ public final class Runner {
                 .replace("\n", " | ");
     }
 
-    private static Outcome score(String fqn, com.legend.harness.TestBody.Outcome o) {
+    private static Outcome score(String fqn, com.legend.harness.EngineTestExecutor.Outcome o) {
         return switch (o) {
-            case com.legend.harness.TestBody.Outcome.Unsupported u ->
+            case com.legend.harness.EngineTestExecutor.Outcome.Unsupported u ->
                     new Outcome(fqn, Status.SHAPE, u.reason());
-            case com.legend.harness.TestBody.Outcome.Ran r -> {
+            case com.legend.harness.EngineTestExecutor.Outcome.Ran r -> {
                 if (!r.failures().isEmpty()) {
                     yield new Outcome(fqn, Status.FAIL, r.failures().get(0));
                 }
@@ -1627,7 +1627,7 @@ public final class Runner {
      * fns — execute as ordinary pure CALLS through the platform (K-natives
      * arc S4: Compiler's statement orchestration + executeInDb dispatch).
      * Setups the TEST BODY calls run at their own statement position in
-     * TestBody — no pre-replay, engine-exact ordering. */
+     * EngineTestExecutor — no pre-replay, engine-exact ordering. */
     /** One module-DDL unit: the session-dedup KEY (physical table
      * identity), the drop spelling for shape-clobber, and the create. */
     record DdlUnit(String key, String dropSql, String createSql) {}
