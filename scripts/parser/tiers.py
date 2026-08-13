@@ -113,6 +113,67 @@ EMBEDDED = {
 }
 
 
+# Which grammars a `###Section` routes to.
+#
+# This is what lets existing sources count WITHOUT a COVERS declaration, and it is what
+# removes the cross-grammar over-count the text search had: `Schema` written in a Service
+# section is credited to nothing, because ServiceLexerGrammar does not define it. A section
+# is the unit at which legend-engine itself dispatches to a grammar, so splitting on `###`
+# and attributing per section is not an approximation of the routing -- it IS the routing.
+#
+# What stays approximate: sub-grammars nested INSIDE a section share that section's credit,
+# so a keyword defined by both MappingLexerGrammar and AggregationAwareLexerGrammar is
+# credited to both from one ###Mapping section. Fixtures avoid this by declaring COVERS
+# explicitly, which is why fixtures are authoritative and this is the fallback.
+SECTION_GRAMMARS = {
+    "Pure": {"DomainLexerGrammar", "M3LexerGrammar", "CoreLexerGrammar",
+             "GraphFetchTreeLexerGrammar"},
+    # GraphQL is deliberately NOT here. Its keywords are only keywords inside `#GQL{...}#`;
+    # crediting them from a ###Pure section would score `true` in Pure code as GraphQL
+    # coverage. It is reachable only by an explicit fixture COVERS declaration.
+    "Relational": {"RelationalLexerGrammar"},
+    "Mapping": {"MappingLexerGrammar", "CoreLexerGrammar", "AggregationAwareLexerGrammar",
+                "PureInstanceClassMappingLexerGrammar", "RelationFunctionMappingLexerGrammar",
+                "RelationalLexerGrammar", "GraphFetchTreeLexerGrammar", "M3LexerGrammar",
+                "MongoDBMappingLexerGrammar", "ServiceStoreLexerGrammar"},
+    "Runtime": {"RuntimeLexerGrammar", "CoreLexerGrammar"},
+    "Connection": {"ConnectionLexerGrammar", "RelationalDatabaseConnectionLexerGrammar",
+                   "AuthenticationStrategyLexerGrammar", "DataSourceSpecificationLexerGrammar",
+                   "PostProcessorLexerGrammar", "QueryGenerationConfigsLexerGrammar",
+                   "ModelConnectionLexerGrammar", "CoreLexerGrammar",
+                   "ServiceStoreConnectionLexerGrammar", "MongoDBConnectionLexerGrammar",
+                   "DeephavenConnectionLexerGrammar", "ElasticsearchConnectionLexerGrammar"},
+    "Service": {"ServiceLexerGrammar", "CoreLexerGrammar", "M3LexerGrammar",
+                "EqualToAssertionLexerGrammar", "EqualToTDSAssertionLexerGrammar",
+                "EqualToJsonAssertionLexerGrammar", "EqualToContentPatternLexerGrammar",
+                "EqualToJsonContentPatternLexerGrammar", "DataLexerGrammar",
+                "ExternalFormatDataLexerGrammar", "RelationalEmbeddedDataLexerGrammar",
+                "RelationElementsDataLexerGrammar", "GraphFetchTreeLexerGrammar"},
+    "Data": {"DataLexerGrammar", "CoreLexerGrammar", "ExternalFormatDataLexerGrammar",
+             "RelationalEmbeddedDataLexerGrammar", "RelationElementsDataLexerGrammar",
+             "ServiceStoreEmbeddedDataLexerGrammar"},
+    "Diagram": {"DiagramLexerGrammar"},
+    "Text": {"TextLexerGrammar"},
+    "ExternalFormat": {"ExternalFormatLexerGrammar", "FlatDataLexerGrammar"},
+    "FileGeneration": {"FileGenerationLexerGrammar"},
+    "GenerationSpecification": {"GenerationSpecificationLexerGrammar"},
+    "RelationalMapper": {"RelationalMapperLexerGrammar"},
+    "Persistence": {"PersistenceLexerGrammar", "PersistenceRelationalLexerGrammar",
+                    "PersistenceCloudLexerGrammar"},
+    "DataSpace": {"DataSpaceLexerGrammar"},
+    "DataQualityValidation": {"DataQualityLexerGrammar"},
+    "ServiceStore": {"ServiceStoreLexerGrammar"},
+    "HostedService": {"HostedServiceLexerGrammar"},
+    "FunctionJar": {"FunctionJarLexerGrammar"},
+    "Snowflake": {"SnowflakeLexerGrammar"},
+    "BigQuery": {"BigQueryFunctionLexerGrammar"},
+    "MemSql": {"MemSqlFunctionLexerGrammar"},
+    "Deephaven": {"DeephavenLexerGrammar"},
+    "Elasticsearch": {"ElasticsearchLexerGrammar"},
+    "MongoDB": {"MongoDBSchemaLexerGrammar"},
+}
+
+
 def tier_of(stem: str) -> str:
     if stem in OUT_OF_SCOPE:
         return "out"

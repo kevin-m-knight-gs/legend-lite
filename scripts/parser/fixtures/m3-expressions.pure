@@ -1,0 +1,23 @@
+// COVERS M3LexerGrammar: let, toBytes
+//
+// Expression-level Pure. `let` is the one that matters here: the stress corpus is 30+
+// files and 89 services and has never written a local variable, because every generated
+// function body is a single chained expression.
+###Pure
+Class fixture::m3::Holder
+{
+   name: String[1];
+   size: Integer[1];
+}
+
+function fixture::m3::withLet(h: fixture::m3::Holder[1]): String[1]
+{
+   let prefix = 'id-';
+   let n = $h.size + 1;
+   $prefix + $n->toString();
+}
+
+function fixture::m3::withToBytes(s: String[1]): meta::pure::metamodel::type::Any[1]
+{
+   $s->toBytes();
+}

@@ -1,0 +1,9 @@
+// COVERS TextLexerGrammar: Text, type, content
+//
+// The whole ###Text section. Three keywords, never once written by anything we own.
+###Text
+Text fixture::text::Note
+{
+   type: 'plainText';
+   content: 'A free-text element. Its body is an opaque string as far as the parser is\nconcerned, which is exactly why it needs a fixture: nothing else proves the section\nheader routes anywhere.';
+}
