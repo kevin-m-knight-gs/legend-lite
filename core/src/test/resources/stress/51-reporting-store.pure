@@ -104,3 +104,66 @@ Mapping reporting::RollupMapping
         maxNotional: [store::DB] NOTIONAL_BY_BOOK.MAX_NOTIONAL
     }
 )
+
+###Mapping
+// The INLINE form of the same denormalization. Where EmbeddedFlatMapping repeats the
+// counterparty's column bindings inside the property block, this one names a root set
+// implementation and reuses ITS bindings:
+//
+//     counterparty () Inline[cptyInline]
+//
+// The property block must be EMPTY -- the whole point is that the mapping lives once, in
+// the referenced root, and is shared. Both roots read the SAME table, which is what makes
+// the reuse meaningful rather than a redirection to somewhere else.
+//
+// The result must equal what the embedded form returns, and what the canonical joined
+// model returns: a fourth member of the L2 invariance group.
+Mapping reporting::InlineFlatMapping
+(
+    include trading::Codes
+
+    counterparty::Counterparty[cptyInline]: Relational {
+        ~primaryKey ([store::DB] TRADE_FLAT.CPTY_ID)
+        ~mainTable [store::DB] TRADE_FLAT
+        counterpartyId: [store::DB] TRADE_FLAT.CPTY_ID,
+        legalName: [store::DB] TRADE_FLAT.CPTY_NAME,
+        lei: [store::DB] TRADE_FLAT.CPTY_LEI,
+        tier: [store::DB] TRADE_FLAT.CPTY_TIER
+    }
+
+    trading::Trade: Relational {
+        ~primaryKey ([store::DB] TRADE_FLAT.TRADE_ID)
+        ~mainTable [store::DB] TRADE_FLAT
+        tradeId: [store::DB] TRADE_FLAT.TRADE_ID,
+        tradeDate: [store::DB] TRADE_FLAT.TRADE_DATE,
+        quantity: [store::DB] TRADE_FLAT.QUANTITY,
+        price: [store::DB] TRADE_FLAT.PRICE,
+        notional: [store::DB] TRADE_FLAT.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE_FLAT.SIDE,
+        status: [store::DB] TRADE_FLAT.STATUS,
+        currency: [store::DB] TRADE_FLAT.CURRENCY,
+        instrument
+        (
+            name: [store::DB] TRADE_FLAT.INSTR_NAME,
+            ticker: [store::DB] TRADE_FLAT.INSTR_TICKER,
+            isin: [store::DB] TRADE_FLAT.INSTR_ISIN
+        ),
+        book
+        (
+            name: [store::DB] TRADE_FLAT.BOOK_NAME
+        ),
+        counterparty () Inline[cptyInline],
+        trader
+        (
+            lastName: [store::DB] TRADE_FLAT.TRADER_LAST
+        )
+    }
+)
+
+
+###Runtime
+Runtime stress::InlineFlatRT
+{
+    mappings: [ reporting::InlineFlatMapping ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}

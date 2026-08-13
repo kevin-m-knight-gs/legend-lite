@@ -1,0 +1,27 @@
+// ============================================================
+// Money (L6) — a Measure with convertible Units
+// ============================================================
+// A Measure declares a canonical unit (the starred one) and conversions to it. The lambda
+// converts a value in that unit INTO the canonical, so `EUR: x -> $x * 1.09` reads as
+// "one EUR is 1.09 USD".
+//
+// The important constraint, established from legend-engine rather than assumed: a
+// unit-typed property CANNOT be mapped in a Relational mapping. No .pure file in
+// legend-engine contains both `~mainTable` and `Measure`, and the relational compiler has
+// no Unit handling. Units are mappable only through model-to-model (`Pure`) mappings,
+// which is why this class hangs off the M2M layer and not off store::DB.
+###Pure
+Measure stress::Money
+{
+    *USD: x -> $x;
+    EUR: x -> $x * 1.09;
+    GBP: x -> $x * 1.27;
+}
+
+Class canonical::MonetaryTrade
+{
+    identifier: String[1];
+    // A unit-typed property. It serialises as an OBJECT -- {"unit":[...],"value":n} --
+    // never as a bare number, which is the whole point: the amount carries its unit.
+    amount: stress::Money~USD[1];
+}

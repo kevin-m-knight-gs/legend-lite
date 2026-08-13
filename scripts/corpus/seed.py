@@ -47,6 +47,11 @@ rather than quietly weakening the corpus:
                        nobody, and TRD-004 reports to TRD-999 who does not exist. So the
                        {target} self-join has to produce a real row, a NULL from an absent
                        key, and a NULL from a dangling one -- on the same table.
+  A18 XSTORE_LINK      The external party master is NOT a copy of COUNTERPARTY: one
+                       counterparty is missing from it, one entity matches no trade, and
+                       every registered name differs from the local legal name -- so a
+                       query that accidentally read the local side would return a
+                       different string rather than the same one.
   A17 BITEMPORAL_FIX   INSTR_RATING_BI holds a RETROACTIVE CORRECTION: the same business
                        period recorded twice, the second superseding the first in
                        PROCESSING time only. Asking about the same business date at two
@@ -644,7 +649,27 @@ INSTR_RATING_BI = [
          CREDIT_RATING="AA", SOURCE="FEED-B"),
 ]
 
+# L5 — the external party master. Deliberately NOT a copy of COUNTERPARTY:
+#   * CP-0004 is absent, so a cross-store navigation finds nothing for it;
+#   * the names differ from LEGAL_NAME, so a query that accidentally read the local
+#     counterparty instead of the external entity would return the wrong string rather
+#     than the same one;
+#   * one entity (LE-9000) matches no trade at all.
+EXT_LEGAL_ENTITY = [
+    dict(ENTITY_ID="CP-0001", REGISTERED_NAME="Meridian Asset Management LLC",
+         JURISDICTION="Delaware", IS_SANCTIONED=False),
+    dict(ENTITY_ID="CP-0002", REGISTERED_NAME="Halberd Securities (UK) Limited",
+         JURISDICTION="England", IS_SANCTIONED=False),
+    dict(ENTITY_ID="CP-0003", REGISTERED_NAME="O'Neill Capital Partners GmbH",
+         JURISDICTION="Germany", IS_SANCTIONED=True),
+    dict(ENTITY_ID="CP-0005", REGISTERED_NAME="Kestrel Pension Trust",
+         JURISDICTION="England", IS_SANCTIONED=False),
+    dict(ENTITY_ID="LE-9000", REGISTERED_NAME="Unused Entity SA",
+         JURISDICTION="Luxembourg", IS_SANCTIONED=False),
+]
+
 TABLES: dict[str, list[dict]] = {
+    "EXT_LEGAL_ENTITY": EXT_LEGAL_ENTITY,
     "CPTY_RATING_MS": CPTY_RATING_MS,
     "INSTR_RATING_BI": INSTR_RATING_BI,
     "COUNTRY": COUNTRY, "CURRENCY": CURRENCY, "EXCHANGE": EXCHANGE, "SECTOR": SECTOR,
@@ -787,6 +812,15 @@ def check(c: Corpus) -> list[str]:
                        f"the SAME rating, so no query could tell the two apart")
     has("A17 an instrument with no correction, for contrast",
         any(r["OUT_Z"] == INFINITY for r in bi))
+    # A18 — the cross-store link must have all three outcomes reachable.
+    ents = {r["ENTITY_ID"] for r in EXT_LEGAL_ENTITY}
+    refs = {r["COUNTERPARTY_ID"] for r in TRADE}
+    has("A18 XSTORE a trade whose entity exists", bool(refs & ents))
+    has("A18 XSTORE a trade whose entity is ABSENT from the other store",
+        bool(refs - ents))
+    has("A18 XSTORE an entity matched by no trade", bool(ents - refs))
+    has("A18 XSTORE names differ from the local counterparty names",
+        not (ents & {r["LEGAL_NAME"] for r in COUNTERPARTY}))
     tids = {r["TRADER_ID"] for r in TRADER}
     mgrs = [r["MANAGER_ID"] for r in TRADER]
     has("A16 a trader who reports to nobody", any(m is None for m in mgrs))

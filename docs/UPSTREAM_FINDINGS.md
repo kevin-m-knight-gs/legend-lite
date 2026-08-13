@@ -595,6 +595,88 @@ Quarantined as `stress::F32_TradeRollupEverything`.
 
 ---
 
+## F15 — XStore navigation is unsupported in a relational projection; graph fetch handles it
+
+**Severity: unimplemented path, reported as an internal match failure.** A cross-store
+association can be navigated by graph fetch and not by `project()`, and the projection
+failure is a Pure pattern-match error rather than a diagnostic.
+
+`scripts/corpus/repro/xstore/` — two Databases, two connections, one XStore association,
+two trades (one linking to an entity that exists, one to an entity that does not):
+
+```
+ab::Trade_Entity: XStore
+{
+  entity: $this.entityRef == $that.entityId,
+  entityTrades: $this.entityId == $that.entityRef
+}
+```
+
+| query | result |
+|---|---|
+| `->project(~[id:x\|$x.tradeId, ent:x\|$x.entity.name])` | **fails** |
+| `->graphFetch(#{Trade{tradeId, entity{name}}}#)->serialize(...)` | works |
+
+```
+Execution error at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure
+line:1700 column:42), "Match failure: [XStorePropertyMappingObject instanceOf
+XStorePropertyMapping]"
+  at ...processPropertyMappingReturnPropertyMapping...
+```
+
+The graph-fetch path returns exactly what it should, absent entity included:
+
+```json
+[ {"tradeId":"T1","entity":{"name":"Acme Ltd"}}, {"tradeId":"T2","entity":null} ]
+```
+
+So the capability exists; the relational SQL generator simply has no branch for
+`XStorePropertyMapping` and falls through to a match failure. A message naming the
+unsupported combination would cost nothing and save a long bisect — in the full corpus
+this manifested as a **hang** rather than an error, which is how it was found.
+
+**Fourth in the execution-path family.** F10 (unmapped enum), F12 (mapped enum through a
+model chain), F13 (`Otherwise`), and now F15 all say the same thing from different angles:
+a mapping construct is interpreted per execution path, and the paths do not agree on what
+is supported, let alone on the answer.
+
+---
+
+## F16 — graph fetch evaluates class constraints; a projection does not, so a partial mapping is valid for one path and fatal for the other
+
+**Severity: path-dependent validity.** Not a wrong answer — a mapping that works perfectly
+under `project()` cannot be used under `graphFetch()` at all, and the message names the
+constraint rather than the missing mapping.
+
+`trading::Trade` carries `[ quantityIsPositive: ($this.quantity > 0.0), ... ]`.
+`external::EntityMapping` maps only the five properties the cross-store service needs —
+`tradeId`, `notional`, `status`, `side`, and a local `+entityRef` — which is legal, and a
+projection over it is fine. A graph fetch over the same mapping fails:
+
+```
+java.lang.IllegalStateException: Unable to evaluate constraint [quantityIsPositive]:
+No mapping for property 'quantity'   Unable to evaluate constraint [priceIsNonNegative]:
+No mapping for property 'price'
+```
+
+**This completes the constraints picture,** which is otherwise contradictory across paths:
+
+| | class constraints |
+|---|---|
+| `->project(~[...])` | **not evaluated at all** — violating rows are returned unchanged (see the non-finding below, `repro/constraint-violation/`) |
+| `->graphFetch(...)->serialize(...)` | **evaluated**, and a mapping that cannot supply a referenced property is rejected outright |
+
+Both behaviours are individually defensible — graph fetch materialises objects, a
+projection does not — but together they mean a constraint is neither reliably enforced nor
+reliably ignorable, and whether a MAPPING is usable depends on which query you write
+against it. A partial mapping is a normal and useful thing; requiring it to satisfy every
+constraint on the class makes it unusable for object-shaped reads.
+
+**Fifth in the execution-path family** (F10, F12, F13, F15, F16). The others were about
+the ANSWER differing; this one is about whether the mapping is legal at all.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is
@@ -609,6 +691,29 @@ Quarantined as `stress::F32_TradeRollupEverything`.
 - **A graph-fetch result is not a bare array.** `serialize()` wraps it as
   `{"builder":{"_type":"json"},"values":[...]}`. Not a defect, but an expectation written
   as a bare array fails with both sides looking identical for the first 300 characters.
+- **Relation class mappings enforce multiplicity; Relational ones do not.** Mapping a
+  nullable column to a `[1]` property is accepted silently by a `Relational` class mapping
+  and rejected by a `Relation` one:
+  `Multiplicity Error: The property 'notional' has a multiplicity range of [1] when the
+  given expression has a multiplicity range of [0..1]`.
+  Not a defect — the Relation paradigm is stricter and arguably right — but it means the
+  same tables need `NOT NULL` to be mappable both ways, and a model that has only ever
+  been mapped relationally will not port cleanly. Surfaced by mapping the same TRADE and
+  BOOK tables through both paradigms (`58-modeljoin-store.pure`).
+- **`~func` names a function by its SHORT signature.** `~func demo::tradeRel():Relation<Any>[1]`
+  resolves; the fully-qualified return type reports
+  `Can't find the packageable element 'demo::tradeRel():meta::pure::metamodel::relation::Relation<...>'`,
+  which reads as a missing function rather than a spelling problem. The mapping section
+  needs `import meta::pure::metamodel::relation::*;` for the short form to resolve.
+- **A legacy `groupBy` takes objects, not a projected TDS.** `all()->project(...)->groupBy(...)`
+  fails with `Index: 3 Size: 2`; the correct shape is `all()->groupBy([keys],[aggs],[names])`.
+  This matters beyond syntax: the AggregationAware rewrite dispatches **only** on that
+  signature, so the same query written in the Relation paradigm silently reads the detail
+  table and still returns the right answer.
+- **Table names are scoped per Database.** Two Databases may each declare `LEGAL_ENTITY`;
+  any tool keying tables globally will bind one mapping to the other's table.
+  `scripts/corpus/model.py` now records the owning Database and refuses a duplicate rather
+  than picking one.
 - **Class constraints are not enforced during relational projection.** A class carrying
   `[ quantityIsPositive: ($this.quantity > 0.0) ]` returns violating rows unchanged — no
   error, no filtering, no flag. Three rows in, three rows out, two of them violations
@@ -618,7 +723,8 @@ Quarantined as `stress::F32_TradeRollupEverything`.
   filter and then write expectations that quietly encode that assumption. Constraints in
   this corpus therefore buy compile-time coverage and nothing else, which is why every
   seeded trade satisfies them. **Untested:** whether graph-fetch execution does enforce
-  them.
+  them. **Answered by F16:** graph fetch does, and it also rejects any mapping that cannot
+  supply a constrained property.
 - **Service testSuites always execute against H2**, whatever the declared connection type;
   `TestRuntimeBuilder` swaps the runtime's connections for a seeded local H2. The stress
   runtime declares DuckDB and the tests still run — so this harness cannot be used for

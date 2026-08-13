@@ -1,0 +1,30 @@
+###Service
+Service ab::XStoreGraph
+{
+  pattern: '/xstoreGraph';
+  documentation: 'T1 links to E1; T2 links to E9 which does not exist.';
+  execution: Single
+  {
+    query: |a::Trade.all()->graphFetch(#{a::Trade{tradeId, entity{name}}}#)->serialize(#{a::Trade{tradeId, entity{name}}}#);
+    mapping: ab::M;
+    runtime: ab::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ ca: Reference #{ a::SeedA }#, cb: Reference #{ b::SeedB }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

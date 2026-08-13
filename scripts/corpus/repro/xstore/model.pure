@@ -1,0 +1,125 @@
+Class a::Trade
+{
+  tradeId: String[1];
+  notional: Float[1];
+}
+
+Class b::Entity
+{
+  entityId: String[1];
+  name: String[1];
+}
+
+Association ab::Trade_Entity
+{
+  entity: b::Entity[0..1];
+  entityTrades: a::Trade[*];
+}
+
+###Relational
+Database a::DBA
+(
+  Table TRADE (TRADE_ID VARCHAR(20) PRIMARY KEY, NOTIONAL DOUBLE, ENTITY_FK VARCHAR(20))
+)
+
+Database b::DBB
+(
+  Table ENTITY (ENTITY_ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50))
+)
+
+###Mapping
+Mapping ab::M
+(
+  a::Trade: Relational {
+    ~primaryKey ([a::DBA] TRADE.TRADE_ID)
+    ~mainTable [a::DBA] TRADE
+    tradeId: [a::DBA] TRADE.TRADE_ID,
+    notional: [a::DBA] TRADE.NOTIONAL,
+    +entityRef: String[0..1]: [a::DBA] TRADE.ENTITY_FK
+  }
+
+  b::Entity: Relational {
+    ~primaryKey ([b::DBB] ENTITY.ENTITY_ID)
+    ~mainTable [b::DBB] ENTITY
+    entityId: [b::DBB] ENTITY.ENTITY_ID,
+    name: [b::DBB] ENTITY.NAME
+  }
+
+  ab::Trade_Entity: XStore
+  {
+    entity: $this.entityRef == $that.entityId,
+    entityTrades: $this.entityId == $that.entityRef
+  }
+)
+
+###Connection
+RelationalDatabaseConnection a::ConnA
+{ store: a::DBA; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+RelationalDatabaseConnection b::ConnB
+{ store: b::DBB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime ab::RT
+{
+  mappings: [ ab::M ];
+  connections:
+  [
+    a::DBA: [ ca: a::ConnA ],
+    b::DBB: [ cb: b::ConnB ]
+  ];
+}
+
+###Data
+Data a::SeedA
+{
+  Relational
+  #{
+    default.TRADE:
+      'TRADE_ID,NOTIONAL,ENTITY_FK\n' +
+      'T1,100.0,E1\n' +
+      'T2,200.0,E9\n';
+  }#
+}
+
+Data b::SeedB
+{
+  Relational
+  #{
+    default.ENTITY:
+      'ENTITY_ID,NAME\n' +
+      'E1,Acme Ltd\n';
+  }#
+}
+
+###Service
+Service ab::XStoreProbe
+{
+  pattern: '/xstore';
+  documentation: 'T1 links to E1; T2 links to E9 which does not exist.';
+  execution: Single
+  {
+    query: |a::Trade.all()->project(~[id:x|$x.tradeId, ent:x|$x.entity.name]);
+    mapping: ab::M;
+    runtime: ab::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ ca: Reference #{ a::SeedA }#, cb: Reference #{ b::SeedB }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"id":"T1","ent":"Acme Ltd"},{"id":"T2","ent":null}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

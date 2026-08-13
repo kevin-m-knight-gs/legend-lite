@@ -26,6 +26,7 @@ from pathlib import Path
 import battery
 import flat
 import model
+import stacks
 from quarantine import LITE_QUARANTINE
 import oracle
 import query
@@ -120,8 +121,13 @@ def main() -> None:
     # Also out of scope: any spec whose expectation is MIRRORED. Those roots have no
     # table — an M2M target is not read from a store — so there is nothing for the oracle
     # to evaluate and nothing for legend-lite to generate SQL against.
-    specs = [s for s in query.load() + battery.SPECS
-             if s.graph is None and getattr(s, "mirrors", None) is None]
+    generated = stacks.build(c, {k for k, v in TABLES.items() if v})
+    # Services legend-lite cannot even load the model for (Measure) are out of scope on
+    # this side; run.py still asserts them against legend-engine.
+    lite_blind = {"MU0_MonetaryTrade"}
+    specs = [s for s in query.load() + list(battery.SPECS) + generated
+             if s.graph is None and getattr(s, "mirrors", None) is None
+             and s.short not in lite_blind]
     for spec in specs:
         # The expectation is written WITHOUT the timestamp reformatting the JSON path
         # applies -- that is a legend-engine serialisation detail, not a value difference,

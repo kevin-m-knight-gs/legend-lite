@@ -24,7 +24,12 @@ class StressDomainTest {
     /** Runtimes legend-lite cannot bind. Each needs a reason, and removing one must be a
      *  deliberate act rather than a side effect. */
     private static final java.util.Set<String> UNSUPPORTED_RUNTIMES =
-            java.util.Set.of("stress::CanonicalRT");
+            java.util.Set.of("stress::CanonicalRT", "stress::MoneyRT");
+
+    /** Services whose CLASS lives in an excluded file, so legend-lite cannot resolve them
+     *  at all. Distinct from an unsupported runtime: the element itself is absent. */
+    private static final java.util.Set<String> UNRESOLVABLE =
+            java.util.Set.of("MU0_MonetaryTrade");
 
     private Connection conn;
 
@@ -48,10 +53,15 @@ class StressDomainTest {
         try (var stream = Files.list(stressDir)) {
             pureFiles = stream
                     .filter(p -> p.toString().endsWith(".pure"))
+                    // Elements legend-lite cannot parse take the WHOLE model load down,
+                    // not one service, so they are excluded here with their reasons.
+                    .filter(p -> !StressCorpus.EXCLUDED.containsKey(
+                            p.getFileName().toString()))
                     .sorted()
                     .collect(Collectors.toList());
         }
         assertFalse(pureFiles.isEmpty(), "No .pure files found in stress/");
+        StressCorpus.reportExclusions();
 
         var sb = new StringBuilder();
         for (Path f : pureFiles) {
@@ -127,6 +137,12 @@ class StressDomainTest {
                 // a corpus error -- legend-engine runs these services -- so they are
                 // reported as UNSUPPORTED rather than failing the suite. Remove the entry
                 // when model chains land.
+                if (UNRESOLVABLE.contains(svcName)) {
+                    System.out.println("  SKIP " + svcName
+                            + ": its class is declared in a file legend-lite cannot parse"
+                            + " (see StressCorpus.EXCLUDED)");
+                    continue;
+                }
                 if (UNSUPPORTED_RUNTIMES.contains(rt)) {
                     System.out.println("  SKIP " + svcName
                             + ": runtime " + rt + " uses a ModelChainConnection, which"

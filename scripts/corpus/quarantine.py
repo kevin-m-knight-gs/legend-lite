@@ -42,6 +42,20 @@ ENGINE_QUARANTINE["stress::M2_CanonicalWithEnum"] = (
 ENGINE_QUARANTINE["stress::O1_CounterpartyOtherwise"] = (
     "F13", "Otherwise never falls back under TDS projection")
 
+ENGINE_QUARANTINE["stress::X1_ExternalEntityProjection"] = (
+    "F15", "XStore navigation is unsupported in a relational projection")
+
+# Cases that do not FAIL but HANG. They stay in the corpus as the statement of what should
+# work, and are excluded from the run: a test that never returns does not report a
+# failure, it blocks every other test behind it. That is how F15 first presented -- a
+# 50-minute "slow run" that was one service never returning.
+#
+# Each needs a minimized repro proving the hang, exactly like any other quarantine entry.
+HANGS = {
+    "stress::X1_ExternalEntityProjection":
+        ("F15", "hangs rather than failing; see repro/xstore/"),
+}
+
 ENGINE_QUARANTINE["stress::F32_TradeRollupEverything"] = (
     "F14", "groupBy on an enum-mapped column groups by the source code, not the value")
 

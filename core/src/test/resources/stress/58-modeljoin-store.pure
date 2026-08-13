@@ -1,0 +1,60 @@
+###Pure
+// Relation ACCESSOR functions. `#>{store.TABLE}#` reads a table as a Relation, and
+// ->select(~[...]) fixes its columns. A Relation class mapping binds properties to those
+// column names directly -- no [db]Table.COLUMN prefix, because the relation already is
+// the table.
+function stress::rel::tradeRelation(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+  #>{store::DB.TRADE}#->select(~[TRADE_ID, NOTIONAL, STATUS, BOOK_ID])
+}
+
+function stress::rel::bookRelation(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+  #>{store::DB.BOOK}#->select(~[BOOK_ID, NAME, CURRENCY])
+}
+
+###Mapping
+import meta::pure::metamodel::relation::*;
+import meta::pure::metamodel::type::*;
+
+// The ~func reference names the function by its SHORT signature -- `():Relation<Any>[1]`
+// -- not the fully-qualified one. With the qualified form the compiler reports
+// "Can't find the packageable element 'stress::rel::tradeRelation():meta::pure::...'",
+// which reads as a missing function rather than a signature-spelling problem. The imports
+// above are what make the short form resolve.
+//
+// ModelJoin relates two classes by a PREDICATE over their properties, like XStore, but
+// within the model rather than across stores -- and unlike XStore it names both sides as
+// explicit lambda parameters (the two association end names) rather than $this/$that.
+Mapping modeljoin::JoinMapping
+(
+    *trading::Trade[mjTrade]: Relation
+    {
+        ~func stress::rel::tradeRelation():Relation<Any>[1]
+        tradeId: TRADE_ID,
+        notional: NOTIONAL,
+        status: STATUS,
+        +bookRef: String[0..1]: BOOK_ID
+    }
+
+    *positions::Book[mjBook]: Relation
+    {
+        ~func stress::rel::bookRelation():Relation<Any>[1]
+        bookId: BOOK_ID,
+        name: NAME,
+        currency: CURRENCY
+    }
+
+    *cross::Trade_Book: ModelJoin
+    {
+        {book: positions::Book[1], trades: trading::Trade[1]|$book.bookId == $trades.bookRef}
+    }
+)
+
+
+###Runtime
+Runtime stress::ModelJoinRT
+{
+    mappings: [ modeljoin::JoinMapping ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}

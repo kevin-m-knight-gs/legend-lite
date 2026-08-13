@@ -1,0 +1,13 @@
+// ============================================================
+// Facts (L5) — a class a query may reach two ways
+// ============================================================
+// reporting::TradeFact is mapped AggregationAware: the same class is backed by the DETAIL
+// table and by a pre-aggregated one, and the engine chooses based on the query's shape.
+// A groupBy whose keys and aggregates match the declared view reads the small table; a
+// row-level projection reads the detail.
+###Pure
+Class reporting::TradeFact
+{
+    bookId: String[1];
+    notional: Float[1];
+}

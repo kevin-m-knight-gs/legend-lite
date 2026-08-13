@@ -116,6 +116,45 @@ CANONICAL, FLAT = _invariance_pair()
 EMBEDDED = _embedded_variant(CANONICAL)
 
 
+def _inline_variant(canonical: Spec) -> Spec:
+    """The same query again, resolved by a mapping that reuses a ROOT set implementation
+    for the counterparty via `counterparty () Inline[cptyInline]` instead of repeating its
+    column bindings inline. Same answer or the reuse is not equivalent."""
+    s = Spec("stress::N3_TradeInlineFlat", "/stress/n3",
+             "Mapping invariance, inline side: identical query to N0 and N2, resolved by "
+             "a mapping whose embedded counterparty is `Inline[cptyInline]` -- an empty "
+             "property block delegating to a root set implementation over the same table.",
+             canonical.root)
+    s.projections = list(canonical.projections)
+    s.mapping, s.runtime = "reporting::InlineFlatMapping", "stress::InlineFlatRT"
+    return s
+
+
+INLINE = _inline_variant(CANONICAL)
+
+
+def _multi_variant(canonical: Spec) -> Spec:
+    """Mapping invariance expressed INSIDE one service, via MultiExecution.
+
+    Stronger than a pair of services: there is literally one query text, so the two runs
+    cannot drift apart by someone editing one and not the other. Both tests assert the
+    SAME expectation and differ only by `keys:`.
+    """
+    s = Spec("stress::N4_TradeMultiExecution", "/stress/n4",
+             "MultiExecution: ONE query, run against the canonical mapping and the "
+             "embedded flat mapping under two keys. Both must return the same rows -- "
+             "the L2 invariance, asserted without a second query to keep in sync.",
+             canonical.root)
+    s.projections = list(canonical.projections)
+    s.multi = [("canonical", "stress::AllMapping", "stress::RT"),
+               ("flat", "reporting::EmbeddedFlatMapping", "stress::EmbeddedFlatRT")]
+    s.multi_key = "shape"
+    return s
+
+
+MULTI = _multi_variant(CANONICAL)
+
+
 # ------------------------------------------------------------ L4 union invariance
 #
 # Orthogonal to the L2 group. L2 varies how a row is ASSEMBLED (join vs denormalized);
@@ -277,7 +316,7 @@ def _m2m_enum_probe():
 CANONICAL_WITH_ENUM = _m2m_enum_probe()
 
 
-INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED], [WHOLE, PARTITIONED],
+INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED, INLINE, MULTI], [WHOLE, PARTITIONED],
                      [BY_QUERY, BY_MAPPING], [RELATIONAL_SIDE, CANONICAL_SIDE]]
 INVARIANCE = [s for g in INVARIANCE_GROUPS for s in g]
 
@@ -503,6 +542,155 @@ STACK[0].sort = ("tradeId", False)
 STACK[0].limit = 12
 
 
+# ------------------------------------------------------------ L5 XStore
+#
+# A navigation that crosses a STORE boundary. No Join can express it -- a Join lives
+# inside one Database -- so the link is a predicate over a local property:
+#   legalEntity: $this.entityRef == $that.entityId
+#
+# The seed makes all three outcomes reachable (A18): trades whose entity exists, a trade
+# whose counterparty is absent from the external master, and an entity no trade matches.
+# The registered names differ from the local legal names, so a query that accidentally
+# read the LOCAL counterparty would return a different string rather than the same one.
+
+def _xstore():
+    """XStore navigation works under GRAPH FETCH and fails under a projection (F15), so
+    the corpus covers it on the path that supports it and quarantines the other."""
+    graph = Spec("stress::X0_TradeExternalEntity", "/stress/x0",
+                 "Cross-store navigation by graph fetch: trading::Trade in store::DB "
+                 "reaching external::LegalEntity in external::EntityDB through an XStore "
+                 "association. Two stores, two connections, two ###Data elements.",
+                 "trading::Trade")
+    graph.graph = {"tradeId": None, "notional": None, "status": None,
+                   "legalEntity": {"registeredName": None, "jurisdiction": None,
+                                   "isSanctioned": None}}
+    graph.mapping, graph.runtime = "external::EntityMapping", "stress::XStoreRT"
+    graph.extra_data = [("entities", "external::EntityData")]
+
+    proj = Spec("stress::X1_ExternalEntityProjection", "/stress/x1",
+                "The SAME cross-store navigation as a projection. Fails with an internal "
+                "Pure match failure -- the relational SQL generator has no branch for "
+                "XStorePropertyMapping. Quarantined: F15.", "trading::Trade")
+    proj.projections = [Proj("tradeId", ["tradeId"]),
+                        Proj("entityName", ["legalEntity", "registeredName"])]
+    proj.mapping, proj.runtime = "external::EntityMapping", "stress::XStoreRT"
+    proj.extra_data = [("entities", "external::EntityData")]
+    return graph, proj
+
+
+XSTORE, XSTORE_PROJECTION = _xstore()
+
+
+# --------------------------------------------------------------- L5 ModelJoin
+#
+# The same navigation as the canonical model -- trade to its book -- but the relationship
+# is a PREDICATE between two Relation-mapped classes rather than a Join in the store.
+# Unlike XStore it names both sides as explicit lambda parameters. Same answer, or the
+# ModelJoin does not mean what the association means.
+
+def _modeljoin():
+    s = Spec("stress::J0_TradeBookModelJoin", "/stress/j0",
+             "trading::Trade to positions::Book through a ModelJoin over two Relation "
+             "class mappings, instead of the store Join the canonical model uses. The "
+             "answer must not change.", "trading::Trade")
+    s.projections = [Proj("tradeId", ["tradeId"]), Proj("notional", ["notional"]),
+                     Proj("status", ["status"]),
+                     Proj("bookName", ["book", "name"]),
+                     Proj("bookCurrency", ["book", "currency"])]
+    s.mapping, s.runtime = "modeljoin::JoinMapping", "stress::ModelJoinRT"
+    src = Spec("stress::_J0Mirror", "/stress/_j0m", "", "trading::Trade")
+    src.projections = list(s.projections)
+    s.mirrors = src
+    return s
+
+
+MODELJOIN = _modeljoin()
+
+
+# ---------------------------------------------------------------- L6 Measure
+#
+# A unit-typed property. It serialises as an OBJECT carrying its unit, never as a bare
+# number, which is the entire point of having Measures rather than a Float and a
+# convention. The expectation is still DERIVED from the seed — the notional comes from the
+# oracle and the unit envelope is wrapped around it — rather than captured from output.
+
+def _unit_envelope(unit_id: str):
+    def wrap(row):
+        return {"identifier": row["identifier"],
+                "amount": {"unit": [{"unitId": unit_id, "exponentValue": 1}],
+                           "value": row["amount"]}}
+    return wrap
+
+
+def _measure():
+    s = Spec("stress::MU0_MonetaryTrade", "/stress/mu0",
+             "A Measure-typed amount through the M2M layer. Units cannot be mapped "
+             "relationally at all -- legend-engine has no Unit handling in the relational "
+             "compiler -- so a monetary amount that carries its unit has to be composed "
+             "in an M2M mapping with newUnit(...)->cast(...).",
+             "canonical::MonetaryTrade")
+    s.graph = {"identifier": None, "amount": None}
+    s.mapping, s.runtime = "canonical::MoneyMapping", "stress::MoneyRT"
+    s.connection = "environment"
+    src = Spec("stress::_MU0Mirror", "/stress/_mu0m", "", "trading::Trade")
+    src.projections = [Proj("identifier", ["tradeId"]), Proj("amount", ["notional"])]
+    s.mirrors = src
+    s.transform = _unit_envelope("stress::Money~USD")
+    return s
+
+
+MEASURE = _measure()
+
+
+# ------------------------------------------------- L5 AggregationAware
+#
+# ONE class, TWO query shapes, and the engine picks the table. A0 is a row-level
+# projection, which must read the detail; A1 is a groupBy whose keys and aggregates match
+# the declared view, which should read the pre-aggregated table.
+#
+# Both must return correct answers -- and because the aggregate is DERIVED from the
+# detail, both do so whether or not the rewrite fires. The result cannot distinguish them.
+# That is stated rather than papered over: what the pair asserts is that an
+# AggregationAware mapping is CORRECT under both shapes, not that the rewrite happened.
+# Which table was read is a question for the generated SQL.
+
+def _aggregation_aware():
+    detail = Spec("stress::A0_FactDetail", "/stress/a0",
+                  "Row-level projection over an AggregationAware class: must read the "
+                  "DETAIL table, one row per trade.", "reporting::TradeFact")
+    detail.projections = [Proj("bookId", ["bookId"]), Proj("notional", ["notional"])]
+    detail.mapping, detail.runtime = ("reporting::AggregationAwareMapping",
+                                      "stress::AggregationRT")
+
+    rolled = Spec("stress::A1_FactRollup", "/stress/a1",
+                  "A groupBy matching the declared view exactly. Legacy TDS form on "
+                  "purpose: the AggregationAware rewrite dispatches only on that "
+                  "signature, so the same query written with ~[...] would silently read "
+                  "the detail table instead.", "reporting::TradeFact")
+    rolled.projections = [Proj("bookId", ["bookId"]), Proj("notional", ["notional"])]
+    rolled.mapping, rolled.runtime = ("reporting::AggregationAwareMapping",
+                                      "stress::AggregationRT")
+    rolled.paradigm = "tds"
+    rolled.group_by = ["bookId"]
+    rolled.aggs = [("totalNotional", "notional", "sum")]
+    # The oracle does not model AggregationAwareMapping, so both mirror the equivalent
+    # query on trading::Trade -- which IS the equivalence the mapping asserts.
+    d_src = Spec("stress::_A0Mirror", "/stress/_a0m", "", "trading::Trade")
+    d_src.projections = [Proj("bookId", ["book", "bookId"]), Proj("notional", ["notional"])]
+    detail.mirrors = d_src
+
+    r_src = Spec("stress::_A1Mirror", "/stress/_a1m", "", "trading::Trade")
+    r_src.projections = [Proj("bookId", ["book", "bookId"]), Proj("notional", ["notional"])]
+    r_src.group_by = ["bookId"]
+    r_src.aggs = [("totalNotional", "notional", "sum")]
+    rolled.mirrors = r_src
+    return detail, rolled
+
+
+FACT_DETAIL, FACT_ROLLUP = _aggregation_aware()
+AGGREGATION = [FACT_DETAIL, FACT_ROLLUP]
+
+
 # ---------------------------------------------------------------- L4 rollup
 ROLLUP = [
     _spec(20, "NotionalByBook", "reporting::BookRollup",
@@ -544,7 +732,9 @@ DERIVED = [
           []),
 ]
 
-SPECS = STACK + INVARIANCE + [CANONICAL_WITH_ENUM, OTHERWISE] + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+SPECS = (STACK + INVARIANCE + AGGREGATION
+         + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
+            CANONICAL_WITH_ENUM, OTHERWISE]) + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

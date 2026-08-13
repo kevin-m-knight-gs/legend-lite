@@ -65,3 +65,8 @@ Each directory is the smallest model that reproduces a finding in
     D=../../scripts/corpus/repro/groupby-enum
     java -cp $CP perf.TestableMain $D/model.pure --testable=demo::GroupByEnum
     # two rows both keyed "BUY" (100.0 and 200.0) instead of one BUY=300.0
+
+    # F15 -- XStore navigation: unsupported in a projection, works in graph fetch
+    D=../../scripts/corpus/repro/xstore
+    java -cp $CP perf.TestableMain $D/model.pure --testable=ab::XStoreProbe   # Match failure
+    java -cp $CP perf.TestableMain $D/model.pure $D/graph.pure --testable=ab::XStoreGraph  # works

@@ -93,6 +93,11 @@ class Milestoning:
 @dataclass
 class Table:
     name: str
+    # Which Database declared it. Table names are scoped PER DATABASE in Legend; this
+    # reader keys them globally, so two stores declaring the same name would silently
+    # collide and one mapping would bind to the other's table. check() rejects that
+    # rather than letting it happen quietly.
+    database: str = ""
     columns: dict[str, Column] = field(default_factory=dict)
     # A list, not one: a BITEMPORAL table declares both business and processing
     # milestoning in the same block, and the two are combined at query time.
@@ -399,7 +404,7 @@ def _parse_milestoning(body: str):
     return specs, body[:i] + body[j:]
 
 
-def _table_bodies(text: str) -> list[tuple[str, str]]:
+def _table_bodies(text: str) -> list[tuple[str, str, int]]:
     """(name, body) for every Table, matching parentheses so a declaration may span lines.
 
     The single-line reader this replaces could not see the canonical milestoned form,
@@ -415,7 +420,7 @@ def _table_bodies(text: str) -> list[tuple[str, str]]:
             elif text[i] == ")":
                 depth -= 1
             i += 1
-        out.append((m.group(1), text[m.end():i - 1]))
+        out.append((m.group(1), text[m.end():i - 1], m.start()))
     return out
 
 
@@ -470,12 +475,30 @@ def _parse_view(name: str, body: str, c: Corpus) -> None:
     c.views[name] = v
 
 
+_DATABASE = re.compile(r"^\s*Database\s+([\w:]+)\s*$", re.M)
+
+
+def _owning_database(text: str, at: int) -> str:
+    """The Database whose declaration most recently precedes this offset."""
+    last = ""
+    for m in _DATABASE.finditer(text):
+        if m.start() > at:
+            break
+        last = m.group(1)
+    return last
+
+
 def _parse_store(text: str, c: Corpus) -> None:
     text = "\n".join(_strip(l) for l in text.splitlines())
     for name, body in _view_bodies(text):
         _parse_view(name, body, c)
-    for name, body in _table_bodies(text):
-        t = Table(name)
+    for name, body, at in _table_bodies(text):
+        if name in c.tables and c.tables[name].database != _owning_database(text, at):
+            raise ValueError(
+                f"table {name} is declared by both {c.tables[name].database} and "
+                f"{_owning_database(text, at)}. Names are scoped per Database in Legend "
+                f"but global here, so one mapping would bind to the other's table.")
+        t = Table(name, database=_owning_database(text, at))
         t.milestoning, body = _parse_milestoning(body)
         for spec in _split_cols(body):
             spec = " ".join(spec.split())
@@ -751,11 +774,25 @@ SKIP_MAPPINGS = {
     # mapping: the canonical class's expectation is DERIVED from the source class it is
     # mapped from, which is what the invariance asserts.
     "canonical::M2MMapping",
+    "canonical::MoneyMapping",
     # Both map trading::Trade onto TRADE_FLAT_PARTIAL with embedded blocks; parsing them
     # would rebind Trade's ~mainTable exactly as EmbeddedFlatMapping would. Their
     # expectations are mirrored from the canonical model, which is the claim under test.
     "reporting::PartialEmbeddedMapping",
     "reporting::OtherwiseMapping",
+    "reporting::InlineFlatMapping",
+    # AggregationAware has its own grammar -- Views / ~modelOperation / ~mainMapping with
+    # NESTED Relational blocks. The line-based reader here would bind those inner blocks
+    # to the wrong class. Its expectations are mirrored from equivalent queries on
+    # trading::Trade, which is exactly the equivalence the mapping claims.
+    "reporting::AggregationAwareMapping",
+    # XStore relates classes by a PREDICATE, not a join, and declares local (+) properties
+    # the reader does not model. It also re-maps trading::Trade onto the same table, which
+    # would fight the canonical binding.
+    "external::EntityMapping",
+    # Relation class mappings bind to relation COLUMN names, not [db]Table.COLUMN, and
+    # ModelJoin is a predicate rather than a join. Neither shape is modelled here.
+    "modeljoin::JoinMapping",
 }
 
 # re.M is load-bearing: without it `search` over a multi-line chunk never matches, the

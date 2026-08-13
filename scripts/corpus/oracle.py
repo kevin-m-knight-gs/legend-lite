@@ -125,7 +125,26 @@ def _cmp(op: str, left, right) -> bool:
     raise ValueError(f"unhandled operator {op}")
 
 
+def _xstore_value(c: Corpus, data, row, root: str, path: list[str]):
+    link = XSTORE_LINKS.get((root, path[0]))
+    if link is None:
+        return None, False
+    from_col, table, to_col, target = link
+    key = row.get(from_col)
+    landed = next((r for r in data[table] if r.get(to_col) == key), None) if key else None
+    if landed is None:
+        return None, True
+    col = c.columns.get(target, {}).get(path[1])
+    if col is None:
+        raise Unsupported(f"{target}.{path[1]} is not a mapped column")
+    return landed.get(col), True
+
+
 def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None):
+    if len(path) == 2 and (root, path[0]) in XSTORE_LINKS:
+        v, handled = _xstore_value(c, data, row, root, path)
+        if handled:
+            return v
     if func:
         return _call(c, data, row, root, func, args)
     hit = c.resolve_derived(root, path)
@@ -349,6 +368,15 @@ def _agg(c: Corpus, data, row, root: str, proj):
 INFINITY = "9999-12-31"
 
 
+# XStore links are predicates, not joins, so the model reader records no join for them.
+# The oracle needs the correspondence to evaluate a cross-store navigation; it is declared
+# here rather than inferred, and build.py fails if the columns do not exist.
+XSTORE_LINKS = {
+    ("trading::Trade", "legalEntity"):
+        ("COUNTERPARTY_ID", "EXT_LEGAL_ENTITY", "ENTITY_ID", "external::LegalEntity"),
+}
+
+
 def _rows_for(c: Corpus, root: str, data: dict[str, list[dict]]) -> list[dict]:
     """Every row of the class, whether it lives in one table or several.
 
@@ -442,6 +470,14 @@ def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
                          if mapping and raw is not None else
                          render(raw, c.tables[c.main_table[cls]].columns[col].kind))
             continue
+        link = XSTORE_LINKS.get((cls, name))
+        if link is not None:
+            from_col, table, to_col, target = link
+            key = row.get(from_col)
+            landed = (next((r for r in data[table] if r.get(to_col) == key), None)
+                      if key else None)
+            out[name] = None if landed is None else _graph(c, data, landed, target, sub)
+            continue
         end = c.ends.get((cls, name))
         if end is None:
             raise Fanout(f"{cls}.{name} is not an association")
@@ -487,7 +523,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     if spec.graph is not None:
         return evaluate_graph(c, spec, data)
     """Returns the rows the service must produce, as alias -> python value."""
-    plain = [p for p in spec.projections if p.agg is None and not p.func]
+    plain = [p for p in spec.projections if p.agg is None and not p.func
+             and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
     if any(c.to_many_on(spec.root, p.path) for p in plain):
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
@@ -563,6 +600,11 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
         if p.func:
             out[p.alias] = {"Boolean": "bool", "Float": "float", "Integer": "int",
                             "String": "string"}[c.functions[p.func].ret]
+            continue
+        if len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS:
+            target = XSTORE_LINKS[(spec.root, p.path[0])][3]
+            col = c.columns[target][p.path[1]]
+            out[p.alias] = c.tables[c.main_table[target]].columns[col].kind
             continue
         hit = c.resolve_derived(spec.root, p.path)
         if hit is not None:

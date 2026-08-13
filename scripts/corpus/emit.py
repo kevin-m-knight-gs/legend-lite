@@ -36,6 +36,8 @@ from model import Corpus
 from query import Spec
 
 DATA_ELEMENT = "stress::TestData"
+EXTERNAL_DATA = "external::EntityData"
+EXTERNAL_TABLES = {"EXT_LEGAL_ENTITY"}
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"
 RUNTIME = "stress::RT"
@@ -64,7 +66,8 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     so a column the seed omits is unambiguously NULL rather than absent-and-unspecified.
     """
     out = ["###Data", f"Data {DATA_ELEMENT}", "{", "  Relational", "  #{"]
-    emitted = [(n, r) for n, r in tables.items() if n not in c.views]
+    emitted = [(n, r) for n, r in tables.items()
+               if n not in c.views and n not in EXTERNAL_TABLES]
     for i, (name, rows) in enumerate(emitted):
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
@@ -78,8 +81,47 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     return "\n".join(out)
 
 
+def _tests(spec: Spec, payload: str) -> str:
+    """One test per execution key, or a single unkeyed test."""
+    fmt = "" if spec.graph else "          serializationFormat: PURE_TDSOBJECT;\n"
+    keys = [k for k, _, _ in spec.multi] or [None]
+    out = []
+    for k in keys:
+        keyline = f"          keys:\n          [\n            '{k}'\n          ];\n" if k else ""
+        out.append(f"        {('expected_rows_' + k) if k else 'expected_rows'}:\n"
+                   f"        {{\n{fmt}{keyline}          asserts:\n          [\n"
+                   f"            matchesOracle:\n              EqualToJson\n"
+                   f"              #{{\n                expected:\n"
+                   f"                  ExternalFormat\n                  #{{\n"
+                   f"                    contentType: 'application/json';\n"
+                   f"                    data: '{payload}';\n                  }}#;\n"
+                   f"              }}#\n          ]\n        }}")
+    # Test elements are COMMA-separated. Without the comma the parser reports the
+    # failure at `asserts` inside the FIRST test -- "Valid alternatives: [',', ']']" --
+    # which points nowhere near the missing separator.
+    return ",\n".join(out)
+
+
+def external_data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
+    """A SECOND ###Data element for the second store.
+
+    Test data is keyed by CONNECTION, and the two stores have different connections, so
+    one element cannot seed both — the tables of external::EntityDB have to travel
+    separately or the cross-store side is simply empty.
+    """
+    out = ["###Data", f"Data {EXTERNAL_DATA}", "{", "  Relational", "  #{"]
+    for name in sorted(EXTERNAL_TABLES):
+        cols = list(c.tables[name].columns)
+        lines = [",".join(cols)]
+        lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in tables[name]]
+        out.append(f"    {SCHEMA}.{name}:")
+        out.append(" +\n".join(f"      '{_pure_str(l)}\\n'" for l in lines) + ";")
+    out += ["  }#", "}"]
+    return "\n".join(out)
+
+
 def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
-    """The testSuites block for one service.
+    """The testSuites block.
 
     A graph-fetch result is not a bare array: `serialize()` wraps it as
     `{"builder":{"_type":"json"},"values":[...]}`. Determined by running one and reading
@@ -101,32 +143,24 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
             Reference
             #{{
               {DATA_ELEMENT}
-            }}#
+            }}#{_extra_connections(spec)}
         ]
       ]
       tests:
       [
         // {note}
-        expected_rows:
-        {{
-          {'' if spec.graph else 'serializationFormat: PURE_TDSOBJECT;'}
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{{
-                expected:
-                  ExternalFormat
-                  #{{
-                    contentType: 'application/json';
-                    data: '{payload}';
-                  }}#;
-              }}#
-          ]
-        }}
+{_tests(spec, payload)}
       ]
     }}
   ]"""
+
+
+def _extra_connections(spec: Spec) -> str:
+    """Additional (connection id, data element) pairs — a cross-store service needs one
+    per store, since test data is bound to a connection and not to a runtime."""
+    return "".join(f",\n          {cid}:\n            Reference\n            #{{\n"
+                   f"              {elem}\n            }}#"
+                   for cid, elem in spec.extra_data)
 
 
 VAR = "x"
@@ -197,7 +231,19 @@ def query_text(spec: Spec) -> str:
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))
 
-    if spec.paradigm == "tds":
+    if spec.paradigm == "tds" and spec.group_by:
+        # A legacy TDS groupBy operates on OBJECTS, straight off all() -- there is no
+        # project() in front of it. Projecting first yields a TDS and the groupBy then
+        # indexes past the end of it ("Index: 3 Size: 2"). This is also the only shape the
+        # AggregationAware rewrite recognises.
+        keys = ", ".join(f"{VAR}|${VAR}.{k}" for k in spec.group_by)
+        aggs = ", ".join(f"agg({VAR}|${VAR}.{src}, y|$y->{fn}())"
+                         for _, src, fn in spec.aggs)
+        names = ", ".join(f"'{k}'" for k in spec.group_by)
+        names += ", " + ", ".join(f"'{n}'" for n, _, _ in spec.aggs)
+        lines.append(f"        ->groupBy(\n            [{keys}],\n"
+                     f"            [{aggs}],\n            [{names}]\n        )")
+    elif spec.paradigm == "tds":
         # Legacy TDS: the lambdas and the column names travel in two parallel lists.
         lams = [f"{VAR}|{expr(p)}" for p in spec.projections]
         names = [f"'{_pure_str(p.alias)}'" for p in spec.projections]
@@ -214,7 +260,7 @@ def query_text(spec: Spec) -> str:
         for i, col in enumerate(cols):
             lines.append(f"            {col}" + ("," if i < len(cols) - 1 else ""))
         lines.append("        ])")
-    if spec.group_by:
+    if spec.group_by and spec.paradigm != "tds":
         keys = ", ".join(spec.group_by)
         # The aggregate list is BRACKETED. The bare `~name: ... : ...` form parses only
         # with a SINGLE aggregate; with two it builds a colSpec whose function is null and
@@ -231,16 +277,33 @@ def query_text(spec: Spec) -> str:
     return "\n".join(lines) + ";"
 
 
+def _multi_execution(spec: Spec) -> str:
+    """`execution: Multi` — one query, several (mapping, runtime) bindings chosen by key.
+
+    Expressing an invariance THIS way is stronger than two services: there is literally
+    one query text, so the two runs cannot drift apart by editing.
+    """
+    body = [graph_text(spec) if spec.graph else query_text(spec),
+            f"        key: '{spec.multi_key}';"]
+    for key, mapping, runtime in spec.multi:
+        body.append(f"        executions['{key}']:\n        {{\n"
+                    f"            mapping: {mapping};\n"
+                    f"            runtime: {runtime};\n        }}")
+    return "\n".join(body)
+
+
 def service(spec: Spec, expected: list[dict], note: str) -> str:
+    if spec.multi:
+        exec_block = f"    execution: Multi\n    {{\n{_multi_execution(spec)}\n    }}"
+    else:
+        exec_block = (f"    execution: Single\n    {{\n"
+                      f"{graph_text(spec) if spec.graph else query_text(spec)}\n"
+                      f"        mapping: {spec.mapping or MAPPING};\n"
+                      f"        runtime: {spec.runtime or RUNTIME};\n    }}")
     return f"""Service {spec.name}
 {{
     pattern: '{spec.pattern}';
     documentation: '{_pure_str(spec.doc)}';
-    execution: Single
-    {{
-{graph_text(spec) if spec.graph else query_text(spec)}
-        mapping: {spec.mapping or MAPPING};
-        runtime: {spec.runtime or RUNTIME};
-    }}
+{exec_block}
 {test_suite(spec, expected, note)}
 }}"""

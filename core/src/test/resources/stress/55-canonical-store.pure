@@ -20,6 +20,19 @@ Mapping canonical::M2MMapping
 )
 
 
+Mapping canonical::MoneyMapping
+(
+    // Composing a unit from a plain number: newUnit(<measure>~<unit>, value) then cast.
+    // The cast is required -- newUnit returns the Measure type, not the Unit type.
+    *canonical::MonetaryTrade: Pure
+    {
+        ~src trading::Trade
+        identifier: $src.tradeId,
+        amount: newUnit(stress::Money~USD, $src.notional)->cast(@stress::Money~USD)
+    }
+)
+
+
 ###Connection
 // Names the RELATIONAL mapping that feeds the source model. The store key for this in a
 // runtime is the bare literal `ModelStore`.
@@ -32,6 +45,26 @@ ModelChainConnection stress::TradeChain
 
 
 ###Runtime
+Runtime stress::MoneyRT
+{
+    mappings:
+    [
+        canonical::MoneyMapping
+    ];
+    connections:
+    [
+        ModelStore:
+        [
+            chain: stress::TradeChain
+        ],
+        store::DB:
+        [
+            environment: store::Conn
+        ]
+    ];
+}
+
+
 // ONE runtime, TWO store entries. `mappings:` names only the M2M mapping -- the service
 // executes that. The relational mapping appears solely inside the ModelChainConnection,
 // and the relational STORE needs its own connection entry or the runtime fails coverage

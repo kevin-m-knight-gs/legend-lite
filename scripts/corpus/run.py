@@ -25,7 +25,7 @@ from pathlib import Path
 
 from model import STRESS
 import functest
-from quarantine import QUARANTINE
+from quarantine import HANGS, QUARANTINE
 
 REPO = STRESS.parents[4]
 RUNNER = REPO / "tools" / "engine-runner"
@@ -38,7 +38,9 @@ def testables() -> list[str]:
     out = []
     for f in sorted(STRESS.glob("9[24]-*.pure")):
         out += re.findall(r"^Service (\S+)", f.read_text(), re.M)
-    return out + functest.testables()
+    # Hanging cases are excluded from execution but still reported, so they cannot be
+    # forgotten -- and so one non-returning test cannot block the whole suite.
+    return [n for n in out if n not in HANGS] + functest.testables()
 
 
 def main() -> None:
@@ -74,6 +76,8 @@ def main() -> None:
         raise SystemExit("no results parsed; the model probably failed to compile")
 
     verdicts, bad = [], 0
+    for name, (fid, why) in sorted(HANGS.items()):
+        verdicts.append((name.split("::")[-1], f"NOT RUN {fid}", why))
     for name in sorted(names, key=lambda n: (n not in QUARANTINE, n)):
         short = name.split("::")[-1]
         passed = results.get(short)
@@ -101,10 +105,11 @@ def main() -> None:
     for short, verdict, why in verdicts:
         print(f"  {short:<{width}}  {verdict:<34}{why}")
 
+    n_hang = sum(1 for _, v, _ in verdicts if v.startswith("NOT RUN"))
     n_known = sum(1 for _, v, _ in verdicts if v.startswith("KNOWN-FAIL"))
     n_pass = sum(1 for _, v, _ in verdicts if v == "PASS")
     print(f"\n{n_pass} passed, {n_known} known-fail (quarantined), "
-          f"{bad} unexpected, {len(verdicts)} total")
+          f"{n_hang} not run (hangs), {bad} unexpected, {len(verdicts)} total")
     if bad:
         raise SystemExit(1)
 

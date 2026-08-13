@@ -38,13 +38,8 @@ class CorpusDifferentialTest {
         Assumptions.assumeTrue(Files.isDirectory(DIFF.resolve("expected")),
                 "run scripts/corpus/differential.py first");
 
-        StringBuilder sb = new StringBuilder();
-        try (var s = Files.list(Path.of("src/test/resources/stress"))) {
-            for (Path p : s.sorted().toList()) {
-                sb.append(Files.readString(p)).append("\n");
-            }
-        }
-        String model = sb.toString();
+        String model = StressCorpus.model();
+        StressCorpus.reportExclusions();
         var ctx = com.legend.Compiler.compileModel(model);
         var dialect = new com.legend.sql.dialect.DuckDb();
 

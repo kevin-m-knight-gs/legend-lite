@@ -408,6 +408,176 @@ Service stress::N2_TradeEmbeddedFlat
   ]
 }
 
+Service stress::N3_TradeInlineFlat
+{
+    pattern: '/stress/n3';
+    documentation: 'Mapping invariance, inline side: identical query to N0 and N2, resolved by a mapping whose embedded counterparty is `Inline[cptyInline]` -- an empty property block delegating to a root set implementation over the same table.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            currency:x|$x.currency,
+            grossAmount:x|$x.grossAmount,
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrIsin:x|$x.instrument.isin,
+            bookName:x|$x.book.name,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            traderLast:x|$x.trader.lastName
+        ]);
+        mapping: reporting::InlineFlatMapping;
+        runtime: stress::InlineFlatRT;
+    }
+  testSuites:
+  [
+    N3_TradeInlineFlat_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":190500.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Alvarez"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":477500.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Alvarez"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Watanabe"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Watanabe"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"Volatility Arb","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"O\'Brien"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":null},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":282000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":null,"cptyLei":null,"traderLast":"Alvarez"},{"tradeId":"TRD-0008","tradeDate":"2024-06-04","quantity":100.0,"price":189.75,"notional":18975.0,"side":"BUY","status":"CANCELLED","currency":"USD","grossAmount":18975.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Watanabe"},{"tradeId":"TRD-0009","tradeDate":"2024-06-04","quantity":3000.0,"price":192.25,"notional":576750.0,"side":"BUY","status":"EXECUTE","currency":"USD","grossAmount":576750.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Alvarez"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":498000.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Watanabe"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":167300.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"US Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":null},{"tradeId":"TRD-0012","tradeDate":"2024-06-05","quantity":900.0,"price":410.0,"notional":369000.0,"side":null,"status":"PENDING","currency":"USD","grossAmount":369000.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":171250.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":69000.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11","traderLast":"Nowak"},{"tradeId":"TRD-0015","tradeDate":"2024-06-06","quantity":5000.0,"price":7.0,"notional":35000.0,"side":"BUY","status":"SETTLED","currency":"USD","grossAmount":35000.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"O\'Brien"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":264600.0,"instrName":"SAP SE","instrTicker":"SAP","instrIsin":"DE0007164600","bookName":"EMEA Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"Nowak"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":385000.0,"instrName":"SAP SE","instrTicker":"SAP","instrIsin":"DE0007164600","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11","traderLast":"O\'Brien"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":4912500.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":1960000.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Nowak"},{"tradeId":"TRD-0020","tradeDate":"2024-06-07","quantity":1000000.0,"price":0.975,"notional":975000.0,"side":"BUY","status":"REJECTED","currency":"USD","grossAmount":975000.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::N4_TradeMultiExecution
+{
+    pattern: '/stress/n4';
+    documentation: 'MultiExecution: ONE query, run against the canonical mapping and the embedded flat mapping under two keys. Both must return the same rows -- the L2 invariance, asserted without a second query to keep in sync.';
+    execution: Multi
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            currency:x|$x.currency,
+            grossAmount:x|$x.grossAmount,
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrIsin:x|$x.instrument.isin,
+            bookName:x|$x.book.name,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            traderLast:x|$x.trader.lastName
+        ]);
+        key: 'shape';
+        executions['canonical']:
+        {
+            mapping: stress::AllMapping;
+            runtime: stress::RT;
+        }
+        executions['flat']:
+        {
+            mapping: reporting::EmbeddedFlatMapping;
+            runtime: stress::EmbeddedFlatRT;
+        }
+    }
+  testSuites:
+  [
+    N4_TradeMultiExecution_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows_canonical:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          keys:
+          [
+            'canonical'
+          ];
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":190500.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Alvarez"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":477500.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Alvarez"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Watanabe"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Watanabe"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"Volatility Arb","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"O\'Brien"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":null},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":282000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":null,"cptyLei":null,"traderLast":"Alvarez"},{"tradeId":"TRD-0008","tradeDate":"2024-06-04","quantity":100.0,"price":189.75,"notional":18975.0,"side":"BUY","status":"CANCELLED","currency":"USD","grossAmount":18975.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Watanabe"},{"tradeId":"TRD-0009","tradeDate":"2024-06-04","quantity":3000.0,"price":192.25,"notional":576750.0,"side":"BUY","status":"EXECUTE","currency":"USD","grossAmount":576750.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Alvarez"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":498000.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Watanabe"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":167300.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"US Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":null},{"tradeId":"TRD-0012","tradeDate":"2024-06-05","quantity":900.0,"price":410.0,"notional":369000.0,"side":null,"status":"PENDING","currency":"USD","grossAmount":369000.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":171250.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":69000.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11","traderLast":"Nowak"},{"tradeId":"TRD-0015","tradeDate":"2024-06-06","quantity":5000.0,"price":7.0,"notional":35000.0,"side":"BUY","status":"SETTLED","currency":"USD","grossAmount":35000.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"O\'Brien"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":264600.0,"instrName":"SAP SE","instrTicker":"SAP","instrIsin":"DE0007164600","bookName":"EMEA Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"Nowak"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":385000.0,"instrName":"SAP SE","instrTicker":"SAP","instrIsin":"DE0007164600","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11","traderLast":"O\'Brien"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":4912500.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":1960000.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Nowak"},{"tradeId":"TRD-0020","tradeDate":"2024-06-07","quantity":1000000.0,"price":0.975,"notional":975000.0,"side":"BUY","status":"REJECTED","currency":"USD","grossAmount":975000.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"}]';
+                  }#;
+              }#
+          ]
+        },
+        expected_rows_flat:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          keys:
+          [
+            'flat'
+          ];
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":190500.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Alvarez"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":477500.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Alvarez"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Watanabe"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Watanabe"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"Volatility Arb","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"O\'Brien"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":250000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":null},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":282000.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":null,"cptyLei":null,"traderLast":"Alvarez"},{"tradeId":"TRD-0008","tradeDate":"2024-06-04","quantity":100.0,"price":189.75,"notional":18975.0,"side":"BUY","status":"CANCELLED","currency":"USD","grossAmount":18975.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Watanabe"},{"tradeId":"TRD-0009","tradeDate":"2024-06-04","quantity":3000.0,"price":192.25,"notional":576750.0,"side":"BUY","status":"EXECUTE","currency":"USD","grossAmount":576750.0,"instrName":"Apple Inc","instrTicker":"AAPL","instrIsin":"US0378331005","bookName":"US Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"Alvarez"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":498000.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"US Cash Equity","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Watanabe"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":167300.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"US Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":null},{"tradeId":"TRD-0012","tradeDate":"2024-06-05","quantity":900.0,"price":410.0,"notional":369000.0,"side":null,"status":"PENDING","currency":"USD","grossAmount":369000.0,"instrName":"Microsoft Corp","instrTicker":"MSFT","instrIsin":"US5949181045","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":171250.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":69000.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11","traderLast":"Nowak"},{"tradeId":"TRD-0015","tradeDate":"2024-06-06","quantity":5000.0,"price":7.0,"notional":35000.0,"side":"BUY","status":"SETTLED","currency":"USD","grossAmount":35000.0,"instrName":"HSBC Holdings plc","instrTicker":"HSBA","instrIsin":"GB0005405286","bookName":"EMEA Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"O\'Brien"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":264600.0,"instrName":"SAP SE","instrTicker":"SAP","instrIsin":"DE0007164600","bookName":"EMEA Cash Equity","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55","traderLast":"Nowak"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD","grossAmount":385000.0,"instrName":"SAP SE","instrTicker":"SAP","instrIsin":"DE0007164600","bookName":"EMEA Cash Equity","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11","traderLast":"O\'Brien"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":4912500.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD","grossAmount":1960000.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12","traderLast":"Nowak"},{"tradeId":"TRD-0020","tradeDate":"2024-06-07","quantity":1000000.0,"price":0.975,"notional":975000.0,"side":"BUY","status":"REJECTED","currency":"USD","grossAmount":975000.0,"instrName":"UK Gilt 4.25% 2055","instrTicker":"UKT30","instrIsin":"GB00BLBDX619","bookName":"Volatility Arb","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205","traderLast":"O\'Brien"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::U0_TradeWhole
 {
     pattern: '/stress/u0';
@@ -759,6 +929,376 @@ Service stress::M1_TradeCanonical
                   #{
                     contentType: 'application/json';
                     data: '[{"identifier":"TRD-0001","executedOn":"2024-06-03","unitPrice":190.5,"units":1000.0,"state":"EXECUTED","grossValue":190500.0},{"identifier":"TRD-0002","executedOn":"2024-06-03","unitPrice":191.0,"units":2500.0,"state":"EXECUTED","grossValue":477500.0},{"identifier":"TRD-0003","executedOn":"2024-06-03","unitPrice":500.0,"units":500.0,"state":"EXECUTED","grossValue":250000.0},{"identifier":"TRD-0004","executedOn":"2024-06-03","unitPrice":200.0,"units":1250.0,"state":"EXECUTED","grossValue":250000.0},{"identifier":"TRD-0005","executedOn":"2024-06-03","unitPrice":125.0,"units":2000.0,"state":"EXECUTED","grossValue":250000.0},{"identifier":"TRD-0006","executedOn":"2024-06-03","unitPrice":312.5,"units":800.0,"state":"EXECUTED","grossValue":250000.0},{"identifier":"TRD-0007","executedOn":"2024-06-03","unitPrice":188.0,"units":1500.0,"state":"EXECUTED","grossValue":282000.0},{"identifier":"TRD-0008","executedOn":"2024-06-04","unitPrice":189.75,"units":100.0,"state":"CANCELLED","grossValue":18975.0},{"identifier":"TRD-0009","executedOn":"2024-06-04","unitPrice":192.25,"units":3000.0,"state":"EXECUTE","grossValue":576750.0},{"identifier":"TRD-0010","executedOn":"2024-06-04","unitPrice":415.0,"units":1200.0,"state":"EXECUTED","grossValue":498000.0},{"identifier":"TRD-0011","executedOn":"2024-06-04","unitPrice":418.25,"units":400.0,"state":"EXECUTED","grossValue":167300.0},{"identifier":"TRD-0012","executedOn":"2024-06-05","unitPrice":410.0,"units":900.0,"state":"PENDING","grossValue":369000.0},{"identifier":"TRD-0013","executedOn":"2024-06-05","unitPrice":6.85,"units":25000.0,"state":"EXECUTED","grossValue":171250.0},{"identifier":"TRD-0014","executedOn":"2024-06-05","unitPrice":6.9,"units":10000.0,"state":"EXECUTED","grossValue":69000.0},{"identifier":"TRD-0015","executedOn":"2024-06-06","unitPrice":7.0,"units":5000.0,"state":"SETTLED","grossValue":35000.0},{"identifier":"TRD-0016","executedOn":"2024-06-06","unitPrice":176.4,"units":1500.0,"state":"EXECUTED","grossValue":264600.0},{"identifier":"TRD-0017","executedOn":"2024-06-06","unitPrice":175.0,"units":2200.0,"state":"EXECUTED","grossValue":385000.0},{"identifier":"TRD-0018","executedOn":"2024-06-07","unitPrice":0.9825,"units":5000000.0,"state":"EXECUTED","grossValue":4912500.0},{"identifier":"TRD-0019","executedOn":"2024-06-07","unitPrice":0.98,"units":2000000.0,"state":"EXECUTED","grossValue":1960000.0},{"identifier":"TRD-0020","executedOn":"2024-06-07","unitPrice":0.975,"units":1000000.0,"state":"REJECTED","grossValue":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::A0_FactDetail
+{
+    pattern: '/stress/a0';
+    documentation: 'Row-level projection over an AggregationAware class: must read the DETAIL table, one row per trade.';
+    execution: Single
+    {
+    query: |reporting::TradeFact.all()
+        ->project(~[
+            bookId:x|$x.bookId,
+            notional:x|$x.notional
+        ]);
+        mapping: reporting::AggregationAwareMapping;
+        runtime: stress::AggregationRT;
+    }
+  testSuites:
+  [
+    A0_FactDetail_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-US","notional":190500.0},{"bookId":"BK-CASH-US","notional":477500.0},{"bookId":"BK-CASH-US","notional":250000.0},{"bookId":"BK-CASH-US","notional":250000.0},{"bookId":"BK-VOL-01","notional":250000.0},{"bookId":"BK-CASH-US","notional":250000.0},{"bookId":"BK-CASH-US","notional":282000.0},{"bookId":"BK-CASH-US","notional":18975.0},{"bookId":"BK-CASH-US","notional":576750.0},{"bookId":"BK-CASH-US","notional":498000.0},{"bookId":"BK-CASH-US","notional":167300.0},{"bookId":"BK-VOL-01","notional":369000.0},{"bookId":"BK-CASH-EU","notional":171250.0},{"bookId":"BK-CASH-EU","notional":69000.0},{"bookId":"BK-CASH-EU","notional":35000.0},{"bookId":"BK-CASH-EU","notional":264600.0},{"bookId":"BK-CASH-EU","notional":385000.0},{"bookId":"BK-VOL-01","notional":4912500.0},{"bookId":"BK-VOL-01","notional":1960000.0},{"bookId":"BK-VOL-01","notional":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::A1_FactRollup
+{
+    pattern: '/stress/a1';
+    documentation: 'A groupBy matching the declared view exactly. Legacy TDS form on purpose: the AggregationAware rewrite dispatches only on that signature, so the same query written with ~[...] would silently read the detail table instead.';
+    execution: Single
+    {
+    query: |reporting::TradeFact.all()
+        ->groupBy(
+            [x|$x.bookId],
+            [agg(x|$x.notional, y|$y->sum())],
+            ['bookId', 'totalNotional']
+        );
+        mapping: reporting::AggregationAwareMapping;
+        runtime: stress::AggregationRT;
+    }
+  testSuites:
+  [
+    A1_FactRollup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-US","totalNotional":2961025.0},{"bookId":"BK-VOL-01","totalNotional":8466500.0},{"bookId":"BK-CASH-EU","totalNotional":924850.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::X0_TradeExternalEntity
+{
+    pattern: '/stress/x0';
+    documentation: 'Cross-store navigation by graph fetch: trading::Trade in store::DB reaching external::LegalEntity in external::EntityDB through an XStore association. Two stores, two connections, two ###Data elements.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->graphFetch(#{
+  trading::Trade
+  {
+    tradeId,
+    notional,
+    status,
+    legalEntity
+    {
+      registeredName,
+      jurisdiction,
+      isSanctioned
+    }
+  }
+}#)
+        ->serialize(#{
+  trading::Trade
+  {
+    tradeId,
+    notional,
+    status,
+    legalEntity
+    {
+      registeredName,
+      jurisdiction,
+      isSanctioned
+    }
+  }
+}#);
+        mapping: external::EntityMapping;
+        runtime: stress::XStoreRT;
+    }
+  testSuites:
+  [
+    X0_TradeExternalEntity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#,
+          entities:
+            Reference
+            #{
+              external::EntityData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","notional":190500.0,"status":"EXECUTED","legalEntity":{"registeredName":"Meridian Asset Management LLC","jurisdiction":"Delaware","isSanctioned":false}},{"tradeId":"TRD-0002","notional":477500.0,"status":"EXECUTED","legalEntity":{"registeredName":"Meridian Asset Management LLC","jurisdiction":"Delaware","isSanctioned":false}},{"tradeId":"TRD-0003","notional":250000.0,"status":"EXECUTED","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}},{"tradeId":"TRD-0004","notional":250000.0,"status":"EXECUTED","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}},{"tradeId":"TRD-0005","notional":250000.0,"status":"EXECUTED","legalEntity":{"registeredName":"O\'Neill Capital Partners GmbH","jurisdiction":"Germany","isSanctioned":true}},{"tradeId":"TRD-0006","notional":250000.0,"status":"EXECUTED","legalEntity":{"registeredName":"Meridian Asset Management LLC","jurisdiction":"Delaware","isSanctioned":false}},{"tradeId":"TRD-0007","notional":282000.0,"status":"EXECUTED","legalEntity":null},{"tradeId":"TRD-0008","notional":18975.0,"status":"CANCELLED","legalEntity":{"registeredName":"Meridian Asset Management LLC","jurisdiction":"Delaware","isSanctioned":false}},{"tradeId":"TRD-0009","notional":576750.0,"status":"EXECUTE","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}},{"tradeId":"TRD-0010","notional":498000.0,"status":"EXECUTED","legalEntity":{"registeredName":"Meridian Asset Management LLC","jurisdiction":"Delaware","isSanctioned":false}},{"tradeId":"TRD-0011","notional":167300.0,"status":"EXECUTED","legalEntity":{"registeredName":"O\'Neill Capital Partners GmbH","jurisdiction":"Germany","isSanctioned":true}},{"tradeId":"TRD-0012","notional":369000.0,"status":"PENDING","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}},{"tradeId":"TRD-0013","notional":171250.0,"status":"EXECUTED","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}},{"tradeId":"TRD-0014","notional":69000.0,"status":"EXECUTED","legalEntity":null},{"tradeId":"TRD-0015","notional":35000.0,"status":"SETTLED","legalEntity":{"registeredName":"O\'Neill Capital Partners GmbH","jurisdiction":"Germany","isSanctioned":true}},{"tradeId":"TRD-0016","notional":264600.0,"status":"EXECUTED","legalEntity":{"registeredName":"O\'Neill Capital Partners GmbH","jurisdiction":"Germany","isSanctioned":true}},{"tradeId":"TRD-0017","notional":385000.0,"status":"EXECUTED","legalEntity":null},{"tradeId":"TRD-0018","notional":4912500.0,"status":"EXECUTED","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}},{"tradeId":"TRD-0019","notional":1960000.0,"status":"EXECUTED","legalEntity":{"registeredName":"Meridian Asset Management LLC","jurisdiction":"Delaware","isSanctioned":false}},{"tradeId":"TRD-0020","notional":975000.0,"status":"REJECTED","legalEntity":{"registeredName":"Halberd Securities (UK) Limited","jurisdiction":"England","isSanctioned":false}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::X1_ExternalEntityProjection
+{
+    pattern: '/stress/x1';
+    documentation: 'The SAME cross-store navigation as a projection. Fails with an internal Pure match failure -- the relational SQL generator has no branch for XStorePropertyMapping. Quarantined: F15.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            entityName:x|$x.legalEntity.registeredName
+        ]);
+        mapping: external::EntityMapping;
+        runtime: stress::XStoreRT;
+    }
+  testSuites:
+  [
+    X1_ExternalEntityProjection_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#,
+          entities:
+            Reference
+            #{
+              external::EntityData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","entityName":"Meridian Asset Management LLC"},{"tradeId":"TRD-0002","entityName":"Meridian Asset Management LLC"},{"tradeId":"TRD-0003","entityName":"Halberd Securities (UK) Limited"},{"tradeId":"TRD-0004","entityName":"Halberd Securities (UK) Limited"},{"tradeId":"TRD-0005","entityName":"O\'Neill Capital Partners GmbH"},{"tradeId":"TRD-0006","entityName":"Meridian Asset Management LLC"},{"tradeId":"TRD-0007","entityName":null},{"tradeId":"TRD-0008","entityName":"Meridian Asset Management LLC"},{"tradeId":"TRD-0009","entityName":"Halberd Securities (UK) Limited"},{"tradeId":"TRD-0010","entityName":"Meridian Asset Management LLC"},{"tradeId":"TRD-0011","entityName":"O\'Neill Capital Partners GmbH"},{"tradeId":"TRD-0012","entityName":"Halberd Securities (UK) Limited"},{"tradeId":"TRD-0013","entityName":"Halberd Securities (UK) Limited"},{"tradeId":"TRD-0014","entityName":null},{"tradeId":"TRD-0015","entityName":"O\'Neill Capital Partners GmbH"},{"tradeId":"TRD-0016","entityName":"O\'Neill Capital Partners GmbH"},{"tradeId":"TRD-0017","entityName":null},{"tradeId":"TRD-0018","entityName":"Halberd Securities (UK) Limited"},{"tradeId":"TRD-0019","entityName":"Meridian Asset Management LLC"},{"tradeId":"TRD-0020","entityName":"Halberd Securities (UK) Limited"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::J0_TradeBookModelJoin
+{
+    pattern: '/stress/j0';
+    documentation: 'trading::Trade to positions::Book through a ModelJoin over two Relation class mappings, instead of the store Join the canonical model uses. The answer must not change.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            notional:x|$x.notional,
+            status:x|$x.status,
+            bookName:x|$x.book.name,
+            bookCurrency:x|$x.book.currency
+        ]);
+        mapping: modeljoin::JoinMapping;
+        runtime: stress::ModelJoinRT;
+    }
+  testSuites:
+  [
+    J0_TradeBookModelJoin_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","notional":190500.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0002","notional":477500.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0003","notional":250000.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0004","notional":250000.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0005","notional":250000.0,"status":"EXECUTED","bookName":"Volatility Arb","bookCurrency":"USD"},{"tradeId":"TRD-0006","notional":250000.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0007","notional":282000.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0008","notional":18975.0,"status":"CANCELLED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0009","notional":576750.0,"status":"EXECUTE","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0010","notional":498000.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0011","notional":167300.0,"status":"EXECUTED","bookName":"US Cash Equity","bookCurrency":"USD"},{"tradeId":"TRD-0012","notional":369000.0,"status":"PENDING","bookName":"Volatility Arb","bookCurrency":"USD"},{"tradeId":"TRD-0013","notional":171250.0,"status":"EXECUTED","bookName":"EMEA Cash Equity","bookCurrency":"EUR"},{"tradeId":"TRD-0014","notional":69000.0,"status":"EXECUTED","bookName":"EMEA Cash Equity","bookCurrency":"EUR"},{"tradeId":"TRD-0015","notional":35000.0,"status":"SETTLED","bookName":"EMEA Cash Equity","bookCurrency":"EUR"},{"tradeId":"TRD-0016","notional":264600.0,"status":"EXECUTED","bookName":"EMEA Cash Equity","bookCurrency":"EUR"},{"tradeId":"TRD-0017","notional":385000.0,"status":"EXECUTED","bookName":"EMEA Cash Equity","bookCurrency":"EUR"},{"tradeId":"TRD-0018","notional":4912500.0,"status":"EXECUTED","bookName":"Volatility Arb","bookCurrency":"USD"},{"tradeId":"TRD-0019","notional":1960000.0,"status":"EXECUTED","bookName":"Volatility Arb","bookCurrency":"USD"},{"tradeId":"TRD-0020","notional":975000.0,"status":"REJECTED","bookName":"Volatility Arb","bookCurrency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MU0_MonetaryTrade
+{
+    pattern: '/stress/mu0';
+    documentation: 'A Measure-typed amount through the M2M layer. Units cannot be mapped relationally at all -- legend-engine has no Unit handling in the relational compiler -- so a monetary amount that carries its unit has to be composed in an M2M mapping with newUnit(...)->cast(...).';
+    execution: Single
+    {
+    query: |canonical::MonetaryTrade.all()
+        ->graphFetch(#{
+  canonical::MonetaryTrade
+  {
+    identifier,
+    amount
+  }
+}#)
+        ->serialize(#{
+  canonical::MonetaryTrade
+  {
+    identifier,
+    amount
+  }
+}#);
+        mapping: canonical::MoneyMapping;
+        runtime: stress::MoneyRT;
+    }
+  testSuites:
+  [
+    MU0_MonetaryTrade_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"identifier":"TRD-0001","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":190500.0}},{"identifier":"TRD-0002","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":477500.0}},{"identifier":"TRD-0003","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":250000.0}},{"identifier":"TRD-0004","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":250000.0}},{"identifier":"TRD-0005","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":250000.0}},{"identifier":"TRD-0006","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":250000.0}},{"identifier":"TRD-0007","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":282000.0}},{"identifier":"TRD-0008","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":18975.0}},{"identifier":"TRD-0009","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":576750.0}},{"identifier":"TRD-0010","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":498000.0}},{"identifier":"TRD-0011","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":167300.0}},{"identifier":"TRD-0012","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":369000.0}},{"identifier":"TRD-0013","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":171250.0}},{"identifier":"TRD-0014","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":69000.0}},{"identifier":"TRD-0015","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":35000.0}},{"identifier":"TRD-0016","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":264600.0}},{"identifier":"TRD-0017","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":385000.0}},{"identifier":"TRD-0018","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":4912500.0}},{"identifier":"TRD-0019","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":1960000.0}},{"identifier":"TRD-0020","amount":{"unit":[{"unitId":"stress::Money~USD","exponentValue":1}],"value":975000.0}}]}';
                   }#;
               }#
           ]
@@ -1403,7 +1943,6 @@ Service stress::G0_TradeTree
         // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
-          
           asserts:
           [
             matchesOracle:
@@ -1469,7 +2008,6 @@ Service stress::G1_UnionTree
         // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
-          
           asserts:
           [
             matchesOracle:
@@ -1537,7 +2075,6 @@ Service stress::G3_UnionTreeWithEnum
         // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
-          
           asserts:
           [
             matchesOracle:
@@ -1603,7 +2140,6 @@ Service stress::G2_MilestonedTree
         // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
-          
           asserts:
           [
             matchesOracle:
@@ -2263,6 +2799,427 @@ Service stress::F6_PositionGreeksCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"positionId":"POS-0001","direction":"LONG","currency":"USD","isOpen":true,"instrumentName":"Apple Inc","greeksCount":1},{"positionId":"POS-0002","direction":"LONG","currency":"USD","isOpen":true,"instrumentName":"Microsoft Corp","greeksCount":1},{"positionId":"POS-0003","direction":"SHORT","currency":"GBP","isOpen":true,"instrumentName":"HSBC Holdings plc","greeksCount":0},{"positionId":"POS-0004","direction":"LONG","currency":"GBP","isOpen":true,"instrumentName":"SAP SE","greeksCount":0},{"positionId":"POS-0005","direction":"LONG","currency":"GBP","isOpen":true,"instrumentName":"UK Gilt 4.25% 2055","greeksCount":1},{"positionId":"POS-0006","direction":"FLAT","currency":"GBP","isOpen":false,"instrumentName":"Nestle SA","greeksCount":0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D0_SettlementDense
+{
+    pattern: '/stress/d0';
+    documentation: 'Dense stack on settlement::Settlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::Settlement.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            settlementId:x|$x.settlementId,
+            tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
+            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount
+        ])
+        ->sort(~settlementId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D0_SettlementDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 18 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"settlementId":"STL-0001","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":190500.0},{"settlementId":"STL-0002","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":477500.0},{"settlementId":"STL-0003","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0004","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"SELL","tradeGrossAmount":250000.0},{"settlementId":"STL-0005","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0006","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0007","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":282000.0},{"settlementId":"STL-0008","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":576750.0},{"settlementId":"STL-0009","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":498000.0},{"settlementId":"STL-0010","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":167300.0},{"settlementId":"STL-0011","tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"SELL","tradeGrossAmount":171250.0},{"settlementId":"STL-0012","tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"BUY","tradeGrossAmount":69000.0},{"settlementId":"STL-0013","tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"BUY","tradeGrossAmount":35000.0},{"settlementId":"STL-0014","tradeInstrumentSectorName":"Health Care","tradeInstrumentInstrumentCurrencyName":"Euro","tradeInstrumentExchangeName":"Deutsche Boerse Xetra","tradeSide":"BUY","tradeGrossAmount":264600.0},{"settlementId":"STL-0015","tradeInstrumentSectorName":"Health Care","tradeInstrumentInstrumentCurrencyName":"Euro","tradeInstrumentExchangeName":"Deutsche Boerse Xetra","tradeSide":"SELL","tradeGrossAmount":385000.0},{"settlementId":"STL-0016","tradeInstrumentSectorName":null,"tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"BUY","tradeGrossAmount":4912500.0},{"settlementId":"STL-0017","tradeInstrumentSectorName":null,"tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"BUY","tradeGrossAmount":1960000.0},{"settlementId":"STL-9999","tradeInstrumentSectorName":null,"tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeSide":null,"tradeGrossAmount":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D1_ConfirmationDense
+{
+    pattern: '/stress/d1';
+    documentation: 'Dense stack on ops::Confirmation: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |ops::Confirmation.all()
+        ->filter({x|($x.status != ' none')})
+        ->project(~[
+            confirmId:x|$x.confirmId,
+            tradeBookDeskName:x|$x.trade.book.desk.name,
+            tradeTraderManagerBadge:x|$x.trade.trader.manager.badge,
+            tradeCounterpartyCountryName:x|$x.trade.counterparty.country.name,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount
+        ])
+        ->sort(~confirmId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D1_ConfirmationDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"confirmId":"CNF-0001","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":190500.0},{"confirmId":"CNF-0002","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":477500.0},{"confirmId":"CNF-0003","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0004","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"SELL","tradeGrossAmount":250000.0},{"confirmId":"CNF-0005","tradeBookDeskName":"Equity Derivatives","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"Germany","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0006","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0007","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":"BUY","tradeGrossAmount":282000.0},{"confirmId":"CNF-0008","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":498000.0},{"confirmId":"CNF-0009","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"Germany","tradeSide":"BUY","tradeGrossAmount":167300.0},{"confirmId":"CNF-0010","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"SELL","tradeGrossAmount":171250.0},{"confirmId":"CNF-0011","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"Japan","tradeSide":"BUY","tradeGrossAmount":69000.0},{"confirmId":"CNF-0012","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"Germany","tradeSide":"BUY","tradeGrossAmount":264600.0},{"confirmId":"CNF-0013","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"Japan","tradeSide":"SELL","tradeGrossAmount":385000.0},{"confirmId":"CNF-0014","tradeBookDeskName":"Equity Derivatives","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeGrossAmount":4912500.0},{"confirmId":"CNF-0015","tradeBookDeskName":"Equity Derivatives","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":1960000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D2_TradeReportDense
+{
+    pattern: '/stress/d2';
+    documentation: 'Dense stack on regulatory::TradeReport: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |regulatory::TradeReport.all()
+        ->filter({x|($x.status != ' none')})
+        ->project(~[
+            reportId:x|$x.reportId,
+            tradeTraderDeskName:x|$x.trade.trader.desk.name,
+            tradeInstrumentCurrency:x|$x.trade.instrument.currency,
+            tradeBookCurrency:x|$x.trade.book.currency,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount
+        ])
+        ->sort(~reportId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D2_TradeReportDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 14 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"RPT-0001","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0},{"reportId":"RPT-0002","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0},{"reportId":"RPT-0003","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0004","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0},{"reportId":"RPT-0005","tradeTraderDeskName":"Equity Derivatives","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0006","tradeTraderDeskName":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0007","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0},{"reportId":"RPT-0008","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":18975.0},{"reportId":"RPT-0009","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":576750.0},{"reportId":"RPT-0010","tradeTraderDeskName":"Cash Equities","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0},{"reportId":"RPT-0011","tradeTraderDeskName":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0},{"reportId":"RPT-0012","tradeTraderDeskName":"Equity Derivatives","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":null,"tradeGrossAmount":369000.0},{"reportId":"RPT-0013","tradeTraderDeskName":"Equity Derivatives","tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":171250.0},{"reportId":"RPT-0014","tradeTraderDeskName":"Equity Derivatives","tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":69000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D3_SalesCreditDense
+{
+    pattern: '/stress/d3';
+    documentation: 'Dense stack on sales::SalesCredit: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |sales::SalesCredit.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            creditId:x|$x.creditId,
+            tradeTraderBadge:x|$x.trade.trader.badge,
+            tradeCounterpartyLegalName:x|$x.trade.counterparty.legalName,
+            tradeCurrency:x|$x.trade.currency,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount
+        ])
+        ->sort(~creditId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D3_SalesCreditDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"creditId":"SC-0001","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0},{"creditId":"SC-0002","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0},{"creditId":"SC-0003","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0004","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0},{"creditId":"SC-0005","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0006","tradeTraderBadge":null,"tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0007","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":null,"tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0},{"creditId":"SC-0008","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":18975.0},{"creditId":"SC-0009","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":576750.0},{"creditId":"SC-0010","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0},{"creditId":"SC-0011","tradeTraderBadge":null,"tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0},{"creditId":"SC-0012","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":null,"tradeGrossAmount":369000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D4_GreeksDense
+{
+    pattern: '/stress/d4';
+    documentation: 'Dense stack on risk::Greeks: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::Greeks.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            greeksId:x|$x.greeksId,
+            positionBookDeskName:x|$x.position.book.desk.name,
+            positionInstrumentSectorName:x|$x.position.instrument.sector.name,
+            positionInstrumentInstrumentCurrencyName:x|$x.position.instrument.instrumentCurrency.name
+        ])
+        ->sort(~greeksId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D4_GreeksDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"greeksId":"GRK-0001","positionBookDeskName":"Cash Equities","positionInstrumentSectorName":"Information Technology","positionInstrumentInstrumentCurrencyName":"US Dollar"},{"greeksId":"GRK-0002","positionBookDeskName":"Cash Equities","positionInstrumentSectorName":"Information Technology","positionInstrumentInstrumentCurrencyName":"US Dollar"},{"greeksId":"GRK-0003","positionBookDeskName":"Equity Derivatives","positionInstrumentSectorName":null,"positionInstrumentInstrumentCurrencyName":"Pound Sterling"},{"greeksId":"GRK-0004","positionBookDeskName":null,"positionInstrumentSectorName":null,"positionInstrumentInstrumentCurrencyName":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D5_DailyPnLDense
+{
+    pattern: '/stress/d5';
+    documentation: 'Dense stack on pnl::DailyPnL: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |pnl::DailyPnL.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            pnlId:x|$x.pnlId,
+            traderManagerDeskName:x|$x.trader.manager.desk.name,
+            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
+            bookCurrency:x|$x.book.currency
+        ])
+        ->sort(~pnlId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D5_DailyPnLDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"pnlId":"PNL-0001","traderManagerDeskName":null,"traderManagerManagerBadge":null,"bookCurrency":"USD"},{"pnlId":"PNL-0002","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookCurrency":"USD"},{"pnlId":"PNL-0003","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookCurrency":"EUR"},{"pnlId":"PNL-0004","traderManagerDeskName":null,"traderManagerManagerBadge":null,"bookCurrency":"EUR"},{"pnlId":"PNL-0005","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookCurrency":"USD"},{"pnlId":"PNL-0006","traderManagerDeskName":null,"traderManagerManagerBadge":null,"bookCurrency":"USD"},{"pnlId":"PNL-0007","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookCurrency":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D6_PositionDense
+{
+    pattern: '/stress/d6';
+    documentation: 'Dense stack on positions::Position: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |positions::Position.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            positionId:x|$x.positionId,
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
+            bookDeskName:x|$x.book.desk.name,
+            instrumentSectorName:x|$x.instrument.sector.name
+        ])
+        ->sort(~positionId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D6_PositionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"positionId":"POS-0001","instrumentInstrumentCurrencyCountryName":"United States","bookDeskName":"Cash Equities","instrumentSectorName":"Information Technology"},{"positionId":"POS-0002","instrumentInstrumentCurrencyCountryName":"United States","bookDeskName":"Cash Equities","instrumentSectorName":"Information Technology"},{"positionId":"POS-0003","instrumentInstrumentCurrencyCountryName":"United Kingdom","bookDeskName":"Cash Equities","instrumentSectorName":"Financials"},{"positionId":"POS-0004","instrumentInstrumentCurrencyCountryName":"Germany","bookDeskName":"Cash Equities","instrumentSectorName":"Health Care"},{"positionId":"POS-0005","instrumentInstrumentCurrencyCountryName":"United Kingdom","bookDeskName":"Equity Derivatives","instrumentSectorName":null},{"positionId":"POS-0006","instrumentInstrumentCurrencyCountryName":"Germany","bookDeskName":"Equity Derivatives","instrumentSectorName":"Health Care"}]';
                   }#;
               }#
           ]

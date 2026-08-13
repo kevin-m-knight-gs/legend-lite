@@ -75,6 +75,11 @@ class Spec:
     # the reuse makes the claim explicit instead of hiding it in a duplicated literal.
     # The projection ALIASES must match, which build.py checks.
     mirrors: object | None = None
+    # Applied to the mirrored rows before they become the expectation. For shapes the
+    # oracle cannot produce directly — a unit-typed value serialises as an OBJECT, not a
+    # number — this keeps the expectation DERIVED from the seed rather than captured from
+    # engine output.
+    transform: object | None = None
     # 'relation' -> project(~[alias:x|$x.p])   the newer paradigm
     # 'tds'      -> project([x|$x.p], ['alias'])  the legacy one
     #
@@ -88,6 +93,12 @@ class Spec:
     # Only the keys and the aggregates survive; every other projected column is dropped,
     # which is what groupBy means and a common way to write a query that silently loses
     # a column you thought you were selecting.
+    # MultiExecution: [(key, mapping, runtime)]. The same query, several bindings,
+    # selected per test by `keys: ['<key>']`.
+    # Extra (connection id, ###Data element) pairs for a multi-store service.
+    extra_data: list = field(default_factory=list)
+    multi: list = field(default_factory=list)
+    multi_key: str = "variant"
     group_by: list = field(default_factory=list)
     aggs: list = field(default_factory=list)
 

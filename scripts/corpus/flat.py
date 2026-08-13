@@ -151,6 +151,7 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     Both derivations exist to make an invariance claim honest: TRADE_FLAT (L2) varies how
     a row is assembled, the partitions (L4) vary where rows come from.
     """
+    import aggregate
     import partition
     import views
 
@@ -158,6 +159,7 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     tables["TRADE_FLAT"] = build(c, seed.TABLES)
     tables.update(partition.build(c, seed.TABLES))
     tables["TRADE_FLAT_PARTIAL"] = partial(c, seed.TABLES)
+    tables["TRADE_BY_BOOK"] = aggregate.build(c, seed.TABLES)
     # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
     # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as
     # ###Data would create a real table that shadows the view and silently stop testing
