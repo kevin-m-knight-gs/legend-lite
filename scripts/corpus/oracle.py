@@ -311,6 +311,20 @@ def _rows_for(c: Corpus, root: str, data: dict[str, list[dict]]) -> list[dict]:
     return data[c.main_table[root]]
 
 
+def _mapping_filtered(c: Corpus, root: str, rows: list[dict]) -> list[dict]:
+    """A store filter attached to the class mapping narrows what all() can even see.
+
+    It is applied BEFORE any query predicate and before milestoning, which is the whole
+    point: the class is defined as the filtered subset, so no query can widen it back.
+    """
+    name = c.class_filter.get(root)
+    if name is None:
+        return rows
+    _table, col, op, val = c.filters[name]
+    sql_to_py = {"=": "==", "<>": "!="}
+    return [r for r in rows if _cmp(sql_to_py.get(op, op), r.get(col), val)]
+
+
 def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
     """Apply the business-milestoning predicate for a temporal root.
 
@@ -351,7 +365,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
-    base = _milestoned(c, spec, _rows_for(c, spec.root, data))
+    base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data))
+    base = _milestoned(c, spec, base)
     kept = [r for r in base
             if all(_cmp(f.op, _value(c, data, r, spec.root, f.path), f.value)
                    for f in spec.filters)]

@@ -521,4 +521,11 @@ Database store::DB
     Join FxRate_Currency(FX_RATE.BASE_CURRENCY_CODE = CURRENCY.CODE)
     Join Greeks_Instrument(GREEKS.INSTRUMENT_ID = INSTRUMENT.INSTRUMENT_ID)
     Join Settlement_Counterparty(SETTLEMENT.COUNTERPARTY_ID = COUNTERPARTY.COUNTERPARTY_ID)
+
+    // ---- L4: store-level filters, used by filtered class mappings ----
+    // A filtered mapping is how a firm exposes "the executed book" as its own class
+    // without repeating the predicate in every query. It also gives a free invariance:
+    // the filtered mapping must equal the unfiltered mapping with the same predicate
+    // applied in the QUERY.
+    Filter ExecutedTrades(TRADE.STATUS = 'EXECUTED')
 )

@@ -185,6 +185,16 @@ def change_view_aggregate(f):
     return f
 
 
+def widen_store_filter(f):
+    """Point the store filter at a different status. E1 (predicate in the MAPPING) then
+    returns a different set from E0 (same predicate in the QUERY), which is the only thing
+    that can detect a store filter silently failing to apply."""
+    f["30"] = _sub_once(f["30"], r"Filter ExecutedTrades\(TRADE\.STATUS = 'EXECUTED'\)",
+                        "Filter ExecutedTrades(TRADE.STATUS = 'SETTLED')",
+                        "widen_store_filter")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -209,6 +219,7 @@ MUTATIONS = {
     "break_infinity_date": break_infinity_date,
     "populate_empty_union_leg": populate_empty_union_leg,
     "change_view_aggregate": change_view_aggregate,
+    "widen_store_filter": widen_store_filter,
 }
 
 # Mutations that MUST survive. A corpus claims coverage by what it catches; it should be

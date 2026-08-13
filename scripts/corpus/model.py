@@ -189,6 +189,10 @@ class Corpus:
     # class fqn -> the member TABLES of an Operation union mapping, in declared order
     unions: dict[str, list[str]] = field(default_factory=dict)
     views: dict[str, View] = field(default_factory=dict)
+    # store filter name -> (table, column, op, literal)
+    filters: dict[str, tuple[str, str, str, object]] = field(default_factory=dict)
+    # class fqn -> the store filter its mapping applies
+    class_filter: dict[str, str] = field(default_factory=dict)
 
     # -------------------------------------------------------- resolution
 
@@ -282,6 +286,9 @@ class Corpus:
 
 _TABLE = re.compile(r"^\s*Table\s+(\w+)\s*\((.*)\)\s*$")
 _JOIN = re.compile(r"^\s*Join\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s*\)\s*$")
+_FILTER_DECL = re.compile(
+    r"^\s*Filter\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*(=|<>|<=|>=|<|>)\s*(.+?)\s*\)\s*$")
+_CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
 _CLASS = re.compile(r"^\s*Class\s+(?:<<([^>]*)>>\s*)?([\w:]+)\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
@@ -422,6 +429,19 @@ def _parse_store(text: str, c: Corpus) -> None:
 
     for raw in text.splitlines():
         line = _strip(raw)
+        m = _FILTER_DECL.match(line)
+        if m:
+            lit = m.group(5).strip()
+            if lit.startswith("'") and lit.endswith("'"):
+                val = lit[1:-1]
+            elif re.fullmatch(r"-?\d+", lit):
+                val = int(lit)
+            elif re.fullmatch(r"-?\d*\.\d+", lit):
+                val = float(lit)
+            else:
+                raise ValueError(f"Filter {m.group(1)}: unhandled literal {lit!r}")
+            c.filters[m.group(1)] = (m.group(2), m.group(3), m.group(4), val)
+            continue
         m = _JOIN.match(line)
         if m:
             n, lt, lc, rt, rc = m.groups()
@@ -571,6 +591,10 @@ def _parse_mapping(text: str, c: Corpus) -> None:
             continue
         if line.strip() in ("}", ")", "    }"):
             continue
+        m = _CLS_FILTER.match(line)
+        if m and cur:
+            c.class_filter[cur] = m.group(1)
+            continue
         m = _MAIN.match(line)
         if m and cur:
             # For a union member, the per-id table is what the union needs; the class's
@@ -711,6 +735,9 @@ def check(c: Corpus) -> list[str]:
     for (owner, name), end in c.ends.items():
         if end.join and end.join not in c.joins:
             bad.append(f"{owner}.{name} uses undeclared join {end.join}")
+    for cls, name in c.class_filter.items():
+        if name not in c.filters:
+            bad.append(f"{cls} uses undeclared store filter {name}")
     for cls, members in c.unions.items():
         if len(members) < 2:
             bad.append(f"union mapping for {cls} resolved {len(members)} member tables; "

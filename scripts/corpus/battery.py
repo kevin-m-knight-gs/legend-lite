@@ -26,7 +26,7 @@ carries several independent assertions and a defect in any one of them reddens t
 """
 from __future__ import annotations
 
-from query import Proj, Spec
+from query import Pred, Proj, Spec
 
 PREFIX = "stress::F"
 
@@ -143,8 +143,35 @@ def _union_pair():
 
 WHOLE, PARTITIONED = _union_pair()
 
+
+# ------------------------------------------------------ L4 filter invariance
+#
+# The predicate applied in the MAPPING versus the same predicate applied in the QUERY.
+# Independent of the other two groups, and the cheapest kind of invariance to get wrong:
+# a store filter that silently failed to apply would make E1 a superset of E0 and nothing
+# else in the corpus would notice.
+
+def _filter_pair():
+    in_query = Spec("stress::E0_ExecutedByQuery", "/stress/e0",
+                    "Filter invariance, query side: every trade, narrowed by a predicate "
+                    "in the query.", "trading::Trade")
+    in_query.projections = [Proj(a, [a]) for a in _UNION_COLUMNS]
+    in_query.filters = [Pred(["status"], "==", "EXECUTED")]
+
+    in_mapping = Spec("stress::E1_ExecutedByMapping", "/stress/e1",
+                      "Filter invariance, mapping side: the SAME rows reached through a "
+                      "class whose mapping carries ~filter [store::DB] ExecutedTrades. "
+                      "The query has no predicate at all.", "trading::ExecutedTrade")
+    in_mapping.projections = [Proj(a, [a]) for a in _UNION_COLUMNS]
+    in_mapping.mapping, in_mapping.runtime = "trading::ExecutedMapping", "stress::ExecutedRT"
+    return in_query, in_mapping
+
+
+BY_QUERY, BY_MAPPING = _filter_pair()
+
 # Each group must agree internally; groups are independent of one another.
-INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED], [WHOLE, PARTITIONED]]
+INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED], [WHOLE, PARTITIONED],
+                     [BY_QUERY, BY_MAPPING]]
 INVARIANCE = [s for g in INVARIANCE_GROUPS for s in g]
 
 

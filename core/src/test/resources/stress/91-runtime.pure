@@ -44,3 +44,15 @@ Runtime stress::EmbeddedFlatRT
         store::DB: [ environment: store::Conn ]
     ];
 }
+
+Runtime stress::ExecutedRT
+{
+    mappings:
+    [
+        trading::ExecutedMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
+    ];
+}

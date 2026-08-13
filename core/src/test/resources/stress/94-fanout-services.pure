@@ -329,6 +329,127 @@ Service stress::U1_TradePartitioned
   ]
 }
 
+Service stress::E0_ExecutedByQuery
+{
+    pattern: '/stress/e0';
+    documentation: 'Filter invariance, query side: every trade, narrowed by a predicate in the query.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.status == 'EXECUTED')})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            currency:x|$x.currency
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    E0_ExecutedByQuery_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::E1_ExecutedByMapping
+{
+    pattern: '/stress/e1';
+    documentation: 'Filter invariance, mapping side: the SAME rows reached through a class whose mapping carries ~filter [store::DB] ExecutedTrades. The query has no predicate at all.';
+    execution: Single
+    {
+    query: |trading::ExecutedTrade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            currency:x|$x.currency
+        ]);
+        mapping: trading::ExecutedMapping;
+        runtime: stress::ExecutedRT;
+    }
+  testSuites:
+  [
+    E1_ExecutedByMapping_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
