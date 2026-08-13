@@ -29,6 +29,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import tiers
+
 REPO = Path(__file__).resolve().parents[2]
 ENGINE = Path.home() / "legend" / "legend-engine"
 
@@ -104,33 +106,68 @@ def covered(keywords: set[str], text: str) -> set[str]:
     return found
 
 
+def _keywords_in(grammars: dict[str, set[str]], stems) -> set[str]:
+    return set().union(*[grammars[s] for s in stems if s in grammars]) if stems else set()
+
+
 def main() -> None:
     grammars = harvest()
     text = our_sources()
     all_kw = {k for ks in grammars.values() for k in ks}
     have = covered(all_kw, text)
 
+    # A grammar upstream adds must land in a tier deliberately. Without this it would
+    # simply be absent from every total, and the coverage percentage would go UP because
+    # new surface appeared -- the exact failure this harness exists to prevent.
+    unclassified = sorted(s for s in grammars if tiers.tier_of(s) == "unclassified")
+    if unclassified:
+        print(f"UNCLASSIFIED GRAMMARS (add to scripts/parser/tiers.py): {unclassified}\n")
+
+    scope = tiers.TIER1 | tiers.TIER1_EMBEDDED | tiers.TIER2
+    in_scope = _keywords_in(grammars, scope)
+    dropped = _keywords_in(grammars, tiers.OUT_OF_SCOPE) - in_scope
+
     print(f"{len(grammars)} grammars, {len(all_kw)} distinct typeable keywords")
-    print(f"covered by sources in THIS repo: {len(have)} ({len(have) / len(all_kw):.0%})")
-    print(f"missing: {len(all_kw - have)}\n")
+    print(f"  out of scope: {len(dropped)} keywords in {len(tiers.OUT_OF_SCOPE)} grammars "
+          f"unreachable from .pure text (see tiers.py)")
+    print(f"  IN SCOPE:     {len(in_scope)}\n")
+
+    for label, stems in (("TIER 1  core Legend surface", tiers.TIER1),
+                         ("TIER 1  embedded (GraphQL)", tiers.TIER1_EMBEDDED),
+                         ("TIER 2  vendor connectors", tiers.TIER2_VENDOR),
+                         ("TIER 2  extension DSLs", tiers.TIER2_DSL)):
+        kws = _keywords_in(grammars, stems)
+        print(f"{label:<32}{len(kws & have):>5} of {len(kws):<5} missing {len(kws - have)}")
+    print(f"{'ALL IN SCOPE':<32}{len(in_scope & have):>5} of {len(in_scope):<5} "
+          f"missing {len(in_scope - have)}")
+
+    missing_embedded = [m for m in tiers.EMBEDDED if m not in text]
+    print(f"{'embedded Pure parsers':<32}"
+          f"{len(tiers.EMBEDDED) - len(missing_embedded):>5} of {len(tiers.EMBEDDED)}"
+          + (f"    missing {missing_embedded}" if missing_embedded else ""))
 
     rows = []
     for stem, kws in grammars.items():
         miss = kws - have
-        if miss:
-            rows.append((len(miss), len(kws), stem, sorted(miss)))
-    rows.sort(reverse=True)
+        if miss and tiers.tier_of(stem) != "out":
+            rows.append((tiers.tier_of(stem), len(miss), len(kws), stem, sorted(miss)))
 
-    if "--gaps" in sys.argv:
-        print("gaps by grammar, largest first:\n")
-        for miss, total, stem, words in rows:
-            print(f"[{miss:>3} of {total:>3}] {stem}")
-            print("      " + ", ".join(words[:16]) + (" ..." if len(words) > 16 else ""))
+    if "--tier1" in sys.argv:
+        rows = [r for r in rows if r[0].startswith("1")]
+    rows.sort(key=lambda r: (r[0], -r[1]))
+
+    if "--gaps" in sys.argv or "--tier1" in sys.argv:
+        print("\nwork queue:\n")
+        for tier, miss, total, stem, words in rows:
+            print(f"[t{tier}] [{total - miss:>3} of {total:>3}] "
+                  f"{stem.replace('LexerGrammar', '')}")
+            print("       " + ", ".join(words))
     else:
-        print(f"{'grammar':<52}{'missing':>9}{'of':>6}")
-        for miss, total, stem, _ in rows[:25]:
-            print(f"  {stem:<50}{miss:>9}{total:>6}")
-        print(f"\n({len(rows)} grammars have gaps; --gaps lists the keywords)")
+        print(f"\n{'grammar':<50}{'tier':>5}{'missing':>9}{'of':>6}")
+        for tier, miss, total, stem, _ in sorted(rows, key=lambda r: -r[1])[:20]:
+            print(f"  {stem:<48}{tier:>5}{miss:>9}{total:>6}")
+        print(f"\n({len(rows)} in-scope grammars have gaps; "
+              f"--tier1 or --gaps lists the keywords)")
 
 
 if __name__ == "__main__":
