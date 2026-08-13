@@ -81,6 +81,20 @@ def split_services(text: str) -> tuple[str, list[tuple[str, str]]]:
     return preamble, out
 
 
+def _expect(c, spec, TABLES):
+    """The expectation for a spec, following `mirrors` when the oracle cannot evaluate."""
+    src = getattr(spec, "mirrors", None)
+    if src is None:
+        return oracle.as_json_rows(c, spec, oracle.evaluate(c, spec, TABLES))
+    mine = [p.alias for p in spec.projections]
+    theirs = [p.alias for p in src.projections]
+    if sorted(mine) != sorted(theirs):
+        raise SystemExit(
+            f"{spec.short} mirrors {src.short} but their projection aliases differ:\n"
+            f"  {spec.short}: {sorted(mine)}\n  {src.short}: {sorted(theirs)}")
+    return oracle.as_json_rows(c, src, oracle.evaluate(c, src, TABLES))
+
+
 def generate() -> dict[Path, str]:
     c = model.load()
     TABLES = flat.all_tables(c)
@@ -115,8 +129,7 @@ def generate() -> dict[Path, str]:
     # has nothing to do with the engine.
     key = lambda rs: sorted(json.dumps(r, sort_keys=True) for r in rs)
     for group in battery.INVARIANCE_GROUPS:
-        inv = [(s.short, key(oracle.as_json_rows(c, s, oracle.evaluate(c, s, TABLES))))
-               for s in group]
+        inv = [(s.short, key(_expect(c, s, TABLES))) for s in group]
         base_name, base = inv[0]
         for name, rows in inv[1:]:
             if rows != base:
@@ -129,8 +142,7 @@ def generate() -> dict[Path, str]:
 
     fan = []
     for spec in battery.SPECS:
-        rows = oracle.evaluate(c, spec, TABLES)
-        expected = oracle.as_json_rows(c, spec, rows)
+        expected = _expect(c, spec, TABLES)
         zeros = sum(1 for r in expected for k, v in r.items()
                     if any(p.agg for p in spec.projections if p.alias == k) and v == 0)
         note = (f"{len(expected)} rows; {zeros} of the aggregate cells are ZERO -- an "

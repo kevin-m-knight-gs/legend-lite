@@ -44,3 +44,12 @@ Each directory is the smallest model that reproduces a finding in
          --testable=demo::UnmappedEnum          # side comes back null
     java -cp $CP perf.TestableMain ../../scripts/corpus/repro/enum-graphfetch/model.pure \
          --testable=demo::UnmappedEnumGraphFetch # raises
+
+    # F11 -- Relation projection rejected over a ModelChainConnection; F12 -- the
+    # EnumerationMapping is not applied through one. Same model, four services.
+    D=../../scripts/corpus/repro/m2m-relation
+    java -cp $CP perf.TestableMain $D/base.pure $D/svc_relation.pure   --testable=dest::S_relation    # fails
+    java -cp $CP perf.TestableMain $D/base.pure $D/svc_legacy.pure     --testable=dest::S_legacy      # works
+    java -cp $CP perf.TestableMain $D/base.pure $D/svc_graphfetch.pure --testable=dest::S_graphfetch  # works
+    java -cp $CP perf.TestableMain $D/base.pure $D/svc_probe.pure --testable=src::S_relTds  # side = BUY
+    java -cp $CP perf.TestableMain $D/base.pure $D/svc_probe.pure --testable=dest::S_m2mTds # side = B

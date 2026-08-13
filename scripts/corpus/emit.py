@@ -189,14 +189,28 @@ def query_text(spec: Spec) -> str:
         conds = " && ".join(
             f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
-    cols = [f"{p.alias}:{VAR}|${VAR}.{'.'.join(p.path)}"
-            + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
-            + (f"->{p.agg}()" if p.agg else "")
-            for p in spec.projections]
-    lines.append("        ->project(~[")
-    for i, col in enumerate(cols):
-        lines.append(f"            {col}" + ("," if i < len(cols) - 1 else ""))
-    lines.append("        ])")
+    def expr(p):
+        return (f"${VAR}.{'.'.join(p.path)}"
+                + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
+                + (f"->{p.agg}()" if p.agg else ""))
+
+    if spec.paradigm == "tds":
+        # Legacy TDS: the lambdas and the column names travel in two parallel lists.
+        lams = [f"{VAR}|{expr(p)}" for p in spec.projections]
+        names = [f"'{_pure_str(p.alias)}'" for p in spec.projections]
+        lines.append("        ->project(")
+        lines.append("            [")
+        for i, l in enumerate(lams):
+            lines.append(f"                {l}" + ("," if i < len(lams) - 1 else ""))
+        lines.append("            ],")
+        lines.append("            [" + ", ".join(names) + "]")
+        lines.append("        )")
+    else:
+        cols = [f"{p.alias}:{VAR}|{expr(p)}" for p in spec.projections]
+        lines.append("        ->project(~[")
+        for i, col in enumerate(cols):
+            lines.append(f"            {col}" + ("," if i < len(cols) - 1 else ""))
+        lines.append("        ])")
     if spec.sort:
         alias, desc = spec.sort
         lines.append(f"        ->sort(~{alias}->{'descending' if desc else 'ascending'}())")

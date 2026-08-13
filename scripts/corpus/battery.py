@@ -170,8 +170,76 @@ def _filter_pair():
 BY_QUERY, BY_MAPPING = _filter_pair()
 
 # Each group must agree internally; groups are independent of one another.
+# ------------------------------------------------------------- L5 M2M invariance
+#
+# The fourth invariance, and the one that crosses an execution ENGINE rather than a
+# mapping shape: M0 reads trading::Trade through SQL, M1 reads canonical::CanonicalTrade
+# through the M2M engine fed by that same SQL. The properties are renamed and one is
+# computed in the M2M layer, so a mapping that quietly passed the source object through
+# would not satisfy the projection.
+
+# `side` is deliberately NOT here. An EnumerationMapping is not applied when the
+# relational mapping feeds a ModelChainConnection -- the raw storage code arrives instead
+# of the enum value (F12) -- and including it would redden this pair for a reason that has
+# nothing to do with the invariance being tested. It is asserted separately by M2.
+_M2M_COLUMNS = [
+    ("identifier", "tradeId", "identifier"),
+    ("executedOn", "tradeDate", "executedOn"),
+    ("unitPrice", "price", "unitPrice"),
+    ("units", "quantity", "units"),
+    ("state", "status", "state"),
+    ("grossValue", "grossAmount", "grossValue"),
+]
+
+
+def _m2m_pair():
+    src = Spec("stress::M0_TradeRelational", "/stress/m0",
+               "M2M invariance, source side: trading::Trade straight from SQL. "
+               "grossAmount is the derived property; the M2M side computes the same "
+               "product in the M2M engine instead.", "trading::Trade")
+    src.projections = [Proj(a, s.split(".")) for a, s, _ in _M2M_COLUMNS]
+
+    tgt = Spec("stress::M1_TradeCanonical", "/stress/m1",
+               "M2M invariance, canonical side: the same facts through "
+               "relational -> source model -> M2M -> canonical model, with every property "
+               "renamed on the way.", "canonical::CanonicalTrade")
+    tgt.projections = [Proj(a, t.split(".")) for a, _, t in _M2M_COLUMNS]
+    tgt.mapping, tgt.runtime = "canonical::M2MMapping", "stress::CanonicalRT"
+    tgt.connection = "environment"
+    # The oracle cannot evaluate an M2M target: it has no table to read. The claim IS
+    # that it returns what the relational side returns, so it mirrors it.
+    tgt.mirrors = src
+    # A Relation projection is REJECTED over a ModelChainConnection, so the canonical side
+    # must use the legacy TDS form. That is F11, and it is why this pair also happens to
+    # be the corpus's only coverage of the legacy paradigm end-to-end.
+    tgt.paradigm = "tds"
+    return src, tgt
+
+
+RELATIONAL_SIDE, CANONICAL_SIDE = _m2m_pair()
+
+
+def _m2m_enum_probe():
+    """The same chain plus the enum-mapped property. Quarantined: F12."""
+    s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
+             "The M2M chain projecting the enum-mapped `side`. The relational mapping "
+             "translates 'B' to BUY; through a ModelChainConnection the raw code arrives "
+             "instead. Isolated from M1 so one defect does not mask an unrelated "
+             "invariance.", "canonical::CanonicalTrade")
+    s.projections = [Proj("identifier", ["identifier"]), Proj("side", ["side"])]
+    s.mapping, s.runtime = "canonical::M2MMapping", "stress::CanonicalRT"
+    s.connection, s.paradigm = "environment", "tds"
+    mirror = Spec("stress::_M2MirrorSource", "/stress/_m2mirror", "", "trading::Trade")
+    mirror.projections = [Proj("identifier", ["tradeId"]), Proj("side", ["side"])]
+    s.mirrors = mirror
+    return s
+
+
+CANONICAL_WITH_ENUM = _m2m_enum_probe()
+
+
 INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED], [WHOLE, PARTITIONED],
-                     [BY_QUERY, BY_MAPPING]]
+                     [BY_QUERY, BY_MAPPING], [RELATIONAL_SIDE, CANONICAL_SIDE]]
 INVARIANCE = [s for g in INVARIANCE_GROUPS for s in g]
 
 
@@ -347,7 +415,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+SPECS = INVARIANCE + [CANONICAL_WITH_ENUM] + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

@@ -1,0 +1,30 @@
+###Service
+Service dest::S_relation
+{
+  pattern: '/relation';
+  documentation: '';
+  execution: Single
+  {
+    query: |dest::CTrade.all()->project(~[identifier:x|$x.identifier, units:x|$x.units]);
+    mapping: dest::M2M;
+    runtime: dest::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ src::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -431,6 +431,66 @@ projects no enum, so the union itself stays verified rather than being masked by
 
 ---
 
+## F11 — a Relation projection is rejected over a ModelChainConnection
+
+**Severity: feature-combination gap.** The Relation paradigm is the newer, recommended
+projection form. M2M through a `ModelChainConnection` is standard. The pair does not work.
+
+Three query forms over an identical relational → source model → M2M chain
+(`scripts/corpus/repro/m2m-relation/`):
+
+| query form | result |
+|---|---|
+| `->project(~[identifier:x\|$x.identifier, ...])` | **fails** at plan generation |
+| `->project([x\|$x.identifier, ...], ['identifier', ...])` | works |
+| `->graphFetch(#{...}#)->serialize(#{...}#)` | works |
+
+```
+Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:26 column:5),
+"Non TDS return type not supported for Model Connections"
+```
+
+The message is accurate but arrives late — at plan generation, not compilation — and does
+not name the service or suggest the legacy form as the workaround.
+
+The corpus works around it by emitting the M2M service in the legacy TDS paradigm, which
+is why that paradigm is now covered end-to-end at all.
+
+---
+
+## F12 — an EnumerationMapping is not applied through a ModelChainConnection
+
+**Severity: silent wrong answer.** The raw storage code arrives where the enum value
+should be, typed as the enum. No error.
+
+Isolated so that only ONE thing differs — same paradigm, same enum, same
+EnumerationMapping, same data, same rows:
+
+```
+src::Trade.all()->project([x|$x.tradeId, x|$x.side], ['id','side'])
+   via src::RelMapping directly        ->  [{"id":"T1","side":"BUY"}, {"id":"T2","side":"SELL"}]
+
+dest::CTrade.all()->project([x|$x.identifier, x|$x.side], ['id','side'])
+   via ModelChainConnection(src::RelMapping) ->  [{"id":"T1","side":"B"}, {"id":"T2","side":"S"}]
+```
+
+The M2M mapping does nothing to `side` but copy it: `side: $src.side`. The source class
+property is typed `src::Side`, and the relational mapping that feeds the chain declares
+`side: EnumerationMapping SideMap: [src::DB] TRADE.SIDE`. Read directly, that translation
+happens; read through the chain, it does not.
+
+`scripts/corpus/repro/m2m-relation/` holds both services over one model, so the diff
+between them is two lines.
+
+Quarantined as `stress::M2_CanonicalWithEnum`. `stress::M1_TradeCanonical` deliberately
+omits the enum so the M2M invariance itself stays verified rather than being masked.
+
+**Worth noting alongside F10.** That was an unmapped code behaving differently across
+execution paths; this is a *mapped* code not being applied on one of them. Enumeration
+mappings appear to be handled per-path rather than once, and each path has its own answer.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is

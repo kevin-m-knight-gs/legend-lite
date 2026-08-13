@@ -36,6 +36,9 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
 
+ENGINE_QUARANTINE["stress::M2_CanonicalWithEnum"] = (
+    "F12", "EnumerationMapping not applied through a ModelChainConnection")
+
 # legend-lite currently agrees with the reference evaluator on every service, including
 # all seven fan-out ones. That is not an accident of coverage — it is what makes F6 a
 # legend-engine defect rather than an oracle error.

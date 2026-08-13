@@ -114,7 +114,11 @@ def main() -> None:
     # Covering them would mean either teaching this harness tree comparison or having
     # legend-lite produce the same serialization. Neither is done, so they are skipped
     # HERE and remain fully asserted against legend-engine by run.py.
-    specs = [s for s in query.load() + battery.SPECS if s.graph is None]
+    # Also out of scope: any spec whose expectation is MIRRORED. Those roots have no
+    # table — an M2M target is not read from a store — so there is nothing for the oracle
+    # to evaluate and nothing for legend-lite to generate SQL against.
+    specs = [s for s in query.load() + battery.SPECS
+             if s.graph is None and getattr(s, "mirrors", None) is None]
     for spec in specs:
         # The expectation is written WITHOUT the timestamp reformatting the JSON path
         # applies -- that is a legend-engine serialisation detail, not a value difference,
@@ -129,10 +133,11 @@ def main() -> None:
 
     print(f"seed.sql: {len(seed_sql(c, TABLES).splitlines())} lines, "
           f"{sum(len(v) for v in TABLES.values())} rows")
-    skipped = sum(1 for s in battery.SPECS if s.graph is not None)
+    skipped = sum(1 for s in battery.SPECS
+                  if s.graph is not None or getattr(s, "mirrors", None) is not None)
     print(f"expectations: {len(specs)} services -> {OUT / 'expected'}"
           + (f"  ({skipped} graph-fetch services skipped: flat comparison cannot "
-             f"represent a tree)" if skipped else ""))
+             f"represent a tree; M2M targets have no table)" if skipped else ""))
 
 
 if __name__ == "__main__":

@@ -710,7 +710,15 @@ def sections(text: str) -> list[tuple[str, str]]:
 # claim of mapping invariance is that a query through this mapping returns what the
 # canonical mapping returns. Its expectation IS the canonical expectation, so computing a
 # second one would be circular at best and wrong at worst.
-SKIP_MAPPINGS = {"reporting::EmbeddedFlatMapping"}
+SKIP_MAPPINGS = {
+    "reporting::EmbeddedFlatMapping",
+    # An M2M mapping has no tables at all — it maps class to class. The line-based reader
+    # here understands `prop: [db] TABLE.COL` and nothing else, so parsing it would find
+    # no mainTable and attach nothing. Skipped for the same reason as the embedded
+    # mapping: the canonical class's expectation is DERIVED from the source class it is
+    # mapped from, which is what the invariance asserts.
+    "canonical::M2MMapping",
+}
 
 # re.M is load-bearing: without it `search` over a multi-line chunk never matches, the
 # skip-list silently does nothing, and trading::Trade quietly gets rebound to TRADE_FLAT.

@@ -1,0 +1,30 @@
+###Service
+Service dest::S_graphfetch
+{
+  pattern: '/graphfetch';
+  documentation: '';
+  execution: Single
+  {
+    query: |dest::CTrade.all()->graphFetch(#{dest::CTrade{identifier,units}}#)->serialize(#{dest::CTrade{identifier,units}}#);
+    mapping: dest::M2M;
+    runtime: dest::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ src::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

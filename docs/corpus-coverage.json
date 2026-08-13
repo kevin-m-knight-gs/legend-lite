@@ -1,12 +1,13 @@
 {
  "roster_total": 1033,
- "covered_count": 59,
+ "covered_count": 62,
  "covered": [
   "Bit",
   "Date",
   "Double",
   "Enumeration",
   "Integer",
+  "ModelChainConnection",
   "RelationalDatabaseConnection",
   "Timestamp",
   "Varchar",
@@ -44,6 +45,8 @@
   "processingMilestoning",
   "property",
   "propertyGraphFetchTree",
+  "pureInstance",
+  "purePropertyMapping",
   "pureSingleExecution",
   "reference",
   "relational",

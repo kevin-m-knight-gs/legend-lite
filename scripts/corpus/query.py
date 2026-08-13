@@ -65,6 +65,21 @@ class Spec:
     #   #{ Trade { tradeId, instrument { name } } }#
     # None as a value marks a leaf. When set, `projections` is unused.
     graph: dict | None = None
+    # Another Spec whose expectation this one REUSES verbatim.
+    #
+    # For an invariance case the oracle cannot evaluate — an M2M target has no table, so
+    # there is nothing to read — the claim under test IS that this service returns what
+    # the mirrored one returns. Deriving a second expectation would be circular; stating
+    # the reuse makes the claim explicit instead of hiding it in a duplicated literal.
+    # The projection ALIASES must match, which build.py checks.
+    mirrors: object | None = None
+    # 'relation' -> project(~[alias:x|$x.p])   the newer paradigm
+    # 'tds'      -> project([x|$x.p], ['alias'])  the legacy one
+    #
+    # Not interchangeable: a Relation projection is REJECTED over a ModelChainConnection
+    # ("Non TDS return type not supported for Model Connections"), so an M2M service must
+    # use the legacy form. See docs/UPSTREAM_FINDINGS.md F11.
+    paradigm: str = "relation"
 
     @property
     def short(self) -> str:
@@ -136,6 +151,59 @@ def _projections(body: str) -> list[Proj]:
     return projs
 
 
+def _tds_project(q: str):
+    """Legacy `project([lambdas], ['names'])` -> the same Proj list the Relation form
+    yields, so a spec round-trips whichever paradigm it was written in."""
+    i = q.index("->project(")
+    j = q.index("[", i) + 1
+    depth, k = 1, j
+    while depth:
+        if q[k] == "[":
+            depth += 1
+        elif q[k] == "]":
+            depth -= 1
+            if depth == 0:
+                break
+        k += 1
+    lams = q[j:k]
+    m = re.search(r"\[([^\]]*)\]", q[k + 1:])
+    names = [n.strip().strip("'") for n in m.group(1).split(",")]
+    projs = []
+    for raw, name in zip(_split_top(lams), names):
+        e = " ".join(raw.split())
+        mm = re.fullmatch(r"(\w+)\s*\|\s*\$\1\.(.+)", e)
+        if not mm:
+            raise ValueError(f"unhandled TDS projection lambda {e!r}")
+        path, agg = mm.group(2), None
+        am = re.fullmatch(r"(.+?)->(count)\(\)", path)
+        if am:
+            path, agg = am.group(1), am.group(2)
+        args = []
+        call = re.fullmatch(r"(.+?)\(([^)]*)\)", path)
+        if call:
+            path = call.group(1)
+            args = [_literal(a) for a in call.group(2).split(",") if a.strip()]
+        projs.append(Proj(name, path.split("."), agg, args))
+    return projs
+
+
+def _split_top(body: str) -> list[str]:
+    out, depth, cur = [], 0, []
+    for ch in body:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if "".join(cur).strip():
+        out.append("".join(cur))
+    return out
+
+
 def _project_body(q: str) -> str:
     """Extract the ~[ ... ] body of the project() call by bracket matching."""
     i = q.index("->project(")
@@ -194,7 +262,11 @@ def _finish(name: str, body: str) -> Spec:
     if arg:
         dates = [a.strip()[1:] for a in arg.split(",") if a.strip()]
         s.as_of = dates[0] if len(dates) == 1 else dates
-    s.projections = _projections(_project_body(body))
+    if re.search(r"->project\(\s*\[", body):
+        s.paradigm = "tds"
+        s.projections = _tds_project(body)
+    else:
+        s.projections = _projections(_project_body(body))
     f = _FILTER.search(body)
     if f:
         s.filters = _preds(f.group(1), f.group(2))
