@@ -117,8 +117,10 @@ def generate() -> dict[Path, str]:
     if problems:
         raise SystemExit("model does not resolve:\n  " + "\n  ".join(problems[:10]))
     import aggregate
+    import expand
     import partition
-    problems = (aggregate.check(c, TABLES["TRADE_BY_BOOK"], TABLES)
+    problems = (expand.check(c, flat.EXPANDED, flat.EXPANSION_BASE)
+                + aggregate.check(c, TABLES["TRADE_BY_BOOK"], TABLES)
                 + seed.check(c) + flat.check(c, TABLES['TRADE_FLAT'])
                 + flat.check_partial(TABLES["TRADE_FLAT_PARTIAL"])
                 + partition.check(c, {k: TABLES[k] for k in

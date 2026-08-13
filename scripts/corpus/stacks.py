@@ -29,17 +29,43 @@ from query import Pred, Proj, Spec
 
 MIN_FEATURES = 5
 
-# Roots worth stacking on: rooted on a seeded table, with real navigation depth. Ordered
-# by how much the model offers from each (see the census in the commit message).
-ROOTS = [
-    ("settlement::Settlement", "settlementId"),
-    ("ops::Confirmation", "confirmId"),
-    ("regulatory::TradeReport", "reportId"),
-    ("sales::SalesCredit", "creditId"),
-    ("risk::Greeks", "greeksId"),
-    ("pnl::DailyPnL", "pnlId"),
-    ("positions::Position", "positionId"),
-]
+# How many roots to stack on. Ranked by what the model offers from each, so widening the
+# seed automatically widens the corpus instead of needing a new entry here.
+MAX_ROOTS = 24
+
+
+def _identifier(c: model.Corpus, root: str) -> str | None:
+    """The property mapped to the root table's primary key — used as the stable sort key
+    and the first projected column, so a generated service reads like one a person would
+    write."""
+    table = c.tables.get(c.main_table.get(root, ""))
+    if table is None or not table.pk:
+        return None
+    pk = table.pk[0]
+    return next((prop for prop, col in c.columns.get(root, {}).items() if col == pk), None)
+
+
+def roots(c: model.Corpus, seeded: set[str]) -> list[tuple[str, str]]:
+    """Every class worth stacking on, richest first.
+
+    Derived rather than listed: the ranking is how many DISTINCT navigation targets the
+    class can reach, so seeding another domain promotes its classes automatically.
+    """
+    scored = []
+    for cls, table in c.main_table.items():
+        if table not in seeded or cls in c.views:
+            continue
+        ident = _identifier(c, cls)
+        if ident is None:
+            continue
+        chains = _chains(c, cls, seeded)
+        targets = {t for _, t in chains}
+        deep = sum(1 for p, _ in chains if len(p) >= 3)
+        if len(targets) < 2:
+            continue                      # nothing to stack
+        scored.append(((len(targets), deep), cls, ident))
+    scored.sort(key=lambda s: (-s[0][0], -s[0][1], s[1]))
+    return [(cls, ident) for _, cls, ident in scored[:MAX_ROOTS]]
 
 _LABELLISH = ("name", "legalname", "region", "status", "currency", "jurisdiction")
 
@@ -102,7 +128,7 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
     specs = []
     seen_signatures: set[tuple] = set()
     used_chains: set[tuple] = set()
-    for n, (root, ident) in enumerate(ROOTS):
+    for n, (root, ident) in enumerate(roots(c, seeded)):
         if c.main_table.get(root) not in seeded:
             continue
         chains = _chains(c, root, seeded)

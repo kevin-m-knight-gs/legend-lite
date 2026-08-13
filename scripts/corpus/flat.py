@@ -143,6 +143,12 @@ def check_partial(rows: list[dict]) -> list[str]:
     return bad
 
 
+# Populated by all_tables(): the tables the expansion ring generated, and only those.
+EXPANDED: dict[str, list[dict]] = {}
+# The table set as it stood immediately BEFORE the expansion ran.
+EXPANSION_BASE: dict[str, list[dict]] = {}
+
+
 def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     """The seed plus every DERIVED table. Each consumer of the corpus data goes through
     here, so a derived table can never be stale relative to its source — it does not
@@ -152,6 +158,7 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     a row is assembled, the partitions (L4) vary where rows come from.
     """
     import aggregate
+    import expand
     import partition
     import views
 
@@ -160,6 +167,22 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     tables.update(partition.build(c, seed.TABLES))
     tables["TRADE_FLAT_PARTIAL"] = partial(c, seed.TABLES)
     tables["TRADE_BY_BOOK"] = aggregate.build(c, seed.TABLES)
+    # The expansion ring: tables one join out from the hand-written core. Added BEFORE
+    # views so a view over an expanded table would still see rows.
+    # Recorded so the build can validate exactly what the expansion produced. Recomputing
+    # the candidate list from the raw seed would also sweep in the OTHER derived tables
+    # (TRADE_FLAT, the partitions, the pre-aggregate) and demand adversarial shapes of
+    # them that they deliberately do not have.
+    # The BASE is snapshotted before expanding: build() decides what counts as a foreign
+    # key from the tables that had rows AT THAT MOMENT, so check() has to judge it against
+    # the same view. Judging against the post-expansion set demands FK shapes of columns
+    # that were not foreign keys when the row was generated.
+    EXPANSION_BASE.clear()
+    EXPANSION_BASE.update({k: list(v) for k, v in tables.items()})
+    expanded = expand.build(c, tables)
+    EXPANDED.clear()
+    EXPANDED.update(expanded)
+    tables.update(expanded)
     # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
     # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as
     # ###Data would create a real table that shadows the view and silently stop testing
