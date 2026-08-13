@@ -41,10 +41,15 @@ JAVA_HOME = os.environ.get(
     "JAVA_HOME", str(Path.home() / "jdk" / "jdk-21.0.11+10" / "Contents" / "Home"))
 MVN = os.environ.get("MVN", str(Path.home() / "jdk" / "apache-maven-3.9.9" / "bin" / "mvn"))
 
+# These were Z*Probe scratch files until 3349061f deleted every Z* probe as dead scratch
+# — a correct cleanup that happened to remove the three this gate depends on, leaving the
+# committed baseline unreproducible. They are renamed rather than restored under the old
+# names: a file that backs a committed baseline is infrastructure, and naming it as scratch
+# is what made it deletable.
 PROBES = {
-    "roster": "ZFullRosterCensusProbe",
-    "keywords": "ZKeywordCoverageProbe",
-    "reach": "ZPmcdReachabilityProbe",
+    "roster": "ProtocolRosterCensusTest",
+    "keywords": "GrammarKeywordCensusTest",
+    "reach": "PmcdReachabilityCensusTest",
 }
 
 
