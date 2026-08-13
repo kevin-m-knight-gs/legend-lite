@@ -103,6 +103,26 @@ def unmapped_enum_code(f):
     return f
 
 
+def qualified_ignores_arg(f):
+    """Make the qualified property drop its parameter. The two projected rates then both
+    collapse onto the unscaled gross — which is exactly why F7 projects the SAME property
+    twice with different arguments."""
+    f["06"] = _sub_once(
+        f["06"], r"\{ \(\$this\.quantity \* \$this\.price\) \* \$fxRate \}",
+        "{ $this.quantity * $this.price }", "qualified_ignores_arg")
+    return f
+
+
+def relax_constraint(f):
+    """Constraints are not enforced during relational projection, so weakening one must
+    change NOTHING. This mutation is expected to SURVIVE; it is listed so the corpus does
+    not silently start claiming constraint coverage it does not have."""
+    f["06"] = _sub_once(f["06"], r"quantityIsPositive: \(\$this\.quantity > 0\.0\)",
+                        "quantityIsPositive: ($this.quantity > -1.0e9)",
+                        "relax_constraint")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -120,6 +140,13 @@ MUTATIONS = {
     "swap_alias": swap_alias,
     "break_enum_mapping": break_enum_mapping,
     "unmapped_enum_code": unmapped_enum_code,
+    "qualified_ignores_arg": qualified_ignores_arg,
+}
+
+# Mutations that MUST survive. A corpus claims coverage by what it catches; it should be
+# equally explicit about what it provably does not.
+EXPECTED_SURVIVORS = {
+    "relax_constraint": relax_constraint,
 }
 
 
@@ -145,7 +172,8 @@ def run(work: Path) -> tuple[int, int, str]:
 
 def main() -> None:
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
-    names = [only] if only else list(MUTATIONS)
+    names = [only] if only else list(MUTATIONS) + list(EXPECTED_SURVIVORS)
+    MUTATIONS.update(EXPECTED_SURVIVORS)
 
     print("baseline (unmutated):", end=" ", flush=True)
     with tempfile.TemporaryDirectory() as d:
@@ -167,7 +195,8 @@ def main() -> None:
                 shutil.copy(p, work)
             paths = {"92": work / "92-services.pure",
                      "93": work / "93-testdata.pure",
-                     "36": work / "36-trading-store.pure"}
+                     "36": work / "36-trading-store.pure",
+                     "06": work / "06-trading.pure"}
             src = {k: v.read_text() for k, v in paths.items()}
             out = MUTATIONS[name](dict(src))
             for k, path in paths.items():
@@ -177,12 +206,19 @@ def main() -> None:
             # A mutation must cause failures BEYOND the quarantined ones. Comparing
             # against zero would let every mutation "pass" on the back of the six
             # known-failing fan-out services.
-            ok = f1 > f0
+            survivor = name in EXPECTED_SURVIVORS
+            ok = (f1 == f0) if survivor else (f1 > f0)
             caught.append(ok)
-            print(f"  {name:<16} {p1:>2} passed {f1:>2} failed   "
-                  f"{'CAUGHT' if ok else 'SURVIVED -- assertion is not load-bearing'}{tail}")
+            if survivor:
+                verdict = ("SURVIVED as expected -- constraints are not enforced here"
+                           if ok else "CAUGHT -- unexpected; constraints now bite?")
+            else:
+                verdict = "CAUGHT" if ok else "SURVIVED -- assertion is not load-bearing"
+            print(f"  {name:<22} {p1:>2} passed {f1:>2} failed   {verdict}{tail}")
 
-    print(f"\n{sum(caught)}/{len(caught)} mutations caught")
+    n_surv = sum(1 for n in names if n in EXPECTED_SURVIVORS)
+    print(f"\n{sum(caught)}/{len(caught)} mutations landed as expected "
+          f"({len(caught) - n_surv} required to be caught, {n_surv} required to survive)")
     if not all(caught):
         raise SystemExit(1)
 

@@ -125,10 +125,10 @@ def _cmp(op: str, left, right) -> bool:
     raise ValueError(f"unhandled operator {op}")
 
 
-def _value(c: Corpus, data, row, root: str, path: list[str]):
+def _value(c: Corpus, data, row, root: str, path: list[str], args=()):
     hit = c.resolve_derived(root, path)
     if hit is not None:
-        return _derived(c, data, row, root, path, hit)
+        return _derived(c, data, row, root, path, hit, args)
     table, col, hops = c.resolve(root, path)
     landed = walk(c, data, row, hops)
     raw = None if landed is None else landed.get(col)
@@ -148,7 +148,7 @@ def _value(c: Corpus, data, row, root: str, path: list[str]):
 # ---------------------------------------------------- derived-property evaluation
 
 _TOKEN = re.compile(
-    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->\w+\(\)|\$this\.\w+"
+    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->\w+\(\)|\$this\.\w+|\$\w+"
     r"|[-+*/()]|-?\d+\.\d+|-?\d+)")
 
 
@@ -190,8 +190,14 @@ class _Eval:
     is written that way. isEmpty/isNotEmpty/orElse are the only things that inspect NULL.
     """
 
-    def __init__(self, tokens, lookup):
+    def __init__(self, tokens, lookup, params=None):
         self.t, self.i, self.lookup = tokens, 0, lookup
+        self._params = params or {}
+
+    def param(self, name):
+        if name not in self._params:
+            raise Unsupported(f"unbound parameter ${name} in derived expression")
+        return self._params[name]
 
     def peek(self):
         return self.t[self.i] if self.i < len(self.t) else None
@@ -230,6 +236,8 @@ class _Eval:
                 raise Unsupported("unbalanced parentheses in derived expression")
         elif tok and tok.startswith("$this."):
             v = self.lookup(tok[len("$this."):])
+        elif tok and tok.startswith("$"):
+            v = self.param(tok[1:])
         elif tok and re.fullmatch(r"\d+\.\d+", tok):
             v = float(tok)
         elif tok and tok.isdigit():
@@ -248,8 +256,12 @@ class _Eval:
                 return v
 
 
-def _derived(c: Corpus, data, row, root: str, path: list[str], hit):
+def _derived(c: Corpus, data, row, root: str, path: list[str], hit, args=()):
     hops, cls, d = hit
+    if len(args) != len(d.params):
+        raise Unsupported(
+            f"{cls}.{d.name} takes {len(d.params)} argument(s), given {len(args)}")
+    bound = dict(zip(d.params, args))
     landed = walk(c, data, row, hops) if hops else row
     if landed is None:
         return None
@@ -263,7 +275,7 @@ def _derived(c: Corpus, data, row, root: str, path: list[str], hit):
         mapping = c.enum_props.get((cls, prop))
         return c.enum_maps[mapping].get(raw) if mapping and raw is not None else raw
 
-    e = _Eval(_tokenise(d.expr), lookup)
+    e = _Eval(_tokenise(d.expr), lookup, bound)
     v = e.expr()
     if e.peek() is not None:
         raise Unsupported(f"trailing tokens in derived expression {d.expr!r}")
@@ -293,7 +305,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
                    for f in spec.filters)]
 
     out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
-                      else _value(c, data, r, spec.root, p.path))
+                      else _value(c, data, r, spec.root, p.path, p.args))
             for p in spec.projections}
            for r in kept]
 

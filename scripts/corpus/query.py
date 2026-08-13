@@ -37,6 +37,7 @@ class Proj:
     alias: str
     path: list[str]
     agg: str | None = None      # None -> a column; 'count' -> over the landed SET
+    args: list = field(default_factory=list)   # arguments to a QUALIFIED property
 
 
 @dataclass
@@ -107,7 +108,12 @@ def _projections(body: str) -> list[Proj]:
             continue
         m = _ALIASED.match(e)
         if m:
-            projs.append(Proj(m.group(1), m.group(3).split(".")))
+            path, args = m.group(3), []
+            call = re.fullmatch(r"(.+?)\(([^)]*)\)", path)
+            if call:
+                path = call.group(1)
+                args = [_literal(a) for a in call.group(2).split(",") if a.strip()]
+            projs.append(Proj(m.group(1), path.split("."), None, args))
         elif re.fullmatch(r"\w+", e):
             projs.append(Proj(e, [e]))
         else:

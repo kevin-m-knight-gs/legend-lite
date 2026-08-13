@@ -151,6 +151,7 @@ def query_text(spec: Spec) -> str:
             f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
     cols = [f"{p.alias}:{VAR}|${VAR}.{'.'.join(p.path)}"
+            + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
             + (f"->{p.agg}()" if p.agg else "")
             for p in spec.projections]
     lines.append("        ->project(~[")

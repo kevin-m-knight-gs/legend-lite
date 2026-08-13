@@ -32,10 +32,11 @@ PREFIX = "stress::F"
 
 
 def _spec(n: int, name: str, root: str, doc: str, ids: list[tuple[str, str]],
-          counts: list[tuple[str, str]]) -> Spec:
+          counts: list[tuple[str, str]], calls: list[tuple[str, str, list]] = ()) -> Spec:
     s = Spec(f"{PREFIX}{n}_{name}", f"/stress/f{n}", doc, root)
     s.projections = ([Proj(a, p.split(".")) for a, p in ids]
-                     + [Proj(a, p.split("."), "count") for a, p in counts])
+                     + [Proj(a, p.split("."), "count") for a, p in counts]
+                     + [Proj(a, p.split("."), None, list(args)) for a, p, args in calls])
     return s
 
 
@@ -47,7 +48,12 @@ DERIVED = [
            ("commission", "commission"), ("fees", "fees"),
            ("settlementDate", "settlementDate"), ("side", "side"),
            ("grossAmount", "grossAmount")],
-          []),
+          [],
+          # The same quantity*price, scaled by an argument. Two different rates on one
+          # row, so a qualified property that ignored its parameter — returning the
+          # unscaled gross twice — is caught rather than merely looking plausible.
+          [("grossInGbp", "grossAmountIn", [0.79]),
+           ("grossInEur", "grossAmountIn", [0.92])]),
 
     _spec(8, "SettlementTradeDerived", "settlement::Settlement",
           "A derived property reached ACROSS an association, so it is evaluated on a "

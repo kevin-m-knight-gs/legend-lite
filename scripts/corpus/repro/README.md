@@ -28,3 +28,8 @@ Each directory is the smallest model that reproduces a finding in
     java -cp $CP perf.TestableMain $D/model.pure --testable=demo::DerivedOnAbsent
     # S3 has no trade at all, yet "settled" comes back false rather than null --
     # indistinguishable from S2, whose trade exists but is unsettled.
+
+    # Constraints are not enforced in relational projection (established behaviour)
+    D=../../scripts/corpus/repro/constraint-violation
+    java -cp $CP perf.TestableMain $D/model.pure --testable=demo::ConstraintViolation
+    # T2 (-50.0) and T3 (0.0) both violate quantityIsPositive and both come back.

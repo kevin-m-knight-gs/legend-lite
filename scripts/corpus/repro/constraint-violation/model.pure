@@ -1,0 +1,77 @@
+Class demo::Trade
+[
+  quantityIsPositive: ($this.quantity > 0.0)
+]
+{
+  id: String[1];
+  quantity: Float[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table TRADE (ID VARCHAR(20) PRIMARY KEY, QUANTITY DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Trade: Relational {
+    ~mainTable [demo::DB] TRADE
+    id: [demo::DB] TRADE.ID,
+    quantity: [demo::DB] TRADE.QUANTITY
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.TRADE:
+      'ID,QUANTITY\n' +
+      'T1,100.0\n' +
+      'T2,-50.0\n' +
+      'T3,0.0\n';
+  }#
+}
+
+###Service
+Service demo::ConstraintViolation
+{
+  pattern: '/constraintViolation';
+  documentation: 'T2 and T3 both VIOLATE quantityIsPositive. Are they rejected, dropped, or returned?';
+  execution: Single
+  {
+    query: |demo::Trade.all()->project(~[id:t|$t.id, quantity:t|$t.quantity]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

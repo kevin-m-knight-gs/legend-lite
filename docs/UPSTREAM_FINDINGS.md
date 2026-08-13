@@ -378,6 +378,16 @@ Quarantined as `stress::F8_SettlementTradeDerived`.
 - **Timestamps render as `2024-06-03T19:00:00.000000000+0000`**, dates as `2024-06-03`.
   Not a defect — but undocumented anywhere we could find, and the difference between the
   two is the whole reason 8 of 12 services failed on the first calibrated run.
+- **Class constraints are not enforced during relational projection.** A class carrying
+  `[ quantityIsPositive: ($this.quantity > 0.0) ]` returns violating rows unchanged — no
+  error, no filtering, no flag. Three rows in, three rows out, two of them violations
+  (`scripts/corpus/repro/constraint-violation/`). This is almost certainly by design —
+  constraints belong to instance construction and graph fetch, not to TDS projection — but
+  it is worth stating because a corpus author can easily assume a constraint acts as a
+  filter and then write expectations that quietly encode that assumption. Constraints in
+  this corpus therefore buy compile-time coverage and nothing else, which is why every
+  seeded trade satisfies them. **Untested:** whether graph-fetch execution does enforce
+  them.
 - **Service testSuites always execute against H2**, whatever the declared connection type;
   `TestRuntimeBuilder` swaps the runtime's connections for a seeded local H2. The stress
   runtime declares DuckDB and the tests still run — so this harness cannot be used for

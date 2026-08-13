@@ -111,6 +111,7 @@ class Derived:
     type: str
     lower: int
     upper: int | None
+    params: list[str] = field(default_factory=list)   # a QUALIFIED property if non-empty
 
 
 @dataclass
@@ -244,8 +245,10 @@ _CLASS = re.compile(r"^\s*Class\s+([\w:]+)\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
 _ENUM = re.compile(r"^\s*Enum\s+([\w:]+)\s*$")
 _PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
+# `name() { expr } : T[m];` and the qualified form `name(p: T[1], ...) { expr } : T[m];`
 _DERIVED = re.compile(
-    r"^\s*(\w+)\s*\(\s*\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
+    r"^\s*(\w+)\s*\(([^)]*)\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
+_PARAM = re.compile(r"(\w+)\s*:\s*[\w:]+\s*\[[^\]]+\]")
 _MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
 _CLSMAP = re.compile(r"^\s*([\w:]+)\s*:\s*Relational\s*\{?\s*$")
 _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
@@ -351,9 +354,10 @@ def _parse_domain(text: str, c: Corpus) -> None:
             continue
         m = _DERIVED.match(line)
         if m and cur_class:
-            lo, hi = _mult(m.group(4))
+            lo, hi = _mult(m.group(5))
             c.classes[cur_class].derived[m.group(1)] = Derived(
-                m.group(1), m.group(2).strip(), m.group(3), lo, hi)
+                m.group(1), m.group(3).strip(), m.group(4), lo, hi,
+                _PARAM.findall(m.group(2)))
             continue
         m = _PROP.match(line)
         if m:
