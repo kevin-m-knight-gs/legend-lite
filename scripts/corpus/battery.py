@@ -229,6 +229,54 @@ SELF_JOIN = [
 ]
 
 
+# ------------------------------------------------------------- graph fetch
+#
+# A completely different execution path: the result is a TREE, not a TDS. The earlier
+# audit of legend-engine found two defects here, and the corpus now contains exactly the
+# constructs they involve -- so these three are aimed rather than exploratory.
+#
+#   G0  to-one nesting with an orphan: the whole sub-object must be null, not an object
+#       full of nulls
+#   G1  graph fetch over the UNION-mapped class (audit finding: cast exception)
+#   G2  graph fetch over a milestoned class at %latest (audit finding: parser NPE)
+
+def _graph_spec(n: int, name: str, root: str, doc: str, tree: dict,
+                as_of: str | None = None) -> Spec:
+    s = Spec(f"stress::G{n}_{name}", f"/stress/g{n}", doc, root)
+    s.graph, s.as_of = tree, as_of
+    return s
+
+
+GRAPH = [
+    _graph_spec(0, "TradeTree", "trading::Trade",
+                "Nested to-one navigation. TRD-0007's counterparty does not exist, so the "
+                "whole counterparty sub-object must be null -- the tree-shaped version of "
+                "a distinction a flat projection cannot make.",
+                {"tradeId": None, "status": None, "notional": None,
+                 "instrument": {"instrumentId": None, "name": None, "ticker": None},
+                 "counterparty": {"counterpartyId": None, "legalName": None,
+                                  "lei": None}}),
+
+    _graph_spec(1, "UnionTree", "trading::HistTrade",
+                "Graph fetch over a class mapped by an Operation UNION, including an "
+                "empty leg. Deliberately projects NO enum -- see G3, which does, and "
+                "fails for an unrelated reason that would otherwise mask this one.",
+                {"tradeId": None, "notional": None, "status": None}),
+
+    _graph_spec(3, "UnionTreeWithEnum", "trading::HistTrade",
+                "The same tree plus the enum-mapped `side`. TRD-0012 carries source code "
+                "'ZZ', which has no EnumerationMapping entry. A TDS projection returns "
+                "NULL for it (F-A14); graph fetch RAISES. Same data, same mapping, two "
+                "execution paths, two semantics -- see F10.",
+                {"tradeId": None, "side": None, "notional": None, "status": None}),
+
+    _graph_spec(2, "MilestonedTree", "counterparty::RatingVersion",
+                "Graph fetch over a business-temporal class at %latest. An earlier audit "
+                "reported a parser NPE on %latest in a graph-fetch tree.",
+                {"counterpartyId": None, "rating": None, "outlook": None}, "latest"),
+]
+
+
 # ---------------------------------------------------------------- L4 rollup
 ROLLUP = [
     _spec(20, "NotionalByBook", "reporting::BookRollup",
@@ -270,7 +318,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + TEMPORAL + ROLLUP + SELF_JOIN + DERIVED + [
+SPECS = INVARIANCE + TEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

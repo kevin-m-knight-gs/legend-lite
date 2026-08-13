@@ -79,8 +79,16 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
 
 
 def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
-    """The testSuites block for one service."""
-    payload = _pure_str(json.dumps(expected, separators=(",", ":")))
+    """The testSuites block for one service.
+
+    A graph-fetch result is not a bare array: `serialize()` wraps it as
+    `{"builder":{"_type":"json"},"values":[...]}`. Determined by running one and reading
+    the actual, not assumed — an expectation written as a bare array fails with the two
+    sides looking identical for the first 300 characters.
+    """
+    payload = expected if spec.graph is None else {
+        "builder": {"_type": "json"}, "values": expected}
+    payload = _pure_str(json.dumps(payload, separators=(",", ":")))
     return f"""  testSuites:
   [
     {spec.short}_suite:
@@ -101,7 +109,7 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
         // {note}
         expected_rows:
         {{
-          serializationFormat: PURE_TDSOBJECT;
+          {'' if spec.graph else 'serializationFormat: PURE_TDSOBJECT;'}
           asserts:
           [
             matchesOracle:
@@ -130,6 +138,32 @@ def _literal(v) -> str:
     if isinstance(v, str):
         return f"'{_pure_str(v)}'"
     return repr(v)
+
+
+def _tree(node: dict, indent: str) -> str:
+    parts = []
+    for name, sub in node.items():
+        if sub is None:
+            parts.append(f"{indent}{name}")
+        else:
+            parts.append(f"{indent}{name}\n{indent}{{\n"
+                         + _tree(sub, indent + "  ") + f"\n{indent}}}")
+    return ",\n".join(parts)
+
+
+def graph_text(spec: Spec) -> str:
+    """`->graphFetch(#{...}#)->serialize(#{...}#)` — the tree is written twice, and the
+    two must agree or the serializer emits a shape the fetch never populated."""
+    tree = ("#{\n  " + spec.root + "\n  {\n" + _tree(spec.graph, "    ")
+            + "\n  }\n}#")
+    arg = ""
+    if spec.as_of == "latest":
+        arg = "%latest"
+    elif spec.as_of:
+        arg = "%" + spec.as_of
+    return (f"    query: |{spec.root}.all({arg})\n"
+            f"        ->graphFetch({tree})\n"
+            f"        ->serialize({tree});")
 
 
 def query_text(spec: Spec) -> str:
@@ -180,7 +214,7 @@ def service(spec: Spec, expected: list[dict], note: str) -> str:
     documentation: '{_pure_str(spec.doc)}';
     execution: Single
     {{
-{query_text(spec)}
+{graph_text(spec) if spec.graph else query_text(spec)}
         mapping: {spec.mapping or MAPPING};
         runtime: {spec.runtime or RUNTIME};
     }}

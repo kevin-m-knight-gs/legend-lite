@@ -60,6 +60,11 @@ class Spec:
     # The identifiedConnection id inside that runtime — what the testSuite's
     # `data: [ connections: [ <key>: ... ] ]` is matched against.
     connection: str | None = None
+    # Graph fetch: a TREE of property names instead of a flat projection.
+    # {'tradeId': None, 'instrument': {'name': None}} means
+    #   #{ Trade { tradeId, instrument { name } } }#
+    # None as a value marks a leaf. When set, `projections` is unused.
+    graph: dict | None = None
 
     @property
     def short(self) -> str:

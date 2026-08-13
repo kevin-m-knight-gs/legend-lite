@@ -1,0 +1,86 @@
+Enum demo::Side
+{
+  BUY,
+  SELL
+}
+
+Class demo::Trade
+{
+  id: String[1];
+  side: demo::Side[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table TRADE (ID VARCHAR(20) PRIMARY KEY, SIDE VARCHAR(10))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Side: EnumerationMapping SideMapping
+  {
+    BUY: ['B'],
+    SELL: ['S']
+  }
+
+  demo::Trade: Relational {
+    ~mainTable [demo::DB] TRADE
+    id: [demo::DB] TRADE.ID,
+    side: EnumerationMapping SideMapping: [demo::DB] TRADE.SIDE
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.TRADE:
+      'ID,SIDE\n' +
+      'T1,B\n' +
+      'T2,S\n' +
+      'T3,XX\n' +
+      'T4,\n';
+  }#
+}
+
+###Service
+Service demo::UnmappedEnumGraphFetch
+{
+  pattern: '/unmappedEnum';
+  documentation: 'Identical model and data to repro/unmapped-enum. Only the execution path differs.';
+  execution: Single
+  {
+    query: |demo::Trade.all()->graphFetch(#{demo::Trade{id,side}}#)->serialize(#{demo::Trade{id,side}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

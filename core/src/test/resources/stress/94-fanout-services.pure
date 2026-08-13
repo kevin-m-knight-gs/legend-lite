@@ -735,6 +735,296 @@ Service stress::F14_RatingsLatest
   ]
 }
 
+Service stress::G0_TradeTree
+{
+    pattern: '/stress/g0';
+    documentation: 'Nested to-one navigation. TRD-0007\'s counterparty does not exist, so the whole counterparty sub-object must be null -- the tree-shaped version of a distinction a flat projection cannot make.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->graphFetch(#{
+  trading::Trade
+  {
+    tradeId,
+    status,
+    notional,
+    instrument
+    {
+      instrumentId,
+      name,
+      ticker
+    },
+    counterparty
+    {
+      counterpartyId,
+      legalName,
+      lei
+    }
+  }
+}#)
+        ->serialize(#{
+  trading::Trade
+  {
+    tradeId,
+    status,
+    notional,
+    instrument
+    {
+      instrumentId,
+      name,
+      ticker
+    },
+    counterparty
+    {
+      counterpartyId,
+      legalName,
+      lei
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    G0_TradeTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","status":"EXECUTED","notional":190500.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","lei":"5493001KJTIIGC8Y1R12"}},{"tradeId":"TRD-0002","status":"EXECUTED","notional":477500.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","lei":"5493001KJTIIGC8Y1R12"}},{"tradeId":"TRD-0003","status":"EXECUTED","notional":250000.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}},{"tradeId":"TRD-0004","status":"EXECUTED","notional":250000.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}},{"tradeId":"TRD-0005","status":"EXECUTED","notional":250000.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0003","legalName":"O\'Neill Capital Partners","lei":"529900T8BM49AURSDO55"}},{"tradeId":"TRD-0006","status":"EXECUTED","notional":250000.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","lei":"5493001KJTIIGC8Y1R12"}},{"tradeId":"TRD-0007","status":"EXECUTED","notional":282000.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":null},{"tradeId":"TRD-0008","status":"CANCELLED","notional":18975.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","lei":"5493001KJTIIGC8Y1R12"}},{"tradeId":"TRD-0009","status":"EXECUTE","notional":576750.0,"instrument":{"instrumentId":"INST-AAPL","name":"Apple Inc","ticker":"AAPL"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}},{"tradeId":"TRD-0010","status":"EXECUTED","notional":498000.0,"instrument":{"instrumentId":"INST-MSFT","name":"Microsoft Corp","ticker":"MSFT"},"counterparty":{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","lei":"5493001KJTIIGC8Y1R12"}},{"tradeId":"TRD-0011","status":"EXECUTED","notional":167300.0,"instrument":{"instrumentId":"INST-MSFT","name":"Microsoft Corp","ticker":"MSFT"},"counterparty":{"counterpartyId":"CP-0003","legalName":"O\'Neill Capital Partners","lei":"529900T8BM49AURSDO55"}},{"tradeId":"TRD-0012","status":"PENDING","notional":369000.0,"instrument":{"instrumentId":"INST-MSFT","name":"Microsoft Corp","ticker":"MSFT"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}},{"tradeId":"TRD-0013","status":"EXECUTED","notional":171250.0,"instrument":{"instrumentId":"INST-HSBA","name":"HSBC Holdings plc","ticker":"HSBA"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}},{"tradeId":"TRD-0014","status":"EXECUTED","notional":69000.0,"instrument":{"instrumentId":"INST-HSBA","name":"HSBC Holdings plc","ticker":"HSBA"},"counterparty":{"counterpartyId":"CP-0004","legalName":"Halberd Securities","lei":"984500B8DA6F1C9C8E11"}},{"tradeId":"TRD-0015","status":"SETTLED","notional":35000.0,"instrument":{"instrumentId":"INST-HSBA","name":"HSBC Holdings plc","ticker":"HSBA"},"counterparty":{"counterpartyId":"CP-0003","legalName":"O\'Neill Capital Partners","lei":"529900T8BM49AURSDO55"}},{"tradeId":"TRD-0016","status":"EXECUTED","notional":264600.0,"instrument":{"instrumentId":"INST-SAP","name":"SAP SE","ticker":"SAP"},"counterparty":{"counterpartyId":"CP-0003","legalName":"O\'Neill Capital Partners","lei":"529900T8BM49AURSDO55"}},{"tradeId":"TRD-0017","status":"EXECUTED","notional":385000.0,"instrument":{"instrumentId":"INST-SAP","name":"SAP SE","ticker":"SAP"},"counterparty":{"counterpartyId":"CP-0004","legalName":"Halberd Securities","lei":"984500B8DA6F1C9C8E11"}},{"tradeId":"TRD-0018","status":"EXECUTED","notional":4912500.0,"instrument":{"instrumentId":"INST-GILT30","name":"UK Gilt 4.25% 2055","ticker":"UKT30"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}},{"tradeId":"TRD-0019","status":"EXECUTED","notional":1960000.0,"instrument":{"instrumentId":"INST-GILT30","name":"UK Gilt 4.25% 2055","ticker":"UKT30"},"counterparty":{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","lei":"5493001KJTIIGC8Y1R12"}},{"tradeId":"TRD-0020","status":"REJECTED","notional":975000.0,"instrument":{"instrumentId":"INST-GILT30","name":"UK Gilt 4.25% 2055","ticker":"UKT30"},"counterparty":{"counterpartyId":"CP-0002","legalName":"Halberd Securities","lei":"213800WAVVOPS85N2205"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::G1_UnionTree
+{
+    pattern: '/stress/g1';
+    documentation: 'Graph fetch over a class mapped by an Operation UNION, including an empty leg. Deliberately projects NO enum -- see G3, which does, and fails for an unrelated reason that would otherwise mask this one.';
+    execution: Single
+    {
+    query: |trading::HistTrade.all()
+        ->graphFetch(#{
+  trading::HistTrade
+  {
+    tradeId,
+    notional,
+    status
+  }
+}#)
+        ->serialize(#{
+  trading::HistTrade
+  {
+    tradeId,
+    notional,
+    status
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    G1_UnionTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","notional":190500.0,"status":"EXECUTED"},{"tradeId":"TRD-0002","notional":477500.0,"status":"EXECUTED"},{"tradeId":"TRD-0003","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0004","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0005","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0006","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0007","notional":282000.0,"status":"EXECUTED"},{"tradeId":"TRD-0008","notional":18975.0,"status":"CANCELLED"},{"tradeId":"TRD-0009","notional":576750.0,"status":"EXECUTE"},{"tradeId":"TRD-0010","notional":498000.0,"status":"EXECUTED"},{"tradeId":"TRD-0011","notional":167300.0,"status":"EXECUTED"},{"tradeId":"TRD-0012","notional":369000.0,"status":"PENDING"},{"tradeId":"TRD-0013","notional":171250.0,"status":"EXECUTED"},{"tradeId":"TRD-0014","notional":69000.0,"status":"EXECUTED"},{"tradeId":"TRD-0015","notional":35000.0,"status":"SETTLED"},{"tradeId":"TRD-0016","notional":264600.0,"status":"EXECUTED"},{"tradeId":"TRD-0017","notional":385000.0,"status":"EXECUTED"},{"tradeId":"TRD-0018","notional":4912500.0,"status":"EXECUTED"},{"tradeId":"TRD-0019","notional":1960000.0,"status":"EXECUTED"},{"tradeId":"TRD-0020","notional":975000.0,"status":"REJECTED"}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::G3_UnionTreeWithEnum
+{
+    pattern: '/stress/g3';
+    documentation: 'The same tree plus the enum-mapped `side`. TRD-0012 carries source code \'ZZ\', which has no EnumerationMapping entry. A TDS projection returns NULL for it (F-A14); graph fetch RAISES. Same data, same mapping, two execution paths, two semantics -- see F10.';
+    execution: Single
+    {
+    query: |trading::HistTrade.all()
+        ->graphFetch(#{
+  trading::HistTrade
+  {
+    tradeId,
+    side,
+    notional,
+    status
+  }
+}#)
+        ->serialize(#{
+  trading::HistTrade
+  {
+    tradeId,
+    side,
+    notional,
+    status
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    G3_UnionTreeWithEnum_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","side":"BUY","notional":190500.0,"status":"EXECUTED"},{"tradeId":"TRD-0002","side":"BUY","notional":477500.0,"status":"EXECUTED"},{"tradeId":"TRD-0003","side":"BUY","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0004","side":"SELL","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0005","side":"BUY","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0006","side":"BUY","notional":250000.0,"status":"EXECUTED"},{"tradeId":"TRD-0007","side":"BUY","notional":282000.0,"status":"EXECUTED"},{"tradeId":"TRD-0008","side":"BUY","notional":18975.0,"status":"CANCELLED"},{"tradeId":"TRD-0009","side":"BUY","notional":576750.0,"status":"EXECUTE"},{"tradeId":"TRD-0010","side":"BUY","notional":498000.0,"status":"EXECUTED"},{"tradeId":"TRD-0011","side":"BUY","notional":167300.0,"status":"EXECUTED"},{"tradeId":"TRD-0012","side":null,"notional":369000.0,"status":"PENDING"},{"tradeId":"TRD-0013","side":"SELL","notional":171250.0,"status":"EXECUTED"},{"tradeId":"TRD-0014","side":"BUY","notional":69000.0,"status":"EXECUTED"},{"tradeId":"TRD-0015","side":"BUY","notional":35000.0,"status":"SETTLED"},{"tradeId":"TRD-0016","side":"BUY","notional":264600.0,"status":"EXECUTED"},{"tradeId":"TRD-0017","side":"SELL","notional":385000.0,"status":"EXECUTED"},{"tradeId":"TRD-0018","side":"BUY","notional":4912500.0,"status":"EXECUTED"},{"tradeId":"TRD-0019","side":"BUY","notional":1960000.0,"status":"EXECUTED"},{"tradeId":"TRD-0020","side":"BUY","notional":975000.0,"status":"REJECTED"}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::G2_MilestonedTree
+{
+    pattern: '/stress/g2';
+    documentation: 'Graph fetch over a business-temporal class at %latest. An earlier audit reported a parser NPE on %latest in a graph-fetch tree.';
+    execution: Single
+    {
+    query: |counterparty::RatingVersion.all(%latest)
+        ->graphFetch(#{
+  counterparty::RatingVersion
+  {
+    counterpartyId,
+    rating,
+    outlook
+  }
+}#)
+        ->serialize(#{
+  counterparty::RatingVersion
+  {
+    counterpartyId,
+    rating,
+    outlook
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    G2_MilestonedTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"counterpartyId":"CP-0001","rating":"AA-","outlook":"STABLE"},{"counterpartyId":"CP-0002","rating":"A+","outlook":"STABLE"},{"counterpartyId":"CP-0003","rating":"BB+","outlook":"NEGATIVE"}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F20_NotionalByBook
 {
     pattern: '/stress/f20';

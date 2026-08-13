@@ -367,6 +367,70 @@ Quarantined as `stress::F8_SettlementTradeDerived`.
 
 ---
 
+## F9 — a table whose name is a reserved SQL word generates unquoted DDL
+
+**Severity: bug.** Legend accepts `Table ORDER` and the generated `CREATE TABLE` does not
+quote it, so the statement is invalid on H2 and every service in the model fails at test
+setup — not with a message about naming, but with a raw JDBC syntax error.
+
+`scripts/corpus/repro/reserved-word-table/model.pure` is one table and two columns:
+
+```
+Table ORDER (ORDER_ID VARCHAR(20) PRIMARY KEY, STATUS VARCHAR(20))
+```
+
+```
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement
+"Create Table [*]ORDER(ORDER_ID VARCHAR(20) NOT NULL,STATUS VARCHAR(20) NULL, PRIMARY KEY(...
+```
+
+**How it stayed hidden.** The stress corpus has had a `Table ORDER` since it was written,
+and 35 services passed over it. The TDS path only creates DDL for tables the test data
+seeds, and nothing seeded ORDER. The first graph-fetch service brought the whole store's
+DDL into play and it failed immediately — so the trigger is not graph fetch itself, it is
+that a different execution path needs more of the schema.
+
+`ORDER` is the only reserved word used as a table name in this corpus; it is renamed to
+`TRADE_ORDER` so the rest can run, and the case is preserved in the repro.
+
+---
+
+## F10 — graph fetch RAISES on an unmapped enum code where a TDS projection returns null
+
+**Severity: an execution-path-dependent semantic.** Same model, same data, same
+EnumerationMapping. The only difference is how the result is shaped, and the two paths
+disagree about whether an unmapped source code is a value or an error.
+
+| execution path | source code with no mapping entry |
+|---|---|
+| `->project(~[...])` | `null`, silently (F2's A14, both engines agree) |
+| `->graphFetch(...)->serialize(...)` | **raises** |
+
+```
+Enumeration mapping failure. Cannot find transformation for source value 'XX'
+for enumeration property 'side' of type demo::Side in enumeration mapping SideMapping
+```
+
+The two repros are the same file except for the query:
+
+```
+repro/unmapped-enum/     ->project(~[id:t|$t.id, side:t|$t.side])          -> null
+repro/enum-graphfetch/   ->graphFetch(#{Trade{id,side}}#)->serialize(...)   -> raises
+```
+
+Both behaviours are defensible in isolation. Raising is arguably the better one — a bad
+feed code is a data-quality event, and the projection path losing it silently is how such
+things stay unnoticed for years. What is hard to defend is that the answer depends on the
+serialization the caller asked for.
+
+Found by combining two features that each already worked: an unmapped enum code and a
+union-mapped class under graph fetch. Neither is unusual; the pair is not tested upstream.
+
+Quarantined as `stress::G3_UnionTreeWithEnum`. `stress::G1_UnionTree` deliberately
+projects no enum, so the union itself stays verified rather than being masked by this.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is
@@ -378,6 +442,9 @@ Quarantined as `stress::F8_SettlementTradeDerived`.
 - **Timestamps render as `2024-06-03T19:00:00.000000000+0000`**, dates as `2024-06-03`.
   Not a defect — but undocumented anywhere we could find, and the difference between the
   two is the whole reason 8 of 12 services failed on the first calibrated run.
+- **A graph-fetch result is not a bare array.** `serialize()` wraps it as
+  `{"builder":{"_type":"json"},"values":[...]}`. Not a defect, but an expectation written
+  as a bare array fails with both sides looking identical for the first 300 characters.
 - **Class constraints are not enforced during relational projection.** A class carrying
   `[ quantityIsPositive: ($this.quantity > 0.0) ]` returns violating rows unchanged — no
   error, no filtering, no flag. Three rows in, three rows out, two of them violations

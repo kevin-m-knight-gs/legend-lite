@@ -94,10 +94,27 @@ def expected_text(c: model.Corpus, spec, TABLES) -> str:
 def main() -> None:
     c = model.load()
     TABLES = flat.all_tables(c)
-    (OUT / "expected").mkdir(parents=True, exist_ok=True)
+    # Clear first. A service that stops being emitted — because it moved out of scope, or
+    # was renamed — otherwise leaves its old expectation behind, and the Java side keeps
+    # comparing against a file nothing generates any more.
+    exp_dir = OUT / "expected"
+    if exp_dir.is_dir():
+        for stale in exp_dir.glob("*.txt"):
+            stale.unlink()
+    exp_dir.mkdir(parents=True, exist_ok=True)
     (OUT / "seed.sql").write_text(seed_sql(c, TABLES))
 
-    specs = query.load() + battery.SPECS
+    # Graph-fetch services are OUT OF SCOPE for the differential.
+    #
+    # The comparison here is a normalised FLAT row — `col|col|...` with a header of column
+    # kinds — which cannot represent a tree. Emitting an expectation for a graph spec
+    # produced an empty body and every actual row reported as a disagreement: noise that
+    # looks exactly like a real finding.
+    #
+    # Covering them would mean either teaching this harness tree comparison or having
+    # legend-lite produce the same serialization. Neither is done, so they are skipped
+    # HERE and remain fully asserted against legend-engine by run.py.
+    specs = [s for s in query.load() + battery.SPECS if s.graph is None]
     for spec in specs:
         # The expectation is written WITHOUT the timestamp reformatting the JSON path
         # applies -- that is a legend-engine serialisation detail, not a value difference,
@@ -112,7 +129,10 @@ def main() -> None:
 
     print(f"seed.sql: {len(seed_sql(c, TABLES).splitlines())} lines, "
           f"{sum(len(v) for v in TABLES.values())} rows")
-    print(f"expectations: {len(specs)} services -> {OUT / 'expected'}")
+    skipped = sum(1 for s in battery.SPECS if s.graph is not None)
+    print(f"expectations: {len(specs)} services -> {OUT / 'expected'}"
+          + (f"  ({skipped} graph-fetch services skipped: flat comparison cannot "
+             f"represent a tree)" if skipped else ""))
 
 
 if __name__ == "__main__":

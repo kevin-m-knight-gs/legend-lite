@@ -1,0 +1,73 @@
+Class demo::Order
+{
+  orderId: String[1];
+  status: String[1];
+}
+
+###Relational
+Database demo::DB
+(
+  // ORDER is a reserved SQL word. Legend accepts it as a table name; the generated DDL
+  // does not quote it.
+  Table ORDER (ORDER_ID VARCHAR(20) PRIMARY KEY, STATUS VARCHAR(20))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Order: Relational {
+    ~mainTable [demo::DB] ORDER
+    orderId: [demo::DB] ORDER.ORDER_ID,
+    status: [demo::DB] ORDER.STATUS
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.ORDER:
+      'ORDER_ID,STATUS\n' +
+      'O1,NEW\n';
+  }#
+}
+
+###Service
+Service demo::ReservedWordTable
+{
+  pattern: '/reservedWord';
+  documentation: 'A table named ORDER. The generated CREATE TABLE is not quoted.';
+  execution: Single
+  {
+    query: |demo::Order.all()->graphFetch(#{demo::Order{orderId,status}}#)->serialize(#{demo::Order{orderId,status}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"orderId":"O1","status":"NEW"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

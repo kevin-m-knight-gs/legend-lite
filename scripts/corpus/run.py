@@ -53,8 +53,11 @@ def main() -> None:
     if "-v" in sys.argv:
         print(out)
 
+    # ERROR is a third outcome, not an absence. A service that throws produces no
+    # PASS/FAIL line, and treating that as MISSING reported a correctly-quarantined
+    # failure as an unexpected result.
     results = {m.group(2): m.group(1) for m in
-               re.finditer(r"^(PASS|FAIL)\s+(\S+?)_suite / ", out, re.M)}
+               re.finditer(r"^(PASS|FAIL|ERROR)\s+(\S+?)_suite / ", out, re.M)}
     if not results:
         print(out[-3000:])
         raise SystemExit("no results parsed; the model probably failed to compile")
@@ -66,14 +69,14 @@ def main() -> None:
         q = QUARANTINE.get(name)
         if passed is None:
             verdict, wrong = "MISSING", True
-        elif q and passed == "FAIL":
+        elif q and passed in ("FAIL", "ERROR"):
             verdict, wrong = f"KNOWN-FAIL {q[0]}", False
         elif q:
             verdict, wrong = f"FIXED {q[0]} -- remove from quarantine.py", True
         elif passed == "PASS":
             verdict, wrong = "PASS", False
         else:
-            verdict, wrong = "REGRESSION", True
+            verdict, wrong = ("REGRESSION" if passed == "FAIL" else "ERROR"), True
         bad += wrong
         verdicts.append((short, verdict, q[1] if q else ""))
 

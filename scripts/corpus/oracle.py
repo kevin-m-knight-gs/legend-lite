@@ -358,7 +358,42 @@ def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
             and (r.get(thru) is None or spec.as_of < r.get(thru))]
 
 
+def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
+    """Build one nested object. A to-one navigation that finds nothing yields null for the
+    WHOLE sub-object, not an object full of nulls — which is the tree-shaped version of
+    the distinction F8 showed a flat projection cannot make."""
+    out = {}
+    for name, sub in tree.items():
+        if sub is None:
+            col = c.columns.get(cls, {}).get(name)
+            if col is None:
+                raise Fanout(f"{cls}.{name} is not a mapped column")
+            raw = row.get(col)
+            mapping = c.enum_props.get((cls, name))
+            out[name] = (c.enum_maps[mapping].get(raw)
+                         if mapping and raw is not None else
+                         render(raw, c.tables[c.main_table[cls]].columns[col].kind))
+            continue
+        end = c.ends.get((cls, name))
+        if end is None:
+            raise Fanout(f"{cls}.{name} is not an association")
+        if end.to_many:
+            raise Fanout(f"{cls}.{name} is to-many; graph-fetch arrays are not modelled")
+        hops, _ = c.resolve_assoc(cls, [name])
+        landed = walk(c, data, row, hops)
+        out[name] = None if landed is None else _graph(c, data, landed, end.target, sub)
+    return out
+
+
+def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
+    base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data))
+    base = _milestoned(c, spec, base)
+    return [_graph(c, data, r, spec.root, spec.graph) for r in base]
+
+
 def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
+    if spec.graph is not None:
+        return evaluate_graph(c, spec, data)
     """Returns the rows the service must produce, as alias -> python value."""
     plain = [p for p in spec.projections if p.agg is None]
     if any(c.to_many_on(spec.root, p.path) for p in plain):
@@ -434,6 +469,8 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
 
 
 def as_json_rows(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
+    if spec.graph is not None:
+        return rows          # already rendered leaf by leaf
     k = kinds(c, spec)
     return [{a: render(v, k[a]) for a, v in r.items()} for r in rows]
 

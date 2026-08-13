@@ -33,3 +33,14 @@ Each directory is the smallest model that reproduces a finding in
     D=../../scripts/corpus/repro/constraint-violation
     java -cp $CP perf.TestableMain $D/model.pure --testable=demo::ConstraintViolation
     # T2 (-50.0) and T3 (0.0) both violate quantityIsPositive and both come back.
+
+    # F9 -- a table named ORDER generates unquoted DDL
+    D=../../scripts/corpus/repro/reserved-word-table
+    java -cp $CP perf.TestableMain $D/model.pure --testable=demo::ReservedWordTable
+
+    # F10 -- graph fetch raises where a projection returns null. Same model, same data;
+    # only the query differs between these two.
+    java -cp $CP perf.TestableMain ../../scripts/corpus/repro/unmapped-enum/model.pure \
+         --testable=demo::UnmappedEnum          # side comes back null
+    java -cp $CP perf.TestableMain ../../scripts/corpus/repro/enum-graphfetch/model.pure \
+         --testable=demo::UnmappedEnumGraphFetch # raises
