@@ -215,6 +215,29 @@ The cleanest control is `F5_TraderChildCounts`: it is the only battery service w
 contains no childless entity, and it is the only one that **passes**. It is deliberately
 left out of the quarantine for that reason.
 
+**Confirmed by a second implementation.** legend-lite, given the same corpus and the same
+139 rows in DuckDB, returns 0 — agreeing with the reference evaluator on all 19 services
+(`CorpusDifferentialTest`: "19 agree, 0 disagree"). So this is not the oracle being wrong
+about Legend semantics; two independent implementations disagree, and the one that agrees
+with the reference is legend-lite.
+
+The SQL legend-lite emits shows the shape that gets it right — pre-aggregate, then outer
+join, then coalesce the missing group:
+
+```sql
+SELECT t0.SECTOR_ID AS sectorId, ...,
+       CASE WHEN t2.agg_0 IS NOT NULL THEN t2.agg_0 ELSE 0 END AS instrumentCount
+FROM SECTOR AS t0
+LEFT OUTER JOIN (
+  SELECT t1.SECTOR_ID, COUNT(*) AS agg_0 FROM INSTRUMENT AS t1 GROUP BY t1.SECTOR_ID
+) AS t2 ON ...
+```
+
+The count happens *before* the outer join, so a sector with no instruments produces no
+group, and the `ELSE 0` supplies the answer. Aggregating after a flat outer join — which
+is what legend-engine's result implies — cannot distinguish "one child" from "one all-NULL
+padding row".
+
 Affected: `F0` instruments, `F1` counterparties, `F2` books, `F3` desks, `F4` sectors,
 `F6` positions — quarantined in `scripts/corpus/quarantine.py` with their CORRECT
 expectations intact. `scripts/corpus/run.py` reports them as KNOWN-FAIL and will fail the
