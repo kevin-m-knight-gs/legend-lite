@@ -53,26 +53,49 @@ def harvest() -> dict[str, set[str]]:
     return dict(out)
 
 
+# Comments and string literals, stripped before counting. A keyword inside a comment or
+# inside a quoted CSV payload is not a keyword the parser ever saw — and this corpus is
+# full of both, since the generated ###Data blocks are megabytes of quoted rows and the
+# hand-written files carry long explanatory comments that name constructs.
+_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+_LINE_COMMENT = re.compile(r"//[^\n]*")
+_STRING = re.compile(r"'(?:[^'\\]|\\.)*'")
+
+
+def strip_noncode(text: str) -> str:
+    text = _BLOCK_COMMENT.sub(" ", text)
+    text = _LINE_COMMENT.sub(" ", text)
+    return _STRING.sub(" '' ", text)
+
+
 def our_sources() -> str:
-    """Every .pure this repository owns, concatenated. Coverage is measured against what
-    WE wrote, not against what upstream happens to contain."""
+    """Every .pure this repository owns, with comments and string literals removed.
+
+    Coverage is measured against what WE wrote, not against what upstream happens to
+    contain — and against CODE, not prose about code.
+    """
     parts = []
     for root in ("core/src/test/resources", "scripts", "pct-corpus", "experiments"):
         base = REPO / root
         if not base.is_dir():
             continue
         for p in base.rglob("*.pure"):
-            parts.append(p.read_text(errors="replace"))
+            parts.append(strip_noncode(p.read_text(errors="replace")))
     return "\n".join(parts)
 
 
 def covered(keywords: set[str], text: str) -> set[str]:
-    """A keyword counts as covered when it appears as a WORD in our sources.
+    """A keyword counts as covered when it appears as a WORD in our CODE.
 
-    Substring matching would be wildly generous — 'in' occurs inside a thousand
-    identifiers — so each is matched on word boundaries. Still an over-estimate: a keyword
-    inside a comment counts. Tightening that needs the parser's own token stream, which is
-    the natural next step and is noted rather than pretended away.
+    Word boundaries, because substring matching would be wildly generous — 'in' occurs
+    inside a thousand identifiers. Comments and string literals are already stripped.
+
+    What remains over-counted, stated plainly: a keyword is credited wherever it appears,
+    even in a section whose grammar does not define it. `Schema` in a Service section
+    would count toward the Relational grammar. Removing that needs per-section lexing with
+    the grammar's own lexer, which is the exact fix; this is the honest approximation
+    until fixtures replace the search entirely — a fixture that PARSES proves reachability
+    in a way no text search can.
     """
     found = set()
     for k in keywords:
