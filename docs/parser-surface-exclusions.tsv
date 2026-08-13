@@ -1,0 +1,5 @@
+kind	name	reason
+section	Elasticsearch	ES store extension — charter in memory, own leg (2026-08-14)
+connection	Elasticsearch7ClusterConnection	ES connection grammar — own leg (2026-08-14)
+embeddedData	Relation	FOUND BY CENSUS 2026-08-14 — we parse Relation only in function-test assert position; verify/implement general embedded-data position next
+embeddedData	DataspaceTestData	FOUND BY CENSUS 2026-08-14 — dataspace test-data embedded type unparsed; implement with dataspace test suites
