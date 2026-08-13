@@ -19,8 +19,16 @@ parent — EnumerationMapping is the worked example — never appears, so this m
 thing but not "how much of Legend we cover". See docs/TEST_CORPUS_MASTER_PLAN.md §2b.
 
 Usage:
-  python3 scripts/corpus/coverage.py            summary + what we exercise
-  python3 scripts/corpus/coverage.py --gaps     roster tags NOT exercised, by package
+  python3 scripts/corpus/coverage.py             summary + what we exercise
+  python3 scripts/corpus/coverage.py --gaps      roster tags NOT exercised, by package
+  python3 scripts/corpus/coverage.py --snapshot  write docs/corpus-coverage.json
+  python3 scripts/corpus/coverage.py --check     fail if coverage went DOWN
+
+The baseline is committed for the same reason docs/census-baseline.json is: a number
+nobody can regress against is a number nobody notices losing. These are different
+baselines and both are needed — census-baseline.json measures the UPSTREAM corpus and
+cannot move when we add tests here; this one measures ours and cannot move when upstream
+changes.
 """
 from __future__ import annotations
 
@@ -78,6 +86,16 @@ def roster() -> dict[str, str]:
     return out
 
 
+BASELINE = REPO / "docs" / "corpus-coverage.json"
+
+
+def snapshot(in_roster: dict, unknown: dict, known: dict) -> dict:
+    return {"roster_total": len(known),
+            "covered_count": len(in_roster),
+            "covered": sorted(in_roster),
+            "emitted_not_in_roster": sorted(unknown)}
+
+
 def main() -> None:
     doc = compile_pmcd()
     used = Counter()
@@ -95,6 +113,26 @@ def main() -> None:
     print()
     for t, n in sorted(in_roster.items(), key=lambda kv: -kv[1]):
         print(f"  {n:>6}  {t}")
+
+    if "--snapshot" in sys.argv:
+        BASELINE.write_text(json.dumps(snapshot(in_roster, unknown, known), indent=1) + "\n")
+        print(f"\nbaseline written: {BASELINE.relative_to(REPO)}")
+
+    if "--check" in sys.argv:
+        if not BASELINE.exists():
+            raise SystemExit("no baseline; run coverage.py --snapshot")
+        base = json.loads(BASELINE.read_text())
+        lost = sorted(set(base["covered"]) - set(in_roster))
+        gained = sorted(set(in_roster) - set(base["covered"]))
+        print(f"\nbaseline {base['covered_count']} -> current {len(in_roster)}")
+        for g in gained:
+            print("   +", g)
+        if lost:
+            print(f"\nREGRESSION -- {len(lost)} tags no longer exercised:")
+            for l in lost:
+                print("   -", l)
+            raise SystemExit(1)
+        print("no coverage lost")
 
     if "--gaps" in sys.argv:
         missing = sorted(set(known) - set(used))
