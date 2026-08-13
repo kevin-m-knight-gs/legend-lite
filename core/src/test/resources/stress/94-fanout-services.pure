@@ -614,6 +614,62 @@ Service stress::F14_RatingsLatest
   ]
 }
 
+Service stress::F20_NotionalByBook
+{
+    pattern: '/stress/f20';
+    documentation: 'The rollup View: notional by book, grouped by the engine. Its rows are GROUPS, so BK-LEGACY -- which has no trades -- produces no group and is ABSENT. Contrast F2_BookChildCounts, which outer-joins from BOOK and returns a row for it. Two defensible answers to one question, differing on exactly the empty case, both asserted here.';
+    execution: Single
+    {
+    query: |reporting::BookRollup.all()
+        ->project(~[
+            bookId:x|$x.bookId,
+            tradeCount:x|$x.tradeCount,
+            totalNotional:x|$x.totalNotional,
+            maxNotional:x|$x.maxNotional
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F20_NotionalByBook_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-US","tradeCount":10,"totalNotional":2961025.0,"maxNotional":576750.0},{"bookId":"BK-VOL-01","tradeCount":5,"totalNotional":8466500.0,"maxNotional":4912500.0},{"bookId":"BK-CASH-EU","tradeCount":5,"totalNotional":924850.0,"maxNotional":385000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F7_TradeDerivedProperties
 {
     pattern: '/stress/f7';

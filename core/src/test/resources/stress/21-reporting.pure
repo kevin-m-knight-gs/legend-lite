@@ -37,3 +37,14 @@ Class reporting::FlatTrade
     // knowing separately.
     grossAmount() { $this.quantity * $this.price } : Float[1];
 }
+
+// L4 — the rollup. Its rows are GROUPS, not entities: a book with no trades produces no
+// group and is therefore absent, which is the opposite of what an outer-joined count
+// returns for the same question.
+Class reporting::BookRollup
+{
+    bookId: String[1];
+    tradeCount: Integer[1];
+    totalNotional: Float[1];
+    maxNotional: Float[1];
+}

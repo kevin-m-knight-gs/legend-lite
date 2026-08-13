@@ -91,3 +91,16 @@ Mapping reporting::EmbeddedFlatMapping
         )
     }
 )
+
+###Mapping
+Mapping reporting::RollupMapping
+(
+    reporting::BookRollup: Relational {
+        ~primaryKey ([store::DB] NOTIONAL_BY_BOOK.BOOK_ID)
+        ~mainTable [store::DB] NOTIONAL_BY_BOOK
+        bookId: [store::DB] NOTIONAL_BY_BOOK.BOOK_ID,
+        tradeCount: [store::DB] NOTIONAL_BY_BOOK.TRADE_COUNT,
+        totalNotional: [store::DB] NOTIONAL_BY_BOOK.TOTAL_NOTIONAL,
+        maxNotional: [store::DB] NOTIONAL_BY_BOOK.MAX_NOTIONAL
+    }
+)

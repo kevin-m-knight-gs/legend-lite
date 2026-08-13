@@ -114,10 +114,18 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     a row is assembled, the partitions (L4) vary where rows come from.
     """
     import partition
+    import views
 
     tables = dict(seed.TABLES)
     tables["TRADE_FLAT"] = build(c, seed.TABLES)
     tables.update(partition.build(c, seed.TABLES))
+    # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
+    # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as
+    # ###Data would create a real table that shadows the view and silently stop testing
+    # the aggregation at all — so emit.py and differential.py both skip anything in
+    # c.views.
+    for name, v in c.views.items():
+        tables[name] = views.build(c, v, tables)
     return tables
 
 

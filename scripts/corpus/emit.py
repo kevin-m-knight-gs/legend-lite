@@ -64,14 +64,15 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     so a column the seed omits is unambiguously NULL rather than absent-and-unspecified.
     """
     out = ["###Data", f"Data {DATA_ELEMENT}", "{", "  Relational", "  #{"]
-    for i, (name, rows) in enumerate(tables.items()):
+    emitted = [(n, r) for n, r in tables.items() if n not in c.views]
+    for i, (name, rows) in enumerate(emitted):
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in rows]
         out.append(f"    {SCHEMA}.{name}:")
         body = [f"      '{_pure_str(l)}\\n'" for l in lines]
         out.append(" +\n".join(body) + ";")
-        if i < len(tables) - 1:
+        if i < len(emitted) - 1:
             out.append("")
     out += ["  }#", "}"]
     return "\n".join(out)

@@ -175,6 +175,16 @@ def populate_empty_union_leg(f):
     return f
 
 
+def change_view_aggregate(f):
+    """Swap the rollup's sum() for max(). Every group's TOTAL_NOTIONAL then becomes its
+    largest trade instead of the total. Only F20 reads the View, so nothing else moves —
+    and the aggregate-decomposition check in views.py would refuse to build a corpus whose
+    group totals no longer sum to the base table."""
+    f["30"] = _sub_once(f["30"], r"TOTAL_NOTIONAL: sum\(TRADE\.NOTIONAL\)",
+                        "TOTAL_NOTIONAL: max(TRADE.NOTIONAL)", "change_view_aggregate")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -198,6 +208,7 @@ MUTATIONS = {
     "shift_milestone_boundary": shift_milestone_boundary,
     "break_infinity_date": break_infinity_date,
     "populate_empty_union_leg": populate_empty_union_leg,
+    "change_view_aggregate": change_view_aggregate,
 }
 
 # Mutations that MUST survive. A corpus claims coverage by what it catches; it should be
@@ -255,7 +266,8 @@ def main() -> None:
                      "35": work / "35-codes-mapping.pure",
                      "36": work / "36-trading-store.pure",
                      "06": work / "06-trading.pure",
-                     "51": work / "51-reporting-store.pure"}
+                     "51": work / "51-reporting-store.pure",
+                     "30": work / "30-store.pure"}
             src = {k: v.read_text() for k, v in paths.items()}
             out = MUTATIONS[name](dict(src))
             for k, path in paths.items():

@@ -62,6 +62,24 @@ class Column:
 
 
 @dataclass
+class ViewCol:
+    name: str
+    source: str            # source column on the base table
+    agg: str | None        # None for a grouping column; 'count' | 'sum' | 'max' | 'min'
+
+
+@dataclass
+class View:
+    """A Legend View — an inlined GROUP BY, not a database view. No DDL is created for it;
+    the engine folds the aggregation into the query it generates. The oracle therefore has
+    to compute the same grouping itself, which views.py does."""
+    name: str
+    base: str
+    group_by: list[str] = field(default_factory=list)
+    columns: dict[str, ViewCol] = field(default_factory=dict)
+
+
+@dataclass
 class Milestoning:
     """Business-temporal (SCD2) or processing-temporal columns on a table."""
     kind: str          # 'business' | 'processing'
@@ -170,6 +188,7 @@ class Corpus:
     enum_props: dict[tuple[str, str], str] = field(default_factory=dict)
     # class fqn -> the member TABLES of an Operation union mapping, in declared order
     unions: dict[str, list[str]] = field(default_factory=dict)
+    views: dict[str, View] = field(default_factory=dict)
 
     # -------------------------------------------------------- resolution
 
@@ -330,8 +349,61 @@ def _table_bodies(text: str) -> list[tuple[str, str]]:
     return out
 
 
+_VIEW_GROUPBY = re.compile(r"~groupBy\s*\((.*?)\)", re.S)
+_VIEW_AGG = re.compile(r"^(\w+)\s*:\s*(count|sum|max|min)\s*\(\s*(\w+)\.(\w+)\s*\)$")
+_VIEW_PLAIN = re.compile(r"^(\w+)\s*:\s*(\w+)\.(\w+)(?:\s+PRIMARY\s+KEY)?$", re.I)
+
+
+def _view_bodies(text: str) -> list[tuple[str, str]]:
+    out = []
+    for m in re.finditer(r"\bView\s+(\w+)\s*\(", text):
+        i, depth = m.end(), 1
+        while depth and i < len(text):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+            i += 1
+        out.append((m.group(1), text[m.end():i - 1]))
+    return out
+
+
+def _parse_view(name: str, body: str, c: Corpus) -> None:
+    gb = _VIEW_GROUPBY.search(body)
+    group_cols, base = [], None
+    if gb:
+        for ref in gb.group(1).split(","):
+            ref = ref.strip()
+            if not ref:
+                continue
+            tbl, col = ref.rsplit(".", 1)
+            base = tbl.split("]")[-1]
+            group_cols.append(col)
+        body = _VIEW_GROUPBY.sub("", body, count=1)
+
+    v = View(name, base or "", group_cols)
+    for spec in _split_cols(body):
+        spec = " ".join(spec.split())
+        if not spec:
+            continue
+        m = _VIEW_AGG.match(spec)
+        if m:
+            v.base = v.base or m.group(3)
+            v.columns[m.group(1)] = ViewCol(m.group(1), m.group(4), m.group(2))
+            continue
+        m = _VIEW_PLAIN.match(spec)
+        if m:
+            v.base = v.base or m.group(2)
+            v.columns[m.group(1)] = ViewCol(m.group(1), m.group(3), None)
+            continue
+        raise ValueError(f"View {name}: unhandled column {spec!r}")
+    c.views[name] = v
+
+
 def _parse_store(text: str, c: Corpus) -> None:
     text = "\n".join(_strip(l) for l in text.splitlines())
+    for name, body in _view_bodies(text):
+        _parse_view(name, body, c)
     for name, body in _table_bodies(text):
         t = Table(name)
         ms = _MILESTONING.search(body)
@@ -572,6 +644,24 @@ SKIP_MAPPINGS = {"reporting::EmbeddedFlatMapping"}
 _MAPPING_NAME = re.compile(r"^\s*Mapping\s+([\w:]+)\s*$", re.M)
 
 
+def _materialise_view_schemas(c: Corpus) -> None:
+    """Views are referenced by mappings exactly like tables, so they need a schema. Types
+    are inherited from the base column; a count is an Integer whatever it counts."""
+    for v in c.views.values():
+        base = c.tables.get(v.base)
+        if base is None:
+            raise ValueError(f"View {v.name} is built on unknown table {v.base!r}")
+        t = Table(v.name)
+        for name, col in v.columns.items():
+            src = base.columns.get(col.source)
+            if src is None:
+                raise ValueError(f"View {v.name}: {v.base}.{col.source} does not exist")
+            typ = "INTEGER" if col.agg == "count" else src.type
+            t.columns[name] = Column(name, typ, name in v.group_by
+                                     or col.source in v.group_by)
+        c.tables[v.name] = t
+
+
 def load() -> Corpus:
     c = Corpus()
     files = sorted(STRESS.glob("*.pure"))
@@ -582,6 +672,7 @@ def load() -> Corpus:
         for kind, body in secs:
             if kind == "Relational":
                 _parse_store(body, c)
+    _materialise_view_schemas(c)
     for _, secs in parsed:
         for kind, body in secs:
             if kind == "Pure":

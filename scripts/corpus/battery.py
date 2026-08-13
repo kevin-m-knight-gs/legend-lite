@@ -186,6 +186,20 @@ TEMPORAL = [
 ]
 
 
+# ---------------------------------------------------------------- L4 rollup
+ROLLUP = [
+    _spec(20, "NotionalByBook", "reporting::BookRollup",
+          "The rollup View: notional by book, grouped by the engine. Its rows are GROUPS, "
+          "so BK-LEGACY -- which has no trades -- produces no group and is ABSENT. "
+          "Contrast F2_BookChildCounts, which outer-joins from BOOK and returns a row for "
+          "it. Two defensible answers to one question, differing on exactly the empty "
+          "case, both asserted here.",
+          [("bookId", "bookId"), ("tradeCount", "tradeCount"),
+           ("totalNotional", "totalNotional"), ("maxNotional", "maxNotional")],
+          []),
+]
+
+
 DERIVED = [
     _spec(7, "TradeDerivedProperties", "trading::Trade",
           "Derived properties alongside the columns they are computed from, so a wrong "
@@ -213,7 +227,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + TEMPORAL + DERIVED + [
+SPECS = INVARIANCE + TEMPORAL + ROLLUP + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

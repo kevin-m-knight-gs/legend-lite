@@ -113,6 +113,28 @@ Database store::DB
     Join ReconciliationItem_Position(RECONCILIATION_ITEM.POSITION_ID = POSITION.POSITION_ID)
     Join PositionSnapshot_Position(POSITION_SNAPSHOT.POSITION_ID = POSITION.POSITION_ID)
 
+    // ---- L4: the rollup View ----
+    // Notional by book — the standard warehouse rollup, and the thing a risk report
+    // actually reads. This is a Legend View, not a database view: no DDL is created for
+    // it, the engine inlines the GROUP BY into the query it generates.
+    //
+    // Worth contrasting with F2_BookChildCounts, which counts trades per book by OUTER
+    // JOINING from BOOK. That returns a row for BK-LEGACY with a count. This groups the
+    // TRADE table, so BK-LEGACY -- which has no trades -- produces NO GROUP AT ALL and is
+    // simply absent. Two defensible answers to "trades per book" that differ on exactly
+    // the empty case, both asserted.
+    View NOTIONAL_BY_BOOK
+    (
+      ~groupBy
+      (
+        TRADE.BOOK_ID
+      )
+      BOOK_ID: TRADE.BOOK_ID PRIMARY KEY,
+      TRADE_COUNT: count(TRADE.TRADE_ID),
+      TOTAL_NOTIONAL: sum(TRADE.NOTIONAL),
+      MAX_NOTIONAL: max(TRADE.NOTIONAL)
+    )
+
     // ---- L4: the partitioned trade history ----
     // Real trade stores are partitioned; this one splits by asset class, which is the
     // shape that survives when a firm's rates and equities businesses run on different

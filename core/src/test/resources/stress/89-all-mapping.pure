@@ -10,6 +10,7 @@ Mapping stress::AllMapping
 (
     include counterparty::TemporalMapping
     include trading::HistoryMapping
+    include reporting::RollupMapping
     include products::ProductsMapping
     include refdata::RefdataMapping
     include counterparty::CounterpartyMapping
