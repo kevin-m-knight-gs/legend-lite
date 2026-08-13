@@ -56,11 +56,11 @@ Data stress::TestData
       'DSK-CREDIT,Credit Trading,FLOW,CREDIT,Americas,false,,CC-4420,5,200 West,,15000000.0,,BU-CR\n';
 
     default.TRADER:
-      'TRADER_ID,FIRST_NAME,LAST_NAME,BADGE,EMAIL,HIRE_DATE,SENIORITY,IS_ACTIVE,SPECIALIZATION,LICENSE,MAX_NOTIONAL,PNL_YTD,PHONE,DESK_ID\n' +
-      'TRD-001,Maria,Alvarez,B10041,maria.alvarez@example.com,2011-03-14,MD,true,Cash Equities,Series 57,50000000.0,2840100.5,+1-212-555-0141,DSK-CASH\n' +
-      'TRD-002,Kenji,Watanabe,B10077,kenji.watanabe@example.com,2016-07-01,VP,true,Program Trading,Series 57,20000000.0,-412300.75,+1-212-555-0177,DSK-CASH\n' +
-      'TRD-003,Aoife,O\'Brien,B10102,aoife.obrien@example.com,2013-11-04,ED,true,Volatility,FCA CF30,35000000.0,4102900.25,+44-20-7555-0102,DSK-DERIV\n' +
-      'TRD-004,Peter,Nowak,B10188,,2021-01-18,Analyst,false,,,,,,DSK-DERIV\n';
+      'TRADER_ID,FIRST_NAME,LAST_NAME,BADGE,EMAIL,HIRE_DATE,SENIORITY,IS_ACTIVE,SPECIALIZATION,LICENSE,MAX_NOTIONAL,PNL_YTD,PHONE,DESK_ID,MANAGER_ID\n' +
+      'TRD-001,Maria,Alvarez,B10041,maria.alvarez@example.com,2011-03-14,MD,true,Cash Equities,Series 57,50000000.0,2840100.5,+1-212-555-0141,DSK-CASH,\n' +
+      'TRD-002,Kenji,Watanabe,B10077,kenji.watanabe@example.com,2016-07-01,VP,true,Program Trading,Series 57,20000000.0,-412300.75,+1-212-555-0177,DSK-CASH,TRD-001\n' +
+      'TRD-003,Aoife,O\'Brien,B10102,aoife.obrien@example.com,2013-11-04,ED,true,Volatility,FCA CF30,35000000.0,4102900.25,+44-20-7555-0102,DSK-DERIV,TRD-001\n' +
+      'TRD-004,Peter,Nowak,B10188,,2021-01-18,Analyst,false,,,,,,DSK-DERIV,TRD-999\n';
 
     default.BOOK:
       'BOOK_ID,NAME,BOOK_TYPE,CURRENCY,IS_ACTIVE,OPEN_DATE,CLOSE_DATE,LEGAL_ENTITY,STRATEGY,PNL_YTD,POSITION_COUNT,RISK_LIMIT,DESCRIPTION,DESK_ID\n' +

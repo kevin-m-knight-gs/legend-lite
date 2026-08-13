@@ -111,8 +111,21 @@ class Join:
     right_table: str
     right_col: str
 
+    @property
+    def self_join(self) -> bool:
+        return self.left_table == self.right_table
+
     def other(self, frm: str) -> tuple[str, str, str]:
-        """(target_table, from_col, to_col) when entered from table `frm`."""
+        """(target_table, from_col, to_col) when entered from table `frm`.
+
+        For a SELF-join both ends are the same table, so `frm` cannot disambiguate
+        direction. The left-hand side is taken as the owning end — TRADER.MANAGER_ID
+        points AT TRADER.TRADER_ID — which makes `manager` the navigable direction here.
+        Reaching `reports` needs the reverse and is not modelled; the oracle refuses it
+        rather than silently returning managers.
+        """
+        if self.self_join:
+            return self.left_table, self.left_col, self.right_col
         if frm == self.left_table:
             return self.right_table, self.left_col, self.right_col
         if frm == self.right_table:
@@ -285,7 +298,10 @@ class Corpus:
 # ---------------------------------------------------------------- parsing
 
 _TABLE = re.compile(r"^\s*Table\s+(\w+)\s*\((.*)\)\s*$")
-_JOIN = re.compile(r"^\s*Join\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s*\)\s*$")
+# `{target}` names the far side of a SELF-join, where both ends are the same table.
+# Writing the table name twice would be a tautology matching every row against itself.
+_JOIN = re.compile(
+    r"^\s*Join\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*=\s*(\{target\}|\w+)\.(\w+)\s*\)\s*$")
 _FILTER_DECL = re.compile(
     r"^\s*Filter\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*(=|<>|<=|>=|<|>)\s*(.+?)\s*\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
@@ -447,7 +463,7 @@ def _parse_store(text: str, c: Corpus) -> None:
             n, lt, lc, rt, rc = m.groups()
             if n in c.joins:
                 raise ValueError(f"duplicate join {n}")
-            c.joins[n] = Join(n, lt, lc, rt, rc)
+            c.joins[n] = Join(n, lt, lc, lt if rt == "{target}" else rt, rc)
 
 
 def _split_cols(body: str) -> list[str]:
@@ -625,11 +641,18 @@ def _parse_mapping(text: str, c: Corpus) -> None:
 
 
 def _assoc_matches(assoc_fqn: str, owner: str, end: AssocEnd) -> bool:
-    """An AssociationMapping names ends by property only. Bind the property to the two
-    ends of *that* association by checking the owner/target pair appears in its name."""
+    """An AssociationMapping names its ends by property only, so binding a property to the
+    right association relies on the association's NAME carrying both class names.
+
+    A SELF-association breaks that: org::Trader_Manager has owner == target == Trader, so
+    the pair {Trader, Manager} never matches {Trader}. Handled explicitly — for a
+    self-association it is enough that one half of the name is the class.
+    """
     short = assoc_fqn.split("::")[-1]
     a, _, b = short.partition("_")
     o, t = owner.split("::")[-1], end.target.split("::")[-1]
+    if o == t:
+        return o in (a, b)
     return {a, b} == {o, t} or (a in (o, t) and b in (o, t))
 
 

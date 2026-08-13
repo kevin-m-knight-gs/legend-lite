@@ -42,6 +42,11 @@ rather than quietly weakening the corpus:
   A11 CHAIN_NULL       INSTRUMENT.SECTOR_ID is orphaned for one instrument, so a two-hop
                        navigation breaks at the second hop rather than the first.
   A12 CASE_SENSITIVE   Two venue codes differing only in case.
+  A16 SELF_JOIN_CHAIN  TRADER.MANAGER_ID is a recursive link: two traders report to
+                       TRD-001 (one of them cross-desk), TRD-001 and TRD-003 report to
+                       nobody, and TRD-004 reports to TRD-999 who does not exist. So the
+                       {target} self-join has to produce a real row, a NULL from an absent
+                       key, and a NULL from a dangling one -- on the same table.
   A15 TEMPORAL_EDGES   The SCD2 history in CPTY_RATING_MS is built around the awkward
                        dates, not around convenience: a version boundary landing exactly
                        on the queried date (CP-0003 on 2024-06-07), a rating WITHDRAWN so
@@ -180,23 +185,26 @@ TRADER = [
          EMAIL="maria.alvarez@example.com", HIRE_DATE=_iso(2011, 3, 14), SENIORITY="MD",
          IS_ACTIVE=True, SPECIALIZATION="Cash Equities", LICENSE="Series 57",
          MAX_NOTIONAL=50000000.0, PNL_YTD=2840100.50, PHONE="+1-212-555-0141",
-         DESK_ID="DSK-CASH"),
+         DESK_ID="DSK-CASH", MANAGER_ID=None),          # chain root: reports to nobody
     dict(TRADER_ID="TRD-002", FIRST_NAME="Kenji", LAST_NAME="Watanabe", BADGE="B10077",
          EMAIL="kenji.watanabe@example.com", HIRE_DATE=_iso(2016, 7, 1), SENIORITY="VP",
          IS_ACTIVE=True, SPECIALIZATION="Program Trading", LICENSE="Series 57",
          MAX_NOTIONAL=20000000.0, PNL_YTD=-412300.75, PHONE="+1-212-555-0177",
-         DESK_ID="DSK-CASH"),
+         DESK_ID="DSK-CASH", MANAGER_ID="TRD-001"),     # reports to Alvarez
     # A10 APOSTROPHE in a surname that Q0/Q1/Q11 project.
     dict(TRADER_ID="TRD-003", FIRST_NAME="Aoife", LAST_NAME="O'Brien", BADGE="B10102",
          EMAIL="aoife.obrien@example.com", HIRE_DATE=_iso(2013, 11, 4), SENIORITY="ED",
          IS_ACTIVE=True, SPECIALIZATION="Volatility", LICENSE="FCA CF30",
          MAX_NOTIONAL=35000000.0, PNL_YTD=4102900.25, PHONE="+44-20-7555-0102",
-         DESK_ID="DSK-DERIV"),
+         DESK_ID="DSK-DERIV", MANAGER_ID="TRD-001"),    # cross-desk reporting line
     # A4 NULL_MEASURE: a leaver with no licence, no phone and no PnL attributed.
     dict(TRADER_ID="TRD-004", FIRST_NAME="Peter", LAST_NAME="Nowak", BADGE="B10188",
          EMAIL=None, HIRE_DATE=_iso(2021, 1, 18), SENIORITY="Analyst", IS_ACTIVE=False,
          SPECIALIZATION=None, LICENSE=None, MAX_NOTIONAL=None, PNL_YTD=None,
-         PHONE=None, DESK_ID="DSK-DERIV"),
+         PHONE=None, DESK_ID="DSK-DERIV",
+         # A16: points at a trader who has LEFT. The self-join must produce NULLs, not
+         # drop the row and not loop.
+         MANAGER_ID="TRD-999"),
 ]
 
 BOOK = [
@@ -729,6 +737,12 @@ def check(c: Corpus) -> list[str]:
             if t1 != f2:
                 bad.append(f"CPTY_RATING_MS {x}: gap or overlap between {t1} and {f2}; "
                            f"SCD2 versions must abut exactly")
+    tids = {r["TRADER_ID"] for r in TRADER}
+    mgrs = [r["MANAGER_ID"] for r in TRADER]
+    has("A16 a trader who reports to nobody", any(m is None for m in mgrs))
+    has("A16 a trader whose manager exists", any(m in tids for m in mgrs if m))
+    has("A16 a trader whose manager id dangles",
+        any(m not in tids for m in mgrs if m))
     venues = {r["EXECUTION_VENUE"] for r in TRADE}
     has("A12 CASE_SENSITIVE venue codes",
         any(v.lower() in {o.lower() for o in venues - {v}} for v in venues))

@@ -791,6 +791,65 @@ Service stress::F20_NotionalByBook
   ]
 }
 
+Service stress::F21_TraderManagerChain
+{
+    pattern: '/stress/f21';
+    documentation: 'A {target} self-join walked two levels. TRD-001 and TRD-003 report to nobody (absent key), TRD-004 reports to a trader who has left (dangling key), and the two-level hop reaches a manager\'s manager. All three must come back as rows with NULLs where the chain stops -- never a dropped row and never a loop.';
+    execution: Single
+    {
+    query: |org::Trader.all()
+        ->project(~[
+            traderId:x|$x.traderId,
+            lastName:x|$x.lastName,
+            mgrId:x|$x.manager.traderId,
+            mgrLast:x|$x.manager.lastName,
+            mgrDesk:x|$x.manager.desk.name,
+            grandMgrId:x|$x.manager.manager.traderId,
+            grandMgrLast:x|$x.manager.manager.lastName
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F21_TraderManagerChain_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"traderId":"TRD-001","lastName":"Alvarez","mgrId":null,"mgrLast":null,"mgrDesk":null,"grandMgrId":null,"grandMgrLast":null},{"traderId":"TRD-002","lastName":"Watanabe","mgrId":"TRD-001","mgrLast":"Alvarez","mgrDesk":"Cash Equities","grandMgrId":null,"grandMgrLast":null},{"traderId":"TRD-003","lastName":"O\'Brien","mgrId":"TRD-001","mgrLast":"Alvarez","mgrDesk":"Cash Equities","grandMgrId":null,"grandMgrLast":null},{"traderId":"TRD-004","lastName":"Nowak","mgrId":null,"mgrLast":null,"mgrDesk":null,"grandMgrId":null,"grandMgrLast":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F7_TradeDerivedProperties
 {
     pattern: '/stress/f7';

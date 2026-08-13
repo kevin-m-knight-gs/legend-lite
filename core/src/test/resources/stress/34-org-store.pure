@@ -91,4 +91,10 @@ Mapping org::OrgMapping
             approvers: [store::DB] @Team_Approver
         )
     }
+    org::Trader_Manager: Relational {
+        AssociationMapping (
+            manager: [store::DB] @Trader_Manager,
+            reports: [store::DB] @Trader_Manager
+        )
+    }
 )

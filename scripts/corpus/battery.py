@@ -213,6 +213,22 @@ TEMPORAL = [
 ]
 
 
+# ------------------------------------------------------------- L4 self-join
+SELF_JOIN = [
+    _spec(21, "TraderManagerChain", "org::Trader",
+          "A {target} self-join walked two levels. TRD-001 and TRD-003 report to nobody "
+          "(absent key), TRD-004 reports to a trader who has left (dangling key), and the "
+          "two-level hop reaches a manager's manager. All three must come back as rows "
+          "with NULLs where the chain stops -- never a dropped row and never a loop.",
+          [("traderId", "traderId"), ("lastName", "lastName"),
+           ("mgrId", "manager.traderId"), ("mgrLast", "manager.lastName"),
+           ("mgrDesk", "manager.desk.name"),
+           ("grandMgrId", "manager.manager.traderId"),
+           ("grandMgrLast", "manager.manager.lastName")],
+          []),
+]
+
+
 # ---------------------------------------------------------------- L4 rollup
 ROLLUP = [
     _spec(20, "NotionalByBook", "reporting::BookRollup",
@@ -254,7 +270,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + TEMPORAL + ROLLUP + DERIVED + [
+SPECS = INVARIANCE + TEMPORAL + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

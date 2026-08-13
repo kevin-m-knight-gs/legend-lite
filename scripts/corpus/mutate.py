@@ -195,6 +195,17 @@ def widen_store_filter(f):
     return f
 
 
+def break_self_join_target(f):
+    """Replace {target} with the table name, turning the self-join into
+    TRADER.MANAGER_ID = TRADER.TRADER_ID -- a tautology every row satisfies against
+    itself. Only F21 walks the manager chain, so nothing else moves."""
+    f["30"] = _sub_once(f["30"],
+                        r"Join Trader_Manager\(TRADER\.MANAGER_ID = \{target\}\.TRADER_ID\)",
+                        "Join Trader_Manager(TRADER.MANAGER_ID = TRADER.TRADER_ID)",
+                        "break_self_join_target")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -220,6 +231,7 @@ MUTATIONS = {
     "populate_empty_union_leg": populate_empty_union_leg,
     "change_view_aggregate": change_view_aggregate,
     "widen_store_filter": widen_store_filter,
+    "break_self_join_target": break_self_join_target,
 }
 
 # Mutations that MUST survive. A corpus claims coverage by what it catches; it should be
@@ -289,14 +301,22 @@ def main() -> None:
             # against zero would let every mutation "pass" on the back of the six
             # known-failing fan-out services.
             survivor = name in EXPECTED_SURVIVORS
-            ok = (f1 == f0) if survivor else (f1 > f0)
+            # f1 == -1 means the runner parsed no results: the mutated model did not
+            # compile. That IS detection — the corpus rejected the broken model rather
+            # than answering from it — and scoring it as survival was wrong.
+            rejected = f1 < 0
+            ok = (f1 == f0) if survivor else (rejected or f1 > f0)
             caught.append(ok)
             if survivor:
                 verdict = ("SURVIVED as expected -- constraints are not enforced here"
                            if ok else "CAUGHT -- unexpected; constraints now bite?")
+            elif rejected:
+                verdict = "CAUGHT (model rejected -- did not compile)"
             else:
                 verdict = "CAUGHT" if ok else "SURVIVED -- assertion is not load-bearing"
-            print(f"  {name:<22} {p1:>2} passed {f1:>2} failed   {verdict}{tail}")
+            counts = "--    " if rejected else f"{p1:>2} passed {f1:>2} failed"
+            print(f"  {name:<24} {counts}   {verdict}"
+                  + ("" if rejected else tail))
 
     n_surv = sum(1 for n in names if n in EXPECTED_SURVIVORS)
     print(f"\n{sum(caught)}/{len(caught)} mutations landed as expected "
