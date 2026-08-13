@@ -112,6 +112,41 @@ class SurfaceCensusTest {
     private static final java.util.Set<String> OUR_MAPPING_INCLUDES =
             java.util.Set.of("mapping", "dataspace");
 
+    /** v3: every keyword literal in the ENGINE's g4 grammars must be in
+     *  docs/g4-keyword-snapshot.tsv — when the engine grows a keyword the
+     *  gate goes red until it is classified (parsed / excluded / queued).
+     *  The 75 UNCLASSIFIED rows are the review backlog, family-bucketed. */
+    @org.junit.jupiter.api.Test
+    void everyG4KeywordIsSnapshotted() throws Exception {
+        String engineRoot = System.getProperty("legend.engine.root");
+        org.junit.jupiter.api.Assumptions.assumeTrue(engineRoot != null);
+        java.util.Set<String> snap = new java.util.HashSet<>();
+        for (String line : java.nio.file.Files.readAllLines(
+                java.nio.file.Path.of("../docs/g4-keyword-snapshot.tsv"))) {
+            snap.add(line.split("\t")[0]);
+        }
+        java.util.List<String> fresh = new java.util.ArrayList<>();
+        java.util.regex.Pattern rule = java.util.regex.Pattern.compile(
+                "^[A-Z][A-Z0-9_]*\\s*:\\s*'([A-Za-z][A-Za-z0-9_]*)'\\s*;",
+                java.util.regex.Pattern.MULTILINE);
+        try (var walk = java.nio.file.Files.walk(
+                java.nio.file.Path.of(engineRoot))) {
+            for (var g4 : (Iterable<java.nio.file.Path>) walk
+                    .filter(f -> f.toString().endsWith("Grammar.g4"))
+                    .filter(f -> !f.toString().contains("/target/")
+                            && !f.toString().contains("/test/"))::iterator) {
+                var m = rule.matcher(java.nio.file.Files.readString(g4));
+                while (m.find()) {
+                    if (!snap.contains(m.group(1))) {
+                        fresh.add(m.group(1) + " (" + g4.getFileName() + ")");
+                    }
+                }
+            }
+        }
+        assertTrue(fresh.isEmpty(), "ENGINE g4 keywords not in "
+                + "docs/g4-keyword-snapshot.tsv — classify them: " + fresh);
+    }
+
     /** The flavors ConnectionSectionGrammar dispatches (keep in sync with
      *  its switch — the census fails loudly when the ENGINE grows one). */
     private static final java.util.Set<String> OUR_CONNECTION_FLAVORS =
