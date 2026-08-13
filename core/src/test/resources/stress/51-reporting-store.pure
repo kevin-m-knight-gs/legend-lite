@@ -1,0 +1,93 @@
+###Mapping
+Mapping reporting::FlatMapping
+(
+    include trading::Codes
+
+    // The navigated columns are [0..1] on the class because the denormalization encodes
+    // the OUTER JOIN RESULT: TRD-0007's counterparty does not exist and two trades have
+    // no trader, so those columns are genuinely NULL here — exactly as they are on the
+    // canonical side.
+    reporting::FlatTrade: Relational {
+        ~mainTable [store::DB] TRADE_FLAT
+        tradeId: [store::DB] TRADE_FLAT.TRADE_ID,
+        tradeDate: [store::DB] TRADE_FLAT.TRADE_DATE,
+        quantity: [store::DB] TRADE_FLAT.QUANTITY,
+        price: [store::DB] TRADE_FLAT.PRICE,
+        notional: [store::DB] TRADE_FLAT.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE_FLAT.SIDE,
+        status: [store::DB] TRADE_FLAT.STATUS,
+        currency: [store::DB] TRADE_FLAT.CURRENCY,
+        instrName: [store::DB] TRADE_FLAT.INSTR_NAME,
+        instrTicker: [store::DB] TRADE_FLAT.INSTR_TICKER,
+        instrIsin: [store::DB] TRADE_FLAT.INSTR_ISIN,
+        bookName: [store::DB] TRADE_FLAT.BOOK_NAME,
+        cptyName: [store::DB] TRADE_FLAT.CPTY_NAME,
+        cptyLei: [store::DB] TRADE_FLAT.CPTY_LEI,
+        traderLast: [store::DB] TRADE_FLAT.TRADER_LAST
+    }
+)
+
+
+###Mapping
+// The real mapping-invariance test: the SAME class, trading::Trade, mapped to the
+// denormalized table instead of the normalized one. N0 and N2 are the identical query
+// text — same root, same property paths — differing only in which mapping resolves them.
+//
+// The four navigations are EMBEDDED property mappings: `instrument ( ... )` binds the
+// association end's properties directly to columns of TRADE_FLAT, so no join is emitted
+// at all. Association ends are legal here (the property is resolved via
+// _propertiesFromAssociations); what is NOT legal is an embedded block inside an
+// AssociationMapping, which fails with "Can't find property owner class for property".
+Mapping reporting::EmbeddedFlatMapping
+(
+    include trading::Codes
+
+    trading::Trade: Relational {
+        ~primaryKey ([store::DB] TRADE_FLAT.TRADE_ID)
+        ~mainTable [store::DB] TRADE_FLAT
+        tradeId: [store::DB] TRADE_FLAT.TRADE_ID,
+        tradeDate: [store::DB] TRADE_FLAT.TRADE_DATE,
+        settlementDate: [store::DB] TRADE_FLAT.SETTLEMENT_DATE,
+        quantity: [store::DB] TRADE_FLAT.QUANTITY,
+        price: [store::DB] TRADE_FLAT.PRICE,
+        notional: [store::DB] TRADE_FLAT.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE_FLAT.SIDE,
+        status: [store::DB] TRADE_FLAT.STATUS,
+        tradeType: [store::DB] TRADE_FLAT.TRADE_TYPE,
+        currency: [store::DB] TRADE_FLAT.CURRENCY,
+        commission: [store::DB] TRADE_FLAT.COMMISSION,
+        fees: [store::DB] TRADE_FLAT.FEES,
+        executionVenue: [store::DB] TRADE_FLAT.EXECUTION_VENUE,
+        isBlock: [store::DB] TRADE_FLAT.IS_BLOCK,
+        createdTime: [store::DB] TRADE_FLAT.CREATED_TIME,
+        lastModifiedTime: [store::DB] TRADE_FLAT.LAST_MODIFIED_TIME,
+        instrument
+        (
+            instrumentId: [store::DB] TRADE_FLAT.INSTR_ID,
+            name: [store::DB] TRADE_FLAT.INSTR_NAME,
+            ticker: [store::DB] TRADE_FLAT.INSTR_TICKER,
+            isin: [store::DB] TRADE_FLAT.INSTR_ISIN,
+            assetClass: [store::DB] TRADE_FLAT.INSTR_ASSET_CLASS,
+            currency: [store::DB] TRADE_FLAT.INSTR_CURRENCY
+        ),
+        book
+        (
+            bookId: [store::DB] TRADE_FLAT.BOOK_ID,
+            name: [store::DB] TRADE_FLAT.BOOK_NAME,
+            currency: [store::DB] TRADE_FLAT.BOOK_CURRENCY
+        ),
+        counterparty
+        (
+            counterpartyId: [store::DB] TRADE_FLAT.CPTY_ID,
+            legalName: [store::DB] TRADE_FLAT.CPTY_NAME,
+            lei: [store::DB] TRADE_FLAT.CPTY_LEI,
+            tier: [store::DB] TRADE_FLAT.CPTY_TIER
+        ),
+        trader
+        (
+            traderId: [store::DB] TRADE_FLAT.TRADER_ID,
+            firstName: [store::DB] TRADE_FLAT.TRADER_FIRST,
+            lastName: [store::DB] TRADE_FLAT.TRADER_LAST
+        )
+    }
+)

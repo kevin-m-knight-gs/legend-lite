@@ -50,6 +50,13 @@ class Spec:
     filters: list[Pred] = field(default_factory=list)
     sort: tuple[str, bool] | None = None    # (alias, descending)
     limit: int | None = None
+    # L2 mapping invariance: the same query emitted against a second mapping/runtime.
+    # None means the corpus default (stress::AllMapping / stress::RT).
+    mapping: str | None = None
+    runtime: str | None = None
+    # The identifiedConnection id inside that runtime — what the testSuite's
+    # `data: [ connections: [ <key>: ... ] ]` is matched against.
+    connection: str | None = None
 
     @property
     def short(self) -> str:

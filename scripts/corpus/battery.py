@@ -40,6 +40,83 @@ def _spec(n: int, name: str, root: str, doc: str, ids: list[tuple[str, str]],
     return s
 
 
+# ---------------------------------------------------------------- L2 invariance
+#
+# The SAME question, asked of the canonical model (which joins four ways) and of the
+# reporting model (which reads one denormalized table). The projection aliases are
+# identical by construction, so the two expectations must be equal cell for cell —
+# build.py asserts that before either is emitted, and a mismatch fails the build rather
+# than shipping two tests that quietly disagree.
+#
+# This is the strongest assertion in the corpus because it needs no oracle to be
+# meaningful: two mappings of the same facts must agree, so a disagreement is the
+# engine's. The oracle is still used, which makes it stronger again — it pins the VALUE
+# as well as the agreement.
+
+_INVARIANT_COLUMNS = [
+    ("tradeId", "tradeId", "tradeId"),
+    ("tradeDate", "tradeDate", "tradeDate"),
+    ("quantity", "quantity", "quantity"),
+    ("price", "price", "price"),
+    ("notional", "notional", "notional"),
+    ("side", "side", "side"),
+    ("status", "status", "status"),
+    ("currency", "currency", "currency"),
+    ("grossAmount", "grossAmount", "grossAmount"),
+    # The four navigations that the flat shape has already resolved. TRD-0007's
+    # counterparty is an orphan and two trades have no trader, so these carry the NULLs
+    # that make the comparison worth doing.
+    ("instrName", "instrument.name", "instrName"),
+    ("instrTicker", "instrument.ticker", "instrTicker"),
+    ("instrIsin", "instrument.isin", "instrIsin"),
+    ("bookName", "book.name", "bookName"),
+    ("cptyName", "counterparty.legalName", "cptyName"),
+    ("cptyLei", "counterparty.lei", "cptyLei"),
+    ("traderLast", "trader.lastName", "traderLast"),
+]
+
+
+def _invariance_pair():
+    canonical = Spec("stress::N0_TradeCanonical", "/stress/n0",
+                     "Mapping invariance, canonical side: reached by joining "
+                     "trading::Trade to instrument, book, counterparty and trader.",
+                     "trading::Trade")
+    canonical.projections = [Proj(a, p.split(".")) for a, p, _ in _INVARIANT_COLUMNS]
+
+    flat = Spec("stress::N1_TradeFlat", "/stress/n1",
+                "Mapping invariance, reporting side: the identical question answered from "
+                "one denormalized table through reporting::FlatMapping. Must return "
+                "exactly the rows N0 returns.",
+                "reporting::FlatTrade")
+    flat.projections = [Proj(a, f.split(".")) for a, _, f in _INVARIANT_COLUMNS]
+    flat.mapping, flat.runtime = "reporting::FlatMapping", "stress::FlatRT"
+    return canonical, flat
+
+
+def _embedded_variant(canonical: Spec) -> Spec:
+    """The strongest form: the IDENTICAL query — same root class, same property paths,
+    same generated text — resolved by a mapping that reads one denormalized table through
+    embedded property mappings instead of joining four ways.
+
+    Its expectation needs no separate derivation. oracle.py deliberately does not model
+    reporting::EmbeddedFlatMapping, so evaluating this spec walks the canonical mapping
+    and produces the canonical answer — which is exactly the claim under test.
+    """
+    s = Spec("stress::N2_TradeEmbeddedFlat", "/stress/n2",
+             "Mapping invariance, embedded side: byte-identical query to N0, resolved "
+             "against TRADE_FLAT through embedded property mappings. No join is emitted "
+             "at all, and the answer must not change.",
+             canonical.root)
+    s.projections = list(canonical.projections)
+    s.mapping, s.runtime = "reporting::EmbeddedFlatMapping", "stress::EmbeddedFlatRT"
+    return s
+
+
+CANONICAL, FLAT = _invariance_pair()
+EMBEDDED = _embedded_variant(CANONICAL)
+INVARIANCE = [CANONICAL, FLAT, EMBEDDED]
+
+
 DERIVED = [
     _spec(7, "TradeDerivedProperties", "trading::Trade",
           "Derived properties alongside the columns they are computed from, so a wrong "
@@ -67,7 +144,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = DERIVED + [
+SPECS = INVARIANCE + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

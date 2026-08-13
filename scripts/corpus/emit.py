@@ -38,6 +38,7 @@ from query import Spec
 DATA_ELEMENT = "stress::TestData"
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"
+RUNTIME = "stress::RT"
 SCHEMA = "default"                  # tables are declared without a Schema block
 
 
@@ -87,7 +88,7 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
       [
         connections:
         [
-          {CONNECTION_KEY}:
+          {spec.connection or CONNECTION_KEY}:
             Reference
             #{{
               {DATA_ELEMENT}
@@ -174,8 +175,8 @@ def service(spec: Spec, expected: list[dict], note: str) -> str:
     execution: Single
     {{
 {query_text(spec)}
-        mapping: {MAPPING};
-        runtime: stress::RT;
+        mapping: {spec.mapping or MAPPING};
+        runtime: {spec.runtime or RUNTIME};
     }}
 {test_suite(spec, expected, note)}
 }}"""

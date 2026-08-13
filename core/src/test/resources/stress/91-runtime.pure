@@ -20,3 +20,27 @@ Runtime stress::RT
         store::DB: [ environment: store::Conn ]
     ];
 }
+
+Runtime stress::FlatRT
+{
+    mappings:
+    [
+        reporting::FlatMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
+    ];
+}
+
+Runtime stress::EmbeddedFlatRT
+{
+    mappings:
+    [
+        reporting::EmbeddedFlatMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ]
+    ];
+}

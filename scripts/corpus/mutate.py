@@ -90,7 +90,7 @@ def widen_filter(f):
 def break_enum_mapping(f):
     """Send the legacy 'BOT' code to the wrong enum value. The DATA is untouched, so only
     a working EnumerationMapping can notice."""
-    f["36"] = _sub_once(f["36"], r"BUY: \['B', 'BOT'\],\n        SELL: \['S'\]",
+    f["35"] = _sub_once(f["35"], r"BUY: \['B', 'BOT'\],\n        SELL: \['S'\]",
                         "BUY: ['B'],\n        SELL: ['S', 'BOT']", "break_enum_mapping")
     return f
 
@@ -123,6 +123,28 @@ def relax_constraint(f):
     return f
 
 
+def break_denormalization(f):
+    """Corrupt ONE cell of the denormalized reporting table so it no longer agrees with
+    the normalized tables it was derived from. N0 (canonical) and N1 (flat) then answer
+    the same question differently, which is precisely what mapping invariance exists to
+    detect. Only N1 should redden — N0 reads the untouched normalized rows."""
+    f["93"] = _sub_once(f["93"], r",Apple Inc,AAPL,", ",Apple Incorporated,AAPL,",
+                        "break_denormalization")
+    return f
+
+
+def break_embedded_mapping(f):
+    """Point one EMBEDDED property at the wrong column of the same flat table. Only N2 —
+    the identical query resolved through reporting::EmbeddedFlatMapping — can notice; N0
+    joins the normalized tables and N1 reads reporting::FlatTrade, so both are untouched.
+    This is what proves the embedded mapping is genuinely being exercised rather than
+    merely compiling."""
+    f["51"] = _sub_once(f["51"], r"name: \[store::DB\] TRADE_FLAT\.INSTR_NAME",
+                        "name: [store::DB] TRADE_FLAT.INSTR_TICKER",
+                        "break_embedded_mapping")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -141,6 +163,8 @@ MUTATIONS = {
     "break_enum_mapping": break_enum_mapping,
     "unmapped_enum_code": unmapped_enum_code,
     "qualified_ignores_arg": qualified_ignores_arg,
+    "break_denormalization": break_denormalization,
+    "break_embedded_mapping": break_embedded_mapping,
 }
 
 # Mutations that MUST survive. A corpus claims coverage by what it catches; it should be
@@ -195,8 +219,10 @@ def main() -> None:
                 shutil.copy(p, work)
             paths = {"92": work / "92-services.pure",
                      "93": work / "93-testdata.pure",
+                     "35": work / "35-codes-mapping.pure",
                      "36": work / "36-trading-store.pure",
-                     "06": work / "06-trading.pure"}
+                     "06": work / "06-trading.pure",
+                     "51": work / "51-reporting-store.pure"}
             src = {k: v.read_text() for k, v in paths.items()}
             out = MUTATIONS[name](dict(src))
             for k, path in paths.items():

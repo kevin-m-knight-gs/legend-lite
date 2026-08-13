@@ -1,0 +1,39 @@
+// ============================================================
+// Reporting Domain (L2) — the same trades, modelled flat
+// ============================================================
+// Every firm has both: a canonical model that joins at read time, and a reporting model
+// over a denormalized table that does not. They describe the SAME facts.
+//
+// That is what makes mapping invariance testable. The same question asked of
+// trading::Trade (joining four ways) and of reporting::FlatTrade (reading one table) must
+// return identical rows. No oracle is needed to know the two must agree, so a
+// disagreement is unambiguously an engine defect rather than a dispute about the answer.
+//
+// The property NAMES here deliberately match the projection ALIASES used against the
+// canonical model, so the two expectations are comparable cell for cell.
+###Pure
+Class reporting::FlatTrade
+{
+    tradeId: String[1];
+    tradeDate: StrictDate[1];
+    quantity: Float[1];
+    price: Float[1];
+    notional: Float[1];
+    // Same enum, same EnumerationMapping, reached through a different physical column.
+    // The translation is exercised on BOTH paths rather than pre-resolved on one.
+    side: trading::Side[1];
+    status: String[1];
+    currency: String[1];
+    instrName: String[0..1];
+    instrTicker: String[0..1];
+    instrIsin: String[0..1];
+    bookName: String[0..1];
+    cptyName: String[0..1];
+    cptyLei: String[0..1];
+    traderLast: String[0..1];
+
+    // The same derived property as trading::Trade, over the same two [1] measures. If
+    // invariance holds for a stored column but breaks for a computed one, that is worth
+    // knowing separately.
+    grossAmount() { $this.quantity * $this.price } : Float[1];
+}

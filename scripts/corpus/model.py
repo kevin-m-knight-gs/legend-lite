@@ -369,6 +369,20 @@ def _parse_domain(text: str, c: Corpus) -> None:
                 ends.append((name, typ, lo, hi))
 
 
+def _split_mappings(body: str) -> list[str]:
+    """A ###Mapping section may hold several Mapping elements; skipping one means
+    splitting them apart first."""
+    out, cur = [], []
+    for line in body.splitlines(True):
+        if _MAPPING_NAME.match(line) and cur:
+            out.append("".join(cur))
+            cur = []
+        cur.append(line)
+    if cur:
+        out.append("".join(cur))
+    return out
+
+
 def _parse_mapping(text: str, c: Corpus) -> None:
     cur = None
     in_assoc = False
@@ -461,6 +475,24 @@ def sections(text: str) -> list[tuple[str, str]]:
     return [(k, b) for k, b in out if b.strip()]
 
 
+# Mappings the oracle deliberately does NOT model.
+#
+# reporting::EmbeddedFlatMapping maps trading::Trade to TRADE_FLAT with EMBEDDED property
+# mappings. Parsing it with the line-based reader here would rebind trading::Trade's
+# ~mainTable to TRADE_FLAT and attach the embedded columns to the wrong class, silently
+# corrupting every expectation in the corpus.
+#
+# It is skipped rather than supported because it does not need to be supported: the whole
+# claim of mapping invariance is that a query through this mapping returns what the
+# canonical mapping returns. Its expectation IS the canonical expectation, so computing a
+# second one would be circular at best and wrong at worst.
+SKIP_MAPPINGS = {"reporting::EmbeddedFlatMapping"}
+
+# re.M is load-bearing: without it `search` over a multi-line chunk never matches, the
+# skip-list silently does nothing, and trading::Trade quietly gets rebound to TRADE_FLAT.
+_MAPPING_NAME = re.compile(r"^\s*Mapping\s+([\w:]+)\s*$", re.M)
+
+
 def load() -> Corpus:
     c = Corpus()
     files = sorted(STRESS.glob("*.pure"))
@@ -478,7 +510,11 @@ def load() -> Corpus:
     for _, secs in parsed:
         for kind, body in secs:
             if kind == "Mapping":
-                _parse_mapping(body, c)
+                for chunk in _split_mappings(body):
+                    name = _MAPPING_NAME.search(chunk)
+                    if name and name.group(1) in SKIP_MAPPINGS:
+                        continue
+                    _parse_mapping(chunk, c)
     return c
 
 

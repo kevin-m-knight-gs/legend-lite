@@ -1,0 +1,20 @@
+###Mapping
+// Code translations, extracted so more than one mapping can share them.
+//
+// SideMapping used to live inside trading::TradingMapping. reporting::EmbeddedFlatMapping
+// needs it too, but cannot `include trading::TradingMapping` — that would bring the
+// canonical trading::Trade -> TRADE mapping with it and leave two root mappings for the
+// same class in one Mapping, which is ambiguous. Duplicating the code map instead would
+// let the two copies drift, and the invariance test would then be comparing two different
+// translations rather than two mappings of one translation.
+Mapping trading::Codes
+(
+    // Source codes, not labels — which is how every real trade store stores side.
+    // 'BOT' is a legacy code kept alive by an old feed: two source values collapsing
+    // onto one enum value is the case a naive code->label map gets wrong.
+    trading::Side: EnumerationMapping SideMapping
+    {
+        BUY: ['B', 'BOT'],
+        SELL: ['S']
+    }
+)

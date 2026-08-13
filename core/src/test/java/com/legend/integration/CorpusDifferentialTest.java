@@ -74,8 +74,10 @@ class CorpusDifferentialTest {
                 if (!Files.exists(exp)) continue;
 
                 var vs = com.legend.compiler.NameResolver.resolveQuery(svc.functionBody());
+                // The service's own runtime, not a fixed one — see StressDomainTest.
+                String rt = svc.runtimeRef() != null ? svc.runtimeRef() : "stress::RT";
                 String sql = dialect.render(
-                        com.legend.Compiler.lowerResolved(vs, ctx, "stress::RT", false));
+                        com.legend.Compiler.lowerResolved(vs, ctx, rt, false));
 
                 List<String> want = Files.readAllLines(exp);
                 String[] header = want.get(0).split("\\|");

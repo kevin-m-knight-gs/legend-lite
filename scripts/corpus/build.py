@@ -16,11 +16,13 @@ happened to produce.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 import battery
 import emit
+import flat
 import model
 import oracle
 import query
@@ -81,11 +83,12 @@ def split_services(text: str) -> tuple[str, list[tuple[str, str]]]:
 
 def generate() -> dict[Path, str]:
     c = model.load()
+    TABLES = flat.all_tables(c)
 
     problems = model.check(c)
     if problems:
         raise SystemExit("model does not resolve:\n  " + "\n  ".join(problems[:10]))
-    problems = seed.check(c)
+    problems = seed.check(c) + flat.check(c, TABLES['TRADE_FLAT'])
     if problems:
         raise SystemExit("seed is invalid:\n  " + "\n  ".join(problems[:10]))
 
@@ -93,7 +96,7 @@ def generate() -> dict[Path, str]:
 
     out = []
     for spec in specs:
-        rows = oracle.evaluate(c, spec, seed.TABLES)      # raises Fanout, never guesses
+        rows = oracle.evaluate(c, spec, TABLES)      # raises Fanout, never guesses
         expected = oracle.as_json_rows(c, spec, rows)
         nulls = sum(1 for r in expected for v in r.values() if v is None)
         note = (f"{len(expected)} rows x {len(spec.projections)} columns, "
@@ -102,9 +105,26 @@ def generate() -> dict[Path, str]:
 
     services = SERVICES_HEADER + "\n###Service\n" + "\n\n".join(out) + "\n"
 
+    # L2: the two sides of the invariance pair must agree before anything is emitted.
+    # If they do not, the fixture is wrong — the denormalization does not carry the same
+    # facts — and shipping both would produce two tests that disagree for a reason that
+    # has nothing to do with the engine.
+    key = lambda rs: sorted(json.dumps(r, sort_keys=True) for r in rs)
+    inv = [(s.short, key(oracle.as_json_rows(c, s, oracle.evaluate(c, s, TABLES))))
+           for s in battery.INVARIANCE]
+    base_name, base = inv[0]
+    for name, rows in inv[1:]:
+        if rows != base:
+            only_a = [r for r in base if r not in rows][:2]
+            only_b = [r for r in rows if r not in base][:2]
+            raise SystemExit(
+                f"mapping invariance FAILS in the fixture itself "
+                f"({base_name} vs {name}):\n"
+                f"  {base_name}-only: {only_a}\n  {name}-only: {only_b}")
+
     fan = []
     for spec in battery.SPECS:
-        rows = oracle.evaluate(c, spec, seed.TABLES)
+        rows = oracle.evaluate(c, spec, TABLES)
         expected = oracle.as_json_rows(c, spec, rows)
         zeros = sum(1 for r in expected for k, v in r.items()
                     if any(p.agg for p in spec.projections if p.alias == k) and v == 0)
@@ -112,9 +132,9 @@ def generate() -> dict[Path, str]:
                 f"entity with no children. COUNT(*) over the outer join would return 1.")
         fan.append(emit.service(spec, expected, note))
     fanout = FANOUT_HEADER + "\n###Service\n" + "\n\n".join(fan) + "\n"
-    data = (HEADER.format(rows=sum(len(v) for v in seed.TABLES.values()),
-                          tables=len(seed.TABLES))
-            + "\n" + emit.data_element(c, seed.TABLES) + "\n")
+    data = (HEADER.format(rows=sum(len(v) for v in TABLES.values()),
+                          tables=len(TABLES))
+            + "\n" + emit.data_element(c, TABLES) + "\n")
     return {DATA_FILE: data, SERVICES_FILE: services, FANOUT_FILE: fanout}
 
 

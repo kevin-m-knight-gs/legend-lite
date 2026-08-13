@@ -111,7 +111,12 @@ class StressDomainTest {
                 parseNsTotal += parseNs;
                 phase = "typeCheck";
                 long t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "stress::RT", false);
+                // Honour the service's OWN runtime. Hardcoding "stress::RT" silently compiled
+                // every service against one runtime, which worked only while there was one:
+                // reporting::FlatTrade is bound by stress::FlatRT and dispatch failed with
+                // "runtime 'stress::RT' has 0 mappings binding class 'reporting::FlatTrade'".
+                String rt = svc.runtimeRef() != null ? svc.runtimeRef() : "stress::RT";
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, rt, false);
                 long typeElapsed = System.nanoTime() - t;
                 long typeUs = typeElapsed / 1_000;
                 typeNsTotal += typeElapsed;
