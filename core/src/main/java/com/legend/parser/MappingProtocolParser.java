@@ -563,6 +563,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             return;
         }
         if (peek() == TokenType.VALID_STRING && "ServiceStore".equals(kind)) {
+            if (extendsId != null) {
+                // engine-verbatim (sectioned negative pin,
+                // TestServiceStoreMappingGrammarParser#4)
+                throw error("Service Store Mapping does not support extends");
+            }
             advance();
             classMappings.add(parseServiceStoreClassMapping(target,
                     memberStart, targetSpan, id, root));
@@ -2781,6 +2786,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     expect(TokenType.COLON);
                     if ("method".equals(rk)) {
                         method = parseIdentifier();
+                        if (!"GET".equals(method) && !"POST".equals(method)) {
+                            // engine-verbatim (embedded-data pin #12)
+                            throw error("Unsupported HTTP Method type - "
+                                    + method
+                                    + ". Supported types are - GET,POST");
+                        }
                     } else if ("url".equals(rk)) {
                         url = consumeStringLiteral("'url'");
                     } else {

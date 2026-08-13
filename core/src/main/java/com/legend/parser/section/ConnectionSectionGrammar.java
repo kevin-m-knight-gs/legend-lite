@@ -256,7 +256,13 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     element = Protocol.unquotePath(c.parseQualifiedName());
                     elementSpan = c.spanOf(eS, c.pos() - 1);
                 }
-                case "baseUrl" -> baseUrl = SectionParse.stringValue(c);
+                case "baseUrl" -> {
+                    baseUrl = SectionParse.stringValue(c);
+                    if (baseUrl.endsWith("/")) {
+                        // engine-verbatim (sectioned negative pin #6)
+                        throw c.error("baseUrl should not end with '/'");
+                    }
+                }
                 default -> throw c.error(
                         "unknown ServiceStoreConnection key: " + key);
             }

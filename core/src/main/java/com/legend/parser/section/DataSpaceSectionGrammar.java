@@ -131,6 +131,13 @@ public final class DataSpaceSectionGrammar
             }
         }
         c.expect(TokenType.BRACE_CLOSE);
+        // engine-verbatim required fields (sectioned negative pins #4/#6)
+        if (!seenKeys.contains("executionContexts")) {
+            throw c.error("Field 'executionContexts' is required");
+        }
+        if (!seenKeys.contains("defaultExecutionContext")) {
+            throw c.error("Field 'defaultExecutionContext' is required");
+        }
         return new Protocol.PDataSpace(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), contexts, defaultContext, title,
                 description, executables, diagrams, supportInfo,
@@ -306,6 +313,14 @@ public final class DataSpaceSectionGrammar
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
+            if (id == null && query != null) {
+                // engine-verbatim (sectioned negative pin #66) — required
+                // for the TEMPLATE form only; the pointer form
+                // (executable: path) is id-less in oracle-accepted corpus
+                // (dataSpaceWithExecutables.pure; the first ceiling here
+                // over-tightened and refused three accepted files)
+                throw c.error("Field 'id' is required");
+            }
             if (title == null || (executable == null && query == null)) {
                 throw c.error("an executable needs a title and an executable"
                         + " path or query");

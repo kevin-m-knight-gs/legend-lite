@@ -68,6 +68,7 @@ public final class FileGenerationSectionGrammar
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         c.expect(TokenType.BRACE_OPEN);
         String outputPath = null;
+        java.util.Set<String> namedSeen = new java.util.HashSet<>();
         List<String> scopeElements = new ArrayList<>();
         List<Protocol.PConfigProperty> props = new ArrayList<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
@@ -75,6 +76,13 @@ public final class FileGenerationSectionGrammar
             // a quoted property name keeps its QUOTES on the wire
             String key = c.peek() == TokenType.STRING
                     ? SectionParse.rawStringToken(c) : c.parseIdentifier();
+            // NAMED fields are once-only (engine validateAndExtract...;
+            // sectioned negative pins #4/#6); arbitrary CONFIG properties
+            // accumulate and may repeat
+            if (("scopeElements".equals(key) || "generationOutputPath".equals(key))
+                    && !namedSeen.add(key)) {
+                throw c.error("Field '" + key + "' should be specified only once");
+            }
             c.expect(TokenType.COLON);
             if ("scopeElements".equals(key)) {
                 c.expect(TokenType.BRACKET_OPEN);

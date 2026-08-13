@@ -148,12 +148,17 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         Boolean hideTaggedValues = null;
         double[] position = null;
         double[] rectangle = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (true) {
             r.skipWs();
             if (r.peek() == '}') {
                 break;
             }
             String key = r.word();
+            if (!seenKeys.add(key)) {
+                // engine-verbatim (sectioned negative pins, 2026-08-13)
+                throw r.fail("Field '" + key + "' should be specified only once");
+            }
             r.skipWs();
             r.expect(':');
             r.skipWs();
@@ -197,12 +202,17 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         String targetView = null;
         SourceInfo targetViewSpan = null;
         List<Protocol.PDiagramPoint> points = null;
+        java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (true) {
             r.skipWs();
             if (r.peek() == '}') {
                 break;
             }
             String key = r.word();
+            if (!seenKeys2.add(key)) {
+                // engine-verbatim (sectioned negative pins, 2026-08-13)
+                throw r.fail("Field '" + key + "' should be specified only once");
+            }
             r.skipWs();
             r.expect(':');
             r.skipWs();
@@ -254,12 +264,17 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         String targetView = null;
         SourceInfo targetViewSpan = null;
         List<Protocol.PDiagramPoint> points = null;
+        java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
         while (true) {
             r.skipWs();
             if (r.peek() == '}') {
                 break;
             }
             String key = r.word();
+            if (!seenKeys3.add(key)) {
+                // engine-verbatim (sectioned negative pins, 2026-08-13)
+                throw r.fail("Field '" + key + "' should be specified only once");
+            }
             r.skipWs();
             r.expect(':');
             r.skipWs();

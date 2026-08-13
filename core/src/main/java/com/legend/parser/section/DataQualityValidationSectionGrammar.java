@@ -184,6 +184,10 @@ public final class DataQualityValidationSectionGrammar
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
+        if (!seenKeys2.contains("validations")) {
+            // engine-verbatim (sectioned negative pin #22)
+            throw c.error("Field 'validations' is required");
+        }
         if (query == null) {
             throw c.error("DataQualityRelationValidation needs a query");
         }

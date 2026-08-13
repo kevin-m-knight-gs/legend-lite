@@ -749,6 +749,12 @@ public final class PersistenceSectionGrammar
                                 + " type '" + kind + "'");
                     }
                     if (c.peek() == TokenType.SEMI_COLON) {
+                        if ("AwsGlue".equals(kind)) {
+                            // engine-verbatim (cloud pin #2): the cloud
+                            // platform REQUIRES a body
+                            throw c.error("Persistence platform 'AwsGlue'"
+                                    + " must have a non-empty body");
+                        }
                         // BARE kind: `platform: Default;` — wire
                         // {"_type":"<kind lowercased>"} whose span is the
                         // kind WORD alone (harvest
@@ -788,6 +794,19 @@ public final class PersistenceSectionGrammar
                             c.tokens().startLine(embStart) - 1,
                             c.tokens().startColumn(embStart) - 1,
                             c.dialect()), entries, null);
+                    if ("AwsGlue".equals(kind)) {
+                        // engine-verbatim (cloud pins #4/#7)
+                        long dpu = entries.stream().filter(en ->
+                                "dataProcessingUnits".equals(en.key())).count();
+                        if (dpu == 0) {
+                            throw c.error(
+                                    "Field 'dataProcessingUnits' is required");
+                        }
+                        if (dpu > 1) {
+                            throw c.error("Field 'dataProcessingUnits' should"
+                                    + " be specified only once");
+                        }
+                    }
                     SourceInfo cs = c.spanOf(embStart, embStart);
                     // engine walker start = the line AFTER '#{' even when
                     // content shares the opener's line (DIFF-pinned)

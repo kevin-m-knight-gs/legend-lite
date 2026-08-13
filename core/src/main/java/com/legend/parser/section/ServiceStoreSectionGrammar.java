@@ -69,6 +69,18 @@ public final class ServiceStoreSectionGrammar
             }
         }
         c.expect(TokenType.PAREN_CLOSE);
+        // engine-verbatim unique-id rule (sectioned negative pin #14)
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        java.util.List<String> dup = new java.util.ArrayList<>();
+        for (Protocol.PServiceStoreElement e : elements) {
+            if (!ids.add(idOf(e)) && !dup.contains(idOf(e))) {
+                dup.add(idOf(e));
+            }
+        }
+        if (!dup.isEmpty()) {
+            throw c.error("Service Store Elements should have unique ids."
+                    + " Multiple elements found with ids - " + dup);
+        }
         return new Protocol.PServiceStoreDefinition(h.pkg(), h.name(),
                 description, elements, c.spanOf(h.declStart(), c.pos() - 1));
     }
@@ -103,6 +115,11 @@ public final class ServiceStoreSectionGrammar
                 c.spanOf(start, c.pos() - 1));
     }
 
+    private static String idOf(Protocol.PServiceStoreElement e) {
+        return e instanceof Protocol.PSsService sv ? sv.id()
+                : ((Protocol.PSsServiceGroup) e).id();
+    }
+
     private static Protocol.PSsService parseService(TokenStreamCursor c) {
         int start = c.pos();
         c.advance();
@@ -118,18 +135,34 @@ public final class ServiceStoreSectionGrammar
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             switch (key) {
-                case "path" -> path = SectionParse.stringValue(c);
+                case "path" -> {
+                    path = SectionParse.stringValue(c);
+                    // engine-verbatim (sectioned negative pins #4/#6)
+                    if (!path.startsWith("/") || path.endsWith("/")) {
+                        throw c.error("Path should start with '/' & should"
+                                + " not end with '/'");
+                    }
+                }
                 case "requestBody" -> requestBody = parseTypeRef(c);
-                case "method" -> method = c.parseIdentifier();
+                case "method" -> {
+                    method = c.parseIdentifier();
+                    if (!"GET".equals(method) && !"POST".equals(method)) {
+                        // engine-verbatim (embedded-data pin #12)
+                        throw c.error("Unsupported HTTP Method type - "
+                                + method + ". Supported types are - GET,POST");
+                    }
+                }
                 case "parameters" -> parameters = parseParameters(c);
                 case "response" -> response = parseTypeRef(c);
                 case "security" -> {
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE) {
-                        security.add(c.parseIdentifier());
-                        if (!c.match(TokenType.COMMA)) {
-                            break;
-                        }
+                        String scheme = c.parseIdentifier();
+                        // engine-verbatim (pin #22): schemes resolve via
+                        // IServiceStoreGrammarParserExtension and the
+                        // reference jar set registers NONE — every id
+                        // refuses (probed: Http/ApiKey/oauth all refuse)
+                        throw c.error("Unsupported SecurityScheme - " + scheme);
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
                 }
@@ -142,6 +175,29 @@ public final class ServiceStoreSectionGrammar
         if (path == null || method == null || response == null) {
             throw c.error("Service '" + id + "' needs path, method and"
                     + " response");
+        }
+        // engine walker cross-validations (pins #18/#20/#28), verbatim
+        if ("GET".equals(method) && requestBody != null) {
+            throw c.error("Request Body should not be specified for GET"
+                    + " end point");
+        }
+        if (parameters != null) {
+            java.util.List<String> missing = new java.util.ArrayList<>();
+            for (Protocol.PSsParam pm : parameters) {
+                if ("PATH".equals(pm.location())) {   // stored UPPERCASED on the wire
+                    if (Boolean.FALSE.equals(pm.required())) {
+                        throw c.error("Path parameters cannot be optional");
+                    }
+                    if (!path.contains("{" + pm.name() + "}")) {
+                        missing.add(pm.name());
+                    }
+                }
+            }
+            if (!missing.isEmpty()) {
+                throw c.error("Path parameters should be specified in path"
+                        + " as '{param_name}'. [" + String.join(",", missing)
+                        + "] parameters were not found in path " + path);
+            }
         }
         return new Protocol.PSsService(id, path, requestBody, method,
                 parameters, response, security,
@@ -190,7 +246,16 @@ public final class ServiceStoreSectionGrammar
                 switch (opt) {
                     case "allowReserved" -> allowReserved = bool(c);
                     case "required" -> required = bool(c);
-                    case "location" -> location = c.parseIdentifier();
+                    case "location" -> {
+                        location = c.parseIdentifier();
+                        if (!"header".equals(location) && !"path".equals(location)
+                                && !"query".equals(location)) {
+                            // engine-verbatim (pin #26)
+                            throw c.error("Unsupported Parameter Location - "
+                                    + location + ". Supported Locations are -"
+                                    + " header,path,query");
+                        }
+                    }
                     case "style" -> {
                         style = c.parseIdentifier();
                         styleSpan = c.spanOf(optStart, c.pos() - 1);
@@ -212,6 +277,25 @@ public final class ServiceStoreSectionGrammar
         }
         if (location == null) {
             throw c.error("parameter '" + name + "' needs a location");
+        }
+        // engine-verbatim list-parameter rules (pins #8/#10/#12): list
+        // params REQUIRE style+explode; non-list params must not carry them
+        if (type.list()) {
+            if (style == null) {
+                throw c.error("Field 'style' is required");
+            }
+            if (explode == null) {
+                throw c.error("Field 'explode' is required");
+            }
+        } else {
+            if (style != null) {
+                throw c.error("style should not be provided with non-list"
+                        + " service parameter");
+            }
+            if (explode != null) {
+                throw c.error("explode should not be provided with non-list"
+                        + " service parameter");
+            }
         }
         return new Protocol.PSsParam(name, type, allowReserved, required,
                 location.toUpperCase(java.util.Locale.ROOT), style,
