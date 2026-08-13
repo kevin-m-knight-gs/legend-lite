@@ -36,6 +36,7 @@ class Pred:
 class Proj:
     alias: str
     path: list[str]
+    agg: str | None = None      # None -> a column; 'count' -> over the landed SET
 
 
 @dataclass
@@ -59,6 +60,7 @@ _PATTERN = re.compile(r"pattern:\s*'([^']*)'")
 _DOC = re.compile(r"documentation:\s*'((?:[^']|'')*)'")
 _ROOT = re.compile(r"query:\s*\|([\w:]+)\.all\(\)")
 _ALIASED = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2\.(.+)$")
+_AGGED = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2\.(.+?)->(count)\(\)$")
 _FILTER = re.compile(r"->filter\(\s*\{\s*(\w+)\s*\|(.*?)\}\s*\)", re.S)
 _SORT = re.compile(r"->sort\(\s*~(\w+)->(\w+)\(\)\s*\)")
 _LIMIT = re.compile(r"->limit\(\s*(\d+)\s*\)")
@@ -98,6 +100,10 @@ def _projections(body: str) -> list[Proj]:
     for raw in out:
         e = " ".join(raw.split())
         if not e:
+            continue
+        m = _AGGED.match(e)
+        if m:
+            projs.append(Proj(m.group(1), m.group(3).split("."), m.group(4)))
             continue
         m = _ALIASED.match(e)
         if m:

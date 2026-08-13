@@ -169,6 +169,59 @@ Regenerated canonically as one `FuncColSpec` per column
 
 ---
 
+## F6 — `count()` over an empty to-many association returns 1, not 0
+
+**Severity: silent wrong answer.** This is the most serious finding here. There is no
+error and no empty result — just a count that is too high by exactly one, for exactly the
+entities a casual fixture would not contain.
+
+`->count()` over a to-many association compiles to an aggregate over a LEFT OUTER JOIN,
+where an entity with no children still contributes one all-NULL joined row.
+
+The observed behaviour is that the empty case counts that row. The obvious mechanism is
+counting rows (`COUNT(*)`) rather than the child key (`COUNT(child.ID)`), which would be
+NULL and therefore not counted — but that is an **inference**: this harness reports
+results, not generated SQL, and the emitted statement has not been inspected. The defect
+below is the observed 1-instead-of-0, which stands regardless of mechanism.
+
+Minimized — two firms, one with two employees and one with none
+(`scripts/corpus/repro/count-empty/model.pure`):
+
+```
+default.FIRM:      'ID,NAME\n'  + 'F1,HasTwo\n' + 'F2,HasNone\n';
+default.EMPLOYEE:  'ID,NAME,FIRM_ID\n' + 'E1,Ada,F1\n' + 'E2,Grace,F1\n';
+
+query: |demo::Firm.all()->project(~[name:f|$f.name, employeeCount:f|$f.employees->count()]);
+```
+
+```
+expected: [ { "name":"HasTwo", "employeeCount":2 }, { "name":"HasNone", "employeeCount":0 } ]
+actual  : [ { "name":"HasTwo", "employeeCount":2 }, { "name":"HasNone", "employeeCount":1 } ]
+```
+
+Run it:
+
+```
+java -cp target/classes:$(cat cp.txt) perf.TestableMain \
+     ../../scripts/corpus/repro/count-empty/model.pure --testable=demo::CountEmpty
+```
+
+**Evidence at scale.** The fan-out battery (`94-fanout-services.pure`, 7 services over 6
+association ends and 5 root classes) produces **17 zero-count cells**. All 17 come back as
+1, and **no other cell in the battery is wrong**. The non-empty counts are all correct —
+2, 3, 4, 9 — so this is specifically the empty case, not aggregation in general.
+
+The cleanest control is `F5_TraderChildCounts`: it is the only battery service whose data
+contains no childless entity, and it is the only one that **passes**. It is deliberately
+left out of the quarantine for that reason.
+
+Affected: `F0` instruments, `F1` counterparties, `F2` books, `F3` desks, `F4` sectors,
+`F6` positions — quarantined in `scripts/corpus/quarantine.py` with their CORRECT
+expectations intact. `scripts/corpus/run.py` reports them as KNOWN-FAIL and will fail the
+build if any of them starts passing, so the fix will not go unnoticed.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is

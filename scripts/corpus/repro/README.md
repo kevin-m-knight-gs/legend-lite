@@ -17,3 +17,8 @@ Each directory is the smallest model that reproduces a finding in
     java -cp $CP perf.TestableMain $D/base.pure $D/probe_empty.pure --testable=demo::S_empty
     # the assertion is deliberately '[]' so the report prints the actual payload:
     #   [ { "fn":"bare-empty","ln":null }, { "fn":"quoted-empty","ln":null }, ... ]
+
+    # F6 -- count() over an empty to-many returns 1
+    D=../../scripts/corpus/repro/count-empty
+    java -cp $CP perf.TestableMain $D/model.pure --testable=demo::CountEmpty
+    # HasNone.employeeCount comes back 1; it must be 0.

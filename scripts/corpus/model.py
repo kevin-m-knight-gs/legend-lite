@@ -160,6 +160,27 @@ class Corpus:
             return table, col, hops
         raise KeyError("empty path")
 
+    def resolve_assoc(self, root: str, path: list[str]):
+        """Walk a path that ends ON an association rather than on a column.
+
+        Returns (hops, target_class). Used for aggregate projections such as
+        `$x.trades->count()`, where the value is a property of the SET of landed rows
+        rather than of any one row.
+        """
+        cls, table, hops = root, self.main_table.get(root), []
+        if table is None:
+            raise KeyError(f"class {root} has no ~mainTable")
+        for step in path:
+            end = self.ends.get((cls, step))
+            if end is None:
+                raise KeyError(f"{cls}.{step} is not an association")
+            if end.join is None:
+                raise KeyError(f"{cls}.{step} has no AssociationMapping")
+            tgt, fc, tc = self.joins[end.join].other(table)
+            hops.append((end.join, table, fc, tgt, tc))
+            cls, table = end.target, tgt
+        return hops, cls
+
     def to_many_on(self, root: str, path: list[str]) -> bool:
         """True if any hop along the path is to-many — i.e. the projection fans out."""
         cls = root

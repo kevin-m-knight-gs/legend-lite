@@ -150,7 +150,9 @@ def query_text(spec: Spec) -> str:
         conds = " && ".join(
             f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
-    cols = [f"{p.alias}:{VAR}|${VAR}.{'.'.join(p.path)}" for p in spec.projections]
+    cols = [f"{p.alias}:{VAR}|${VAR}.{'.'.join(p.path)}"
+            + (f"->{p.agg}()" if p.agg else "")
+            for p in spec.projections]
     lines.append("        ->project(~[")
     for i, col in enumerate(cols):
         lines.append(f"            {col}" + ("," if i < len(cols) - 1 else ""))

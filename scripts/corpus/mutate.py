@@ -36,6 +36,7 @@ import tempfile
 from pathlib import Path
 
 from model import STRESS
+from quarantine import QUARANTINE
 
 REPO = STRESS.parents[4]
 RUNNER = REPO / "tools" / "engine-runner"
@@ -107,9 +108,11 @@ MUTATIONS = {
 def run(work: Path) -> tuple[int, int, str]:
     """(passed, failed, tail) for the corpus in `work`."""
     files = sorted(str(p) for p in work.glob("*.pure"))
-    testables = [f"--testable={m.group(1)}" for m in
-                 re.finditer(r"^Service (\S+)", (work / "92-services.pure").read_text(),
-                             re.M)]
+    # Both service files: a mutation to the seed can just as easily be caught by the
+    # fan-out battery, and excluding it would understate the corpus's sensitivity.
+    testables = [f"--testable={m.group(1)}"
+                 for f in sorted(work.glob("9[24]-*.pure"))
+                 for m in re.finditer(r"^Service (\S+)", f.read_text(), re.M)]
     cp = (RUNNER / "cp.txt").read_text().strip()
     env = dict(os.environ, JAVA_HOME=JAVA_HOME, PATH=f"{JAVA_HOME}/bin:" + os.environ["PATH"])
     r = subprocess.run([f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}",
@@ -132,9 +135,11 @@ def main() -> None:
         for p in STRESS.glob("*.pure"):
             shutil.copy(p, work)
         p0, f0, tail = run(work)
-        print(f"{p0} passed, {f0} failed {tail}")
-        if f0 != 0:
-            raise SystemExit("baseline is not green; fix that before mutating")
+        print(f"{p0} passed, {f0} failed (of which {len(QUARANTINE)} quarantined) {tail}")
+        if f0 != len(QUARANTINE):
+            raise SystemExit(
+                f"baseline has {f0} failures but {len(QUARANTINE)} are quarantined; "
+                f"run scripts/corpus/run.py and reconcile before mutating")
 
     caught = []
     for name in names:
@@ -148,7 +153,10 @@ def main() -> None:
             (work / "92-services.pure").write_text(out["92"])
             (work / "93-testdata.pure").write_text(out["93"])
             p1, f1, tail = run(work)
-            ok = f1 > 0
+            # A mutation must cause failures BEYOND the quarantined ones. Comparing
+            # against zero would let every mutation "pass" on the back of the six
+            # known-failing fan-out services.
+            ok = f1 > f0
             caught.append(ok)
             print(f"  {name:<16} {p1:>2} passed {f1:>2} failed   "
                   f"{'CAUGHT' if ok else 'SURVIVED -- assertion is not load-bearing'}{tail}")

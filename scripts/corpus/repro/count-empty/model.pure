@@ -1,0 +1,89 @@
+Class demo::Firm
+{
+  name: String[1];
+}
+
+Class demo::Employee
+{
+  name: String[1];
+}
+
+Association demo::Firm_Employee
+{
+  firm: demo::Firm[1];
+  employees: demo::Employee[*];
+}
+
+###Relational
+Database demo::DB
+(
+  Table FIRM     (ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50))
+  Table EMPLOYEE (ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50), FIRM_ID VARCHAR(20))
+  Join Firm_Employee(EMPLOYEE.FIRM_ID = FIRM.ID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Firm: Relational { ~mainTable [demo::DB] FIRM   name: [demo::DB] FIRM.NAME }
+  demo::Employee: Relational { ~mainTable [demo::DB] EMPLOYEE   name: [demo::DB] EMPLOYEE.NAME }
+  demo::Firm_Employee: Relational {
+    AssociationMapping ( firm: [demo::DB] @Firm_Employee, employees: [demo::DB] @Firm_Employee )
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.FIRM:
+      'ID,NAME\n' +
+      'F1,HasTwo\n' +
+      'F2,HasNone\n';
+    default.EMPLOYEE:
+      'ID,NAME,FIRM_ID\n' +
+      'E1,Ada,F1\n' +
+      'E2,Grace,F1\n';
+  }#
+}
+
+###Service
+Service demo::CountEmpty
+{
+  pattern: '/countEmpty';
+  documentation: 'F2 has no employees, so employeeCount must be 0.';
+  execution: Single
+  {
+    query: |demo::Firm.all()->project(~[name:f|$f.name, employeeCount:f|$f.employees->count()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"name":"HasTwo","employeeCount":2},{"name":"HasNone","employeeCount":0}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

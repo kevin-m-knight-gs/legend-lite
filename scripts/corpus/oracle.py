@@ -83,6 +83,27 @@ def walk(c: Corpus, data: dict[str, list[dict]], row: dict,
     return cur
 
 
+def walk_many(c: Corpus, data: dict[str, list[dict]], row: dict,
+              hops: list[tuple[str, str, str, str, str]]) -> list[dict]:
+    """Follow hops that MAY fan out, returning every landed row.
+
+    This is the counterpart to walk(): where a to-one navigation lands on at most one row,
+    a to-many lands on a set, and the set may be EMPTY. The empty case is the interesting
+    one — it is where `->count()` over a LEFT OUTER JOIN is prone to returning 1 (one
+    all-NULL joined row) instead of 0.
+    """
+    cur = [row]
+    for _join, _ftab, fcol, ttab, tcol in hops:
+        nxt = []
+        for r in cur:
+            key = r.get(fcol)
+            if key is None:
+                continue
+            nxt.extend(x for x in data[ttab] if x.get(tcol) == key)
+        cur = nxt
+    return cur
+
+
 def _cmp(op: str, left, right) -> bool:
     """Three-valued: a NULL operand yields UNKNOWN, which is not true."""
     if left is None or right is None:
@@ -108,17 +129,31 @@ def _value(c: Corpus, data, row, root: str, path: list[str]):
     return None if landed is None else landed.get(col)
 
 
+def _agg(c: Corpus, data, row, root: str, proj):
+    hops, _target = c.resolve_assoc(root, proj.path)
+    landed = walk_many(c, data, row, hops)
+    if proj.agg == "count":
+        # An entity with no children counts 0. Stated plainly because this is the
+        # assertion, not an implementation detail.
+        return len(landed)
+    raise Fanout(f"unhandled aggregate {proj.agg!r}")
+
+
 def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     """Returns the rows the service must produce, as alias -> python value."""
-    if any(c.to_many_on(spec.root, p.path) for p in spec.projections):
-        raise Fanout(f"{spec.short}: a projection crosses a to-many association")
+    plain = [p for p in spec.projections if p.agg is None]
+    if any(c.to_many_on(spec.root, p.path) for p in plain):
+        raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
+                     f"association, which would fan the row set out")
 
     base = data[c.main_table[spec.root]]
     kept = [r for r in base
             if all(_cmp(f.op, _value(c, data, r, spec.root, f.path), f.value)
                    for f in spec.filters)]
 
-    out = [{p.alias: _value(c, data, r, spec.root, p.path) for p in spec.projections}
+    out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
+                      else _value(c, data, r, spec.root, p.path))
+            for p in spec.projections}
            for r in kept]
 
     if spec.sort:
@@ -162,6 +197,9 @@ def render(value, kind: str):
 def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     out = {}
     for p in spec.projections:
+        if p.agg == "count":
+            out[p.alias] = "int"
+            continue
         table, col, _ = c.resolve(spec.root, p.path)
         out[p.alias] = c.tables[table].columns[col].kind
     return out
