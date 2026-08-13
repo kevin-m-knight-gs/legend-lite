@@ -146,7 +146,12 @@ def query_text(spec: Spec) -> str:
     bare names always meant here. Column aliases are unchanged, so the expectation JSON
     keys are identical.
     """
-    lines = [f"    query: |{spec.root}.all()"]
+    arg = ""
+    if spec.as_of == "latest":
+        arg = "%latest"
+    elif spec.as_of:
+        arg = "%" + spec.as_of
+    lines = [f"    query: |{spec.root}.all({arg})"]
     if spec.filters:
         conds = " && ".join(
             f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)

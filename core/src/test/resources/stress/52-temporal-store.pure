@@ -1,0 +1,13 @@
+###Mapping
+Mapping counterparty::TemporalMapping
+(
+    counterparty::RatingVersion: Relational {
+        ~primaryKey ([store::DB] CPTY_RATING_MS.COUNTERPARTY_ID, [store::DB] CPTY_RATING_MS.FROM_Z)
+        ~mainTable [store::DB] CPTY_RATING_MS
+        counterpartyId: [store::DB] CPTY_RATING_MS.COUNTERPARTY_ID,
+        rating: [store::DB] CPTY_RATING_MS.RATING,
+        agency: [store::DB] CPTY_RATING_MS.AGENCY,
+        outlook: [store::DB] CPTY_RATING_MS.OUTLOOK,
+        isInvestmentGrade: [store::DB] CPTY_RATING_MS.IS_INVESTMENT_GRADE
+    }
+)

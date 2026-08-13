@@ -42,6 +42,12 @@ rather than quietly weakening the corpus:
   A11 CHAIN_NULL       INSTRUMENT.SECTOR_ID is orphaned for one instrument, so a two-hop
                        navigation breaks at the second hop rather than the first.
   A12 CASE_SENSITIVE   Two venue codes differing only in case.
+  A15 TEMPORAL_EDGES   The SCD2 history in CPTY_RATING_MS is built around the awkward
+                       dates, not around convenience: a version boundary landing exactly
+                       on the queried date (CP-0003 on 2024-06-07), a rating WITHDRAWN so
+                       the entity has no current version at all (CP-0004), an entity with
+                       no history whatsoever (CP-0005), one that never changed (CP-0002),
+                       and one that changed twice and came back (CP-0001).
   A14 UNMAPPED_ENUM    One trade carries a source code with NO EnumerationMapping entry.
                        It must come back NULL — the same as a NULL source — which is a
                        silent data-quality hole worth pinning: a bad feed code does not
@@ -562,7 +568,43 @@ COLLATERAL_AGREEMENT = [
 ]
 
 
+# L3 — the SCD2 history. INFINITY is the open-ended THRU_Z that marks a current version;
+# Legend's default infinity date is 9999-12-31 and `%latest` selects rows carrying it.
+INFINITY = _iso(9999, 12, 31)
+
+CPTY_RATING_MS = [
+    # CP-0001: downgraded once, then upgraded back. Three versions, currently AA-.
+    dict(COUNTERPARTY_ID="CP-0001", FROM_Z=_iso(2015, 2, 9), THRU_Z=_iso(2020, 6, 1),
+         RATING="AA", AGENCY="S&P", OUTLOOK="STABLE", IS_INVESTMENT_GRADE=True),
+    dict(COUNTERPARTY_ID="CP-0001", FROM_Z=_iso(2020, 6, 1), THRU_Z=_iso(2023, 3, 15),
+         RATING="A+", AGENCY="S&P", OUTLOOK="NEGATIVE", IS_INVESTMENT_GRADE=True),
+    dict(COUNTERPARTY_ID="CP-0001", FROM_Z=_iso(2023, 3, 15), THRU_Z=INFINITY,
+         RATING="AA-", AGENCY="S&P", OUTLOOK="STABLE", IS_INVESTMENT_GRADE=True),
+
+    # CP-0002: a single version that has never changed.
+    dict(COUNTERPARTY_ID="CP-0002", FROM_Z=_iso(2013, 8, 22), THRU_Z=INFINITY,
+         RATING="A+", AGENCY="Moody's", OUTLOOK="STABLE", IS_INVESTMENT_GRADE=True),
+
+    # CP-0003: crossed OUT of investment grade — the version boundary lands exactly on
+    # 2024-06-07, the date several services ask about, so an inclusive/exclusive
+    # off-by-one in the milestoning predicate changes the answer.
+    dict(COUNTERPARTY_ID="CP-0003", FROM_Z=_iso(2019, 5, 30), THRU_Z=_iso(2024, 6, 7),
+         RATING="BBB", AGENCY="Fitch", OUTLOOK="NEGATIVE", IS_INVESTMENT_GRADE=True),
+    dict(COUNTERPARTY_ID="CP-0003", FROM_Z=_iso(2024, 6, 7), THRU_Z=INFINITY,
+         RATING="BB+", AGENCY="Fitch", OUTLOOK="NEGATIVE", IS_INVESTMENT_GRADE=False),
+
+    # CP-0004: rating WITHDRAWN. The last version was closed and no successor opened, so
+    # there is no current version at all -- %latest must not return this counterparty,
+    # while a query as of 2021 must.
+    dict(COUNTERPARTY_ID="CP-0004", FROM_Z=_iso(2020, 10, 5), THRU_Z=_iso(2022, 9, 30),
+         RATING="BBB-", AGENCY="Fitch", OUTLOOK="NEGATIVE", IS_INVESTMENT_GRADE=True),
+
+    # CP-0005 has NO rating history at all -- a counterparty that exists in reference data
+    # and is absent from the temporal table on every date.
+]
+
 TABLES: dict[str, list[dict]] = {
+    "CPTY_RATING_MS": CPTY_RATING_MS,
     "COUNTRY": COUNTRY, "CURRENCY": CURRENCY, "EXCHANGE": EXCHANGE, "SECTOR": SECTOR,
     "DESK": DESK, "TRADER": TRADER, "BOOK": BOOK, "COUNTERPARTY": COUNTERPARTY,
     "INSTRUMENT": INSTRUMENT, "TRADE": TRADE, "POSITION": POSITION, "GREEKS": GREEKS,
@@ -592,10 +634,14 @@ def check(c: Corpus) -> list[str]:
             for pk in t.pk:
                 if r.get(pk) is None:
                     bad.append(f"{name}[{i}]: NULL primary key {pk}")
-        for pk in t.pk:
-            vals = [r.get(pk) for r in rows]
-            if len(set(vals)) != len(vals):
-                bad.append(f"{name}: duplicate primary key {pk}")
+        # Uniqueness is on the COMPOSITE key, not per column. A business-temporal table
+        # is keyed by (id, from) precisely so the id repeats — checking columns
+        # independently would reject exactly the shape SCD2 requires.
+        if t.pk:
+            keys = [tuple(r.get(k) for k in t.pk) for r in rows]
+            if len(set(keys)) != len(keys):
+                dupes = {k for k in keys if keys.count(k) > 1}
+                bad.append(f"{name}: duplicate primary key {t.pk}: {sorted(dupes)[:3]}")
         # A value containing a comma or a newline would need CSV quoting, whose support
         # in ###Data we have not proven. Refuse it rather than emit something unverified.
         for i, r in enumerate(rows):
@@ -607,7 +653,8 @@ def check(c: Corpus) -> list[str]:
         if not cond:
             bad.append("adversarial property missing: " + msg)
 
-    ids = {k: {r[c.tables[k].pk[0]] for r in v} for k, v in TABLES.items()}
+    ids = {k: {r[c.tables[k].pk[0]] for r in v} for k, v in TABLES.items()
+           if c.tables.get(k) and c.tables[k].pk}
     traded_instr = {t["INSTRUMENT_ID"] for t in TRADE}
     traded_cpty = {t["COUNTERPARTY_ID"] for t in TRADE}
 
@@ -663,6 +710,25 @@ def check(c: Corpus) -> list[str]:
         not ({"BUY", "SELL"} & codes))
     has("A14 UNMAPPED_ENUM: a SIDE code with no EnumerationMapping entry",
         bool(codes - {"B", "BOT", "S"}))
+    # A15 — each edge asserted separately, so losing one is a named failure.
+    ms = CPTY_RATING_MS
+    cur = {r["COUNTERPARTY_ID"] for r in ms if r["THRU_Z"] == INFINITY}
+    allc = {r["COUNTERPARTY_ID"] for r in ms}
+    has("A15 a version boundary landing exactly on 2024-06-07",
+        any(r["FROM_Z"] == _iso(2024, 6, 7) for r in ms))
+    has("A15 an entity whose rating was withdrawn (no current version)", bool(allc - cur))
+    has("A15 an entity with no rating history at all",
+        bool({r["COUNTERPARTY_ID"] for r in COUNTERPARTY} - allc))
+    has("A15 an entity with exactly one version",
+        any(sum(1 for r in ms if r["COUNTERPARTY_ID"] == x) == 1 for x in allc))
+    has("A15 an entity with three versions",
+        any(sum(1 for r in ms if r["COUNTERPARTY_ID"] == x) == 3 for x in allc))
+    for x in sorted(allc):
+        vs = sorted((r["FROM_Z"], r["THRU_Z"]) for r in ms if r["COUNTERPARTY_ID"] == x)
+        for (_f1, t1), (f2, _t2) in zip(vs, vs[1:]):
+            if t1 != f2:
+                bad.append(f"CPTY_RATING_MS {x}: gap or overlap between {t1} and {f2}; "
+                           f"SCD2 versions must abut exactly")
     venues = {r["EXECUTION_VENUE"] for r in TRADE}
     has("A12 CASE_SENSITIVE venue codes",
         any(v.lower() in {o.lower() for o in venues - {v}} for v in venues))

@@ -117,6 +117,44 @@ EMBEDDED = _embedded_variant(CANONICAL)
 INVARIANCE = [CANONICAL, FLAT, EMBEDDED]
 
 
+# ---------------------------------------------------------------- L3 temporal
+#
+# The same question asked at four business dates. T1 and T2 are one day apart and
+# straddle CP-0003's version boundary, which is the assertion that matters: the interval
+# is [FROM, THRU), so 2024-06-06 must return the OLD rating and 2024-06-07 the NEW one.
+# An implementation that treated THRU as inclusive returns the old rating on the day the
+# new one took effect — a wrong answer that reads as entirely reasonable.
+
+def _temporal(n: int, name: str, as_of: str, doc: str) -> Spec:
+    s = Spec(f"{PREFIX}{n}_{name}", f"/stress/t{n}", doc, "counterparty::RatingVersion")
+    s.as_of = as_of
+    s.projections = [Proj(a, [a]) for a in
+                     ("counterpartyId", "rating", "agency", "outlook",
+                      "isInvestmentGrade")]
+    return s
+
+
+TEMPORAL = [
+    _temporal(10, "RatingsAsOf2019", "2019-01-01",
+              "Before CP-0003 and CP-0004 were onboarded: only the two oldest "
+              "counterparties have a rating in force."),
+    _temporal(11, "RatingsAsOf2021", "2021-01-01",
+              "CP-0004 still rated (its rating is withdrawn in 2022) and CP-0001 is in "
+              "its middle version — a date where the answer differs from BOTH the "
+              "earliest and the current state."),
+    _temporal(12, "RatingsDayBeforeChange", "2024-06-06",
+              "The day BEFORE CP-0003 crosses out of investment grade. Must return BBB."),
+    _temporal(13, "RatingsOnChangeDate", "2024-06-07",
+              "The day the new version takes effect. [FROM, THRU) is start-inclusive and "
+              "end-EXCLUSIVE, so this must return BB+, not BBB. One day apart from T12 "
+              "and the only difference between them is the boundary rule."),
+    _temporal(14, "RatingsLatest", "latest",
+              "%latest — the rows whose THRU is the infinity date. CP-0004's rating was "
+              "withdrawn without a successor, so it must NOT appear; CP-0005 has no "
+              "history at all and never appears."),
+]
+
+
 DERIVED = [
     _spec(7, "TradeDerivedProperties", "trading::Trade",
           "Derived properties alongside the columns they are computed from, so a wrong "
@@ -144,7 +182,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + DERIVED + [
+SPECS = INVARIANCE + TEMPORAL + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

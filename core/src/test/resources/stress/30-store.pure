@@ -113,6 +113,35 @@ Database store::DB
     Join ReconciliationItem_Position(RECONCILIATION_ITEM.POSITION_ID = POSITION.POSITION_ID)
     Join PositionSnapshot_Position(POSITION_SNAPSHOT.POSITION_ID = POSITION.POSITION_ID)
 
+    // ---- L3: business-temporal (SCD2) reference data ----
+    // A counterparty's credit rating changes over time and the history is kept. This is
+    // the single most common temporal shape in a bank, and it is the one that makes
+    // "as of when?" a real question rather than a decoration.
+    //
+    // The milestoning block must come FIRST inside the parentheses, ahead of the columns.
+    // PRIMARY KEY is COMPOSITE (id + FROM_Z) because the whole point is several rows per
+    // counterparty; declaring only COUNTERPARTY_ID compiles and then fails at insert time
+    // when the test harness generates DDL from this schema.
+    //
+    // INFINITY_DATE is REQUIRED for %latest. Without it the milestoning parses, compiles
+    // and serves dated queries perfectly well, and only %latest fails -- at plan
+    // generation, with "requires it to specify a milestoning 'INFINITY_DATE'". The
+    // open-ended THRU_Z values in the seed must match it exactly.
+    Table CPTY_RATING_MS
+    (
+      milestoning
+      (
+        business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31)
+      )
+      COUNTERPARTY_ID VARCHAR(200) PRIMARY KEY,
+      FROM_Z DATE PRIMARY KEY,
+      THRU_Z DATE,
+      RATING VARCHAR(20),
+      AGENCY VARCHAR(50),
+      OUTLOOK VARCHAR(20),
+      IS_INVESTMENT_GRADE BIT
+    )
+
     // ---- L2: the denormalized reporting table ----
     // Every firm has one. It carries the trade together with the reference data a report
     // needs, so a report does not join at read time. Its rows are DERIVED from the

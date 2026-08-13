@@ -1,0 +1,20 @@
+// ============================================================
+// Temporal Domain (L3) — business-temporal (SCD2) reference data
+// ============================================================
+// The stereotype is what makes the class temporal. Once it carries
+// <<temporal.businesstemporal>>, `all()` no longer means "every row" — it means "the
+// version in force at a date", and the date becomes part of the query: all(%2024-06-07),
+// all(%latest).
+//
+// Note there are no from/thru PROPERTIES on the class. The milestoning columns live on
+// the table and the engine supplies the predicate; exposing them as properties would let
+// a query filter on them directly and quietly bypass the whole mechanism.
+###Pure
+Class <<temporal.businesstemporal>> counterparty::RatingVersion
+{
+    counterpartyId: String[1];
+    rating: String[0..1];
+    agency: String[0..1];
+    outlook: String[0..1];
+    isInvestmentGrade: Boolean[0..1];
+}

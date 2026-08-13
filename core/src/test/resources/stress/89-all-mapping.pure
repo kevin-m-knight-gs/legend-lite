@@ -8,6 +8,7 @@
 ###Mapping
 Mapping stress::AllMapping
 (
+    include counterparty::TemporalMapping
     include products::ProductsMapping
     include refdata::RefdataMapping
     include counterparty::CounterpartyMapping

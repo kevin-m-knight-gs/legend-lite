@@ -62,9 +62,21 @@ class Column:
 
 
 @dataclass
+class Milestoning:
+    """Business-temporal (SCD2) or processing-temporal columns on a table."""
+    kind: str          # 'business' | 'processing'
+    frm: str
+    thru: str
+    # Required for %latest. Absent, dated queries still work and only %latest fails —
+    # at plan generation, not at compile.
+    infinity: str | None = None
+
+
+@dataclass
 class Table:
     name: str
     columns: dict[str, Column] = field(default_factory=dict)
+    milestoning: Milestoning | None = None
 
     @property
     def pk(self) -> list[str]:
@@ -119,6 +131,14 @@ class Klass:
     fqn: str
     props: dict[str, Prop] = field(default_factory=dict)
     derived: dict[str, Derived] = field(default_factory=dict)
+    stereotypes: list[str] = field(default_factory=list)
+
+    @property
+    def temporal(self) -> str | None:
+        for s in self.stereotypes:
+            if s.startswith("temporal."):
+                return s.split(".", 1)[1]
+        return None
 
 
 @dataclass
@@ -241,7 +261,8 @@ class Corpus:
 
 _TABLE = re.compile(r"^\s*Table\s+(\w+)\s*\((.*)\)\s*$")
 _JOIN = re.compile(r"^\s*Join\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)\s*\)\s*$")
-_CLASS = re.compile(r"^\s*Class\s+([\w:]+)\s*$")
+# Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
+_CLASS = re.compile(r"^\s*Class\s+(?:<<([^>]*)>>\s*)?([\w:]+)\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
 _ENUM = re.compile(r"^\s*Enum\s+([\w:]+)\s*$")
 _PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
@@ -276,19 +297,53 @@ def _mult(s: str) -> tuple[int, int | None]:
     return int(s), int(s)
 
 
+_MILESTONING = re.compile(
+    r"milestoning\s*\(\s*(business|processing)\s*\("
+    r"\s*(?:BUS_FROM|PROCESSING_IN)\s*=\s*(\w+)\s*,"
+    r"\s*(?:BUS_THRU|PROCESSING_OUT)\s*=\s*(\w+)\s*"
+    r"(?:,\s*INFINITY_DATE\s*=\s*%([\d:.T-]+)\s*)?\)\s*\)", re.S)
+
+
+def _table_bodies(text: str) -> list[tuple[str, str]]:
+    """(name, body) for every Table, matching parentheses so a declaration may span lines.
+
+    The single-line reader this replaces could not see the canonical milestoned form,
+    where `milestoning ( business(BUS_FROM = ..., BUS_THRU = ...) )` sits on its own lines
+    ahead of the columns.
+    """
+    out = []
+    for m in re.finditer(r"\bTable\s+(\w+)\s*\(", text):
+        i, depth = m.end(), 1
+        while depth and i < len(text):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+            i += 1
+        out.append((m.group(1), text[m.end():i - 1]))
+    return out
+
+
 def _parse_store(text: str, c: Corpus) -> None:
+    text = "\n".join(_strip(l) for l in text.splitlines())
+    for name, body in _table_bodies(text):
+        t = Table(name)
+        ms = _MILESTONING.search(body)
+        if ms:
+            t.milestoning = Milestoning(ms.group(1), ms.group(2), ms.group(3),
+                                        ms.group(4))
+            body = _MILESTONING.sub("", body)
+        for spec in _split_cols(body):
+            spec = " ".join(spec.split())
+            if not spec:
+                continue
+            parts = spec.split()
+            t.columns[parts[0]] = Column(parts[0], parts[1],
+                                         spec.upper().endswith("PRIMARY KEY"))
+        c.tables[t.name] = t
+
     for raw in text.splitlines():
         line = _strip(raw)
-        m = _TABLE.match(line)
-        if m:
-            t = Table(m.group(1))
-            for spec in _split_cols(m.group(2)):
-                parts = spec.split()
-                pk = spec.upper().endswith("PRIMARY KEY")
-                name, typ = parts[0], parts[1]
-                t.columns[name] = Column(name, typ, pk)
-            c.tables[t.name] = t
-            continue
         m = _JOIN.match(line)
         if m:
             n, lt, lc, rt, rc = m.groups()
@@ -324,8 +379,9 @@ def _parse_domain(text: str, c: Corpus) -> None:
             continue
         m = _CLASS.match(line)
         if m:
-            cur_class, cur_assoc, cur_enum = m.group(1), None, None
-            c.classes.setdefault(cur_class, Klass(cur_class))
+            cur_class, cur_assoc, cur_enum = m.group(2), None, None
+            k = c.classes.setdefault(cur_class, Klass(cur_class))
+            k.stereotypes = [s.strip() for s in (m.group(1) or "").split(",") if s.strip()]
             continue
         m = _ASSOC.match(line)
         if m:

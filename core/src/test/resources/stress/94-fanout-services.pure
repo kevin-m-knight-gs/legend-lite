@@ -209,6 +209,291 @@ Service stress::N2_TradeEmbeddedFlat
   ]
 }
 
+Service stress::F10_RatingsAsOf2019
+{
+    pattern: '/stress/t10';
+    documentation: 'Before CP-0003 and CP-0004 were onboarded: only the two oldest counterparties have a rating in force.';
+    execution: Single
+    {
+    query: |counterparty::RatingVersion.all(%2019-01-01)
+        ->project(~[
+            counterpartyId:x|$x.counterpartyId,
+            rating:x|$x.rating,
+            agency:x|$x.agency,
+            outlook:x|$x.outlook,
+            isInvestmentGrade:x|$x.isInvestmentGrade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F10_RatingsAsOf2019_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"counterpartyId":"CP-0001","rating":"AA","agency":"S&P","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0002","rating":"A+","agency":"Moody\'s","outlook":"STABLE","isInvestmentGrade":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::F11_RatingsAsOf2021
+{
+    pattern: '/stress/t11';
+    documentation: 'CP-0004 still rated (its rating is withdrawn in 2022) and CP-0001 is in its middle version — a date where the answer differs from BOTH the earliest and the current state.';
+    execution: Single
+    {
+    query: |counterparty::RatingVersion.all(%2021-01-01)
+        ->project(~[
+            counterpartyId:x|$x.counterpartyId,
+            rating:x|$x.rating,
+            agency:x|$x.agency,
+            outlook:x|$x.outlook,
+            isInvestmentGrade:x|$x.isInvestmentGrade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F11_RatingsAsOf2021_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"counterpartyId":"CP-0001","rating":"A+","agency":"S&P","outlook":"NEGATIVE","isInvestmentGrade":true},{"counterpartyId":"CP-0002","rating":"A+","agency":"Moody\'s","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0003","rating":"BBB","agency":"Fitch","outlook":"NEGATIVE","isInvestmentGrade":true},{"counterpartyId":"CP-0004","rating":"BBB-","agency":"Fitch","outlook":"NEGATIVE","isInvestmentGrade":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::F12_RatingsDayBeforeChange
+{
+    pattern: '/stress/t12';
+    documentation: 'The day BEFORE CP-0003 crosses out of investment grade. Must return BBB.';
+    execution: Single
+    {
+    query: |counterparty::RatingVersion.all(%2024-06-06)
+        ->project(~[
+            counterpartyId:x|$x.counterpartyId,
+            rating:x|$x.rating,
+            agency:x|$x.agency,
+            outlook:x|$x.outlook,
+            isInvestmentGrade:x|$x.isInvestmentGrade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F12_RatingsDayBeforeChange_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"counterpartyId":"CP-0001","rating":"AA-","agency":"S&P","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0002","rating":"A+","agency":"Moody\'s","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0003","rating":"BBB","agency":"Fitch","outlook":"NEGATIVE","isInvestmentGrade":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::F13_RatingsOnChangeDate
+{
+    pattern: '/stress/t13';
+    documentation: 'The day the new version takes effect. [FROM, THRU) is start-inclusive and end-EXCLUSIVE, so this must return BB+, not BBB. One day apart from T12 and the only difference between them is the boundary rule.';
+    execution: Single
+    {
+    query: |counterparty::RatingVersion.all(%2024-06-07)
+        ->project(~[
+            counterpartyId:x|$x.counterpartyId,
+            rating:x|$x.rating,
+            agency:x|$x.agency,
+            outlook:x|$x.outlook,
+            isInvestmentGrade:x|$x.isInvestmentGrade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F13_RatingsOnChangeDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"counterpartyId":"CP-0001","rating":"AA-","agency":"S&P","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0002","rating":"A+","agency":"Moody\'s","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0003","rating":"BB+","agency":"Fitch","outlook":"NEGATIVE","isInvestmentGrade":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::F14_RatingsLatest
+{
+    pattern: '/stress/t14';
+    documentation: '%latest — the rows whose THRU is the infinity date. CP-0004\'s rating was withdrawn without a successor, so it must NOT appear; CP-0005 has no history at all and never appears.';
+    execution: Single
+    {
+    query: |counterparty::RatingVersion.all(%latest)
+        ->project(~[
+            counterpartyId:x|$x.counterpartyId,
+            rating:x|$x.rating,
+            agency:x|$x.agency,
+            outlook:x|$x.outlook,
+            isInvestmentGrade:x|$x.isInvestmentGrade
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F14_RatingsLatest_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"counterpartyId":"CP-0001","rating":"AA-","agency":"S&P","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0002","rating":"A+","agency":"Moody\'s","outlook":"STABLE","isInvestmentGrade":true},{"counterpartyId":"CP-0003","rating":"BB+","agency":"Fitch","outlook":"NEGATIVE","isInvestmentGrade":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F7_TradeDerivedProperties
 {
     pattern: '/stress/f7';

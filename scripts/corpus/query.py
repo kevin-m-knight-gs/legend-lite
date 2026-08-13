@@ -46,6 +46,9 @@ class Spec:
     pattern: str
     doc: str
     root: str            # trading::Trade
+    # Business date for a <<temporal.businesstemporal>> root: an ISO date, or the literal
+    # 'latest'. None for a non-temporal class, where all() takes no argument.
+    as_of: str | None = None
     projections: list[Proj] = field(default_factory=list)
     filters: list[Pred] = field(default_factory=list)
     sort: tuple[str, bool] | None = None    # (alias, descending)
@@ -66,7 +69,7 @@ class Spec:
 _SERVICE = re.compile(r"^Service\s+([\w:]+)\s*$")
 _PATTERN = re.compile(r"pattern:\s*'([^']*)'")
 _DOC = re.compile(r"documentation:\s*'((?:[^']|'')*)'")
-_ROOT = re.compile(r"query:\s*\|([\w:]+)\.all\(\)")
+_ROOT = re.compile(r"query:\s*\|([\w:]+)\.all\(\s*(%[\w-]+)?\s*\)")
 _ALIASED = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2\.(.+)$")
 _AGGED = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2\.(.+?)->(count)\(\)$")
 _FILTER = re.compile(r"->filter\(\s*\{\s*(\w+)\s*\|(.*?)\}\s*\)", re.S)
@@ -182,6 +185,8 @@ def _finish(name: str, body: str) -> Spec:
     if not (pat and root):
         raise ValueError(f"service {name}: missing pattern or root")
     s = Spec(name, pat.group(1), doc.group(1) if doc else "", root.group(1))
+    if root.group(2):
+        s.as_of = root.group(2)[1:]
     s.projections = _projections(_project_body(body))
     f = _FILTER.search(body)
     if f:

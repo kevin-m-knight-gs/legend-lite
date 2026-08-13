@@ -292,6 +292,44 @@ def _agg(c: Corpus, data, row, root: str, proj):
     raise Fanout(f"unhandled aggregate {proj.agg!r}")
 
 
+# Legend's default infinity date. A business-temporal row carrying it in its THRU column
+# is the CURRENT version, and that is what `%latest` selects.
+INFINITY = "9999-12-31"
+
+
+def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
+    """Apply the business-milestoning predicate for a temporal root.
+
+    The interval is [FROM, THRU) — inclusive at the start, EXCLUSIVE at the end. That
+    boundary is the whole reason CP-0003's version change is seeded exactly on
+    2024-06-07: an implementation that made THRU inclusive returns the OLD rating on the
+    day the new one took effect, which is a wrong answer that looks entirely reasonable.
+    """
+    klass = c.classes.get(spec.root)
+    temporal = klass.temporal if klass else None
+    table = c.tables[c.main_table[spec.root]]
+
+    if temporal is None:
+        if spec.as_of is not None:
+            raise Fanout(f"{spec.short}: as-of date given for non-temporal {spec.root}")
+        return rows
+    if temporal != "businesstemporal":
+        raise Fanout(f"{spec.short}: {temporal} milestoning is not modelled")
+    if table.milestoning is None:
+        raise Fanout(f"{spec.short}: {spec.root} is temporal but {table.name} declares "
+                     f"no milestoning columns")
+    if spec.as_of is None:
+        raise Fanout(f"{spec.short}: {spec.root} is business-temporal, so all() needs a "
+                     f"business date")
+
+    frm, thru = table.milestoning.frm, table.milestoning.thru
+    if spec.as_of == "latest":
+        return [r for r in rows if r.get(thru) == INFINITY]
+    return [r for r in rows
+            if r.get(frm) is not None and r.get(frm) <= spec.as_of
+            and (r.get(thru) is None or spec.as_of < r.get(thru))]
+
+
 def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     """Returns the rows the service must produce, as alias -> python value."""
     plain = [p for p in spec.projections if p.agg is None]
@@ -299,7 +337,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
-    base = data[c.main_table[spec.root]]
+    base = _milestoned(c, spec, data[c.main_table[spec.root]])
     kept = [r for r in base
             if all(_cmp(f.op, _value(c, data, r, spec.root, f.path), f.value)
                    for f in spec.filters)]

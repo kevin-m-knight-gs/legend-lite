@@ -145,6 +145,25 @@ def break_embedded_mapping(f):
     return f
 
 
+def shift_milestone_boundary(f):
+    """Move CP-0003's version change one day earlier. T12 (2024-06-06) and T13
+    (2024-06-07) are one day apart specifically to straddle it, so the pair must notice
+    even though every other date is unaffected."""
+    f["93"] = _sub_once(f["93"], r"CP-0003,2024-06-07,", "CP-0003,2024-06-06,",
+                        "shift_milestone_boundary")
+    return f
+
+
+def break_infinity_date(f):
+    """Close an open-ended version with a far-future date that is NOT the declared
+    INFINITY_DATE. Dated queries are unchanged — 2099 is still after every date asked —
+    so ONLY %latest can notice, which is what proves %latest keys on the infinity value
+    rather than on 'the newest row'."""
+    f["93"] = _sub_once(f["93"], r"CP-0002,2013-08-22,9999-12-31,",
+                        "CP-0002,2013-08-22,2099-12-31,", "break_infinity_date")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -165,6 +184,8 @@ MUTATIONS = {
     "qualified_ignores_arg": qualified_ignores_arg,
     "break_denormalization": break_denormalization,
     "break_embedded_mapping": break_embedded_mapping,
+    "shift_milestone_boundary": shift_milestone_boundary,
+    "break_infinity_date": break_infinity_date,
 }
 
 # Mutations that MUST survive. A corpus claims coverage by what it catches; it should be
