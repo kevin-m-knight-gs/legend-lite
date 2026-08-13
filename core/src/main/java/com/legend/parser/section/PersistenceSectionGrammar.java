@@ -115,8 +115,10 @@ public final class PersistenceSectionGrammar
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "persister" -> {
+                    // validation DEFERRED: the engine walker checks the
+                    // element trio (doc/trigger/service) BEFORE visiting
+                    // the persister (probed pins #4/#8/#12/#16)
                     persister = parseNode(c);
-                    validateNode(c, "persister", persister);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceOutputTargets" -> {
@@ -142,6 +144,9 @@ public final class PersistenceSectionGrammar
                 throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(),
                         declStart, "Field '" + r + "' is required");
             }
+        }
+        if (persister != null) {
+            validateNode(c, "persister", persister);
         }
         return new Protocol.PPersistence(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), doc,
@@ -240,33 +245,57 @@ public final class PersistenceSectionGrammar
         // Persistence family carried 67 of the 288 line diverges)
         int line = node.sourceInformation().startLine();
         int col = node.sourceInformation().startColumn();
+        // the engine walker extracts each field IN ORDER (once + required
+        // check, then an immediate visit that recurses) — so a nested
+        // error in an EARLIER field outranks a missing LATER field
+        // (probed pin #72: MultiFlat 'parts' beats Batch 'ingestMode')
+        List<String> ordered = REQUIRED_FIELDS.get(slot + "/" + node.kind());
+        java.util.Set<String> walked = new java.util.HashSet<>();
+        if (ordered != null) {
+            for (String r : ordered) {
+                walked.add(r);
+                long n = node.entries().stream()
+                        .filter(e -> r.equals(e.key())).count();
+                if (n > 1) {
+                    throw new com.legend.parser.ParseException("Field '" + r
+                            + "' should be specified only once", line, col);
+                }
+                if (n == 0) {
+                    throw new com.legend.parser.ParseException(
+                            "Field '" + r + "' is required", line, col);
+                }
+                for (Protocol.PPersistenceEntry e : node.entries()) {
+                    if (r.equals(e.key())) {
+                        recurseEntry(c, e);
+                    }
+                }
+            }
+        }
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (Protocol.PPersistenceEntry e : node.entries()) {
-            if (!seen.add(e.key())) {
+            if (!walked.contains(e.key()) && !seen.add(e.key())) {
                 throw new com.legend.parser.ParseException("Field '" + e.key()
                         + "' should be specified only once", line, col);
             }
         }
-        List<String> req = REQUIRED_FIELDS.get(slot + "/" + node.kind());
-        if (req != null) {
-            for (String r : req) {
-                if (!seen.contains(r)) {
-                    throw new com.legend.parser.ParseException(
-                            "Field '" + r + "' is required", line, col);
-                }
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            if (!walked.contains(e.key())) {
+                recurseEntry(c, e);
             }
         }
-        for (Protocol.PPersistenceEntry e : node.entries()) {
-            switch (e) {
-                case Protocol.PPersistenceEntry.Node nd ->
-                        validateNode(c, nd.key(), nd.node());
-                case Protocol.PPersistenceEntry.NodeList nl -> {
-                    for (Protocol.PPersistenceNode n : nl.nodes()) {
-                        validateNode(c, nl.key(), n);
-                    }
+    }
+
+    private static void recurseEntry(TokenStreamCursor c,
+            Protocol.PPersistenceEntry e) {
+        switch (e) {
+            case Protocol.PPersistenceEntry.Node nd ->
+                    validateNode(c, nd.key(), nd.node());
+            case Protocol.PPersistenceEntry.NodeList nl -> {
+                for (Protocol.PPersistenceNode n : nl.nodes()) {
+                    validateNode(c, nl.key(), n);
                 }
-                default -> {
-                }
+            }
+            default -> {
             }
         }
     }
@@ -811,17 +840,36 @@ public final class PersistenceSectionGrammar
                             c.tokens().startColumn(embStart) - 1,
                             c.dialect()), entries, null);
                     if ("AwsGlue".equals(kind)) {
-                        // engine-verbatim (cloud pins #4/#7)
+                        // engine-verbatim (cloud pins #4/#7); the cloud
+                        // extension parses the ISLAND CONTENT as its own
+                        // source, so errors anchor at the first content
+                        // token — or the ANTLR EOF position (island-end
+                        // line, col 1) when the island is empty (probed)
+                        var embTs = com.legend.lexer.Lexer.tokenize(emb);
+                        int aLine;
+                        int aCol;
+                        if (embTs.count() > 0) {
+                            int l = embTs.startLine(0);
+                            aLine = l + c.tokens().startLine(embStart) - 1;
+                            aCol = l == 1
+                                    ? embTs.startColumn(0)
+                                            + c.tokens().startColumn(embStart) - 1
+                                    : embTs.startColumn(0);
+                        } else {
+                            aLine = c.tokens().startLine(c.pos());
+                            aCol = 1;
+                        }
                         long dpu = entries.stream().filter(en ->
                                 "dataProcessingUnits".equals(en.key())).count();
                         if (dpu == 0) {
-                            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), keyStart,
-                                    "Field 'dataProcessingUnits' is required");
+                            throw new com.legend.parser.ParseException(
+                                    "Field 'dataProcessingUnits' is required",
+                                    aLine, aCol);
                         }
                         if (dpu > 1) {
-                            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), keyStart,
+                            throw new com.legend.parser.ParseException(
                                     "Field 'dataProcessingUnits' should"
-                                    + " be specified only once");
+                                    + " be specified only once", aLine, aCol);
                         }
                     }
                     SourceInfo cs = c.spanOf(embStart, embStart);
