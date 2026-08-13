@@ -126,7 +126,9 @@ public class ParseMain
     private static String oneLine(Exception e)
     {
         String m = e.getMessage();
-        if (m == null) m = e.getClass().getSimpleName();
+        // Some walkers throw with a message of literally "Error", which names nothing.
+        // Qualify it, otherwise diagnosing a rejected fixture means re-running by hand.
+        if (m == null || m.length() < 12) m = e.getClass().getSimpleName() + ": " + m;
         m = m.replaceAll("\\s+", " ").trim();
         return m.length() > 220 ? m.substring(0, 220) + "..." : m;
     }

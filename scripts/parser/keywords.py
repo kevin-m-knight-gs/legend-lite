@@ -42,6 +42,13 @@ _TOKEN = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*:\s*'([^']+)'", re.M)
 # to cover '{'.
 _PUNCT = re.compile(r"^[^A-Za-z]+$")
 
+# Escape sequences, not spellings. GraphQL declares its three byte-order marks as literal
+# tokens -- UTF8_BOM: 'BF' and friends -- and the harvest was reading the escape TEXT
+# and reporting `BF` as a keyword nobody had covered. A BOM is a file encoding
+# artifact, not a construct a user types, and demanding a fixture for one would be asking
+# the corpus to prove something about its own file headers.
+_ESCAPE = re.compile(r"^\\[uU]")
+
 
 def harvest() -> dict[str, set[str]]:
     """grammar file stem -> the literal keywords it defines."""
@@ -49,9 +56,50 @@ def harvest() -> dict[str, set[str]]:
     for g4 in sorted(ENGINE.rglob("*.g4")):
         text = g4.read_text(errors="replace")
         for _token, literal in _TOKEN.findall(text):
-            if _PUNCT.match(literal):
+            if _PUNCT.match(literal) or _ESCAPE.match(literal):
                 continue
             out[g4.stem].add(literal)
+    return dict(out)
+
+
+_VOCAB = re.compile(r"tokenVocab\s*=\s*([A-Za-z0-9_]+)")
+
+
+def dead_tokens() -> dict[str, set[str]]:
+    """Keywords a lexer DECLARES that no parser rule can ever reach.
+
+    ANTLR token namespaces are per-grammar, and the link is `options { tokenVocab = X; }`.
+    So a token is reachable only if a parser grammar importing THAT vocabulary names it.
+    Searching all parser grammars instead would call `host` reachable because some other
+    grammar happens to define its own HOST -- which is how this was nearly missed.
+
+    AuthenticationStrategyLexerGrammar declares ten of these. Writing `host` inside an
+    `auth:` block is rejected with "Valid alternatives: ['baseVaultReference',
+    'userNameVaultReference', 'passwordVaultReference']" -- the token lexes and no rule
+    accepts it. They are excluded from the denominator because no fixture can cover them:
+    100% is not a target if part of the target is unreachable by construction.
+
+    A grammar nothing imports by vocabulary (combined grammars like GraphQL; lexers pulled
+    in by ANTLR `import` like Core and M3) falls back to every grammar's text, which is
+    generous on purpose -- silence is the right answer when the link cannot be established.
+    """
+    consumers: dict[str, list[str]] = defaultdict(list)
+    every = []
+    for g4 in ENGINE.rglob("*.g4"):
+        text = g4.read_text(errors="replace")
+        every.append(text)
+        for vocab in _VOCAB.findall(text):
+            consumers[vocab].append(text)
+    all_text = "\n".join(every)
+
+    out: dict[str, set[str]] = defaultdict(set)
+    for g4 in sorted(ENGINE.rglob("*.g4")):
+        reachable_in = "\n".join(consumers.get(g4.stem, [])) or all_text
+        for name, literal in _TOKEN.findall(g4.read_text(errors="replace")):
+            if _PUNCT.match(literal) or _ESCAPE.match(literal):
+                continue
+            if not re.search(rf"(?<![A-Za-z0-9_]){name}(?![A-Za-z0-9_])", reachable_in):
+                out[g4.stem].add(literal)
     return dict(out)
 
 

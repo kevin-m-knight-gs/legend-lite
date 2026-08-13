@@ -1,0 +1,9 @@
+// legend-engine's GRAMMAR accepts `native function`; its WALKER does not.
+// DomainParseTreeWalker.visitElement handles class/association/enum/profile/function/
+// measure and falls through to "Unsupported syntax".
+//
+// This is a negative fixture: it MUST be rejected. legend-lite has to refuse it too, and
+// refuse it at parse time rather than accepting it and failing later -- parity on refusal
+// is still parity, and a rewrite that quietly ACCEPTED this would diverge silently.
+###Pure
+native function fixture::neg::dayOfWeekNumber(d: Date[1]): Integer[1];

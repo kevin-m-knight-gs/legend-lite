@@ -1,0 +1,36 @@
+// COVERS RuntimeLexerGrammar: SingleConnectionRuntime, connection, connectionStores
+//
+// Three of the seven Runtime keywords. The stress corpus writes only the `Runtime` element
+// with `connections:` -- store-keyed. `connectionStores:` is the INVERSE direction, keyed by
+// connection, and `connection:` (singular) is legal only inside SingleConnectionRuntime.
+###Connection
+JsonModelConnection fixture::rt::ModelConn
+{
+   class: fixture::rt::Person;
+   url: 'model://fixture/person';
+}
+
+###Runtime
+SingleConnectionRuntime fixture::rt::SingleRT
+{
+   mappings:
+   [
+      fixture::rt::PersonMapping
+   ];
+   connection: fixture::rt::ModelConn;
+}
+
+Runtime fixture::rt::StoreKeyedRT
+{
+   mappings:
+   [
+      fixture::rt::PersonMapping
+   ];
+   connectionStores:
+   [
+      fixture::rt::ModelConn:
+      [
+         fixture::rt::PersonDB
+      ]
+   ];
+}

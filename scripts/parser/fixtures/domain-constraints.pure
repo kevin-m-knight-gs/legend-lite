@@ -1,0 +1,44 @@
+// COVERS DomainLexerGrammar: ~owner, ~externalId, ~function, ~enforcementLevel, ~message, Error, Warn
+//
+// The COMPLEX constraint form. The stress corpus writes constraints, but only the short
+// `id: <expr>` shape, so five of the six clause keywords and both enforcement levels had
+// never been parsed by anything here.
+//
+// Clause order is fixed by the grammar and is not stylistic:
+//     ~owner? ~externalId? ~function ~enforcementLevel? ~message?
+// with ~function the only required clause. Reordering is a parse error, which is why the
+// negative corpus carries the reordered variant.
+###Pure
+Class fixture::domain::Constrained
+[
+   everyClause
+   (
+      ~owner: riskOps
+      ~externalId: 'RISK-001'
+      ~function: $this.notional > 0
+      ~enforcementLevel: Error
+      ~message: 'notional must be positive, got ' + $this.notional->toString()
+   ),
+   warnOnly
+   (
+      ~function: $this.code->startsWith('X')
+      ~enforcementLevel: Warn
+   ),
+   minimal
+   (
+      ~function: $this.code->length() > 2
+   ),
+   shortForm: $this.notional < 1000000
+]
+{
+   code: String[1];
+   notional: Float[1];
+}
+
+function fixture::domain::constrainedFunction(n: Integer[1]): Integer[1]
+[
+   positive: $n > 0
+]
+{
+   $n * 2;
+}

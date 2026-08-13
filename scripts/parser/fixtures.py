@@ -169,13 +169,24 @@ def main() -> None:
               f"rejected, {rc_neg} WRONGLY ACCEPTED")
     print()
 
+    # Unreachable surface is removed from the denominator, not quietly counted as missing.
+    # A target that includes keywords no fixture can ever cover makes 100% impossible and
+    # turns the number into a permanent accusation instead of a goal.
+    dead = K.dead_tokens()
     for label, stems in (("TIER 1  core Legend surface", tiers.TIER1),
                          ("TIER 1  embedded (GraphQL)", tiers.TIER1_EMBEDDED)):
-        total = set().union(*[grammars[s] for s in stems if s in grammars])
+        declared = set().union(*[grammars[s] for s in stems if s in grammars])
+        unreachable = set().union(*[dead.get(s, set()) for s in stems]) if stems else set()
+        unreachable |= {k for (s, k) in tiers.WALKER_REJECTED if s in stems}
+        total = declared - unreachable
         got = set().union(*[have.get(s, set()) for s in stems]) if stems else set()
+        got &= total
         fx = set().union(*[from_fixtures.get(s, set()) for s in stems]) if stems else set()
-        print(f"{label:<32}{len(got):>5} of {len(total):<5} missing {len(total - got):<5}"
-              f"({len(fx - existing_union(existing, stems))} from new fixtures)")
+        pct = f"{len(got) / len(total):.0%}" if total else "n/a"
+        print(f"{label:<32}{len(got):>5} of {len(total):<5}{pct:>5}   "
+              f"missing {len(total - got):<4} "
+              f"(+{len(unreachable)} unreachable, excluded)")
+        _ = fx
 
     if "--gaps" in sys.argv:
         print("\nstill missing, by grammar:\n")

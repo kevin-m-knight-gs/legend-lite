@@ -1,0 +1,16 @@
+// COVERS ModelConnectionLexerGrammar: class, url
+//
+// JsonModelConnection and XmlModelConnection. The stress corpus uses ModelChainConnection
+// for its M2M work, which covers `mappings` and neither of these.
+###Connection
+JsonModelConnection fixture::conn::Json
+{
+   class: fixture::conn::Person;
+   url: 'model://fixture/person.json';
+}
+
+XmlModelConnection fixture::conn::Xml
+{
+   class: fixture::conn::Person;
+   url: 'model://fixture/person.xml';
+}

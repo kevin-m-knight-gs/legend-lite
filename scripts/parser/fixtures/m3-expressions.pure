@@ -1,23 +1,35 @@
-// COVERS M3LexerGrammar: let, toBytes
+// COVERS M3LexerGrammar: let, allVersions
 //
-// Expression-level Pure. `let` is the one that matters here: the stress corpus is 30+
-// files and 89 services and has never written a local variable, because every generated
-// function body is a single chained expression.
+// Expression-level Pure. `let` is the one that matters: the stress corpus is 30+ files and
+// 89 services and has never written a local variable, because every generated function body
+// is a single chained expression.
+//
+// `toBytes` is NOT declared here, and the reason is worth recording. Writing `$s->toBytes()`
+// in a function body parses -- but it lexes as an ordinary function call, not as M3's
+// TO_BYTES token, which is reachable only from `primitiveValueAtomic` (test parameters and
+// EqualTo expected values). Declaring it here would have been a false credit that this
+// harness could not detect, since the COVERS check only proves the text is present. It is
+// covered by service-testsuite.pure instead, in a position where the token is really used.
+//
+// `allVersionsInRange` is absent for a harder reason: DomainParseTreeWalker.java:1742
+// throws unconditionally. The branch exists only to reject -- `allVersions` on the line
+// above maps to getAllVersions. It is in ../negative/ with the rest of the surface
+// legend-engine declares and refuses.
 ###Pure
-Class fixture::m3::Holder
+Class <<meta::pure::profiles::temporal.businesstemporal>> fixture::m3::Product
 {
    name: String[1];
    size: Integer[1];
 }
 
-function fixture::m3::withLet(h: fixture::m3::Holder[1]): String[1]
+function fixture::m3::withLet(limit: Integer[1]): Integer[1]
 {
-   let prefix = 'id-';
-   let n = $h.size + 1;
-   $prefix + $n->toString();
+   let offset = $limit + 10;
+   let doubled = $offset * 2;
+   $doubled;
 }
 
-function fixture::m3::withToBytes(s: String[1]): meta::pure::metamodel::type::Any[1]
+function fixture::m3::everyVersion(): meta::pure::metamodel::type::Any[*]
 {
-   $s->toBytes();
+   fixture::m3::Product.allVersions()
 }

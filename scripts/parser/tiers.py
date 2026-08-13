@@ -103,6 +103,49 @@ OUT_OF_SCOPE = {
     ),
 }
 
+# Keywords whose GRAMMAR accepts them and whose WALKER then refuses them.
+#
+# Distinct from dead tokens (see keywords.dead_tokens), which no parser rule references at
+# all. These have a parser rule, parse cleanly as a tree, and are rejected when the walker
+# turns that tree into protocol. legend-engine declares surface its own front end will not
+# accept, so the honest denominator excludes them -- and the negative corpus asserts the
+# rejection, because legend-lite must refuse them too. Parity on refusal is still parity.
+#
+# Every entry was confirmed by running the construct through PureGrammarParser.parseModel,
+# not inferred from reading. The quoted text is what it actually said.
+WALKER_REJECTED = {
+    ("DomainLexerGrammar", "native"): (
+        "DomainParseTreeWalker.visitElement handles class/association/enum/profile/"
+        "function/measure and falls through to 'Unsupported syntax'. Observed on "
+        "`native function f(d: Date[1]): Integer[1];` -> Unsupported syntax."
+    ),
+    ("DomainLexerGrammar", "projects"): (
+        "UPSTREAM DEFECT, not merely unsupported. visitClass dereferences ctx.classBody(), "
+        "which is null for the projection form. Observed on `Class P projects Q { +[x] }` "
+        "-> \"An exception of type 'NullPointerException' occurred, please notify "
+        "developer\". A crash, with no source information and no construct named."
+    ),
+    ("M3LexerGrammar", "allVersionsInRange"): (
+        "DomainParseTreeWalker.java:1742 throws UNCONDITIONALLY -- the branch exists only "
+        "to reject. `allVersions` on the line above is supported and maps to getAllVersions. "
+        "Observed on both businesstemporal and bitemporal classes: '.allVersionsInRange"
+        "(%2018-1-1,%2018-1-9) is not supported'."
+    ),
+    ("GraphQL", "extend"): (
+        "GraphQLGrammarParser.visitDefinition has no branch for typeSystemExtension and "
+        "falls through to `throw new RuntimeException(\"Error\")`. The ANTLR grammar has "
+        "six extension rules (scalar/type/interface/union/schema/enum). Observed on "
+        "`extend type Firm { rank: Int }` -> EngineException: Error."
+    ),
+    ("EqualToTDSAssertionLexerGrammar", "EqualToTDS"): (
+        "An orphaned grammar. No TestAssertionParser registers the type, there is no "
+        "protocol class beside EqualTo/EqualToJson/EqualToRelation, and the only files in "
+        "the repo mentioning EqualToTDS are its own two .g4 files. Observed: 'Unknown test "
+        "assertion type: EqualToTDS'. Tabular assertions really use `Relation`."
+    ),
+}
+
+
 # Embedded Pure parsers -- a construct the keyword census CANNOT see, because the marker
 # is punctuation and the harvest drops punctuation by design. There are exactly two, both
 # found by enumerating `implements EmbeddedPureParser`. Listed explicitly so the census
