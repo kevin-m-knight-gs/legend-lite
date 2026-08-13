@@ -93,6 +93,24 @@ final class ConnectionEmitters {
                 str(b, m.vaultReference());
                 b.append('}');
             }
+            case Protocol.PGcpWifAuth w -> {
+                b.append("{\"_type\":\"gcpWorkloadIdentityFederation\"");
+                if (w.additionalGcpScopes() != null) {
+                    b.append(",\"additionalGcpScopes\":[");
+                    for (int i = 0; i < w.additionalGcpScopes().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        str(b, w.additionalGcpScopes().get(i));
+                    }
+                    b.append(']');
+                }
+                b.append(",\"serviceAccountEmail\":");
+                str(b, w.serviceAccountEmail());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, w.sourceInformation());
+                b.append('}');
+            }
                                 }
     }
 
@@ -183,9 +201,25 @@ final class ConnectionEmitters {
                     b.append(",\"enableQueryTags\":")
                             .append(s.enableQueryTags());
                 }
+                if (s.nonProxyHosts() != null) {
+                    b.append(",\"nonProxyHosts\":");
+                    str(b, s.nonProxyHosts());
+                }
                 if (s.organization() != null) {
                     b.append(",\"organization\":");
                     str(b, s.organization());
+                }
+                if (s.proxyHost() != null) {
+                    b.append(",\"proxyHost\":");
+                    str(b, s.proxyHost());
+                }
+                if (s.proxyPort() != null) {
+                    b.append(",\"proxyPort\":");
+                    str(b, s.proxyPort());
+                }
+                if (s.quotedIdentifiersIgnoreCase() != null) {
+                    b.append(",\"quotedIdentifiersIgnoreCase\":")
+                            .append(s.quotedIdentifiersIgnoreCase());
                 }
                 b.append(",\"region\":");
                 str(b, s.region());
@@ -195,6 +229,14 @@ final class ConnectionEmitters {
                 }
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, s.sourceInformation());
+                if (s.tempTableDb() != null) {
+                    b.append(",\"tempTableDb\":");
+                    str(b, s.tempTableDb());
+                }
+                if (s.tempTableSchema() != null) {
+                    b.append(",\"tempTableSchema\":");
+                    str(b, s.tempTableSchema());
+                }
                 b.append(",\"warehouseName\":");
                 str(b, s.warehouseName());
                 b.append('}');
@@ -206,6 +248,13 @@ final class ConnectionEmitters {
                 str(b, s.instanceId());
                 b.append(",\"projectId\":");
                 str(b, s.projectId());
+                if (s.proxyHost() != null) {
+                    b.append(",\"proxyHost\":");
+                    str(b, s.proxyHost());
+                }
+                if (s.proxyPort() != null) {
+                    b.append(",\"proxyPort\":").append(s.proxyPort());
+                }
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, s.sourceInformation());
                 b.append('}');

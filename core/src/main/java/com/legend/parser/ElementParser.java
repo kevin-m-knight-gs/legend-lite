@@ -442,6 +442,7 @@ public final class ElementParser implements TokenStreamCursor {
         var out = new java.util.ArrayList<ClaimedSection>();
         for (int i = 0; i < headers.size(); i++) {
             var h = headers.get(i);
+            PmcdParser.requireCleanHeader(h);
             var g = SectionGrammarRegistry.lookup(h.name()).orElse(null);
             if (g instanceof com.legend.parser.section.LexableSectionGrammar lg) {
                 // a FILE-final section runs to EOF — every remaining token

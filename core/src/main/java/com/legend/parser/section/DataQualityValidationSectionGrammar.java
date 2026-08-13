@@ -176,7 +176,7 @@ public final class DataQualityValidationSectionGrammar
             TokenStreamCursor.once(seenKeys2, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
-                case "query" -> query = SectionParse.specToSemicolon(c);
+                case "query" -> query = SectionParse.lambdaToSemicolon(c);
                 case "validations" -> parseChecks(c, validations, h.declStart());
                 default -> throw c.error(
                         "unknown DataQualityRelationValidation key '"
@@ -250,8 +250,8 @@ public final class DataQualityValidationSectionGrammar
             TokenStreamCursor.once(seenKeys3, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
-                case "source" -> source = SectionParse.specToSemicolon(c);
-                case "target" -> target = SectionParse.specToSemicolon(c);
+                case "source" -> source = SectionParse.lambdaToSemicolon(c);
+                case "target" -> target = SectionParse.lambdaToSemicolon(c);
                 case "keys" -> {
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE) {

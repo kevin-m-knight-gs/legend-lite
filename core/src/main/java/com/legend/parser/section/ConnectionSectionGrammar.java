@@ -658,6 +658,17 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 quoteIdentifiers, timeZone, c.spanOf(declStart, c.pos() - 1));
     }
 
+    /** {@code proxyPort} admits an UNQUOTED integer (engine grammar
+     *  INTEGER | STRING); the wire carries a string either way. */
+    private static String stringOrInt(TokenStreamCursor c) {
+        if (c.peek() == TokenType.INTEGER) {
+            String v = c.text();
+            c.advance();
+            return v;
+        }
+        return SectionParse.stringValue(c);
+    }
+
     private static Boolean parseBoolean(TokenStreamCursor c) {
         if (c.peek() == TokenType.TRUE) {
             c.advance();
@@ -887,54 +898,14 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "SQLite" -> {
                 yield parseSqliteSpec(c, keywordTok);
             }
-            case "Snowflake" -> {
-                c.expect(TokenType.BRACE_OPEN);
-                String name = null;
-                String account = null;
-                String warehouse = null;
-                String region = null;
-                String accountType = null;
-                String cloudType = null;
-                Boolean enableQueryTags = null;
-                String organization = null;
-                String role = null;
-                java.util.Set<String> seenKeys11 = new java.util.HashSet<>();
-                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
-                    String key = c.parseIdentifier();
-                    TokenStreamCursor.once(seenKeys11, key, c);
-                    c.expect(TokenType.COLON);
-                    switch (key) {
-                        case "name" -> name = SectionParse.stringValue(c);
-                        case "account" -> account = SectionParse.stringValue(c);
-                        case "warehouse" -> warehouse = SectionParse.stringValue(c);
-                        case "region" -> region = SectionParse.stringValue(c);
-                        // a BARE enum identifier (VPS / MultiTenant)
-                        case "accountType" -> accountType = c.parseIdentifier();
-                        case "cloudType" -> cloudType = SectionParse.stringValue(c);
-                        case "enableQueryTags" ->
-                                enableQueryTags = parseBoolean(c);
-                        case "organization" -> organization = SectionParse.stringValue(c);
-                        case "role" -> role = SectionParse.stringValue(c);
-                        default -> throw c.error("unknown Snowflake key: " + key);
-                    }
-                    c.expect(TokenType.SEMI_COLON);
-                }
-                c.expect(TokenType.BRACE_CLOSE);
-                c.expect(TokenType.SEMI_COLON);
-                if (name == null || account == null || warehouse == null
-                        || region == null) {
-                    throw c.error("Snowflake needs name, account, warehouse"
-                            + " and region");
-                }
-                yield new Protocol.PSnowflakeSpec(account, accountType,
-                        cloudType, name, enableQueryTags, organization, region,
-                        role, warehouse, c.spanOf(keywordTok, c.pos() - 1));
-            }
+            case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
             case "Spanner" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 String projectId = null;
                 String instanceId = null;
                 String databaseId = null;
+                String sProxyHost = null;
+                Long sProxyPort = null;
                 java.util.Set<String> seenKeys12 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
@@ -944,6 +915,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         case "projectId" -> projectId = SectionParse.stringValue(c);
                         case "instanceId" -> instanceId = SectionParse.stringValue(c);
                         case "databaseId" -> databaseId = SectionParse.stringValue(c);
+                        case "proxyHost" -> sProxyHost = SectionParse.stringValue(c);
+                        case "proxyPort" -> sProxyPort = c.consumeLong();
                         default -> throw c.error("unknown Spanner key: " + key);
                     }
                     c.expect(TokenType.SEMI_COLON);
@@ -956,7 +929,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             + " databaseId");
                 }
                 yield new Protocol.PSpannerSpec(databaseId, instanceId,
-                        projectId, c.spanOf(keywordTok, c.pos() - 1));
+                        projectId, sProxyHost, sProxyPort,
+                        c.spanOf(keywordTok, c.pos() - 1));
             }
             case "Databricks" -> {
                 c.expect(TokenType.BRACE_OPEN);
@@ -1246,6 +1220,44 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PMiddleTierUserNamePassword(vaultReference,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
+            case "GCPWorkloadIdentityFederation" -> {
+                c.expect(TokenType.BRACE_OPEN);
+                String serviceAccountEmail = null;
+                List<String> scopes = null;
+                java.util.Set<String> seenWif = new java.util.HashSet<>();
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String k = c.parseIdentifier();
+                    TokenStreamCursor.once(seenWif, k, c, keywordTok);
+                    c.expect(TokenType.COLON);
+                    switch (k) {
+                        case "serviceAccountEmail" ->
+                                serviceAccountEmail = SectionParse.stringValue(c);
+                        case "additionalGcpScopes" -> {
+                            scopes = new ArrayList<>();
+                            c.expect(TokenType.BRACKET_OPEN);
+                            while (c.peek() != TokenType.BRACKET_CLOSE) {
+                                scopes.add(SectionParse.stringValue(c));
+                                if (!c.match(TokenType.COMMA)) {
+                                    break;
+                                }
+                            }
+                            c.expect(TokenType.BRACKET_CLOSE);
+                        }
+                        default -> throw c.error(
+                                "unknown GCPWorkloadIdentityFederation key: "
+                                + k);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (serviceAccountEmail == null) {
+                    throw c.error("GCPWorkloadIdentityFederation needs"
+                            + " serviceAccountEmail");
+                }
+                yield new Protocol.PGcpWifAuth(scopes, serviceAccountEmail,
+                        c.spanOf(keywordTok, c.pos() - 1));
+            }
             default -> throw c.error("unsupported auth strategy: " + kind
                     + " (corpus-censused shapes only)");
         };
@@ -1301,4 +1313,70 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     lineOffset, colOffset);
         }
     }
+
+    /** {@code Snowflake { name; account; warehouse; region; ... }} —
+     *  split from parseDatasourceSpec (file-shape guardrail). */
+    private static Protocol.PSnowflakeSpec parseSnowflakeSpec(
+            TokenStreamCursor c, int keywordTok) {
+
+                c.expect(TokenType.BRACE_OPEN);
+                String name = null;
+                String account = null;
+                String warehouse = null;
+                String region = null;
+                String accountType = null;
+                String cloudType = null;
+                Boolean enableQueryTags = null;
+                String organization = null;
+                String role = null;
+                String proxyHost = null;
+                String proxyPort = null;
+                String nonProxyHosts = null;
+                String tempTableDb = null;
+                String tempTableSchema = null;
+                Boolean quotedIdentifiersIgnoreCase = null;
+                java.util.Set<String> seenKeys11 = new java.util.HashSet<>();
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys11, key, c);
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "name" -> name = SectionParse.stringValue(c);
+                        case "account" -> account = SectionParse.stringValue(c);
+                        case "warehouse" -> warehouse = SectionParse.stringValue(c);
+                        case "region" -> region = SectionParse.stringValue(c);
+                        // a BARE enum identifier (VPS / MultiTenant)
+                        case "accountType" -> accountType = c.parseIdentifier();
+                        case "cloudType" -> cloudType = SectionParse.stringValue(c);
+                        case "enableQueryTags" ->
+                                enableQueryTags = parseBoolean(c);
+                        case "organization" -> organization = SectionParse.stringValue(c);
+                        case "role" -> role = SectionParse.stringValue(c);
+                        case "proxyHost" -> proxyHost = SectionParse.stringValue(c);
+                        case "proxyPort" -> proxyPort = stringOrInt(c);
+                        case "nonProxyHosts" ->
+                                nonProxyHosts = SectionParse.stringValue(c);
+                        case "tempTableDb" -> tempTableDb = SectionParse.stringValue(c);
+                        case "tempTableSchema" ->
+                                tempTableSchema = SectionParse.stringValue(c);
+                        case "quotedIdentifiersIgnoreCase" ->
+                                quotedIdentifiersIgnoreCase = parseBoolean(c);
+                        default -> throw c.error("unknown Snowflake key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (name == null || account == null || warehouse == null
+                        || region == null) {
+                    throw c.error("Snowflake needs name, account, warehouse"
+                            + " and region");
+                }
+                return new Protocol.PSnowflakeSpec(account, accountType,
+                        cloudType, name, enableQueryTags, nonProxyHosts,
+                        organization, proxyHost, proxyPort,
+                        quotedIdentifiersIgnoreCase, region, role,
+                        tempTableDb, tempTableSchema, warehouse,
+                        c.spanOf(keywordTok, c.pos() - 1));
+                }
 }

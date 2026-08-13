@@ -42,6 +42,13 @@ final class InlineSnippets {
             "(?m)^\\s*(Class|Enum|Association|Profile|Measure|function|native\\s+function|import"
                     + "|Database|Mapping|Runtime|RelationalDatabaseConnection|Service)\\s");
 
+    /** C12 candidate (harvest-scope extension 2026-08-14): SECTION-ONLY
+     *  documents — connection/store/auth test sources carry no domain
+     *  decl, so PURE_DECL never saw them (the census's 75-keyword hole).
+     *  Additive tier; the C4 universe pin above stays untouched. */
+    static final Pattern SECTION_DOC = Pattern.compile(
+            "(?m)^\\s*###[A-Za-z]");
+
     /** One test file's literal runs, in source order — the rejection-parity pairing
      *  walks these directly. */
     record FileRuns(String id, List<String> runs) {

@@ -2142,9 +2142,15 @@ public final class Protocol {
                                  @com.legend.Nullable String cloudType,
                                  String databaseName,
                                  @com.legend.Nullable Boolean enableQueryTags,
+                                 @com.legend.Nullable String nonProxyHosts,
                                  @com.legend.Nullable String organization,
+                                 @com.legend.Nullable String proxyHost,
+                                 @com.legend.Nullable String proxyPort,
+                                 @com.legend.Nullable Boolean quotedIdentifiersIgnoreCase,
                                  String region,
                                  @com.legend.Nullable String role,
+                                 @com.legend.Nullable String tempTableDb,
+                                 @com.legend.Nullable String tempTableSchema,
                                  String warehouseName,
                                  com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
@@ -2153,8 +2159,18 @@ public final class Protocol {
     /** {@code _type:"spanner"} (probe ZConnWidenProbe). */
     public record PSpannerSpec(String databaseId, String instanceId,
                                String projectId,
+                               @com.legend.Nullable String proxyHost,
+                               @com.legend.Nullable Long proxyPort,
                                com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"gcpWorkloadIdentityFederation"} (census
+     *  queued-relational-flavors, C12 sentinel). */
+    public record PGcpWifAuth(@com.legend.Nullable List<String> additionalGcpScopes,
+                              String serviceAccountEmail,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
     }
 
     /** {@code _type:"databricks"} — port stays a STRING on the wire
@@ -2195,7 +2211,7 @@ public final class Protocol {
             permits PH2Default, PTestAuth, PDelegatedKerberos,
             PUserNamePassword, POAuth,
             PSnowflakePublic, PGCPApplicationDefaultCredentials, PApiToken,
-            PMiddleTierUserNamePassword {
+            PMiddleTierUserNamePassword, PGcpWifAuth {
     }
 
     /** {@code _type:"oauth"} — oauthKey + scopeName, both required

@@ -1226,7 +1226,11 @@ final class MappingEmitter {
     }
 
     private static void stubParams(StringBuilder b, String field,
-            java.util.List<Protocol.PStubParam> params) {
+            java.util.List<Protocol.PStubParam> paramsIn) {
+        // the engine's mapper sorts MAP entries by key (C12 byte pins
+        // TestServiceTestSuite#65/#70)
+        var params = new java.util.ArrayList<>(paramsIn);
+        params.sort(java.util.Comparator.comparing(Protocol.PStubParam::name));
         b.append('"').append(field).append("\":{");
         for (int i = 0; i < params.size(); i++) {
             if (i > 0) {

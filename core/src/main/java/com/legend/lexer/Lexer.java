@@ -334,9 +334,45 @@ public final class Lexer {
         String kind = source.substring(nameStart, nameEnd);
         while (pos < length && source.charAt(pos) != '\n') pos++;
         if (pos < length) pos++;
+        // HEADER-LINE RESIDUE: only whitespace or a // comment may follow
+        // the name — recorded here (the lexer never throws); the section
+        // consumers refuse it, reference-shaped
+        String residue = null;
+        int rLine = -1;
+        int rCol = -1;
+        int lineEnd = source.indexOf('\n', nameEnd);
+        if (lineEnd < 0) {
+            lineEnd = length;
+        }
+        int r = nameEnd;
+        while (r < lineEnd && (source.charAt(r) == ' '
+                || source.charAt(r) == '\t' || source.charAt(r) == '\r')) {
+            r++;
+        }
+        boolean comment = r + 1 < lineEnd && source.charAt(r) == '/'
+                && source.charAt(r + 1) == '/';
+        if (r < lineEnd && !comment) {
+            int we = r;
+            while (we < lineEnd
+                    && !Character.isWhitespace(source.charAt(we))) {
+                we++;
+            }
+            residue = source.substring(r, we);
+            rLine = 1;
+            rCol = 1;
+            for (int k = 0; k < r; k++) {
+                if (source.charAt(k) == '\n') {
+                    rLine++;
+                    rCol = 1;
+                } else {
+                    rCol++;
+                }
+            }
+        }
         // record EVERY header, lexable or not — a parser may need to know
         // where its own section started (TokenStream.SectionHeader)
-        sectionHeaders.add(new TokenStream.SectionHeader(kind, nameStart, pos));
+        sectionHeaders.add(new TokenStream.SectionHeader(kind, nameStart, pos,
+                residue, rLine, rCol));
         if (!kind.isEmpty() && !LEXABLE_SECTIONS.contains(kind)) {
             // opaque section: raw-skip to the next line-anchored ### — a
             // lexing necessity (Diagram color literals are unlexable Pure),

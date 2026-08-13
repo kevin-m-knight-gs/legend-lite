@@ -2202,8 +2202,14 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
         }
-        b.append("],\"sourceInformation\":");
-        srcInfo(b, requirePos(lam.pos(), "inline lambda"));
+        b.append(']');
+        // a WALKER-SYNTHESIZED lambda (DSL query wrap) is positionless on
+        // the engine wire — sourceInformation is omitted, not defaulted
+        // (C12 byte pins, TestDataQualityCompilationFromGrammar)
+        if (lam.pos() != null) {
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, lam.pos());
+        }
         b.append('}');
     }
 

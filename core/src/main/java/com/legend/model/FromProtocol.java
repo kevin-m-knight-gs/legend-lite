@@ -747,6 +747,12 @@ public final class FromProtocol {
                             m.vaultReference());
             case Protocol.POAuth o -> new AuthenticationSpec.OAuth(
                     o.oauthKey(), o.scopeName());
+            case Protocol.PGcpWifAuth w ->
+                    new AuthenticationSpec.GcpWorkloadIdentityFederation(
+                            w.serviceAccountEmail(),
+                            w.additionalGcpScopes() == null
+                                    ? java.util.List.of()
+                                    : w.additionalGcpScopes());
         };
         // quoteIdentifiers rides the PROTOCOL record only (wire parity);
         // lite's SQL renderers decide quoting themselves, so the model

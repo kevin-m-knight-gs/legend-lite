@@ -306,7 +306,7 @@ public final class DataSpaceSectionGrammar
                             executable += rawToSemicolon(c);
                         }
                     }
-                    case "query" -> query = SectionParse.specToSemicolon(c);
+                    case "query" -> query = SectionParse.lambdaToSemicolon(c);
                     case "executionContextKey" -> contextKey = SectionParse.stringValue(c);
                     default -> throw c.error("unknown executables key: " + key);
                 }

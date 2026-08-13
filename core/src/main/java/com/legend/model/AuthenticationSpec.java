@@ -17,6 +17,7 @@ public sealed interface AuthenticationSpec
                 AuthenticationSpec.GCPApplicationDefaultCredentials,
                 AuthenticationSpec.ApiToken,
                 AuthenticationSpec.MiddleTierUserNamePassword,
+        AuthenticationSpec.GcpWorkloadIdentityFederation,
                 AuthenticationSpec.OAuth {
 
     /** No authentication. Used for in-memory databases and local development. */
@@ -65,4 +66,10 @@ public sealed interface AuthenticationSpec
     /** Engine's {@code auth: OAuth { oauthKey; scopeName; };}. */
     record OAuth(String oauthKey, String scopeName)
             implements AuthenticationSpec {}
+
+    /** GCP workload identity federation (census C12 flavor leg). */
+    record GcpWorkloadIdentityFederation(String serviceAccountEmail,
+            java.util.List<String> additionalGcpScopes)
+            implements AuthenticationSpec {
+    }
 }
