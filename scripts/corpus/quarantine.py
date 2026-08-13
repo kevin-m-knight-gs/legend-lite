@@ -39,6 +39,9 @@ ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
 ENGINE_QUARANTINE["stress::M2_CanonicalWithEnum"] = (
     "F12", "EnumerationMapping not applied through a ModelChainConnection")
 
+ENGINE_QUARANTINE["stress::O1_CounterpartyOtherwise"] = (
+    "F13", "Otherwise never falls back under TDS projection")
+
 # legend-lite currently agrees with the reference evaluator on every service, including
 # all seven fan-out ones. That is not an accident of coverage — it is what makes F6 a
 # legend-engine defect rather than an oracle error.

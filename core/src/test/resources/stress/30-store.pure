@@ -171,6 +171,18 @@ Database store::DB
     Table TRADE_RATES (TRADE_ID VARCHAR(200) PRIMARY KEY, TRADE_DATE DATE, QUANTITY DOUBLE, PRICE DOUBLE, NOTIONAL DOUBLE, SIDE VARCHAR(200), STATUS VARCHAR(200), CURRENCY VARCHAR(200), INSTRUMENT_ID VARCHAR(200))
     Table TRADE_FX (TRADE_ID VARCHAR(200) PRIMARY KEY, TRADE_DATE DATE, QUANTITY DOUBLE, PRICE DOUBLE, NOTIONAL DOUBLE, SIDE VARCHAR(200), STATUS VARCHAR(200), CURRENCY VARCHAR(200), INSTRUMENT_ID VARCHAR(200))
 
+    // ---- L5: partially-denormalized reporting table, for Otherwise ----
+    // The realistic shape Otherwise exists for: a reporting table CACHES the counterparty
+    // inline, but the cache is not always populated. CPTY_FK is always present; the two
+    // CPTY_*_INLINE columns are blank for some rows. An Otherwise mapping uses the inline
+    // columns when they are there and falls back to a real join when they are not, so the
+    // answer is complete either way.
+    //
+    // The embedded block's ~primaryKey is what decides "is the inline data present" --
+    // it must be a column that is NULL exactly when the cache is empty, which is why the
+    // fallback FK is a SEPARATE column.
+    Table TRADE_FLAT_PARTIAL (TRADE_ID VARCHAR(200) PRIMARY KEY, NOTIONAL DOUBLE, STATUS VARCHAR(200), CPTY_FK VARCHAR(200), CPTY_ID_INLINE VARCHAR(200), CPTY_NAME_INLINE VARCHAR(200), CPTY_LEI_INLINE VARCHAR(200))
+
     // ---- L3: business-temporal (SCD2) reference data ----
     // A counterparty's credit rating changes over time and the history is kept. This is
     // the single most common temporal shape in a bank, and it is the one that makes
@@ -556,6 +568,8 @@ Database store::DB
     // TRADER.MANAGER_ID = TRADER.TRADER_ID would be a tautology matching every row
     // against itself.
     Join Trader_Manager(TRADER.MANAGER_ID = {target}.TRADER_ID)
+
+    Join TradeFlatPartial_Counterparty(TRADE_FLAT_PARTIAL.CPTY_FK = COUNTERPARTY.COUNTERPARTY_ID)
 
     Filter ExecutedTrades(TRADE.STATUS = 'EXECUTED')
 )

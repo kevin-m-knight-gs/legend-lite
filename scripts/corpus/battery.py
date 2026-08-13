@@ -219,6 +219,45 @@ def _m2m_pair():
 RELATIONAL_SIDE, CANONICAL_SIDE = _m2m_pair()
 
 
+# ---------------------------------------------------- L5 Otherwise / fallback
+#
+# One class, one table, two mappings differing ONLY in whether the embedded counterparty
+# falls back to a join. Five of twenty trades have the cache populated; the other fifteen
+# have only the FK.
+#
+#   O0  embedded only  -> counterparty present for 5, NULL for 15
+#   O1  Otherwise      -> counterparty present for 19, NULL only for the one whose
+#                         counterparty genuinely does not exist
+#
+# O1 mirrors the canonical answer, so it is a fifth invariance. O0 is asserted separately
+# and MUST differ -- if the two agreed, Otherwise would be doing nothing and the test
+# would be passing for the wrong reason.
+
+_OTHERWISE_COLUMNS = [("tradeId", "tradeId"), ("notional", "notional"),
+                      ("status", "status"),
+                      ("cptyId", "counterparty.counterpartyId"),
+                      ("cptyName", "counterparty.legalName"),
+                      ("cptyLei", "counterparty.lei")]
+
+
+def _otherwise_specs():
+    canonical = Spec("stress::_O1MirrorSource", "/stress/_o1mirror", "", "trading::Trade")
+    canonical.projections = [Proj(a, p.split(".")) for a, p in _OTHERWISE_COLUMNS]
+
+    fallback = Spec("stress::O1_CounterpartyOtherwise", "/stress/o1",
+                    "Embedded counterparty with an Otherwise fallback. Only 5 of 20 rows "
+                    "carry the inline cache; the rest resolve through the join, and the "
+                    "result must equal what the canonical model returns.",
+                    "trading::Trade")
+    fallback.projections = [Proj(a, p.split(".")) for a, p in _OTHERWISE_COLUMNS]
+    fallback.mapping, fallback.runtime = "reporting::OtherwiseMapping", "stress::OtherwiseRT"
+    fallback.mirrors = canonical
+    return fallback
+
+
+OTHERWISE = _otherwise_specs()
+
+
 def _m2m_enum_probe():
     """The same chain plus the enum-mapped property. Quarantined: F12."""
     s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
@@ -415,7 +454,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + [CANONICAL_WITH_ENUM] + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+SPECS = INVARIANCE + [CANONICAL_WITH_ENUM, OTHERWISE] + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

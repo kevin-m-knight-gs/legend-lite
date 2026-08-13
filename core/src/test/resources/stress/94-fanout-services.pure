@@ -626,6 +626,64 @@ Service stress::M2_CanonicalWithEnum
   ]
 }
 
+Service stress::O1_CounterpartyOtherwise
+{
+    pattern: '/stress/o1';
+    documentation: 'Embedded counterparty with an Otherwise fallback. Only 5 of 20 rows carry the inline cache; the rest resolve through the join, and the result must equal what the canonical model returns.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            notional:x|$x.notional,
+            status:x|$x.status,
+            cptyId:x|$x.counterparty.counterpartyId,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei
+        ]);
+        mapping: reporting::OtherwiseMapping;
+        runtime: stress::OtherwiseRT;
+    }
+  testSuites:
+  [
+    O1_CounterpartyOtherwise_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","notional":190500.0,"status":"EXECUTED","cptyId":"CP-0001","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"},{"tradeId":"TRD-0002","notional":477500.0,"status":"EXECUTED","cptyId":"CP-0001","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"},{"tradeId":"TRD-0003","notional":250000.0,"status":"EXECUTED","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"},{"tradeId":"TRD-0004","notional":250000.0,"status":"EXECUTED","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"},{"tradeId":"TRD-0005","notional":250000.0,"status":"EXECUTED","cptyId":"CP-0003","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55"},{"tradeId":"TRD-0006","notional":250000.0,"status":"EXECUTED","cptyId":"CP-0001","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"},{"tradeId":"TRD-0007","notional":282000.0,"status":"EXECUTED","cptyId":null,"cptyName":null,"cptyLei":null},{"tradeId":"TRD-0008","notional":18975.0,"status":"CANCELLED","cptyId":"CP-0001","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"},{"tradeId":"TRD-0009","notional":576750.0,"status":"EXECUTE","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"},{"tradeId":"TRD-0010","notional":498000.0,"status":"EXECUTED","cptyId":"CP-0001","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"},{"tradeId":"TRD-0011","notional":167300.0,"status":"EXECUTED","cptyId":"CP-0003","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55"},{"tradeId":"TRD-0012","notional":369000.0,"status":"PENDING","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"},{"tradeId":"TRD-0013","notional":171250.0,"status":"EXECUTED","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"},{"tradeId":"TRD-0014","notional":69000.0,"status":"EXECUTED","cptyId":"CP-0004","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11"},{"tradeId":"TRD-0015","notional":35000.0,"status":"SETTLED","cptyId":"CP-0003","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55"},{"tradeId":"TRD-0016","notional":264600.0,"status":"EXECUTED","cptyId":"CP-0003","cptyName":"O\'Neill Capital Partners","cptyLei":"529900T8BM49AURSDO55"},{"tradeId":"TRD-0017","notional":385000.0,"status":"EXECUTED","cptyId":"CP-0004","cptyName":"Halberd Securities","cptyLei":"984500B8DA6F1C9C8E11"},{"tradeId":"TRD-0018","notional":4912500.0,"status":"EXECUTED","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"},{"tradeId":"TRD-0019","notional":1960000.0,"status":"EXECUTED","cptyId":"CP-0001","cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"},{"tradeId":"TRD-0020","notional":975000.0,"status":"REJECTED","cptyId":"CP-0002","cptyName":"Halberd Securities","cptyLei":"213800WAVVOPS85N2205"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';

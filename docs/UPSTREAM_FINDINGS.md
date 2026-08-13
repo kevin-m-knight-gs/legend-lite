@@ -491,6 +491,57 @@ mappings appear to be handled per-path rather than once, and each path has its o
 
 ---
 
+## F13 — `Otherwise` behaves oppositely under TDS projection and under graph fetch
+
+**Severity: execution-path-dependent semantic.** One mapping, one dataset, one question.
+The two paths do not merely differ in an edge case — they take opposite branches for
+*every* row.
+
+`scripts/corpus/repro/otherwise/` — two people at the same firm. P1 carries the inline
+cache; P2 carries only the fallback FK:
+
+```
+Table PERSON (ID, NAME, FIRM_FK, FIRM_NAME_INLINE)
+Table FIRM   (ID, LEGAL_NAME)
+Join Person_Firm(PERSON.FIRM_FK = FIRM.ID)
+
+firm
+(
+  ~primaryKey ([demo::DB] PERSON.FIRM_NAME_INLINE)
+  legalName: [demo::DB] PERSON.FIRM_NAME_INLINE
+) Otherwise ([firmRoot]: [demo::DB] @Person_Firm)
+
+P1,Ada,F1,Cached Inc
+P2,Grace,F1,            <- cache empty, FK present
+F1,Real Firm Ltd
+```
+
+| | Ada (cache present) | Grace (cache empty) |
+|---|---|---|
+| `->project([x\|$x.firm.legalName], [...])` | `Cached Inc` | **`null`** |
+| `->graphFetch(#{Person{firm{legalName}}}#)` | **`Real Firm Ltd`** | `Real Firm Ltd` |
+
+So the projection path always takes the embedded branch and never falls back; the
+graph-fetch path always takes the join and never uses the embedded.
+
+**I am not asserting which is correct.** There is a reading under which graph fetch is
+right — an embedded block supplies only a subset of the class's properties, so materialising
+a whole object may legitimately require the join regardless of the cache. Under that
+reading the defect is narrower: the projection path returning `null` for a row whose
+target is reachable through the declared fallback join. What is not defensible either way
+is that the two paths disagree on every row of the same mapping.
+
+Quarantined as `stress::O1_CounterpartyOtherwise`, which asserts the semantics the feature
+name implies — cache when present, join when not — and currently fails on the 14 rows that
+should fall back.
+
+**Third in a family.** F10 (an unmapped enum code), F12 (a mapped enum code through a
+model chain) and now F13 all say the same thing: a mapping construct is interpreted by
+each execution path separately, and the paths do not agree. That pattern is worth more
+than any of the three individually.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is

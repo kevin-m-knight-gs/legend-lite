@@ -53,3 +53,10 @@ Each directory is the smallest model that reproduces a finding in
     java -cp $CP perf.TestableMain $D/base.pure $D/svc_graphfetch.pure --testable=dest::S_graphfetch  # works
     java -cp $CP perf.TestableMain $D/base.pure $D/svc_probe.pure --testable=src::S_relTds  # side = BUY
     java -cp $CP perf.TestableMain $D/base.pure $D/svc_probe.pure --testable=dest::S_m2mTds # side = B
+
+    # F13 -- Otherwise takes opposite branches on the two execution paths
+    D=../../scripts/corpus/repro/otherwise
+    java -cp $CP perf.TestableMain $D/model.pure --testable=demo::OtherwiseProbe
+    #   Ada -> "Cached Inc"     Grace -> null            (never falls back)
+    java -cp $CP perf.TestableMain $D/model.pure $D/graph.pure --testable=demo::OtherwiseGraph
+    #   Ada -> "Real Firm Ltd"  Grace -> "Real Firm Ltd" (never uses the cache)

@@ -718,6 +718,11 @@ SKIP_MAPPINGS = {
     # mapping: the canonical class's expectation is DERIVED from the source class it is
     # mapped from, which is what the invariance asserts.
     "canonical::M2MMapping",
+    # Both map trading::Trade onto TRADE_FLAT_PARTIAL with embedded blocks; parsing them
+    # would rebind Trade's ~mainTable exactly as EmbeddedFlatMapping would. Their
+    # expectations are mirrored from the canonical model, which is the claim under test.
+    "reporting::PartialEmbeddedMapping",
+    "reporting::OtherwiseMapping",
 }
 
 # re.M is load-bearing: without it `search` over a multi-line chunk never matches, the

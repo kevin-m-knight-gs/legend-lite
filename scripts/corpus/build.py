@@ -104,6 +104,7 @@ def generate() -> dict[Path, str]:
         raise SystemExit("model does not resolve:\n  " + "\n  ".join(problems[:10]))
     import partition
     problems = (seed.check(c) + flat.check(c, TABLES['TRADE_FLAT'])
+                + flat.check_partial(TABLES["TRADE_FLAT_PARTIAL"])
                 + partition.check(c, {k: TABLES[k] for k in
                                       ('TRADE_EQ', 'TRADE_RATES', 'TRADE_FX')},
                                   TABLES))

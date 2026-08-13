@@ -1,6 +1,6 @@
 {
  "roster_total": 1033,
- "covered_count": 62,
+ "covered_count": 63,
  "covered": [
   "Bit",
   "Date",
@@ -40,6 +40,7 @@
   "mapping",
   "mappingIncludeMapping",
   "operation",
+  "otherwiseEmbeddedPropertyMapping",
   "packageableElementPtr",
   "packageableType",
   "processingMilestoning",

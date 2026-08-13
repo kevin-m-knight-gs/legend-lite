@@ -105,6 +105,44 @@ def check(c: model.Corpus, flat: list[dict]) -> list[str]:
     return bad
 
 
+# Which trades have their counterparty cache POPULATED. Everything else keeps only the
+# fallback FK, so the Otherwise branch is what produces its counterparty.
+#
+# Chosen deliberately rather than by a modulus: TRD-0007's counterparty does not exist at
+# all, so it must come back NULL through BOTH branches -- Otherwise must not invent one.
+_CACHED = {"TRD-0001", "TRD-0002", "TRD-0003", "TRD-0010", "TRD-0013"}
+
+
+def partial(c: model.Corpus, tables: dict[str, list[dict]]) -> list[dict]:
+    """TRADE_FLAT_PARTIAL: the FK always present, the inline cache present for some."""
+    rows = []
+    for t in tables["TRADE"]:
+        cached = t["TRADE_ID"] in _CACHED
+        cpty = next((x for x in tables["COUNTERPARTY"]
+                     if x["COUNTERPARTY_ID"] == t["COUNTERPARTY_ID"]), None)
+        rows.append(dict(
+            TRADE_ID=t["TRADE_ID"], NOTIONAL=t["NOTIONAL"], STATUS=t["STATUS"],
+            # The FK is carried verbatim, INCLUDING the dangling one — the fallback join
+            # then finds nothing, which is the correct answer, not a reason to skip it.
+            CPTY_FK=t["COUNTERPARTY_ID"],
+            CPTY_ID_INLINE=(cpty or {}).get("COUNTERPARTY_ID") if cached else None,
+            CPTY_NAME_INLINE=(cpty or {}).get("LEGAL_NAME") if cached else None,
+            CPTY_LEI_INLINE=(cpty or {}).get("LEI") if cached else None,
+        ))
+    return rows
+
+
+def check_partial(rows: list[dict]) -> list[str]:
+    bad = []
+    if not any(r["CPTY_ID_INLINE"] for r in rows):
+        bad.append("no row has the counterparty cache populated; the embedded branch "
+                   "would never be taken")
+    if not any(r["CPTY_ID_INLINE"] is None and r["CPTY_FK"] for r in rows):
+        bad.append("no row has an empty cache with a usable FK; the Otherwise branch "
+                   "would never be taken, and the two mappings would agree trivially")
+    return bad
+
+
 def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     """The seed plus every DERIVED table. Each consumer of the corpus data goes through
     here, so a derived table can never be stale relative to its source — it does not
@@ -119,6 +157,7 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     tables = dict(seed.TABLES)
     tables["TRADE_FLAT"] = build(c, seed.TABLES)
     tables.update(partition.build(c, seed.TABLES))
+    tables["TRADE_FLAT_PARTIAL"] = partial(c, seed.TABLES)
     # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
     # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as
     # ###Data would create a real table that shadows the view and silently stop testing
