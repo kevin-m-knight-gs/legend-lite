@@ -1014,6 +1014,12 @@ public final class ServiceSectionGrammar
                 String runtime = null;
                 SourceInfo runtimeSpan = null;
                 Protocol.PEmbeddedRuntime embedded = null;
+                // NOTE (reprobe C11, tried & reverted): the engine's
+                // fixed key SEQUENCE here is raw ANTLR expectation
+                // mechanics — its error position depends on where the
+                // parse stops (sometimes mid-value), and a rank-order
+                // check broke four agreeing pins. Order-free stays, as
+                // allowlisted justified leniency.
                 java.util.Set<String> seenExecKeys = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
@@ -1224,7 +1230,8 @@ public final class ServiceSectionGrammar
             // the EE GRAMMAR itself requires runtime OR runtimeComponents
             // — a mapping-only single is a parse error (negative fixture
             // engine-fixture#1508, refusal at the '}')
-            throw c.error("Unexpected token '}'");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), c.pos() - 1, "Unexpected token '}'");
         }
         return new Protocol.PKeyedExecution(keyValue, mapping, mappingSpan,
                 runtime, runtimeSpan, embedded, runtimeComponents,

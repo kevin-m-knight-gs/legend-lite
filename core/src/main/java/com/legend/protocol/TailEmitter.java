@@ -2173,8 +2173,21 @@ final class TailEmitter {
         b.append(",\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, v.sourceInformation());
         b.append(",\"strategy\":{\"_type\":\"")
-                .append(strategyWire(v.strategy()))
-                .append("\"},\"target\":");
+                .append(strategyWire(v.strategy().kind()))
+                .append('"');
+        if (v.strategy().aggregatedHash() != null) {
+            b.append(",\"aggregatedHash\":")
+                    .append(v.strategy().aggregatedHash());
+        }
+        if (v.strategy().sourceHashColumn() != null) {
+            b.append(",\"sourceHashColumn\":");
+            ProtocolEmitter.str(b, v.strategy().sourceHashColumn());
+        }
+        if (v.strategy().targetHashColumn() != null) {
+            b.append(",\"targetHashColumn\":");
+            ProtocolEmitter.str(b, v.strategy().targetHashColumn());
+        }
+        b.append("},\"target\":");
         ProtocolEmitter.valueSpec(b, v.target());
         b.append('}');
     }

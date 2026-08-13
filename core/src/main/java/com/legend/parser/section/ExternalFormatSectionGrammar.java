@@ -100,6 +100,12 @@ public final class ExternalFormatSectionGrammar
     private static void parseSchemas(TokenStreamCursor c,
             List<Protocol.PSchema> out) {
         c.expect(TokenType.BRACKET_OPEN);
+        if (c.peek() == TokenType.BRACKET_CLOSE) {
+            // the engine grammar requires >= 1 schema — it refuses the
+            // empty list at the ']' BEFORE any format validation
+            // (reprobe TestExternalFormatGrammarParser#6)
+            throw c.error("Unexpected token ']'");
+        }
         while (c.peek() != TokenType.BRACKET_CLOSE) {
             int nodeStart = c.pos();
             c.expect(TokenType.BRACE_OPEN);

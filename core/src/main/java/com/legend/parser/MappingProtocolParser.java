@@ -715,7 +715,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                                 spanOf(exprStart, pos - 1),
                                 spanOf(keyStart, pos - 1));
                     } else {
-                        throw error("unknown ~request key: " + key);
+                        throw TokenStreamCursor.throwAt(tokens, keyStart,
+                                "unknown ~request key: " + key);
                     }
                 }
                 int reqEnd = pos;

@@ -2040,6 +2040,14 @@ public final class ElementParser implements TokenStreamCursor {
                             parseTestPayload();
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualToJson(
                     fmt, fmt.sourceInformation());
+        } else if (peek(1) == TokenType.ISLAND_OPEN
+                && !"Relation".equals(peekText(0))
+                && peek() == TokenType.VALID_STRING) {
+            // an embedded-data assertion of any OTHER kind: the engine
+            // refuses at the kind token (reprobe TestDomainGrammarParser#53)
+            throw error("Unsupported embedded data type for function test"
+                    + " assertion: " + peekText(0)
+                    + ". Only 'Relation' is supported.");
         } else if ("Relation".equals(peekText(0)) && peek(1) == TokenType.ISLAND_OPEN) {
             // => Relation #{...}# — equalToRelation spanning Relation..}#
             int relStart = pos;

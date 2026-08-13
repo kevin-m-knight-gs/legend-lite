@@ -1779,12 +1779,21 @@ public final class Protocol {
                                                  com.legend.protocol.spec.ValueSpecification source,
                                                  com.legend.protocol.spec.ValueSpecification target,
                                                  List<String> keys,
-                                                 String strategy,
+                                                 PReconStrategy strategy,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
         }
+    }
+
+    /** {@code strategy: MD5Hash { sourceHashColumn: c; ... }} — wire
+     *  {@code {_type:"md5Hash", ...}}; the config block is OPTIONAL but
+     *  must be non-empty when present (engine grammar {@code (...)+}). */
+    public record PReconStrategy(String kind,
+                                 @com.legend.Nullable String sourceHashColumn,
+                                 @com.legend.Nullable String targetHashColumn,
+                                 @com.legend.Nullable Boolean aggregatedHash) {
     }
 
     /** One {@code schemas:} entry of a SchemaSet — contentSourceInformation

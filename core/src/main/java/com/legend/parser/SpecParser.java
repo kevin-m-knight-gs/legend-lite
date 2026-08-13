@@ -3192,6 +3192,14 @@ public final class SpecParser implements TokenStreamCursor {
     private ValueSpecification parseGraphFetchTree(String content,
             int islandStart) {
         TokenStream innerTokens = Lexer.tokenize(content);
+        if (innerTokens.count() == 0) {
+            // ENGINE-VERBATIM (reprobe TestMappingGrammarParser#12):
+            // #{}# refuses at the island opener
+            throw new com.legend.parser.ParseException(
+                    "Graph fetch tree must not be empty",
+                    tokens.startLine(islandStart),
+                    tokens.startColumn(islandStart));
+        }
         SpecParser inner = new SpecParser(innerTokens, "", dialect);
         try {
             inner.parseQualifiedName();          // skip root class name
@@ -3216,9 +3224,15 @@ public final class SpecParser implements TokenStreamCursor {
             if (raw.startsWith(prefix)) {
                 raw = raw.substring(prefix.length());
             }
+            if (e.line() <= 0) {
+                // a positionless inner error (EOF): anchor at the opener
+                throw new com.legend.parser.ParseException(raw,
+                        tokens.startLine(islandStart),
+                        tokens.startColumn(islandStart));
+            }
             throw new com.legend.parser.ParseException(raw,
                     baseLine + e.line() - 1,
-                    e.line() <= 1 ? baseCol + e.column() - 1 : e.column());
+                    e.line() == 1 ? baseCol + e.column() - 1 : e.column());
         }
     }
 

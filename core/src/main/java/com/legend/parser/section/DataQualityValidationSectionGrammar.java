@@ -243,7 +243,7 @@ public final class DataQualityValidationSectionGrammar
         com.legend.protocol.spec.ValueSpecification source = null;
         com.legend.protocol.spec.ValueSpecification target = null;
         List<String> keys = new ArrayList<>();
-        String strategy = null;
+        Protocol.PReconStrategy strategy = null;
         java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
@@ -262,7 +262,7 @@ public final class DataQualityValidationSectionGrammar
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
                 }
-                case "strategy" -> strategy = c.parseIdentifier();
+                case "strategy" -> strategy = parseReconStrategy(c, key);
                 default -> throw c.error(
                         "unknown DataQualityRelationComparison key '"
                                 + key + "'");
@@ -278,5 +278,46 @@ public final class DataQualityValidationSectionGrammar
         return new Protocol.PDataQualityRelationComparison(h.pkg(), h.name(),
                 source, target, keys, strategy,
                 c.spanOf(h.declStart(), c.pos() - 1));
+    }
+
+    /** {@code MD5Hash ( '{' (sourceHashColumn|targetHashColumn|
+     *  aggregatedHash)+ '}' )?} — engine grammar; the EMPTY block is an
+     *  ANTLR refusal at the '}' (reprobe TestDataQualityParsing#30). */
+    private static Protocol.PReconStrategy parseReconStrategy(
+            TokenStreamCursor c, String key) {
+        String kind = c.parseIdentifier();
+        String sourceHash = null;
+        String targetHash = null;
+        Boolean aggregated = null;
+        if (c.peek() == TokenType.BRACE_OPEN) {
+            c.advance();
+            if (c.peek() == TokenType.BRACE_CLOSE) {
+                throw c.error("Unexpected token '}'");
+            }
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int kS = c.pos();
+                String k = c.parseIdentifier();
+                TokenStreamCursor.once(seen, k, c, kS);
+                c.expect(TokenType.COLON);
+                switch (k) {
+                    case "sourceHashColumn" -> sourceHash = c.parseIdentifier();
+                    case "targetHashColumn" -> targetHash = c.parseIdentifier();
+                    case "aggregatedHash" -> {
+                        String b = c.parseIdentifier();
+                        if (!"true".equals(b) && !"false".equals(b)) {
+                            throw c.error("expected BOOLEAN, got '" + b + "'");
+                        }
+                        aggregated = Boolean.valueOf(b);
+                    }
+                    default -> throw TokenStreamCursor.throwAt(c.tokens(), kS,
+                            "unknown strategy key '" + k + "'");
+                }
+                c.expect(TokenType.SEMI_COLON);
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+        }
+        return new Protocol.PReconStrategy(kind, sourceHash, targetHash,
+                aggregated);
     }
 }
