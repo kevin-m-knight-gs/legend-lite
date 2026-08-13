@@ -145,8 +145,8 @@ def check_partial(rows: list[dict]) -> list[str]:
 
 # Populated by all_tables(): the tables the expansion ring generated, and only those.
 EXPANDED: dict[str, list[dict]] = {}
-# The table set as it stood immediately BEFORE the expansion ran.
-EXPANSION_BASE: dict[str, list[dict]] = {}
+# One (generated, base) pair per expansion ring, in order.
+EXPANSION_LAYERS: list[tuple[dict, dict]] = []
 
 
 def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
@@ -173,15 +173,15 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     # the candidate list from the raw seed would also sweep in the OTHER derived tables
     # (TRADE_FLAT, the partitions, the pre-aggregate) and demand adversarial shapes of
     # them that they deliberately do not have.
-    # The BASE is snapshotted before expanding: build() decides what counts as a foreign
-    # key from the tables that had rows AT THAT MOMENT, so check() has to judge it against
-    # the same view. Judging against the post-expansion set demands FK shapes of columns
-    # that were not foreign keys when the row was generated.
-    EXPANSION_BASE.clear()
-    EXPANSION_BASE.update({k: list(v) for k, v in tables.items()})
-    expanded = expand.build(c, tables)
+    # Expand OUTWARD in rings until the join graph stops yielding satisfiable tables.
+    # Each ring's output must be checked against the base it was generated from -- what
+    # counts as a foreign key changes as more tables gain rows -- so the layers are kept
+    # rather than merged into one before-and-after pair.
+    expanded, layers = expand.build_rings(c, tables)
     EXPANDED.clear()
     EXPANDED.update(expanded)
+    EXPANSION_LAYERS.clear()
+    EXPANSION_LAYERS.extend(layers)
     tables.update(expanded)
     # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
     # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as

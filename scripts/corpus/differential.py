@@ -62,12 +62,17 @@ def seed_sql(c: model.Corpus, TABLES) -> str:
         if name in c.views:
             continue
         cols = c.tables[name].columns
-        decls = ", ".join(f"{n} {_DUCK[col.kind]}" for n, col in cols.items())
-        out.append(f"\nDROP TABLE IF EXISTS {name};")
-        out.append(f"CREATE TABLE {name} ({decls});")
+        # Identifiers are QUOTED. The corpus contains CONCENTRATION_RISK.LIMIT, and LIMIT
+        # is reserved in DuckDB — unquoted it fails with "syntax error at or near LIMIT".
+        # H2 tolerates it, which is why the legend-engine side never noticed and only this
+        # generator broke. Exactly the shape of F9, found in my own DDL rather than the
+        # engine's, and only surfaced because the seed expansion gave that table rows.
+        decls = ", ".join(f'"{n}" {_DUCK[col.kind]}' for n, col in cols.items())
+        out.append(f'\nDROP TABLE IF EXISTS "{name}";')
+        out.append(f'CREATE TABLE "{name}" ({decls});')
         for r in rows:
             vals = ", ".join(_sql_literal(r.get(n), col.kind) for n, col in cols.items())
-            out.append(f"INSERT INTO {name} VALUES ({vals});")
+            out.append(f'INSERT INTO "{name}" VALUES ({vals});')
     return "\n".join(out) + "\n"
 
 

@@ -31,7 +31,9 @@ MIN_FEATURES = 5
 
 # How many roots to stack on. Ranked by what the model offers from each, so widening the
 # seed automatically widens the corpus instead of needing a new entry here.
-MAX_ROOTS = 24
+# Bounded, not because more would be wrong, but because every root costs a service and
+# the suite is run per commit. Raised as the seed widens; the ranking decides which.
+MAX_ROOTS = 45
 
 
 def _identifier(c: model.Corpus, root: str) -> str | None:

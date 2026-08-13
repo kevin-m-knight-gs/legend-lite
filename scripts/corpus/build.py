@@ -119,7 +119,8 @@ def generate() -> dict[Path, str]:
     import aggregate
     import expand
     import partition
-    problems = (expand.check(c, flat.EXPANDED, flat.EXPANSION_BASE)
+    problems = ([p for produced, base in flat.EXPANSION_LAYERS
+                 for p in expand.check(c, produced, base)]
                 + aggregate.check(c, TABLES["TRADE_BY_BOOK"], TABLES)
                 + seed.check(c) + flat.check(c, TABLES['TRADE_FLAT'])
                 + flat.check_partial(TABLES["TRADE_FLAT_PARTIAL"])

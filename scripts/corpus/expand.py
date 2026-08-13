@@ -220,14 +220,48 @@ def check(c: model.Corpus, generated: dict[str, list[dict]],
     return bad
 
 
+def build_rings(c: model.Corpus, tables: dict[str, list[dict]], rings: int = 6):
+    """Expand outward repeatedly, each ring seeded from everything the previous ones
+    produced.
+
+    The default of six is a safety bound, not a target: the loop stops as soon as a ring
+    produces nothing, and in practice it converges well before that. A bound exists at all
+    so a cycle in the join graph cannot spin.
+
+    One ring reaches only the immediate neighbours of the hand-written core. Iterating
+    walks the join graph outward until it stops finding tables it can satisfy — which is
+    what turns an inert 200-class model into one a generator can actually navigate.
+
+    Returns (merged, [(generated, base_at_that_ring)]). Each ring's output has to be
+    CHECKED against the base it was generated from: what counted as a foreign key changes
+    as more tables gain rows, and judging ring 1 against the state after ring 3 would
+    demand FK shapes of columns that were not foreign keys when their rows were written.
+    """
+    merged: dict[str, list[dict]] = {}
+    layers: list[tuple[dict, dict]] = []
+    current = dict(tables)
+    for _ in range(rings):
+        base = {k: list(v) for k, v in current.items()}
+        produced = build(c, current)
+        if not produced:
+            break
+        layers.append((produced, base))
+        merged.update(produced)
+        current.update(produced)
+    return merged, layers
+
+
 if __name__ == "__main__":
     import flat
 
     c = model.load()
     base = flat.all_tables(c)
-    gen = build(c, base)
-    print(f"{len(gen)} tables generated, {sum(len(v) for v in gen.values())} rows")
-    problems = check(c, gen, base)
+    merged, layers = build_rings(c, base)
+    for i, (produced, _) in enumerate(layers, 1):
+        print(f"  ring {i}: {len(produced):>3} tables, "
+              f"{sum(len(v) for v in produced.values()):>4} rows")
+    print(f"total: {len(merged)} tables, {sum(len(v) for v in merged.values())} rows")
+    problems = [p for produced, b in layers for p in check(c, produced, b)]
     print(f"self-check: {'OK' if not problems else str(len(problems)) + ' PROBLEMS'}")
     for p in problems[:8]:
         print("  -", p)
