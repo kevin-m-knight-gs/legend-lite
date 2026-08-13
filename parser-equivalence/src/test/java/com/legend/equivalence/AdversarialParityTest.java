@@ -280,4 +280,21 @@ class AdversarialParityTest {
         }
         runFamily("operator-precedence-sweep", rows, 0);
     }
+    @Test
+    void constraintClausesAndQuotedCallables() {
+        // Tier-3 residue (08-05 audit R1-R4 + quoted-callable + quote-blind
+        // path scanner), fixed 2026-08-13 — all oracle-verified
+        String cls = "###Pure\nClass a::T { p(s: String[1]) { $s }: String[1]; }\n";
+        runFamily("constraints-and-callables", List.of(
+                new Row("clauses out of order", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~enforcementLevel: Error\n    ~function: $this.x > 0\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("externalId after function", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~function: $this.x > 0\n    ~externalId: 'ext'\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("repeated externalId", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~externalId: 'a'\n    ~externalId: 'b'\n    ~function: $this.x > 0\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("empty constraints block", "###Pure\nClass t::C [ ] { x: Integer[1]; }\n"),
+                new Row("full ordered clauses", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~externalId: 'ext'\n    ~function: $this.x > 0\n    ~enforcementLevel: Warn\n    ~message: 'bad ' + $this.x->toString()\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("quoted callable prefix", "###Pure\nfunction f::f(x: Integer[1]): Any[*]\n{\n  'meta::pure::functions::math::abs'($x)\n}\n"),
+                new Row("quoted callable arrow", "###Pure\nfunction f::f(x: Integer[1]): Any[*]\n{\n  $x->'meta::pure::functions::math::abs'()\n}\n"),
+                new Row("path arg comma in string", cls + "function f::f(): Any[*]\n{\n  #/a::T/p('a,b')#\n}\n"),
+                new Row("path arg slash in string", cls + "function f::f(): Any[*]\n{\n  #/a::T/p('a/b')#\n}\n")),
+                0);
+    }
 }

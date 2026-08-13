@@ -701,7 +701,13 @@ public final class SpecParser implements TokenStreamCursor {
             case INTEGER -> parseInteger();
             case FLOAT -> parseFloat();
             case DECIMAL -> parseDecimal();
-            case STRING -> parseString();
+            // a QUOTED NAME can start an expression when a call or path
+            // follows — 'abs'($x) and 'pkg'::f are engine-legal (the
+            // identifier rule admits quoted strings; Tier-3 residue,
+            // oracle-verified); a bare string stays a literal
+            case STRING -> peek(1) == TokenType.PAREN_OPEN
+                    || peek(1) == TokenType.PATH_SEPARATOR
+                    ? parseQualifiedNameStart() : parseString();
             case DOC_STRING -> parseDocString();
             case TRUE -> consumeBoolean(true);
             case FALSE -> consumeBoolean(false);
@@ -1167,7 +1173,8 @@ public final class SpecParser implements TokenStreamCursor {
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             // Top-level call: span = the function-name tokens (engine call convention).
-            AppliedFunction call = new AppliedFunction(fqn, args,
+            AppliedFunction call = new AppliedFunction(
+                    com.legend.protocol.Protocol.unquotePath(fqn), args,
                     java.util.List.of(), spanOf(fqnStart, fqnEnd));
             // the quoted-code fold: compileLegendValueSpecification('literal')
             // parses HERE — strings die at the parser. The payload parses
@@ -1411,7 +1418,11 @@ public final class SpecParser implements TokenStreamCursor {
         params.addAll(args);
         // Engine convention: a call's span covers the function-NAME token only,
         // not the receiver, arrow, or argument parens (verified via ProbeWireShapes).
-        return new AppliedFunction(fn, params, List.of(), spanOf(fnStart, fnEnd));
+        // CALLABLE names unquote (PureGrammarParserUtility.fromIdentifier —
+        // 08-05 audit 2.6: $x->'pkg::abs'() kept its quotes on the wire here
+        // while the dot-path unquoted; Protocol.unquotePath is quote-aware)
+        return new AppliedFunction(com.legend.protocol.Protocol.unquotePath(fn),
+                params, List.of(), spanOf(fnStart, fnEnd));
     }
 
     // -------------------------------------------------------------------
@@ -2679,17 +2690,28 @@ public final class SpecParser implements TokenStreamCursor {
      *  where no trailing empties arise in practice; the text-rule gate
      *  bans the regex form). */
     private static List<String> splitChar(String s, char sep) {
+        // QUOTE-AWARE: a separator inside a quoted string ('a/b', 'a,b')
+        // must not split (Tier-3 residue F2 — the blind indexOf mis-split
+        // #/T/p('a/b')# into garbage segments; oracle-verified)
         List<String> out = new ArrayList<>();
         int start = 0;
-        while (true) {
-            int i = s.indexOf(sep, start);
-            if (i < 0) {
+        boolean inQuote = false;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i == s.length()) {
                 out.add(s.substring(start));
-                return out;
+                break;
             }
-            out.add(s.substring(start, i));
-            start = i + 1;
+            char c = s.charAt(i);
+            if (inQuote && c == '\\') {
+                i++;
+            } else if (c == '\'') {
+                inQuote = !inQuote;
+            } else if (c == sep && !inQuote) {
+                out.add(s.substring(start, i));
+                start = i + 1;
+            }
         }
+        return out;
     }
 
     private ValueSpecification parsePathLiteral() {
@@ -2842,9 +2864,22 @@ public final class SpecParser implements TokenStreamCursor {
         List<String> out = new ArrayList<>();
         int depth = 0;
         int start = 0;
+        boolean inQuote = false;
         for (int i = 0; i <= s.length(); i++) {
             char c = i < s.length() ? s.charAt(i) : ',';
-            if (c == '[' || c == '(') {
+            if (inQuote && i < s.length()) {
+                // quoted region: honour escapes, close on the bare quote —
+                // a ',' inside 'a,b' must not split (Tier-3 residue F2)
+                if (c == '\\') {
+                    i++;
+                } else if (c == '\'') {
+                    inQuote = false;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                inQuote = true;
+            } else if (c == '[' || c == '(') {
                 depth++;
             } else if (c == ']' || c == ')') {
                 depth--;
