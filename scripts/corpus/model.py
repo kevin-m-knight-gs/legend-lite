@@ -168,6 +168,8 @@ class Corpus:
     enum_maps: dict[str, dict[str, str]] = field(default_factory=dict)
     # (class fqn, property) -> EnumerationMapping name
     enum_props: dict[tuple[str, str], str] = field(default_factory=dict)
+    # class fqn -> the member TABLES of an Operation union mapping, in declared order
+    unions: dict[str, list[str]] = field(default_factory=dict)
 
     # -------------------------------------------------------- resolution
 
@@ -271,7 +273,11 @@ _DERIVED = re.compile(
     r"^\s*(\w+)\s*\(([^)]*)\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
 _PARAM = re.compile(r"(\w+)\s*:\s*[\w:]+\s*\[[^\]]+\]")
 _MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
-_CLSMAP = re.compile(r"^\s*([\w:]+)\s*:\s*Relational\s*\{?\s*$")
+# `Class: Relational`, `Class[id]: Relational`, and the root-marked `*Class: ...` form.
+_CLSMAP = re.compile(r"^\s*\*?([\w:]+)(?:\[(\w+)\])?\s*:\s*Relational\s*\{?\s*$")
+_OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
+_UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
+                    r"\s*\(([^)]*)\)")
 _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
 # `prop: EnumerationMapping <Name>: [db] TABLE.COL` — must be stripped BEFORE _COLMAP
 # runs, or _COLMAP matches the tail and records the mapping NAME as the property.
@@ -441,6 +447,9 @@ def _split_mappings(body: str) -> list[str]:
 
 def _parse_mapping(text: str, c: Corpus) -> None:
     cur = None
+    cur_id = None
+    cur_op = None
+    set_tables: dict[str, str] = {}   # set-implementation id -> its ~mainTable
     in_assoc = False
     enum_map = None          # name of the EnumerationMapping currently being read
     for raw in text.splitlines():
@@ -472,9 +481,18 @@ def _parse_mapping(text: str, c: Corpus) -> None:
             if line.strip() != "{":
                 raise ValueError(f"unhandled EnumerationMapping line: {line!r}")
             continue
+        m = _OPMAP.match(line)
+        if m:
+            cur, in_assoc, cur_op = None, False, m.group(1)
+            continue
+        if cur_op and _UNION.search(line):
+            ids = [i.strip() for i in _UNION.search(line).group(1).split(",") if i.strip()]
+            c.unions[cur_op] = [set_tables[i] for i in ids if i in set_tables]
+            cur_op = None
+            continue
         m = _CLSMAP.match(line)
         if m and "AssociationMapping" not in line:
-            cur, in_assoc = m.group(1), False
+            cur, in_assoc, cur_id = m.group(1), False, m.group(2)
             continue
         if "AssociationMapping" in line:
             in_assoc = True
@@ -483,6 +501,11 @@ def _parse_mapping(text: str, c: Corpus) -> None:
             continue
         m = _MAIN.match(line)
         if m and cur:
+            # For a union member, the per-id table is what the union needs; the class's
+            # own main_table is set by whichever member comes last and is only used as a
+            # fallback for callers that do not know about unions.
+            if cur_id:
+                set_tables[cur_id] = m.group(1)
             c.main_table[cur] = m.group(1)
             continue
         if cur and in_assoc:
@@ -597,6 +620,13 @@ def check(c: Corpus) -> list[str]:
     for (owner, name), end in c.ends.items():
         if end.join and end.join not in c.joins:
             bad.append(f"{owner}.{name} uses undeclared join {end.join}")
+    for cls, members in c.unions.items():
+        if len(members) < 2:
+            bad.append(f"union mapping for {cls} resolved {len(members)} member tables; "
+                       f"the set-implementation ids probably did not match")
+        for m in members:
+            if m not in c.tables:
+                bad.append(f"union member {m} of {cls} is not a declared table")
     for (cls, prop), mapping in c.enum_props.items():
         if mapping not in c.enum_maps:
             bad.append(f"{cls}.{prop} uses undeclared EnumerationMapping {mapping}")

@@ -106,11 +106,18 @@ def check(c: model.Corpus, flat: list[dict]) -> list[str]:
 
 
 def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
-    """The seed plus the derived reporting table. Every consumer of the corpus data goes
-    through here, so TRADE_FLAT can never be stale relative to TRADE — it does not exist
-    until it is recomputed."""
+    """The seed plus every DERIVED table. Each consumer of the corpus data goes through
+    here, so a derived table can never be stale relative to its source — it does not
+    exist until it is recomputed.
+
+    Both derivations exist to make an invariance claim honest: TRADE_FLAT (L2) varies how
+    a row is assembled, the partitions (L4) vary where rows come from.
+    """
+    import partition
+
     tables = dict(seed.TABLES)
     tables["TRADE_FLAT"] = build(c, seed.TABLES)
+    tables.update(partition.build(c, seed.TABLES))
     return tables
 
 

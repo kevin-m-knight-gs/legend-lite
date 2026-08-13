@@ -1,0 +1,53 @@
+###Mapping
+Mapping trading::HistoryMapping
+(
+    include trading::Codes
+
+    trading::HistTrade[eq]: Relational {
+        ~primaryKey ([store::DB] TRADE_EQ.TRADE_ID)
+        ~mainTable [store::DB] TRADE_EQ
+        tradeId: [store::DB] TRADE_EQ.TRADE_ID,
+        tradeDate: [store::DB] TRADE_EQ.TRADE_DATE,
+        quantity: [store::DB] TRADE_EQ.QUANTITY,
+        price: [store::DB] TRADE_EQ.PRICE,
+        notional: [store::DB] TRADE_EQ.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE_EQ.SIDE,
+        status: [store::DB] TRADE_EQ.STATUS,
+        currency: [store::DB] TRADE_EQ.CURRENCY
+    }
+
+    trading::HistTrade[rates]: Relational {
+        ~primaryKey ([store::DB] TRADE_RATES.TRADE_ID)
+        ~mainTable [store::DB] TRADE_RATES
+        tradeId: [store::DB] TRADE_RATES.TRADE_ID,
+        tradeDate: [store::DB] TRADE_RATES.TRADE_DATE,
+        quantity: [store::DB] TRADE_RATES.QUANTITY,
+        price: [store::DB] TRADE_RATES.PRICE,
+        notional: [store::DB] TRADE_RATES.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE_RATES.SIDE,
+        status: [store::DB] TRADE_RATES.STATUS,
+        currency: [store::DB] TRADE_RATES.CURRENCY
+    }
+
+    // The empty leg. It maps exactly like the others and contributes no rows.
+    trading::HistTrade[fx]: Relational {
+        ~primaryKey ([store::DB] TRADE_FX.TRADE_ID)
+        ~mainTable [store::DB] TRADE_FX
+        tradeId: [store::DB] TRADE_FX.TRADE_ID,
+        tradeDate: [store::DB] TRADE_FX.TRADE_DATE,
+        quantity: [store::DB] TRADE_FX.QUANTITY,
+        price: [store::DB] TRADE_FX.PRICE,
+        notional: [store::DB] TRADE_FX.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE_FX.SIDE,
+        status: [store::DB] TRADE_FX.STATUS,
+        currency: [store::DB] TRADE_FX.CURRENCY
+    }
+
+    // The `*` marks the ROOT set implementation for the class — the one a query on
+    // trading::HistTrade dispatches to. Without it the three partitions are three
+    // unrelated mappings and dispatch is ambiguous.
+    *trading::HistTrade: Operation
+    {
+        meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(eq, rates, fx)
+    }
+)

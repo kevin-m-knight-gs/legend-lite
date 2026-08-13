@@ -113,6 +113,19 @@ Database store::DB
     Join ReconciliationItem_Position(RECONCILIATION_ITEM.POSITION_ID = POSITION.POSITION_ID)
     Join PositionSnapshot_Position(POSITION_SNAPSHOT.POSITION_ID = POSITION.POSITION_ID)
 
+    // ---- L4: the partitioned trade history ----
+    // Real trade stores are partitioned; this one splits by asset class, which is the
+    // shape that survives when a firm's rates and equities businesses run on different
+    // platforms. The three partitions are UNIONED back into one class by an Operation
+    // mapping, and TRADE_FX is deliberately EMPTY -- a union leg contributing no rows is
+    // the case that breaks naive union implementations.
+    //
+    // Contents are DERIVED from TRADE by scripts/corpus/partition.py, so
+    // HistTrade.all() and Trade.all() must return the same rows by construction.
+    Table TRADE_EQ (TRADE_ID VARCHAR(200) PRIMARY KEY, TRADE_DATE DATE, QUANTITY DOUBLE, PRICE DOUBLE, NOTIONAL DOUBLE, SIDE VARCHAR(200), STATUS VARCHAR(200), CURRENCY VARCHAR(200), INSTRUMENT_ID VARCHAR(200))
+    Table TRADE_RATES (TRADE_ID VARCHAR(200) PRIMARY KEY, TRADE_DATE DATE, QUANTITY DOUBLE, PRICE DOUBLE, NOTIONAL DOUBLE, SIDE VARCHAR(200), STATUS VARCHAR(200), CURRENCY VARCHAR(200), INSTRUMENT_ID VARCHAR(200))
+    Table TRADE_FX (TRADE_ID VARCHAR(200) PRIMARY KEY, TRADE_DATE DATE, QUANTITY DOUBLE, PRICE DOUBLE, NOTIONAL DOUBLE, SIDE VARCHAR(200), STATUS VARCHAR(200), CURRENCY VARCHAR(200), INSTRUMENT_ID VARCHAR(200))
+
     // ---- L3: business-temporal (SCD2) reference data ----
     // A counterparty's credit rating changes over time and the history is kept. This is
     // the single most common temporal shape in a bank, and it is the one that makes

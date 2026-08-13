@@ -164,6 +164,17 @@ def break_infinity_date(f):
     return f
 
 
+def populate_empty_union_leg(f):
+    """Put a row in TRADE_FX, which the corpus asserts is EMPTY. The union then returns
+    21 rows where the whole table has 20."""
+    f["93"] = _sub_once(
+        f["93"],
+        r"(default\.TRADE_FX:\n      '[^']*\\n');",
+        r"\1 +\n      'TRD-9001,2024-06-03,1.0,1.0,1.0,B,EXECUTED,USD,INST-AAPL\\n';",
+        "populate_empty_union_leg")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -186,6 +197,7 @@ MUTATIONS = {
     "break_embedded_mapping": break_embedded_mapping,
     "shift_milestone_boundary": shift_milestone_boundary,
     "break_infinity_date": break_infinity_date,
+    "populate_empty_union_leg": populate_empty_union_leg,
 }
 
 # Mutations that MUST survive. A corpus claims coverage by what it catches; it should be

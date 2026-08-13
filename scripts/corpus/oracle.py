@@ -297,6 +297,20 @@ def _agg(c: Corpus, data, row, root: str, proj):
 INFINITY = "9999-12-31"
 
 
+def _rows_for(c: Corpus, root: str, data: dict[str, list[dict]]) -> list[dict]:
+    """Every row of the class, whether it lives in one table or several.
+
+    A union-mapped class is the concatenation of its members in declared order. The
+    ordering does not matter to any assertion here — EqualToJson compares unordered — but
+    concatenating rather than merging is deliberate: a duplicate across partitions must
+    show up as a duplicate row, not be silently collapsed.
+    """
+    members = c.unions.get(root)
+    if members:
+        return [r for m in members for r in data[m]]
+    return data[c.main_table[root]]
+
+
 def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
     """Apply the business-milestoning predicate for a temporal root.
 
@@ -337,7 +351,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
-    base = _milestoned(c, spec, data[c.main_table[spec.root]])
+    base = _milestoned(c, spec, _rows_for(c, spec.root, data))
     kept = [r for r in base
             if all(_cmp(f.op, _value(c, data, r, spec.root, f.path), f.value)
                    for f in spec.filters)]

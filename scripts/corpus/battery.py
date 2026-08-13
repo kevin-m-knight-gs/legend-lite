@@ -114,7 +114,38 @@ def _embedded_variant(canonical: Spec) -> Spec:
 
 CANONICAL, FLAT = _invariance_pair()
 EMBEDDED = _embedded_variant(CANONICAL)
-INVARIANCE = [CANONICAL, FLAT, EMBEDDED]
+
+
+# ------------------------------------------------------------ L4 union invariance
+#
+# Orthogonal to the L2 group. L2 varies how a row is ASSEMBLED (join vs denormalized);
+# this varies where rows COME FROM (one table vs a union of three, one of them empty).
+# The projection is restricted to the columns the partitions carry.
+
+_UNION_COLUMNS = ["tradeId", "tradeDate", "quantity", "price", "notional", "side",
+                  "status", "currency"]
+
+
+def _union_pair():
+    whole = Spec("stress::U0_TradeWhole", "/stress/u0",
+                 "Union invariance, whole side: every trade from the single TRADE table.",
+                 "trading::Trade")
+    whole.projections = [Proj(a, [a]) for a in _UNION_COLUMNS]
+
+    parts = Spec("stress::U1_TradePartitioned", "/stress/u1",
+                 "Union invariance, partitioned side: the same trades reached through an "
+                 "Operation union over TRADE_EQ, TRADE_RATES and the EMPTY TRADE_FX. A "
+                 "union leg contributing no rows must add nothing and remove nothing.",
+                 "trading::HistTrade")
+    parts.projections = [Proj(a, [a]) for a in _UNION_COLUMNS]
+    return whole, parts
+
+
+WHOLE, PARTITIONED = _union_pair()
+
+# Each group must agree internally; groups are independent of one another.
+INVARIANCE_GROUPS = [[CANONICAL, FLAT, EMBEDDED], [WHOLE, PARTITIONED]]
+INVARIANCE = [s for g in INVARIANCE_GROUPS for s in g]
 
 
 # ---------------------------------------------------------------- L3 temporal

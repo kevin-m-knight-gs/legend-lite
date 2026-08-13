@@ -88,7 +88,11 @@ def generate() -> dict[Path, str]:
     problems = model.check(c)
     if problems:
         raise SystemExit("model does not resolve:\n  " + "\n  ".join(problems[:10]))
-    problems = seed.check(c) + flat.check(c, TABLES['TRADE_FLAT'])
+    import partition
+    problems = (seed.check(c) + flat.check(c, TABLES['TRADE_FLAT'])
+                + partition.check(c, {k: TABLES[k] for k in
+                                      ('TRADE_EQ', 'TRADE_RATES', 'TRADE_FX')},
+                                  TABLES))
     if problems:
         raise SystemExit("seed is invalid:\n  " + "\n  ".join(problems[:10]))
 
@@ -110,17 +114,18 @@ def generate() -> dict[Path, str]:
     # facts — and shipping both would produce two tests that disagree for a reason that
     # has nothing to do with the engine.
     key = lambda rs: sorted(json.dumps(r, sort_keys=True) for r in rs)
-    inv = [(s.short, key(oracle.as_json_rows(c, s, oracle.evaluate(c, s, TABLES))))
-           for s in battery.INVARIANCE]
-    base_name, base = inv[0]
-    for name, rows in inv[1:]:
-        if rows != base:
-            only_a = [r for r in base if r not in rows][:2]
-            only_b = [r for r in rows if r not in base][:2]
-            raise SystemExit(
-                f"mapping invariance FAILS in the fixture itself "
-                f"({base_name} vs {name}):\n"
-                f"  {base_name}-only: {only_a}\n  {name}-only: {only_b}")
+    for group in battery.INVARIANCE_GROUPS:
+        inv = [(s.short, key(oracle.as_json_rows(c, s, oracle.evaluate(c, s, TABLES))))
+               for s in group]
+        base_name, base = inv[0]
+        for name, rows in inv[1:]:
+            if rows != base:
+                only_a = [r for r in base if r not in rows][:2]
+                only_b = [r for r in rows if r not in base][:2]
+                raise SystemExit(
+                    f"invariance FAILS in the fixture itself "
+                    f"({base_name} vs {name}):\n"
+                    f"  {base_name}-only: {only_a}\n  {name}-only: {only_b}")
 
     fan = []
     for spec in battery.SPECS:

@@ -1,0 +1,19 @@
+// ============================================================
+// History Domain (L4) — the partitioned trade store
+// ============================================================
+// The same trades as trading::Trade, reached through a union over three partitions
+// instead of a single table. Whatever the physical layout, the answer must not change —
+// which makes this the second independent invariance in the corpus, orthogonal to L2's:
+// L2 varies how a row is ASSEMBLED (join vs denormalized), L4 varies where rows COME FROM.
+###Pure
+Class trading::HistTrade
+{
+    tradeId: String[1];
+    tradeDate: StrictDate[1];
+    quantity: Float[1];
+    price: Float[1];
+    notional: Float[1];
+    side: trading::Side[1];
+    status: String[1];
+    currency: String[1];
+}
