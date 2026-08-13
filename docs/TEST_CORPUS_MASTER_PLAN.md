@@ -555,6 +555,112 @@ execution for a simple case, 10,000 cases is roughly 4 minutes of engine time pl
 compilation. Model **compilation** dominates — so batch cases by model (compile once,
 run its whole battery), which the current runner already does.
 
+---
+
+## 5B. Base corpus + enrichment layers — quality first, scale by variation
+
+### The correction
+
+§5A's covering arrays produce *structurally* valid models with synthetic shape:
+`Person0`, `r0_id`, five identical classes in a chain. They exercise features but look
+like nothing anyone would build, and the interesting defects live in the shapes real
+models actually take — denormalized reporting tables, partitioned history, slowly
+changing dimensions, deep instrument hierarchies, the same domain mapped several ways.
+
+We do not have to author that from scratch. `core/src/test/resources/stress/` already
+holds a realistic multi-domain financial-services corpus. It is the base.
+
+### What the base already is
+
+| | |
+|---|---|
+| Files / lines | 46 / 7,428 |
+| Domains | 20 — products, refdata, counterparty, org, positions, trading, pnl, risk, settlement, ops, collateral, sales, regulatory, marketdata, funding, accounting, clearing, tax, research, prime |
+| Classes | **200**, ~15 properties each, domain-meaningful names (`notional`, `settlementDate`, `executionVenue`, `slippage`, `marketImpact`) |
+| Associations | **182**, including a dedicated cross-domain file for multi-hop navigation |
+| Mappings | 21, composed through an include closure (`stress::AllMapping`) |
+| Stores | 20 store files over one `store::DB` |
+| Services | 12, already using the **Relation** paradigm (`->project(~[...])`) |
+| Enums | 4 |
+
+That is realistic **breadth and topology** — genuinely hard to author by hand, and already
+done.
+
+### What the base does not have — the enrichment surface
+
+A feature scan across all 46 files returns **zero** occurrences of: milestoning
+(`temporal.*`), `Operation` union mappings, M2M (`: Pure`), `Relation` class mappings,
+XStore, ModelJoin, AggregationAware, `Otherwise`, `Inline[`, `EnumerationMapping`,
+`~groupBy`, `~filter`, `View`, `{target}` self-joins, `testSuites`. Also no functions, no
+profiles, no Measures/Units, and the class mappings carry no `~primaryKey`.
+
+So the base is **broad and shallow** — exactly the right starting point. Every feature we
+need to cover is an *enrichment* of a realistic model rather than a synthetic fixture.
+
+Several enrichments make the model **more** realistic, not less:
+
+| Base today | Enrichment | Why it is also more realistic |
+|---|---|---|
+| `status: String[1]`, `side`, `tradeType`, `currency` as `String` | typed enums + `EnumerationMapping` with source codes | the enums (`OrderStatus`, `OrderType`) already exist and are unused; real warehouses store codes, not labels |
+| refdata / products / counterparty as current-state tables | business-temporal milestoning (SCD2) | reference data is versioned in every real firm |
+| one `TRADE` table | partitioned trade history + `Operation` union | trade history is partitioned by year everywhere |
+| flat column mappings | a denormalized reporting table with embedded / inline / otherwise mappings | every firm has a wide reporting table |
+| no aggregates | `View` with `~groupBy` for positions-by-book, plus AggregationAware | standard warehouse rollup |
+| `org` hierarchy without self-reference | `{target}` self-join for manager / parent legal entity | org charts are recursive |
+| no constraints | `notional == quantity * price`, `settlementDate >= tradeDate` | actual trade-capture validations |
+| no derived properties | `netAmount()`, `isSettled()`, `positionAsOf(date)` | the questions users actually ask |
+| amounts as bare `Float` | Measures/Units for currency | multi-currency is the domain |
+| services without tests | `testSuites` on the existing 12 services | they are already the realistic query battery |
+
+### Enrichment layers, in build order
+
+Each layer is an increment of ~150–250 assertion-bearing cases — the iteration unit.
+Each is validated (compiles, executes, asserted, mutation-tested, census-checked) before
+the next begins.
+
+| Layer | Content |
+|---|---|
+| **L0 — data + assertions on the base** | Realistic seed data with skew, NULLs, orphans, zero-child entities, ties. Oracle + metamorphic assertions over the existing 12 services and a wider battery. Proves the base end-to-end before changing it. |
+| **L1 — types & rules** | Enums for the string-typed code columns + EnumerationMappings; constraints; derived and qualified properties; Measures/Units for currency. |
+| **L2 — mapping depth** | A second mapping of the same domains: denormalized with embedded/inline/otherwise. **This is what makes mapping invariance testable.** |
+| **L3 — temporal** | SCD2 milestoning on refdata/products/counterparty; bitemporal on one; `%latest`, `allVersions`, `allVersionsInRange`. |
+| **L4 — partitioning & rollup** | Partitioned trade history + `Operation` union; Views with `~groupBy`/`~filter`/`~distinct`; AggregationAware. |
+| **L5 — cross-store** | An M2M canonical→reporting layer; `ModelChainConnection`; XStore and ModelJoin to a "external party system" store. |
+| **L6 — harnesses** | `testSuites` on the services; Function tests; Persistence and DataQuality packs. |
+
+### Why plural mappings is the key idea
+
+Once L2 lands, every query in the battery yields a free assertion:
+
+```
+query(normalizedMapping) ≡ query(denormalizedMapping)
+```
+
+No oracle, no expectation to compute, and a violation is unambiguously an engine defect.
+It exercises embedded/inline/otherwise resolution, join-tree construction and union
+dispatch against a known-good reference — precisely the parts we refuse to reimplement in
+the generative oracle. Same argument for L4's partitioned-union mapping and L5's M2M
+layer: each is another equivalent view of the same domain.
+
+### Quality bar for anything authored on top
+
+- Names would pass review in a real project — no `C0`, no `r0`.
+- Every constraint encodes a rule someone could state in a sentence.
+- Every derived property answers a question a user would actually ask.
+- Each enrichment shows at least one of: denormalization, partitioning, SCD2, or a
+  natural-vs-surrogate key split.
+- Data has realistic cardinality skew — not uniform fan-out.
+- At least two mappings of the same domain exist, so invariance is testable.
+
+### How this reaches 10,000
+
+20 domains × ~4 mappings × a 40-query battery ≈ 3,200 high-realism cases before any
+generation. The covering arrays of §5A then layer *on top of* the enriched base —
+varying dialect, harness, assertion kind and depth against realistic models rather than
+synthetic ones. That is how the count grows without diluting quality.
+
+---
+
 ## 6. Corpus architecture
 
 ```
@@ -729,7 +835,7 @@ The first two are the **regression tripwires**.
 | Wave | Work | Why here |
 |---|---|---|
 | **0** | **Wire the census as a gate** — rerun the three probes, snapshot the covered sets, make "did this wave move coverage" a build check. Take the 221-tag / ~35-keyword worklist as the fixture queue (~30–40 fixtures). | Without it every later wave is unmeasured — which is how the previous corpus reached 10,800 assertion-free cases. |
-| **1** | **Negative tests** (constraint violations per enforcement level, compile errors with expected diagnostics, runtime failures) · **empty/singleton/boundary for every aggregate** · **data torture** · **`Relation #{}#` assertions** alongside JSON for the same cases | Highest defect yield. B-4 came from an empty collection; B-1 from an error path. We currently test neither. |
+| **1** | **L0 on the base corpus** (§5B): realistic seed data for `stress/` with skew, NULLs, orphans, zero-child entities and ties; oracle + metamorphic assertions over the existing 12 services and a wider battery; the generative oracle itself. Then **negative tests**, **empty/boundary for every aggregate**, **data torture**, **`Relation #{}#` assertions**. | Highest defect yield, on a realistic model rather than a synthetic one. B-4 came from an empty collection; B-1 from an error path. The generative oracle is on the critical path for anything past ~200 cases. |
 | **2** | **Service** harness · **Function** scaled out · **ModelStore** data (unlocks M2M end-to-end) · Persistence + DataQuality | Harness coverage 2/6 → 6/6; parameters and serializationFormat close for free. |
 | **3** | **Tier-1 dense scenarios** (S1–S10) · mapping depth · store depth · milestoning matrix · type matrix · the **Relation paradigm** | Where the remaining silent-wrong-answer bugs most likely are. |
 | **4** | **Dependency stress generator** · **performance sweeps + baselines** · volume fixtures with DB-side diffing | Consumes the corpus; needs it to exist first. |
