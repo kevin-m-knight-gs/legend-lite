@@ -103,7 +103,8 @@ class RejectionParityTest {
                         }
                     } else {
                         lineDiverges.add(p.id() + " engine " + engineLine + ":" + engineCol
-                                + " ours " + ourLine + ":" + ourCol);
+                                + " ours " + ourLine + ":" + ourCol
+                                + "\t" + m.replaceAll("\\s+", " "));
                     }
                 }
             }
@@ -128,6 +129,14 @@ class RejectionParityTest {
                         skippedNonPure));
         lineDiverges.stream().limit(10)
                 .forEach(d -> report.append("  LINE-DIVERGE ").append(d).append('\n'));
+        try {
+            java.nio.file.Files.createDirectories(java.nio.file.Path.of("target"));
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target", "position-diverges.tsv"),
+                    String.join("\n", lineDiverges) + "\n");
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
         if (!misses.isEmpty()) {
             report.append("\nMISSES — we accept what the engine refuses\n")
                     .append("-".repeat(72)).append('\n');

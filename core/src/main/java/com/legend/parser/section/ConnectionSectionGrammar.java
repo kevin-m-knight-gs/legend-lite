@@ -139,7 +139,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             String flavor, int declStart, boolean standalone) {
         return switch (flavor) {
             case "JsonModelConnection", "XmlModelConnection" -> {
-                ModelConnBody body = parseModelConnectionBody(c);
+                ModelConnBody body = parseModelConnectionBody(c, declStart);
                 com.legend.protocol.SourceInfo span =
                         c.spanOf(declStart, c.pos() - 1);
                 yield "JsonModelConnection".equals(flavor)
@@ -158,7 +158,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     parseServiceStoreConnectionBody(c, declStart);
             case "DeephavenConnection" -> parseDeephavenConnectionBody(c);
             case "MongoDBConnection" -> parseMongoConnectionBody(c, declStart);
-            default -> throw c.error("unsupported connection flavor: " + flavor);
+            // ANCHORED at the element (engine walker: sourceInformation of
+            // the CONNECTION ctx — position-exactness lane 2026-08-13)
+            default -> throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    "unsupported connection flavor: " + flavor);
         };
     }
 
@@ -166,7 +170,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             com.legend.protocol.SourceInfo clsSpan, String url) {
     }
 
-    private static ModelConnBody parseModelConnectionBody(TokenStreamCursor c) {
+    private static ModelConnBody parseModelConnectionBody(TokenStreamCursor c,
+            int declStart) {
         c.expect(TokenType.BRACE_OPEN);
         String cls = null;
         com.legend.protocol.SourceInfo clsSpan = null;
@@ -196,7 +201,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (cls == null || clsSpan == null || url == null) {
-            throw c.error("model connection needs class and url");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(),
+                    declStart, "model connection needs class and url");
         }
         return new ModelConnBody(cls, clsSpan, url);
     }
