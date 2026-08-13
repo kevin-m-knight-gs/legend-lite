@@ -71,7 +71,11 @@ Association cross::Position_Instrument
 // ---- Settlement ↔ Trading ----
 Association cross::Settlement_Trade
 {
-    trade: trading::Trade[1];
+    // [0..1], not [1]: a settlement can outlive the trade it settled (STL-9999 in the
+    // seed points at a purged trade). Declaring [1] over data that has orphans makes the
+    // model contradict the store, and it is that contradiction -- not the engines --
+    // that makes "what is $s.trade.isSettled when there is no trade" unanswerable.
+    trade: trading::Trade[0..1];
     settlements: settlement::Settlement[*];
 }
 

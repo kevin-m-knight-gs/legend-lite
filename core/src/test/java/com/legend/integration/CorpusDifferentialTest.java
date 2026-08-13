@@ -48,7 +48,21 @@ class CorpusDifferentialTest {
         var ctx = com.legend.Compiler.compileModel(model);
         var dialect = new com.legend.sql.dialect.DuckDb();
 
-        List<String> agree = new ArrayList<>(), disagree = new ArrayList<>();
+        // Services whose disagreement with the reference is already understood and
+        // recorded in docs/UPSTREAM_FINDINGS.md. Reported, not tolerated silently — and a
+        // quarantined service that starts AGREEING is a failure, so a fix cannot pass
+        // unnoticed.
+        Map<String, String> known = new LinkedHashMap<>();
+        Path qf = DIFF.resolve("expected").resolve("QUARANTINE.txt");
+        if (Files.exists(qf)) {
+            for (String line : Files.readAllLines(qf)) {
+                String[] p = line.split("\t");
+                if (p.length >= 3) known.put(p[0], p[1] + " " + p[2]);
+            }
+        }
+
+        List<String> agree = new ArrayList<>(), disagree = new ArrayList<>(),
+                knownFail = new ArrayList<>(), fixed = new ArrayList<>();
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             seed(conn);
             for (var el : com.legend.testing.Own.model(model).elements()) {
@@ -68,8 +82,15 @@ class CorpusDifferentialTest {
                 List<String> expectedRows = want.subList(1, want.size());
                 List<String> actualRows = run(conn, sql, header);
 
-                if (expectedRows.equals(actualRows)) {
+                boolean same = expectedRows.equals(actualRows);
+                if (same && known.containsKey(name)) {
+                    fixed.add(name);
+                    System.out.println("FIXED " + name + " — remove from quarantine.py");
+                } else if (same) {
                     agree.add(name);
+                } else if (known.containsKey(name)) {
+                    knownFail.add(name);
+                    System.out.println("KNOWN-DIVERGENCE " + name + " — " + known.get(name));
                 } else {
                     disagree.add(name);
                     System.out.println("DISAGREE " + name);
@@ -78,9 +99,12 @@ class CorpusDifferentialTest {
             }
         }
 
-        System.out.printf("%n%d agree, %d disagree, %d total%n",
-                agree.size(), disagree.size(), agree.size() + disagree.size());
+        System.out.printf("%n%d agree, %d known-divergence, %d unexpected, %d total%n",
+                agree.size(), knownFail.size(), disagree.size() + fixed.size(),
+                agree.size() + knownFail.size() + disagree.size() + fixed.size());
         assertFalse(agree.isEmpty(), "no services were compared");
+        assertTrue(fixed.isEmpty(),
+                "these now agree — remove them from quarantine.py: " + fixed);
         assertTrue(disagree.isEmpty(),
                 "legend-lite disagrees with the reference evaluator on: " + disagree);
     }

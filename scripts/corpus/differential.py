@@ -25,6 +25,7 @@ from pathlib import Path
 
 import battery
 import model
+from quarantine import LITE_QUARANTINE
 import oracle
 import query
 import seed
@@ -96,6 +97,13 @@ def main() -> None:
         # applies -- that is a legend-engine serialisation detail, not a value difference,
         # and the SQL side never sees it.
         (OUT / "expected" / f"{spec.short}.txt").write_text(expected_text(c, spec))
+    # legend-lite's OWN known divergences from the reference — not legend-engine's. The
+    # two lists are different by construction: the F6 fan-out services fail in
+    # legend-engine and agree here.
+    (OUT / "expected" / "QUARANTINE.txt").write_text(
+        "".join(f"{n.split('::')[-1]}\t{q[0]}\t{q[1]}\n"
+                for n, q in sorted(LITE_QUARANTINE.items())))
+
     print(f"seed.sql: {len(seed_sql(c).splitlines())} lines, "
           f"{sum(len(v) for v in seed.TABLES.values())} rows")
     print(f"expectations: {len(specs)} services -> {OUT / 'expected'}")

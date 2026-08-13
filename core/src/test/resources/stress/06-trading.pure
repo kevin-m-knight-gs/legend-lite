@@ -33,7 +33,7 @@ Class trading::Trade
 {
     tradeId: String[1];
     tradeDate: StrictDate[1];
-    settlementDate: StrictDate[1];
+    settlementDate: StrictDate[0..1];   // unsettled trades have none
     quantity: Float[1];
     price: Float[1];
     notional: Float[1];
@@ -47,6 +47,31 @@ Class trading::Trade
     isBlock: Boolean[1];
     createdTime: DateTime[1];
     lastModifiedTime: DateTime[0..1];
+
+    // Derived properties — the questions a user actually asks of a trade.
+    // Total-safe: quantity and price are both [1].
+    grossAmount() { $this.quantity * $this.price } : Float[1];
+    // A netCost() over the two OPTIONAL measures belongs here and is absent on purpose.
+    //   - `$this.commission + $this.fees` does not compile: both are [0..1] and plus
+    //     requires [1] ("Collection element must have a multiplicity [1] ... Applying
+    //     plus"). Pure makes you discharge optionality explicitly rather than letting
+    //     NULL propagate, which is a real and defensible design choice.
+    //   - the natural way to discharge it, `->orElse(0.0)`, does not compile in
+    //     legend-lite: "unknown function 'orElse'". See docs/UPSTREAM_FINDINGS.md F7.
+    // Since a derived property is type-checked whether or not any query uses it, keeping
+    // it would make the whole corpus uncompilable in one of the two engines and cost us
+    // the differential. It returns when orElse lands.
+    // An isSettled() { $this.settlementDate->isNotEmpty() } belongs here and is absent
+    // for the same structural reason as netCost: it makes the corpus uncompilable in one
+    // engine. legend-lite refuses it over a [0..1] receiver --
+    //   "derived property 'isSettled' over a [0..1] receiver has a body outside the
+    //    null-strict whitelist -- empty-receiver semantics needs the presence-guarded
+    //    emission (roadmap)"
+    // -- which is the RIGHT posture: it knows it cannot emit correct empty-receiver
+    // semantics and declines rather than guessing. legend-engine compiles it and returns
+    // a definite `false` for a settlement that has no trade at all, which is wrong and is
+    // recorded as F8. The evidence lives in repro/derived-on-absent/ so that withdrawing
+    // it here costs nothing.
 }
 
 Class trading::Order

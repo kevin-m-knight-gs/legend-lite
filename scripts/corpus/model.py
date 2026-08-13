@@ -99,9 +99,25 @@ class Prop:
 
 
 @dataclass
+class Derived:
+    """A derived property: `netCost() { $this.commission + $this.fees } : Float[0..1];`
+
+    Stored as source text; oracle.py evaluates it. Deliberately not pre-parsed here — the
+    expression grammar the oracle supports is narrow and enforced at evaluation time, so
+    an expression outside it fails loudly at build rather than silently here.
+    """
+    name: str
+    expr: str
+    type: str
+    lower: int
+    upper: int | None
+
+
+@dataclass
 class Klass:
     fqn: str
     props: dict[str, Prop] = field(default_factory=dict)
+    derived: dict[str, Derived] = field(default_factory=dict)
 
 
 @dataclass
@@ -186,6 +202,21 @@ class Corpus:
             cls, table = end.target, tgt
         return hops, cls
 
+    def resolve_derived(self, root: str, path: list[str]):
+        """If the path ends on a derived property, return (hops, owning class, Derived).
+        Otherwise None, so callers can fall through to the column resolver."""
+        cls = root
+        for step in path[:-1]:
+            end = self.ends.get((cls, step))
+            if end is None:
+                return None
+            cls = end.target
+        d = self.classes.get(cls, Klass(cls)).derived.get(path[-1])
+        if d is None:
+            return None
+        hops = self.resolve_assoc(root, path[:-1])[0] if len(path) > 1 else []
+        return hops, cls, d
+
     def owner_of(self, root: str, path: list[str]) -> str:
         """The class that declares the LAST step of a path — needed to look up whether
         that property carries an EnumerationMapping."""
@@ -213,6 +244,8 @@ _CLASS = re.compile(r"^\s*Class\s+([\w:]+)\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
 _ENUM = re.compile(r"^\s*Enum\s+([\w:]+)\s*$")
 _PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
+_DERIVED = re.compile(
+    r"^\s*(\w+)\s*\(\s*\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
 _MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
 _CLSMAP = re.compile(r"^\s*([\w:]+)\s*:\s*Relational\s*\{?\s*$")
 _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
@@ -315,6 +348,12 @@ def _parse_domain(text: str, c: Corpus) -> None:
             v = line.strip().rstrip(",")
             if v and v != "{":
                 c.enums[cur_enum].append(v)
+            continue
+        m = _DERIVED.match(line)
+        if m and cur_class:
+            lo, hi = _mult(m.group(4))
+            c.classes[cur_class].derived[m.group(1)] = Derived(
+                m.group(1), m.group(2).strip(), m.group(3), lo, hi)
             continue
         m = _PROP.match(line)
         if m:

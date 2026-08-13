@@ -245,6 +245,128 @@ build if any of them starts passing, so the fix will not go unnoticed.
 
 ---
 
+## F7 — legend-lite has no `orElse`
+
+**Severity: missing platform function in legend-lite.**
+
+`orElse` is the natural way to discharge optionality in Pure, and it is what you must
+reach for because `[0..1] + [0..1]` does not compile (see below). legend-lite rejects the
+property definition outright, at type-inference time:
+
+```
+Class demo::Trade
+{
+  commission: Float[0..1];
+  fees: Float[0..1];
+  netCost() { $this.commission->orElse(0.0) + $this.fees->orElse(0.0) } : Float[1];
+}
+```
+
+```
+TypeInference in function 'demo::Trade$prop$netCost': unknown function 'orElse'
+  — no function of this name in the native or user catalog
+    (unported platform function, or a misspelling)
+```
+
+legend-engine compiles and executes it correctly.
+
+This bites harder than a missing function normally would: a derived property is
+type-checked whether or not any query uses it, so a single `orElse` anywhere in a model
+makes the **entire corpus** uncompilable in legend-lite and costs the differential leg.
+`netCost()` is therefore withdrawn from `trading::Trade` with a comment saying why, rather
+than silently dropped.
+
+Worth recording alongside it, because it is what forces `orElse` in the first place: Pure
+rejects arithmetic over two optional values.
+
+```
+netCost() { $this.commission + $this.fees } : Float[0..1];
+```
+```
+Collection element must have a multiplicity [1] - Context:[Class 'demo::Trade' Third Pass,
+Qualified Property netCost, Applying plus], multiplicity:[0..1]
+```
+
+That is a deliberate and defensible design — optionality must be discharged explicitly
+rather than propagating silently — but it means every optional-measure derived property in
+a real model needs `orElse`, which makes the legend-lite gap a blocker rather than a
+nuisance.
+
+---
+
+## F8 — a derived property is evaluated on the absent-association padding row
+
+**Severity: silent wrong answer in legend-engine; a declined feature in legend-lite.**
+
+An earlier draft of this entry claimed both engines shared the defect. That was wrong, and
+wrong in an instructive way: it was measured while `cross::Settlement_Trade` still declared
+`trade: Trade[1]` over data containing an orphan. Under that contradiction both engines
+returned `false`. Once the association was corrected to `[0..1]` — making the question
+well-posed — they diverged:
+
+| | `[1]` receiver | `[0..1]` receiver |
+|---|---|---|
+| legend-engine | `false` | **`false`** — silently wrong |
+| legend-lite | `false` | **refuses to compile** |
+
+legend-lite's refusal names the problem exactly:
+
+```
+TypeInference derived property 'isSettled' over a [0..1] receiver has a body outside
+the null-strict whitelist — empty-receiver semantics needs the presence-guarded
+emission (roadmap)
+```
+
+That is the right posture: it knows it cannot emit correct empty-receiver semantics and
+declines rather than guessing. legend-engine guesses, and guesses wrong.
+
+Navigating a property from an **empty** collection yields an empty collection in Pure. So
+for a settlement whose trade does not exist, `$s.trade.isSettled` must be empty. Instead,
+the derived expression is evaluated against the outer join's all-NULL padding row, and
+`->isNotEmpty()` on a NULL column answers a definite `false`.
+
+Minimized (`scripts/corpus/repro/derived-on-absent/model.pure`) — three settlements, one
+whose trade is present and settled, one whose trade is present and unsettled, one whose
+trade does not exist:
+
+```
+isSettled() { $this.settlementDate->isNotEmpty() } : Boolean[1];
+trade: demo::Trade[0..1];        // [0..1], so the query is well-posed
+
+default.TRADE:      'ID,SETTLE_DATE\n' + 'T1,2024-06-05\n' + 'T2,\n';
+default.SETTLEMENT: 'ID,TRADE_ID\n'    + 'S1,T1\n' + 'S2,T2\n' + 'S3,GONE\n';
+```
+
+```
+expected: [ {"id":"S1",...,"settled":true}, {"id":"S2",...,"settled":false},
+            {"id":"S3","tradeId":null,"settled":null} ]
+actual  : [ {"id":"S1",...,"settled":true}, {"id":"S2",...,"settled":false},
+            {"id":"S3","tradeId":null,"settled":false} ]
+```
+
+**The crux is S2 versus S3.** Both answer `false`, but S2 means "there is a trade and it is
+not settled" and S3 means "there is no trade". The result cannot distinguish them, and
+`tradeId` being null on S3 is the only surviving evidence that they differ.
+
+Note the association is declared `[0..1]` here deliberately. The corpus originally declared
+`trade: Trade[1]` while the seed contained an orphan, and with that contradiction in place
+the question is not well-posed — the model promises a trade the store does not have, so the
+engine is arguably entitled to anything. `cross::Settlement_Trade` was corrected to `[0..1]`
+to match its data before this was called a finding.
+
+Also worth stating plainly: only expressions that can **inspect** nullness are affected.
+`grossAmount() { $this.quantity * $this.price }` returns null on the same padding row and
+both engines agree, because NULL arithmetic propagates. `isEmpty`/`isNotEmpty`/`orElse` are
+where absent and NULL stop being distinguishable.
+
+Untested: whether non-relational execution (in-memory / M2M) short-circuits correctly. If
+it does, this is specifically a relational-lowering divergence rather than a Pure semantics
+question.
+
+Quarantined as `stress::F8_SettlementTradeDerived`.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is

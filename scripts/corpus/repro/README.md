@@ -22,3 +22,9 @@ Each directory is the smallest model that reproduces a finding in
     D=../../scripts/corpus/repro/count-empty
     java -cp $CP perf.TestableMain $D/model.pure --testable=demo::CountEmpty
     # HasNone.employeeCount comes back 1; it must be 0.
+
+    # F8 -- derived property evaluated on the absent-association padding row
+    D=../../scripts/corpus/repro/derived-on-absent
+    java -cp $CP perf.TestableMain $D/model.pure --testable=demo::DerivedOnAbsent
+    # S3 has no trade at all, yet "settled" comes back false rather than null --
+    # indistinguishable from S2, whose trade exists but is unsettled.

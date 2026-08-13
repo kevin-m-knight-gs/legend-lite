@@ -33,6 +33,8 @@ that IS asserted — but the corpus must never claim to test ordering through th
 """
 from __future__ import annotations
 
+import re
+
 from model import Corpus
 from query import Pred, Spec
 
@@ -124,6 +126,9 @@ def _cmp(op: str, left, right) -> bool:
 
 
 def _value(c: Corpus, data, row, root: str, path: list[str]):
+    hit = c.resolve_derived(root, path)
+    if hit is not None:
+        return _derived(c, data, row, root, path, hit)
     table, col, hops = c.resolve(root, path)
     landed = walk(c, data, row, hops)
     raw = None if landed is None else landed.get(col)
@@ -138,6 +143,131 @@ def _value(c: Corpus, data, row, root: str, path: list[str]):
     # Worth noting that the property is declared [1] and still comes back null, so the
     # multiplicity is not enforced on this path.
     return c.enum_maps[mapping].get(raw)
+
+
+# ---------------------------------------------------- derived-property evaluation
+
+_TOKEN = re.compile(
+    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->\w+\(\)|\$this\.\w+"
+    r"|[-+*/()]|-?\d+\.\d+|-?\d+)")
+
+
+def _tokenise(expr: str) -> list[str]:
+    out, i = [], 0
+    while i < len(expr):
+        m = _TOKEN.match(expr, i)
+        if not m:
+            if expr[i].isspace():
+                i += 1
+                continue
+            raise Unsupported(f"cannot tokenise derived expression at {expr[i:][:40]!r}")
+        out.append(m.group(1))
+        i = m.end()
+    return out
+
+
+class Unsupported(Exception):
+    """The derived expression is outside the grammar the oracle models.
+
+    Kept narrow on purpose. Widening it to accept an expression we cannot faithfully
+    evaluate would mean shipping an expectation that encodes a guess, which is the exact
+    failure this whole apparatus exists to prevent.
+    """
+
+
+class _Eval:
+    """Recursive descent over:
+
+        expr   := term (('+'|'-') term)*
+        term   := factor (('*'|'/') factor)*
+        factor := number | '(' expr ')' | '$this.'ident postfix*
+        postfix:= '->isEmpty()' | '->isNotEmpty()' | '->orElse(number)'
+
+    NULL propagates through arithmetic as it does in SQL: any NULL operand makes the
+    result NULL. That path is reachable here but NOT via a Pure derived property, because
+    Pure rejects `[0..1] + [0..1]` at compile time -- plus requires [1]. Optionality has to
+    be discharged with ->orElse before the arithmetic, which is why the corpus's netCost
+    is written that way. isEmpty/isNotEmpty/orElse are the only things that inspect NULL.
+    """
+
+    def __init__(self, tokens, lookup):
+        self.t, self.i, self.lookup = tokens, 0, lookup
+
+    def peek(self):
+        return self.t[self.i] if self.i < len(self.t) else None
+
+    def take(self):
+        v = self.peek()
+        self.i += 1
+        return v
+
+    def expr(self):
+        v = self.term()
+        while self.peek() in ("+", "-"):
+            op = self.take()
+            r = self.term()
+            v = None if v is None or r is None else (v + r if op == "+" else v - r)
+        return v
+
+    def term(self):
+        v = self.factor()
+        while self.peek() in ("*", "/"):
+            op = self.take()
+            r = self.factor()
+            if v is None or r is None:
+                v = None
+            elif op == "*":
+                v = v * r
+            else:
+                v = None if r == 0 else v / r
+        return v
+
+    def factor(self):
+        tok = self.take()
+        if tok == "(":
+            v = self.expr()
+            if self.take() != ")":
+                raise Unsupported("unbalanced parentheses in derived expression")
+        elif tok and tok.startswith("$this."):
+            v = self.lookup(tok[len("$this."):])
+        elif tok and re.fullmatch(r"\d+\.\d+", tok):
+            v = float(tok)
+        elif tok and tok.isdigit():
+            v = int(tok)
+        else:
+            raise Unsupported(f"unexpected token {tok!r} in derived expression")
+        while True:
+            nxt = self.peek()
+            if nxt in ("->isEmpty()", "->isNotEmpty()"):
+                v = (v is None) if self.take() == "->isEmpty()" else (v is not None)
+            elif nxt is not None and nxt.startswith("->orElse("):
+                default = self.take()[len("->orElse("):-1].strip()
+                if v is None:
+                    v = float(default) if "." in default else int(default)
+            else:
+                return v
+
+
+def _derived(c: Corpus, data, row, root: str, path: list[str], hit):
+    hops, cls, d = hit
+    landed = walk(c, data, row, hops) if hops else row
+    if landed is None:
+        return None
+
+    def lookup(prop: str):
+        col = c.columns.get(cls, {}).get(prop)
+        if col is None:
+            raise Unsupported(f"{cls}.{prop} referenced by derived property "
+                              f"{d.name!r} is not a mapped column")
+        raw = landed.get(col)
+        mapping = c.enum_props.get((cls, prop))
+        return c.enum_maps[mapping].get(raw) if mapping and raw is not None else raw
+
+    e = _Eval(_tokenise(d.expr), lookup)
+    v = e.expr()
+    if e.peek() is not None:
+        raise Unsupported(f"trailing tokens in derived expression {d.expr!r}")
+    return v
 
 
 def _agg(c: Corpus, data, row, root: str, proj):
@@ -210,6 +340,11 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     for p in spec.projections:
         if p.agg == "count":
             out[p.alias] = "int"
+            continue
+        hit = c.resolve_derived(spec.root, p.path)
+        if hit is not None:
+            out[p.alias] = {"Float": "float", "Integer": "int", "Boolean": "bool",
+                            "String": "string"}[hit[2].type]
             continue
         if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
             out[p.alias] = "string"     # an enum renders as its VALUE NAME

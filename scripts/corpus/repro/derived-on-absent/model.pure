@@ -1,0 +1,100 @@
+Class demo::Trade
+{
+  id: String[1];
+  settlementDate: StrictDate[0..1];
+  isSettled() { $this.settlementDate->isNotEmpty() } : Boolean[1];
+}
+
+Class demo::Settlement
+{
+  id: String[1];
+}
+
+Association demo::Settlement_Trade
+{
+  trade: demo::Trade[0..1];
+  settlements: demo::Settlement[*];
+}
+
+###Relational
+Database demo::DB
+(
+  Table TRADE      (ID VARCHAR(20) PRIMARY KEY, SETTLE_DATE DATE)
+  Table SETTLEMENT (ID VARCHAR(20) PRIMARY KEY, TRADE_ID VARCHAR(20))
+  Join Settlement_Trade(SETTLEMENT.TRADE_ID = TRADE.ID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Trade: Relational {
+    ~mainTable [demo::DB] TRADE
+    id: [demo::DB] TRADE.ID,
+    settlementDate: [demo::DB] TRADE.SETTLE_DATE
+  }
+  demo::Settlement: Relational {
+    ~mainTable [demo::DB] SETTLEMENT
+    id: [demo::DB] SETTLEMENT.ID
+  }
+  demo::Settlement_Trade: Relational {
+    AssociationMapping ( trade: [demo::DB] @Settlement_Trade,
+                         settlements: [demo::DB] @Settlement_Trade )
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.TRADE:
+      'ID,SETTLE_DATE\n' +
+      'T1,2024-06-05\n' +
+      'T2,\n';
+    default.SETTLEMENT:
+      'ID,TRADE_ID\n' +
+      'S1,T1\n' +
+      'S2,T2\n' +
+      'S3,GONE\n';
+  }#
+}
+
+###Service
+Service demo::DerivedOnAbsent
+{
+  pattern: '/derivedOnAbsent';
+  documentation: 'S3 points at a trade that does not exist, so $s.trade is EMPTY and $s.trade.isSettled must be empty too -- not false.';
+  execution: Single
+  {
+    query: |demo::Settlement.all()->project(~[id:s|$s.id, tradeId:s|$s.trade.id, settled:s|$s.trade.isSettled]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"id":"S1","tradeId":"T1","settled":true},{"id":"S2","tradeId":"T2","settled":false},{"id":"S3","tradeId":null,"settled":null}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

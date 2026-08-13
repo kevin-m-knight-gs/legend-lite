@@ -39,7 +39,29 @@ def _spec(n: int, name: str, root: str, doc: str, ids: list[tuple[str, str]],
     return s
 
 
-SPECS = [
+DERIVED = [
+    _spec(7, "TradeDerivedProperties", "trading::Trade",
+          "Derived properties alongside the columns they are computed from, so a wrong "
+          "value cannot hide: grossAmount is total arithmetic over two [1] measures.",
+          [("tradeId", "tradeId"), ("quantity", "quantity"), ("price", "price"),
+           ("commission", "commission"), ("fees", "fees"),
+           ("settlementDate", "settlementDate"), ("side", "side"),
+           ("grossAmount", "grossAmount")],
+          []),
+
+    _spec(8, "SettlementTradeDerived", "settlement::Settlement",
+          "A derived property reached ACROSS an association, so it is evaluated on a "
+          "joined row rather than the root. STL-9999 points at a trade that does not "
+          "exist: grossAmount must be NULL there, which it is in both engines because "
+          "NULL arithmetic propagates. The case that does NOT survive this shape -- a "
+          "derived property that INSPECTS nullness -- is F8, in repro/derived-on-absent/.",
+          [("settlementId", "settlementId"), ("status", "status"),
+           ("tradeId", "trade.tradeId"), ("tradeGross", "trade.grossAmount"),
+          ],
+          []),
+]
+
+SPECS = DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

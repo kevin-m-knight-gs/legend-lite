@@ -209,7 +209,8 @@ if __name__ == "__main__":
         for p in s.projections:
             total += 1
             try:
-                c.resolve(s.root, p.path)
+                if c.resolve_derived(s.root, p.path) is None:
+                    c.resolve(s.root, p.path)
                 if c.to_many_on(s.root, p.path):
                     fanout += 1
             except KeyError as e:

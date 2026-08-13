@@ -9,11 +9,19 @@ case fails (a regression).
 
 Nothing may be added here without a minimized reproduction under repro/ and an entry in
 docs/UPSTREAM_FINDINGS.md. "It fails and I do not know why" is not a quarantine reason.
+
+A quarantine is PER ENGINE, not per corpus. Sharing one list across both harnesses was
+wrong and briefly made the differential report the six F6 services as "fixed": they fail in
+legend-engine and AGREE in legend-lite, which is precisely the finding. A case can be
+broken in one engine and correct in the other, so each harness carries its own list.
+
+  ENGINE_QUARANTINE   legend-engine vs the oracle  -> scripts/corpus/run.py
+  LITE_QUARANTINE     legend-lite   vs the oracle  -> CorpusDifferentialTest
 """
 from __future__ import annotations
 
 # testable fqn -> (finding id, one-line reason)
-QUARANTINE: dict[str, tuple[str, str]] = {
+ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
     f"stress::{name}": ("F6", "count() over an empty to-many returns 1, not 0")
     for name in (
         "F0_InstrumentChildCounts",
@@ -24,6 +32,14 @@ QUARANTINE: dict[str, tuple[str, str]] = {
         "F6_PositionGreeksCounts",
     )
 }
+
+# legend-lite currently agrees with the reference evaluator on every service, including
+# all seven fan-out ones. That is not an accident of coverage — it is what makes F6 a
+# legend-engine defect rather than an oracle error.
+LITE_QUARANTINE: dict[str, tuple[str, str]] = {}
+
+# Kept for callers that predate the split; run.py is the legend-engine harness.
+QUARANTINE = ENGINE_QUARANTINE
 
 # stress::F5_TraderChildCounts is deliberately NOT quarantined. It is the only fan-out
 # service whose data contains no childless entity, and it passes. Keeping it in the green
