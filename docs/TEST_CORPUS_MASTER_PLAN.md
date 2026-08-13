@@ -29,7 +29,9 @@ answer. Its assertion was `rows > 0`. Auditing it found:
   completely wrong join still returned 3 rows and passed.
 - ~75% of the 864 models were duplicates with respect to what the queries exercised.
 
-Case count is not a quality metric. Everything in this plan follows from that.
+Case count is not a quality metric — but that is an argument against *unasserted* scale,
+not against scale. The target is **10,000+ cases and 1,000+ models**, every case
+asserting a computed value (§5A). Everything in this plan follows from that distinction.
 
 ---
 
@@ -431,6 +433,127 @@ Sweeping depth on a bare two-class model finds E-1; sweeping it on S1 finds E-1 
 whatever interacts with it.
 
 ---
+
+## 5A. Scale targets — and how assertions survive them
+
+### The targets
+
+| Dimension | Target | Notes |
+|---|---|---|
+| Dense test cases | **10,000+** | every one asserting a value; ≥10 active features each |
+| Distinct models | **1,000+** | generated from the layer/slot vectors of §5, not hand-written |
+| Dependency graphs | **64 projects deep/wide** | diamonds, cross-project inheritance/mapping/association |
+| Elements per project | 10 → 5,000 | up to ~100k total elements in the largest fixture |
+| Features exercised | the full 221-tag / ~35-keyword worklist | §2 is the denominator; "done" is a fact |
+
+### The contradiction, resolved
+
+§0 says case count is not a quality metric. That is not an argument against scale — it
+is an argument against *unasserted* scale. The previous corpus failed because 10,800
+cases shared one worthless assertion and ~75% were duplicates. **10,000 cases each
+asserting a computed value, each with ≥10 features live, is the goal.** The constraint
+is per-case quality, not case count.
+
+### The hard problem: you cannot hand-write 10,000 expectations
+
+The current oracle is hand-written per case. That scaled to 24. Three mechanisms scale
+to 10,000, and the corpus needs all three because they cover different things.
+
+#### (a) Generative oracle — a reference evaluator
+
+A small relational interpreter in Python, evaluating the *generated* query against the
+*generated* fixture data. Not a Legend implementation — just enough algebra to predict a
+result:
+
+```
+project · filter · sort · limit · distinct · groupBy/aggregate
+join (inner/left, with the LEFT-OUTER semantics Legend actually emits)
+association traversal · self-join · enum code→name translation
+milestoning predicate (business/processing/bitemporal, %latest)
+nested object construction for graph-fetch shapes
+```
+
+This is bounded work — a few hundred lines — and it yields **exact** expectations for
+any query the generator can emit within that algebra. It is the workhorse: most of the
+10,000 come from here.
+
+Its limit is honest: it can only predict what it models. Complex mapping constructs
+(AggregationAware rewrite, XStore, embedded/otherwise resolution) are exactly the things
+we do not want to reimplement, because a reimplementation would encode our *belief*
+about the semantics rather than the truth.
+
+#### (b) Metamorphic relations — assertions without knowing the answer
+
+For everything the reference evaluator cannot predict, assert **properties that must
+hold regardless of the answer**. These scale without bound: any generated query yields
+several checkable relations, and no expectation needs computing.
+
+| Relation | Property |
+|---|---|
+| Identity filter | `filter(x\|true)` ≡ `all()` |
+| Filter monotonicity | `count(filter(p))` ≤ `count(all())` |
+| Filter composition | `filter(p)->filter(q)` ≡ `filter(p && q)` |
+| Partition | `count(filter(p))` + `count(filter(!p))` ≡ `count(all())` — **catches three-valued-logic bugs when p is NULL-sensitive** |
+| Distinct idempotence | `distinct()->distinct()` ≡ `distinct()` |
+| Sort permutation | `sort(c)` multiset ≡ unsorted multiset |
+| Limit bound | `count(limit(n))` ≡ `min(n, count(all()))` |
+| Projection arity | `count(project([a,b]))` ≡ `count(project([a]))` (no implicit dedup) |
+| Aggregate decomposition | Σ over groupBy groups ≡ aggregate over all |
+| Traversal containment | `all().assoc` ⊆ target class `all()` |
+| Graph-fetch prefix | tree at depth *d* contains the tree at depth *d−1* as a prefix |
+| Milestoning containment | `all(%latest)` ⊆ `allVersions()` |
+| Union additivity | disjoint union set counts sum to the union count |
+| Enum round-trip | filtering on the enum value ≡ filtering on its source code |
+| **Mapping invariance** | the same query through two semantically equivalent mappings ≡ same rows |
+| **Paradigm invariance** | the same query expressed as TDS and as Relation ≡ same rows |
+| **Dialect invariance** | the same query on H2 vs DuckDB vs Postgres ≡ same rows |
+
+The last three are the highest-value: they need no oracle at all, they exercise the
+deepest machinery, and a violation is unambiguously an engine defect. **B-4 would have
+been caught by the partition relation**: `count(orders)` summed over people must equal
+total orders, and with `COUNT(*)` over a LEFT JOIN it does not.
+
+#### (c) Differential — two engines, one corpus
+
+Run the identical corpus through legend-engine and legend-lite, land both into tables,
+`EXCEPT ALL` both directions. Catches divergence without any expectation. Its limit is
+equally honest: it cannot see a bug both engines share.
+
+### Coverage split across the three
+
+| Mechanism | Share of the 10,000 | Covers |
+|---|---|---|
+| Generative oracle | ~60% | the core query algebra, exactly |
+| Metamorphic relations | ~30% | everything the evaluator cannot predict — complex mappings, graph-fetch shapes, dialects |
+| Differential | ~10% | cross-engine conformance; also a cross-check on the other two |
+
+Every case still asserts something. None of the three is `rows > 0`.
+
+### Generating 1,000+ models without generating 1,000 duplicates
+
+The v1 failure mode was 864 models of which ~75% were interchangeable. Guards:
+
+1. **Reject low-density vectors** — fewer than 10 active features, regenerate.
+2. **Reject query-invisible variation.** If two models differ only in features no query
+   in their battery touches, they are one model. v1 generated 432 models with subtypes
+   that no query referenced; that check alone would have caught it.
+3. **Hash the feature vector**, not the model text — dedupe before emitting.
+4. **Require each model to move a census counter** (§2) or be justified as a
+   depth/stress variant of one that does.
+
+### The scale ladder
+
+| Tier | Models | Cases | Purpose |
+|---|---|---|---|
+| Smoke | ~20 | ~200 | every harness, every assertion kind — runs per commit |
+| Core | ~200 | ~2,000 | the census worklist + S1–S10 dense scenarios — runs per PR |
+| Full | ~1,000 | ~10,000 | slot-level covering arrays + depth sweeps + metamorphic — nightly |
+| Stress | ~50 | — | dependency graphs to 64 projects, volume to 1M rows — weekly |
+
+Runtime is the constraint on the Full tier: at the measured ~15 ms plan-gen and ~6 ms
+execution for a simple case, 10,000 cases is roughly 4 minutes of engine time plus
+compilation. Model **compilation** dominates — so batch cases by model (compile once,
+run its whole battery), which the current runner already does.
 
 ## 6. Corpus architecture
 
