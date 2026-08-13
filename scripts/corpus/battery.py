@@ -413,6 +413,72 @@ GRAPH = [
 ]
 
 
+# ================================================================ STACK LAYER
+#
+# The corpus is otherwise a set of narrow probes: median 2 features per service, exactly
+# one service above 4, none above 6. That is deliberate for ATTRIBUTION -- F10, F12 and
+# F13 are each reportable precisely because they were isolated -- but a defect that only
+# appears when eight features interact is invisible to a probe by construction.
+#
+# So the corpus needs both layers, and this is the second one. These services stack as
+# many CURRENTLY-PASSING features as one query can legitimately carry. They deliberately
+# exclude anything already quarantined: a stack containing a known defect is red for a
+# reason nobody has to look for, and would mask every interaction it was built to find.
+
+STACK = [
+    _spec(30, "TradeEverything", "trading::Trade",
+          "The deep stack: enum-mapped side, a derived property, a QUALIFIED property "
+          "with two different arguments, three independent 3-hop navigation chains, a "
+          "two-condition filter, a sort and a limit -- one query. Each of these passes "
+          "alone elsewhere in the corpus; this asserts they still hold together.",
+          [("tradeId", "tradeId"),
+           ("side", "side"),                                  # enum
+           ("status", "status"),
+           ("quantity", "quantity"), ("price", "price"),
+           # three separate 3-hop chains through different domains
+           ("sectorName", "instrument.sector.name"),
+           ("sectorGics", "instrument.sector.gicsCode"),
+           ("deskName", "book.desk.name"),
+           ("deskRegion", "book.desk.region"),
+           ("cptyCountry", "counterparty.country.name"),
+           ("cptyRegion", "counterparty.country.region"),
+           ("traderDesk", "trader.desk.name"),
+           # derived
+           ("grossAmount", "grossAmount")],
+          [],
+          # qualified, twice with different arguments
+          [("grossGbp", "grossAmountIn", [0.79]),
+           ("grossEur", "grossAmountIn", [0.92])]),
+
+    _spec(31, "TradeRules", "trading::Trade",
+          "Standalone FUNCTIONS called extension-style, alongside the columns they are "
+          "computed from. isBuy reads an ENUM inside a function body -- a different path "
+          "from projecting one, which matters given F10/F12/F13 -- and "
+          "counterpartyRegion NAVIGATES inside the body, so TRD-0007's orphan must yield "
+          "null rather than an error.",
+          [("tradeId", "tradeId"), ("side", "side"), ("quantity", "quantity"),
+           ("price", "price"), ("cptyRegionDirect", "counterparty.country.region")],
+          []),
+]
+
+# Functions are a distinct projection kind, so they are attached after construction.
+STACK[1].projections += [
+    Proj("isLarge", [], None, [], "stress::rules::isLargeTrade"),
+    Proj("isBuy", [], None, [], "stress::rules::isBuy"),
+    Proj("over1m", [], None, [1000000.0], "stress::rules::exceeds"),
+    Proj("over100k", [], None, [100000.0], "stress::rules::exceeds"),
+    Proj("cptyRegionViaFn", [], None, [], "stress::rules::counterpartyRegion"),
+]
+# One function call on the deep stack too, so it is exercised in combination rather than
+# only in isolation.
+STACK[0].projections.append(
+    Proj("isLarge", [], None, [], "stress::rules::isLargeTrade"))
+STACK[0].filters = [Pred(["status"], "==", "EXECUTED"),
+                    Pred(["quantity"], ">", 500.0)]
+STACK[0].sort = ("tradeId", False)
+STACK[0].limit = 12
+
+
 # ---------------------------------------------------------------- L4 rollup
 ROLLUP = [
     _spec(20, "NotionalByBook", "reporting::BookRollup",
@@ -454,7 +520,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + [CANONICAL_WITH_ENUM, OTHERWISE] + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+SPECS = STACK + INVARIANCE + [CANONICAL_WITH_ENUM, OTHERWISE] + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

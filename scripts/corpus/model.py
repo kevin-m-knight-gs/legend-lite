@@ -166,6 +166,20 @@ class Derived:
 
 
 @dataclass
+class Func:
+    """A standalone `function pkg::name(p: T[m], ...): R[m] { body }`.
+
+    Stored as source text like a derived property; oracle.py evaluates it with the same
+    expression evaluator. The FIRST parameter is the receiver — these are called
+    extension-style, `$x->pkg::name()` — and the rest are supplied at the call site.
+    """
+    fqn: str
+    params: list[tuple[str, str]]      # (name, type)
+    ret: str
+    body: str
+
+
+@dataclass
 class Klass:
     fqn: str
     props: dict[str, Prop] = field(default_factory=dict)
@@ -196,6 +210,7 @@ class Corpus:
     joins: dict[str, Join] = field(default_factory=dict)
     classes: dict[str, Klass] = field(default_factory=dict)
     enums: dict[str, list[str]] = field(default_factory=dict)
+    functions: dict[str, Func] = field(default_factory=dict)
     # class fqn -> table name
     main_table: dict[str, str] = field(default_factory=dict)
     # class fqn -> {property -> column}
@@ -317,6 +332,8 @@ _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 _CLASS = re.compile(r"^\s*Class\s+(?:<<([^>]*)>>\s*)?([\w:]+)\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
 _ENUM = re.compile(r"^\s*Enum\s+([\w:]+)\s*$")
+_FUNC = re.compile(r"^\s*function\s+([\w:]+)\s*\(([^)]*)\)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*$")
+_FUNC_PARAM = re.compile(r"(\w+)\s*:\s*([\w:]+)\s*\[[^\]]+\]")
 _PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
 # `name() { expr } : T[m];` and the qualified form `name(p: T[1], ...) { expr } : T[m];`
 _DERIVED = re.compile(
@@ -512,6 +529,7 @@ def _split_cols(body: str) -> list[str]:
 
 def _parse_domain(text: str, c: Corpus) -> None:
     cur_class = cur_assoc = cur_enum = None
+    cur_func = None
     ends: list[tuple[str, str, int, int | None]] = []
     for raw in text.splitlines():
         line = _strip(raw)
@@ -527,6 +545,21 @@ def _parse_domain(text: str, c: Corpus) -> None:
         if m:
             cur_assoc, cur_class, cur_enum = m.group(1), None, None
             ends = []
+            continue
+        m = _FUNC.match(line)
+        if m:
+            cur_func = Func(m.group(1), _FUNC_PARAM.findall(m.group(2)), m.group(3), "")
+            cur_class = cur_assoc = cur_enum = None
+            continue
+        if cur_func is not None:
+            s = line.strip()
+            if s == "{":
+                continue
+            if s == "}":
+                c.functions[cur_func.fqn] = cur_func
+                cur_func = None
+                continue
+            cur_func.body += (" " if cur_func.body else "") + s
             continue
         m = _ENUM.match(line)
         if m:

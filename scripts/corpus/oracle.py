@@ -125,7 +125,9 @@ def _cmp(op: str, left, right) -> bool:
     raise ValueError(f"unhandled operator {op}")
 
 
-def _value(c: Corpus, data, row, root: str, path: list[str], args=()):
+def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None):
+    if func:
+        return _call(c, data, row, root, func, args)
     hit = c.resolve_derived(root, path)
     if hit is not None:
         return _derived(c, data, row, root, path, hit, args)
@@ -148,7 +150,11 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=()):
 # ---------------------------------------------------- derived-property evaluation
 
 _TOKEN = re.compile(
-    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->\w+\(\)|\$this\.\w+|\$\w+"
+    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->\w+\(\)"
+    r"|[\w:]+::\w+\.\w+"                      # enum literal, e.g. trading::Side.BUY
+    r"|\$\w+(?:\.\w+)*"                        # $var, $var.path.to.prop
+    r"|'[^']*'"                                  # string literal
+    r"|<=|>=|==|!=|<|>"
     r"|[-+*/()]|-?\d+\.\d+|-?\d+)")
 
 
@@ -208,6 +214,17 @@ class _Eval:
         return v
 
     def expr(self):
+        """Lowest precedence: comparison. `a * b > c` groups as `(a * b) > c`, which is
+        what Pure means -- unlike `&&`, which binds TIGHTER than comparison and is the
+        trap the constraints in 06-trading.pure are parenthesised against."""
+        v = self.sum()
+        if self.peek() in ("<", ">", "<=", ">=", "==", "!="):
+            op = self.take()
+            r = self.sum()
+            return _cmp(op, v, r)
+        return v
+
+    def sum(self):
         v = self.term()
         while self.peek() in ("+", "-"):
             op = self.take()
@@ -234,10 +251,17 @@ class _Eval:
             v = self.expr()
             if self.take() != ")":
                 raise Unsupported("unbalanced parentheses in derived expression")
-        elif tok and tok.startswith("$this."):
-            v = self.lookup(tok[len("$this."):])
         elif tok and tok.startswith("$"):
-            v = self.param(tok[1:])
+            name, _, path = tok[1:].partition(".")
+            v = self.lookup(path) if path else self.param(name)
+            if not path and name in ("this",):
+                raise Unsupported("bare $this is not a value")
+        elif tok and tok.startswith("'") and tok.endswith("'"):
+            v = tok[1:-1]
+        elif tok and "::" in tok:
+            # An enum literal renders as its VALUE NAME, which is exactly what the
+            # projected column holds after the EnumerationMapping has been applied.
+            v = tok.rsplit(".", 1)[1]
         elif tok and re.fullmatch(r"\d+\.\d+", tok):
             v = float(tok)
         elif tok and tok.isdigit():
@@ -254,6 +278,34 @@ class _Eval:
                     v = float(default) if "." in default else int(default)
             else:
                 return v
+
+
+def _call(c: Corpus, data, row, root: str, fqn: str, args=()):
+    """Evaluate a standalone function with the row bound to its FIRST parameter."""
+    fn = c.functions.get(fqn)
+    if fn is None:
+        raise Unsupported(f"unknown function {fqn}")
+    if len(args) != len(fn.params) - 1:
+        raise Unsupported(f"{fqn} takes {len(fn.params) - 1} argument(s) besides the "
+                          f"receiver, given {len(args)}")
+
+    def lookup(path: str):
+        steps = path.split(".")
+        if len(steps) == 1:
+            col = c.columns.get(root, {}).get(steps[0])
+            if col is None:
+                raise Unsupported(f"{root}.{steps[0]} is not a mapped column")
+            raw = row.get(col)
+            mapping = c.enum_props.get((root, steps[0]))
+            return c.enum_maps[mapping].get(raw) if mapping and raw is not None else raw
+        return _value(c, data, row, root, steps)
+
+    bound = dict(zip((p[0] for p in fn.params[1:]), args))
+    e = _Eval(_tokenise(fn.body), lookup, bound)
+    v = e.expr()
+    if e.peek() is not None:
+        raise Unsupported(f"trailing tokens in function body {fn.body!r}")
+    return v
 
 
 def _derived(c: Corpus, data, row, root: str, path: list[str], hit, args=()):
@@ -411,7 +463,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     if spec.graph is not None:
         return evaluate_graph(c, spec, data)
     """Returns the rows the service must produce, as alias -> python value."""
-    plain = [p for p in spec.projections if p.agg is None]
+    plain = [p for p in spec.projections if p.agg is None and not p.func]
     if any(c.to_many_on(spec.root, p.path) for p in plain):
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
@@ -423,7 +475,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
                    for f in spec.filters)]
 
     out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
-                      else _value(c, data, r, spec.root, p.path, p.args))
+                      else _value(c, data, r, spec.root, p.path, p.args, p.func))
             for p in spec.projections}
            for r in kept]
 
@@ -470,6 +522,10 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     for p in spec.projections:
         if p.agg == "count":
             out[p.alias] = "int"
+            continue
+        if p.func:
+            out[p.alias] = {"Boolean": "bool", "Float": "float", "Integer": "int",
+                            "String": "string"}[c.functions[p.func].ret]
             continue
         hit = c.resolve_derived(spec.root, p.path)
         if hit is not None:

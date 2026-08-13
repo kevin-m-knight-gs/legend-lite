@@ -218,6 +218,16 @@ def undo_bitemporal_correction(f):
     return f
 
 
+def corrupt_function_test(f):
+    """Change one expected value in the FUNCTION test harness. Nothing else reads it --
+    the Service tests have their own expectations -- so only the function testable can
+    notice, which is what proves the second harness is actually asserting."""
+    f["95"] = _sub_once(f["95"], r'"tradeId":"TRD-0001","notional":190500\.0',
+                        '"tradeId":"TRD-0001","notional":190500.01',
+                        "corrupt_function_test")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -244,6 +254,7 @@ MUTATIONS = {
     "undo_bitemporal_correction": undo_bitemporal_correction,
     "change_view_aggregate": change_view_aggregate,
     "widen_store_filter": widen_store_filter,
+    "corrupt_function_test": corrupt_function_test,
     "break_self_join_target": break_self_join_target,
 }
 
@@ -259,9 +270,14 @@ def run(work: Path) -> tuple[int, int, str]:
     files = sorted(str(p) for p in work.glob("*.pure"))
     # Both service files: a mutation to the seed can just as easily be caught by the
     # fan-out battery, and excluding it would understate the corpus's sensitivity.
+    # Services AND function testables. Omitting the latter meant a mutation to the
+    # function-test expectations ran nothing at all and was scored as SURVIVED -- the
+    # harness reporting a hole it had itself created.
+    import functest
     testables = [f"--testable={m.group(1)}"
                  for f in sorted(work.glob("9[24]-*.pure"))
                  for m in re.finditer(r"^Service (\S+)", f.read_text(), re.M)]
+    testables += [f"--testable={t}" for t in functest.testables()]
     cp = (RUNNER / "cp.txt").read_text().strip()
     env = dict(os.environ, JAVA_HOME=JAVA_HOME, PATH=f"{JAVA_HOME}/bin:" + os.environ["PATH"])
     r = subprocess.run([f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}",
@@ -303,7 +319,8 @@ def main() -> None:
                      "36": work / "36-trading-store.pure",
                      "06": work / "06-trading.pure",
                      "51": work / "51-reporting-store.pure",
-                     "30": work / "30-store.pure"}
+                     "30": work / "30-store.pure",
+                     "95": work / "95-function-tests.pure"}
             src = {k: v.read_text() for k, v in paths.items()}
             out = MUTATIONS[name](dict(src))
             for k, path in paths.items():

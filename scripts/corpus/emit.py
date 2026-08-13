@@ -190,6 +190,9 @@ def query_text(spec: Spec) -> str:
             f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
     def expr(p):
+        if p.func:
+            inner = ", ".join(_literal(a) for a in p.args)
+            return f"${VAR}->{p.func}({inner})"
         return (f"${VAR}.{'.'.join(p.path)}"
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))

@@ -1,6 +1,6 @@
 {
  "roster_total": 1033,
- "covered_count": 63,
+ "covered_count": 66,
  "covered": [
   "Bit",
   "Date",
@@ -32,6 +32,9 @@
   "externalFormat",
   "float",
   "func",
+  "function",
+  "functionTest",
+  "functionTestSuite",
   "importAware",
   "integer",
   "lambda",
