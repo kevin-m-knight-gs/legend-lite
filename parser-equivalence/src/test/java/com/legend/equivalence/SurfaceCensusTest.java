@@ -60,6 +60,26 @@ class SurfaceCensusTest {
                     missing.add("embeddedData:" + n);
                 }
             }
+            for (var mp : ext.getExtraMappingElementParsers()) {
+                check("mappingElement", mp.getElementTypeName(),
+                        OUR_MAPPING_ELEMENTS, excluded, census, missing);
+            }
+            for (var ip : ext.getExtraMappingTestInputDataParsers()) {
+                check("mappingTestInputData", ip.getInputDataTypeName(),
+                        OUR_TEST_INPUT_DATA, excluded, census, missing);
+            }
+            for (var ep : ext.getExtraEmbeddedPureParsers()) {
+                check("embeddedPure", ep.getType(),
+                        OUR_EMBEDDED_PURE, excluded, census, missing);
+            }
+            for (var ta : ext.getExtraTestAssertionParsers()) {
+                check("testAssertion", ta.getType(),
+                        OUR_TEST_ASSERTIONS, excluded, census, missing);
+            }
+            for (var mi : ext.getExtraMappingIncludeParsers()) {
+                check("mappingInclude", mi.getMappingIncludeType(),
+                        OUR_MAPPING_INCLUDES, excluded, census, missing);
+            }
         }
         java.nio.file.Files.createDirectories(
                 java.nio.file.Path.of("target"));
@@ -69,6 +89,28 @@ class SurfaceCensusTest {
                 "ENGINE grammar surface we neither parse nor NAME in "
                 + "docs/parser-surface-exclusions.tsv: " + missing);
     }
+
+    private static void check(String kind, String name,
+            java.util.Set<String> ours, java.util.Set<String> excluded,
+            java.util.List<String> census, java.util.List<String> missing) {
+        census.add(kind + "\t" + name);
+        if (!ours.contains(name) && !excluded.contains(kind + ":" + name)) {
+            missing.add(kind + ":" + name);
+        }
+    }
+
+    private static final java.util.Set<String> OUR_MAPPING_ELEMENTS =
+            java.util.Set.of("Pure", "Relational", "ServiceStore",
+                    "XStore", "EnumerationMapping", "Operation", "AggregationAware",
+                    "ModelJoin", "relation", "Relation");
+    private static final java.util.Set<String> OUR_TEST_INPUT_DATA =
+            java.util.Set.of("Object", "Relational", "RelationalCSV");
+    private static final java.util.Set<String> OUR_EMBEDDED_PURE =
+            java.util.Set.of("SQL", ">", "TDS");
+    private static final java.util.Set<String> OUR_TEST_ASSERTIONS =
+            java.util.Set.of("EqualTo", "EqualToJson", "EqualToTDS");
+    private static final java.util.Set<String> OUR_MAPPING_INCLUDES =
+            java.util.Set.of("mapping", "dataspace");
 
     /** The flavors ConnectionSectionGrammar dispatches (keep in sync with
      *  its switch — the census fails loudly when the ENGINE grows one). */
