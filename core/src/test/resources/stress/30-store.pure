@@ -135,6 +135,29 @@ Database store::DB
       MAX_NOTIONAL: max(TRADE.NOTIONAL)
     )
 
+    // ---- L3b: BITEMPORAL reference data ----
+    // Business time answers "when was this true?"; processing time answers "when did we
+    // BELIEVE it?". Both together answer the question a regulator actually asks: what did
+    // we know on date P about date B -- and, crucially, what did a CORRECTION change.
+    //
+    // Both specs live in one milestoning block, comma-separated, and their predicates AND
+    // together. The primary key spans the entity plus BOTH from-columns.
+    Table INSTR_RATING_BI
+    (
+      milestoning
+      (
+        business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31),
+        processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, INFINITY_DATE = %9999-12-31)
+      )
+      INSTRUMENT_ID VARCHAR(200) PRIMARY KEY,
+      FROM_Z DATE PRIMARY KEY,
+      IN_Z DATE PRIMARY KEY,
+      THRU_Z DATE,
+      OUT_Z DATE,
+      CREDIT_RATING VARCHAR(20),
+      SOURCE VARCHAR(50)
+    )
+
     // ---- L4: the partitioned trade history ----
     // Real trade stores are partitioned; this one splits by asset class, which is the
     // shape that survives when a firm's rates and equities businesses run on different

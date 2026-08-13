@@ -18,3 +18,12 @@ Class <<temporal.businesstemporal>> counterparty::RatingVersion
     outlook: String[0..1];
     isInvestmentGrade: Boolean[0..1];
 }
+
+// L3b — the bitemporal class. all() now takes TWO dates: the business date and the
+// processing date, in that order.
+Class <<temporal.bitemporal>> products::InstrumentRating
+{
+    instrumentId: String[1];
+    creditRating: String[0..1];
+    source: String[0..1];
+}

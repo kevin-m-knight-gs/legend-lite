@@ -11,3 +11,15 @@ Mapping counterparty::TemporalMapping
         isInvestmentGrade: [store::DB] CPTY_RATING_MS.IS_INVESTMENT_GRADE
     }
 )
+
+###Mapping
+Mapping products::BiTemporalMapping
+(
+    products::InstrumentRating: Relational {
+        ~primaryKey ([store::DB] INSTR_RATING_BI.INSTRUMENT_ID, [store::DB] INSTR_RATING_BI.FROM_Z, [store::DB] INSTR_RATING_BI.IN_Z)
+        ~mainTable [store::DB] INSTR_RATING_BI
+        instrumentId: [store::DB] INSTR_RATING_BI.INSTRUMENT_ID,
+        creditRating: [store::DB] INSTR_RATING_BI.CREDIT_RATING,
+        source: [store::DB] INSTR_RATING_BI.SOURCE
+    }
+)

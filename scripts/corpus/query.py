@@ -74,7 +74,7 @@ class Spec:
 _SERVICE = re.compile(r"^Service\s+([\w:]+)\s*$")
 _PATTERN = re.compile(r"pattern:\s*'([^']*)'")
 _DOC = re.compile(r"documentation:\s*'((?:[^']|'')*)'")
-_ROOT = re.compile(r"query:\s*\|([\w:]+)\.all\(\s*(%[\w-]+)?\s*\)")
+_ROOT = re.compile(r"query:\s*\|([\w:]+)\.all\(\s*([^)]*)\s*\)")
 _ALIASED = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2\.(.+)$")
 _AGGED = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2\.(.+?)->(count)\(\)$")
 _FILTER = re.compile(r"->filter\(\s*\{\s*(\w+)\s*\|(.*?)\}\s*\)", re.S)
@@ -190,8 +190,10 @@ def _finish(name: str, body: str) -> Spec:
     if not (pat and root):
         raise ValueError(f"service {name}: missing pattern or root")
     s = Spec(name, pat.group(1), doc.group(1) if doc else "", root.group(1))
-    if root.group(2):
-        s.as_of = root.group(2)[1:]
+    arg = root.group(2).strip()
+    if arg:
+        dates = [a.strip()[1:] for a in arg.split(",") if a.strip()]
+        s.as_of = dates[0] if len(dates) == 1 else dates
     s.projections = _projections(_project_body(body))
     f = _FILTER.search(body)
     if f:

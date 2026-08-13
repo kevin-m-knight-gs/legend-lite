@@ -735,6 +735,171 @@ Service stress::F14_RatingsLatest
   ]
 }
 
+Service stress::B0_RatingAsBelievedThen
+{
+    pattern: '/stress/b0';
+    documentation: 'Business 2024-02-01 as believed on 2024-02-01: INST-HSBA is \'A\'. This is what a report run that month would have said.';
+    execution: Single
+    {
+    query: |products::InstrumentRating.all(%2024-02-01, %2024-02-01)
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            creditRating:x|$x.creditRating,
+            source:x|$x.source
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    B0_RatingAsBelievedThen_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"INST-HSBA","creditRating":"A","source":"FEED-A"},{"instrumentId":"INST-GILT30","creditRating":"AA","source":"FEED-B"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::B1_RatingAsBelievedNow
+{
+    pattern: '/stress/b1';
+    documentation: 'The SAME business date, asked after the correction landed: \'A-\'. Neither answer is wrong; a single-temporal store cannot hold both.';
+    execution: Single
+    {
+    query: |products::InstrumentRating.all(%2024-04-01, %2024-02-01)
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            creditRating:x|$x.creditRating,
+            source:x|$x.source
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    B1_RatingAsBelievedNow_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"INST-HSBA","creditRating":"A-","source":"FEED-A-CORRECTED"},{"instrumentId":"INST-GILT30","creditRating":"AA","source":"FEED-B"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::B2_RatingBeforeAnyBelief
+{
+    pattern: '/stress/b2';
+    documentation: 'The same business date asked BEFORE anything was recorded about it. The processing dimension excludes every row, so INST-HSBA is absent entirely -- not null, absent.';
+    execution: Single
+    {
+    query: |products::InstrumentRating.all(%2024-01-05, %2024-02-01)
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            creditRating:x|$x.creditRating,
+            source:x|$x.source
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    B2_RatingBeforeAnyBelief_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"INST-GILT30","creditRating":"AA","source":"FEED-B"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::G0_TradeTree
 {
     pattern: '/stress/g0';

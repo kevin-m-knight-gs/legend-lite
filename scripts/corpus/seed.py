@@ -47,6 +47,11 @@ rather than quietly weakening the corpus:
                        nobody, and TRD-004 reports to TRD-999 who does not exist. So the
                        {target} self-join has to produce a real row, a NULL from an absent
                        key, and a NULL from a dangling one -- on the same table.
+  A17 BITEMPORAL_FIX   INSTR_RATING_BI holds a RETROACTIVE CORRECTION: the same business
+                       period recorded twice, the second superseding the first in
+                       PROCESSING time only. Asking about the same business date at two
+                       processing dates must give two different answers, and both are
+                       correct. This is the one shape no single-temporal store can hold.
   A15 TEMPORAL_EDGES   The SCD2 history in CPTY_RATING_MS is built around the awkward
                        dates, not around convenience: a version boundary landing exactly
                        on the queried date (CP-0003 on 2024-06-07), a rating WITHDRAWN so
@@ -611,8 +616,37 @@ CPTY_RATING_MS = [
     # and is absent from the temporal table on every date.
 ]
 
+# L3b — the bitemporal history, built around ONE retroactive correction.
+#
+# On 2024-01-10 we recorded that INST-HSBA was A from 2024-01-01. On 2024-03-01 we
+# discovered that was wrong and it had been A- all along. Bitemporality keeps BOTH facts:
+#
+#   business 2024-02-01, processing 2024-02-01  ->  'A'    (what we believed then)
+#   business 2024-02-01, processing 2024-04-01  ->  'A-'   (what we believe now)
+#
+# Same business date, different answers, and neither is a lie. A single-temporal store
+# cannot represent this at all: it either loses the correction or loses the fact that we
+# once believed otherwise.
+INSTR_RATING_BI = [
+    # The original belief, later closed in PROCESSING time by the correction.
+    dict(INSTRUMENT_ID="INST-HSBA", FROM_Z=_iso(2024, 1, 1), IN_Z=_iso(2024, 1, 10),
+         THRU_Z=INFINITY, OUT_Z=_iso(2024, 3, 1),
+         CREDIT_RATING="A", SOURCE="FEED-A"),
+    # The correction: same business period, opened in processing time on discovery.
+    dict(INSTRUMENT_ID="INST-HSBA", FROM_Z=_iso(2024, 1, 1), IN_Z=_iso(2024, 3, 1),
+         THRU_Z=INFINITY, OUT_Z=INFINITY,
+         CREDIT_RATING="A-", SOURCE="FEED-A-CORRECTED"),
+    # A second instrument with no correction: one row, current in both dimensions. The
+    # contrast matters -- if the bitemporal predicate were wrong in a way that dropped
+    # rows, this would vanish too and the correction case alone would not show it.
+    dict(INSTRUMENT_ID="INST-GILT30", FROM_Z=_iso(2021, 1, 26), IN_Z=_iso(2021, 1, 26),
+         THRU_Z=INFINITY, OUT_Z=INFINITY,
+         CREDIT_RATING="AA", SOURCE="FEED-B"),
+]
+
 TABLES: dict[str, list[dict]] = {
     "CPTY_RATING_MS": CPTY_RATING_MS,
+    "INSTR_RATING_BI": INSTR_RATING_BI,
     "COUNTRY": COUNTRY, "CURRENCY": CURRENCY, "EXCHANGE": EXCHANGE, "SECTOR": SECTOR,
     "DESK": DESK, "TRADER": TRADER, "BOOK": BOOK, "COUNTERPARTY": COUNTERPARTY,
     "INSTRUMENT": INSTRUMENT, "TRADE": TRADE, "POSITION": POSITION, "GREEKS": GREEKS,
@@ -737,6 +771,22 @@ def check(c: Corpus) -> list[str]:
             if t1 != f2:
                 bad.append(f"CPTY_RATING_MS {x}: gap or overlap between {t1} and {f2}; "
                            f"SCD2 versions must abut exactly")
+    # A17 — the correction must be a genuine supersession, not two unrelated rows.
+    bi = INSTR_RATING_BI
+    corrected = [r for r in bi if r["OUT_Z"] != INFINITY]
+    has("A17 a row closed in PROCESSING time (a correction)", bool(corrected))
+    for r in corrected:
+        same = [x for x in bi if x["INSTRUMENT_ID"] == r["INSTRUMENT_ID"]
+                and x["FROM_Z"] == r["FROM_Z"] and x["IN_Z"] == r["OUT_Z"]]
+        if not same:
+            bad.append(f"INSTR_RATING_BI: {r['INSTRUMENT_ID']} is closed in processing "
+                       f"time at {r['OUT_Z']} with no successor opening then; a "
+                       f"correction that supersedes nothing is just a deletion")
+        elif same[0]["CREDIT_RATING"] == r["CREDIT_RATING"]:
+            bad.append(f"INSTR_RATING_BI: the correction for {r['INSTRUMENT_ID']} carries "
+                       f"the SAME rating, so no query could tell the two apart")
+    has("A17 an instrument with no correction, for contrast",
+        any(r["OUT_Z"] == INFINITY for r in bi))
     tids = {r["TRADER_ID"] for r in TRADER}
     mgrs = [r["MANAGER_ID"] for r in TRADER]
     has("A16 a trader who reports to nobody", any(m is None for m in mgrs))

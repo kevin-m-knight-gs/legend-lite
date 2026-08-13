@@ -229,6 +229,35 @@ SELF_JOIN = [
 ]
 
 
+# ---------------------------------------------------------- L3b bitemporal
+#
+# The same BUSINESS date asked at two PROCESSING dates. B0 and B1 differ only in when the
+# question was asked, and they must give different answers -- that is the entire content
+# of bitemporality, and a store that collapses the two dimensions cannot produce it.
+
+def _bitemporal(n: int, name: str, processing: str, business: str, doc: str) -> Spec:
+    """Argument order is all(PROCESSING, BUSINESS) — engine order, not the order the
+    concepts are usually said in."""
+    s = Spec(f"stress::B{n}_{name}", f"/stress/b{n}", doc, "products::InstrumentRating")
+    s.as_of = [processing, business]
+    s.projections = [Proj(a, [a]) for a in ("instrumentId", "creditRating", "source")]
+    return s
+
+
+BITEMPORAL = [
+    _bitemporal(0, "RatingAsBelievedThen", "2024-02-01", "2024-02-01",
+                "Business 2024-02-01 as believed on 2024-02-01: INST-HSBA is 'A'. This is "
+                "what a report run that month would have said."),
+    _bitemporal(1, "RatingAsBelievedNow", "2024-04-01", "2024-02-01",
+                "The SAME business date, asked after the correction landed: 'A-'. Neither "
+                "answer is wrong; a single-temporal store cannot hold both."),
+    _bitemporal(2, "RatingBeforeAnyBelief", "2024-01-05", "2024-02-01",
+                "The same business date asked BEFORE anything was recorded about it. The "
+                "processing dimension excludes every row, so INST-HSBA is absent "
+                "entirely -- not null, absent."),
+]
+
+
 # ------------------------------------------------------------- graph fetch
 #
 # A completely different execution path: the result is a TREE, not a TDS. The earlier
@@ -318,7 +347,7 @@ DERIVED = [
           []),
 ]
 
-SPECS = INVARIANCE + TEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+SPECS = INVARIANCE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

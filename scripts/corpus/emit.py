@@ -140,6 +140,14 @@ def _literal(v) -> str:
     return repr(v)
 
 
+def _as_of(spec: Spec) -> str:
+    """A temporal root takes one date, or TWO for a bitemporal class: all(%B, %P)."""
+    if spec.as_of is None:
+        return ""
+    dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
+    return ", ".join("%latest" if d == "latest" else "%" + d for d in dates)
+
+
 def _tree(node: dict, indent: str) -> str:
     parts = []
     for name, sub in node.items():
@@ -156,12 +164,7 @@ def graph_text(spec: Spec) -> str:
     two must agree or the serializer emits a shape the fetch never populated."""
     tree = ("#{\n  " + spec.root + "\n  {\n" + _tree(spec.graph, "    ")
             + "\n  }\n}#")
-    arg = ""
-    if spec.as_of == "latest":
-        arg = "%latest"
-    elif spec.as_of:
-        arg = "%" + spec.as_of
-    return (f"    query: |{spec.root}.all({arg})\n"
+    return (f"    query: |{spec.root}.all({_as_of(spec)})\n"
             f"        ->graphFetch({tree})\n"
             f"        ->serialize({tree});")
 
@@ -181,12 +184,7 @@ def query_text(spec: Spec) -> str:
     bare names always meant here. Column aliases are unchanged, so the expectation JSON
     keys are identical.
     """
-    arg = ""
-    if spec.as_of == "latest":
-        arg = "%latest"
-    elif spec.as_of:
-        arg = "%" + spec.as_of
-    lines = [f"    query: |{spec.root}.all({arg})"]
+    lines = [f"    query: |{spec.root}.all({_as_of(spec)})"]
     if spec.filters:
         conds = " && ".join(
             f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)

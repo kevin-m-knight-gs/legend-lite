@@ -341,21 +341,37 @@ def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
         if spec.as_of is not None:
             raise Fanout(f"{spec.short}: as-of date given for non-temporal {spec.root}")
         return rows
-    if temporal != "businesstemporal":
+    # PROCESSING FIRST for a bitemporal class: all(processingDate, businessDate).
+    # Verified against legend-engine's own bitemporal fixture, not assumed. Getting it
+    # backwards is silent, not an error -- with the two dates swapped every query still
+    # returns rows, just the wrong ones, and a fixture whose two dates happen to be equal
+    # passes either way. The corpus deliberately uses DIFFERENT dates so the order is
+    # observable.
+    wanted = {"businesstemporal": ["business"],
+              "processingtemporal": ["processing"],
+              "bitemporal": ["processing", "business"]}.get(temporal)
+    if wanted is None:
         raise Fanout(f"{spec.short}: {temporal} milestoning is not modelled")
-    if table.milestoning is None:
-        raise Fanout(f"{spec.short}: {spec.root} is temporal but {table.name} declares "
-                     f"no milestoning columns")
-    if spec.as_of is None:
-        raise Fanout(f"{spec.short}: {spec.root} is business-temporal, so all() needs a "
-                     f"business date")
 
-    frm, thru = table.milestoning.frm, table.milestoning.thru
-    if spec.as_of == "latest":
-        return [r for r in rows if r.get(thru) == INFINITY]
-    return [r for r in rows
-            if r.get(frm) is not None and r.get(frm) <= spec.as_of
-            and (r.get(thru) is None or spec.as_of < r.get(thru))]
+    dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
+    if len(dates) != len(wanted) or any(d is None for d in dates):
+        raise Fanout(f"{spec.short}: {spec.root} is {temporal}, so all() needs "
+                     f"{len(wanted)} date(s) ({', '.join(wanted)}), got {dates!r}")
+
+    for kind, at in zip(wanted, dates):
+        ms = table.milestone(kind)
+        if ms is None:
+            raise Fanout(f"{spec.short}: {spec.root} is {temporal} but {table.name} "
+                         f"declares no {kind} milestoning columns")
+        # Each dimension narrows independently and the predicates AND together, which is
+        # the whole content of bitemporality: "what did we BELIEVE on P about date B".
+        if at == "latest":
+            rows = [r for r in rows if r.get(ms.thru) == INFINITY]
+        else:
+            rows = [r for r in rows
+                    if r.get(ms.frm) is not None and r.get(ms.frm) <= at
+                    and (r.get(ms.thru) is None or at < r.get(ms.thru))]
+    return rows
 
 
 def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:

@@ -94,7 +94,15 @@ class Milestoning:
 class Table:
     name: str
     columns: dict[str, Column] = field(default_factory=dict)
-    milestoning: Milestoning | None = None
+    # A list, not one: a BITEMPORAL table declares both business and processing
+    # milestoning in the same block, and the two are combined at query time.
+    milestoning: list[Milestoning] = field(default_factory=list)
+
+    def milestone(self, kind: str) -> Milestoning | None:
+        for m in self.milestoning:
+            if m.kind == kind:
+                return m
+        return None
 
     @property
     def pk(self) -> list[str]:
@@ -345,11 +353,33 @@ def _mult(s: str) -> tuple[int, int | None]:
     return int(s), int(s)
 
 
-_MILESTONING = re.compile(
-    r"milestoning\s*\(\s*(business|processing)\s*\("
+_MILESTONING_BLOCK = re.compile(r"milestoning\s*\((.*?)\)\s*\)\s*$", re.S)
+_MILESTONING_ONE = re.compile(
+    r"(business|processing)\s*\("
     r"\s*(?:BUS_FROM|PROCESSING_IN)\s*=\s*(\w+)\s*,"
     r"\s*(?:BUS_THRU|PROCESSING_OUT)\s*=\s*(\w+)\s*"
-    r"(?:,\s*INFINITY_DATE\s*=\s*%([\d:.T-]+)\s*)?\)\s*\)", re.S)
+    r"(?:,\s*INFINITY_DATE\s*=\s*%([\d:.T-]+)\s*)?\)", re.S)
+
+
+def _parse_milestoning(body: str):
+    """Returns (specs, remaining body). A block may hold one spec or two — business AND
+    processing on the same table is BITEMPORAL, and the two predicates AND together."""
+    i = body.find("milestoning")
+    if i < 0:
+        return [], body
+    j, depth = body.index("(", i) + 1, 1
+    while depth and j < len(body):
+        if body[j] == "(":
+            depth += 1
+        elif body[j] == ")":
+            depth -= 1
+        j += 1
+    inner = body[body.index("(", i) + 1:j - 1]
+    specs = [Milestoning(m.group(1), m.group(2), m.group(3), m.group(4))
+             for m in _MILESTONING_ONE.finditer(inner)]
+    if not specs:
+        raise ValueError(f"unparseable milestoning block: {inner!r}")
+    return specs, body[:i] + body[j:]
 
 
 def _table_bodies(text: str) -> list[tuple[str, str]]:
@@ -429,11 +459,7 @@ def _parse_store(text: str, c: Corpus) -> None:
         _parse_view(name, body, c)
     for name, body in _table_bodies(text):
         t = Table(name)
-        ms = _MILESTONING.search(body)
-        if ms:
-            t.milestoning = Milestoning(ms.group(1), ms.group(2), ms.group(3),
-                                        ms.group(4))
-            body = _MILESTONING.sub("", body)
+        t.milestoning, body = _parse_milestoning(body)
         for spec in _split_cols(body):
             spec = " ".join(spec.split())
             if not spec:

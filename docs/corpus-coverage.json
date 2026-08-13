@@ -1,6 +1,6 @@
 {
  "roster_total": 1033,
- "covered_count": 58,
+ "covered_count": 59,
  "covered": [
   "Bit",
   "Date",
@@ -41,6 +41,7 @@
   "operation",
   "packageableElementPtr",
   "packageableType",
+  "processingMilestoning",
   "property",
   "propertyGraphFetchTree",
   "pureSingleExecution",

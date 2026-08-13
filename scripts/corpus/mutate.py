@@ -206,6 +206,18 @@ def break_self_join_target(f):
     return f
 
 
+def undo_bitemporal_correction(f):
+    """Reopen the superseded row in PROCESSING time, so the correction never closes. B0
+    (believed then) is unaffected -- that row was already in force -- but B1 (believed
+    now) then sees BOTH versions of the same business period, which is precisely the
+    state bitemporality exists to prevent."""
+    f["93"] = _sub_once(f["93"],
+                        r"INST-HSBA,2024-01-01,2024-01-10,9999-12-31,2024-03-01,A,FEED-A",
+                        "INST-HSBA,2024-01-01,2024-01-10,9999-12-31,9999-12-31,A,FEED-A",
+                        "undo_bitemporal_correction")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -229,6 +241,7 @@ MUTATIONS = {
     "shift_milestone_boundary": shift_milestone_boundary,
     "break_infinity_date": break_infinity_date,
     "populate_empty_union_leg": populate_empty_union_leg,
+    "undo_bitemporal_correction": undo_bitemporal_correction,
     "change_view_aggregate": change_view_aggregate,
     "widen_store_filter": widen_store_filter,
     "break_self_join_target": break_self_join_target,
