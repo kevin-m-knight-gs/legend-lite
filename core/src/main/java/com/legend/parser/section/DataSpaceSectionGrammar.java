@@ -81,7 +81,7 @@ public final class DataSpaceSectionGrammar
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            TokenStreamCursor.once(seenKeys, key, c, declStart);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "executionContexts" -> parseContexts(c, contexts);
@@ -133,10 +133,12 @@ public final class DataSpaceSectionGrammar
         c.expect(TokenType.BRACE_CLOSE);
         // engine-verbatim required fields (sectioned negative pins #4/#6)
         if (!seenKeys.contains("executionContexts")) {
-            throw c.error("Field 'executionContexts' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'executionContexts' is required");
         }
         if (!seenKeys.contains("defaultExecutionContext")) {
-            throw c.error("Field 'defaultExecutionContext' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'defaultExecutionContext' is required");
         }
         return new Protocol.PDataSpace(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), contexts, defaultContext, title,
@@ -160,7 +162,7 @@ public final class DataSpaceSectionGrammar
         java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys2, key, c);
+            TokenStreamCursor.once(seenKeys2, key, c, start);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "address" -> address = SectionParse.stringValue(c);
@@ -190,7 +192,8 @@ public final class DataSpaceSectionGrammar
             case "Email" -> {
                 if (address == null) {
                     // engine-verbatim (probed live: Email{} without address)
-                    throw c.error("Field 'address' is required");
+                    throw TokenStreamCursor.throwAt(c.tokens(), start,
+                            "Field 'address' is required");
                 }
                 yield new Protocol.PDataSpaceSupport.PSupportEmail(address, span);
             }
@@ -220,7 +223,7 @@ public final class DataSpaceSectionGrammar
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
-                TokenStreamCursor.once(seenKeys3, key, c);
+                TokenStreamCursor.once(seenKeys3, key, c, ctxStart);
                 c.expect(TokenType.COLON);
                 switch (key) {
                     case "name" -> name = SectionParse.stringValue(c);
@@ -253,7 +256,8 @@ public final class DataSpaceSectionGrammar
             c.expect(TokenType.BRACE_CLOSE);
             if (name == null || mapping == null || mappingSpan == null
                     || defaultRuntime == null || runtimeSpan == null) {
-                throw c.error("an execution context needs name, mapping and"
+                throw TokenStreamCursor.throwAt(c.tokens(), ctxStart,
+                        "an execution context needs name, mapping and"
                         + " defaultRuntime");
             }
             out.add(new Protocol.PDataSpaceContext(name, title, description,

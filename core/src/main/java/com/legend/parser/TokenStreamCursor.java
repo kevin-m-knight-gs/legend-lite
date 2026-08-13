@@ -301,6 +301,18 @@ public interface TokenStreamCursor {
         }
     }
 
+    /** {@link #once} ANCHORED at the containing block's start token — the
+     *  engine's walkers pass each definition ctx to validateAndExtract, so
+     *  a duplicate-field error reports at the BLOCK, not the cursor
+     *  (position-exactness lane; anchored at the containing block). */
+    static void once(java.util.Set<String> seen, String key,
+            TokenStreamCursor at, int anchorTok) {
+        if (!seen.add(key)) {
+            throw throwAt(at.tokens(), anchorTok,
+                    "Field '" + key + "' should be specified only once");
+        }
+    }
+
     /** Require a STRING literal at the cursor, return its decoded body,
      *  advance. Positioned refusal on any other token — the old
      *  decode-before-check pattern died with "malformed quoted name" (or a

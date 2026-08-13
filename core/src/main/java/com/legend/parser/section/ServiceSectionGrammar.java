@@ -129,9 +129,10 @@ public final class ServiceSectionGrammar
             c.expect(TokenType.COLON);
             if (!seenKeys.add(key)) {
                 // every service field validates at most once
-                // (ServiceParseTreeWalker validateAndExtract*Field)
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
+                // (ServiceParseTreeWalker validateAndExtract*Field);
+                // anchored at the ELEMENT like the walker's ctx
+                throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                        "Field '" + key + "' should be specified only once");
             }
             switch (key) {
                 case "pattern" -> {
@@ -223,17 +224,20 @@ public final class ServiceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (execution == null) {
-            throw c.error("Field 'execution' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'execution' is required");
         }
         // ENGINE-VERBATIM required fields (ServiceParserGrammar), BOTH
         // surfaces: the old lenient default (pattern -> "/") had no
         // reference in either grammar and nothing depended on it —
         // conformed away in the own-corpus decision review (2026-08-11)
         if (pattern == null) {
-            throw c.error("Field 'pattern' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'pattern' is required");
         }
         if (documentation == null) {
-            throw c.error("Field 'documentation' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'documentation' is required");
         }
         return new Protocol.PService(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), pattern, title, owners, ownershipKind,
@@ -1008,7 +1012,7 @@ public final class ServiceSectionGrammar
                     String key = c.parseIdentifier();
                     c.expect(TokenType.COLON);
                     if (!seenExecKeys.add(key)) {
-                        throw c.error("Field '" + key
+                        throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field '" + key
                                 + "' should be specified only once");
                     }
                     switch (key) {
@@ -1036,17 +1040,17 @@ public final class ServiceSectionGrammar
                 }
                 c.expect(TokenType.BRACE_CLOSE);
                 if (query == null) {
-                    throw c.error("Field 'query' is required");
+                    throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field 'query' is required");
                 }
                 // mapping and runtime come TOGETHER or not at all — the
                 // walker names whichever is missing (visitExecution)
                 boolean hasMapping = mapping != null;
                 boolean hasRuntime = runtime != null || embedded != null;
                 if (hasMapping && !hasRuntime) {
-                    throw c.error("Field 'runtime' is required");
+                    throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field 'runtime' is required");
                 }
                 if (hasRuntime && !hasMapping) {
-                    throw c.error("Field 'mapping' is required");
+                    throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field 'mapping' is required");
                 }
                 yield new Protocol.PSingleExecution(query, mapping,
                         mappingSpan, runtime, runtimeSpan, embedded,
@@ -1063,7 +1067,7 @@ public final class ServiceSectionGrammar
                     String key = c.parseIdentifier();
                     if (!"executions".equals(key)
                             && !seenMultiKeys.add(key)) {
-                        throw c.error("Field '" + key
+                        throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field '" + key
                                 + "' should be specified only once");
                     }
                     if ("executions".equals(key)) {
@@ -1093,13 +1097,13 @@ public final class ServiceSectionGrammar
                 }
                 c.expect(TokenType.BRACE_CLOSE);
                 if (query == null) {
-                    throw c.error("Field 'query' is required");
+                    throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field 'query' is required");
                 }
                 if (executions != null && !executions.isEmpty()
                         && executionKey == null) {
                     // key is REQUIRED once keyed executions appear
                     // (visitExecution multiExec)
-                    throw c.error("Field 'key' is required");
+                    throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), execStart, "Field 'key' is required");
                 }
                 yield new Protocol.PMultiExecution(query, executionKey,
                         executions, c.spanOf(execStart, c.pos() - 1));

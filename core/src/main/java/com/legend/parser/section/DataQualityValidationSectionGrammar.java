@@ -176,7 +176,7 @@ public final class DataQualityValidationSectionGrammar
             c.expect(TokenType.COLON);
             switch (key) {
                 case "query" -> query = SectionParse.specToSemicolon(c);
-                case "validations" -> parseChecks(c, validations);
+                case "validations" -> parseChecks(c, validations, h.declStart());
                 default -> throw c.error(
                         "unknown DataQualityRelationValidation key '"
                                 + key + "'");
@@ -186,7 +186,8 @@ public final class DataQualityValidationSectionGrammar
         c.expect(TokenType.BRACE_CLOSE);
         if (!seenKeys2.contains("validations")) {
             // engine-verbatim (sectioned negative pin #22)
-            throw c.error("Field 'validations' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "Field 'validations' is required");
         }
         if (query == null) {
             throw c.error("DataQualityRelationValidation needs a query");
@@ -197,7 +198,7 @@ public final class DataQualityValidationSectionGrammar
     }
 
     private static void parseChecks(TokenStreamCursor c,
-            List<Protocol.PDqRelationCheck> out) {
+            List<Protocol.PDqRelationCheck> out, int elementAnchor) {
         c.expect(TokenType.BRACKET_OPEN);
         while (c.peek() != TokenType.BRACKET_CLOSE) {
             c.expect(TokenType.BRACE_OPEN);
@@ -220,7 +221,8 @@ public final class DataQualityValidationSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (name == null || assertion == null) {
-                throw c.error("validation needs name and assertion");
+                throw TokenStreamCursor.throwAt(c.tokens(), elementAnchor,
+                        "validation needs name and assertion");
             }
             out.add(new Protocol.PDqRelationCheck(name, description,
                     assertion));
@@ -267,7 +269,8 @@ public final class DataQualityValidationSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (source == null || target == null || strategy == null) {
-            throw c.error("DataQualityRelationComparison needs source, "
+            throw TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "DataQualityRelationComparison needs source, "
                     + "target and strategy");
         }
         return new Protocol.PDataQualityRelationComparison(h.pkg(), h.name(),

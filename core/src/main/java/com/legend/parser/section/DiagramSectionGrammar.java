@@ -157,7 +157,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             String key = r.word();
             if (!seenKeys.add(key)) {
                 // engine-verbatim (sectioned negative pins, 2026-08-13)
-                throw r.fail("Field '" + key + "' should be specified only once");
+                throw r.failAt(start, "Field '" + key + "' should be specified only once");
             }
             r.skipWs();
             r.expect(':');
@@ -181,7 +181,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         r.expect('}');
         if (classPath == null || classSpan == null || position == null
                 || rectangle == null) {
-            throw r.fail("classView '" + id + "' needs class, position and"
+            throw r.failAt(start, "classView '" + id + "' needs class, position and"
                     + " rectangle");
         }
         return new Protocol.PClassView(id, classPath, classSpan,
@@ -211,7 +211,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             String key = r.word();
             if (!seenKeys2.add(key)) {
                 // engine-verbatim (sectioned negative pins, 2026-08-13)
-                throw r.fail("Field '" + key + "' should be specified only once");
+                throw r.failAt(start, "Field '" + key + "' should be specified only once");
             }
             r.skipWs();
             r.expect(':');
@@ -245,7 +245,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         r.expect('}');
         if (propClass == null || propName == null || sourceView == null
                 || targetView == null || points == null) {
-            throw r.fail("propertyView needs property, source, target and"
+            throw r.failAt(start, "propertyView needs property, source, target and"
                     + " points");
         }
         return new Protocol.PPropertyView(propClass, propName,
@@ -273,7 +273,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             String key = r.word();
             if (!seenKeys3.add(key)) {
                 // engine-verbatim (sectioned negative pins, 2026-08-13)
-                throw r.fail("Field '" + key + "' should be specified only once");
+                throw r.failAt(start, "Field '" + key + "' should be specified only once");
             }
             r.skipWs();
             r.expect(':');
@@ -298,7 +298,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         }
         r.expect('}');
         if (sourceView == null || targetView == null || points == null) {
-            throw r.fail("generalizationView needs source, target and"
+            throw r.failAt(start, "generalizationView needs source, target and"
                     + " points");
         }
         return new Protocol.PGeneralizationView(sourceView,
@@ -537,6 +537,14 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
 
         RuntimeException fail(String message) {
             return new com.legend.parser.ParseException(message, line, col);
+        }
+
+        /** {@link #fail} ANCHORED at a saved {@link #mark()} — the engine
+         *  walker reports view-body validations at the VIEW keyword
+         *  (position-exactness lane: all 20 Diagram diverges sat at the
+         *  cursor instead of 4:3-style view starts). */
+        RuntimeException failAt(int[] mark, String message) {
+            return new com.legend.parser.ParseException(message, mark[1], mark[2]);
         }
     }
 }

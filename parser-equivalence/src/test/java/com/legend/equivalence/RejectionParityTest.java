@@ -145,6 +145,12 @@ class RejectionParityTest {
         Files.writeString(Path.of("target", "rejection-report.txt"), report.toString());
         System.out.println(report);
 
+        // POSITION FLOOR (position-exactness lane): line agreement is a
+        // down-only ratchet — 135 -> 275 of 423 on 2026-08-13; the
+        // remaining 144 divergences are censused in
+        // target/position-diverges.tsv with messages
+        assertTrue(lineMatch >= 275,
+                "error-line agreement fell: " + lineMatch + " < 275");
         assertTrue(pins.size() >= MIN_PINS,
                 "negative corpus shrank: " + pins.size() + " pins < baseline " + MIN_PINS);
         assertEquals(0, misses.size(),
