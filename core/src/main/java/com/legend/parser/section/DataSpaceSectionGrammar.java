@@ -286,7 +286,7 @@ public final class DataSpaceSectionGrammar
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
-                TokenStreamCursor.once(seenKeys4, key, c);
+                TokenStreamCursor.once(seenKeys4, key, c, entryStart);
                 c.expect(TokenType.COLON);
                 switch (key) {
                     // ids appear as bare identifiers AND integers — the
@@ -323,10 +323,12 @@ public final class DataSpaceSectionGrammar
                 // (executable: path) is id-less in oracle-accepted corpus
                 // (dataSpaceWithExecutables.pure; the first ceiling here
                 // over-tightened and refused three accepted files)
-                throw c.error("Field 'id' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), entryStart,
+                        "Field 'id' is required");
             }
             if (title == null || (executable == null && query == null)) {
-                throw c.error("an executable needs a title and an executable"
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), entryStart,
+                        "an executable needs a title and an executable"
                         + " path or query");
             }
             out.add(new Protocol.PDataSpaceExecutable(id, title, description,
@@ -368,7 +370,9 @@ public final class DataSpaceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (title == null || diagram == null || diagramSpan == null) {
-                throw c.error("a diagram entry needs title and diagram");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), entryStart,
+                        "a diagram entry needs title and diagram");
             }
             out.add(new Protocol.PDataSpaceDiagram(title, description,
                     diagram, diagramSpan, c.spanOf(entryStart, c.pos() - 1)));

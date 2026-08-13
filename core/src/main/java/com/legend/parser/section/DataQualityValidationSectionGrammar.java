@@ -112,7 +112,8 @@ public final class DataQualityValidationSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (ctxKind == null || ctxPath == null || tree == null) {
-            throw c.error("DataQualityValidation needs context and "
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "DataQualityValidation needs context and "
                     + "validationTree");
         }
         return new Protocol.PDataQualityValidation(h.pkg(), h.name(),
@@ -190,7 +191,8 @@ public final class DataQualityValidationSectionGrammar
                     "Field 'validations' is required");
         }
         if (query == null) {
-            throw c.error("DataQualityRelationValidation needs a query");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "DataQualityRelationValidation needs a query");
         }
         return new Protocol.PDataQualityRelationValidation(h.pkg(), h.name(),
                 h.dec().stereotypes(), h.dec().taggedValues(), query,

@@ -42,7 +42,7 @@ public final class TextSectionGrammar implements ElementwiseSectionGrammar {
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            TokenStreamCursor.once(seenKeys, key, c, h.declStart());
             c.expect(TokenType.COLON);
             switch (key) {
                 case "type" -> type = c.parseIdentifier();
@@ -53,7 +53,8 @@ public final class TextSectionGrammar implements ElementwiseSectionGrammar {
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (content == null) {
-            throw c.error("Text needs content");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), h.declStart(), "Text needs content");
         }
         return new Protocol.PText(h.pkg(), h.name(), type, content,
                 c.spanOf(h.declStart(), c.pos() - 1));

@@ -376,7 +376,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "VARBINARY" -> "Varbinary";
             case "DECIMAL" -> "Decimal";
             case "NUMERIC" -> "Numeric";
-            default -> throw error("unsupported column datatype: " + kindWord);
+            default -> throw TokenStreamCursor.throwAt(tokens, typeStart,
+                    "unsupported column datatype: " + kindWord);
         };
         boolean sized = kind.equals("Varchar") || kind.equals("Char")
                 || kind.equals("Binary") || kind.equals("Varbinary");
@@ -413,7 +414,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         for (int i = typeStart; i < pos; i++) {
             decl.append(tokens.text(i));
         }
-        return error("Column data type " + kindWord + (sized
+        return TokenStreamCursor.throwAt(tokens, typeStart,
+                "Column data type " + kindWord + (sized
                 ? " requires 1 parameter (size) in declaration '"
                 : " requires 2 parameters (precision, scale) in"
                         + " declaration '")

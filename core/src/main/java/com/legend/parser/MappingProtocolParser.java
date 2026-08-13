@@ -1170,8 +1170,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 if (srcClass != null) {
                     // ENGINE-VERBATIM (harvest TestMappingGrammarParser
                     // testPureInstanceClassMapping)
-                    throw error("Field '~src' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, memberStart,
+                            "Field '~src' should be specified only once");
                 }
                 advance();                          // '~src' is ONE token
                 int sS = pos;
@@ -1181,8 +1181,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             if (peek() == TokenType.FILTER_CMD) {
                 if (filterBody != null) {
-                    throw error("Field '~filter' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, memberStart,
+                            "Field '~filter' should be specified only once");
                 }
                 advance();
                 int fStart = pos;
@@ -2211,7 +2211,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         if (func == null) {
-            throw error("mapping test suite without a function");
+            throw TokenStreamCursor.throwAt(tokens, sS,
+                    "mapping test suite without a function");
         }
         return new Protocol.PMappingTestSuite(suiteId, doc, func, tests,
                 spanOf(sS, close));
@@ -2237,8 +2238,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 if (query != null) {
                     // ENGINE-VERBATIM cardinality (harvest
                     // TestMappingGrammarParser#testMappingTest)
-                    throw error("Field 'query' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, tS,
+                            "Field 'query' should be specified only once");
                 }
                 advance();
                 expect(TokenType.COLON);
@@ -2272,8 +2273,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             if ("data".equals(key)) {
                 if (seenData) {
-                    throw error("Field 'data' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, tS,
+                            "Field 'data' should be specified only once");
                 }
                 seenData = true;
                 advance();
@@ -2363,8 +2364,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             if ("assert".equals(key)) {
                 if (expected != null) {
-                    throw error("Field 'assert' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, tS,
+                            "Field 'assert' should be specified only once");
                 }
                 int aS = pos;
                 advance();
@@ -2391,10 +2392,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.PAREN_CLOSE);
         if (!seenData) {
             // ENGINE-VERBATIM (harvest TestMappingGrammarParser)
-            throw error("Field 'data' is required");
+            throw TokenStreamCursor.throwAt(tokens, tS,
+                    "Field 'data' is required");
         }
         if (query == null || expected == null || assertSpan == null) {
-            throw error("legacy mapping test needs query AND assert");
+            throw TokenStreamCursor.throwAt(tokens, tS,
+                    "legacy mapping test needs query AND assert");
         }
         return new Protocol.PLegacyMappingTest(name, query, inputData,
                 expected, assertSpan, spanOf(tS, close));
@@ -2446,7 +2449,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (asserts.isEmpty()) {
             // ENGINE-VERBATIM (harvest TestMappingGrammarParser
             // testMappingTestSuites)
-            throw error("Field 'asserts' is required");
+            throw TokenStreamCursor.throwAt(tokens, tS,
+                    "Field 'asserts' is required");
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
@@ -2824,7 +2828,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         if (method == null || url == null || requestSpan == null
                 || body == null || responseSpan == null) {
-            throw error("a service stub needs request {method; url;} and"
+            throw TokenStreamCursor.throwAt(tokens, sTok,
+                    "a service stub needs request {method; url;} and"
                     + " response {body;}");
         }
         return new Protocol.PServiceStub(method, url, requestSpan, body,
@@ -2859,7 +2864,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
         }
         if (contentType == null || dataStr == null) {
-            throw error("external format needs contentType AND data");
+            throw TokenStreamCursor.throwAt(tokens, efTok,
+                    "external format needs contentType AND data");
         }
         return new Protocol.PExternalFormatData(contentType, dataStr,
                 new SourceInfo("", tokens.startLine(efTok),

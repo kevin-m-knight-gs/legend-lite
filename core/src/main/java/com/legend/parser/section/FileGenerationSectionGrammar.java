@@ -81,7 +81,9 @@ public final class FileGenerationSectionGrammar
             // accumulate and may repeat
             if (("scopeElements".equals(key) || "generationOutputPath".equals(key))
                     && !namedSeen.add(key)) {
-                throw c.error("Field '" + key + "' should be specified only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field '" + key + "' should be specified only once");
             }
             c.expect(TokenType.COLON);
             if ("scopeElements".equals(key)) {

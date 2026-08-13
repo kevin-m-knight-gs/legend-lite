@@ -161,7 +161,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             // ANCHORED at the element (engine walker: sourceInformation of
             // the CONNECTION ctx — position-exactness lane 2026-08-13)
             default -> throw com.legend.parser.TokenStreamCursor.throwAt(
-                    c.tokens(), declStart,
+                    c.tokens(),
+                    c.peek() == TokenType.BRACE_OPEN ? c.pos() + 1 : c.pos(),
                     "unsupported connection flavor: " + flavor);
         };
     }
@@ -179,7 +180,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            TokenStreamCursor.once(seenKeys, key, c, declStart);
             c.expect(TokenType.COLON);
             if ("class".equals(key)) {
                 int cS = c.pos();
@@ -188,8 +189,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             } else if ("url".equals(key)) {
                 if (url != null) {
                     // ENGINE-VERBATIM (harvest TestConnectionGrammarParser)
-                    throw c.error("Field 'url' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                            "Field 'url' should be specified only once");
                 }
                 String quoted = c.text();
                 c.expect(TokenType.STRING);
@@ -220,8 +221,9 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             }
             if (mapSpan != null) {
                 // ENGINE-VERBATIM (harvest TestConnectionGrammarParser)
-                throw c.error("Field 'mappings' should be specified"
-                        + " only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field 'mappings' should be specified only once");
             }
             c.advance();
             c.expect(TokenType.COLON);
@@ -236,7 +238,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (mapSpan == null) {
-            throw c.error("ModelChainConnection needs mappings");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart, "ModelChainConnection needs mappings");
         }
         return new Protocol.PModelChainConnection(
                 standalone ? "ModelStore" : null, mappings, mapSpan,
@@ -276,7 +279,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (baseUrl == null) {
-            throw c.error("ServiceStoreConnection needs baseUrl");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart, "ServiceStoreConnection needs baseUrl");
         }
         return new Protocol.PServiceStoreConnection(baseUrl, element,
                 elementSpan, c.spanOf(declStart, c.pos() - 1));
@@ -528,12 +532,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int kS = c.pos();
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys5, key, c);
+            TokenStreamCursor.once(seenKeys5, key, c, declStart);
             c.expect(TokenType.COLON);
-            if (!seenKeys.add(key)) {
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
-            }
             switch (key) {
                 case "store" -> {
                     int eS = c.pos();
@@ -580,7 +580,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             String gk = c.parseIdentifier();
                             c.expect(TokenType.COLON);
                             if (!seenGk.add(gk)) {
-                                throw c.error("Field '" + gk
+                                throw com.legend.parser.TokenStreamCursor
+                                        .throwAt(c.tokens(), gS, "Field '" + gk
                                         + "' should be specified only once");
                             }
                             List<String> into = switch (gk) {
@@ -641,13 +642,15 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         if (dbType == null || spec == null) {
             // store: is OPTIONAL (probe test-auth-empty-body-no-store —
             // element+span omitted from the wire entirely)
-            throw c.error("RelationalDatabaseConnection needs type and"
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart, "RelationalDatabaseConnection needs type and"
                     + " specification");
         }
         if (auth == null) {
             // ENGINE-TRUE: auth is required (the omit-defaults-to-NoAuth
             // tolerance died with the lite flavors — conform-to-engine)
-            throw c.error("RelationalDatabaseConnection needs auth");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart, "RelationalDatabaseConnection needs auth");
         }
         return new Protocol.PRelationalDatabaseConnection(
                 auth, dbType, spec, element, elementSpan, posts,
@@ -785,7 +788,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 java.util.Set<String> seenKeys8 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
-                    TokenStreamCursor.once(seenKeys8, key, c);
+                    TokenStreamCursor.once(seenKeys8, key, c, keywordTok);
                     c.expect(TokenType.COLON);
                     if ("testDataSetupSqls".equals(key)) {
                         if (sqls != null) {
@@ -1163,7 +1166,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 java.util.Set<String> seenKeys19 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
-                    TokenStreamCursor.once(seenKeys19, key, c);
+                    TokenStreamCursor.once(seenKeys19, key, c, keywordTok);
                     c.expect(TokenType.COLON);
                     switch (key) {
                         case "publicUserName" -> publicUserName = SectionParse.stringValue(c);
@@ -1180,7 +1183,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 c.expect(TokenType.SEMI_COLON);
                 if (publicUserName == null || privateKey == null
                         || passPhrase == null) {
-                    throw c.error("SnowflakePublic needs publicUserName,"
+                    throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
+                            "SnowflakePublic needs publicUserName,"
                             + " privateKeyVaultReference and"
                             + " passPhraseVaultReference");
                 }

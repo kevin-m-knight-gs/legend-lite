@@ -100,9 +100,10 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
         List<Protocol.PConnectionStores> connectionStores = new ArrayList<>();
         int mappingsKeys = parseBodyKeys(c, single, qn,
                 TokenType.BRACE_CLOSE, mappings, connections,
-                connectionStores);
+                connectionStores, declStart);
         if (mappingsKeys == 0) {
-            throw c.error("Field 'mappings' is required");
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'mappings' is required");
         }
         c.expect(TokenType.BRACE_CLOSE);
         return new Protocol.PRuntime(pkg, name, single, mappings, connections,
@@ -242,7 +243,8 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
             @com.legend.Nullable TokenType close,
             List<Protocol.PPointer> mappings,
             List<Protocol.PStoreConnections> connections,
-            List<Protocol.PConnectionStores> connectionStores) {
+            List<Protocol.PConnectionStores> connectionStores,
+            int declStart) {
         int seenMappings = 0;
         int seenConnections = 0;
         int seenConnStores = 0;
@@ -252,17 +254,18 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
             c.advance();
             c.expect(TokenType.COLON);
             if (key == TokenType.MAPPINGS && ++seenMappings > 1) {
-                throw c.error("Field 'mappings' should be specified"
-                        + " only once");
+                throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                        "Field 'mappings' should be specified only once");
             }
             if (key == TokenType.CONNECTIONS && !single
                     && ++seenConnections > 1) {
-                throw c.error("Field 'connections' should be specified"
-                        + " only once");
+                throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                        "Field 'connections' should be specified only once");
             }
             if ("connectionStores".equals(keyText) && !single
                     && ++seenConnStores > 1) {
-                throw c.error("Field 'connectionPointerStores' should be"
+                throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                        "Field 'connectionPointerStores' should be"
                         + " specified only once");
             }
             if (key == TokenType.MAPPINGS) {
@@ -345,7 +348,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
         List<Protocol.PStoreConnections> connections = new ArrayList<>();
         List<Protocol.PConnectionStores> connectionStores = new ArrayList<>();
         parseBodyKeys(ic, false, "<embedded>", null, mappings, connections,
-                connectionStores);
+                connectionStores, 0);
         return new Protocol.PEmbeddedRuntime(mappings, connections,
                 connectionStores, contentSpan);
     }

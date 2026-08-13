@@ -78,7 +78,9 @@ public final class ServiceStoreSectionGrammar
             }
         }
         if (!dup.isEmpty()) {
-            throw c.error("Service Store Elements should have unique ids."
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), h.declStart(),
+                    "Service Store Elements should have unique ids."
                     + " Multiple elements found with ids - " + dup);
         }
         return new Protocol.PServiceStoreDefinition(h.pkg(), h.name(),
@@ -178,7 +180,9 @@ public final class ServiceStoreSectionGrammar
         }
         // engine walker cross-validations (pins #18/#20/#28), verbatim
         if ("GET".equals(method) && requestBody != null) {
-            throw c.error("Request Body should not be specified for GET"
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), start,
+                    "Request Body should not be specified for GET"
                     + " end point");
         }
         if (parameters != null) {
@@ -186,7 +190,10 @@ public final class ServiceStoreSectionGrammar
             for (Protocol.PSsParam pm : parameters) {
                 if ("PATH".equals(pm.location())) {   // stored UPPERCASED on the wire
                     if (Boolean.FALSE.equals(pm.required())) {
-                        throw c.error("Path parameters cannot be optional");
+                        throw new com.legend.parser.ParseException(
+                                "Path parameters cannot be optional",
+                                pm.sourceInformation().startLine(),
+                                pm.sourceInformation().startColumn());
                     }
                     if (!path.contains("{" + pm.name() + "}")) {
                         missing.add(pm.name());
@@ -194,7 +201,9 @@ public final class ServiceStoreSectionGrammar
                 }
             }
             if (!missing.isEmpty()) {
-                throw c.error("Path parameters should be specified in path"
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), start,
+                        "Path parameters should be specified in path"
                         + " as '{param_name}'. [" + String.join(",", missing)
                         + "] parameters were not found in path " + path);
             }
@@ -282,18 +291,22 @@ public final class ServiceStoreSectionGrammar
         // params REQUIRE style+explode; non-list params must not carry them
         if (type.list()) {
             if (style == null) {
-                throw c.error("Field 'style' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                        "Field 'style' is required");
             }
             if (explode == null) {
-                throw c.error("Field 'explode' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                        "Field 'explode' is required");
             }
         } else {
             if (style != null) {
-                throw c.error("style should not be provided with non-list"
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                        "style should not be provided with non-list"
                         + " service parameter");
             }
             if (explode != null) {
-                throw c.error("explode should not be provided with non-list"
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                        "explode should not be provided with non-list"
                         + " service parameter");
             }
         }

@@ -511,13 +511,16 @@ public final class ServiceSectionGrammar
         c.expect(TokenType.BRACE_CLOSE);
         // visitPostValidation: description, params, assertions ALL required
         if (description == null) {
-            throw c.error("Field 'description' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), eS,
+                    "Field 'description' is required");
         }
         if (!seenPvKeys.contains("params")) {
-            throw c.error("Field 'params' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), eS,
+                    "Field 'params' is required");
         }
         if (!seenPvKeys.contains("assertions")) {
-            throw c.error("Field 'assertions' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), eS,
+                    "Field 'assertions' is required");
         }
         return new Protocol.PPostValidation(description, params,
                 assertions, c.spanOf(eS, close));
@@ -527,15 +530,16 @@ public final class ServiceSectionGrammar
      *  shared by Single and Multi keyed entries; returns data. */
     private static @com.legend.Nullable String parseLegacyBody(
             TokenStreamCursor c,
-            List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts) {
+            List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts,
+            int entryAnchor) {
         String data = null;
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!seenKeys.add(key)) {
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), entryAnchor,
+                        "Field '" + key + "' should be specified only once");
             }
             switch (key) {
                 case "data" -> {
@@ -661,7 +665,8 @@ public final class ServiceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (!testsSpelled) {
-                throw c.error("Field 'tests' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), ss,
+                        "Field 'tests' is required");
             }
             out.add(new Protocol.PServiceTestSuite(id, null, data, tests,
                     c.spanOf(ss, c.pos() - 1)));
@@ -798,8 +803,8 @@ public final class ServiceSectionGrammar
                 throw c.error("unknown suite data key '" + k + "'");
             }
             if (connectionsSpelled) {
-                throw c.error("Field 'connections' should be specified"
-                        + " only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), keyStart,
+                        "Field 'connections' should be specified only once");
             }
             connectionsSpelled = true;
             c.expect(TokenType.BRACKET_OPEN);
@@ -924,7 +929,8 @@ public final class ServiceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (!assertsSpelled) {
-                throw c.error("Field 'asserts' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), ts,
+                        "Field 'asserts' is required");
             }
             out.add(new Protocol.PServiceTestSuite.PSuiteTest(id, null,
                     serializationFormat, keys, parameters, asserts,
@@ -961,12 +967,12 @@ public final class ServiceSectionGrammar
                 c.expect(TokenType.BRACE_OPEN);
                 List<Protocol.PLegacyServiceTest.PLegacyAssert> ka =
                         new ArrayList<>();
-                String kd = parseLegacyBody(c, ka);
+                String kd = parseLegacyBody(c, ka, es);
                 c.expect(TokenType.BRACE_CLOSE);
                 c.match(TokenType.SEMI_COLON);
                 if (kd == null) {
-                    throw c.error("Multi test '" + keyValue
-                            + "' needs data");
+                    throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), es,
+                            "Multi test '" + keyValue + "' needs data");
                 }
                 keyed.add(new Protocol.PLegacyServiceTest.PKeyedLegacyTest(
                         keyValue, kd, ka, c.spanOf(es, c.pos() - 1)));
@@ -984,11 +990,12 @@ public final class ServiceSectionGrammar
         c.expect(TokenType.BRACE_OPEN);
         List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts =
                 new ArrayList<>();
-        String data = parseLegacyBody(c, asserts);
+        String data = parseLegacyBody(c, asserts, start);
         c.expect(TokenType.BRACE_CLOSE);
         c.match(TokenType.SEMI_COLON);
         if (data == null) {
-            throw c.error("legacy test needs data");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                    "legacy test needs data");
         }
         return new Protocol.PLegacyServiceTest("Single", data, asserts,
                 java.util.List.of(), c.spanOf(start, c.pos() - 1));
@@ -1132,8 +1139,8 @@ public final class ServiceSectionGrammar
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!seenKeys.add(key)) {
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                        "Field '" + key + "' should be specified only once");
             }
             switch (key) {
                 case "mapping" -> {
@@ -1206,10 +1213,12 @@ public final class ServiceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (mapping == null) {
-            throw c.error("Field 'mapping' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                    "Field 'mapping' is required");
         }
         if (requireRuntime && runtime == null && embedded == null) {
-            throw c.error("Field 'runtime' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), start,
+                    "Field 'runtime' is required");
         }
         if (runtime == null && embedded == null && runtimeComponents == null) {
             // the EE GRAMMAR itself requires runtime OR runtimeComponents

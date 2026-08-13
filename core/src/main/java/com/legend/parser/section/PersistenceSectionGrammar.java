@@ -743,8 +743,9 @@ public final class PersistenceSectionGrammar
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!seenCtx.add(key)) {
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field '" + key + "' should be specified only once");
             }
             switch (key) {
                 case "persistence" -> {
@@ -814,11 +815,12 @@ public final class PersistenceSectionGrammar
                         long dpu = entries.stream().filter(en ->
                                 "dataProcessingUnits".equals(en.key())).count();
                         if (dpu == 0) {
-                            throw c.error(
+                            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), keyStart,
                                     "Field 'dataProcessingUnits' is required");
                         }
                         if (dpu > 1) {
-                            throw c.error("Field 'dataProcessingUnits' should"
+                            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), keyStart,
+                                    "Field 'dataProcessingUnits' should"
                                     + " be specified only once");
                         }
                     }
@@ -861,7 +863,9 @@ public final class PersistenceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (persistence == null) {
-            throw c.error("Field 'persistence' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    "Field 'persistence' is required");
         }
         return new Protocol.PPersistenceContext(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), persistence,
