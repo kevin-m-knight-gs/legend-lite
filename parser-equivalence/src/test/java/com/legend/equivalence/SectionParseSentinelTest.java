@@ -252,7 +252,7 @@ class SectionParseSentinelTest {
     // which is why the total falls by 14 rather than 17. The ceiling had been
     // sitting 82 above the actual count, so it could not have caught a
     // regression of any size worth catching.
-    private static final int MAX_DROP_IN_DEFECTS = 184;
+    private static final int MAX_DROP_IN_DEFECTS = 1;    // measured 2026-08-12 (the old 184 had 183 units of slack — deep-audit §5)
     // 126 -> 127 is the ONE increment this ratchet has ever taken, and it is a
     // gap becoming VISIBLE rather than a capability being lost: refusing
     // unknown sections turned a silently-skipped ###Diagram that the engine
@@ -277,7 +277,7 @@ class SectionParseSentinelTest {
 
     /** Files we accept that the engine REFUSES. Ratcheted DOWN only — this is
      *  the leniency surface, and a drop-in's is zero. */
-    private static final int MAX_LENIENT = 69;
+    private static final int MAX_LENIENT = 17;   // measured 2026-08-12 post burn-down
     // 55 -> 68 (2026-08-09, ###Service SectionGrammar). Two effects, both
     // NAMED:
     // (1) NEW rows are oracle-version-skew: the five service-new-grammar
@@ -323,7 +323,7 @@ class SectionParseSentinelTest {
     /** Leniency we CANNOT justify — files we take only because we skipped what
      *  we could not read, plus anything unexamined. Ratcheted DOWN only; this
      *  is the half of {@link #MAX_LENIENT} that is simply a bug. */
-    private static final int MAX_UNJUSTIFIED_LENIENCY = 52;   // 127 -> 39 -> 51 -> 52 (the same endgame row)
+    private static final int MAX_UNJUSTIFIED_LENIENCY = 5;    // 127 -> 39 -> 51 -> 52 -> 5 (burn-down 2026-08-12)
     // +2 is the same version-skew trio above: unexamined is not the same as
     // innocent, so they stay in the unjustified column until a version-matched
     // oracle can adjudicate them.

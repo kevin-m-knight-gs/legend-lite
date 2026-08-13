@@ -159,7 +159,20 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
             TokenStreamCursor c) {
         c.advance();                                // ISLAND_OPEN
         int embStart = c.pos();
-        while (c.peek() != TokenType.ISLAND_END && !c.atEnd()) {
+        // DEPTH-AWARE: a nested #{...}# inside the embedded connection must
+        // not close the outer island (adversarial audit #5 — this was the
+        // one island scanner of ten that forgot the depth count)
+        int depth = 0;
+        while (!c.atEnd()) {
+            TokenType t = c.peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
             c.advance();
         }
         int embEnd = c.pos();

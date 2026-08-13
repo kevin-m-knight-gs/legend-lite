@@ -210,8 +210,13 @@ public final class Lexer {
             }
             emit(TokenType.DIVIDE, pos, pos + 1); pos++; return;
         }
-        // Section header
-        if (c == '#' && pos + 2 < length && source.charAt(pos + 1) == '#' && source.charAt(pos + 2) == '#') {
+        // Section header — LINE-ANCHORED, the engine's rule
+        // (CodeLexerGrammar SECTION_START is '\n###' ValidString; a
+        // mid-line '###' stays section CONTENT there and refuses in the
+        // section grammar — adversarial audit: lite accepted it as a
+        // header). A mid-line '###' here falls through to scanHash and
+        // dies as INVALID.
+        if (atSectionBoundary(pos)) {
             skipSectionHeader(); return;
         }
         // String literal
@@ -240,6 +245,19 @@ public final class Lexer {
 
     // ==================== Skip Rules ====================
 
+    /** A LINE-ANCHORED {@code ###} at {@code p} — the engine's raw
+     *  sectionizer splits on {@code '\n###'} BEFORE any lexing
+     *  (PureGrammarParser prepends {@code "\n###Pure\n"}), so a section
+     *  boundary is a HARD STOP that no comment, string, or island scan may
+     *  cross (adversarial audit: a {@code ###Mapping} inside a block
+     *  comment or multi-line string split sections there and stayed hidden
+     *  here). */
+    private boolean atSectionBoundary(int p) {
+        return p + 2 < length && source.charAt(p) == '#'
+                && source.charAt(p + 1) == '#' && source.charAt(p + 2) == '#'
+                && (p == 0 || source.charAt(p - 1) == '\n');
+    }
+
     private void skipWhitespace() {
         while (pos < length) {
             char c = source.charAt(pos);
@@ -255,13 +273,23 @@ public final class Lexer {
     }
 
     private void skipBlockComment() {
+        int start = pos;
         pos += 2;
         while (pos < length) {
+            if (atSectionBoundary(pos)) {
+                // the raw sectionizer splits the comment in half — the
+                // half-open comment is unlexable content, like the engine
+                emit(TokenType.INVALID, start, pos);
+                return;
+            }
             if (source.charAt(pos) == '*' && pos + 1 < length && source.charAt(pos + 1) == '/') {
                 pos += 2; return;
             }
             pos++;
         }
+        // UNTERMINATED block comment: the engine refuses (its lexer never
+        // silently comments-to-EOF — adversarial audit divergence 8)
+        emit(TokenType.INVALID, start, pos);
     }
 
     /**
@@ -345,7 +373,7 @@ public final class Lexer {
         if (pos + 2 < length && source.charAt(pos + 1) == '\''
                 && source.charAt(pos + 2) == '\'') {
             pos += 3;
-            while (pos < length) {
+            while (pos < length && !atSectionBoundary(pos)) {
                 if (source.charAt(pos) == '\'' && pos + 2 < length
                         && source.charAt(pos + 1) == '\''
                         && source.charAt(pos + 2) == '\'') {
@@ -359,21 +387,25 @@ public final class Lexer {
             return;
         }
         pos++;
-        while (pos < length) {
+        while (pos < length && !atSectionBoundary(pos)) {
             char c = source.charAt(pos);
-            if (c == '\\') { pos += 2; }
+            // clamp: a backslash as the LAST source char must not push pos
+            // past length — the emitted end offset would make every text()
+            // call throw a raw SIOOBE (deep-audit 1f)
+            if (c == '\\') { pos = Math.min(pos + 2, length); }
             else if (c == '\'') { pos++; emit(TokenType.STRING, start, pos); return; }
             else { pos++; }
         }
+        // unterminated (EOF or a raw section boundary cut the literal)
         emit(TokenType.STRING, start, pos);
     }
 
     private void scanQuotedString() {
         int start = pos;
         pos++;
-        while (pos < length) {
+        while (pos < length && !atSectionBoundary(pos)) {
             char c = source.charAt(pos);
-            if (c == '\\') { pos += 2; }
+            if (c == '\\') { pos = Math.min(pos + 2, length); }   // clamp, see scanStringLiteral
             else if (c == '"') { pos++; emit(TokenType.QUOTED_STRING, start, pos); return; }
             else { pos++; }
         }
@@ -398,6 +430,23 @@ public final class Lexer {
             return;
         }
 
+        // Integer with EXPONENT (1e3, 1e3d — engine's Float/Decimal
+        // grammar admits exponent without a fraction; 1e3d was unlexable
+        // here, deep-audit 1f)
+        if (pos < length && (source.charAt(pos) == 'e' || source.charAt(pos) == 'E')
+                && pos + 1 < length
+                && (Character.isDigit(source.charAt(pos + 1))
+                        || ((source.charAt(pos + 1) == '+' || source.charAt(pos + 1) == '-')
+                                && pos + 2 < length
+                                && Character.isDigit(source.charAt(pos + 2))))) {
+            scanExponent();
+            if (pos < length && (source.charAt(pos) == 'd' || source.charAt(pos) == 'D')) {
+                pos++; emit(TokenType.DECIMAL, start, pos); return;
+            }
+            if (pos < length && (source.charAt(pos) == 'f' || source.charAt(pos) == 'F')) pos++;
+            emit(TokenType.FLOAT, start, pos);
+            return;
+        }
         // Integer with decimal suffix: 42d
         if (pos < length && (source.charAt(pos) == 'd' || source.charAt(pos) == 'D')) {
             pos++; emit(TokenType.DECIMAL, start, pos); return;
@@ -473,8 +522,9 @@ public final class Lexer {
         // #TDS...#
         if (pos + 3 < length && source.startsWith("TDS", pos + 1)) {
             pos++;
-            while (pos < length && source.charAt(pos) != '#') pos++;
-            if (pos < length) pos++;
+            while (pos < length && source.charAt(pos) != '#'
+                    && !atSectionBoundary(pos)) pos++;
+            if (pos < length && source.charAt(pos) == '#') pos++;
             emit(TokenType.TDS_LITERAL, start, pos); return;
         }
         // #/Type/prop...# navigation path — one token; the parser desugars
@@ -482,8 +532,9 @@ public final class Lexer {
         // richer path features (parameters, subtype casts).
         if (pos + 1 < length && source.charAt(pos + 1) == '/') {
             pos++;
-            while (pos < length && source.charAt(pos) != '#') pos++;
-            if (pos < length) pos++;
+            while (pos < length && source.charAt(pos) != '#'
+                    && !atSectionBoundary(pos)) pos++;
+            if (pos < length && source.charAt(pos) == '#') pos++;
             emit(TokenType.PATH_LITERAL, start, pos);
             return;
         }
@@ -705,7 +756,7 @@ public final class Lexer {
 
         // Anything else — ISLAND_CONTENT (greedy: consume until {, }, or #)
         int start = pos;
-        while (pos < length) {
+        while (pos < length && !atSectionBoundary(pos)) {
             char ic = source.charAt(pos);
             if (ic == '{' || ic == '}' || ic == '#') break;
             pos++;

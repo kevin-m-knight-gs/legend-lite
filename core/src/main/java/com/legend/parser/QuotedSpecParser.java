@@ -94,7 +94,11 @@ public final class QuotedSpecParser {
                 v = gf.desugared();
             }
             return v instanceof ColSpecArray ? v : null;
-        } catch (RuntimeException notATree) {
+        } catch (ParseException notATree) {
+            // ONLY a parse refusal means "not a tree literal" — any other
+            // RuntimeException here is a parser defect and must surface, not
+            // silently downgrade the call to an untyped fold (adversarial
+            // audit F33: the broad catch masked exactly that regression once)
             return null;
         }
     }

@@ -174,9 +174,23 @@ if want 8; then
   # compiled against the PREVIOUS core jar (stale-class NoSuchMethodError,
   # or worse, stale tests silently passing old behavior)
   mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am clean test \
-      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest' \
+      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
-  G8=$?; if skipped "$OUT/g8.out"; then
+  G8=$?
+  # RENAME-GOES-RED (deep-audit M1/§5): failIfNoSpecifiedTests=false is
+  # required because -am builds core (which has none of these classes) —
+  # so instead verify each named class actually RAN; a renamed or deleted
+  # test can no longer silently shrink the gate.
+  for tc in CorpusSweepTest RejectionParityTest SectionParseSentinelTest \
+      FixtureAdjudicationTest EngineSectionRosterTest EngineElementRosterTest \
+      ViewFilterParityTest ComparatorSelfTest QuotedImportParityTest \
+      CorpusManifestTest OffsetCompositionParityTest AdversarialParityTest \
+      OwnCorpusConformanceTest OwnDialectCensusTest; do
+    if ! grep -q "in com.legend.equivalence.$tc" "$OUT/g8.out"; then
+      echo "G8 MISSING TEST CLASS: $tc did not run — rename/delete goes RED." >> "$L"; G8=1
+    fi
+  done
+  if skipped "$OUT/g8.out"; then
     echo "G8 SKIPPED — no upstream checkouts ($ROOT_ENGINE / $ROOT_PURE). NOT a pass." >> "$L"; G8=1
   fi
   rec 8 $G8

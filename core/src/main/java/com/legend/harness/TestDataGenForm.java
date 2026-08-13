@@ -431,7 +431,7 @@ final class TestDataGenForm {
                 changed |= p2 != p;
                 ps.add(p2);
             }
-            return changed ? new AppliedFunction(af.function(), ps) : af;
+            return changed ? af.withParameters(ps) : af;
         }
         if (v instanceof PureCollection pc) {
             List<ValueSpecification> es = new ArrayList<>();

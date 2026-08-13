@@ -94,11 +94,11 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 77 | 3 | 7 | 0 | 37 |
+| tests/query | 87 | 77 | 3 | 7 | 0 | 36 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2299** | 89 | 92 | 95 | 246 |
+| **total** | 2575 | **2299** | 89 | 92 | 95 | 245 |
 
 ### mapping walls (dropped at assembly)
 

@@ -46,8 +46,10 @@ public final class GenerationSpecificationSectionGrammar
         c.expect(TokenType.BRACE_OPEN);
         List<Protocol.PGenerationNode> nodes = new ArrayList<>();
         List<Protocol.PPointer> fileGens = new ArrayList<>();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "generationNodes" -> parseNodes(c, nodes);

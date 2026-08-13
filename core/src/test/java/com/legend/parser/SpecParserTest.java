@@ -144,12 +144,13 @@ final class SpecParserTest {
         // engine semantics, not a stricter invention.
         ValueSpecification v = com.legend.testing.Platform.spec("'a\\zb'");
         assertEquals("azb", ((CString) v).value());
-        // octal/unicode escapes stay LOUD (drop-backslash would corrupt
-        // them silently; unimplemented until a corpus file demands them)
-        ParseException ex = assertThrows(ParseException.class,
-                () -> com.legend.testing.Platform.spec("'a\\u0041b'"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("octal/unicode"),
-                () -> "want octal/unicode-escape error, got: " + ex.getMessage());
+        // octal and unicode escapes DECODE — the oracle's decoder is
+        // commons-text unescapeJava (verified live 2026-08-12; refusing
+        // them was an invented divergence the adversarial fuzz caught)
+        assertEquals("aAb", ((CString) com.legend.testing.Platform
+                .spec("'a\\u0041b'")).value());
+        assertEquals("aAb", ((CString) com.legend.testing.Platform
+                .spec("'a\\101b'")).value());
     }
 
     // ----- booleans ----------------------------------------------------
@@ -1775,19 +1776,11 @@ final class SpecParserTest {
     }
 
     @Test
-    void multiplicityUpperLessThanLowerRejected() {
-        // '[5..3]' \u2014 inverted bounds. The Multiplicity.Concrete
-        // constructor enforces upper >= lower as a defensive invariant
-        // (for programmatic constructors), but the parser pre-checks
-        // and throws a ParseException with source line/col rather
-        // than letting an IllegalArgumentException leak out. Pin both
-        // the error class (ParseException, not Runtime/IAE) and the
-        // diagnostic content so the user gets a useful error.
-        ParseException ex = assertThrows(ParseException.class,
-                () -> com.legend.testing.Platform.spec("{p: T[5..3] | $p}"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("upper bound")
-                        && ex.getMessage().contains(">= lower bound"),
-                () -> "want bound-order error, got: " + ex.getMessage());
+    void multiplicityUpperLessThanLowerAcceptedLikeEngine() {
+        // [2..1] parses in the engine — bound sanity is the compiler's
+        // (deep-audit 1f; the old parse-time check was an invention)
+        ValueSpecification v = com.legend.testing.Platform.spec("~c:String[2..1]");
+        org.junit.jupiter.api.Assertions.assertNotNull(v);
     }
 
     @Test
@@ -2607,14 +2600,11 @@ final class SpecParserTest {
     }
 
     @Test
-    void classAllWithBadMilestoningArgRejected() {
-        // 'Person.all(42)' \u2014 an integer is not a legal
-        // milestoning expression. Pin parser-level rejection so a
-        // non-date value doesn't silently flow through to type-check.
-        ParseException ex = assertThrows(ParseException.class,
-                () -> com.legend.testing.Platform.spec("Person.all(42)"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("milestoning"),
-                () -> "want milestoning error, got: " + ex.getMessage());
+    void classAllWithExpressionMilestoningArgAccepted() {
+        // engine allFunction args are plain expressions — Person.all(now())
+        // is engine-legal (adversarial audit divergence 4, oracle-verified)
+        ValueSpecification v = com.legend.testing.Platform.spec("my::Person.all(now())");
+        org.junit.jupiter.api.Assertions.assertNotNull(v);
     }
 
     // ----- C.7a: unit names (Mass~kilogram) ----------------------------
@@ -2645,15 +2635,17 @@ final class SpecParserTest {
     }
 
     @Test
-    void floatExceedingDoublePrecisionBecomesCDecimal() {
-        // '1.0000000000000001' \u2014 double rounds this to 1.0
-        // (17 significant digits exceed IEEE 754 double precision).
-        // Engine-lite promotes to CDecimal to preserve the exact
-        // source value; a silent CFloat(1.0) would lose information.
-        // This is the main motivation for precision promotion.
+    void floatExceedingDoublePrecisionIsDialectSplit() {
+        // '1.0000000000000001' — double rounds this to 1.0. DIALECT SPLIT
+        // (both sides oracle-verified 2026-08-12): PLATFORM keeps
+        // legend-pure's precision promotion (the PCT reference asserts the
+        // decimal-exact value), the ENGINE surface builds CFloat like
+        // DomainParseTreeWalker (float 1.0 on the wire, probed).
         assertEquals(
                 new CDecimal(new BigDecimal("1.0000000000000001")),
                 com.legend.testing.Platform.spec("1.0000000000000001"));
+        assertEquals(new CFloat(1.0), SpecParser.parse(
+                "1.0000000000000001", com.legend.parser.Dialect.LEGEND_ENGINE));
     }
 
     // ----- C.7a: comparator expressions --------------------------------

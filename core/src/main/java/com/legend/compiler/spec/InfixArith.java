@@ -24,19 +24,16 @@ final class InfixArith {
     private InfixArith() {
     }
 
-    /** The n-ary arithmetic carriers, by EXACT name (simple + canonical FQN —
-     *  no suffix matching). {@code divide} and the comparisons are always
-     *  pairwise on the wire and never carry a collection. */
-    static final java.util.Set<String> NARY_ARITH_CARRIERS = java.util.Set.of(
-            "plus", "minus", "times",
-            "meta::pure::functions::math::plus",
-            "meta::pure::functions::math::minus",
-            "meta::pure::functions::math::times",
-            "meta::pure::functions::string::plus");
-
-    /** True when the node is an n-ary carrier: {@code fn[Collection[a,b,...]]}. */
+    /** True when the node is an OPERATOR-BUILT n-ary carrier:
+     *  {@code fn[Collection[a,b,...]]} with the parser's {@code infix}
+     *  marker. The marker (not a name set — deep-audit item 11: the old
+     *  name set here and the emitter's had already drifted apart)
+     *  distinguishes {@code a + b + c} from a user's literal
+     *  {@code plus([1,2,3])}, which stays a plain collection call.
+     *  {@code divide} and the comparisons are always pairwise on the
+     *  wire and never carry a collection. */
     static boolean isNaryCarrier(AppliedFunction af) {
-        return NARY_ARITH_CARRIERS.contains(af.function())
+        return af.infix()
                 && af.parameters().size() == 1
                 && af.parameters().get(0) instanceof PureCollection run
                 && run.values().size() >= 2;
@@ -51,8 +48,7 @@ final class InfixArith {
         List<ValueSpecification> run = ((PureCollection) af.parameters().get(0)).values();
         ValueSpecification folded = run.get(0);
         for (int i = 1; i < run.size(); i++) {
-            folded = new AppliedFunction(af.function(),
-                    List.of(folded, run.get(i)),
+            folded = new AppliedFunction(af.function(), List.of(folded, run.get(i)),
                     af.candidateFqns(), af.pos(), false, false, true);
         }
         return folded;

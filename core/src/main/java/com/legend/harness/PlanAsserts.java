@@ -137,7 +137,7 @@ final class PlanAsserts {
                 ps.add(inlinePlanText(x, lets, execStmts, execVars,
                         execChains, ctx, imports, runtimeFqn, conn));
             }
-            return new AppliedFunction(af.function(), ps);
+            return af.withParameters(ps);
         }
         return v;
     }

@@ -104,7 +104,7 @@ final class JoinChecker {
         java.util.List<ValueSpecification> np =
                 new java.util.ArrayList<>(af.parameters());
         np.set(3, new LambdaFunction(lf.parameters(), nb));
-        return new AppliedFunction(af.function(), np);
+        return af.withParameters(np);
     }
 
     private static final java.util.Set<String> TDS_GETTERS = java.util.Set.of(
@@ -123,11 +123,11 @@ final class JoinChecker {
             boolean onA = v.name().equals(pa);
             boolean onB = v.name().equals(pb);
             if (onA && !lc.contains(col.value()) && rc.contains(col.value())) {
-                return new AppliedFunction(gf.function(), java.util.List.of(
+                return gf.withParameters(java.util.List.of(
                         new Variable(pb), col));
             }
             if (onB && !rc.contains(col.value()) && lc.contains(col.value())) {
-                return new AppliedFunction(gf.function(), java.util.List.of(
+                return gf.withParameters(java.util.List.of(
                         new Variable(pa), col));
             }
             return n;
@@ -140,7 +140,7 @@ final class JoinChecker {
                 changed |= c2 != c;
                 args.add(c2);
             }
-            return changed ? new AppliedFunction(fn2.function(), args) : n;
+            return changed ? fn2.withParameters(args) : n;
         }
         if (n instanceof AppliedProperty ap) {
             ValueSpecification rcv = swapMisplacedReads(ap.receiver(), pa, pb, lc, rc);
@@ -191,12 +191,11 @@ final class JoinChecker {
                 cond = cond == null ? eq : new AppliedFunction("and", List.of(cond, eq));
             }
             LambdaFunction condLam = new LambdaFunction(List.of(a, b), List.of(cond));
-            return new AppliedFunction(af.function(),
-                    List.of(ps.get(0), ps.get(1), joinKind, condLam));
+            return af.withParameters(List.of(ps.get(0), ps.get(1), joinKind, condLam));
         }
         List<ValueSpecification> out = new java.util.ArrayList<>(ps);
         out.set(2, joinKind);
-        return new AppliedFunction(af.function(), out);
+        return af.withParameters(out);
     }
 
     /**

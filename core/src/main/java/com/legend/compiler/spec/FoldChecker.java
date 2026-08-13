@@ -121,7 +121,7 @@ final class FoldChecker {
         if (left instanceof AppliedFunction leftAf && leftAf.function().equals(af.function())) {
             ValueSpecification stripped = elementTransform(left, accParam);
             if (stripped != null) {
-                return new AppliedFunction(af.function(), List.of(stripped, right));
+                return af.withParameters(List.of(stripped, right));
             }
         }
         return null;

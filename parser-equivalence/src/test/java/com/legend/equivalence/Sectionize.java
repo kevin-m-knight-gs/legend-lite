@@ -10,7 +10,7 @@ import java.util.Map;
  * sectionless Pure snippet, compute where the engine's {@code ###Section}
  * headers belong — one insertion at each element whose kind leaves the
  * current section, positions taken from OUR lenient parse. Shared by the
- * probe ({@link ZSectionizeProbe}), the source rewriter
+ * probe (ZSectionizeProbe (deleted 2026-08-12, in git history)), the source rewriter
  * ({@link ZSectionNormalizeRewrite}) and the own-corpus ratchet
  * ({@link OwnCorpusConformanceTest}).
  */

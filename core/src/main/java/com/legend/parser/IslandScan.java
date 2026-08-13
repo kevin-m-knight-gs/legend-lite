@@ -101,12 +101,21 @@ final class IslandScan {
                 }
                 return Scalar.of(ScalarKind.NUMERICISH, src.substring(i, k), "", 0, i, k - 1, k);
             }
-            return Scalar.of(ScalarKind.INT, "", "", Long.parseLong(src.substring(i, k)),
-                    i, k - 1, k);
+            long intVal;
+            try {
+                intVal = Long.parseLong(src.substring(i, k));
+            } catch (NumberFormatException overflow) {
+                throw errorContext.error("integer literal out of range: '"
+                        + src.substring(i, k) + "'");
+            }
+            return Scalar.of(ScalarKind.INT, "", "", intVal, i, k - 1, k);
         }
         if (c == '\'') {
-            int close = src.indexOf('\'', i + 1);
-            if (close < 0 || close >= limit) {
+            // ESCAPE-AWARE close scan: 'it\'s' is one literal (adversarial
+            // audit F26 — indexOf landed on the escaped quote and refused
+            // engine-legal input)
+            int close = closingQuote(src, i + 1, limit);
+            if (close < 0) {
                 return Scalar.of(ScalarKind.OTHER, "", "", 0, i, limit - 1, limit);
             }
             return Scalar.of(ScalarKind.STRING,
@@ -155,6 +164,22 @@ final class IslandScan {
         return Character.isLetterOrDigit(c) || c == '_';
     }
 
+    /** Index of the closing quote from {@code from}, honouring backslash
+     *  escapes; {@code -1} when none before {@code limit}. THE quote scan
+     *  for this char-level scanner — every site must use it, never a raw
+     *  {@code indexOf} (adversarial audit F26/F27). */
+    private static int closingQuote(String src, int from, int limit) {
+        for (int k = from; k < limit; k++) {
+            char qc = src.charAt(k);
+            if (qc == '\\') {
+                k++;
+            } else if (qc == '\'') {
+                return k;
+            }
+        }
+        return -1;
+    }
+
     List<com.legend.protocol.spec.GraphFetchLiteral.Node> scanGraphNodes(
             String src, int[] cursor, int limit, boolean[] unsupported,
             List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> subTypesOut) {
@@ -188,6 +213,18 @@ final class IslandScan {
                 while (i < limit && src.charAt(i) != '\n') {
                     i++;
                 }
+                continue;
+            }
+            if (c == '/' && i + 1 < limit && src.charAt(i + 1) == '*') {
+                // block comment inside a graph-fetch tree — engine-legal
+                // (adversarial audit F28: the fall-through scanned the
+                // comment's words as phantom property nodes)
+                i += 2;
+                while (i + 1 < limit
+                        && !(src.charAt(i) == '*' && src.charAt(i + 1) == '/')) {
+                    i++;
+                }
+                i = Math.min(i + 2, limit);
                 continue;
             }
             // ->subType(@X) { ... } ENTRY: this level's subTypeTrees (probe "gft root
@@ -250,9 +287,11 @@ final class IslandScan {
             String alias = null;
             if (c == '\'') {
                 // 'nick' : prop — the alias rides the node's "alias" field
+                // (escape-aware close scan; the alias VALUE stays raw — the
+                // engine's graph-fetch alias quote-strip is naked, verified)
                 int qs = i + 1;
-                int qe = src.indexOf('\'', qs);
-                if (qe < 0 || qe >= limit) {
+                int qe = closingQuote(src, qs, limit);
+                if (qe < 0) {
                     unsupported[0] = true;
                     i = limit;
                     break;

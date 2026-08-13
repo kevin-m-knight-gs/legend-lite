@@ -143,7 +143,7 @@ public final class EngineTestExecutor {
             }
         }
         return switch (v) {
-            case AppliedFunction af -> new AppliedFunction(af.function(),
+            case AppliedFunction af -> af.withParameters(
                     af.parameters().stream()
                             .map(p -> orderView(p, execChains)).toList());
             case AppliedProperty ap -> new AppliedProperty(
@@ -1331,7 +1331,7 @@ public final class EngineTestExecutor {
         body.addAll(plam.body());
         List<ValueSpecification> ps = new ArrayList<>(ep.parameters());
         ps.set(0, new LambdaFunction(plam.parameters(), body));
-        return new AppliedFunction(ep.function(), ps);
+        return ep.withParameters(ps);
     }
 
     private static void collectOpenVars(ValueSpecification v,
@@ -2263,7 +2263,7 @@ public final class EngineTestExecutor {
                     java.util.Objects.requireNonNull(substPairReads(
                             ap.receiver(), pVar, first, second)),
                     ap.property());
-            case AppliedFunction af -> new AppliedFunction(af.function(),
+            case AppliedFunction af -> af.withParameters(
                     af.parameters().stream()
                             .map(x -> substPairReads(x, pVar, first, second))
                             .toList());

@@ -246,7 +246,7 @@ final class XStorePureEnds {
         return switch (v) {
             case Variable var when rowByVar.containsKey(var.name()) ->
                     rowByVar.get(var.name());
-            case AppliedFunction af -> new AppliedFunction(af.function(),
+            case AppliedFunction af -> af.withParameters(
                     af.parameters().stream().map(x ->
                             renameReads(x, rowByVar, endByVar)).toList());
             case AppliedProperty ap2 -> new AppliedProperty(

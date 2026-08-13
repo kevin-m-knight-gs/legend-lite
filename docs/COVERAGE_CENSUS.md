@@ -1,5 +1,10 @@
 # Coverage Census — "what might we not parse?" answered completely
 
+> **VERIFICATION CAVEAT (2026-08-12 deep audit §5):** the census numbers in
+> this file derive from `Z*` probe classes that are compiled but run by NO
+> gate — treat every figure below as UNVERIFIED until a gated test recomputes
+> it. Do not cite this file as evidence without re-running the probe.
+
 **Date:** 2026-08-11. **Question:** beyond the corpus, which
 user-expressible engine constructs has NO parity layer ever exercised?
 **Method:** three independent axes, triangulated. **Answer:** a bounded

@@ -425,7 +425,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int s = pos;
             advance();
             if (peek() == TokenType.SERVICE_MAPPING
-                    && tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                    && peek(1)
                             != TokenType.PATH_SEPARATOR) {
                 advance();                          // 'include mapping qn'
             } else if (peek() == TokenType.VALID_STRING
@@ -633,8 +633,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             if (peek() == TokenType.PAREN_OPEN) {
                 advance();
                 while (peek() == TokenType.TILDE
-                        && "path".equals(tokens.text(
-                                Math.min(pos + 1, tokens.count() - 1)))) {
+                        && "path".equals(peekText(1))) {
                     // ~path $service.response.a.b — NO spans on the wire
                     advance();
                     parseIdentifier();              // 'path'
@@ -938,8 +937,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  the Binding FQN or null. */
     private @com.legend.Nullable String bindingTransformerId() {
         if (peek() == TokenType.VALID_STRING && "Binding".equals(text())
-                && isIdentifierToken(tokens.type(
-                        Math.min(pos + 1, tokens.count() - 1)))) {
+                && isIdentifierToken(peek(1))) {
             advance();                              // 'Binding'
             String fqn = Protocol.unquotePath(parseQualifiedName());
             expect(TokenType.COLON);
@@ -1071,7 +1069,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             if (peek() == TokenType.MAIN_TABLE_CMD
                     || (peek() == TokenType.TILDE && "mainTable".equals(
-                            tokens.text(Math.min(pos + 1, tokens.count() - 1))))) {
+                            peekText(1)))) {
                 clause(clauseRank, RANK_MAIN_TABLE, "~mainTable");
                 if (peek() == TokenType.TILDE) {
                     advance();
@@ -1133,7 +1131,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // property list closes the clause prefix for good.
             clauseRank[0] = RANK_PROPERTIES;
             if (peek() == TokenType.VALID_STRING && "scope".equals(text())
-                    && tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                    && peek(1)
                             == TokenType.PAREN_OPEN) {
                 parseScopeBlock(props, target, id);
                 match(TokenType.COMMA);
@@ -1251,29 +1249,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 // +prop: Type[m]: <expr> — the local prop's span is the
                 // IDENT (probe pure-decorations, unlike relational)
                 String type = Protocol.unquotePath(parseQualifiedName());
-                expect(TokenType.BRACKET_OPEN);
-                long lower;
-                Long upper = null;
-                if (peek() == TokenType.STAR) {
-                    advance();
-                    lower = 0L;
-                } else {
-                    lower = Long.parseLong(text());
-                    expect(TokenType.INTEGER);
-                    upper = lower;
-                }
-                if (peek() == TokenType.DOT_DOT) {
-                    advance();
-                    if (peek() == TokenType.STAR) {
-                        advance();
-                        upper = null;
-                    } else {
-                        upper = Long.parseLong(text());
-                        expect(TokenType.INTEGER);
-                    }
-                }
+                MultBounds mb = parseLongMultBounds();
                 expect(TokenType.BRACKET_CLOSE);
-                localProp = new Protocol.PLocalProp(type, lower, upper,
+                localProp = new Protocol.PLocalProp(type, mb.lower(), mb.upper(),
                         propSpan);
                 expect(TokenType.COLON);
             }
@@ -1454,10 +1432,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 // the drop-in surface does too; lite's own dialect keeps
                 // the tolerant break.
                 if (depth == 0 && pos > exprStart && isIdentifierToken(t)
-                        && (tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                        && (peek(1)
                                     == TokenType.BRACKET_OPEN
-                                || tokens.type(Math.min(pos + 1,
-                                        tokens.count() - 1))
+                                || peek(1)
                                     == TokenType.COLON)) {
                     if (dialect.refusesPlatformDialect()) {
                         throw error("Unexpected token '" + safeText() + "'");
@@ -1727,8 +1704,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int parenTok = pos;
             advance();
             if (peek() == TokenType.PAREN_CLOSE
-                    && "Inline".equals(tokens.text(
-                            Math.min(pos + 1, tokens.count() - 1)))) {
+                    && "Inline".equals(peekText(1))) {
                 // prop() Inline[setId] — span '('..']' (probe
                 // inline-embedded)
                 advance();
@@ -1818,30 +1794,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (local) {
             // +prop: Type[m]: <op> — span FIRST colon..bracket close
             String type = Protocol.unquotePath(parseQualifiedName());
-            expect(TokenType.BRACKET_OPEN);
-            long lower;
-            Long upper = null;
-            if (peek() == TokenType.STAR) {
-                advance();
-                lower = 0L;
-            } else {
-                lower = Long.parseLong(text());
-                expect(TokenType.INTEGER);
-                upper = lower;
-            }
-            if (peek() == TokenType.DOT_DOT) {
-                advance();
-                if (peek() == TokenType.STAR) {
-                    advance();
-                    upper = null;
-                } else {
-                    upper = Long.parseLong(text());
-                    expect(TokenType.INTEGER);
-                }
-            }
+            MultBounds mb = parseLongMultBounds();
             int mClose = pos;
             expect(TokenType.BRACKET_CLOSE);
-            localProp = new Protocol.PLocalProp(type, lower, upper,
+            localProp = new Protocol.PLocalProp(type, mb.lower(), mb.upper(),
                     spanOf(colonTok, mClose));
             colonTok = pos;                         // PM span = SECOND colon
             expect(TokenType.COLON);
@@ -1993,9 +1949,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     } else if (depth == 0
                             && (t == TokenType.BRACE_CLOSE
                                     || t == TokenType.PRIMARY_KEY_CMD
-                                    || (isIdentifierToken(t) && tokens.type(
-                                            Math.min(pos + 1,
-                                                    tokens.count() - 1))
+                                    || (isIdentifierToken(t) && peek(1)
                                             == TokenType.COLON))) {
                         break;
                     } else if (t == TokenType.BRACE_CLOSE) {
@@ -2022,8 +1976,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         null, null);
             }
         } else if (peek() == TokenType.TILDE
-                && "func".equals(tokens.text(
-                        Math.min(pos + 1, tokens.count() - 1)))) {
+                && "func".equals(peekText(1))) {
             advance();
             advance();                              // func
         } else {
@@ -2084,7 +2037,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String prop = parseIdentifier();
             SourceInfo propSpan = spanOf(identTok, pos - 1);
             if (peek() == TokenType.PAREN_OPEN
-                    && tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                    && peek(1)
                             != TokenType.PAREN_CLOSE) {
                 // prop ( street: COL, ... ) — embedded with nested
                 // classless pms; span prop..close paren (probe
@@ -2146,29 +2099,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 // +prop: Type[m]: COL — local SI = the IDENT, pm span
                 // includes the '+', class KEPT (probe relation-extras)
                 String type = Protocol.unquotePath(parseQualifiedName());
-                expect(TokenType.BRACKET_OPEN);
-                long lower;
-                Long upper = null;
-                if (peek() == TokenType.STAR) {
-                    advance();
-                    lower = 0L;
-                } else {
-                    lower = Long.parseLong(text());
-                    expect(TokenType.INTEGER);
-                    upper = lower;
-                }
-                if (peek() == TokenType.DOT_DOT) {
-                    advance();
-                    if (peek() == TokenType.STAR) {
-                        advance();
-                        upper = null;
-                    } else {
-                        upper = Long.parseLong(text());
-                        expect(TokenType.INTEGER);
-                    }
-                }
+                MultBounds mb = parseLongMultBounds();
                 expect(TokenType.BRACKET_CLOSE);
-                lp = new Protocol.PLocalProp(type, lower, upper, propSpan);
+                lp = new Protocol.PLocalProp(type, mb.lower(), mb.upper(), propSpan);
                 expect(TokenType.COLON);
             }
             // `prop: EnumerationMapping <id>: <rhs>` — the id is required,
@@ -2220,8 +2153,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 // testSimpleTestSuite; wire "doc" right after _type)
                 advance();
                 expect(TokenType.COLON);
-                doc = TokenStreamCursor.unquoteAndUnescape(text(), this);
-                expect(TokenType.STRING);
+                doc = consumeStringLiteral("'doc'");
                 expect(TokenType.SEMI_COLON);
                 continue;
             }
@@ -2433,7 +2365,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 advance();
                 expect(TokenType.COLON);
                 // engine: fromGrammarString(x, FALSE) — RAW body, quotes
-                // stripped, NO unescape (MappingParseTreeWalker:295)
+                // stripped, NO unescape (MappingParseTreeWalker:295).
+                // MUST be a STRING token: the old unguarded substring
+                // silently corrupted `assert: foo;` to "o" and crashed raw
+                // on `assert: 5;` (adversarial audit F1)
+                if (atEnd() || peek() != TokenType.STRING) {
+                    throw error("expected a string literal for 'assert'");
+                }
                 String rawStr = text();
                 expected = rawStr.substring(1, rawStr.length() - 1);
                 advance();
@@ -2470,8 +2408,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             if ("doc".equals(key)) {
                 advance();
                 expect(TokenType.COLON);
-                doc = TokenStreamCursor.unquoteAndUnescape(text(), this);
-                advance();
+                doc = consumeStringLiteral("'doc'");
                 expect(TokenType.SEMI_COLON);
                 continue;
             }
@@ -2845,8 +2782,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     if ("method".equals(rk)) {
                         method = parseIdentifier();
                     } else if ("url".equals(rk)) {
-                        url = TokenStreamCursor.unquoteAndUnescape(text(), this);
-                        advance();
+                        url = consumeStringLiteral("'url'");
                     } else {
                         throw error("unknown service-stub request key: " + rk);
                     }
@@ -2948,19 +2884,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int contentEnd = tokens.start(endTok);
         expect(TokenType.ISLAND_END);
         String source = tokens.source();
-        StringBuilder padded = new StringBuilder();
-        int line = 1;
-        int lastNl = -1;
-        for (int i = 0; i < contentStart; i++) {
-            if (source.charAt(i) == '\n') {
-                line++;
-                lastNl = i;
-            }
-        }
+        // the stream's CACHED line index, not a char scan from offset 0
+        // (deep-audit H2: the island path was O(K*N) — twelve call sites
+        // each rescanned the whole prefix per island)
+        int line = tokens.lineOf(contentStart);
+        int col = tokens.columnOf(contentStart);
+        StringBuilder padded = new StringBuilder(
+                (line - 1) + (col - 1) + (contentEnd - contentStart));
         for (int i = 1; i < line; i++) {
             padded.append('\n');
         }
-        for (int i = lastNl + 1; i < contentStart; i++) {
+        for (int i = 1; i < col; i++) {
             padded.append(' ');
         }
         padded.append(source, contentStart, contentEnd);
@@ -2983,8 +2917,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String outerId = id != null ? id : target.replace("::", "_");
         int braceOpenTok = pos;
         expect(TokenType.BRACE_OPEN);
-        record AggView(boolean canAggregate, List<Object> groupBys,
-                List<long[]> aggValues, int relTok) { }
         List<boolean[]> canAggs = new ArrayList<>();
         List<List<com.legend.protocol.spec.ValueSpecification>> groupBys =
                 new ArrayList<>();
@@ -3085,8 +3017,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if (peek() == TokenType.TILDE
-                    && "mainMapping".equals(tokens.text(
-                            Math.min(pos + 1, tokens.count() - 1)))) {
+                    && "mainMapping".equals(peekText(1))) {
                 advance();
                 advance();
                 expect(TokenType.COLON);
@@ -3461,6 +3392,36 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 rows, spanOf(targetStart, close));
     }
 
+    /** `[m]` bounds — the long-typed engine wire form shared by the three
+     *  local-property sites (was three drifting copies, adversarial audit
+     *  F8); stops BEFORE the closing ']' so callers can span it. Overflow
+     *  refuses positioned via consumeLong. */
+    private record MultBounds(long lower, @com.legend.Nullable Long upper) {
+    }
+
+    private MultBounds parseLongMultBounds() {
+        expect(TokenType.BRACKET_OPEN);
+        long lower;
+        Long upper = null;
+        if (peek() == TokenType.STAR) {
+            advance();
+            lower = 0L;
+        } else {
+            lower = consumeLong();
+            upper = lower;
+        }
+        if (peek() == TokenType.DOT_DOT) {
+            advance();
+            if (peek() == TokenType.STAR) {
+                advance();
+                upper = null;
+            } else {
+                upper = consumeLong();
+            }
+        }
+        return new MultBounds(lower, upper);
+    }
+
     private Protocol.PEnumSourceValue parseSourceValue() {
         if (peek() == TokenType.STRING) {
             String v = TokenStreamCursor.unquoteAndUnescape(text(), this);
@@ -3468,9 +3429,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             return new Protocol.PEnumSourceValue(null, v);
         }
         if (peek() == TokenType.INTEGER) {
-            long v = Long.parseLong(text());
-            advance();
-            return new Protocol.PEnumSourceValue(null, v);
+            return new Protocol.PEnumSourceValue(null, consumeLong());
         }
         if (isIdentifierToken(peek())) {
             // my::Other.bla — an enum VALUE reference (probe

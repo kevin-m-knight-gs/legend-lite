@@ -98,7 +98,7 @@ final class GroupBySynthesis {
         }
         List<ValueSpecification> ps = new ArrayList<>(nav.parameters());
         ps.set(3, new LambdaFunction(cond.parameters(), newBody));
-        return new AppliedFunction(nav.function(), ps);
+        return nav.withParameters(ps);
     }
 
     private static ValueSpecification renameSourceReads(ValueSpecification v,
@@ -118,8 +118,7 @@ final class GroupBySynthesis {
             return new AppliedProperty(rv, renamed);
         }
         return switch (v) {
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    af.parameters().stream().map(x -> renameSourceReads(
+            case AppliedFunction af -> af.withParameters(af.parameters().stream().map(x -> renameSourceReads(
                             x, srcVar, groupedNames, propName, md)).toList());
             case AppliedProperty ap2 -> new AppliedProperty(
                     renameSourceReads(ap2.receiver(), srcVar, groupedNames,

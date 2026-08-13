@@ -120,8 +120,7 @@ final class OperatorParts {
                             && isRelationalComparison(acc.op()))) {
                 List<ValueSpecification> params = node.parameters();
                 AppliedFunction newAf = buildArithPart(p, params.get(params.size() - 1));
-                return new Acc(new AppliedFunction(node.function(),
-                        List.of(params.get(0), newAf), node.candidateFqns(),
+                return new Acc(new AppliedFunction(node.function(), List.of(params.get(0), newAf), node.candidateFqns(),
                         node.pos(), false, false, true), acc.op());
             }
             // collection carrier (plus/minus/times): pop the last collection
@@ -133,8 +132,7 @@ final class OperatorParts {
             AppliedFunction newAf = buildArithPart(p, vals.get(vals.size() - 1));
             List<ValueSpecification> rebuilt = new ArrayList<>(vals.subList(0, vals.size() - 1));
             rebuilt.add(newAf);
-            return new Acc(new AppliedFunction(node.function(),
-                    List.of(new PureCollection(rebuilt, p.ctxSpan())),
+            return new Acc(new AppliedFunction(node.function(), List.of(new PureCollection(rebuilt, p.ctxSpan())),
                     node.candidateFqns(), node.pos(), false, false, true), acc.op());
         }
         return new Acc(buildArithPart(p, acc.node()), p.fn());

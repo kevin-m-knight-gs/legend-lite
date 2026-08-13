@@ -504,6 +504,21 @@ public class RelationalCorpusRunner {
         // flapper elimination (deterministic runner — consecutive sweeps
         // identical). -Drcorpus.test runs skip: partial family counts.
         // computed above, BEFORE the write — see the gate-before-write note
+        // ADVISORY-SQL CEILING (deep-audit H5: golden-SQL divergence could
+        // not fail the build — structurally wrong SQL passed if one row
+        // assert also passed). Down-only: improvements lower it here.
+        if (onlyFilters.isEmpty()) {
+            int advisorySqlDiffs = byFamily.values().stream()
+                    .flatMap(List::stream)
+                    .mapToInt(Runner.Outcome::sqlDiffs).sum();
+            int maxAdvisorySqlDiffs = 297;   // measured 2026-08-12 (the deep-audit's 246 counted TESTS, not diffs)
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    advisorySqlDiffs <= maxAdvisorySqlDiffs,
+                    "advisory golden-SQL diffs grew: " + advisorySqlDiffs
+                            + " > ceiling " + maxAdvisorySqlDiffs);
+            System.out.println("[rcorpus] advisory sql diffs: "
+                    + advisorySqlDiffs + " (ceiling " + maxAdvisorySqlDiffs + ")");
+        }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
                 "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
                 + regressions

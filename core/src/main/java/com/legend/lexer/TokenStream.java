@@ -228,7 +228,10 @@ public final class TokenStream {
             int[] sc = new int[n];
             int[] el = new int[n];
             int[] ec = new int[n];
-            int line = 0;                            // 0-based index into ls
+            // seed by BINARY SEARCH: token starts are file-absolute, so a
+            // slice starting at file line L paid L linear iterations here —
+            // O(K*L) across K slices (deep-audit H1, the best-ratio fix)
+            int line = n > 0 ? lineOf(starts[0]) - 1 : 0;
             for (int i = 0; i < n; i++) {
                 int s = starts[i];
                 while (line + 1 < ls.length && ls[line + 1] <= s) {

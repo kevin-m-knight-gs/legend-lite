@@ -157,8 +157,7 @@ public sealed interface ValueSpecification permits
             case SqlIsland ignored -> this;
             case TdsLiteral tl -> new TdsLiteral(tl.tdsString(),
                     (AppliedFunction) cs.get(0), tl.pos());
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    cs, af.candidateFqns());
+            case AppliedFunction af -> af.withParameters(cs);
             case AppliedProperty ap ->
                     new AppliedProperty(cs.get(0), ap.property());
             case LambdaFunction lf ->

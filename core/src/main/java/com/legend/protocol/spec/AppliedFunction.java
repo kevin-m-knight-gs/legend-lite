@@ -86,13 +86,15 @@ public record AppliedFunction(
         this(function, parameters, candidateFqns, pos, propertyCall, grouped, false);
     }
 
-    /** A copy marked OPERATOR-SPELLED: only infix chains take the n-ary collection wire
-     *  form — an arrow-spelled {@code (10)->times(2)} stays a plain two-parameter call
-     *  (inline-snippet corpus TestM3AntlrParser). Wire-marker only, excluded from
-     *  equality like {@code grouped}. */
-    public AppliedFunction asInfix() {
-        return new AppliedFunction(function, parameters, candidateFqns, pos,
-                propertyCall, grouped, true);
+    /** A copy with new parameters and EVERYTHING ELSE preserved — the only
+     *  correct shape for generic rewriters/substituters. Hand-rolled copies
+     *  that rebuilt via the short constructors silently dropped
+     *  {@code infix}/{@code propertyCall}/{@code grouped}/{@code pos}, and
+     *  a dropped {@code infix} un-binarizes an operator chain downstream
+     *  (sum(VARCHAR) regression during the 2026-08-12 burn-down). */
+    public AppliedFunction withParameters(List<ValueSpecification> newParameters) {
+        return new AppliedFunction(function, newParameters, candidateFqns, pos,
+                propertyCall, grouped, infix);
     }
 
     /** Position-free form (resolver rewrites, synthesis, tests). The parser's span

@@ -458,7 +458,7 @@ final class Typer {
                     return synth(new AppliedFunction("map", List.of(
                             af.parameters().get(0),
                             new LambdaFunction(List.of(mv), List.of(
-                                    new AppliedFunction(af.function(), inner))))),
+                                    af.withParameters(inner))))),
                             env);
                 }
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
@@ -1273,7 +1273,7 @@ final class Typer {
             }
             np.set(i, ex);
         }
-        return np == null ? af : new AppliedFunction(af.function(), np);
+        return np == null ? af : af.withParameters(np);
     }
 
     /**
@@ -1344,9 +1344,8 @@ final class Typer {
                         .map(b -> alphaRename(SourceSubst.substitute(b, ren)))
                         .toList());
             }
-            case AppliedFunction af2 -> new AppliedFunction(af2.function(),
-                    af2.parameters().stream().map(this::alphaRename).toList(),
-                    af2.candidateFqns());
+            case AppliedFunction af2 -> af2.withParameters(
+                    af2.parameters().stream().map(this::alphaRename).toList());
             case com.legend.protocol.spec.AppliedProperty ap -> new com.legend.protocol.spec.AppliedProperty(
                     alphaRename(ap.receiver()), ap.property());
             case com.legend.protocol.spec.PureCollection pc -> new com.legend.protocol.spec.PureCollection(

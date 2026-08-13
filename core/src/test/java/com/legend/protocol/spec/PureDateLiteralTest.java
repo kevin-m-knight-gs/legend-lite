@@ -288,35 +288,40 @@ class PureDateLiteralTest {
     @Test
     void strictDate_constructor_validatesMonth() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new PureDateLiteral.StrictDate(2024, 13, 1));
+                () -> new PureDateLiteral.StrictDate(2024, 13, 1).validateComponents());
         assertTrue(String.valueOf(ex.getMessage()).contains("month"), ex.getMessage());
     }
 
     @Test
     void strictDate_constructor_validatesDayForMonth() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new PureDateLiteral.StrictDate(2024, 4, 31));
+                () -> new PureDateLiteral.StrictDate(2024, 4, 31).validateComponents());
         assertTrue(String.valueOf(ex.getMessage()).contains("day"), ex.getMessage());
     }
 
     @Test
+    // Records are dumb carriers since 2026-08-12 (engine-true; the strict
+    // surface defers range checks like the engine) — validation is the
+    // explicit validateComponents() seam, called by parse(source, true).
     void dateWithSubsecond_constructor_rejectsNullSubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, null));
+                () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, null)
+                        .validateComponents());
         assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     @Test
     void dateWithSubsecond_constructor_rejectsEmptySubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, ""));
+                () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, "")
+                        .validateComponents());
         assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     @Test
     void dateWithSubsecond_constructor_rejectsNonDigitSubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, "12a"));
+                () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, "12a").validateComponents());
         assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 

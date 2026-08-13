@@ -2053,15 +2053,12 @@ public final class ProtocolEmitter {
                 srcInfo(b, requirePos(l.pos(), "%latest"));
                 b.append('}');
             }
-            case com.legend.protocol.spec.CDecimal dec -> {
-                if (dec.written() == null) {
-                    throw new UnsupportedOperationException(
-                            "ProtocolEmitter needs the verbatim spelling of a decimal literal.");
-                }
-                // {"_type":"decimal","value":3.14} — the value is a bare JSON number in the
-                // source's own digits (suffix stripped by the parser).
-                literal(b, "decimal", dec.written(), dec.pos());
-            }
+            case com.legend.protocol.spec.CDecimal dec ->
+                // {"_type":"decimal","value":3.14} — the engine's wire is
+                // BigDecimal.toString() (probed: 007d→7, .5d→0.5, 1.50d→1.50,
+                // 1e3d→1E+3). The raw lexeme is NOT valid JSON for leading
+                // zeros / bare fractions (deep-audit: 007d emitted 007).
+                literal(b, "decimal", dec.value().toString(), dec.pos());
             case com.legend.protocol.spec.TypeAnnotation.Named named -> {
                 // @Type on the wire: {"_type":"genericTypeInstance","genericType":…,
                 // "sourceInformation":span-of-@..type} (ProbeWireShapes "burn zoo" casts).
@@ -2227,6 +2224,11 @@ public final class ProtocolEmitter {
                             c.multiLine()));
             case com.legend.protocol.spec.CFloat c ->
                     valueSpec(b, new com.legend.protocol.spec.CFloat(c.value(), span));
+            case com.legend.protocol.spec.CDecimal c ->
+                    // same let-span override as the other literals (probed:
+                    // `let x = 1.5d;` spans let..literal-end on the wire)
+                    valueSpec(b, new com.legend.protocol.spec.CDecimal(
+                            c.value(), c.written(), span));
             case com.legend.protocol.spec.CDate c ->
                     valueSpec(b, new com.legend.protocol.spec.CDate(c.value(), c.written(), span));
             case com.legend.protocol.spec.Variable var ->
@@ -2333,11 +2335,6 @@ public final class ProtocolEmitter {
             }
         };
     }
-
-    /** Every infix-built family — the key-expression first-atom rule strips them all. */
-    private static final java.util.Set<String> INFIX_FAMILIES = java.util.Set.of(
-            "plus", "minus", "times", "divide", "lessThan", "lessThanEqual",
-            "greaterThan", "greaterThanEqual", "equal", "and", "or");
 
     private static void appliedFunction(StringBuilder b,
                                         com.legend.protocol.spec.AppliedFunction f,
@@ -2574,8 +2571,12 @@ public final class ProtocolEmitter {
             // equal/and/or) strip to the first parameter; the n-ary collection carrier
             // (plus/minus/times — parser-shaped like the engine) strips to the first
             // collection element.
+            // OPERATOR-SPELLED chains only (the parser's infix marker): a
+            // prefix call that merely NAMES an operator — plus(1,2),
+            // (1)->plus(2) — keeps its full wire (deep-audit 1a: the old
+            // name-set test truncated those too, deleting the call).
             while (kv instanceof com.legend.protocol.spec.AppliedFunction chain
-                    && INFIX_FAMILIES.contains(chain.function())
+                    && chain.infix()
                     && !chain.grouped()) {
                 if (chain.parameters().size() == 2) {
                     kv = chain.parameters().get(0);

@@ -438,12 +438,22 @@ public final class SpecParser implements TokenStreamCursor {
             return stmts;
         }
         stmts.add(parseProgramLine());
+        boolean lastTerminated = false;
         while (!atEnd() && peek() == TokenType.SEMI_COLON) {
             pos++; // consume ';'
+            lastTerminated = true;
             if (atTerminator(terminator)) {
                 break;
             }
             stmts.add(parseProgramLine());
+            lastTerminated = false;
+        }
+        if (dialect().refusesLiteExtensions() && stmts.size() > 1
+                && !lastTerminated && atTerminator(terminator)) {
+            // engine codeBlock: in a MULTI-statement body every statement
+            // carries ';' — only a lone statement may omit it
+            // (adversarial audit divergence 16, oracle-verified)
+            throw error("Unexpected token");
         }
         return stmts;
     }
@@ -541,6 +551,11 @@ public final class SpecParser implements TokenStreamCursor {
             // TEST_NOT_EQUAL) and '<>' (lexed as NOT_EQUAL). Both
             // desugar to the same 'notEqual' AppliedFunction so the
             // model layer doesn't have to know which form was written.
+            if (t == TokenType.NOT_EQUAL && legendStrict()) {
+                // '<>' is a PURE-DIALECT spelling: the engine has no such
+                // token and refuses (adversarial audit fuzz, oracle-verified)
+                throw error("Unexpected token '<>'");
+            }
             if (t == TokenType.TEST_EQUAL
                     || t == TokenType.TEST_NOT_EQUAL
                     || t == TokenType.NOT_EQUAL) {
@@ -770,30 +785,28 @@ public final class SpecParser implements TokenStreamCursor {
         try {
             return new CInteger(Long.parseLong(text), spanOf(tok, tok));
         } catch (NumberFormatException overflow) {
+            if (dialect().refusesLiteExtensions()) {
+                // ENGINE surface only — the BigInteger widening is a
+                // DECLARED lite extension (PCT's own huge-literal tests
+                // and lite execution use it; G6 run 1081 caught the
+                // over-wide legendStrict gate)
+                throw TokenStreamCursor.throwAt(tokens, tok,
+                        "Unexpected token '" + text + "'");
+            }
             return new CInteger(new BigInteger(text), spanOf(tok, tok));
         }
     }
 
     /**
-     * FLOAT token &rarr; {@link CFloat} with an <em>automatic
-     * precision-loss promotion</em> to {@link CDecimal}. Rationale:
-     * the lexer classifies any non-suffixed number containing a
-     * decimal point or exponent as {@code FLOAT}. If the textual
-     * value doesn't round-trip through Java {@code double} exactly,
-     * emitting {@code CFloat(parsed-double)} would silently
-     * <em>lose information that was present in source</em> &mdash; a
-     * user writing {@code 1.0000000000000001} would get
-     * {@code CFloat(1.0)} back. Engine-lite detects this by
-     * comparing {@link BigDecimal} parses, and falls back to
-     * {@link CDecimal} so the exact value is preserved. We match
-     * that behaviour verbatim.
-     *
-     * <p>Note that this makes {@link #parseFloat()} sometimes return
-     * a {@code CFloat} and sometimes a {@code CDecimal}. The return
-     * type is the common supertype {@link ValueSpecification}; the
-     * callsite (the {@code FLOAT} case in {@link #parsePrimary()})
-     * never cares about the distinction because both are literal
-     * value specifications.
+     * FLOAT token &rarr; a DIALECT-SPLIT literal (both sides
+     * oracle-verified 2026-08-12): the ENGINE/LITE surfaces build
+     * {@link CFloat} unconditionally, like {@code DomainParseTreeWalker}
+     * ({@code 1.0000000000000001} is float {@code 1.0} on the wire,
+     * probed — the old unconditional promotion was an engine-lite
+     * invention there, deep-audit 1f); LEGEND_PLATFORM keeps
+     * legend-pure's semantics, where the PCT reference
+     * ({@code testBigFloatAbs}) asserts the decimal-exact value, so a
+     * precision-losing literal promotes to {@link CDecimal}.
      */
     private ValueSpecification parseFloat() {
         String text = text();
@@ -805,10 +818,16 @@ public final class SpecParser implements TokenStreamCursor {
             char last = text.charAt(text.length() - 1);
             if (last == 'f' || last == 'F') text = text.substring(0, text.length() - 1);
         }
-        BigDecimal exact = new BigDecimal(text);
         double d = Double.parseDouble(text);
-        if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
-            return new CDecimal(exact, text, spanOf(litTok, litTok));
+        if (!dialect().refusesLiteExtensions()) {
+            // PLATFORM and LITE: legend-pure EXECUTION semantics — the PCT
+            // reference asserts the decimal-exact value, and lite's product
+            // promise is pure-correct execution (G6 1109/1109). Only the
+            // byte-parity ENGINE wire builds CFloat unconditionally.
+            BigDecimal exact = new BigDecimal(text);
+            if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
+                return new CDecimal(exact, text, spanOf(litTok, litTok));
+            }
         }
         return new CFloat(d, spanOf(litTok, litTok));
     }
@@ -900,8 +919,18 @@ public final class SpecParser implements TokenStreamCursor {
         String value = raw.substring(1);
         int datePos = pos;
         pos++;
+        if (legendStrict() && value.indexOf('Z') >= 0) {
+            // the engine's DATETIME lexer has no 'Z' timezone suffix and
+            // refuses it (adversarial audit fuzz, oracle-verified); the
+            // pure dialect keeps the audit-M5 Z support
+            throw error("Unexpected token '%" + value + "'");
+        }
         try {
-            return new CDate(PureDateLiteral.parse(value), value, spanOf(datePos, datePos));
+            // STRICT surfaces defer component-range validation like the
+            // engine (%2024-02-30 parses there; the compiler validates) —
+            // the platform dialect validates at parse, legend-pure style
+            return new CDate(PureDateLiteral.parse(value, !legendStrict()),
+                    value, spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,
                     "invalid date literal '%" + value + "': " + e.getMessage());
@@ -985,13 +1014,17 @@ public final class SpecParser implements TokenStreamCursor {
             pos++;
             return new PureCollection(values, spanOf(openTok, pos - 1));
         }
-        values.add(parseCombinedExpression());
+        // STRICT surfaces use the engine's expressionsArray production —
+        // `expression`, which has no top-level arithmetic/boolean parts:
+        // [1 + 2] refuses there (adversarial audit 1c, oracle-verified).
+        // The pure dialect keeps the wider combinedExpression.
+        values.add(legendStrict() ? parseExpression() : parseCombinedExpression());
         while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
             if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
                 throw error("trailing comma in collection literal");
             }
-            values.add(parseCombinedExpression());
+            values.add(legendStrict() ? parseExpression() : parseCombinedExpression());
         }
         expect(TokenType.BRACKET_CLOSE, "expected ']' to close collection literal");
         // Engine convention: a literal collection's span covers `[...]`, brackets inclusive.
@@ -1104,17 +1137,24 @@ public final class SpecParser implements TokenStreamCursor {
             pos++; // consume '.'
             if (!atEnd()) {
                 TokenType t = peek();
-                if (t == TokenType.ALL) {
+                // commit to the all-call families ONLY when '(' follows —
+                // an enum value literally named 'all' (a::E.all) is a
+                // plain member access in the engine (adversarial audit
+                // divergence 5, oracle-verified); without the lookahead
+                // this arm demanded '(' and refused it
+                boolean called = peek(1) == TokenType.PAREN_OPEN;
+                if (t == TokenType.ALL && called) {
                     pos++;
                     return parseAllCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
                 }
-                if (t == TokenType.ALL_VERSIONS) {
-                    pos++;
-                    return parseAllVersionsCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
-                }
-                if (t == TokenType.ALL_VERSIONS_IN_RANGE) {
+                if (t == TokenType.ALL_VERSIONS_IN_RANGE && called) {
                     pos++;
                     return parseAllVersionsInRangeCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
+                }
+                if (t == TokenType.ALL_VERSIONS) {
+                    // allVersions is legal WITHOUT parens (Person.allVersions)
+                    pos++;
+                    return parseAllVersionsCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
                 }
             }
             // Not an all-like method -- backtrack; the outer postfix
@@ -1196,12 +1236,12 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     /**
-     * Parse a single milestoning-position argument. Grammar admits
-     * only {@code %2024-01-15} / {@code %2024-01-15T10:30:00}
-     * ({@code DATE}), {@code %latest} ({@code LATEST_DATE}), or
-     * {@code $var} ({@code DOLLAR}). Anything else is a semantic
-     * error better caught at the parser than at the type-checker
-     * (one extra token's worth of work to pin the allowed shapes).
+     * Parse a single milestoning-position argument. The literal fast
+     * paths keep their bespoke wire shapes; ANY OTHER expression parses
+     * generally — the engine's {@code allFunction} arguments are plain
+     * expressions and validation is the compiler's
+     * ({@code Person.all(now())} is engine-legal; the old closed set
+     * refused it — adversarial audit divergence 4, oracle-verified).
      */
     private ValueSpecification parseMilestoningExpression() {
         if (atEnd()) {
@@ -1211,9 +1251,7 @@ public final class SpecParser implements TokenStreamCursor {
         if (t == TokenType.LATEST_DATE) return parseLatestDate();
         if (t == TokenType.DATE) return parseDateOrDateTime();
         if (t == TokenType.DOLLAR) return parseVariable();
-        throw error(
-                "expected milestoning expression (%date, %latest, or $variable), got "
-                + t + " ('" + safeText() + "')");
+        return parseExpression();
     }
 
     // parseQualifiedName(), isFqnSegmentToken(TokenType), and
@@ -1967,21 +2005,17 @@ public final class SpecParser implements TokenStreamCursor {
      * optional lambda slots; the type-checker (which knows the
      * enclosing function) dispatches downstream.
      */
-    /** A fused mapping-command token ({@code ~distinct}) read as a ColSpec. */
+    /** A fused mapping-command token ({@code ~filter}, {@code ~src}, …) read
+     *  as an ORDINARY ColSpec whose column bears the command's name — same
+     *  typed/lambda/span machinery as {@link #parseOneColSpec} (adversarial
+     *  audit: the old special-case dropped the span, crashing the emitter on
+     *  engine-legal input, and mis-parsed typed specs). The fused token's
+     *  start column is the tilde, so the name anchor shifts one column right. */
     private ColSpec parseTildeCommandColSpec() {
         String name = text().substring(1);
+        int cmdTok = pos;
         pos++;
-        LambdaFunction function1 = null;
-        LambdaFunction function2 = null;
-        if (!atEnd() && peek() == TokenType.COLON) {
-            pos++;
-            function1 = parseColumnLambda();
-            if (!atEnd() && peek() == TokenType.COLON) {
-                pos++;
-                function2 = parseColumnLambda();
-            }
-        }
-        return new ColSpec(name, function1, function2);
+        return parseColSpecTail(name, cmdTok, 1, List.of(), List.of());
     }
 
     private ColumnInstance parseColumnBuilders() {
@@ -2043,6 +2077,17 @@ public final class SpecParser implements TokenStreamCursor {
         } else {
             throw error("expected column name after '~'");
         }
+        return parseColSpecTail(name, nameTokIdx, 0, csStereotypes, csTaggedValues);
+    }
+
+    /** Everything after a colspec's NAME — the typed attempt, the lambda
+     *  forms, and the span rule — shared by the ordinary {@code ~name} path
+     *  and the fused-command-token path. {@code startColShift} shifts the
+     *  span's start column right (1 for a fused {@code ~filter} token whose
+     *  start char is the tilde; engine anchors at the NAME char). */
+    private ColSpec parseColSpecTail(String name, int nameTokIdx, int startColShift,
+            List<com.legend.protocol.Protocol.PStereotype> csStereotypes,
+            List<com.legend.protocol.Protocol.PTaggedValue> csTaggedValues) {
         LambdaFunction function1 = null;
         LambdaFunction function2 = null;
         if (!atEnd() && peek() == TokenType.COLON) {
@@ -2056,8 +2101,8 @@ public final class SpecParser implements TokenStreamCursor {
             // 2.2x parse-time on braced-lambda colspecs (corpus gate profile) — only
             // attempt the type parse when the tokens actually spell a type
             if (looksLikeColumnType()) {
-                ColSpec typed = tryTypedColSpec(name, nameTokIdx, csStereotypes,
-                        csTaggedValues);
+                ColSpec typed = tryTypedColSpec(name, nameTokIdx, startColShift,
+                        csStereotypes, csTaggedValues);
                 if (typed != null) {
                     return typed;
                 }
@@ -2073,10 +2118,18 @@ public final class SpecParser implements TokenStreamCursor {
         // anchors at its NAME token — bare specs span the name alone, function-bearing
         // ones span name..body-end. The tilde is never included.
         com.legend.protocol.SourceInfo span = function1 == null
-                ? spanOf(nameTokIdx, nameTokIdx)
-                : spanOf(nameTokIdx, pos - 1);
+                ? colSpecSpan(nameTokIdx, nameTokIdx, startColShift)
+                : colSpecSpan(nameTokIdx, pos - 1, startColShift);
         return new ColSpec(name, function1, function2, null, List.of(), false, span,
                 null, null, csStereotypes, csTaggedValues);
+    }
+
+    private com.legend.protocol.SourceInfo colSpecSpan(int fromTok, int toTok,
+            int startColShift) {
+        com.legend.protocol.SourceInfo s = spanOf(fromTok, toTok);
+        return startColShift == 0 ? s
+                : new com.legend.protocol.SourceInfo(s.sourceId(), s.startLine(),
+                        s.startColumn() + startColShift, s.endLine(), s.endColumn());
     }
 
     /** A '{' opening TAGGED VALUES ({profile.tag='v'}) rather than a lambda: the next
@@ -2154,6 +2207,7 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private @com.legend.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx,
+            int startColShift,
             List<com.legend.protocol.Protocol.PStereotype> stereotypes,
             List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {
         try {
@@ -2164,7 +2218,7 @@ public final class SpecParser implements TokenStreamCursor {
                     || peek() == TokenType.SEMI_COLON || peek() == TokenType.PAREN_CLOSE
                     || peek() == TokenType.BRACE_CLOSE) {
                 return new ColSpec(name, null, null, null, List.of(), false,
-                        spanOf(nameTokIdx, pos - 1), colType, colMult,
+                        colSpecSpan(nameTokIdx, pos - 1, startColShift), colType, colMult,
                         stereotypes, taggedValues);
             }
             return null;
@@ -2308,21 +2362,10 @@ public final class SpecParser implements TokenStreamCursor {
         // parseType's handling (probe "agg kind and varchar"; rawType span covers the
         // whole application)
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
-            pos++;
-            List<ValueSpecification> tvv = new ArrayList<>();
-            while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-                if (peek() == TokenType.COMMA) {
-                    pos++;
-                    continue;
-                }
-                if (peek() != TokenType.INTEGER) {
-                    throw error("type variable values support integer literals only, got "
-                            + peek());
-                }
-                tvv.add(new CInteger(Long.parseLong(text()), spanOf(pos, pos)));
-                pos++;
-            }
-            expect(TokenType.PAREN_CLOSE, "expected ')' to close type variable values");
+            // ONE tvv grammar — the shared cursor helper (integers AND
+            // strings, V('ok') is a probe-verified engine shape); this arm
+            // was a second copy that refused strings (adversarial audit H1)
+            List<ValueSpecification> tvv = parseTypeVariableValues();
             return new TypeAnnotation.Named(
                     new TypeExpression.Generic(name, List.of(), List.of(), tvv,
                             spanOf(nameStart, pos - 1)),
@@ -2458,6 +2501,12 @@ public final class SpecParser implements TokenStreamCursor {
      * them in bracket-indexing position.
      */
     private ValueSpecification parseBracketPostfix(ValueSpecification receiver) {
+        if (legendStrict()) {
+            // engine-verbatim (probed live): bracket indexing is an m3
+            // platform construct the engine refuses (deep-audit 1c/D1 —
+            // it was previously parsed ungated and crashed the emitter)
+            throw error("Bracket operation is not supported");
+        }
         pos++; // consume '['
         if (atEnd()) {
             throw error("expected integer or string inside '[...]' index");
@@ -2505,6 +2554,12 @@ public final class SpecParser implements TokenStreamCursor {
      * (engine-lite does the same).
      */
     private LambdaFunction parseComparatorExpression() {
+        if (dialect().refusesLiteExtensions()) {
+            // ENGINE surface only — the engine's grammar has no comparator
+            // expression (adversarial audit D2); lite's product surface
+            // keeps it (own integration tests use it via the Compiler)
+            throw error("Unexpected token 'comparator'");
+        }
         pos++; // consume 'comparator'
         expect(TokenType.PAREN_OPEN, "expected '(' after 'comparator'");
         List<Variable> params = new ArrayList<>();

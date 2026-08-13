@@ -62,8 +62,10 @@ public final class ExternalFormatSectionGrammar
         c.expect(TokenType.BRACE_OPEN);
         String format = null;
         List<Protocol.PSchema> schemas = new ArrayList<>();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "format" -> format = c.parseIdentifier();
@@ -137,8 +139,10 @@ public final class ExternalFormatSectionGrammar
         String contentType = null;
         List<String> includes = new ArrayList<>();
         List<String> excludes = new ArrayList<>();
+        java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys2, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "schemaSet" -> schemaSet = Protocol.unquotePath(

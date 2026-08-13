@@ -168,8 +168,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     advance();
                     String first = Protocol.unquotePath(parseQualifiedName());
                     if (!first.contains("::") && isIdentifierToken(peek())
-                            && tokens.type(Math.min(pos + 1,
-                                    tokens.count() - 1))
+                            && peek(1)
                                     == TokenType.PATH_SEPARATOR) {
                         // include <storeType> <path> — a TYPED include:
                         // bare single-word type followed by a QUALIFIED
@@ -385,11 +384,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         if ((sized || precise) && peek() == TokenType.PAREN_OPEN) {
             advance();
             List<Long> args = new ArrayList<>();
-            args.add(Long.parseLong(text()));
-            expect(TokenType.INTEGER);
+            args.add(consumeLong());
             while (match(TokenType.COMMA)) {
-                args.add(Long.parseLong(text()));
-                expect(TokenType.INTEGER);
+                args.add(consumeLong());
             }
             expect(TokenType.PAREN_CLOSE);
             if (precise && args.size() == 2) {
@@ -871,8 +868,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             advance();
             int numTok = pos;
             if (peek() == TokenType.INTEGER) {
-                long v = -Long.parseLong(text());
-                advance();
+                long v = -consumeLong();
                 return new Protocol.PRelLiteral(v, spanOf(s, numTok));
             }
             double v = -Double.parseDouble(text());
@@ -880,8 +876,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return new Protocol.PRelLiteral(v, spanOf(s, numTok));
         }
         if (peek() == TokenType.INTEGER) {
-            long v = Long.parseLong(text());
-            advance();
+            long v = consumeLong();
             return new Protocol.PRelLiteral(v, spanOf(s, s));
         }
         if (peek() == TokenType.FLOAT) {

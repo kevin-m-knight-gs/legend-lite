@@ -171,8 +171,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String cls = null;
         com.legend.protocol.SourceInfo clsSpan = null;
         String url = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             if ("class".equals(key)) {
                 int cS = c.pos();
@@ -243,8 +245,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String element = null;
         com.legend.protocol.SourceInfo elementSpan = null;
         String baseUrl = null;
+        java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys2, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "store" -> {
@@ -252,7 +256,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     element = Protocol.unquotePath(c.parseQualifiedName());
                     elementSpan = c.spanOf(eS, c.pos() - 1);
                 }
-                case "baseUrl" -> baseUrl = stringValue(c);
+                case "baseUrl" -> baseUrl = SectionParse.stringValue(c);
                 default -> throw c.error(
                         "unknown ServiceStoreConnection key: " + key);
             }
@@ -279,8 +283,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String serverUrl = null;
         String psk = null;
         int islandEndTok = -1;
+        java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys3, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "store" -> {
@@ -288,7 +294,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     element = Protocol.unquotePath(c.parseQualifiedName());
                     elementSpan = c.spanOf(eS, c.pos() - 1);
                 }
-                case "serverUrl" -> serverUrl = stringValue(c);
+                case "serverUrl" -> serverUrl = SectionParse.stringValue(c);
                 case "authentication" -> {
                     if (c.peek() != TokenType.ISLAND_OPEN) {
                         throw c.error("DeephavenConnection authentication"
@@ -308,7 +314,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         if (!"psk".equals(ik)) {
                             throw ic.error("unknown PSK key: " + ik);
                         }
-                        psk = stringValue(ic);
+                        psk = SectionParse.stringValue(ic);
                         ic.expect(TokenType.SEMI_COLON);
                     }
                 }
@@ -347,9 +353,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         com.legend.protocol.SourceInfo elementSpan = null;
         List<Protocol.PMongoServerUrl> urls = new ArrayList<>();
         Protocol.PMongoAuth auth = null;
+        java.util.Set<String> seenKeys4 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int keyTok = c.pos();
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys4, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "database" -> database = c.parseIdentifier();
@@ -363,8 +371,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
                         String host = c.parseIdentifier();
                         c.expect(TokenType.COLON);
-                        long port = Long.parseLong(c.text());
-                        c.expect(TokenType.INTEGER);
+                        long port = c.consumeLong();
                         urls.add(new Protocol.PMongoServerUrl(host, port));
                         c.match(TokenType.COMMA);
                     }
@@ -387,7 +394,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         String ik = ic.parseIdentifier();
                         ic.expect(TokenType.COLON);
                         if ("username".equals(ik)) {
-                            username = stringValue(ic);
+                            username = SectionParse.stringValue(ic);
                             ic.expect(TokenType.SEMI_COLON);
                         } else if ("password".equals(ik)) {
                             int vS = ic.pos();
@@ -409,7 +416,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             ic.expect(TokenType.BRACE_OPEN);
                             String fieldKey = ic.parseIdentifier();
                             ic.expect(TokenType.COLON);
-                            String v = stringValue(ic);
+                            String v = SectionParse.stringValue(ic);
                             ic.expect(TokenType.SEMI_COLON);
                             ic.expect(TokenType.BRACE_CLOSE);
                             if (!wireField.equals(fieldKey)) {
@@ -505,9 +512,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         List<Protocol.PGenerationFeaturesConfig> queryGenConfigs = null;
         String timeZone = null;
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
+        java.util.Set<String> seenKeys5 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int kS = c.pos();
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys5, key, c);
             c.expect(TokenType.COLON);
             if (!seenKeys.add(key)) {
                 throw c.error("Field '" + key
@@ -533,8 +542,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 }
                 case "queryTimeOutInSeconds" -> {
                     // wire: bare integer (harvest f_qto probe)
-                    queryTimeOut = Long.parseLong(c.text());
-                    c.expect(TokenType.INTEGER);
+                    queryTimeOut = c.consumeLong();
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "queryGenerationConfigs" -> {
@@ -573,7 +581,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             c.expect(TokenType.BRACKET_OPEN);
                             while (c.peek() != TokenType.BRACKET_CLOSE
                                     && !c.atEnd()) {
-                                into.add(stringValue(c));
+                                into.add(SectionParse.stringValue(c));
                                 c.match(TokenType.COMMA);
                             }
                             c.expect(TokenType.BRACKET_CLOSE);
@@ -648,11 +656,6 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     }
 
     /** One {@code key: 'string';} value. */
-    private static String stringValue(TokenStreamCursor c) {
-        String quoted = c.text();
-        c.expect(TokenType.STRING);
-        return TokenStreamCursor.unquoteAndUnescape(quoted, c);
-    }
 
     /** {@code postProcessors: [ mapper { mappers: [ table {...}, schema
      *  {...} ]; } ]} — only the mapper flavor exists in the corpus; table
@@ -699,8 +702,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             }
             c.expect(TokenType.BRACE_OPEN);
             List<Protocol.PMapper> mappers = new ArrayList<>();
+            java.util.Set<String> seenKeys6 = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 String key = c.parseIdentifier();
+                TokenStreamCursor.once(seenKeys6, key, c);
                 c.expect(TokenType.COLON);
                 if (!"mappers".equals(key)) {
                     throw c.error("unknown mapper key: " + key);
@@ -725,8 +730,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String flavor = c.parseIdentifier();
         c.expect(TokenType.BRACE_OPEN);
         java.util.Map<String, String> kv = new java.util.HashMap<>();
+        java.util.Set<String> seenKeys7 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys7, key, c);
             c.expect(TokenType.COLON);
             String quoted = c.text();
             c.expect(TokenType.STRING);
@@ -763,8 +770,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 List<String> sqls = null;
                 String csv = null;
                 c.expect(TokenType.BRACE_OPEN);
+                java.util.Set<String> seenKeys8 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys8, key, c);
                     c.expect(TokenType.COLON);
                     if ("testDataSetupSqls".equals(key)) {
                         if (sqls != null) {
@@ -804,8 +813,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String name = null;
                 String host = null;
                 Long port = null;
+                java.util.Set<String> seenKeys9 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys9, key, c);
                     c.expect(TokenType.COLON);
                     switch (key) {
                         // engine spelling: name: IS the databaseName
@@ -820,8 +831,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                             host = TokenStreamCursor.unquoteAndUnescape(quoted, c);
                         }
                         case "port" -> {
-                            port = Long.parseLong(c.text());
-                            c.expect(TokenType.INTEGER);
+                            port = c.consumeLong();
                         }
                         default -> throw c.error("unknown Static key: " + key);
                     }
@@ -841,8 +851,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 // DuckDB { (path: '...';)* } — no path = in-memory
                 c.expect(TokenType.BRACE_OPEN);
                 String path = null;
+                java.util.Set<String> seenKeys10 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys10, key, c);
                     c.expect(TokenType.COLON);
                     if (!"path".equals(key)) {
                         throw c.error("unknown DuckDB key: " + key);
@@ -871,21 +883,23 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 Boolean enableQueryTags = null;
                 String organization = null;
                 String role = null;
+                java.util.Set<String> seenKeys11 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys11, key, c);
                     c.expect(TokenType.COLON);
                     switch (key) {
-                        case "name" -> name = stringValue(c);
-                        case "account" -> account = stringValue(c);
-                        case "warehouse" -> warehouse = stringValue(c);
-                        case "region" -> region = stringValue(c);
+                        case "name" -> name = SectionParse.stringValue(c);
+                        case "account" -> account = SectionParse.stringValue(c);
+                        case "warehouse" -> warehouse = SectionParse.stringValue(c);
+                        case "region" -> region = SectionParse.stringValue(c);
                         // a BARE enum identifier (VPS / MultiTenant)
                         case "accountType" -> accountType = c.parseIdentifier();
-                        case "cloudType" -> cloudType = stringValue(c);
+                        case "cloudType" -> cloudType = SectionParse.stringValue(c);
                         case "enableQueryTags" ->
                                 enableQueryTags = parseBoolean(c);
-                        case "organization" -> organization = stringValue(c);
-                        case "role" -> role = stringValue(c);
+                        case "organization" -> organization = SectionParse.stringValue(c);
+                        case "role" -> role = SectionParse.stringValue(c);
                         default -> throw c.error("unknown Snowflake key: " + key);
                     }
                     c.expect(TokenType.SEMI_COLON);
@@ -906,13 +920,15 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String projectId = null;
                 String instanceId = null;
                 String databaseId = null;
+                java.util.Set<String> seenKeys12 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys12, key, c);
                     c.expect(TokenType.COLON);
                     switch (key) {
-                        case "projectId" -> projectId = stringValue(c);
-                        case "instanceId" -> instanceId = stringValue(c);
-                        case "databaseId" -> databaseId = stringValue(c);
+                        case "projectId" -> projectId = SectionParse.stringValue(c);
+                        case "instanceId" -> instanceId = SectionParse.stringValue(c);
+                        case "databaseId" -> databaseId = SectionParse.stringValue(c);
                         default -> throw c.error("unknown Spanner key: " + key);
                     }
                     c.expect(TokenType.SEMI_COLON);
@@ -933,15 +949,17 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String port = null;
                 String protocol = null;
                 String httpPath = null;
+                java.util.Set<String> seenKeys13 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys13, key, c);
                     c.expect(TokenType.COLON);
                     switch (key) {
-                        case "hostname" -> hostname = stringValue(c);
+                        case "hostname" -> hostname = SectionParse.stringValue(c);
                         // port is a quoted STRING in source and on the wire
-                        case "port" -> port = stringValue(c);
-                        case "protocol" -> protocol = stringValue(c);
-                        case "httpPath" -> httpPath = stringValue(c);
+                        case "port" -> port = SectionParse.stringValue(c);
+                        case "protocol" -> protocol = SectionParse.stringValue(c);
+                        case "httpPath" -> httpPath = SectionParse.stringValue(c);
                         default -> throw c.error("unknown Databricks key: " + key);
                     }
                     c.expect(TokenType.SEMI_COLON);
@@ -960,12 +978,14 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 c.expect(TokenType.BRACE_OPEN);
                 String projectId = null;
                 String defaultDataset = null;
+                java.util.Set<String> seenKeys14 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys14, key, c);
                     c.expect(TokenType.COLON);
                     switch (key) {
-                        case "projectId" -> projectId = stringValue(c);
-                        case "defaultDataset" -> defaultDataset = stringValue(c);
+                        case "projectId" -> projectId = SectionParse.stringValue(c);
+                        case "defaultDataset" -> defaultDataset = SectionParse.stringValue(c);
                         default -> throw c.error("unknown BigQuery key: " + key);
                     }
                     c.expect(TokenType.SEMI_COLON);
@@ -1003,8 +1023,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         // text conformant (own-corpus decision review)
         c.expect(TokenType.BRACE_OPEN);
         String path = null;
+        java.util.Set<String> seenKeys15 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys15, key, c);
             c.expect(TokenType.COLON);
             if (!"path".equals(key)) {
                 throw c.error("unknown SQLite key: " + key);
@@ -1044,8 +1066,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 c.expect(TokenType.BRACE_OPEN);
                 String oauthKey = null;
                 String scopeName = null;
+                java.util.Set<String> seenKeys16 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys16, key, c);
                     c.expect(TokenType.COLON);
                     String quoted = c.text();
                     c.expect(TokenType.STRING);
@@ -1069,8 +1093,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String principal = null;
                 if (c.peek() == TokenType.BRACE_OPEN) {
                     c.advance();
+                    java.util.Set<String> seenKeys17 = new java.util.HashSet<>();
                     while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                         String key = c.parseIdentifier();
+                        TokenStreamCursor.once(seenKeys17, key, c);
                         c.expect(TokenType.COLON);
                         if (!"serverPrincipal".equals(key)) {
                             throw c.error("unknown DelegatedKerberos key: " + key);
@@ -1091,8 +1117,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String base = null;
                 String user = null;
                 String pass = null;
+                java.util.Set<String> seenKeys18 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys18, key, c);
                     c.expect(TokenType.COLON);
                     String quoted = c.text();
                     c.expect(TokenType.STRING);
@@ -1120,15 +1148,17 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String publicUserName = null;
                 String privateKey = null;
                 String passPhrase = null;
+                java.util.Set<String> seenKeys19 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys19, key, c);
                     c.expect(TokenType.COLON);
                     switch (key) {
-                        case "publicUserName" -> publicUserName = stringValue(c);
+                        case "publicUserName" -> publicUserName = SectionParse.stringValue(c);
                         case "privateKeyVaultReference" ->
-                                privateKey = stringValue(c);
+                                privateKey = SectionParse.stringValue(c);
                         case "passPhraseVaultReference" ->
-                                passPhrase = stringValue(c);
+                                passPhrase = SectionParse.stringValue(c);
                         default -> throw c.error(
                                 "unknown SnowflakePublic key: " + key);
                     }
@@ -1157,13 +1187,15 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "ApiToken" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 String apiToken = null;
+                java.util.Set<String> seenKeys20 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys20, key, c);
                     c.expect(TokenType.COLON);
                     if (!"apiToken".equals(key)) {
                         throw c.error("unknown ApiToken key: " + key);
                     }
-                    apiToken = stringValue(c);
+                    apiToken = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 c.expect(TokenType.BRACE_CLOSE);
@@ -1177,14 +1209,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "MiddleTierUserNamePassword" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 String vaultReference = null;
+                java.util.Set<String> seenKeys21 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenKeys21, key, c);
                     c.expect(TokenType.COLON);
                     if (!"vaultReference".equals(key)) {
                         throw c.error(
                                 "unknown MiddleTierUserNamePassword key: " + key);
                     }
-                    vaultReference = stringValue(c);
+                    vaultReference = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 c.expect(TokenType.BRACE_CLOSE);

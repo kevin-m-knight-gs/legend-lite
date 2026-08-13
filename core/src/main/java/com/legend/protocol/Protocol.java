@@ -2725,10 +2725,32 @@ public final class Protocol {
      * OUT is safe; nothing reads these back as a lookup key.
      */
     public static String[] splitFqn(String qualifiedName) {
-        int i = qualifiedName.lastIndexOf("::");
+        // QUOTE-AWARE last separator: a::'b::c' is package "a", name "b::c"
+        // (deep-audit 1b — the raw lastIndexOf split inside the quotes)
+        int i = lastTopLevelSeparator(qualifiedName);
         String pkg = i < 0 ? "" : qualifiedName.substring(0, i);
         String name = i < 0 ? qualifiedName : qualifiedName.substring(i + 2);
         return new String[]{unquoteSegments(pkg), unquoteSegments(name)};
+    }
+
+    /** Index of the last {@code ::} OUTSIDE quoted segments, or -1. Quoted
+     *  segments honour backslash escapes ({@code 'b\'c'}). */
+    private static int lastTopLevelSeparator(String path) {
+        boolean inQuote = false;
+        int last = -1;
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (inQuote && c == '\\') {
+                i++;
+            } else if (c == '\'') {
+                inQuote = !inQuote;
+            } else if (!inQuote && c == ':' && i + 1 < path.length()
+                    && path.charAt(i + 1) == ':') {
+                last = i;
+                i++;
+            }
+        }
+        return last;
     }
 
     /** Public form for REFERENCE positions that also unquote (stereotype/tag
@@ -2744,22 +2766,65 @@ public final class Protocol {
         if (path.indexOf('\'') < 0) {
             return path;
         }
+        // segment boundaries are QUOTE-AWARE (a quoted segment may itself
+        // contain '::'), and quoted segments UNESCAPE — 'b\'c' is b'c on
+        // the wire (deep-audit 1b: the old raw indexOf split mangled both)
         StringBuilder out = new StringBuilder();
+        boolean inQuote = false;
         int start = 0;
-        while (start <= path.length()) {
-            int sep = path.indexOf("::", start);
-            int end = sep < 0 ? path.length() : sep;
-            if (start > 0) {
-                out.append("::");
+        for (int i = 0; i <= path.length(); i++) {
+            boolean atSep = !inQuote && i + 1 < path.length()
+                    && path.charAt(i) == ':' && path.charAt(i + 1) == ':';
+            if (i == path.length() || atSep) {
+                if (start > 0) {
+                    out.append("::");
+                }
+                String s = path.substring(start, i);
+                out.append(s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
+                        ? unescapeSegment(s.substring(1, s.length() - 1)) : s);
+                if (i == path.length()) {
+                    break;
+                }
+                i++;                        // past the second ':'
+                start = i + 1;
+                continue;
             }
-            String s = path.substring(start, end);
-            out.append(s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
-                    ? s.substring(1, s.length() - 1) : s);
-            if (sep < 0) {
-                break;
+            char c = path.charAt(i);
+            if (inQuote && c == '\\') {
+                i++;
+            } else if (c == '\'') {
+                inQuote = !inQuote;
             }
-            start = sep + 2;
         }
         return out.toString();
+    }
+
+    /** The escape table for quoted name segments — same rules as the
+     *  parser's canonical {@code TokenStreamCursor.unescapeBody} (real
+     *  pure's EscSeq + drop-backslash terminal rule), minus the error
+     *  channel: this is the wire path, malformed input never reaches it
+     *  (the parser refused it earlier). */
+    private static String unescapeSegment(String body) {
+        if (body.indexOf('\\') < 0) {
+            return body;
+        }
+        StringBuilder sb = new StringBuilder(body.length());
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (c != '\\' || i + 1 >= body.length()) {
+                sb.append(c);
+                continue;
+            }
+            char esc = body.charAt(++i);
+            switch (esc) {
+                case 'n' -> sb.append('\n');
+                case 't' -> sb.append('\t');
+                case 'r' -> sb.append('\r');
+                case 'b' -> sb.append('\b');
+                case 'f' -> sb.append('\f');
+                default -> sb.append(esc);   // \' \" \\ and drop-backslash
+            }
+        }
+        return sb.toString();
     }
 }

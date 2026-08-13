@@ -850,7 +850,7 @@ public final class MappingNormalizer {
                     && ps.get(0).toString().compareTo(ps.get(1).toString()) > 0) {
                 ps = List.of(ps.get(1), ps.get(0));
             }
-            return new AppliedFunction(af.function(), ps);
+            return af.withParameters(ps);
         }
         return v;
     }
@@ -1993,7 +1993,7 @@ public final class MappingNormalizer {
             AppliedFunction af = (AppliedFunction) src;
             List<ValueSpecification> ps = new ArrayList<>(af.parameters());
             ps.set(0, filterBelowAggregation(ps.get(0), pred));
-            return new AppliedFunction(af.function(), ps);
+            return af.withParameters(ps);
         }
         return new AppliedFunction("filter", List.of(src, pred));
     }

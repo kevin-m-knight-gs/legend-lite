@@ -235,24 +235,29 @@ final class Scalars {
             });
         }
         // times registers ABOVE (collection-product overload needs its own rule).
-        // Bit shifts: the shifted value casts to BIGINT (a bare literal is
-        // INT32 to DuckDB, and 1 << 46 overflows it); real pure bounds the
-        // shift amount at 62 — beyond is a LOUD error, not a silent 0.
+        // Bit shifts: value casts to BIGINT (bare literals are INT32);
+        // pure bounds the shift at 62 — beyond is a LOUD error.
         for (String name : List.of("bitShiftLeft", "bitShiftRight")) {
             SqlFn fn = name.equals("bitShiftLeft")
                     ? SqlFn.BIT_SHIFT_LEFT : SqlFn.BIT_SHIFT_RIGHT;
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {
-                    if (args.get(1) instanceof SqlExpr.IntLit sh
-                            && (sh.value() < 0 || sh.value() > 62)) {
-                        // real pure's message, raised in the database
-                        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                                "Unsupported number of bits to shift - max bits allowed is 62"));
-                    }
-                    return SqlExpr.Call.of(fn,
-                            new SqlExpr.Cast(args.get(0),
-                                    SqlType.Scalar.BIGINT),
+                    SqlExpr shifted = SqlExpr.Call.of(fn,
+                            new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT),
                             args.get(1));
+                    SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
+                            new SqlExpr.StringLit(
+                                    "Unsupported number of bits to shift - max bits allowed is 62"));
+                    if (args.get(1) instanceof SqlExpr.IntLit sh) {
+                        return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
+                    }
+                    // non-literal shift: bound guards AT RUNTIME in SQL
+                    // (deep-audit H4 — the laundering pct remap is deleted)
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.AND,
+                                    SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                                    SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
+                            shifted)), boundError);
                 });
             }
         }

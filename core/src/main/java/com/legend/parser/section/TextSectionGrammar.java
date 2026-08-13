@@ -39,8 +39,10 @@ public final class TextSectionGrammar implements ElementwiseSectionGrammar {
         c.expect(TokenType.BRACE_OPEN);
         String type = null;
         String content = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "type" -> type = c.parseIdentifier();

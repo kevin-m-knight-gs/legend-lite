@@ -108,18 +108,10 @@ import java.util.Objects;
  */
 public final class ElementParser implements TokenStreamCursor {
 
-    /** Walker offsets for EMBEDDED-island reparses (engine rule: line
-     *  offset applies to every line, column offset to line 1 only). Zero
-     *  outside an island reparse; set only at construction. */
-    private final int islandLineOffset;
-    private final int islandColOffset;
-
-    @Override
-    public com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
-        return TokenStreamCursor.shiftIsland(
-                TokenStreamCursor.super.spanOf(fromTok, toTok),
-                islandLineOffset, islandColOffset);
-    }
+    // (the embedded-island offset constructor and its spanOf override are
+    // DELETED, 2026-08-12: the offset form had zero callers, and its latent
+    // inconsistency — node spans shifted, error positions not — was flagged
+    // by the adversarial audit, EP finding 7)
 
     // ============================================================
     // Instance state (transient during parse)
@@ -128,41 +120,14 @@ public final class ElementParser implements TokenStreamCursor {
     final TokenStream tokens;
     int pos;
 
-    /**
-     * When non-null, parsing is inside a class mapping body and bare
-     * identifiers in relational expressions resolve eagerly to columns of
-     * this main table (matching FINOS engine's ScopeInfo behavior). When
-     * null (Database context), bare identifiers throw per D-7. Set/cleared
-     * around mapping-body parsing in {@link #parseRelationalClassMappingBody}.
-     */
-    LegacyMappingDefinition.@com.legend.Nullable TableReference currentMappingScope;
-
-    /** {@code prop[setId]} routings of the class mapping being parsed. */
-    java.util.@com.legend.Nullable Map<String, String> currentTargetSets;
-
-    /**
-     * An active {@code scope([db]path)(...)} block (real mapping grammar):
-     * inside it, BARE identifiers are columns of the scoped table and
-     * single-segment scopes prefix dotted refs as a schema. Resolution is
-     * deferred to each use site — no store lookup at parse time.
-     */
-    record ScopeBlock(@com.legend.Nullable String db, @com.legend.Nullable String path) { }
-
-    @com.legend.Nullable ScopeBlock currentScopeBlock;
-
-    /** Grammar-section parsers sharing this parser's cursor and scope state. */
+    // (the legacy mapping parser's mutable scope fields — currentMappingScope,
+    // currentTargetSets, currentScopeBlock — died with it, 2026-08-12; they
+    // had zero readers and were whitelisted PAST the mutable-field guardrail,
+    // adversarial audit EP finding 8)
 
     ElementParser(TokenStream tokens, Dialect dialect) {
-        this(tokens, 0, 0, dialect);
-    }
-
-    /** Embedded-island reparse form: spans map through walker offsets. */
-    ElementParser(TokenStream tokens, int islandLineOffset,
-            int islandColOffset, Dialect dialect) {
         this.tokens = tokens;
         this.pos = 0;
-        this.islandLineOffset = islandLineOffset;
-        this.islandColOffset = islandColOffset;
         this.dialect = dialect;
     }
 
@@ -443,6 +408,18 @@ public final class ElementParser implements TokenStreamCursor {
                                 sk.startOffset(), sk.endOffset(),
                                 tokens.lineOf(sk.startOffset())),
                         new OverlayElementSink(sk.name(), elements));
+            } else {
+                // a LEXABLE registered grammar whose section the lexer
+                // nonetheless raw-skipped: lexer/registry drift. The old
+                // chain had no arm here and the content VANISHED silently
+                // (adversarial audit, ElementParser finding 1) — the exact
+                // failure mode the Elasticsearch 2026-08-10 incident hit.
+                throw new ParseException("section '" + sk.name()
+                        + "' has a lexable grammar registered but was"
+                        + " raw-skipped by the lexer — lexer/registry drift;"
+                        + " add it to Lexer.lexableSections()",
+                        tokens.lineOf(sk.nameOffset()),
+                        tokens.columnOf(sk.nameOffset()));
             }
         }
         return new ParsedModel(elements, imports.build(), tokens.source(),
@@ -706,6 +683,21 @@ public final class ElementParser implements TokenStreamCursor {
                 parseProfileDefinition());
     }
 
+    /** A HEADERLESS RelationalDatabaseConnection element (no
+     *  {@code ###Connection} header: mixed fixtures, IDE slices). Sectioned
+     *  files never reach it — {@link #parseModel} dispatches the whole
+     *  section through the registry. */
+    private PackageableElement connectionElement() {
+        com.legend.protocol.Protocol.PConnection pc =
+                com.legend.parser.section.ConnectionSectionGrammar
+                        .parseElement(this);
+        try {
+            return com.legend.model.FromProtocol.toConnectionElement(pc);
+        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
+            throw error(u.reason());
+        }
+    }
+
     /** PROTOCOL-FIRST (R3) — the ###Relational model is a TRANSFORM on
      *  protocol, not a second parse. */
     private PackageableElement databaseElement() {
@@ -821,6 +813,13 @@ public final class ElementParser implements TokenStreamCursor {
         // projection semantics (flattened derived surface) stay loud
         // downstream — parse-level unlock only.
         if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
+            if (legendStrict()) {
+                // the engine refuses class projections (its walker NPEs,
+                // normalized to a developer message); silently emitting an
+                // EMPTY class here was accept-divergence + data loss
+                // (adversarial audit #11, oracle-verified)
+                throw error("class projections are not supported by the engine");
+            }
             advance();
             parseQualifiedName();      // the projected source class
             if (peek() == TokenType.BRACE_OPEN) {
@@ -1232,6 +1231,12 @@ public final class ElementParser implements TokenStreamCursor {
         // nominal registration only (like projection classes); the
         // projected navigation semantics stay loud downstream.
         if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
+            if (legendStrict()) {
+                // align with parseAssociationDefinition (the protocol path
+                // already refused; this model path accepted and returned
+                // the WRONG element kind — adversarial audit EP finding 3)
+                throw error("association projections are not supported by the engine");
+            }
             advance();
             parseQualifiedName();
             if (peek() == TokenType.LESS_THAN) {
@@ -1357,11 +1362,14 @@ public final class ElementParser implements TokenStreamCursor {
         List<com.legend.protocol.Protocol.PProfileEntry> stereotypes = new ArrayList<>();
         List<com.legend.protocol.Protocol.PProfileEntry> tags = new ArrayList<>();
 
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
             List<com.legend.protocol.Protocol.PProfileEntry> target;
             if (peek() == TokenType.STEREOTYPES) {
+                TokenStreamCursor.once(seenKeys, "stereotypes", this);
                 target = stereotypes;
             } else if (peek() == TokenType.TAGS) {
+                TokenStreamCursor.once(seenKeys, "tags", this);
                 target = tags;
             } else {
                 throw error("expected 'stereotypes' or 'tags' inside Profile, found " + peek()
@@ -1455,31 +1463,6 @@ public final class ElementParser implements TokenStreamCursor {
     private FunctionDefinition functionElement() {
         return com.legend.model.FromProtocol.toFunctionDefinition(parseFunctionProtocol());
     }
-
-    /** Top-level {@code Measure} declaration sites — the keyword lexes as a plain
-     *  identifier, so the scan matches text under the same POSITIVE predecessor rule
-     *  {@link #topLevelIndexes} uses. */
-    public static java.util.List<Integer> measureSites(TokenStream ts) {
-        java.util.List<Integer> out = new ArrayList<>();
-        int depth = 0;
-        for (int i = 0; i < ts.count(); i++) {
-            TokenType t = ts.type(i);
-            switch (t) {
-                case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
-                case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
-                default -> {
-                    if (depth == 0 && t == TokenType.VALID_STRING
-                            && "Measure".equals(ts.text(i))
-                            && (i == 0 || ts.type(i - 1) == TokenType.BRACE_CLOSE
-                                    || ts.type(i - 1) == TokenType.SEMI_COLON)) {
-                        out.add(i);
-                    }
-                }
-            }
-        }
-        return out;
-    }
-
     /** Parses one {@code Measure} declaration at the cursor into its protocol record
      *  (probe: vanilla engine Measure JSON). Engine grammar (DomainParserGrammar.g4):
      *  {@code (measureExpr* canonicalExpr measureExpr*) | nonConvertibleMeasureExpr+} —
@@ -1581,6 +1564,11 @@ public final class ElementParser implements TokenStreamCursor {
             if (depth > 0) advance();
         }
         List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), dialect);
+        if (body.isEmpty() && legendStrict()) {
+            // engine codeBlock requires >= 1 programLine — `{ }` refuses
+            // there (adversarial audit R5, oracle-verified)
+            throw error("Unexpected token '}'");
+        }
         expect(TokenType.BRACE_CLOSE);
 
         // Optional TEST-SUITE block: `function f(...) { body } { suite... }` (legend-testable).
@@ -1704,7 +1692,7 @@ public final class ElementParser implements TokenStreamCursor {
                     TokenStreamCursor.unquoteAndUnescape(raw, this),
                     spanOf(fmtStart, pos - 1));
         }
-        if ("DataspaceTestData".equals(text())
+        if ("DataspaceTestData".equals(peekText(0))
                 && peek(1) == TokenType.ISLAND_OPEN) {
             // DataspaceTestData #{ my::Ref }# — a DATASPACE-typed reference;
             // the dataElement span runs the KIND keyword through the island
@@ -1722,7 +1710,7 @@ public final class ElementParser implements TokenStreamCursor {
                     com.legend.protocol.Protocol.unquotePath(refPath),
                     "DATASPACE", spanOf(kindTok, pos - 1));
         }
-        if ("Relation".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+        if ("Relation".equals(peekText(0)) && peek(1) == TokenType.ISLAND_OPEN) {
             advance();                              // 'Relation'
             List<com.legend.protocol.Protocol.PTestPayload.RelationElement> els =
                     parseRelationIslandElements();
@@ -1731,10 +1719,10 @@ public final class ElementParser implements TokenStreamCursor {
             return new com.legend.protocol.Protocol.PTestPayload.RelationElements(
                     els, first);
         }
-        if ("ModelStore".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+        if ("ModelStore".equals(peekText(0)) && peek(1) == TokenType.ISLAND_OPEN) {
             return parseModelStoreIsland();
         }
-        if ("Relational".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+        if ("Relational".equals(peekText(0)) && peek(1) == TokenType.ISLAND_OPEN) {
             return parseRelationalCsvIsland();
         }
         int refStart = pos;
@@ -1870,18 +1858,14 @@ public final class ElementParser implements TokenStreamCursor {
             if (q1 < 0) {
                 throw error("expected a quoted value for ExternalFormat key '" + key + "'");
             }
+            // THE shared decoder (was the second private n/t/r-only escape
+            // table — adversarial audit EP finding 13)
             int q2 = q1 + 1;
-            StringBuilder v = new StringBuilder();
             while (q2 < n && body.charAt(q2) != '\'') {
-                if (body.charAt(q2) == '\\' && q2 + 1 < n) {
-                    char e = body.charAt(q2 + 1);
-                    v.append(e == 'n' ? '\n' : e == 't' ? '\t' : e == 'r' ? '\r' : e);
-                    q2 += 2;
-                } else {
-                    v.append(body.charAt(q2));
-                    q2++;
-                }
+                q2 += body.charAt(q2) == '\\' && q2 + 1 < n ? 2 : 1;
             }
+            StringBuilder v = new StringBuilder(TokenStreamCursor
+                    .unescapeJavaLike(body.substring(q1 + 1, q2)));
             if (key.equals("contentType")) {
                 contentType = v.toString();
             } else if (key.equals("data")) {
@@ -1954,20 +1938,18 @@ public final class ElementParser implements TokenStreamCursor {
                     throw error("expected a quoted CSV chunk inside a Relational"
                             + " data island");
                 }
+                // THE shared decoder — this was a third private escape
+                // table (n/t/r only; \b \f octal corrupted silently —
+                // adversarial audit EP finding 13)
                 int q = i + 1;
-                while (q < to && source.charAt(q) != '\'') {
-                    if (source.charAt(q) == '\\' && q + 1 < to) {
-                        char e = source.charAt(q + 1);
-                        values.append(e == 'n' ? '\n' : e == 't' ? '\t'
-                                : e == 'r' ? '\r' : e);
-                        q += 2;
-                    } else {
-                        values.append(source.charAt(q));
-                        q++;
-                    }
+                int close = q;
+                while (close < to && source.charAt(close) != '\'') {
+                    close += source.charAt(close) == '\\' && close + 1 < to ? 2 : 1;
                 }
-                valEnd = q;
-                i = q + 1;
+                values.append(TokenStreamCursor.unescapeJavaLike(
+                        source.substring(q, close)));
+                valEnd = close;
+                i = close + 1;
             }
             tables.add(new com.legend.protocol.Protocol.PTestPayload.CsvTable(
                     schema, table, values.toString(), new com.legend.protocol.SourceInfo("",
@@ -2010,8 +1992,13 @@ public final class ElementParser implements TokenStreamCursor {
                 if (depth == 0 && (t == TokenType.COMMA || t == TokenType.PAREN_CLOSE)) {
                     break;
                 }
-                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN) depth++;
-                else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE) depth--;
+                // ALL THREE bracket kinds balance — a braced-lambda arg
+                // {a,b|...} carries a top-level comma and mis-sliced here
+                // when BRACE was omitted (adversarial audit EP finding 6)
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) depth++;
+                else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) depth--;
                 advance();
             }
             int idx = params.size();
@@ -2031,7 +2018,7 @@ public final class ElementParser implements TokenStreamCursor {
                             parseTestPayload();
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualToJson(
                     fmt, fmt.sourceInformation());
-        } else if ("Relation".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+        } else if ("Relation".equals(peekText(0)) && peek(1) == TokenType.ISLAND_OPEN) {
             // => Relation #{...}# — equalToRelation spanning Relation..}#
             int relStart = pos;
             advance();
@@ -2051,8 +2038,10 @@ public final class ElementParser implements TokenStreamCursor {
                 if (depth == 0 && t == TokenType.SEMI_COLON) {
                     break;
                 }
-                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN) depth++;
-                else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE) depth--;
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) depth++;   // all three kinds, see above
+                else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) depth--;
                 advance();
             }
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualTo(
@@ -2413,49 +2402,6 @@ public final class ElementParser implements TokenStreamCursor {
     // ============================================================
     // RelationalDatabaseConnection
     // ============================================================
-
-    /** PROTOCOL-FIRST — THE Connection grammar is the registered
-     *  {@link com.legend.parser.section.ConnectionSectionGrammar}; this arm
-     *  is its internal-dialect feed for BARE connection elements (no
-     *  {@code ###Connection} header: mixed fixtures, IDE slices). Sectioned
-     *  files never reach it — {@link #parseModel} dispatches the whole
-     *  section through the registry. */
-    private PackageableElement connectionElement() {
-        com.legend.protocol.Protocol.PConnection pc =
-                com.legend.parser.section.ConnectionSectionGrammar
-                        .parseElement(this);
-        try {
-            return com.legend.model.FromProtocol.toConnectionElement(pc);
-        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
-            throw error(u.reason());
-        }
-    }
-
-    /**
-     * Skip over a balanced {@code open..close} region. The opener at the
-     * current position is consumed; advance until the matching close is
-     * consumed too. Handles arbitrary nesting of the same open/close pair.
-     */
-    void skipBalancedContent(TokenType open, TokenType close) {
-        expect(open);
-        int depth = 1;
-        while (!atEnd() && depth > 0) {
-            TokenType t = peek();
-            if (t == open) depth++;
-            else if (t == close) depth--;
-            advance();
-            if (depth == 0) return;
-        }
-    }
-
-    /** Strip the leading and trailing {@code '} from a {@code STRING} token's raw text. */
-    String unquoteString(String raw) {
-        // Routes through THE shared decoder (which throws on malformed
-        // input) — no legacy fallback: an unterminated literal at EOF used
-        // to flow through with its leading quote intact (re-audit M2).
-        return TokenStreamCursor.unquoteAndUnescape(raw, this);
-    }
-
     // ============================================================
     // Source-text reconstruction (for lazy expression bodies)
     // ============================================================
@@ -2493,9 +2439,8 @@ public final class ElementParser implements TokenStreamCursor {
         Multiplicity mult = parseMultiplicity();
         // property DEFAULT VALUE (real pure: prop: Boolean[1] = false;). The expression is
         // captured as a value-spec tree via SpecParser over a slice of THIS token stream, so
-        // positions stay file-absolute. If SpecParser cannot read it the parser STAYS TOTAL —
-        // the default is carried with a null value and the emitter walls loudly (never a
-        // silent drop; the harness found exactly that failure mode on its first corpus run).
+        // positions stay file-absolute. A default SpecParser cannot read REFUSES, positioned
+        // — engine-style; carrying null "totally" was a silent accept on the compile path.
         com.legend.protocol.Protocol.PDefaultValue defaultValue = null;
         if (match(TokenType.EQUAL)) {
             int defStart = pos;
@@ -2515,12 +2460,14 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 advance();
             }
-            ValueSpecification value;
-            try {
-                value = SpecParser.parse(tokens.slice(defStart, pos), dialect);
-            } catch (ParseException unsupportedExpression) {
-                value = null;   // parser stays total; the emitter walls on the null, loudly
-            }
+            // a malformed default value is a PARSE REFUSAL, engine-style —
+            // the old catch carried null and silently accepted what the
+            // engine rejects on the compile path (adversarial audit,
+            // ElementParser finding 2); if a legal-but-unmodelled form
+            // resurfaces in the corpus it must land as a named leniency,
+            // not a swallow
+            ValueSpecification value =
+                    SpecParser.parse(tokens.slice(defStart, pos), dialect);
             if (value instanceof com.legend.protocol.spec.LambdaFunction) {
                 // BOTH reference grammars refuse a lambda default
                 // (defaultValueExpression admits references, ^instances,
@@ -2663,6 +2610,11 @@ public final class ElementParser implements TokenStreamCursor {
         int tagEnd = pos - 1;
         expect(TokenType.EQUAL);
         if (peek() == TokenType.DOC_STRING) {
+            if (legendStrict() && text().indexOf('\n') < 0) {
+                // single-line ''' — the oracle's lexer splits it into
+                // adjacent strings and refuses (probed live 2026-08-12)
+                throw error("Unexpected token '" + text() + "'");
+            }
             // '''...''' tagged-value VALUE (4.138, ZMissedRowsProbe): shared
             // strip rule; the tv span ends by the token's single-line
             // column arithmetic

@@ -57,7 +57,7 @@ final class DistinctChecker {
                 && af.parameters().get(1) instanceof ColSpec cs) {
             List<ValueSpecification> params = new ArrayList<>(af.parameters());
             params.set(1, new ColSpecArray(List.of(cs)));
-            return new AppliedFunction(af.function(), params);
+            return af.withParameters(params);
         }
         return af;
     }

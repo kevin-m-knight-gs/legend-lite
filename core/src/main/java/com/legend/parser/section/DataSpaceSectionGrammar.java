@@ -78,21 +78,23 @@ public final class DataSpaceSectionGrammar
         Protocol.PDataSpaceSupport supportInfo = null;
         List<Protocol.PDataSpaceElementRef> elements = null;
 
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "executionContexts" -> parseContexts(c, contexts);
                 case "defaultExecutionContext" -> {
-                    defaultContext = stringValue(c);
+                    defaultContext = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "title" -> {
-                    title = stringValue(c);
+                    title = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "description" -> {
-                    description = stringValue(c);
+                    description = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "executables" -> {
@@ -148,20 +150,22 @@ public final class DataSpaceSectionGrammar
         String faqUrl = null;
         String supportUrl = null;
         List<String> emails = null;
+        java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys2, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
-                case "address" -> address = stringValue(c);
-                case "documentationUrl" -> documentationUrl = stringValue(c);
-                case "website" -> website = stringValue(c);
-                case "faqUrl" -> faqUrl = stringValue(c);
-                case "supportUrl" -> supportUrl = stringValue(c);
+                case "address" -> address = SectionParse.stringValue(c);
+                case "documentationUrl" -> documentationUrl = SectionParse.stringValue(c);
+                case "website" -> website = SectionParse.stringValue(c);
+                case "faqUrl" -> faqUrl = SectionParse.stringValue(c);
+                case "supportUrl" -> supportUrl = SectionParse.stringValue(c);
                 case "emails" -> {
                     emails = new ArrayList<>();
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE) {
-                        emails.add(stringValue(c));
+                        emails.add(SectionParse.stringValue(c));
                         if (!c.match(TokenType.COMMA)) {
                             break;
                         }
@@ -176,8 +180,13 @@ public final class DataSpaceSectionGrammar
         c.expect(TokenType.BRACE_CLOSE);
         SourceInfo span = c.spanOf(start, c.pos() - 1);
         return switch (kind) {
-            case "Email" -> new Protocol.PDataSpaceSupport.PSupportEmail(
-                    java.util.Objects.requireNonNull(address), span);
+            case "Email" -> {
+                if (address == null) {
+                    // engine-verbatim (probed live: Email{} without address)
+                    throw c.error("Field 'address' is required");
+                }
+                yield new Protocol.PDataSpaceSupport.PSupportEmail(address, span);
+            }
             case "Combined" -> new Protocol.PDataSpaceSupport
                     .PSupportCombined(documentationUrl, website, faqUrl,
                             supportUrl, emails, span);
@@ -200,14 +209,16 @@ public final class DataSpaceSectionGrammar
             String defaultRuntime = null;
             SourceInfo runtimeSpan = null;
             Protocol.PDataSpaceTestData testData = null;
+            java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
+                TokenStreamCursor.once(seenKeys3, key, c);
                 c.expect(TokenType.COLON);
                 switch (key) {
-                    case "name" -> name = stringValue(c);
-                    case "title" -> title = stringValue(c);
-                    case "description" -> description = stringValue(c);
+                    case "name" -> name = SectionParse.stringValue(c);
+                    case "title" -> title = SectionParse.stringValue(c);
+                    case "description" -> description = SectionParse.stringValue(c);
                     case "mapping" -> mapping =
                             Protocol.unquotePath(c.parseQualifiedName());
                     case "defaultRuntime" -> defaultRuntime =
@@ -260,9 +271,11 @@ public final class DataSpaceSectionGrammar
             SourceInfo executableSpan = null;
             com.legend.protocol.spec.ValueSpecification query = null;
             String contextKey = null;
+            java.util.Set<String> seenKeys4 = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
+                TokenStreamCursor.once(seenKeys4, key, c);
                 c.expect(TokenType.COLON);
                 switch (key) {
                     // ids appear as bare identifiers AND integers — the
@@ -271,8 +284,8 @@ public final class DataSpaceSectionGrammar
                         id = c.safeText();
                         c.advance();
                     }
-                    case "title" -> title = stringValue(c);
-                    case "description" -> description = stringValue(c);
+                    case "title" -> title = SectionParse.stringValue(c);
+                    case "description" -> description = SectionParse.stringValue(c);
                     case "executable" -> {
                         executable = Protocol.unquotePath(c.parseQualifiedName());
                         if (c.peek() == TokenType.PAREN_OPEN) {
@@ -283,7 +296,7 @@ public final class DataSpaceSectionGrammar
                         }
                     }
                     case "query" -> query = SectionParse.specToSemicolon(c);
-                    case "executionContextKey" -> contextKey = stringValue(c);
+                    case "executionContextKey" -> contextKey = SectionParse.stringValue(c);
                     default -> throw c.error("unknown executables key: " + key);
                 }
                 c.expect(TokenType.SEMI_COLON);
@@ -316,13 +329,15 @@ public final class DataSpaceSectionGrammar
             String description = null;
             String diagram = null;
             SourceInfo diagramSpan = null;
+            java.util.Set<String> seenKeys5 = new java.util.HashSet<>();
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
+                TokenStreamCursor.once(seenKeys5, key, c);
                 c.expect(TokenType.COLON);
                 switch (key) {
-                    case "title" -> title = stringValue(c);
-                    case "description" -> description = stringValue(c);
+                    case "title" -> title = SectionParse.stringValue(c);
+                    case "description" -> description = SectionParse.stringValue(c);
                     case "diagram" -> diagram =
                             Protocol.unquotePath(c.parseQualifiedName());
                     default -> throw c.error("unknown diagrams key: " + key);
@@ -387,25 +402,5 @@ public final class DataSpaceSectionGrammar
         return raw;
     }
 
-    private static String stringValue(TokenStreamCursor c) {
-        String quoted = c.text();
-        c.expect(TokenType.STRING);
-        return TokenStreamCursor.unquoteAndUnescape(quoted, c);
-    }
-
-    private static void skipBalanced(TokenStreamCursor c, TokenType open,
-            TokenType close) {
-        c.expect(open);
-        int depth = 1;
-        while (!c.atEnd() && depth > 0) {
-            TokenType t = c.peek();
-            if (t == open) {
-                depth++;
-            } else if (t == close) {
-                depth--;
-            }
-            c.advance();
-        }
-    }
 
 }

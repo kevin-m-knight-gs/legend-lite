@@ -5,7 +5,7 @@ wire burn-down (ledger zero), leniency catalog (executable,
 `LeniencyCatalogTest`), dialect quarantine (`legendStrict` total,
 `StrictDialectParityTest`), the 4.138.2 oracle re-pin (W10), the
 extension close-out, and full PMCD (`PmcdParser.parseDocument`,
-`PmcdEquivalenceTest`: 5,259/5,259 distinct accepted sources byte-identical — the earlier 8,186 double-counted the snippet tiers).
+`PmcdEquivalenceTest` — since consolidated into `CorpusSweepTest`, 2026-08-12: 5,259/5,259 distinct accepted sources byte-identical — the earlier 8,186 double-counted the snippet tiers).
 This document is the audit's charter: what is PROVEN, what is OPEN, the
 exact row lists, and the method. Read docs/LENIENCY_CATALOG.md first.
 
@@ -121,7 +121,7 @@ Named hunt targets from the user:
 
 ## Instruments
 
-- `PmcdEquivalenceTest` — whole-document byte parity; the audit's
+- `CorpusSweepTest` (absorbed `PmcdEquivalenceTest` 2026-08-12) — whole-document byte parity; the audit's
   strongest regression net: ANY parse/order/bookkeeping change that
   deviates shows as a document diff.
 - `LeniencyCatalogTest` — the total refusal-row classifier (classify()

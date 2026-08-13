@@ -68,11 +68,9 @@ public sealed interface Multiplicity permits Multiplicity.Concrete, Multiplicity
                 throw new IllegalArgumentException(
                         "lowerBound must be >= 0, got " + lowerBound);
             }
-            if (upperBound != null && upperBound < lowerBound) {
-                throw new IllegalArgumentException(
-                        "upperBound (" + upperBound + ") must be >= lowerBound ("
-                        + lowerBound + ")");
-            }
+            // NO upper>=lower invariant: the engine's protocol carries
+            // [2..1] verbatim (its grammar and POJO have no range check —
+            // deep-audit 1f); bound sanity is the compiler's
         }
 
         /** {@code [1]} &mdash; exactly one. */

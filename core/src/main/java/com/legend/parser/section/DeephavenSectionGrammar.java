@@ -102,11 +102,9 @@ public final class DeephavenSectionGrammar
             Integer scale = null;
             if ("DECIMAL".equals(colType)) {
                 c.expect(TokenType.PAREN_OPEN);
-                precision = Integer.parseInt(c.text());
-                c.expect(TokenType.INTEGER);
+                precision = (int) c.consumeLong();
                 c.expect(TokenType.COMMA);
-                scale = Integer.parseInt(c.text());
-                c.expect(TokenType.INTEGER);
+                scale = (int) c.consumeLong();
                 c.expect(TokenType.PAREN_CLOSE);
             }
             cols.add(new Protocol.PDeephavenColumn(colName, wire, precision,

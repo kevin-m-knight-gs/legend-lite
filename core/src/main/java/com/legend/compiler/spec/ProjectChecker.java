@@ -50,7 +50,7 @@ final class ProjectChecker {
             if (expanded != null) {
                 List<ValueSpecification> np = new ArrayList<>(af.parameters());
                 np.set(1, expanded);
-                af = new AppliedFunction(af.function(), np);
+                af = af.withParameters(np);
             }
         }
         java.util.Map<String, String> docs = new java.util.LinkedHashMap<>();
@@ -111,14 +111,12 @@ final class ProjectChecker {
                     : new PureCollection(List.of(ps.get(1)));
             ValueSpecification names = ps.get(2) instanceof PureCollection ? ps.get(2)
                     : new PureCollection(List.of(ps.get(2)));
-            return legacyToModern(new AppliedFunction(af.function(),
-                    List.of(ps.get(0), lambdas, names)));
+            return legacyToModern(af.withParameters(List.of(ps.get(0), lambdas, names)));
         }
         if (ps.size() == 2 && (ps.get(1) instanceof LambdaFunction
                 || isLegacyColumnCall(ps.get(1)))) {
             // scalar legacy column: project(col(fn,'name')) — wrap and recurse
-            return normalizeLegacyForms(new AppliedFunction(af.function(),
-                    List.of(ps.get(0), new PureCollection(List.of(ps.get(1))))),
+            return normalizeLegacyForms(af.withParameters(List.of(ps.get(0), new PureCollection(List.of(ps.get(1))))),
                     docsOut);
         }
         if (ps.size() == 2 && ps.get(1) instanceof PureCollection lambdas) {
@@ -167,8 +165,7 @@ final class ProjectChecker {
                 exprs.add(v);
                 names.add(new CString(derivedColumnName(v)));
             }
-            return legacyToModern(new AppliedFunction(af.function(),
-                    List.of(ps.get(0), new PureCollection(exprs), new PureCollection(names))));
+            return legacyToModern(af.withParameters(List.of(ps.get(0), new PureCollection(exprs), new PureCollection(names))));
         }
         return af;
     }
@@ -248,7 +245,7 @@ final class ProjectChecker {
             }
             specs.add(new ColSpec(name.value(), lf));
         }
-        return new AppliedFunction(af.function(), List.of(ps.get(0), new ColSpecArray(specs)));
+        return af.withParameters(List.of(ps.get(0), new ColSpecArray(specs)));
     }
 
     /**
@@ -267,7 +264,7 @@ final class ProjectChecker {
             default -> throw new TypeInferenceException("project expects ~[…] column specifications");
         };
         ColSpecArray mapped = new ColSpecArray(specs.stream().map(ProjectChecker::identityIfBare).toList());
-        return new AppliedFunction(af.function(), List.of(af.parameters().get(0), mapped));
+        return af.withParameters(List.of(af.parameters().get(0), mapped));
     }
 
     /** {@code ~prop} &rarr; {@code prop:x|$x.prop} &mdash; a pass-through column is an identity mapping. */

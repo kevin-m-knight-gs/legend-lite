@@ -60,10 +60,9 @@ public final class SourceSubst {
         }
         return switch (v) {
             case Variable var -> env.getOrDefault(var.name(), var);
-            case AppliedFunction af -> new AppliedFunction(af.function(),
+            case AppliedFunction af -> af.withParameters(
                     af.parameters().stream().map(p -> substitute(p, env))
-                            .toList(),
-                    af.candidateFqns());
+                            .toList());
             // NO quoted-code fold here: the compiler layer names no
             // dialect (a speculative fold once lived here with ZERO
             // callers — the harness inliner is where corpus late folds

@@ -60,10 +60,7 @@ public final class ValidateDesugar {
                     ps.add(r);
                     changed |= r != p;
                 }
-                AppliedFunction cur = changed
-                        ? new AppliedFunction(af.function(), ps,
-                                af.candidateFqns())
-                        : af;
+                AppliedFunction cur = changed ? af.withParameters(ps) : af;
                 yield isValidate(cur, imports) ? desugar(cur, ctx, imports)
                         : cur;
             }

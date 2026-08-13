@@ -39,6 +39,20 @@ final class SectionParse {
         return TokenStreamCursor.unquoteAndUnescape(quoted, c);
     }
 
+    /** {@code true|false} — shared by every grammar (was 6 private
+     *  copies, adversarial audit census #20). */
+    static Boolean booleanValue(TokenStreamCursor c) {
+        if (c.peek() == TokenType.TRUE) {
+            c.advance();
+            return Boolean.TRUE;
+        }
+        if (c.peek() == TokenType.FALSE) {
+            c.advance();
+            return Boolean.FALSE;
+        }
+        throw c.error("expected true or false, got " + c.safeText());
+    }
+
     /** The raw single-quoted token text, quotes INCLUDED. */
     static String rawStringToken(TokenStreamCursor c) {
         String raw = c.text();

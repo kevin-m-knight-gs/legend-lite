@@ -69,21 +69,25 @@ public final class PmcdParser {
             "ExternalFormat", "ServiceStore", "DataSpace", "Persistence",
             "Service", "QueryPostProcessor");
 
-    private static final Set<String> ACTIVATOR_SECTIONS = Set.of("Snowflake",
-            "MemSql", "BigQuery", "HostedService", "FunctionJar");
+    /** THE activator grammar for a section comes from the REGISTRY — the
+     *  old hand-merged kind set here accepted MemSqlFunction inside
+     *  ###Snowflake while the registry path refused it (adversarial audit
+     *  #18: two routing authorities, already disagreeing). */
+    private static com.legend.parser.section.FunctionActivatorSectionGrammar
+            activatorGrammar(String section) {
+        return (com.legend.parser.section.FunctionActivatorSectionGrammar)
+                SectionGrammarRegistry.lookup(section).orElseThrow(
+                        () -> new IllegalStateException(
+                                "no activator grammar registered for '"
+                                        + section + "'"));
+    }
 
-    private static final Set<String> ACTIVATOR_KINDS = Set.of("SnowflakeApp",
-            "SnowflakeM2MUdf", "MemSqlFunction", "BigQueryFunction",
-            "HostedService", "FunctionJar", "DeephavenApp");
-
-    private static final com.legend.parser.section.FunctionActivatorSectionGrammar
-            ACTIVATOR_GRAMMAR =
-            new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                    "<activator>", ACTIVATOR_KINDS);
-
-    /** One parsed element: its wire JSON and the path the sectionIndex
-     *  lists (functions use their MANGLED path, like the engine). */
-    public record DocElement(String path, String json) {
+    /** One parsed element: its wire JSON, the path the sectionIndex
+     *  lists (functions use their MANGLED path, like the engine), and the
+     *  PROTOCOL type (for rule-grouping — the old JSON-prefix sniff broke
+     *  silently on any emitter field-order change, adversarial audit). */
+    public record DocElement(String path, String json,
+            Class<? extends Protocol.Element> kind) {
     }
 
     /** One document section with its parsed elements and imports. */
@@ -317,9 +321,12 @@ public final class PmcdParser {
                     (t, c) -> "Data".equals(ts.text(c)) ? 10 : -1,
                     importsOk, -1, null, null);
             case "Snowflake", "MemSql", "BigQuery", "HostedService",
-                    "FunctionJar" -> strictWalk(ts, r,
-                    (t, c) -> ACTIVATOR_KINDS.contains(ts.text(c)) ? 11 : -1,
-                    importsOk, -1, null, null);
+                    "FunctionJar" -> {
+                var ag = activatorGrammar(parserName);
+                yield strictWalk(ts, r,
+                        (t, c) -> ag.kinds().contains(ts.text(c)) ? 11 : -1,
+                        importsOk, -1, null, null, ag);
+            }
             case "Diagram" -> diagramElements(source, r);
             default -> {
                 int idx = TAIL_SECTIONS.indexOf(parserName);
@@ -328,8 +335,8 @@ public final class PmcdParser {
                             + "' is not a known section parser",
                             ts.lineOf((int) r[0]), 1);
                 }
-                var g = java.util.Objects.requireNonNull(
-                        TAIL_GRAMMARS.get(parserName));
+                var g = (com.legend.parser.section.ElementwiseSectionGrammar)
+                        SectionGrammarRegistry.lookup(parserName).orElseThrow();
                 yield ruleGroup(parserName, strictWalk(ts, r,
                         (t, c) -> TokenStreamCursor.IDENTIFIER_TOKENS
                                 .contains(ts.type(c))
@@ -373,6 +380,15 @@ public final class PmcdParser {
             HeadRule rule, boolean importsAllowed, int mappingSectionLine,
             com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
             @com.legend.Nullable List<TokenType> headsOut) {
+        return strictWalk(ts, r, rule, importsAllowed, mappingSectionLine,
+                tailGrammar, headsOut, null);
+    }
+
+    private static List<DocElement> strictWalk(TokenStream ts, long[] r,
+            HeadRule rule, boolean importsAllowed, int mappingSectionLine,
+            com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
+            @com.legend.Nullable List<TokenType> headsOut,
+            com.legend.parser.section.@com.legend.Nullable FunctionActivatorSectionGrammar activatorGrammar) {
         List<DocElement> out = new ArrayList<>();
         int cursor = skipTo(ts, r[0]);
         boolean sawElement = false;
@@ -417,7 +433,7 @@ public final class PmcdParser {
             }
             int[] end = new int[1];
             out.add(parseOneAt(ts, cursor, kind, mappingSectionLine,
-                    tailGrammar, end));
+                    tailGrammar, activatorGrammar, end));
             cursor = end[0];
         }
         return out;
@@ -429,9 +445,9 @@ public final class PmcdParser {
      *  (PmcdEquivalenceTest testGrammar / multiExec-embeddedParam). */
     private static List<DocElement> ruleGroup(String parserName,
             List<DocElement> parsed) {
-        String firstKind = switch (parserName) {
-            case "ExternalFormat" -> "{\"_type\":\"externalFormatSchemaSet\"";
-            case "Service" -> "{\"_type\":\"service\"";
+        Class<? extends Protocol.Element> firstKind = switch (parserName) {
+            case "ExternalFormat" -> Protocol.PSchemaSet.class;
+            case "Service" -> Protocol.PService.class;
             default -> null;
         };
         if (firstKind == null) {
@@ -440,7 +456,7 @@ public final class PmcdParser {
         List<DocElement> first = new ArrayList<>();
         List<DocElement> rest = new ArrayList<>();
         for (DocElement e : parsed) {
-            (e.json().startsWith(firstKind) ? first : rest).add(e);
+            (firstKind.isAssignableFrom(e.kind()) ? first : rest).add(e);
         }
         first.addAll(rest);
         return first;
@@ -490,7 +506,7 @@ public final class PmcdParser {
         for (var pe : parsed.elements()) {
             Protocol.PDiagram d = (Protocol.PDiagram) pe.protocol();
             out.add(new DocElement(d.qualifiedName(),
-                    ProtocolEmitter.emitElement(d)));
+                    ProtocolEmitter.emitElement(d), d.getClass()));
         }
         return out;
     }
@@ -498,6 +514,7 @@ public final class PmcdParser {
     private static DocElement parseOneAt(TokenStream ts, int site, int kind,
             int mappingSectionLine,
             com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
+            com.legend.parser.section.@com.legend.Nullable FunctionActivatorSectionGrammar activatorGrammar,
             int[] endOut) {
         Protocol.Element el;
         String path;
@@ -581,8 +598,8 @@ public final class PmcdParser {
             }
             case 11 -> {
                 ElementParser p = at(ts, site);
-                Protocol.PFunctionActivator fa = ACTIVATOR_GRAMMAR
-                        .parseElement(p);
+                Protocol.PFunctionActivator fa = java.util.Objects
+                        .requireNonNull(activatorGrammar).parseElement(p);
                 el = fa;
                 path = fa.qualifiedName();
                 endOut[0] = p.pos();
@@ -598,42 +615,8 @@ public final class PmcdParser {
             default -> throw new IllegalStateException(
                     "unknown site kind " + kind);
         }
-        return new DocElement(path, ProtocolEmitter.emitElement(el));
+        return new DocElement(path, ProtocolEmitter.emitElement(el), el.getClass());
     }
-
-    private static final Map<String,
-            com.legend.parser.section.ElementwiseSectionGrammar> TAIL_GRAMMARS =
-            Map.ofEntries(
-                    Map.entry("Text", com.legend.parser.section
-                            .TextSectionGrammar.INSTANCE),
-                    Map.entry("QueryPostProcessor", com.legend.parser.section
-                            .QueryPostProcessorSectionGrammar.INSTANCE),
-                    Map.entry("GenerationSpecification",
-                            com.legend.parser.section
-                                    .GenerationSpecificationSectionGrammar
-                                    .INSTANCE),
-                    Map.entry("FileGeneration", com.legend.parser.section
-                            .FileGenerationSectionGrammar.INSTANCE),
-                    Map.entry("Deephaven", com.legend.parser.section
-                            .DeephavenSectionGrammar.INSTANCE),
-                    Map.entry("MongoDB", com.legend.parser.section
-                            .MongoDBSectionGrammar.INSTANCE),
-                    Map.entry("DataQualityValidation",
-                            com.legend.parser.section
-                                    .DataQualityValidationSectionGrammar
-                                    .INSTANCE),
-                    Map.entry("Elasticsearch", com.legend.parser.section
-                            .ElasticsearchSectionGrammar.INSTANCE),
-                    Map.entry("ExternalFormat", com.legend.parser.section
-                            .ExternalFormatSectionGrammar.INSTANCE),
-                    Map.entry("ServiceStore", com.legend.parser.section
-                            .ServiceStoreSectionGrammar.INSTANCE),
-                    Map.entry("DataSpace", com.legend.parser.section
-                            .DataSpaceSectionGrammar.INSTANCE),
-                    Map.entry("Persistence", com.legend.parser.section
-                            .PersistenceSectionGrammar.INSTANCE),
-                    Map.entry("Service", com.legend.parser.section
-                            .ServiceSectionGrammar.INSTANCE));
 
     // ------------------------------------------------------------------
     // Site scanners — ONE depth/decl-position discipline per family
@@ -666,11 +649,19 @@ public final class PmcdParser {
             "MongoDBConnection");
 
     private static int skipTo(TokenStream ts, long offset) {
-        int cursor = 0;
-        while (cursor < ts.count() && ts.start(cursor) < offset) {
-            cursor++;
+        // token starts are sorted — binary search, not a linear rescan
+        // per section (deep-audit perf)
+        int lo = 0;
+        int hi = ts.count();
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (ts.start(mid) < offset) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
         }
-        return cursor;
+        return lo;
     }
 
 }

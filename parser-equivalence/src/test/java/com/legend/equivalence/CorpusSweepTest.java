@@ -90,7 +90,7 @@ public class CorpusSweepTest {
 
     /** Pure-only vanilla-rejected files raw parseStrict accepts — the
      *  strict element surface's own census. Down-only. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 187;
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 181;   // measured 2026-08-12 post burn-down (was 187)
 
     /** M3 second-reference agreement floor on oracle-accepted
      *  section-free sources — below this the "m3-corroborated"
@@ -100,6 +100,11 @@ public class CorpusSweepTest {
     @Test
     void oneSweep() throws Exception {
         List<Corpus.Source> sources = Corpus.all();
+        // CORPUS-SIZE FLOOR, not an Assumptions skip (deep-audit: "an
+        // absent corpus skips GREEN") — a missing checkout must fail
+        org.junit.jupiter.api.Assertions.assertTrue(sources.size() > 7000,
+                "corpus floor: only " + sources.size() + " sources loaded —"
+                        + " check -Dlegend.engine.root/-Dlegend.pure.root");
         Assumptions.assumeTrue(!sources.isEmpty(),
                 "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
         ObjectMapper mapper = ObjectMapperFactory
@@ -241,7 +246,9 @@ public class CorpusSweepTest {
             }
             // leniency catalog + dialect parity (the lenient MODEL surface)
             if (lenientAccepts) {
+                CLASSIFYING_ID.set(src.id());
                 String cls = classify(oracleRoot, src.text());
+                CLASSIFYING_ID.remove();
                 if (cls == null) {
                     unclassified.add(src.id() + " :: " + msgOf(oracleRoot));
                     cls = "UNCLASSIFIED";
@@ -330,10 +337,11 @@ public class CorpusSweepTest {
     }
 
     // ------------------------------------------------------------------
-    // The leniency classifier — DIAGNOSTIC labeling for the catalog
-    // report and the fixture-adjudication probe; the ALLOWLIST FILES are
-    // what gate acceptance, never this method (HARNESS_SIMPLIFICATION_PLAN
-    // Phase 7).
+    // The leniency classifier. NOTE (deep-audit H2 correction): for the
+    // PLATFORM-surface population this method IS the gate — a non-null
+    // return is the pass (unclassified==0 asserts below). The allowlist
+    // TSVs gate only the docAccepts/strictAccepts population. Returning
+    // a label here is therefore an ACCEPTANCE decision, not diagnostics.
     // ------------------------------------------------------------------
 
     /** Class a refusal by the ORACLE'S OWN evidence (message/exception),
@@ -342,6 +350,36 @@ public class CorpusSweepTest {
      *  construct row by row (ZSkewResidueProbe), and a strict ACCEPT means
      *  the construct is checkout-unreleased grammar (true version skew).
      *  Returns null when nothing matches — the failing case. */
+    /** The shrink-only skew-claims ledger (docs/version-skew-claims.tsv):
+     *  corpus-source ids whose generic grammar refusals are CLAIMED as
+     *  pinned-oracle-vs-checkout skew, pending row-by-row adjudication. */
+    private static final java.util.Set<String> SKEW_CLAIMS = loadSkewClaims();
+
+    private static java.util.Set<String> loadSkewClaims() {
+        try {
+            java.nio.file.Path f = java.nio.file.Path.of("..", "docs",
+                    "version-skew-claims.tsv");
+            if (!java.nio.file.Files.exists(f)) {
+                f = java.nio.file.Path.of("docs", "version-skew-claims.tsv");
+            }
+            java.util.Set<String> out = new java.util.HashSet<>();
+            for (String line : java.nio.file.Files.readAllLines(f)) {
+                int tab = line.indexOf('\t');
+                out.add(tab < 0 ? line : line.substring(0, tab));
+            }
+            return out;
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    private static final ThreadLocal<String> CLASSIFYING_ID = new ThreadLocal<>();
+
+    private static boolean versionSkewClaim(Throwable ignored) {
+        String id = CLASSIFYING_ID.get();
+        return id != null && SKEW_CLAIMS.contains(id);
+    }
+
     public static @com.legend.Nullable String classify(Throwable root, String text) {
         String msg = String.valueOf(root.getMessage());
         if ("Unexpected token".equals(msg.trim())) {
@@ -362,7 +400,9 @@ public class CorpusSweepTest {
                 if (sm.contains("Unsupported syntax")) {
                     return "DIALECT-native-or-m2";
                 }
-                return "VERSION-SKEW-grammar";
+                // an UNRECOGNIZED strict refusal is not skew — it must be
+                // named (deep-audit H2: this arm was a pardon)
+                return versionSkewClaim(root) ? "VERSION-SKEW-claimed" : null;
             }
         }
         // DIALECT-GAP — the engine names its own subset
@@ -420,13 +460,18 @@ public class CorpusSweepTest {
             }
             return "ORACLE-DEFECT-" + root.getClass().getSimpleName();
         }
-        // VERSION-SKEW — generic grammar refusals from the pinned oracle
-        // over the current checkout's constructs.
+        // VERSION-SKEW is a CLAIM, not a default: the old fall-through
+        // pardoned every generic ANTLR refusal as skew (deep-audit H2 —
+        // "essentially any grammar divergence on that surface is labelled
+        // version skew"). A claim must be a ROW in
+        // docs/version-skew-claims.tsv (shrink-only; each row is an
+        // adjudication obligation per DEEP_AUDIT_HANDOFF Leg 1) — an
+        // unclaimed generic refusal goes UNCLASSIFIED and the build reds.
         if (msg.startsWith("Unexpected token")
                 || msg.contains("mismatched input")
                 || msg.contains("extraneous input")
                 || msg.contains("missing ") && msg.contains(" at ")) {
-            return "VERSION-SKEW-grammar";
+            return versionSkewClaim(root) ? "VERSION-SKEW-claimed" : null;
         }
         if (msg.contains("Field '") && msg.contains("' is required")) {
             // any REMAINING required-field refusal is a NEW genuinely-lite

@@ -91,7 +91,7 @@ final class ExtendChecker {
             java.util.List<ValueSpecification> np =
                     new java.util.ArrayList<>(af.parameters());
             np.set(colsIx, bare);
-            return new AppliedFunction(af.function(), np);
+            return af.withParameters(np);
         }
         if (pc.values().isEmpty()) {
             return af;
@@ -107,7 +107,7 @@ final class ExtendChecker {
         java.util.List<ValueSpecification> np =
                 new java.util.ArrayList<>(af.parameters());
         np.set(colsIx, new ColSpecArray(specs));
-        return new AppliedFunction(af.function(), np);
+        return af.withParameters(np);
     }
 
     /** {@code col(fn,'name')} as a ColSpec (legacy TDSRow param annotation

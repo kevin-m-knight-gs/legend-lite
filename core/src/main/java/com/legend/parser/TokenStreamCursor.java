@@ -137,9 +137,12 @@ public interface TokenStreamCursor {
             TokenType.SERVICE, TokenType.SERVICE_PATTERN, TokenType.SERVICE_OWNERS,
             TokenType.SERVICE_DOCUMENTATION, TokenType.SERVICE_AUTO_ACTIVATE_UPDATES,
             TokenType.SERVICE_EXEC, TokenType.SERVICE_SINGLE, TokenType.SERVICE_MAPPING, TokenType.SERVICE_RUNTIME,
-            // Boolean literals
-            TokenType.TRUE, TokenType.FALSE,
-            // Additional
+            // Additional. NOTE: TRUE/FALSE are NOT identifier tokens —
+            // the engine's identifier rule excludes the boolean literals
+            // in every section except Persistence (which has its own
+            // parseQualifiedNameAdmittingBooleans); admitting them made
+            // `Class a::A { true: String[1]; }` parse where the engine
+            // refuses (adversarial fuzz, oracle-verified x6)
             TokenType.RELATIONAL_DATABASE_CONNECTION
     ));
 
@@ -219,6 +222,16 @@ public interface TokenStreamCursor {
         return pos() < tokens().count() ? text() : "<EOF>";
     }
 
+    /** Source text of the token {@code offset} past the cursor, or {@code ""}
+     *  past end — an empty string matches NO keyword, so lookahead equality
+     *  tests are EOF-safe (adversarial audit F10: the old
+     *  {@code text(Math.min(pos+1, count-1))} clamp re-read the LAST token
+     *  and could false-match at end of stream). */
+    default String peekText(int offset) {
+        int idx = pos() + offset;
+        return idx >= 0 && idx < tokens().count() ? tokens().text(idx) : "";
+    }
+
     /** Advance the cursor by one token. */
     default void advance() {
         rejectInvalid();   // unlexable input dies HERE, not three phases later
@@ -266,6 +279,69 @@ public interface TokenStreamCursor {
             throw error(customMessage);
         }
         advance();
+    }
+
+    /** Require an INTEGER at the cursor and return its {@code long} value.
+     *  A non-integer token or an overflowing literal becomes a POSITIONED
+     *  refusal — never a raw {@code NumberFormatException} (adversarial
+     *  audit: six sites parsed BEFORE type-checking and crashed unlocated
+     *  on {@code port: xyz;}). */
+    /** THE once-only policy for {@code key: value;} body loops — the
+     *  engine's walkers route every named field through
+     *  {@code validateAndExtractRequiredField}/{@code optionalField},
+     *  which refuse a duplicate with exactly this message. Enforced in
+     *  ~4 of 23 grammars before the 2026-08-12 adversarial audit
+     *  (oracle-verified holes: DataSpace title/description, Connection
+     *  class/type, Runtime mappings, Profile tags); every key-dispatch
+     *  loop calls this FIRST so the policy has one owner. */
+    static void once(java.util.Set<String> seen, String key,
+            TokenStreamCursor at) {
+        if (!seen.add(key)) {
+            throw at.error("Field '" + key + "' should be specified only once");
+        }
+    }
+
+    /** Require a STRING literal at the cursor, return its decoded body,
+     *  advance. Positioned refusal on any other token — the old
+     *  decode-before-check pattern died with "malformed quoted name" (or a
+     *  raw IOOBE at EOF) on {@code doc: 5;} (adversarial audit F15). */
+    default String consumeStringLiteral(String what) {
+        if (atEnd() || peek() != TokenType.STRING) {
+            rejectInvalid();
+            throw error("expected a string literal for " + what
+                    + ", got " + peek());
+        }
+        String v = unquoteAndUnescape(text(), this);
+        advance();
+        return v;
+    }
+
+    /** {@link #consumeLong()} narrowed to {@code int} range, with a
+     *  positioned out-of-range refusal naming {@code what}. */
+    default int consumeBoundedInt(String what) {
+        int mark = pos();
+        long v = consumeLong();
+        if (v > Integer.MAX_VALUE) {
+            throw throwAt(tokens(), mark,
+                    what + " out of range: " + v);
+        }
+        return (int) v;
+    }
+
+    default long consumeLong() {
+        if (peek() != TokenType.INTEGER) {
+            rejectInvalid();
+            throw error("expected " + TokenType.INTEGER + " but found " + peek()
+                    + " ('" + safeText() + "')");
+        }
+        String t = text();
+        try {
+            long v = Long.parseLong(t);
+            advance();
+            return v;
+        } catch (NumberFormatException overflow) {
+            throw error("integer literal out of range: '" + t + "'");
+        }
     }
 
     /** Require the next token to be {@code type}, advance past it, and
@@ -444,9 +520,8 @@ public interface TokenStreamCursor {
      *  {@code foo::'bar'::baz} is not legal Pure in any position. */
     default boolean isFqnSegmentToken(TokenType t) {
         // the engine's identifier rule admits many keywords but NOT the boolean
-        // literals — 'Class false::me' is a parse error there (rejection corpus)
+        // literals (they left IDENTIFIER_TOKENS 2026-08-12) or STRING
         return t != null && t != TokenType.STRING
-                && t != TokenType.TRUE && t != TokenType.FALSE
                 && IDENTIFIER_TOKENS.contains(t);
     }
 
@@ -590,43 +665,34 @@ public interface TokenStreamCursor {
      * set (M4Fragment.g4 EscSeq): {@code [btnfr"'\\]}; an UNRECOGNIZED escape
      * drops the backslash and keeps the char (legend-pure
      * StringEscape.UNESCAPE_PURE's terminal rule — the corpus's {@code '\ '}
-     * seed literal depends on it). Octal and {@code \\uXXXX} stay loud until a
-     * corpus file demands them: drop-backslash would corrupt them silently.
+     * seed literal depends on it). Octal and {@code \\uXXXX} DECODE — the
+     * oracle's decoder is commons-text {@code unescapeJava}
+     * (PureGrammarParserUtility.fromGrammarString), which handles both;
+     * refusing them was an invented divergence (adversarial-audit fuzz).
      */
     static String unescapeBody(String body, String what, TokenStreamCursor at) {
         if (body.indexOf('\\') < 0) {
             return body;
         }
-        StringBuilder sb = new StringBuilder(body.length());
+        // a backslash escaping END-OF-BODY stays a loud, located error (it
+        // cannot come from a well-lexed literal; reaching it means a scanner
+        // upstream mangled the extent)
         int i = 0;
         while (i < body.length()) {
-            char c = body.charAt(i);
-            if (c != '\\') {
-                sb.append(c);
-                i++;
-                continue;
-            }
-            if (i + 1 >= body.length()) {
-                throw at.error("malformed " + what + ": trailing backslash");
-            }
-            char esc = body.charAt(i + 1);
-            switch (esc) {
-                case '\\' -> sb.append('\\');
-                case '\'' -> sb.append('\'');
-                case '"' -> sb.append('"');
-                case 'n' -> sb.append('\n');
-                case 't' -> sb.append('\t');
-                case 'r' -> sb.append('\r');
-                case 'b' -> sb.append('\b');
-                case 'f' -> sb.append('\f');
-                case 'u', '0', '1', '2', '3', '4', '5', '6', '7' ->
-                        throw at.error("malformed " + what + ": octal/unicode"
-                                + " escape '\\" + esc + "' is not supported yet");
-                default -> sb.append(esc);
-            }
-            i += 2;
+            i += body.charAt(i) == '\\' ? 2 : 1;
         }
-        return sb.toString();
+        if (i > body.length()) {
+            throw at.error("malformed " + what + ": trailing backslash");
+        }
+        // the oracle decodes via unescapeJava — octal and \\uXXXX INCLUDED
+        // (the old table refused them "until a corpus file demands them";
+        // the engine accepts them, so refusing was an invented divergence —
+        // adversarial-audit fuzz row 'a\\u0041b')
+        try {
+            return unescapeJavaLike(body);
+        } catch (IllegalArgumentException e) {
+            throw at.error("malformed " + what + ": " + e.getMessage());
+        }
     }
 
     /** THE double-quoted-identifier stripper (SQL-ish spellings in Relational
@@ -768,7 +834,12 @@ public interface TokenStreamCursor {
                 String value = parseIdentifier();
                 stereos.add(new com.legend.protocol.Protocol.PStereotype(profile, value, pSpan,
                         spanOf(vS, vS)));
-                match(TokenType.COMMA);
+                // engine requires the comma BETWEEN entries (its message:
+                // Valid alternatives: [',', '>'] — the optional match here
+                // accepted <<p.a p.b>>, adversarial audit finding 12)
+                if (peek() != TokenType.GREATER_THAN) {
+                    expect(TokenType.COMMA);
+                }
             }
             expect(TokenType.GREATER_THAN);
             expect(TokenType.GREATER_THAN);
@@ -786,6 +857,11 @@ public interface TokenStreamCursor {
                 String value;
                 com.legend.protocol.SourceInfo tvSpan;
                 if (peek() == TokenType.DOC_STRING) {
+                    if (legendStrict() && text().indexOf('\n') < 0) {
+                        // single-line ''' — the oracle's lexer splits it into
+                        // adjacent strings and refuses (probed live 2026-08-12)
+                        throw error("Unexpected token '" + text() + "'");
+                    }
                     // '''...''' tagged-value VALUE (4.138, ZMissedRowsProbe):
                     // shared strip rule; the tv span ends by the token's
                     // single-line column arithmetic
@@ -807,7 +883,9 @@ public interface TokenStreamCursor {
                         new com.legend.protocol.Protocol.PTag(profile, tagName, pSpan,
                                 spanOf(vS, vS)),
                         value, tvSpan));
-                match(TokenType.COMMA);
+                if (peek() != TokenType.BRACE_CLOSE) {
+                    expect(TokenType.COMMA);          // same engine rule as stereotypes
+                }
             }
             expect(TokenType.BRACE_CLOSE);
         }
@@ -876,42 +954,140 @@ public interface TokenStreamCursor {
     }
 
     /**
-     * The logical VALUE of a {@code '''...'''} literal (4.138 wire,
-     * ZMissedRowsProbe): the newline after the opening delimiter drops; if
-     * the closing delimiter sits on its own line, that line's indent is
-     * removed from the tail AND stripped from every content line (content
-     * keeps a trailing newline); a closing delimiter on a content line
-     * keeps the content verbatim.
+     * The logical VALUE of a {@code '''...'''} literal — a VERBATIM port of
+     * the pinned oracle's {@code PureGrammarParserUtility.processTextBlock}
+     * (4.138.2 sources jar; the earlier reverse-engineered version missed
+     * four of its rules — CRLF normalization, min-indent over ALL non-blank
+     * lines, per-line trailing-whitespace strip, and the unescape —
+     * deep-audit 1f, re-verified differentially): normalize line
+     * terminators, drop the opening delimiter LINE and the closing
+     * {@code '''}, strip the minimum indent measured over every non-blank
+     * line plus the last line even when blank, strip each line's trailing
+     * whitespace, then Java-unescape.
      */
     static String docStringValue(String raw) {
-        String content = raw.substring(3, raw.length() - 3);
-        if (content.startsWith("\n")) {
-            content = content.substring(1);
+        String normalized = raw.replace("\r\n", "\n").replace('\r', '\n');
+        int firstNl = normalized.indexOf('\n');
+        if (firstNl < 0) {
+            // single-line ''' — the oracle's grammar refuses this form
+            // outright; keep the naive strip for the lenient dialects
+            return normalized.substring(3, normalized.length() - 3);
         }
-        int lastNl = content.lastIndexOf('\n');
-        String tail = content.substring(lastNl + 1);
-        if (lastNl >= 0 && tail.isBlank()) {
-            String indent = tail;
-            String body = content.substring(0, lastNl + 1);
-            StringBuilder out = new StringBuilder();
-            int at = 0;
-            while (at <= body.length()) {
-                int nl = body.indexOf('\n', at);
-                String line = nl < 0 ? body.substring(at)
-                        : body.substring(at, nl);
-                if (at > 0) {
-                    out.append('\n');
-                }
-                out.append(line.startsWith(indent)
-                        ? line.substring(indent.length()) : line);
-                if (nl < 0) {
-                    break;
-                }
-                at = nl + 1;
+        String body = normalized.substring(firstNl + 1, normalized.length() - 3);
+        // hand-rolled split (regex family is banned on the drop-in surface);
+        // KEEPS the trailing empty line, like the engine's split("\n", -1)
+        java.util.List<String> lineList = new java.util.ArrayList<>();
+        int lineStart = 0;
+        for (int i = 0; i <= body.length(); i++) {
+            if (i == body.length() || body.charAt(i) == '\n') {
+                lineList.add(body.substring(lineStart, i));
+                lineStart = i + 1;
             }
-            return out.toString();
         }
-        return content;
+        String[] lines = lineList.toArray(new String[0]);
+        int minIndent = Integer.MAX_VALUE;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            int leading = 0;
+            while (leading < line.length()
+                    && Character.isWhitespace(line.charAt(leading))) {
+                leading++;
+            }
+            if (leading < line.length() || i == lines.length - 1) {
+                minIndent = Math.min(minIndent, leading);
+            }
+        }
+        if (minIndent == Integer.MAX_VALUE) {
+            minIndent = 0;
+        }
+        StringBuilder builder = new StringBuilder(body.length());
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                builder.append('\n');
+            }
+            String line = lines[i].substring(Math.min(minIndent, lines[i].length()));
+            int end = line.length();
+            while (end > 0 && Character.isWhitespace(line.charAt(end - 1))) {
+                end--;
+            }
+            builder.append(line, 0, end);
+        }
+        return unescapeJavaLike(builder.toString());
+    }
+
+    /**
+     * The oracle's string decoder — commons-text {@code unescapeJava}
+     * semantics, JDK-only: octal escapes ({@code \101}), unicode escapes
+     * ({@code \-u+XXXX}), the control table ({@code \b \n \t \f \r}), the
+     * quote/backslash table, and DROP-BACKSLASH for anything else
+     * (including a lone trailing backslash, which commons deletes).
+     */
+    static String unescapeJavaLike(String s) {
+        if (s.indexOf('\\') < 0) {
+            return s;
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        int i = 0;
+        int n = s.length();
+        while (i < n) {
+            char c = s.charAt(i);
+            if (c != '\\' || i + 1 >= n) {
+                if (c != '\\') {
+                    sb.append(c);
+                }                                    // lone trailing '\' drops
+                i++;
+                continue;
+            }
+            char esc = s.charAt(i + 1);
+            if (esc >= '0' && esc <= '7') {          // octal, 1-3 digits, ≤ \377
+                int k = i + 1;
+                int val = 0;
+                int max = esc <= '3' ? 3 : 2;
+                while (k < n && k - i <= max && s.charAt(k) >= '0'
+                        && s.charAt(k) <= '7') {
+                    val = val * 8 + (s.charAt(k) - '0');
+                    k++;
+                }
+                sb.append((char) val);
+                i = k;
+                continue;
+            }
+            if (esc == 'u') {                        // backslash-u+XXXX (extra u's legal)
+                int k = i + 2;
+                while (k < n && s.charAt(k) == 'u') {
+                    k++;
+                }
+                if (k + 4 <= n) {
+                    int val = 0;
+                    boolean ok = true;
+                    for (int h = 0; h < 4; h++) {
+                        int d = Character.digit(s.charAt(k + h), 16);
+                        if (d < 0) {
+                            ok = false;
+                            break;
+                        }
+                        val = val * 16 + d;
+                    }
+                    if (ok) {
+                        sb.append((char) val);
+                        i = k + 4;
+                        continue;
+                    }
+                }
+                throw new IllegalArgumentException(
+                        "Less than 4 hex digits in unicode escape");
+            }
+            switch (esc) {
+                case 'n' -> sb.append('\n');
+                case 't' -> sb.append('\t');
+                case 'r' -> sb.append('\r');
+                case 'b' -> sb.append('\b');
+                case 'f' -> sb.append('\f');
+                default -> sb.append(esc);           // \' \" \\ + drop-backslash
+            }
+            i += 2;
+        }
+        return sb.toString();
     }
 
     /** The engine's span for a {@code '''...'''} token: SINGLE-LINE column
@@ -1070,19 +1246,15 @@ public interface TokenStreamCursor {
             advance();
             result = Multiplicity.Concrete.ZERO_MANY;
         } else if (t == TokenType.INTEGER) {
-            int lower = Integer.parseInt(text());
-            advance();
+            int lower = consumeBoundedInt("multiplicity bound");
             if (match(TokenType.DOT_DOT)) {
                 if (match(TokenType.STAR)) {
                     result = new Multiplicity.Concrete(lower, null);
                 } else if (peek() == TokenType.INTEGER) {
-                    int upper = Integer.parseInt(text());
-                    advance();
-                    if (upper < lower) {
-                        throw throwAt(tokens(), pos() - 1,
-                                "multiplicity upper bound (" + upper
-                                        + ") must be >= lower bound (" + lower + ")");
-                    }
+                    int upper = consumeBoundedInt("multiplicity bound");
+                    // NO upper>=lower check: the engine's grammar has none
+                    // ([2..1] parses there; deep-audit 1f) — bound sanity
+                    // is the compiler's
                     result = new Multiplicity.Concrete(lower, upper);
                 } else {
                     throw error("expected integer or '*' after '..' in multiplicity");

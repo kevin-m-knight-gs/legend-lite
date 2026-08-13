@@ -1459,12 +1459,20 @@ final class TailEmitter {
                 for (Protocol.PPersistenceEntry e
                         : as.assertion().entries()) {
                     b.append(",\"").append(e.key()).append("\":");
-                    if (e instanceof Protocol.PPersistenceEntry.Node nd) {
-                        persistenceNode(b, "connectionData", nd.node(),
-                                true);
-                    } else if (e instanceof
-                            Protocol.PPersistenceEntry.Scalar s) {
-                        ProtocolEmitter.str(b, s.value());
+                    // exhaustive over the sealed type (deep-audit 1e: the
+                    // old if/else silently emitted a key with NO value —
+                    // invalid JSON — for the other five variants)
+                    switch (e) {
+                        case Protocol.PPersistenceEntry.Node nd ->
+                                persistenceNode(b, "connectionData",
+                                        nd.node(), true);
+                        case Protocol.PPersistenceEntry.Scalar s ->
+                                ProtocolEmitter.str(b, s.value());
+                        default -> throw new UnsupportedOperationException(
+                                "TailEmitter has no wire rule for persistence"
+                                        + " assertion entry '" + e.key() + "' ("
+                                        + e.getClass().getSimpleName()
+                                        + ") — probe, do not guess.");
                     }
                 }
                 b.append(",\"id\":");

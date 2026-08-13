@@ -60,30 +60,41 @@ class ParseSpeedBenchmarkTest {
             } catch (Throwable ignored) { }
         }
 
-        // ---- timed passes ----
+        // ---- timed passes (deep-audit §3 fixes: COMPARABLE work — both
+        // sides parse to their protocol object graph, core does NOT
+        // serialize JSON in the timed region; 3 reps per source taking the
+        // MIN — the least-noise estimator for deterministic work; result
+        // blackholed so the JIT cannot elide the parse; nothing throws on
+        // the common set, so no catch sits inside the timed region) ----
         record Timing(String id, long nanos) { }
+        int reps = 3;
+        long blackhole = 0;
         List<Timing> oracleTimes = new ArrayList<>(common.size());
         long oracleTotal = 0;
         for (Corpus.Source src : common) {
-            long t0 = System.nanoTime();
-            try {
-                oracle.parseModel(src.text());
-            } catch (Throwable ignored) { }
-            long dt = System.nanoTime() - t0;
-            oracleTotal += dt;
-            oracleTimes.add(new Timing(src.id(), dt));
+            long best = Long.MAX_VALUE;
+            for (int r = 0; r < reps; r++) {
+                long t0 = System.nanoTime();
+                blackhole += oracle.parseModel(src.text()).getElements().size();
+                best = Math.min(best, System.nanoTime() - t0);
+            }
+            oracleTotal += best;
+            oracleTimes.add(new Timing(src.id(), best));
         }
         List<Timing> coreTimes = new ArrayList<>(common.size());
         long coreTotal = 0;
         for (Corpus.Source src : common) {
-            long t0 = System.nanoTime();
-            try {
-                com.legend.parser.PmcdParser.parseDocument(src.text());
-            } catch (Throwable ignored) { }
-            long dt = System.nanoTime() - t0;
-            coreTotal += dt;
-            coreTimes.add(new Timing(src.id(), dt));
+            long best = Long.MAX_VALUE;
+            for (int r = 0; r < reps; r++) {
+                long t0 = System.nanoTime();
+                blackhole += com.legend.parser.PmcdParser
+                        .parseSections(src.text()).size();
+                best = Math.min(best, System.nanoTime() - t0);
+            }
+            coreTotal += best;
+            coreTimes.add(new Timing(src.id(), best));
         }
+        System.out.println("blackhole=" + blackhole);
 
         long totalBytes = common.stream().mapToLong(s -> s.text().length()).sum();
         System.out.println("=== PARSE SPEED: oracle (legend-engine) vs core ===");

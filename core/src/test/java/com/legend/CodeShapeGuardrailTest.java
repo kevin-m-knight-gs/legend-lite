@@ -72,7 +72,7 @@ class CodeShapeGuardrailTest {
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",
-            "ElementParser.pos", "ElementParser.currentMappingScope",
+            "ElementParser.pos", 
             // DatabaseProtocolParser: the same parser-cursor shape
             "DatabaseProtocolParser.pos",
             "MappingProtocolParser.pos",
@@ -94,7 +94,7 @@ class CodeShapeGuardrailTest {
             "DiagramSectionGrammar.col",
             // parse-surface MODE, set once at construction by the factory that owns
             // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
-            "ElementParser.currentTargetSets", "ElementParser.currentScopeBlock",
+             
             "SpecParser.pos",
             // the shared minimal JSON reader's walk position — a parser
             // cursor, same family as Lexer.pos

@@ -74,9 +74,7 @@ two that pin the programme's flagship claims. All four now run in gate 8.
 | class | time | pins |
 |---|---:|---|
 | `ViewFilterParityTest` | 0.8s | view-filter shapes |
-| `PmcdEquivalenceTest` | 27s | whole-document parity — **5,259 distinct** documents (the "8,186" figure double-counted inline snippets; three agents reproduced 5,259 independently) |
-| `StrictDialectParityTest` | 34s | "dialect quarantine goes TOTAL" |
-| `LeniencyCatalogTest` | 37s | the total refusal-row classifier |
+| `CorpusSweepTest` | ~40s | THE consolidated sweep (2026-08-12): whole-document parity + SPI seam + dialect quarantine + leniency classification — absorbs the deleted `PmcdEquivalenceTest`/`StrictDialectParityTest`/`LeniencyCatalogTest` |
 
 > **A measurement warning, learned the hard way.** My first timing put
 > `StrictDialectParityTest` at **722s** and I nearly recorded it as unaffordable. It was a
@@ -191,29 +189,37 @@ on every run by explicit decision (2026-08-08), not by inertia.
 | 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 -Dlegend.engine.root=<engine checkout>` | portability sweep; scoreboard not written (~45s) |
 | 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | 1,109 run, 0 failures, 36 ledgered expected failures, nothing skipped (~30–80s) |
 | 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | see the warning below (~25s) |
-| 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,PmcdEquivalenceTest,ViewFilterParityTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | all six ratchets below (~90s) |
+| 8 | Parser equivalence | `mvn -pl parser-equivalence **-am** clean test -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` — the authority is `tools/allgates.sh` (this row is a mirror) | the ratchets below (~60s) |
 
 > **Gate 7 is one-directional and goes RED on improvement.** `allgates.sh:53`
 > judges it with `grep -qE "Tests run: 348, Failures: 1, Errors: 22"` — a
 > literal string. **Fixing any one of those 22 errors turns the gate red.**
 > Fix the script before fixing the tests.
 
-### Live ratchet constants (the authority — read them, do not trust this table)
+### Live ratchet constants (the authority is the SOURCE — this table is regenerated, not trusted)
+
+Regenerated 2026-08-12 (the previous table was 100% dead: every row cited a
+class deleted in the 08-12 sweep consolidation — deep-audit §6).
 
 | Constant | Value | Source |
 |---|---:|---|
-| `MIN_ELEMENTS_COMPARED`, `MIN_MATCHES` | 22,725 | `CorpusEquivalenceTest.java:45-46` |
-| `MIN_PINS` / `MIN_LINE_AGREEMENT` / `MIN_COLUMN_EXACT` | 43 / 40 / 28 | `RejectionParityTest.java:180,154,150` |
-| `MIN_FILES_MATCHED` | 4,051 | `SpiSeamProofTest.java:165` |
-| `MAX_LENIENT_ACCEPTS` | 170 | `SpiSeamProofTest.java:175` |
-| `MAX_PARSER_LENIENT_ACCEPTS` | 742 | `SpiSeamProofTest.java:183` |
-| `MAX_ENGINE_JSON_ASYMMETRY` | 8 | `SpiSeamProofTest.java:189` |
-| `MIN_FILES_PARSED` | 877 | `SectionParseSentinelTest.java:123` |
-| `MAX_DROP_IN_DEFECTS` | 184 | `SectionParseSentinelTest.java` (was recorded here as 126 while the source said 266 — the source is the authority) |
+| `MIN_PINS` | 43 | `RejectionParityTest.java` |
+| `MAX_SEAM_LENIENT_ACCEPTS` | 22 | `CorpusSweepTest.java` |
+| `MAX_ENGINE_JSON_ASYMMETRY` | 9 | `CorpusSweepTest.java` |
+| `MAX_PARSER_LENIENT_ACCEPTS` | 187 | `CorpusSweepTest.java` |
+| `MIN_FILES_PARSED` | (see source) | `SectionParseSentinelTest.java` |
+| `MAX_DROP_IN_DEFECTS` | 184 | `SectionParseSentinelTest.java` |
+| `MAX_LENIENT` | 69 | `SectionParseSentinelTest.java` |
+| `MAX_UNJUSTIFIED_LENIENCY` | 52 | `SectionParseSentinelTest.java` |
 | `MAX_LENIENCY_KINDS` | 21 | `FixtureAdjudicationTest.java` (distinct kinds, not fixtures) |
-| `MAX_OVER_STRICTNESS` | 6 | `FixtureAdjudicationTest.java:92` |
-| `MIN_SECTIONS` | 25 | `EngineSectionRosterTest.java` — DENOMINATOR: 21 extension + 4 core sections engine can parse |
-| `MIN_ELEMENTS` | 41 | `EngineElementRosterTest.java` — DENOMINATOR: packageable element types engine can produce |
+| `MAX_OVER_STRICTNESS` | 6 | `FixtureAdjudicationTest.java` |
+| `MIN_SECTIONS` | 25 | `EngineSectionRosterTest.java` — DENOMINATOR: sections engine can parse |
+| `MIN_ELEMENTS` | 41 | `EngineElementRosterTest.java` — DENOMINATOR: element types engine can produce |
+
+Deleted classes previously cited here (`CorpusEquivalenceTest`,
+`SpiSeamProofTest`, `PmcdEquivalenceTest`, `StrictDialectParityTest`,
+`LeniencyCatalogTest`, `MappingEquivalenceTest`) are consolidated into
+`CorpusSweepTest`; when a row and its source disagree, fix THIS table.
 
 > **`FixtureAdjudicationTest` is the only tier pointed at OUR OWN fixtures.**
 > Every other tier reads legend-engine's and legend-pure's files, and a

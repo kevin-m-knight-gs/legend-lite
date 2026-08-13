@@ -1532,7 +1532,11 @@ public final class NameResolver {
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
                 yield (fn.equals(af.function()) && params == af.parameters()
                         && candidates.isEmpty()) ? af
-                        : new AppliedFunction(fn, params, candidates);
+                        // preserve pos + the spelling markers: infix is
+                        // load-bearing downstream (InfixArith's carrier
+                        // test; the emitter's key-expression rule)
+                        : new AppliedFunction(fn, params, candidates, af.pos(),
+                                af.propertyCall(), af.grouped(), af.infix());
             }
             case AppliedProperty ap -> {
                 ValueSpecification receiver = resolveVs(ap.receiver(), scope);

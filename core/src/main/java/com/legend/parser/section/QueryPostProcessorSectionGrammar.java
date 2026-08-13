@@ -55,8 +55,10 @@ public final class QueryPostProcessorSectionGrammar
         List<Protocol.PDatabaseMapper> dbMappers = new ArrayList<>();
         List<Protocol.PSchemaMapper2> schemaMappers = new ArrayList<>();
         List<Protocol.PTableMapper2> tableMappers = new ArrayList<>();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.PAREN_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             c.expect(TokenType.BRACKET_OPEN);
             switch (key) {
@@ -73,7 +75,7 @@ public final class QueryPostProcessorSectionGrammar
                         }
                         c.expect(TokenType.BRACKET_CLOSE);
                         c.expect(TokenType.ARROW);
-                        String to = stringValue(c);
+                        String to = SectionParse.stringValue(c);
                         dbMappers.add(new Protocol.PDatabaseMapper(to,
                                 schemas));
                         c.match(TokenType.COMMA);
@@ -85,7 +87,7 @@ public final class QueryPostProcessorSectionGrammar
                         Protocol.PSchemaPointer from = schemaPointer(c);
                         c.expect(TokenType.ARROW);
                         schemaMappers.add(new Protocol.PSchemaMapper2(from,
-                                stringValue(c)));
+                                SectionParse.stringValue(c)));
                         c.match(TokenType.COMMA);
                     }
                 }
@@ -95,7 +97,7 @@ public final class QueryPostProcessorSectionGrammar
                         Protocol.PTablePointer2 from = tablePointer(c);
                         c.expect(TokenType.ARROW);
                         tableMappers.add(new Protocol.PTableMapper2(from,
-                                stringValue(c)));
+                                SectionParse.stringValue(c)));
                         c.match(TokenType.COMMA);
                     }
                 }
@@ -133,11 +135,6 @@ public final class QueryPostProcessorSectionGrammar
                 c.spanOf(s, c.pos() - 1));
     }
 
-    private static String stringValue(TokenStreamCursor c) {
-        String quoted = c.text();
-        c.expect(TokenType.STRING);
-        return TokenStreamCursor.unquoteAndUnescape(quoted, c);
-    }
 
     @Override
     public com.legend.model.PackageableElement toModel(

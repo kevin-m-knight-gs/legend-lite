@@ -47,8 +47,10 @@ public final class ElasticsearchSectionGrammar
         c.expect(TokenType.BRACE_OPEN);
         List<Protocol.PElasticsearch7Cluster.PEsIndex> indices =
                 new ArrayList<>();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             if (!"indices".equals(key)) {
                 throw c.error("unknown Elasticsearch7Cluster key '"

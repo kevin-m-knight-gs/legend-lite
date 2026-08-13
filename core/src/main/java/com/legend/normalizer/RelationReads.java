@@ -127,7 +127,7 @@ final class RelationReads {
                     + md.qualifiedName() + ")");
         }
         return switch (v) {
-            case AppliedFunction af -> new AppliedFunction(af.function(),
+            case AppliedFunction af -> af.withParameters(
                     af.parameters().stream().map(x -> rewrite(x,
                             rowByVar, rfByVar, assocName, md, nestedCols,
                             model)).toList());

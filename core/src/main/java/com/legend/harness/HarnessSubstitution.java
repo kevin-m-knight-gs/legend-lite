@@ -69,7 +69,7 @@ final class HarnessSubstitution {
             case Variable var when lets.containsKey(var.name()) ->
                     substitute(lets.get(var.name()), lets);
             case AppliedFunction af -> {
-                AppliedFunction sub = new AppliedFunction(af.function(),
+                AppliedFunction sub = af.withParameters(
                         substituteAll(af.parameters(), lets));
                 // let-substitution is the moment a quote/eval argument can
                 // BECOME literal (the subType family's let-bound tree

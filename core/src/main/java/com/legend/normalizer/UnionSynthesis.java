@@ -1531,7 +1531,7 @@ final class UnionSynthesis {
             return new AppliedProperty(v, suffixed);
         }
         return switch (n) {
-            case AppliedFunction af -> new AppliedFunction(af.function(),
+            case AppliedFunction af -> af.withParameters(
                     af.parameters().stream().map(x ->
                             suffixTargetReads(x, t, suffix, out)).toList());
             case AppliedProperty ap -> new AppliedProperty(

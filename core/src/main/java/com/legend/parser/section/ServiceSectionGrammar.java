@@ -135,12 +135,12 @@ public final class ServiceSectionGrammar
             }
             switch (key) {
                 case "pattern" -> {
-                    pattern = stringValue(c);
+                    pattern = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "title" -> {
                     // engine ServiceParserGrammar.g4: serviceTitle
-                    title = stringValue(c);
+                    title = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "ownership" -> {
@@ -152,13 +152,13 @@ public final class ServiceSectionGrammar
                     String ik = c.parseIdentifier();
                     c.expect(TokenType.COLON);
                     if ("identifier".equals(ik)) {
-                        ownershipId = stringValue(c);
+                        ownershipId = SectionParse.stringValue(c);
                     } else if ("users".equals(ik)) {
                         ownershipUsers = new ArrayList<>();
                         c.expect(TokenType.BRACKET_OPEN);
                         while (c.peek() != TokenType.BRACKET_CLOSE
                                 && !c.atEnd()) {
-                            ownershipUsers.add(stringValue(c));
+                            ownershipUsers.add(SectionParse.stringValue(c));
                             c.match(TokenType.COMMA);
                         }
                         c.expect(TokenType.BRACKET_CLOSE);
@@ -195,17 +195,17 @@ public final class ServiceSectionGrammar
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "documentation" -> {
-                    documentation = stringValue(c);
+                    documentation = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "autoActivateUpdates" -> {
-                    autoActivate = booleanValue(c);
+                    autoActivate = SectionParse.booleanValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "owners" -> {
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
-                        owners.add(stringValue(c));
+                        owners.add(SectionParse.stringValue(c));
                         c.match(TokenType.COMMA);
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
@@ -411,7 +411,7 @@ public final class ServiceSectionGrammar
             }
             switch (key) {
                 case "description" -> {
-                    description = stringValue(c);
+                    description = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "params" -> {
@@ -535,7 +535,7 @@ public final class ServiceSectionGrammar
             }
             switch (key) {
                 case "data" -> {
-                    data = stringValue(c);
+                    data = SectionParse.stringValue(c);
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "asserts" -> {
@@ -678,7 +678,7 @@ public final class ServiceSectionGrammar
         String doc = null;
         int docTok = c.pos();
         if (c.peek() == TokenType.STRING) {
-            doc = stringValue(c);
+            doc = SectionParse.stringValue(c);
         }
         c.expect(TokenType.PAREN_OPEN);
         List<Protocol.PServiceTestSuite.PResolverData> resolvers =
@@ -705,7 +705,7 @@ public final class ServiceSectionGrammar
             } else {
                 String tdoc = null;                 // a test entry
                 if (c.peek() == TokenType.STRING) {
-                    tdoc = stringValue(c);
+                    tdoc = SectionParse.stringValue(c);
                 }
                 List<Protocol.PServiceTestSuite.PSuiteParam> parameters =
                         null;
@@ -750,7 +750,7 @@ public final class ServiceSectionGrammar
                 if (c.peek() == TokenType.BRACKET_OPEN) {
                     c.advance();                    // [ 'KEY_A', ... ]
                     while (c.peek() != TokenType.BRACKET_CLOSE) {
-                        keys.add(stringValue(c));
+                        keys.add(SectionParse.stringValue(c));
                         if (!c.match(TokenType.COMMA)) {
                             break;
                         }
@@ -854,7 +854,7 @@ public final class ServiceSectionGrammar
                             throw c.error("Unexpected token ']'");
                         }
                         while (c.peek() != TokenType.BRACKET_CLOSE) {
-                            keys.add(stringValue(c));
+                            keys.add(SectionParse.stringValue(c));
                             if (!c.match(TokenType.COMMA)) {
                                 break;
                             }
@@ -951,7 +951,7 @@ public final class ServiceSectionGrammar
                     throw c.error("unknown Multi test key '" + tk + "'");
                 }
                 c.expect(TokenType.BRACKET_OPEN);
-                String keyValue = stringValue(c);
+                String keyValue = SectionParse.stringValue(c);
                 c.expect(TokenType.BRACKET_CLOSE);
                 c.expect(TokenType.COLON);
                 c.expect(TokenType.BRACE_OPEN);
@@ -1070,7 +1070,7 @@ public final class ServiceSectionGrammar
                         // executions['QA']: { mapping: ...; runtime: ...; }
                         // — the wire span starts at the KEY token (probed)
                         c.expect(TokenType.BRACKET_OPEN);
-                        String keyValue = stringValue(c);
+                        String keyValue = SectionParse.stringValue(c);
                         c.expect(TokenType.BRACKET_CLOSE);
                         c.expect(TokenType.COLON);
                         if (executions == null) {
@@ -1084,7 +1084,7 @@ public final class ServiceSectionGrammar
                     switch (key) {
                         case "query" -> query = parseQuery(c, qn);
                         case "key" -> {
-                            executionKey = stringValue(c);
+                            executionKey = SectionParse.stringValue(c);
                             c.expect(TokenType.SEMI_COLON);
                         }
                         default -> throw c.error("unknown key '" + key
@@ -1179,11 +1179,20 @@ public final class ServiceSectionGrammar
                         }
                     }
                     c.expect(TokenType.BRACE_CLOSE);
+                    // engine's required-field refusal shape, positioned —
+                    // a bare requireNonNull threw an unlocated NPE here
+                    // (adversarial audit #6)
+                    if (binding == null) {
+                        throw c.error("Field 'binding' is required");
+                    }
+                    if (clazz == null) {
+                        throw c.error("Field 'class' is required");
+                    }
+                    if (rcRuntime == null || rcRuntimeSpan == null) {
+                        throw c.error("Field 'runtime' is required");
+                    }
                     runtimeComponents = new Protocol.PRuntimeComponents(
-                            java.util.Objects.requireNonNull(binding),
-                            java.util.Objects.requireNonNull(clazz),
-                            java.util.Objects.requireNonNull(rcRuntime),
-                            java.util.Objects.requireNonNull(rcRuntimeSpan));
+                            binding, clazz, rcRuntime, rcRuntimeSpan);
                     continue;
                 }
                 default -> throw c.error(
@@ -1332,59 +1341,6 @@ public final class ServiceSectionGrammar
     // Small shared helpers
     // ============================================================
 
-    private static String stringValue(TokenStreamCursor c) {
-        String quoted = c.text();
-        c.expect(TokenType.STRING);
-        return TokenStreamCursor.unquoteAndUnescape(quoted, c);
-    }
 
-    private static Boolean booleanValue(TokenStreamCursor c) {
-        if (c.peek() == TokenType.TRUE) {
-            c.advance();
-            return Boolean.TRUE;
-        }
-        if (c.peek() == TokenType.FALSE) {
-            c.advance();
-            return Boolean.FALSE;
-        }
-        throw c.error("expected true or false, got " + c.safeText());
-    }
-
-    /** One {@code #{ ... }#} island's raw content text. */
-    private static String rawIsland(TokenStreamCursor c) {
-        c.advance();                                // ISLAND_OPEN
-        int bs = c.pos();
-        int depth = 0;
-        while (!c.atEnd()) {
-            TokenType t = c.peek();
-            if (t == TokenType.ISLAND_START) {
-                depth++;                // a NESTED #...{ island opened
-            } else if (t == TokenType.ISLAND_END) {
-                if (depth == 0) {
-                    break;
-                }
-                depth--;
-            }
-            c.advance();
-        }
-        String raw = c.reconstructText(bs, c.pos());
-        c.expect(TokenType.ISLAND_END);
-        return raw;
-    }
-
-    private static void skipBalanced(TokenStreamCursor c, TokenType open,
-            TokenType close) {
-        c.expect(open);
-        int depth = 1;
-        while (!c.atEnd() && depth > 0) {
-            TokenType t = c.peek();
-            if (t == open) {
-                depth++;
-            } else if (t == close) {
-                depth--;
-            }
-            c.advance();
-        }
-    }
 
 }

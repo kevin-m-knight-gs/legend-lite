@@ -82,8 +82,10 @@ public final class DataQualityValidationSectionGrammar
         SourceInfo ctxSecondSpan = null;
         Protocol.PDqTreeNode tree = null;
         com.legend.protocol.spec.ValueSpecification filter = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "context" -> {
@@ -167,8 +169,10 @@ public final class DataQualityValidationSectionGrammar
         c.expect(TokenType.BRACE_OPEN);
         com.legend.protocol.spec.ValueSpecification query = null;
         List<Protocol.PDqRelationCheck> validations = new ArrayList<>();
+        java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys2, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "query" -> query = SectionParse.specToSemicolon(c);
@@ -232,8 +236,10 @@ public final class DataQualityValidationSectionGrammar
         com.legend.protocol.spec.ValueSpecification target = null;
         List<String> keys = new ArrayList<>();
         String strategy = null;
+        java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys3, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "source" -> source = SectionParse.specToSemicolon(c);

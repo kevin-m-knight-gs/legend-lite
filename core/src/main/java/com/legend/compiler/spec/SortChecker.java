@@ -59,11 +59,11 @@ final class SortChecker {
                         "sort direction must be ASC or DESC, got '"
                                 + dir.value() + "' of " + dir.fullPath());
             };
-            return new AppliedFunction(af.function(), List.of(ps.get(0),
+            return af.withParameters(List.of(ps.get(0),
                     new AppliedFunction(fn, List.of(new ColSpec(col.value())))));
         }
         if (ps.size() == 2 && ps.get(1) instanceof CString col) {
-            return new AppliedFunction(af.function(), List.of(ps.get(0),
+            return af.withParameters(List.of(ps.get(0),
                     new AppliedFunction(CoreFn.ASC.parseName(), List.of(new ColSpec(col.value())))));
         }
         if (ps.size() == 2 && ps.get(1) instanceof PureCollection c && !c.values().isEmpty()
@@ -72,7 +72,7 @@ final class SortChecker {
                     .<ValueSpecification>map(v -> new AppliedFunction(CoreFn.ASC.parseName(),
                             List.of(new ColSpec(((CString) v).value()))))
                     .toList();
-            return new AppliedFunction(af.function(), List.of(ps.get(0), new PureCollection(keys)));
+            return af.withParameters(List.of(ps.get(0), new PureCollection(keys)));
         }
         return af;
     }
@@ -94,7 +94,7 @@ final class SortChecker {
                 && pa.parameters().size() == 2
                 && pa.parameters().get(1) instanceof CString al) {
             keyAlias = al.value();
-            af = new AppliedFunction(af.function(), List.of(
+            af = af.withParameters(List.of(
                     af.parameters().get(0), pa.parameters().get(0)));
         }
         Application a = t.checkGeneric(af, env);
@@ -106,7 +106,7 @@ final class SortChecker {
     static TypedSpec sortInfo(Typer t, AppliedFunction af, Env env, boolean ascending) {
         // legacy TDS string key: asc('COL') -> asc(~COL)
         if (af.parameters().size() == 1 && af.parameters().get(0) instanceof CString c) {
-            af = new AppliedFunction(af.function(), List.of(new ColSpec(c.value())));
+            af = af.withParameters(List.of(new ColSpec(c.value())));
         }
         Application a = t.checkGeneric(af, env);
         return new TypedSortInfo(Args.colSpecName(a.args().get(0)), ascending, a.out());
@@ -147,7 +147,7 @@ final class SortChecker {
                 : ascIfBare(keys);
         List<ValueSpecification> params = new ArrayList<>(af.parameters());
         params.set(1, wrapped);
-        return new AppliedFunction(af.function(), params);
+        return af.withParameters(params);
     }
 
     private static ValueSpecification ascIfBare(ValueSpecification vs) {

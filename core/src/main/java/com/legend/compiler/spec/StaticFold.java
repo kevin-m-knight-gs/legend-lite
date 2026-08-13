@@ -147,9 +147,7 @@ final class StaticFold {
                 && ps.get(2) instanceof LambdaFunction elseL) {
             return fold(single(cond ? thenL : elseL), scope);
         }
-        return new AppliedFunction(af.function(),
-                ps.stream().map(p -> fold(p, scope)).toList(),
-                af.candidateFqns());
+        return af.withParameters(ps.stream().map(p -> fold(p, scope)).toList());
     }
 
     // =====================================================================

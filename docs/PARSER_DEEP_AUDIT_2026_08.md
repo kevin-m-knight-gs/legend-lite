@@ -1,5 +1,36 @@
 # Deep audit — legend-lite parser
 
+> **BURN-DOWN STATUS (2026-08-12 evening, merged with
+> PARSER_ADVERSARIAL_AUDIT_2026_08.md's list):** the ranked action list
+> is substantially LANDED. Fix-now items: 1a `&& chain.infix()` +
+> INFIX_FAMILIES deleted (plus flag-preserving `withParameters` across
+> every generic walker — two corpus regressions proved the flag dies in
+> any copier that rebuilds by hand); 1e TailEmitter sealed switch;
+> 1b quote-aware `unquoteSegments`/`splitFqn` + segment unescape;
+> decimals emit `BigDecimal.toString()`; floats DIALECT-SPLIT (CFloat
+> only on the ENGINE wire — PCT's legend-pure reference needs the
+> promotion at PLATFORM/LITE, G6-verified); lexer backslash clamp;
+> projections refuse on strict paths; H4 shift remap deleted (62-bit
+> runtime guard in SQL; the Out-of-Range prefix strip stays, documented,
+> because PCT interval tests need the native text); H2 classify()
+> VERSION-SKEW pardon → `docs/version-skew-claims.tsv` (24 rows,
+> shrink-only adjudication obligations); H5 advisory-SQL ceiling seeded
+> at MEASURED 297 (this doc's 246 counted tests, not diffs); M1
+> OwnCorpus/OwnDialect tests in gate 8 + per-class ran-check (the
+> failIfNoSpecifiedTests flag is REQUIRED by the -am core build — the
+> script now verifies each class ran instead); 1c section-boundary
+> family fixed by engine-true raw sectionizing (line-anchored `###` is a
+> hard stop in every lexer scan loop); `'''` = verbatim
+> `processTextBlock` port; `1e3d` lexes; `[2..1]` carries (record
+> invariant removed — engine's POJO has none); structural: registry is
+> THE routing authority (PmcdParser tables deleted), ruleGroup typed,
+> ~236-line Persistence fossil deleted, Z* probes deleted (44 files),
+> benchmark methodology fixed (comparable work, min-of-3, blackhole).
+> `AdversarialParityTest` (gate 8) pins every divergence family at
+> zero. Remaining open: the SPI eight-point growth (§2c/action 13 — the
+> genuinely large item), full balanced-scan toolkit adoption, composer,
+> Java-8 reactor build. See git history from 47ba9965.
+
 Run 2026-08-12 against `main` @ `f2e8ecb7` (+ one local CI commit), with
 `legend-engine` @ `4.137.0-36-g943d38b3dc2` and oracle jars @ `4.138.2`.
 

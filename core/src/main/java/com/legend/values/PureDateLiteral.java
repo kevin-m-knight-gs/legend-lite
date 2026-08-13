@@ -104,6 +104,59 @@ public sealed interface PureDateLiteral
         }
     }
 
+    /**
+     * COMPONENT-RANGE validation, explicit — the records are dumb carriers
+     * like the engine's ({@code DateFormat} stores digit runs; range
+     * checking is the compiler's). {@link #parse(String)} validates by
+     * default (the platform dialect's rule); the strict drop-in surface
+     * parses with validation OFF because the engine accepts
+     * {@code %2024-02-30} at parse (adversarial audit, oracle-verified).
+     */
+    default void validateComponents() {
+        switch (this) {
+            case Year y -> validateYear(y.year());
+            case YearMonth ym -> {
+                validateYear(ym.year());
+                validateMonth(ym.month());
+            }
+            case StrictDate d -> {
+                validateYear(d.year());
+                validateMonth(d.month());
+                validateDay(d.year(), d.month(), d.day());
+            }
+            case DateWithHour d -> {
+                validateYear(d.year());
+                validateMonth(d.month());
+                validateDay(d.year(), d.month(), d.day());
+                validateHour(d.hour());
+            }
+            case DateWithMinute d -> {
+                validateYear(d.year());
+                validateMonth(d.month());
+                validateDay(d.year(), d.month(), d.day());
+                validateHour(d.hour());
+                validateMinute(d.minute());
+            }
+            case DateWithSecond d -> {
+                validateYear(d.year());
+                validateMonth(d.month());
+                validateDay(d.year(), d.month(), d.day());
+                validateHour(d.hour());
+                validateMinute(d.minute());
+                validateSecond(d.second());
+            }
+            case DateWithSubsecond d -> {
+                validateYear(d.year());
+                validateMonth(d.month());
+                validateDay(d.year(), d.month(), d.day());
+                validateHour(d.hour());
+                validateMinute(d.minute());
+                validateSecond(d.second());
+                validateSubsecond(d.subsecond());
+            }
+        }
+    }
+
     /** This literal's written precision. */
     default Precision precision() {
         return switch (this) {
@@ -141,62 +194,34 @@ public sealed interface PureDateLiteral
     // ---------------------------------------------------------------
 
     record Year(int year) implements PureDateLiteral {
-        public Year { validateYear(year); }
         @Override public String toEngineString() { return Integer.toString(year); }
     }
 
     record YearMonth(int year, int month) implements PureDateLiteral {
-        public YearMonth { validateYear(year); validateMonth(month); }
         @Override public String toEngineString() {
             return String.format("%d-%02d", year, month);
         }
     }
 
     record StrictDate(int year, int month, int day) implements PureDateLiteral {
-        public StrictDate {
-            validateYear(year);
-            validateMonth(month);
-            validateDay(year, month, day);
-        }
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02d", year, month, day);
         }
     }
 
     record DateWithHour(int year, int month, int day, int hour) implements PureDateLiteral {
-        public DateWithHour {
-            validateYear(year);
-            validateMonth(month);
-            validateDay(year, month, day);
-            validateHour(hour);
-        }
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02dT%02d", year, month, day, hour);
         }
     }
 
     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
-        public DateWithMinute {
-            validateYear(year);
-            validateMonth(month);
-            validateDay(year, month, day);
-            validateHour(hour);
-            validateMinute(minute);
-        }
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
         }
     }
 
     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
-        public DateWithSecond {
-            validateYear(year);
-            validateMonth(month);
-            validateDay(year, month, day);
-            validateHour(hour);
-            validateMinute(minute);
-            validateSecond(second);
-        }
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02dT%02d:%02d:%02d",
                     year, month, day, hour, minute, second);
@@ -206,15 +231,6 @@ public sealed interface PureDateLiteral
     record DateWithSubsecond(int year, int month, int day,
                              int hour, int minute, int second,
                              String subsecond) implements PureDateLiteral {
-        public DateWithSubsecond {
-            validateYear(year);
-            validateMonth(month);
-            validateDay(year, month, day);
-            validateHour(hour);
-            validateMinute(minute);
-            validateSecond(second);
-            validateSubsecond(subsecond);
-        }
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02dT%02d:%02d:%02d.%s",
                     year, month, day, hour, minute, second, subsecond);
@@ -238,6 +254,21 @@ public sealed interface PureDateLiteral
      * @param source body without leading {@code %}; never null/empty
      */
     static PureDateLiteral parse(String source) {
+        return parse(source, true);
+    }
+
+    /** {@link #parse(String)} with component-range validation optional —
+     *  see {@link #validateComponents()}. Structural/syntax errors always
+     *  refuse. */
+    static PureDateLiteral parse(String source, boolean validateComponents) {
+        PureDateLiteral result = parseRaw(source);
+        if (validateComponents) {
+            result.validateComponents();
+        }
+        return result;
+    }
+
+    private static PureDateLiteral parseRaw(String source) {
         Objects.requireNonNull(source, "source");
         if (source.isEmpty()) {
             throw new IllegalArgumentException("empty date literal");

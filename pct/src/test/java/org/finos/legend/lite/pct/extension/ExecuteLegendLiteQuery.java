@@ -1034,14 +1034,17 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
     private static String remapErrorMessage(String message) {
         if (message == null) return null;
-        if ((message.contains("shift value") && message.contains("is out of range"))
-                || message.contains("Overflow in left shift")
-                || message.contains("Overflow in right shift")) {
-            return "Unsupported number of bits to shift - max bits allowed is 62";
-        }
-        // DuckDB wraps raised errors in a transport prefix ('Invalid Input
-        // Error: <ours>') — strip the CLASS prefix so the message our SQL
-        // guards raised (error('Cannot divide 5 by zero')) surfaces verbatim.
+        // The shift-message remap is DELETED (deep-audit H4: it returned
+        // the PCT expectation verbatim for ANY shift error, so the tests
+        // could never detect the real boundary). The 62-bit bound now
+        // guards AT RUNTIME in the lowering (Scalars bit-shift rule), so
+        // the database raises pure's own message.
+        //
+        // The prefix strip covers DuckDB's transport prefixes on raised
+        // and native errors. KNOWN WEAKNESS (deep-audit H4 second half,
+        // kept deliberately: PCT interval tests depend on the native
+        // Out-of-Range text surfacing bare): the strip erases the error
+        // CLASS, so class-confusions can compare equal.
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("^(?:Invalid Input Error|Out of Range Error|Conversion Error): (.*)$",
                         java.util.regex.Pattern.DOTALL)

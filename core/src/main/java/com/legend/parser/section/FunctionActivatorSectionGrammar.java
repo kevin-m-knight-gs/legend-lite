@@ -39,6 +39,14 @@ public final class FunctionActivatorSectionGrammar
         this.kinds = kinds;
     }
 
+    /** The censused activator kinds this section admits — read by
+     *  PmcdParser's registry-routed dispatch (SectionCatalog step: the
+     *  document surface previously merged ALL kind sets, accepting
+     *  MemSqlFunction inside ###Snowflake — adversarial audit #18). */
+    public Set<String> kinds() {
+        return kinds;
+    }
+
     @Override
     public String name() {
         return section;
@@ -126,13 +134,15 @@ public final class FunctionActivatorSectionGrammar
         String actConn = null;
         com.legend.protocol.SourceInfo actConnSpan = null;
 
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             if (STRING_KEYS.contains(key)) {
-                scalars.put(key, stringValue(c));
+                scalars.put(key, SectionParse.stringValue(c));
             } else if (BOOLEAN_KEYS.contains(key)) {
-                booleans.put(key, booleanValue(c));
+                booleans.put(key, SectionParse.booleanValue(c));
             } else if ("function".equals(key)) {
                 // the SHARED pointer-site scan (TokenStreamCursor
                 // #parseFunctionDescriptor); this site renders the raw
@@ -151,7 +161,7 @@ public final class FunctionActivatorSectionGrammar
                     if (!"identifier".equals(ik)) {
                         throw c.error("unknown Deployment key: " + ik);
                     }
-                    ownerId = stringValue(c);
+                    ownerId = SectionParse.stringValue(c);
                 } else if ("UserList".equals(oKind)) {
                     if (!"users".equals(ik)) {
                         throw c.error("unknown UserList key: " + ik);
@@ -159,7 +169,7 @@ public final class FunctionActivatorSectionGrammar
                     userListUsers = new ArrayList<>();
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE) {
-                        userListUsers.add(stringValue(c));
+                        userListUsers.add(SectionParse.stringValue(c));
                         if (!c.match(TokenType.COMMA)) {
                             break;
                         }
@@ -220,23 +230,7 @@ public final class FunctionActivatorSectionGrammar
                 actConnSpan, c.spanOf(declStart, c.pos() - 1));
     }
 
-    private static String stringValue(TokenStreamCursor c) {
-        String quoted = c.text();
-        c.expect(TokenType.STRING);
-        return TokenStreamCursor.unquoteAndUnescape(quoted, c);
-    }
 
-    private static Boolean booleanValue(TokenStreamCursor c) {
-        if (c.peek() == TokenType.TRUE) {
-            c.advance();
-            return Boolean.TRUE;
-        }
-        if (c.peek() == TokenType.FALSE) {
-            c.advance();
-            return Boolean.FALSE;
-        }
-        throw c.error("expected true or false, got " + c.safeText());
-    }
 
     /** A minimal cursor over a re-lexed slice for the SPI feed. */
     private static final class SliceCursor implements TokenStreamCursor {

@@ -55,7 +55,13 @@ public final class FileGenerationSectionGrammar
         String kind = c.safeText();
         SourceInfo typeSpan = c.spanOf(declStart, declStart);
         c.advance();
-        c.parseDecorations();
+        // the engine's FileGeneration grammar admits NO decorations
+        // (probed live 2026-08-12: Unexpected token '<'); the old
+        // parse-and-discard silently dropped them — refuse like the engine
+        if (c.peek() == com.legend.lexer.TokenType.LESS_THAN
+                || c.peek() == com.legend.lexer.TokenType.BRACE_OPEN) {
+            throw c.error("Unexpected token '" + c.safeText() + "'");
+        }
         String qn = Protocol.unquotePath(c.parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);

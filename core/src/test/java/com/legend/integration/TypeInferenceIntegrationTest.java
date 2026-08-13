@@ -3203,6 +3203,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testBigFloatAbs() throws SQLException {
                 // |abs(-123456789123456789.99) == 123456789123456789.99
+                // PLATFORM dialect: legend-pure semantics — precision-
+                // preserving promotion (the PCT reference asserts the exact
+                // digits). The ENGINE surface is CFloat/double; see
+                // SpecParserTest.floatExceedingDoublePrecisionIsDialectSplit.
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|meta::pure::functions::math::abs(-123456789123456789.99)",

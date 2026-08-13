@@ -75,8 +75,10 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
         String level = null;
         String action = null;
         Protocol.PBsonSchema schema = null;
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (c.peek() != TokenType.PAREN_CLOSE) {
             String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "validationLevel" -> level = c.parseIdentifier();
