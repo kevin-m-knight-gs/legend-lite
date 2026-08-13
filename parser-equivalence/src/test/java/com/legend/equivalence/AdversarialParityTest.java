@@ -260,4 +260,24 @@ class AdversarialParityTest {
                         + "###Connection\nRelationalDatabaseConnection a::c\n{\n  store: a::db;\n  type: H2;\n  specification: LocalH2 {};\n  specification: LocalH2 {};\n  auth: DefaultH2;\n}\n")),
                 0);
     }
+    @Test
+    void operatorPrecedenceSweep() {
+        // THE 512-expression sweep (08-05 audit §1: 170/512 DIFF, invisible
+        // to every gate — the corpus contains none of these shapes). Now a
+        // permanent family: every 1 op 2 op 3 op 4 combination over the
+        // eight operator spellings, verdict- AND byte-compared.
+        String[] ops = {"+", "-", "*", "/", "<", "==", "&&", "||"};
+        List<Row> rows = new ArrayList<>();
+        for (String a : ops) {
+            for (String b : ops) {
+                for (String c : ops) {
+                    String expr = "1 " + a + " 2 " + b + " 3 " + c + " 4";
+                    rows.add(new Row(expr,
+                            "###Pure\nfunction f::f(): Any[*]\n{\n  "
+                                    + expr + ";\n}\n"));
+                }
+            }
+        }
+        runFamily("operator-precedence-sweep", rows, 0);
+    }
 }

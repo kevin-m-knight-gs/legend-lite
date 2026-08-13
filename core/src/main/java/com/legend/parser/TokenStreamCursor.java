@@ -1116,8 +1116,10 @@ public interface TokenStreamCursor {
      *  leniency cannot survive in one grammar after dying in another. */
     default void validateJoinType(String joinType) {
         if (!"INNER".equals(joinType) && !"OUTER".equals(joinType)) {
-            throw error("Unsupported join type '" + joinType
-                    + "'. The supported join types are: [INNER, OUTER]");
+            // ENGINE-VERBATIM (message-parity gate 2026-08-13): the thrown
+            // message is the bare form — the "supported join types are"
+            // suffix lite carried does not appear on the 4.138.2 wire
+            throw error("Unsupported join type '" + joinType + "'");
         }
     }
 
