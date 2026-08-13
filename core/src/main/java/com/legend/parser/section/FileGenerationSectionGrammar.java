@@ -87,6 +87,16 @@ public final class FileGenerationSectionGrammar
             }
             c.expect(TokenType.COLON);
             if ("scopeElements".equals(key)) {
+                if (c.peek() != TokenType.BRACKET_OPEN) {
+                    // a non-canonical value shape parses as a CONFIG
+                    // PROPERTY in the engine grammar; the walker then
+                    // refuses the reserved name at the ELEMENT (probed
+                    // reprobe pins #8/#10)
+                    throw com.legend.parser.TokenStreamCursor.throwAt(
+                            c.tokens(), declStart,
+                            "Can't have config property with reserved name '"
+                            + key + "'");
+                }
                 c.expect(TokenType.BRACKET_OPEN);
                 while (c.peek() != TokenType.BRACKET_CLOSE) {
                     scopeElements.add(Protocol.unquotePath(
@@ -100,6 +110,12 @@ public final class FileGenerationSectionGrammar
                 continue;
             }
             if ("generationOutputPath".equals(key)) {
+                if (c.peek() != TokenType.STRING) {
+                    throw com.legend.parser.TokenStreamCursor.throwAt(
+                            c.tokens(), declStart,
+                            "Can't have config property with reserved name '"
+                            + key + "'");
+                }
                 outputPath = SectionParse.stringValue(c);
                 c.expect(TokenType.SEMI_COLON);
                 continue;

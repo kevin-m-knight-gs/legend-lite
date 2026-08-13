@@ -481,13 +481,29 @@ public final class Protocol {
         }
     }
 
-    /** One stub: requestPattern (method + url) and a responseDefinition
-     *  whose body is an externalFormat blob. */
-    public record PServiceStub(String method, String url,
+    /** One stub: requestPattern (method + optional url/urlPath/params/
+     *  bodyPatterns) and a responseDefinition whose body is an
+     *  externalFormat blob (the engine parses ANY embedded data there and
+     *  refuses non-ExternalFormat AFTER the parse). */
+    public record PServiceStub(String method, @com.legend.Nullable String url,
+                               @com.legend.Nullable String urlPath,
+                               @com.legend.Nullable List<PStubParam> queryParams,
+                               @com.legend.Nullable List<PStubParam> headerParams,
+                               @com.legend.Nullable List<PStringValuePattern> bodyPatterns,
                                com.legend.protocol.SourceInfo requestSpan,
                                PExternalFormatData body,
                                com.legend.protocol.SourceInfo responseSpan,
                                com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A named request-parameter pattern ({@code name: EqualTo #{...}#}). */
+    public record PStubParam(String name, PStringValuePattern pattern) {
+    }
+
+    /** {@code EqualTo #{ expected: '...'; }#} — wire
+     *  {@code {_type:"equalTo"|"equalToJson", expectedValue}} (the engine's
+     *  two registered contentPattern extensions). */
+    public record PStringValuePattern(String type, String expectedValue) {
     }
 
     /** {@code Relational #{ schema.table: 'csv' + 'csv'; }#} —

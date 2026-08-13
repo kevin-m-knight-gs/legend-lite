@@ -3031,7 +3031,8 @@ public final class SpecParser implements TokenStreamCursor {
         String contentText = content.toString().trim();
 
         ValueSpecification result = switch (dslType) {
-            case "" -> wrapGraphFetch(parseGraphFetchTree(contentText), islandStart, pos - 1);
+            case "" -> wrapGraphFetch(
+                    parseGraphFetchTree(contentText, islandStart), islandStart, pos - 1);
             // Engine convention (ProbeWireShapes "burn zoo 2" tref): the classInstance
             // spans the whole #>{...}# literal.
             case ">" -> parseTableReference(contentText, spanOf(islandStart, pos - 1));
@@ -3188,18 +3189,37 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
 
-    private ValueSpecification parseGraphFetchTree(String content) {
+    private ValueSpecification parseGraphFetchTree(String content,
+            int islandStart) {
         TokenStream innerTokens = Lexer.tokenize(content);
         SpecParser inner = new SpecParser(innerTokens, "", dialect);
-        inner.parseQualifiedName();          // skip root class name
-        ValueSpecification tree = inner.parseGraphDefinition(0);
-        if (!inner.atEnd()) {
-            // LOUD: #{Person {name} GARBAGE}# previously dropped GARBAGE
-            // silently (audit M8c).
-            throw inner.error("trailing content after graph-fetch tree: '"
-                    + inner.safeText() + "'");
+        try {
+            inner.parseQualifiedName();          // skip root class name
+            ValueSpecification tree = inner.parseGraphDefinition(0);
+            if (!inner.atEnd()) {
+                // LOUD: #{Person {name} GARBAGE}# previously dropped
+                // GARBAGE silently (audit M8c).
+                throw inner.error("trailing content after graph-fetch tree: '"
+                        + inner.safeText() + "'");
+            }
+            return tree;
+        } catch (com.legend.parser.ParseException e) {
+            // the content is RE-LEXED from a reconstructed string, so
+            // inner positions start at 1:1 — compose the island's base
+            // position back in (reprobe: a tree error surfaced at 1:17
+            // inside a line-14 document)
+            int baseTok = Math.min(islandStart + 1, tokens.count() - 1);
+            int baseLine = tokens.startLine(baseTok);
+            int baseCol = tokens.startColumn(baseTok);
+            String raw = String.valueOf(e.getMessage());
+            String prefix = "[" + e.line() + ":" + e.column() + "] ";
+            if (raw.startsWith(prefix)) {
+                raw = raw.substring(prefix.length());
+            }
+            throw new com.legend.parser.ParseException(raw,
+                    baseLine + e.line() - 1,
+                    e.line() <= 1 ? baseCol + e.column() - 1 : e.column());
         }
-        return tree;
     }
 
     /**

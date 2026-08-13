@@ -36,7 +36,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return dialect.refusesPlatformDialect();
     }
 
-    private MappingProtocolParser(TokenStream tokens, int pos,
+    MappingProtocolParser(TokenStream tokens, int pos,
             Dialect dialect) {
         this.tokens = tokens;
         this.pos = pos;
@@ -210,7 +210,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return v;
     }
 
-    private Protocol.PEmbeddedDataValue parseEmbeddedValue() {
+    Protocol.PEmbeddedDataValue parseEmbeddedValue() {
         // 'Relational' is a LEXER KEYWORD, the rest lex as identifiers
         if (peek() == TokenType.RELATIONAL) {
             return parseRelationalCsv();
@@ -278,7 +278,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             List<Protocol.PServiceStub> stubs = new ArrayList<>();
             inner.expect(TokenType.BRACKET_OPEN);
             while (inner.peek() != TokenType.BRACKET_CLOSE && !inner.atEnd()) {
-                stubs.add(inner.parseServiceStub());
+                stubs.add(ServiceStubDataParser.parseServiceStub(inner));
                 inner.match(TokenType.COMMA);
             }
             inner.expect(TokenType.BRACKET_CLOSE);
@@ -2559,8 +2559,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             Protocol.PModelData entry) {
         for (Protocol.PModelData d : seen) {
             if (d.model().equals(entry.model())) {
-                throw error("Multiple entries found for type: '"
-                        + entry.model() + "'");
+                // anchored at the DUPLICATE entry (reprobe pin #10)
+                throw new com.legend.parser.ParseException(
+                        "Multiple entries found for type: '"
+                        + entry.model() + "'",
+                        entry.sourceInformation().startLine(),
+                        entry.sourceInformation().startColumn());
             }
         }
     }
@@ -2771,71 +2775,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  "servicestore-data" + the corpus DIFF that corrected it):
      *  request/response run their KEYWORD through the closing {@code ;};
      *  the stub spans its braces exactly. */
-    private Protocol.PServiceStub parseServiceStub() {
-        int sTok = pos;
-        expect(TokenType.BRACE_OPEN);
-        String method = null;
-        String url = null;
-        SourceInfo requestSpan = null;
-        Protocol.PExternalFormatData body = null;
-        SourceInfo responseSpan = null;
-        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            int keyTok = pos;
-            String key = parseIdentifier();
-            expect(TokenType.COLON);
-            if ("request".equals(key)) {
-                expect(TokenType.BRACE_OPEN);
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String rk = parseIdentifier();
-                    expect(TokenType.COLON);
-                    if ("method".equals(rk)) {
-                        method = parseIdentifier();
-                        if (!"GET".equals(method) && !"POST".equals(method)) {
-                            // engine-verbatim (embedded-data pin #12)
-                            throw error("Unsupported HTTP Method type - "
-                                    + method
-                                    + ". Supported types are - GET,POST");
-                        }
-                    } else if ("url".equals(rk)) {
-                        url = consumeStringLiteral("'url'");
-                    } else {
-                        throw error("unknown service-stub request key: " + rk);
-                    }
-                    expect(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);
-                requestSpan = spanOf(keyTok, pos - 1);
-            } else if ("response".equals(key)) {
-                expect(TokenType.BRACE_OPEN);
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String rk = parseIdentifier();
-                    expect(TokenType.COLON);
-                    if (!"body".equals(rk)) {
-                        throw error("unknown service-stub response key: " + rk);
-                    }
-                    body = parseExternalFormat();
-                    expect(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);
-                responseSpan = spanOf(keyTok, pos - 1);
-            } else {
-                throw error("unknown service-stub key: " + key);
-            }
-        }
-        int closeTok = pos;
-        expect(TokenType.BRACE_CLOSE);
-        if (method == null || url == null || requestSpan == null
-                || body == null || responseSpan == null) {
-            throw TokenStreamCursor.throwAt(tokens, sTok,
-                    "a service stub needs request {method; url;} and"
-                    + " response {body;}");
-        }
-        return new Protocol.PServiceStub(method, url, requestSpan, body,
-                responseSpan, spanOf(sTok, closeTok));
-    }
-
     /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —
      *  span ExternalFormat..}#. */
     private Protocol.PExternalFormatData parseExternalFormat() {
@@ -2878,10 +2817,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  arrives as raw chunks; same emulation as the merge getText
      *  reparse). Nested islands re-lex recursively through the SAME
      *  machinery. */
-    private record IslandBlock(TokenStream tokens, int endLine,
+    record IslandBlock(TokenStream tokens, int endLine,
             int endColumn, int contentStart, int contentEnd) { }
 
-    private IslandBlock readIsland() {
+    IslandBlock readIsland() {
         expect(TokenType.ISLAND_OPEN);
         int contentStart = tokens.start(pos);
         int depth = 0;
