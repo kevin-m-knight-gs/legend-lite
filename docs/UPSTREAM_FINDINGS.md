@@ -542,6 +542,59 @@ than any of the three individually.
 
 ---
 
+## F14 — `groupBy` on an enum-mapped column groups by the SOURCE CODE, not the value
+
+**Severity: silent wrong answer, and BOTH engines have it.** A rollup returns two rows
+with the SAME key. Every downstream total is wrong and nothing errors.
+
+The generated SQL says it plainly (legend-lite's, but legend-engine's result is identical):
+
+```sql
+SELECT ..., CASE WHEN t0.SIDE = 'B' OR t0.SIDE = 'BOT' THEN 'BUY'
+                 ELSE CASE WHEN t0.SIDE = 'S' THEN 'SELL' ELSE NULL END END AS side,
+       SUM(...) AS totalGross
+FROM TRADE AS t0
+GROUP BY t1.NAME, t2.REGION, t0.SIDE, ...
+                              ^^^^^^^ the RAW column, not the translated expression
+```
+
+The SELECT translates the code; the GROUP BY does not. Any two source codes mapping to
+one enum value therefore produce two groups carrying the same displayed key.
+
+Minimized (`scripts/corpus/repro/groupby-enum/`) — three trades, a many-to-one mapping,
+one aggregate:
+
+```
+BUY: ['B', 'BOT'],  SELL: ['S']
+
+T1,B,100.0
+T2,BOT,200.0
+T3,S,300.0
+```
+
+```
+expected: [ {"side":"BUY","total":300.0}, {"side":"SELL","total":300.0} ]
+actual:   [ {"side":"BUY","total":100.0}, {"side":"SELL","total":300.0},
+            {"side":"BUY","total":200.0} ]
+```
+
+Two rows keyed `"BUY"`. No reading of `groupBy` permits duplicate keys in the result.
+
+**Only reachable with a many-to-one enum mapping.** With a one-to-one mapping, grouping by
+the code and grouping by the value partition identically and the bug is invisible — which
+is presumably why it has survived. The corpus has `BUY: ['B', 'BOT']` because a legacy
+feed code collapsing onto a current one is realistic (seed property A13); it was seeded
+before there was any groupBy to break.
+
+**Found by combination, and only catchable by the oracle.** Both engines agree with each
+other, so the cross-engine differential reports them as matching each other and diverging
+from the reference — exactly the blind spot recorded when the differential was built. This
+is the first finding to land in it.
+
+Quarantined as `stress::F32_TradeRollupEverything`.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is

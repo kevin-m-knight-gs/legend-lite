@@ -1,0 +1,91 @@
+Enum demo::Side
+{
+  BUY,
+  SELL
+}
+
+Class demo::Trade
+{
+  id: String[1];
+  side: demo::Side[1];
+  notional: Float[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table TRADE (ID VARCHAR(20) PRIMARY KEY, SIDE VARCHAR(10), NOTIONAL DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  // MANY-TO-ONE: two source codes mean BUY. 'BOT' is a legacy feed code.
+  demo::Side: EnumerationMapping SideMap
+  {
+    BUY: ['B', 'BOT'],
+    SELL: ['S']
+  }
+
+  demo::Trade: Relational {
+    ~mainTable [demo::DB] TRADE
+    id: [demo::DB] TRADE.ID,
+    side: EnumerationMapping SideMap: [demo::DB] TRADE.SIDE,
+    notional: [demo::DB] TRADE.NOTIONAL
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.TRADE:
+      'ID,SIDE,NOTIONAL\n' +
+      'T1,B,100.0\n' +
+      'T2,BOT,200.0\n' +
+      'T3,S,300.0\n';
+  }#
+}
+
+###Service
+Service demo::GroupByEnum
+{
+  pattern: '/groupByEnum';
+  documentation: 'T1 and T2 both map to BUY, so there must be exactly TWO groups: BUY=300, SELL=300.';
+  execution: Single
+  {
+    query: |demo::Trade.all()
+      ->project(~[side:x|$x.side, notional:x|$x.notional])
+      ->groupBy(~[side], ~[total: x|$x.notional : agg|$agg->sum()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"side":"BUY","total":300.0},{"side":"SELL","total":300.0}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

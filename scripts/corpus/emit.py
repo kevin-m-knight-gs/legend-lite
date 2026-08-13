@@ -214,6 +214,15 @@ def query_text(spec: Spec) -> str:
         for i, col in enumerate(cols):
             lines.append(f"            {col}" + ("," if i < len(cols) - 1 else ""))
         lines.append("        ])")
+    if spec.group_by:
+        keys = ", ".join(spec.group_by)
+        # The aggregate list is BRACKETED. The bare `~name: ... : ...` form parses only
+        # with a SINGLE aggregate; with two it builds a colSpec whose function is null and
+        # fails with "colSpec.function1 is null".
+        parts = ",\n            ".join(
+            f"{name}: {VAR}|${VAR}.{src} : agg|$agg->{fn}()"
+            for name, src, fn in spec.aggs)
+        lines.append(f"        ->groupBy(~[{keys}], ~[\n            {parts}\n        ])")
     if spec.sort:
         alias, desc = spec.sort
         lines.append(f"        ->sort(~{alias}->{'descending' if desc else 'ascending'}())")

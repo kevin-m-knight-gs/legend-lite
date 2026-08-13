@@ -82,6 +82,14 @@ class Spec:
     # ("Non TDS return type not supported for Model Connections"), so an M2M service must
     # use the legacy form. See docs/UPSTREAM_FINDINGS.md F11.
     paradigm: str = "relation"
+    # Query-level aggregation, applied AFTER project and BEFORE sort/limit.
+    #   group_by  aliases of the projected columns to group on
+    #   aggs      (result alias, source alias, 'count'|'sum'|'max'|'min')
+    # Only the keys and the aggregates survive; every other projected column is dropped,
+    # which is what groupBy means and a common way to write a query that silently loses
+    # a column you thought you were selecting.
+    group_by: list = field(default_factory=list)
+    aggs: list = field(default_factory=list)
 
     @property
     def short(self) -> str:
@@ -99,6 +107,8 @@ _FUNCCALL = re.compile(r"^(\w+)\s*:\s*(\w+)\s*\|\s*\$\2->([\w:]+)\(([^)]*)\)$")
 _FILTER = re.compile(r"->filter\(\s*\{\s*(\w+)\s*\|(.*?)\}\s*\)", re.S)
 _SORT = re.compile(r"->sort\(\s*~(\w+)->(\w+)\(\)\s*\)")
 _LIMIT = re.compile(r"->limit\(\s*(\d+)\s*\)")
+_GROUPBY = re.compile(r"->groupBy\(~\[([^\]]*)\],\s*~\[(.*?)\]\s*\)", re.S)
+_AGGSPEC = re.compile(r"(\w+):\s*(\w+)\|\$\2\.(\w+)\s*:\s*agg\|\$agg->(\w+)\(\)")
 _COND = re.compile(r"\$(\w+)\.([\w.]+)\s*(==|!=|<=|>=|<|>)\s*(.+)")
 
 
@@ -285,6 +295,11 @@ def _finish(name: str, body: str) -> Spec:
         if d not in ("ascending", "descending"):
             raise ValueError(f"unhandled sort direction {d}")
         s.sort = (so.group(1), d == "descending")
+    gb = _GROUPBY.search(body)
+    if gb:
+        s.group_by = [k.strip() for k in gb.group(1).split(",") if k.strip()]
+        s.aggs = [(m.group(1), m.group(3), m.group(4))
+                  for m in _AGGSPEC.finditer(gb.group(2))]
     li = _LIMIT.search(body)
     if li:
         s.limit = int(li.group(1))

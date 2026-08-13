@@ -83,7 +83,10 @@ def normalise(v, kind: str) -> str:
 def expected_text(c: model.Corpus, spec, TABLES) -> str:
     rows = oracle.evaluate(c, spec, TABLES)
     kinds = oracle.kinds(c, spec)
-    aliases = [p.alias for p in spec.projections]
+    # After a groupBy only the keys and aggregates survive; the other projected columns
+    # are gone, so the header must follow the RESULT shape, not the projection list.
+    aliases = ([*spec.group_by, *(name for name, _, _ in spec.aggs)]
+               if spec.group_by else [p.alias for p in spec.projections])
     head = "|".join(f"{a}:{kinds[a]}" for a in aliases)
     # Sorted, because EqualToJson compares unordered and the SQL carries no ORDER BY
     # unless the query asked for one; row order is not part of the claim.

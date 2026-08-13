@@ -450,6 +450,16 @@ STACK = [
           [("grossGbp", "grossAmountIn", [0.79]),
            ("grossEur", "grossAmountIn", [0.92])]),
 
+    _spec(32, "TradeRollupEverything", "trading::Trade",
+          "The widest stack in the corpus: a two-condition filter, a 3-hop navigation, an "
+          "enum-mapped column and a FUNCTION result used as GROUP KEYS, a derived "
+          "property used as an aggregate SOURCE, count and sum, a sort and a limit. Ten "
+          "features in one query, and the aggregates must decompose to the ungrouped "
+          "totals.",
+          [("bookName", "book.name"), ("deskRegion", "book.desk.region"),
+           ("side", "side"), ("notional", "notional"), ("gross", "grossAmount")],
+          []),
+
     _spec(31, "TradeRules", "trading::Trade",
           "Standalone FUNCTIONS called extension-style, alongside the columns they are "
           "computed from. isBuy reads an ENUM inside a function body -- a different path "
@@ -461,8 +471,22 @@ STACK = [
           []),
 ]
 
+# F32: a function result as a GROUP KEY -- a boolean partition of the trades computed by
+# a shared rule rather than read from a column.
+_F32 = next(s for s in STACK if s.short.startswith("F32_"))
+_F32.projections.append(Proj("isLarge", [], None, [], "stress::rules::isLargeTrade"))
+_F32.filters = [Pred(["status"], "==", "EXECUTED"), Pred(["quantity"], ">", 500.0)]
+_F32.group_by = ["bookName", "deskRegion", "side", "isLarge"]
+_F32.aggs = [("tradeCount", "notional", "count"), ("totalGross", "gross", "sum"),
+             ("maxNotional", "notional", "max")]
+_F32.sort = ("bookName", False)
+_F32.limit = 20
+
 # Functions are a distinct projection kind, so they are attached after construction.
-STACK[1].projections += [
+# Referenced BY NAME, not by index: inserting F32 into the list silently moved STACK[1]
+# from F31 to F32 and the function projections landed on the wrong service.
+_by_name = {s.short.split("_")[0]: s for s in STACK}
+_by_name["F31"].projections += [
     Proj("isLarge", [], None, [], "stress::rules::isLargeTrade"),
     Proj("isBuy", [], None, [], "stress::rules::isBuy"),
     Proj("over1m", [], None, [1000000.0], "stress::rules::exceeds"),
@@ -471,7 +495,7 @@ STACK[1].projections += [
 ]
 # One function call on the deep stack too, so it is exercised in combination rather than
 # only in isolation.
-STACK[0].projections.append(
+_by_name["F30"].projections.append(
     Proj("isLarge", [], None, [], "stress::rules::isLargeTrade"))
 STACK[0].filters = [Pred(["status"], "==", "EXECUTED"),
                     Pred(["quantity"], ">", 500.0)]

@@ -76,6 +76,72 @@ Service stress::F30_TradeEverything
   ]
 }
 
+Service stress::F32_TradeRollupEverything
+{
+    pattern: '/stress/f32';
+    documentation: 'The widest stack in the corpus: a two-condition filter, a 3-hop navigation, an enum-mapped column and a FUNCTION result used as GROUP KEYS, a derived property used as an aggregate SOURCE, count and sum, a sort and a limit. Ten features in one query, and the aggregates must decompose to the ungrouped totals.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.status == 'EXECUTED') && ($x.quantity > 500.0)})
+        ->project(~[
+            bookName:x|$x.book.name,
+            deskRegion:x|$x.book.desk.region,
+            side:x|$x.side,
+            notional:x|$x.notional,
+            gross:x|$x.grossAmount,
+            isLarge:x|$x->stress::rules::isLargeTrade()
+        ])
+        ->groupBy(~[bookName, deskRegion, side, isLarge], ~[
+            tradeCount: x|$x.notional : agg|$agg->count(),
+            totalGross: x|$x.gross : agg|$agg->sum(),
+            maxNotional: x|$x.notional : agg|$agg->max()
+        ])
+        ->sort(~bookName->ascending())
+        ->limit(20);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    F32_TradeRollupEverything_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookName":"EMEA Cash Equity","deskRegion":"Americas","side":"SELL","isLarge":false,"tradeCount":1,"totalGross":171250.0,"maxNotional":171250.0},{"bookName":"EMEA Cash Equity","deskRegion":"Americas","side":"BUY","isLarge":false,"tradeCount":1,"totalGross":69000.0,"maxNotional":69000.0},{"bookName":"EMEA Cash Equity","deskRegion":"Americas","side":"BUY","isLarge":true,"tradeCount":1,"totalGross":264600.0,"maxNotional":264600.0},{"bookName":"EMEA Cash Equity","deskRegion":"Americas","side":"SELL","isLarge":true,"tradeCount":1,"totalGross":385000.0,"maxNotional":385000.0},{"bookName":"US Cash Equity","deskRegion":"Americas","side":"BUY","isLarge":false,"tradeCount":2,"totalGross":440500.0,"maxNotional":250000.0},{"bookName":"US Cash Equity","deskRegion":"Americas","side":"BUY","isLarge":true,"tradeCount":3,"totalGross":1257500.0,"maxNotional":498000.0},{"bookName":"US Cash Equity","deskRegion":"Americas","side":"SELL","isLarge":false,"tradeCount":1,"totalGross":250000.0,"maxNotional":250000.0},{"bookName":"Volatility Arb","deskRegion":"EMEA","side":"BUY","isLarge":false,"tradeCount":1,"totalGross":250000.0,"maxNotional":250000.0},{"bookName":"Volatility Arb","deskRegion":"EMEA","side":"BUY","isLarge":true,"tradeCount":2,"totalGross":6872500.0,"maxNotional":4912500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F31_TradeRules
 {
     pattern: '/stress/f31';

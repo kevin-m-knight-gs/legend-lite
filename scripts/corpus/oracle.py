@@ -459,6 +459,30 @@ def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[d
     return [_graph(c, data, r, spec.root, spec.graph) for r in base]
 
 
+def _group(spec: Spec, rows: list[dict]) -> list[dict]:
+    """Group the PROJECTED rows. Keys and aggregates survive; everything else is dropped.
+
+    count() here counts NON-NULL values of its source column, matching SQL's COUNT(col)
+    rather than COUNT(*) — the distinction that F6 turns on.
+    """
+    groups: dict[tuple, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(tuple(r[k] for k in spec.group_by), []).append(r)
+    out = []
+    for key, members in groups.items():
+        row = dict(zip(spec.group_by, key))
+        for name, src, fn in spec.aggs:
+            vals = [m[src] for m in members if m[src] is not None]
+            row[name] = (len(vals) if fn == "count"
+                         else sum(vals) if fn == "sum"
+                         else max(vals) if fn == "max"
+                         else min(vals) if fn == "min" else None)
+            if fn != "count" and not vals:
+                row[name] = None
+        out.append(row)
+    return out
+
+
 def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     if spec.graph is not None:
         return evaluate_graph(c, spec, data)
@@ -479,6 +503,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
             for p in spec.projections}
            for r in kept]
 
+    if spec.group_by:
+        out = _group(spec, out)
     if spec.sort:
         alias, desc = spec.sort
         # NULLs sort last ascending / first descending is dialect-dependent, so a case
@@ -518,6 +544,17 @@ def render(value, kind: str):
 
 
 def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
+    out = {}
+    if spec.group_by:
+        base = _kinds_of_projections(c, spec)
+        k = {a: base[a] for a in spec.group_by}
+        for name, src, fn in spec.aggs:
+            k[name] = "int" if fn == "count" else base[src]
+        return k
+    return _kinds_of_projections(c, spec)
+
+
+def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
     out = {}
     for p in spec.projections:
         if p.agg == "count":

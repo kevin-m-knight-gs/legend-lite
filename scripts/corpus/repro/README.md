@@ -60,3 +60,8 @@ Each directory is the smallest model that reproduces a finding in
     #   Ada -> "Cached Inc"     Grace -> null            (never falls back)
     java -cp $CP perf.TestableMain $D/model.pure $D/graph.pure --testable=demo::OtherwiseGraph
     #   Ada -> "Real Firm Ltd"  Grace -> "Real Firm Ltd" (never uses the cache)
+
+    # F14 -- groupBy on an enum-mapped column groups by the SOURCE CODE. Both engines.
+    D=../../scripts/corpus/repro/groupby-enum
+    java -cp $CP perf.TestableMain $D/model.pure --testable=demo::GroupByEnum
+    # two rows both keyed "BUY" (100.0 and 200.0) instead of one BUY=300.0

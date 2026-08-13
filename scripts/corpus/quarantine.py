@@ -42,10 +42,17 @@ ENGINE_QUARANTINE["stress::M2_CanonicalWithEnum"] = (
 ENGINE_QUARANTINE["stress::O1_CounterpartyOtherwise"] = (
     "F13", "Otherwise never falls back under TDS projection")
 
-# legend-lite currently agrees with the reference evaluator on every service, including
-# all seven fan-out ones. That is not an accident of coverage — it is what makes F6 a
-# legend-engine defect rather than an oracle error.
-LITE_QUARANTINE: dict[str, tuple[str, str]] = {}
+ENGINE_QUARANTINE["stress::F32_TradeRollupEverything"] = (
+    "F14", "groupBy on an enum-mapped column groups by the source code, not the value")
+
+# legend-lite agrees with the reference evaluator on every service EXCEPT F32, where it
+# shares F14 with legend-engine. That is the differential's stated blind spot arriving:
+# the two engines agree with each other and both diverge from the reference, so only the
+# independent oracle can see it.
+LITE_QUARANTINE: dict[str, tuple[str, str]] = {
+    "stress::F32_TradeRollupEverything": (
+        "F14", "shared with legend-engine: groupBy uses the enum SOURCE code"),
+}
 
 # Kept for callers that predate the split; run.py is the legend-engine harness.
 QUARANTINE = ENGINE_QUARANTINE
