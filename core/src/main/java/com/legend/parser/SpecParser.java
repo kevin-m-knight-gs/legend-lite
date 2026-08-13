@@ -1191,9 +1191,18 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private AppliedFunction parseAllCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
+        int nameTok = pos - 1;                       // the 'all' token
         expect(TokenType.PAREN_OPEN, "expected '(' after '.all'");
         List<ValueSpecification> args = new ArrayList<>();
         args.add(new PackageableElementPtr(fqn, fqnSpan));
+        if (!atEnd() && peek() != TokenType.PAREN_CLOSE
+                && !opensMilestoningLiteral(peek())) {
+            // NON-literal first argument: the engine's allFunction grammar
+            // does not match — the expression is a PROPERTY CALL named
+            // 'all' with general arguments, spanning the name token only
+            // (adversarial byte gate caught the getAll mis-wire)
+            return propertyFormCall("all", nameTok, args);
+        }
         if (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             args.add(parseMilestoningExpression());
             if (!atEnd() && peek() == TokenType.COMMA) {
@@ -1207,6 +1216,22 @@ public final class SpecParser implements TokenStreamCursor {
                 spanOf(dotTok, pos - 1));
     }
 
+    /** The engine's property-call fallback for all/allVersionsInRange with
+     *  non-literal arguments: general args after the receiver, wire
+     *  {@code {"_type":"property"}} via the propertyCall marker. */
+    private AppliedFunction propertyFormCall(String name, int nameTok,
+            List<ValueSpecification> args) {
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            args.add(parseCombinedExpression());
+            if (!match(TokenType.COMMA)) {
+                break;
+            }
+        }
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close '." + name + "(...)'");
+        return new AppliedFunction(name, args, java.util.List.of(),
+                spanOf(nameTok, nameTok), true, false, false);
+    }
+
     private AppliedFunction parseAllVersionsCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersions'");
@@ -1218,8 +1243,14 @@ public final class SpecParser implements TokenStreamCursor {
 
     private AppliedFunction parseAllVersionsInRangeCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
+        int nameTok = pos - 1;
         int argsStart = pos;
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersionsInRange'");
+        if (!atEnd() && !opensMilestoningLiteral(peek())) {
+            List<ValueSpecification> args = new ArrayList<>();
+            args.add(new PackageableElementPtr(fqn, fqnSpan));
+            return propertyFormCall("allVersionsInRange", nameTok, args);
+        }
         ValueSpecification start = parseMilestoningExpression();
         expect(TokenType.COMMA, "expected ',' between range endpoints in '.allVersionsInRange'");
         ValueSpecification end = parseMilestoningExpression();
@@ -1251,7 +1282,21 @@ public final class SpecParser implements TokenStreamCursor {
         if (t == TokenType.LATEST_DATE) return parseLatestDate();
         if (t == TokenType.DATE) return parseDateOrDateTime();
         if (t == TokenType.DOLLAR) return parseVariable();
-        return parseExpression();
+        // ONLY reached when the FIRST argument was a milestoning literal —
+        // the engine then closes the set (all(%latest, now()) refuses with
+        // "Valid alternatives: ['%latest']"); a NON-literal first argument
+        // never gets here (property-form dispatch in parseAllCall)
+        throw error(
+                "expected milestoning expression (%date, %latest, or $variable), got "
+                + t + " ('" + safeText() + "')");
+    }
+
+    /** Whether the token can OPEN a milestoning literal — the dispatch
+     *  between the getAll wire and the engine's property-call fallback
+     *  (a::A.all(now()) is {"_type":"property"} on the wire, probed). */
+    private static boolean opensMilestoningLiteral(TokenType t) {
+        return t == TokenType.LATEST_DATE || t == TokenType.DATE
+                || t == TokenType.DOLLAR;
     }
 
     // parseQualifiedName(), isFqnSegmentToken(TokenType), and
