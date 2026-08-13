@@ -1,0 +1,12 @@
+###Service
+Service demo::S_bare
+{
+  pattern: '/bare';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Person.all()->project(~[firstName, lastName]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+}

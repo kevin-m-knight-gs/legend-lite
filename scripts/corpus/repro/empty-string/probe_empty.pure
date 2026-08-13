@@ -1,0 +1,43 @@
+###Data
+Data demo::EmptyProbe
+{
+  Relational
+  #{
+    default.PERSON:
+      'ID,FIRST_NAME,LAST_NAME\n' +
+      '1,bare-empty,\n' +
+      '2,quoted-empty,""\n' +
+      '3,nonempty,Smith\n';
+  }#
+}
+
+###Service
+Service demo::S_empty
+{
+  pattern: '/empty';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Person.all()->project(~[fn:p|$p.firstName, ln:p|$p.lastName]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::EmptyProbe }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

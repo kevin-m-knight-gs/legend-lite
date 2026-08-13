@@ -1,0 +1,37 @@
+Class demo::Person
+{
+  firstName: String[1];
+  lastName: String[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table PERSON (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100), LAST_NAME VARCHAR(100))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Person: Relational {
+    ~mainTable [demo::DB] PERSON
+    firstName: [demo::DB] PERSON.FIRST_NAME,
+    lastName: [demo::DB] PERSON.LAST_NAME
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: H2;
+  specification: LocalH2 { };
+  auth: DefaultH2;
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}

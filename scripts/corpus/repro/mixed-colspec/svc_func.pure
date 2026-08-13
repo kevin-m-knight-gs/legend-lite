@@ -1,0 +1,12 @@
+###Service
+Service demo::S_func
+{
+  pattern: '/func';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Person.all()->project(~[fn:p|$p.firstName, ln:p|$p.lastName]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+}

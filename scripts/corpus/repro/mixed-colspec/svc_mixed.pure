@@ -1,0 +1,12 @@
+###Service
+Service demo::S_mixed
+{
+  pattern: '/mixed';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Person.all()->project(~[firstName, ln:p|$p.lastName]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+}

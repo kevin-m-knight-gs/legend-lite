@@ -1,3 +1,8 @@
+// The ###Pure header is REQUIRED, not decorative. These files are concatenated in
+// filename order and 89-all-mapping.pure opens a ###Mapping section; without this
+// header every Association below is parsed with the Mapping grammar and the whole
+// corpus dies on "Unexpected token" with no source information.
+###Pure
 // ============================================================
 // Cross-Domain Associations
 // Links classes across domain boundaries for deep navigation
