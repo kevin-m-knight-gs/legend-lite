@@ -3,6 +3,12 @@
 // 10 classes, ~15 properties each + enums
 // ============================================================
 
+Enum trading::Side
+{
+    BUY,
+    SELL
+}
+
 Enum trading::OrderType
 {
     MARKET,
@@ -31,7 +37,7 @@ Class trading::Trade
     quantity: Float[1];
     price: Float[1];
     notional: Float[1];
-    side: String[1];
+    side: trading::Side[1];
     status: String[1];
     tradeType: String[1];
     currency: String[1];

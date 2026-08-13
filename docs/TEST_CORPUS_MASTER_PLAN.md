@@ -150,6 +150,48 @@ keywords — a tractable pack.
 - Alias `_type` names read as uncovered when the modern spelling is covered — adjudicate
   per tag, never assume.
 
+
+---
+
+## §2b. Correction — the protocol roster is not a complete feature denominator
+
+§2 treats the 1,033-tag protocol roster as *the* denominator, and §5A sets "the full
+221-tag worklist" as the definition of done. Building L1 showed that is not sound, and the
+plan should be read with this correction.
+
+The roster is built from protocol `_type` discriminators, which exist only on
+**polymorphic** types. A feature modelled as a plain field on its parent has no `_type` and
+therefore cannot appear in the roster at all, however large a feature it is.
+
+`EnumerationMapping` is the worked example. Adding one to the stress corpus — a new
+enumeration, a code-to-value mapping with a many-to-one case, a property mapping rewired
+through it, and the seed changed from labels to source codes — moved the counter by
+exactly **1**, and that 1 was `stringSourceValue`, an incidental nested type inside the
+source-value list. The mapping itself serialises as:
+
+```json
+"enumerationMappings": [{"enumValueMappings": [{"enumValue": "BUY",
+  "sourceValues": [{"_type": "stringSourceValue", "value": "B"}, ...]}], ...}]
+```
+
+No `_type` on the EnumerationMapping, none on the enumValueMapping. `grep -i enum` over the
+roster returns 13 rows and not one of them is the mapping construct.
+
+**Consequences.**
+
+1. Tag coverage understates feature coverage, by an unknown amount. "47 of 1033" is a real
+   and useful number, but it is not "4.5% of Legend's features".
+2. A wave can add genuine capability and move the counter by 0. `census_gate.py --strict`,
+   which fails a change that moved no counter, would reject such a wave. It must not be the
+   only gate.
+3. Anything specified as a plain field — `~primaryKey`, milestoning specifications,
+   mapping filters, `~groupBy` — needs its own coverage check. The roster will not supply
+   one.
+
+The keyword census (§2, 670 grammar keywords) is the better denominator for these, because
+grammar keywords exist whether or not the protocol type is polymorphic. It should be the
+primary axis for L1–L6, with the tag roster secondary.
+
 ---
 
 ## 3. Feature inventory by DSL

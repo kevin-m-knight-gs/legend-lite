@@ -126,6 +126,11 @@ class Corpus:
     columns: dict[str, dict[str, str]] = field(default_factory=dict)
     # (class fqn, property) -> AssocEnd
     ends: dict[tuple[str, str], AssocEnd] = field(default_factory=dict)
+    # EnumerationMapping name -> {source code -> enum value}. Many-to-one is legal and
+    # used: 'B' and the legacy 'BOT' both mean BUY.
+    enum_maps: dict[str, dict[str, str]] = field(default_factory=dict)
+    # (class fqn, property) -> EnumerationMapping name
+    enum_props: dict[tuple[str, str], str] = field(default_factory=dict)
 
     # -------------------------------------------------------- resolution
 
@@ -181,6 +186,14 @@ class Corpus:
             cls, table = end.target, tgt
         return hops, cls
 
+    def owner_of(self, root: str, path: list[str]) -> str:
+        """The class that declares the LAST step of a path — needed to look up whether
+        that property carries an EnumerationMapping."""
+        cls = root
+        for step in path[:-1]:
+            cls = self.ends[(cls, step)].target
+        return cls
+
     def to_many_on(self, root: str, path: list[str]) -> bool:
         """True if any hop along the path is to-many — i.e. the projection fans out."""
         cls = root
@@ -203,6 +216,12 @@ _PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
 _MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
 _CLSMAP = re.compile(r"^\s*([\w:]+)\s*:\s*Relational\s*\{?\s*$")
 _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
+# `prop: EnumerationMapping <Name>: [db] TABLE.COL` — must be stripped BEFORE _COLMAP
+# runs, or _COLMAP matches the tail and records the mapping NAME as the property.
+_ENUMCOLMAP = re.compile(
+    r"(\w+)\s*:\s*EnumerationMapping\s+(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
+_ENUMMAP_HEAD = re.compile(r"^\s*([\w:]+)\s*:\s*EnumerationMapping\s+(\w+)\s*$")
+_ENUMMAP_ROW = re.compile(r"^\s*(\w+)\s*:\s*\[([^\]]*)\]\s*,?\s*$")
 _ENDMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*@(\w+)")
 
 
@@ -310,9 +329,35 @@ def _parse_domain(text: str, c: Corpus) -> None:
 def _parse_mapping(text: str, c: Corpus) -> None:
     cur = None
     in_assoc = False
+    enum_map = None          # name of the EnumerationMapping currently being read
     for raw in text.splitlines():
         line = _strip(raw)
         if not line.strip():
+            continue
+
+        m = _ENUMMAP_HEAD.match(line)
+        if m:
+            enum_map, cur = m.group(2), None
+            c.enum_maps.setdefault(enum_map, {})
+            continue
+        if enum_map is not None:
+            if line.strip() == "}":
+                enum_map = None
+                continue
+            m = _ENUMMAP_ROW.match(line)
+            if m:
+                value = m.group(1)
+                for code in m.group(2).split(","):
+                    code = code.strip().strip("'")
+                    if code:
+                        if code in c.enum_maps[enum_map]:
+                            raise ValueError(
+                                f"EnumerationMapping {enum_map}: source code {code!r} "
+                                f"maps to both {c.enum_maps[enum_map][code]} and {value}")
+                        c.enum_maps[enum_map][code] = value
+                continue
+            if line.strip() != "{":
+                raise ValueError(f"unhandled EnumerationMapping line: {line!r}")
             continue
         m = _CLSMAP.match(line)
         if m and "AssociationMapping" not in line:
@@ -335,6 +380,12 @@ def _parse_mapping(text: str, c: Corpus) -> None:
             continue
         if cur and cur in c.main_table:
             tbl = c.main_table[cur]
+            for prop, mapping, t, col in _ENUMCOLMAP.findall(line):
+                if t != tbl:
+                    raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
+                c.columns.setdefault(cur, {})[prop] = col
+                c.enum_props[(cur, prop)] = mapping
+            line = _ENUMCOLMAP.sub("", line)
             for prop, t, col in _COLMAP.findall(line):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
@@ -411,6 +462,11 @@ def check(c: Corpus) -> list[str]:
     for (owner, name), end in c.ends.items():
         if end.join and end.join not in c.joins:
             bad.append(f"{owner}.{name} uses undeclared join {end.join}")
+    for (cls, prop), mapping in c.enum_props.items():
+        if mapping not in c.enum_maps:
+            bad.append(f"{cls}.{prop} uses undeclared EnumerationMapping {mapping}")
+        elif not c.enum_maps[mapping]:
+            bad.append(f"EnumerationMapping {mapping} has no source codes")
     return bad
 
 

@@ -3,9 +3,18 @@
 ###Mapping
 Mapping trading::TradingMapping
 (
+    // Source codes, not labels — which is how every real trade store stores side.
+    // 'BOT' is a legacy code kept alive by an old feed: two source values collapsing
+    // onto one enum value is the case a naive code->label map gets wrong.
+    trading::Side: EnumerationMapping SideMapping
+    {
+        BUY: ['B', 'BOT'],
+        SELL: ['S']
+    }
+
     trading::Trade: Relational {
         ~mainTable [store::DB] TRADE
-        tradeId: [store::DB] TRADE.TRADE_ID, tradeDate: [store::DB] TRADE.TRADE_DATE, settlementDate: [store::DB] TRADE.SETTLEMENT_DATE, quantity: [store::DB] TRADE.QUANTITY, price: [store::DB] TRADE.PRICE, notional: [store::DB] TRADE.NOTIONAL, side: [store::DB] TRADE.SIDE, status: [store::DB] TRADE.STATUS, tradeType: [store::DB] TRADE.TRADE_TYPE, currency: [store::DB] TRADE.CURRENCY, commission: [store::DB] TRADE.COMMISSION, fees: [store::DB] TRADE.FEES, executionVenue: [store::DB] TRADE.EXECUTION_VENUE, isBlock: [store::DB] TRADE.IS_BLOCK, createdTime: [store::DB] TRADE.CREATED_TIME, lastModifiedTime: [store::DB] TRADE.LAST_MODIFIED_TIME
+        tradeId: [store::DB] TRADE.TRADE_ID, tradeDate: [store::DB] TRADE.TRADE_DATE, settlementDate: [store::DB] TRADE.SETTLEMENT_DATE, quantity: [store::DB] TRADE.QUANTITY, price: [store::DB] TRADE.PRICE, notional: [store::DB] TRADE.NOTIONAL, side: EnumerationMapping SideMapping: [store::DB] TRADE.SIDE, status: [store::DB] TRADE.STATUS, tradeType: [store::DB] TRADE.TRADE_TYPE, currency: [store::DB] TRADE.CURRENCY, commission: [store::DB] TRADE.COMMISSION, fees: [store::DB] TRADE.FEES, executionVenue: [store::DB] TRADE.EXECUTION_VENUE, isBlock: [store::DB] TRADE.IS_BLOCK, createdTime: [store::DB] TRADE.CREATED_TIME, lastModifiedTime: [store::DB] TRADE.LAST_MODIFIED_TIME
     }
     trading::Order: Relational {
         ~mainTable [store::DB] ORDER

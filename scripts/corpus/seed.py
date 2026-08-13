@@ -42,6 +42,16 @@ rather than quietly weakening the corpus:
   A11 CHAIN_NULL       INSTRUMENT.SECTOR_ID is orphaned for one instrument, so a two-hop
                        navigation breaks at the second hop rather than the first.
   A12 CASE_SENSITIVE   Two venue codes differing only in case.
+  A14 UNMAPPED_ENUM    One trade carries a source code with NO EnumerationMapping entry.
+                       It must come back NULL — the same as a NULL source — which is a
+                       silent data-quality hole worth pinning: a bad feed code does not
+                       raise, it just disappears. The property is declared [1] and the
+                       multiplicity is not enforced.
+  A13 MANY_TO_ONE_ENUM TRADE.SIDE holds source CODES, not labels, and two of them ('B'
+                       and the legacy 'BOT') collapse onto BUY. The projected value is
+                       unchanged — still "BUY" — so the expectation is identical while the
+                       mechanism is not: a broken EnumerationMapping shows up immediately
+                       and cannot be mistaken for a data change.
 
 Values are literal, not random. A seeded PRNG would still make the data unreadable in a
 diff, and the whole point of a fixture is that a human can see why a case failed.
@@ -297,7 +307,7 @@ INSTRUMENT = [
 def _trades() -> list[dict]:
     rows, n = [], 0
 
-    def t(instr, book, trader, cpty, qty, px, status, side="BUY", day=3,
+    def t(instr, book, trader, cpty, qty, px, status, side="B", day=3,
           commission=None, fees=None, venue=None, block=False, settle_day=None):
         nonlocal n
         n += 1
@@ -306,7 +316,8 @@ def _trades() -> list[dict]:
             TRADE_DATE=_iso(2024, 6, day),
             SETTLEMENT_DATE=None if settle_day is None else _iso(2024, 6, settle_day),
             QUANTITY=float(qty), PRICE=px, NOTIONAL=round(qty * px, 2), SIDE=side,
-            STATUS=status, TRADE_TYPE="AGENCY" if side == "BUY" else "PRINCIPAL",
+            STATUS=status,
+            TRADE_TYPE="PRINCIPAL" if side == "S" else "AGENCY",
             CURRENCY="USD", COMMISSION=commission, FEES=fees,
             EXECUTION_VENUE=venue or _VENUES[n % len(_VENUES)], IS_BLOCK=block,
             CREATED_TIME=f"2024-06-{day:02d} 09:{(n * 7) % 60:02d}:00",
@@ -323,12 +334,13 @@ def _trades() -> list[dict]:
     t("INST-AAPL", "BK-CASH-US", "TRD-002", "CP-0002", 500, 500.00, "EXECUTED",
       commission=None, fees=None, settle_day=5)                     # A4, A5 tie 250000
     t("INST-AAPL", "BK-CASH-US", "TRD-002", "CP-0002", 1250, 200.00, "EXECUTED",
-      side="SELL", commission=125.00, fees=15.00, settle_day=6)     # A5 tie 250000
+      side="S", commission=125.00, fees=15.00, settle_day=6)     # A5 tie 250000
     t("INST-AAPL", "BK-VOL-01", "TRD-003", "CP-0003", 2000, 125.00, "EXECUTED",
       commission=100.00, fees=11.50, settle_day=6)                  # A5 tie 250000
     t("INST-AAPL", "BK-CASH-US", None, "CP-0001", 800, 312.50, "EXECUTED",
       commission=80.00, fees=9.00, settle_day=6)                    # A2 NULL_FK, A5 tie
     t("INST-AAPL", "BK-CASH-US", "TRD-001", "CP-NONE", 1500, 188.00, "EXECUTED",
+      side="BOT",                                                   # A13 legacy code
       commission=142.50, fees=18.00, settle_day=7)                  # A1 ORPHAN_FK
     t("INST-AAPL", "BK-CASH-US", "TRD-002", "CP-0001", 100, 189.75, "CANCELLED",
       day=4, commission=None, fees=1.00)
@@ -341,11 +353,12 @@ def _trades() -> list[dict]:
     t("INST-MSFT", "BK-CASH-US", None, "CP-0003", 400, 418.25, "EXECUTED",
       day=4, commission=41.80, fees=5.25, settle_day=7)             # A2 NULL_FK
     t("INST-MSFT", "BK-VOL-01", "TRD-003", "CP-0002", 900, 410.00, "PENDING",
+      side="ZZ",                                                    # A14 UNMAPPED_ENUM
       day=5, commission=90.00, fees=11.00)
 
     # HSBA.
     t("INST-HSBA", "BK-CASH-EU", "TRD-003", "CP-0002", 25000, 6.85, "EXECUTED",
-      day=5, side="SELL", commission=171.25, fees=22.00, settle_day=7)
+      day=5, side="S", commission=171.25, fees=22.00, settle_day=7)
     t("INST-HSBA", "BK-CASH-EU", "TRD-004", "CP-0004", 10000, 6.90, "EXECUTED",
       day=5, commission=69.00, fees=8.75, settle_day=7, venue="xnas")  # A12 case
     t("INST-HSBA", "BK-CASH-EU", "TRD-003", "CP-0003", 5000, 7.00, "SETTLED",
@@ -355,7 +368,7 @@ def _trades() -> list[dict]:
     t("INST-SAP", "BK-CASH-EU", "TRD-004", "CP-0003", 1500, 176.40, "EXECUTED",
       day=6, commission=132.30, fees=16.80, settle_day=10, block=True)
     t("INST-SAP", "BK-CASH-EU", "TRD-003", "CP-0004", 2200, 175.00, "EXECUTED",
-      day=6, side="SELL", commission=192.50, fees=24.50, settle_day=10)
+      day=6, side="S", commission=192.50, fees=24.50, settle_day=10)
 
     # GILT30 — the instrument whose sector link is broken (A11).
     t("INST-GILT30", "BK-VOL-01", "TRD-003", "CP-0002", 5000000, 0.9825, "EXECUTED",
@@ -644,6 +657,12 @@ def check(c: Corpus) -> list[str]:
         and any("'" in (r["LAST_NAME"] or "") for r in TRADER))
     has("A11 CHAIN_NULL on INSTRUMENT.SECTOR_ID",
         any(r["SECTOR_ID"] not in ids["SECTOR"] for r in INSTRUMENT))
+    codes = {r["SIDE"] for r in TRADE}
+    has("A13 MANY_TO_ONE_ENUM: two source codes for BUY", {"B", "BOT"} <= codes)
+    has("A13 all SIDE values are codes, not labels",
+        not ({"BUY", "SELL"} & codes))
+    has("A14 UNMAPPED_ENUM: a SIDE code with no EnumerationMapping entry",
+        bool(codes - {"B", "BOT", "S"}))
     venues = {r["EXECUTION_VENUE"] for r in TRADE}
     has("A12 CASE_SENSITIVE venue codes",
         any(v.lower() in {o.lower() for o in venues - {v}} for v in venues))

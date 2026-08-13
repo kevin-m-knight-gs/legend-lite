@@ -126,7 +126,18 @@ def _cmp(op: str, left, right) -> bool:
 def _value(c: Corpus, data, row, root: str, path: list[str]):
     table, col, hops = c.resolve(root, path)
     landed = walk(c, data, row, hops)
-    return None if landed is None else landed.get(col)
+    raw = None if landed is None else landed.get(col)
+    mapping = c.enum_props.get((c.owner_of(root, path), path[-1]))
+    if mapping is None or raw is None:
+        return raw
+    # A source code with no EnumerationMapping entry yields NULL — silently, and
+    # indistinguishably from a NULL source column. Established empirically in
+    # repro/unmapped-enum/, not assumed: it is the kind of behaviour that could equally
+    # have been an error or a pass-through of the raw code.
+    #
+    # Worth noting that the property is declared [1] and still comes back null, so the
+    # multiplicity is not enforced on this path.
+    return c.enum_maps[mapping].get(raw)
 
 
 def _agg(c: Corpus, data, row, root: str, proj):
@@ -199,6 +210,9 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     for p in spec.projections:
         if p.agg == "count":
             out[p.alias] = "int"
+            continue
+        if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
+            out[p.alias] = "string"     # an enum renders as its VALUE NAME
             continue
         table, col, _ = c.resolve(spec.root, p.path)
         out[p.alias] = c.tables[table].columns[col].kind

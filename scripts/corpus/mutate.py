@@ -87,6 +87,22 @@ def widen_filter(f):
     return f
 
 
+def break_enum_mapping(f):
+    """Send the legacy 'BOT' code to the wrong enum value. The DATA is untouched, so only
+    a working EnumerationMapping can notice."""
+    f["36"] = _sub_once(f["36"], r"BUY: \['B', 'BOT'\],\n        SELL: \['S'\]",
+                        "BUY: ['B'],\n        SELL: ['S', 'BOT']", "break_enum_mapping")
+    return f
+
+
+def unmapped_enum_code(f):
+    """A source code with no entry in the EnumerationMapping. Legend's behaviour here is
+    not established -- this mutation exists to show the corpus notices, not to assert what
+    the engine should do."""
+    f["93"] = _sub_once(f["93"], r",BOT,", ",XX,", "unmapped_enum_code")
+    return f
+
+
 def swap_alias(f):
     f["92"] = _sub_once(f["92"], r'"cptyName":"Meridian Asset Management","cptyLei":"5493001KJTIIGC8Y1R12"',
                         '"cptyName":"5493001KJTIIGC8Y1R12","cptyLei":"Meridian Asset Management"',
@@ -102,6 +118,8 @@ MUTATIONS = {
     "break_fk": break_fk,
     "widen_filter": widen_filter,
     "swap_alias": swap_alias,
+    "break_enum_mapping": break_enum_mapping,
+    "unmapped_enum_code": unmapped_enum_code,
 }
 
 
@@ -147,11 +165,14 @@ def main() -> None:
             work = Path(d)
             for p in STRESS.glob("*.pure"):
                 shutil.copy(p, work)
-            src = {"92": (work / "92-services.pure").read_text(),
-                   "93": (work / "93-testdata.pure").read_text()}
+            paths = {"92": work / "92-services.pure",
+                     "93": work / "93-testdata.pure",
+                     "36": work / "36-trading-store.pure"}
+            src = {k: v.read_text() for k, v in paths.items()}
             out = MUTATIONS[name](dict(src))
-            (work / "92-services.pure").write_text(out["92"])
-            (work / "93-testdata.pure").write_text(out["93"])
+            for k, path in paths.items():
+                if out[k] != src[k]:
+                    path.write_text(out[k])
             p1, f1, tail = run(work)
             # A mutation must cause failures BEYOND the quarantined ones. Comparing
             # against zero would let every mutation "pass" on the back of the six

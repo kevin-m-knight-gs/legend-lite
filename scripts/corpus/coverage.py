@@ -13,6 +13,11 @@ cannot be satisfied by corpus work at all. That was an error in how the gate was
 This script supplies the missing axis: it compiles our corpus with legend-engine, dumps
 the protocol document, and reports which roster tags it exercises.
 
+A caveat that matters more than the number: the roster contains only POLYMORPHIC protocol
+types, the ones carrying a `_type` discriminator. A feature modelled as a plain field on its
+parent — EnumerationMapping is the worked example — never appears, so this measures a real
+thing but not "how much of Legend we cover". See docs/TEST_CORPUS_MASTER_PLAN.md §2b.
+
 Usage:
   python3 scripts/corpus/coverage.py            summary + what we exercise
   python3 scripts/corpus/coverage.py --gaps     roster tags NOT exercised, by package
