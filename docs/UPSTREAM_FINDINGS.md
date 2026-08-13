@@ -14,6 +14,20 @@ java -cp target/classes:$(cat cp.txt) perf.TestableMain <files...> [--testable=<
 
 Engine version: `4.138.2`.
 
+**legend-lite's own gaps are executable, not prose.**
+`core/src/test/java/com/legend/integration/LegendLiteGapTest.java` asserts the CURRENT
+behaviour of every construct legend-lite does not yet support, so closing a gap makes that
+test fail and forces the corresponding exclusion to be revisited:
+
+```
+mvn -o -pl core test -Dtest=LegendLiteGapTest
+```
+
+None of them is a PARSE failure — legend-lite parses all of these. They fail at model
+building (unit types, XStore, ModelJoin) or later at query lowering (ModelChainConnection,
+`orElse`, `isNotEmpty` over a `[0..1]` receiver). A parse divergence would surface in the
+parser-equivalence suite instead, and none of these does.
+
 ---
 
 ## F1 — legend-engine crashes with a raw ClassCastException on a mixed `~[...]` column array
