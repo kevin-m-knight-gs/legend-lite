@@ -143,6 +143,8 @@ public class CorpusSweepTest {
         List<String> dialectLeaks = new ArrayList<>();
         List<String> unclassified = new ArrayList<>();
         List<String> strictLenientIds = new ArrayList<>();
+        List<String> strictUnexplained = new ArrayList<>();
+        Map<String, Integer> strictLenientByClass = new TreeMap<>();
         Map<String, Integer> catalogByClass = new TreeMap<>();
         StringBuilder catalog = new StringBuilder();
         java.util.Set<String> asymIds = new java.util.HashSet<>();
@@ -238,6 +240,19 @@ public class CorpusSweepTest {
                 strictLenient++;
                 strictLenientIds.add(src.id() + " :: vanilla: "
                         + msgOf(oracleRoot));
+                // LEG-1 CLOSURE (2026-08-13): every strict-lenient row must
+                // CLASSIFY — the bare count looked like unadjudicated debt
+                // when it was really 154 oracle-NPE + skew-claims + nullmsg
+                // pure-dialect files; an unexplained row goes red here
+                CLASSIFYING_ID.set(src.id());
+                String scls = classify(oracleRoot, src.text());
+                CLASSIFYING_ID.remove();
+                if (scls == null) {
+                    strictUnexplained.add(src.id() + " :: "
+                            + msgOf(oracleRoot));
+                } else {
+                    strictLenientByClass.merge(scls, 1, Integer::sum);
+                }
             }
             // seam census: the drop-in accepting what vanilla refuses
             if (accepts(() -> spi.parseModel(src.text()))) {
@@ -287,7 +302,12 @@ public class CorpusSweepTest {
         final double fCal = calibration;
         final int fAccepts = oracleAccepts;
         final int fBoth = bothReject;
+        System.out.println("strictLenient by class: " + strictLenientByClass);
         assertAll(
+                () -> assertEquals(0, strictUnexplained.size(),
+                        () -> "STRICT-LENIENT rows with NO catalog class —"
+                                + " unadjudicated acceptance:\n  "
+                                + head(strictUnexplained)),
                 () -> assertEquals(0, docDiffs.size(), () -> "document byte"
                         + " diffs:\n  " + head(docDiffs)),
                 () -> assertEquals(0, weRefuse.size(), () -> "oracle-accepted"
