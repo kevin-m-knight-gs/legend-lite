@@ -15,11 +15,15 @@
 > **A.** every non-passing `core_relational` test, root-caused and clustered;
 > **B.** the whole legend-engine `<<test.Test>>` estate, not just `core_relational`.
 >
-> **Evidence base: `docs/burndown-2026-08-14/`** — the 276-row master
-> classification, the H2 sweep log, and the scripts that regenerate every number
-> here (including the per-failing-test source dossiers). Read that README for
-> toolchain, exact repro commands, and the two `-Dlegend.engine.root` /
-> `~/.m2` traps that have produced phantom regressions before.
+> **Evidence base: `docs/burndown-2026-08-14/`**
+> — `master-classification.csv` (all 276 rows), `h2-backend-sweep.txt` (the §3.1
+> evidence), and `tools/` (8 scripts that regenerate every number here, including
+> the per-failing-test source dossiers).
+> **Start at `docs/burndown-2026-08-14/README.md`** for provenance, toolchain,
+> exact repro commands per finding, and the two `-Dlegend.engine.root` / `~/.m2`
+> traps that have produced phantom regressions before.
+> If you are picking this up cold and want to *do* the work rather than read
+> about it, skip to **§9**.
 
 ---
 
@@ -90,8 +94,14 @@ Two smaller notes from the same reconciliation:
 ## 2. Master classification of all 276
 
 Every non-passing test was resolved to its source (`276/276`, zero unresolved),
-its full body extracted, and its untruncated failure detail classified. Machine
-artifacts: `master.csv`, `features.json`, per-family dossiers.
+its full body extracted, and its untruncated failure detail classified.
+
+The result is committed as **`docs/burndown-2026-08-14/master-classification.csv`**
+(`bucket, status, family, test, file, line, detail`) — filter it by `bucket` to
+get the working list for any row of the table below. Regenerating it with
+`tools/` writes the same content to `$BURNDOWN_OUT/master.csv`, alongside
+`features.json` (body-shape flags) and `dossiers/<family>.md` (every failing
+test's complete `.pure` body next to its untruncated failure detail).
 
 | # | bucket | n | % | FAIL/ERROR/SHAPE |
 |---|---|---:|---:|---|
