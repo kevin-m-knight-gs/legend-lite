@@ -148,11 +148,6 @@ public final class ElementParser implements TokenStreamCursor {
     private final Dialect dialect;
 
     @Override
-    public boolean legendStrict() {
-        return dialect.refusesPlatformDialect();
-    }
-
-    @Override
     public Dialect dialect() {
         return dialect;
     }
@@ -377,7 +372,7 @@ public final class ElementParser implements TokenStreamCursor {
                         sk.name(), tokens.source().substring(sk.startOffset(),
                                 sk.endOffset()),
                         sk.startOffset(), sk.endOffset(),
-                        tokens.lineOf(sk.startOffset())), dialect.refusesPlatformDialect());
+                        tokens.lineOf(sk.startOffset())), dialect);
                 ImportScope.Builder scope = new ImportScope.Builder();
                 for (String imp : parsed.imports()) {
                     scope.add(imp);
@@ -814,7 +809,7 @@ public final class ElementParser implements TokenStreamCursor {
         // projection semantics (flattened derived surface) stay loud
         // downstream — parse-level unlock only.
         if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
-            if (legendStrict()) {
+            if (dialect.refusesPlatformDialect()) {
                 // the engine refuses class projections (its walker NPEs,
                 // normalized to a developer message); silently emitting an
                 // EMPTY class here was accept-divergence + data loss
@@ -1254,7 +1249,7 @@ public final class ElementParser implements TokenStreamCursor {
         // nominal registration only (like projection classes); the
         // projected navigation semantics stay loud downstream.
         if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
-            if (legendStrict()) {
+            if (dialect.refusesPlatformDialect()) {
                 // align with parseAssociationDefinition (the protocol path
                 // already refused; this model path accepted and returned
                 // the WRONG element kind — adversarial audit EP finding 3)
@@ -1587,7 +1582,7 @@ public final class ElementParser implements TokenStreamCursor {
             if (depth > 0) advance();
         }
         List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos), dialect);
-        if (body.isEmpty() && legendStrict()) {
+        if (body.isEmpty() && dialect.refusesPlatformDialect()) {
             // engine codeBlock requires >= 1 programLine — `{ }` refuses
             // there (adversarial audit R5, oracle-verified)
             throw error("Unexpected token '}'");
@@ -1816,8 +1811,7 @@ public final class ElementParser implements TokenStreamCursor {
                 TokenType t = peek();
                 if (t == TokenType.ISLAND_START) {
                     depth++;
-                } else if (t == TokenType.ISLAND_END
-                        || t == TokenType.ISLAND_ARROW_EXIT) {
+                } else if (t == TokenType.ISLAND_END) {
                     if (depth == 0) {
                         break;          // THIS island's end, not a nested one
                     }
@@ -2108,15 +2102,14 @@ public final class ElementParser implements TokenStreamCursor {
      *  {@code ISLAND_END}: the lexer emits nested {@code ISLAND_START}/
      *  {@code ISLAND_END} pairs inside island content (Lexer islandDepth),
      *  so a flat {@code peek() != ISLAND_END} scan stops at an INNER
-     *  {@code }#} and truncates the island (audit §5.5). A nested island
-     *  closed by {@code }->} ({@code ISLAND_ARROW_EXIT}) counts as closed. */
+     *  {@code }#} and truncates the island (audit §5.5). */
     private void skipIslandContent() {
         int depth = 0;
         while (!atEnd()) {
             TokenType t = peek();
             if (t == TokenType.ISLAND_START) {
                 depth++;
-            } else if (t == TokenType.ISLAND_END || t == TokenType.ISLAND_ARROW_EXIT) {
+            } else if (t == TokenType.ISLAND_END) {
                 if (depth == 0) {
                     return;
                 }
@@ -2641,7 +2634,7 @@ public final class ElementParser implements TokenStreamCursor {
         int tagEnd = pos - 1;
         expect(TokenType.EQUAL);
         if (peek() == TokenType.DOC_STRING) {
-            if (legendStrict() && text().indexOf('\n') < 0) {
+            if (dialect.refusesPlatformDialect() && text().indexOf('\n') < 0) {
                 // single-line ''' — the oracle's lexer splits it into
                 // adjacent strings and refuses (probed live 2026-08-12)
                 throw error("Unexpected token '" + text() + "'");

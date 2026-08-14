@@ -111,7 +111,15 @@ public final class PersistenceSectionGrammar
                     serviceSpan = c.spanOf(keyStart, c.pos() - 1);
                 }
                 case "trigger" -> {
+                    int tTok = c.pos();
                     triggerKind = c.parseIdentifier();
+                    if (!"Manual".equals(triggerKind)
+                            && !"Cron".equals(triggerKind)) {
+                        // grammar alternatives (sibling negative
+                        // neg-persistence-invented-trigger-type)
+                        throw TokenStreamCursor.throwAt(c.tokens(), tTok,
+                                "Unexpected token '" + triggerKind + "'");
+                    }
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "persister" -> {
@@ -298,6 +306,15 @@ public final class PersistenceSectionGrammar
                     List.of("SourceSpecifiesFromDateTime",
                             "SourceSpecifiesFromAndThruDateTime"));
 
+    /** Slots whose KIND set is closed in the grammar — an invented kind
+     *  refuses at parse like the engine, instead of walling at emission
+     *  (sibling negatives neg-persistence-invented-target-type /
+     *  -validity-milestoning-batchid). */
+    private static final java.util.Map<String, List<String>> SLOT_KINDS =
+            java.util.Map.of(
+                    "validityMilestoning", List.of("DateTime"),
+                    "target", List.of("Relational", "__empty__"));
+
     private static void validateNode(TokenStreamCursor c, String slot,
             Protocol.PPersistenceNode node) {
         // ANCHORED at the NODE's own span start — the engine walker passes
@@ -307,6 +324,11 @@ public final class PersistenceSectionGrammar
         // Persistence family carried 67 of the 288 line diverges)
         int line = node.sourceInformation().startLine();
         int col = node.sourceInformation().startColumn();
+        List<String> slotKinds = SLOT_KINDS.get(slot);
+        if (slotKinds != null && !slotKinds.contains(node.kind())) {
+            throw new com.legend.parser.ParseException(
+                    "Unexpected token", line, col);
+        }
         // the engine walker extracts each field IN ORDER (once + required
         // check, then an immediate visit that recurses) — so a nested
         // error in an EARLIER field outranks a missing LATER field

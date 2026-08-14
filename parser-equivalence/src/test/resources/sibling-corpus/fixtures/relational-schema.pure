@@ -1,0 +1,64 @@
+// COVERS RelationalLexerGrammar: Schema, TabularFunction, MultiGrainFilter, ~distinct, or, is null, is not null
+//
+// `Schema` uncovered summarised the state of the stress corpus: every one of its 210 tables
+// sits in the default schema, so a schema-qualified table had never been parsed by anything
+// this repository owns. Same for TabularFunction (a table-valued function, legal both at
+// Database level and inside a Schema) and MultiGrainFilter (Database level only).
+//
+// The operator gaps are the more embarrassing ones. `or`, `is null` and `is not null` are
+// basic Join and Filter surface; the corpus only ever generated `and` and `=`. `is null` and
+// `is not null` are POSTFIX self-operators -- they take no right-hand side.
+###Relational
+Database fixture::rel::SchemaDb
+(
+   Schema trading
+   (
+      Table BOOK
+      (
+         BOOK_ID VARCHAR(32) PRIMARY KEY,
+         BOOK_NAME VARCHAR(200),
+         DESK VARCHAR(64)
+      )
+      Table POSITION_T
+      (
+         POSITION_ID VARCHAR(32) PRIMARY KEY,
+         BOOK_ID VARCHAR(32),
+         QUANTITY INTEGER,
+         CLOSED_DATE DATE
+      )
+      TabularFunction POSITION_AT
+      (
+         POSITION_ID VARCHAR(32) NOT NULL,
+         QUANTITY INTEGER NOT NULL
+      )
+      View OPEN_BOOKS
+      (
+         ~distinct
+         bookId: BOOK.BOOK_ID PRIMARY KEY,
+         desk: BOOK.DESK
+      )
+   )
+
+   Schema "reference data"
+   (
+      Table "instrument master"
+      (
+         INSTR_ID VARCHAR(32) PRIMARY KEY,
+         TICKER VARCHAR(32)
+      )
+   )
+
+   TabularFunction TOP_LEVEL_FUNC
+   (
+      ID INTEGER NOT NULL,
+      LABEL VARCHAR(64)
+   )
+
+   Join BookPosition(trading.BOOK.BOOK_ID = trading.POSITION_T.BOOK_ID)
+
+   Filter OpenPositions(trading.POSITION_T.CLOSED_DATE is null)
+   Filter SettledPositions(trading.POSITION_T.CLOSED_DATE is not null)
+   Filter DeskFilter(trading.BOOK.DESK = 'RATES' or trading.BOOK.DESK = 'CREDIT')
+
+   MultiGrainFilter BookGrain(trading.BOOK.DESK = 'RATES' or trading.BOOK.DESK is not null)
+)

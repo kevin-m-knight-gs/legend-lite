@@ -1,0 +1,19 @@
+// REJECTS: Field 'specification' should be specified only once
+//
+// A connection takes exactly one datasource specification. The parser rule is an unordered
+// `( ... )*`, so ORDER is free but REPETITION is not -- the constraint lives in the walker,
+// in validateAndExtractRequiredField, not in the grammar.
+//
+// The mirror of exclusive-two-auth-strategies.pure, and deliberately so: `auth` and
+// `specification` are validated by two different call sites, and a rewrite that enforces
+// "only once" for one field and not the other passes whichever fixture it happens to
+// implement. A parser generated straight from the .g4 accepts both files.
+###Connection
+RelationalDatabaseConnection fixture::neg::TwoSpecs
+{
+   store: fixture::neg::Db;
+   type: H2;
+   specification: LocalH2 {  };
+   specification: Static { name: 'db'; host: 'h'; port: 1234; };
+   auth: DefaultH2;
+}

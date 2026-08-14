@@ -1,0 +1,18 @@
+// REJECTS: Unexpected token ';'. Valid alternatives: ['&&', '||', '==', '!=', '->', '['
+//
+// A derived (qualified) property is `name() {expr}: Type[m];` -- the return type and
+// multiplicity come AFTER the body and are mandatory. Omitting them does not fail at the
+// ';' as a missing-type error; the alternatives show the parser is still inside the
+// EXPRESSION, offering operators, because `{...}` on its own is a lambda and a lambda can
+// be continued.
+//
+// So the divergence is not "forgot to require a field". A rewrite that scans to the
+// closing brace and then expects an optional type has already mis-parsed: the type is not
+// optional and the brace is not a body terminator, it is a lambda that the property rule
+// consumes as one expression.
+###Pure
+Class fixture::neg::DerivedNoType
+{
+   code: String[1];
+   shout() {$this.code->toUpper()};
+}

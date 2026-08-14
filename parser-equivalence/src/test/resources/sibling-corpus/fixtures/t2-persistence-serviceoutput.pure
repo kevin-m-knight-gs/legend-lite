@@ -1,0 +1,181 @@
+// COVERS PersistenceLexerGrammar: serviceOutputTargets, TDS, keys, deduplication, datasetType, Snapshot, partitioning, FieldBased, partitionFields, emptyDatasetHandling, NoOp, DeleteTargetData, Delta, actionIndicator, DeleteIndicator, deleteField, deleteValues, None, AnyVersion, MaxVersion, versionField, serviceOutput, target, Notifier
+//
+// The v2 (`serviceOutputTargets:`) half of the DSL, which replaces `persister:`. A service
+// output is TDS or a graph-fetch navigation path, paired by `->` with a persistence target;
+// `-> { }` is the legal empty target, so this whole file needs no target sub-grammar.
+//
+// TDS vs graph fetch is not just a spelling. The SAME rule text means different things:
+// `serviceOutputValue: identifier | dslNavigationPath`, and the walker picks the branch by
+// dataset kind -- visitTdsDatasetKeys takes `.identifier()`, visitGraphFetchDatasetKeys
+// takes `.dslNavigationPath()` (PersistenceParseTreeWalker.java:416-433). So `keys`,
+// `versionField` and `deleteField` must be bare names under TDS and must be `#/Type/prop#`
+// paths under a graph-fetch output. Mixing them yields a NullPointerException, not a
+// grammar error.
+//
+// Three tokens in this grammar exist ONLY in the `identifier` rule -- no other parser rule
+// ever names them: NOTIFIER ('Notifier'), SERVICE_OUTPUT_TARGET_SERVICE_OUTPUT
+// ('serviceOutput') and SERVICE_OUTPUT_TARGET_TARGET ('target'). The rules that read like
+// they would use them (`notifier:`, `serviceOutput ARROW target`) are spelled with the
+// lowercase PERSISTENCE_NOTIFIER token and with rule names respectively. They are therefore
+// reachable only in identifier position, and the TDS key list below is that position.
+//
+// Both `deduplication` alternations appear (None / AnyVersion / MaxVersion), both dataset
+// types (Snapshot / Delta), both partitioning arms (None / FieldBased), both empty-dataset
+// handlings (NoOp / DeleteTargetData) and both action indicators (None / DeleteIndicator).
+// Note that v2's `deleteValues` are IDENTIFIERS (STRING is one of the identifier arms),
+// whereas the v1 mergeStrategy `deleteValues` are STRING-only.
+###Persistence
+Persistence test::persistence::TdsOutputs
+{
+  doc: 'TDS service outputs across every dataset-type and deduplication arm';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        serviceOutput, target, Notifier
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+      deduplication: None;
+    }
+    ->
+    {
+    },
+    TDS
+    {
+      keys:
+      [
+        foo, bar
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: DeleteIndicator
+        {
+          deleteField: isDeleted;
+          deleteValues: ['Y', '1', 'yes'];
+        }
+      }
+      deduplication: AnyVersion;
+    }
+    ->
+    {
+    },
+    TDS
+    {
+      keys:
+      [
+        foo, bar
+      ]
+      datasetType: Snapshot
+      {
+        partitioning: None
+        {
+          emptyDatasetHandling: NoOp;
+        }
+      }
+      deduplication: MaxVersion
+      {
+        versionField: version;
+      }
+    }
+    ->
+    {
+    },
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Snapshot
+      {
+        partitioning: None
+        {
+          emptyDatasetHandling: DeleteTargetData;
+        }
+      }
+    }
+    ->
+    {
+    },
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Snapshot
+      {
+        partitioning: FieldBased
+        {
+          partitionFields:
+          [
+            foo, bar
+          ];
+        }
+      }
+    }
+    ->
+    {
+    }
+  ];
+}
+
+Persistence test::persistence::GraphFetchOutputs
+{
+  doc: 'graph-fetch service outputs -- every value position is a navigation path';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    #/test::example::MyType/prop#
+    {
+      keys:
+      [
+        #/test::example::MyType/prop/foo#, #/test::example::MyType/prop/bar#
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: DeleteIndicator
+        {
+          deleteField: #/test::example::MyType/prop/toBeDeleted#;
+          deleteValues: ['Yes', 'no'];
+        }
+      }
+      deduplication: MaxVersion
+      {
+        versionField: #/test::example::MyType/prop/version#;
+      }
+    }
+    ->
+    {
+    },
+    #/test::example::MyType/hello#
+    {
+      keys:
+      [
+        #/test::example::MyType/hello/key1#
+      ]
+      datasetType: Snapshot
+      {
+        partitioning: FieldBased
+        {
+          partitionFields:
+          [
+            #/test::example::MyType/hello/key1#
+          ];
+        }
+      }
+      deduplication: None;
+    }
+    ->
+    {
+    }
+  ];
+}

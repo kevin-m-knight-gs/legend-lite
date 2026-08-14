@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token '::'. Valid alternatives: ['(']
+//
+// Filter, MultiGrainFilter and Join take a plain `identifier` as their name, NOT a
+// qualifiedName. Their names are scoped to the enclosing Database, so `fixture::neg::Active`
+// is not a longer name for a filter -- it is not a name at all.
+//
+// Everything else at this level of the file IS a qualified name: the Database itself, every
+// `include`, every database pointer `[a::b::C]`. A rewrite with one identifier routine used
+// everywhere accepts the package path here and produces a Database whose filters cannot be
+// referenced by either engine.
+###Relational
+Database fixture::neg::QualifiedFilterName
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY, VAL VARCHAR(32))
+   Filter fixture::neg::Active(T.VAL = 'x')
+)

@@ -1,0 +1,263 @@
+// COVERS PersistenceRelationalLexerGrammar: Relational, table, database, temporality, None, DateTime, auditing, dateTimeName, updatesHandling, AppendOnly, Overwrite, appendStrategy, AllowDuplicates, FailOnDuplicates, FilterDuplicates, Unitemporal, Bitemporal, processingDimension, BatchId, BatchIdAndDateTime, batchIdIn, batchIdOut, dateTimeIn, dateTimeOut, sourceDerivedDimension, dateTimeStart, dateTimeEnd, sourceFields, Start, StartAndEnd, startField, endField
+//
+// All 32 keywords of PersistenceRelationalLexerGrammar, which is a whole separate grammar
+// reached only through the `-> Relational #{ ... }#` island on a serviceOutputTarget. The
+// island body is re-lexed with PersistenceRelationalLexerGrammar, so `None`, `DateTime`,
+// `auditing`, `dateTimeName`, `database` and `AppendOnly` inside these braces are DIFFERENT
+// tokens from the same spellings outside them -- same word, different grammar, different
+// meaning. `Relational` itself is the discriminator the outer grammar reads to route here;
+// it is declared by both lexers, and is credited to this one because this is the routing it
+// performs.
+//
+// The alternation tree, each level exclusive and each a single required field:
+//
+//   temporality: None       { auditing, updatesHandling }
+//                Unitemporal{ processingDimension }
+//                Bitemporal { processingDimension, sourceDerivedDimension }
+//   auditing:    None | DateTime { dateTimeName }
+//   updatesHandling: AppendOnly { appendStrategy } | Overwrite
+//   appendStrategy:  AllowDuplicates | FailOnDuplicates | FilterDuplicates
+//   processingDimension: BatchId { batchIdIn, batchIdOut }
+//                        DateTime { dateTimeIn, dateTimeOut }
+//                        BatchIdAndDateTime { all four }
+//   sourceDerivedDimension: DateTime { dateTimeStart, dateTimeEnd, sourceFields }
+//   sourceFields: Start { startField } | StartAndEnd { startField, endField }
+//
+// Eight targets, because that is the minimum that touches every leaf. `table:` has two
+// forms -- bare `TableA` and qualified `schemaA.TableB` (`table: identifier (DOT
+// identifier)?`), and both appear. Note `dateTimeName:` here takes an IDENTIFIER, whereas
+// the identically-spelled keyword in the outer Persistence grammar takes a STRING.
+//
+// The service outputs are kept deliberately minimal; they are exercised properly in
+// t2-persistence-serviceoutput.pure.
+###Persistence
+Persistence test::persistence::RelationalTargets
+{
+  doc: 'relational persistence targets across every temporality arm';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableA;
+      database: test::persistence::Database;
+      temporality: None
+      {
+        auditing: DateTime
+        {
+          dateTimeName: audit_timestamp;
+        }
+        updatesHandling: AppendOnly
+        {
+          appendStrategy: AllowDuplicates;
+        }
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: schemaA.TableB;
+      database: test::persistence::Database;
+      temporality: None
+      {
+        auditing: None;
+        updatesHandling: Overwrite;
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableC;
+      database: test::persistence::Database;
+      temporality: None
+      {
+        auditing: None;
+        updatesHandling: AppendOnly
+        {
+          appendStrategy: FailOnDuplicates;
+        }
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableD;
+      database: test::persistence::Database;
+      temporality: None
+      {
+        auditing: None;
+        updatesHandling: AppendOnly
+        {
+          appendStrategy: FilterDuplicates;
+        }
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableE;
+      database: test::persistence::Database;
+      temporality: Unitemporal
+      {
+        processingDimension: BatchId
+        {
+          batchIdIn: batch_in;
+          batchIdOut: batch_out;
+        }
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableF;
+      database: test::persistence::Database;
+      temporality: Unitemporal
+      {
+        processingDimension: DateTime
+        {
+          dateTimeIn: in_z;
+          dateTimeOut: out_z;
+        }
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableG;
+      database: test::persistence::Database;
+      temporality: Bitemporal
+      {
+        processingDimension: BatchIdAndDateTime
+        {
+          batchIdIn: batch_in;
+          batchIdOut: batch_out;
+          dateTimeIn: in_z;
+          dateTimeOut: out_z;
+        }
+        sourceDerivedDimension: DateTime
+        {
+          dateTimeStart: from_z;
+          dateTimeEnd: thru_z;
+          sourceFields: StartAndEnd
+          {
+            startField: timeIn;
+            endField: timeOut;
+          }
+        }
+      }
+    }#,
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableH;
+      database: test::persistence::Database;
+      temporality: Bitemporal
+      {
+        processingDimension: BatchId
+        {
+          batchIdIn: batch_in;
+          batchIdOut: batch_out;
+        }
+        sourceDerivedDimension: DateTime
+        {
+          dateTimeStart: from_z;
+          dateTimeEnd: thru_z;
+          sourceFields: Start
+          {
+            startField: someTime;
+          }
+        }
+      }
+    }#
+  ];
+}

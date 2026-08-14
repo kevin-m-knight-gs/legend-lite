@@ -1,0 +1,44 @@
+// REJECTS: Unknown contentPattern pattern type: NoSuchPattern
+//
+// Content patterns -- the `EqualTo`/`EqualToJson` islands matching a ServiceStore request's
+// header and query parameters -- are a THIRD extension registry, distinct from the
+// embedded-data registry and the test-assertion registry, and reached only from inside a
+// ServiceStore embedded-data island.
+//
+// Three registries, three lookups, three different messages: 'Unknown embedded data type',
+// 'Unknown test assertion type', 'Unknown contentPattern pattern type'. A rewrite with one
+// island registry passes each of the three fixtures that pins it and none of the others.
+###Data
+Data fixture::neg::UnknownContentPattern
+{
+   ServiceStore
+   #{
+     [
+       {
+         request:
+         {
+           method: GET;
+           url: '/employees';
+           urlPath: '/employees';
+           headerParameters:
+           {
+             region:
+               NoSuchPattern
+               #{
+                 expected: 'EMEA';
+               }#
+           };
+         };
+         response:
+         {
+           body:
+             ExternalFormat
+             #{
+               contentType: 'application/json';
+               data: '[]';
+             }#;
+         };
+       }
+     ]
+   }#
+}

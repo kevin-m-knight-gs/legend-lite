@@ -82,7 +82,12 @@ public final class DataSpaceSectionGrammar
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c, declStart);
+            if (!"groupId".equals(key) && !"artifactId".equals(key)
+                    && !"versionId".equals(key)) {
+                // the deprecated coordinates DUPLICATE freely — the walker
+                // silently drops the whole field on >1 (probed dup wire)
+                TokenStreamCursor.once(seenKeys, key, c, declStart);
+            }
             c.expect(TokenType.COLON);
             switch (key) {
                 case "groupId", "artifactId", "versionId" -> {
@@ -275,6 +280,15 @@ public final class DataSpaceSectionGrammar
                         // (kind through }#), no key, no semicolon
                         int vs = c.pos();
                         String kind = c.parseIdentifier();
+                        if (!"Reference".equals(kind)
+                                && !"DataspaceTestData".equals(kind)) {
+                            // the engine's DataspaceDataElementReference
+                            // parser accepts ONLY the pointer kinds —
+                            // inline embedded data refuses (sibling
+                            // negative neg-dataspace-testdata-embedded)
+                            throw TokenStreamCursor.throwAt(c.tokens(), vs,
+                                    "Unexpected token");
+                        }
                         String path = rawIsland(c).trim();
                         testData = new Protocol.PDataSpaceTestData(kind,
                                 path, c.spanOf(vs, c.pos() - 1));

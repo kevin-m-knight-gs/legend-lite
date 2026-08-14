@@ -1,0 +1,25 @@
+// REJECTS: 'DataQuality' is not a known section parser
+//
+// ENVIRONMENTAL-LOOKING, AND DELIBERATELY SO. The same message a missing extension gives.
+// ../fixtures/t2-dataquality.pure parses using `###DataQualityValidation`, which proves the
+// extension is loaded and the rejection here is about the NAME.
+//
+// The section is `###DataQualityValidation`, not `###DataQuality` -- the name registered by
+// DataQualityGrammarParserExtension is the ELEMENT's name, not the vendor's. Every other
+// grammar in this batch splits the two differently and none of the splits is guessable:
+// BigQueryFunction registers `###BigQuery`, MemSqlFunction registers `###MemSql`,
+// SnowflakeApp registers `###Snowflake`. Three shortenings and one that does not shorten.
+//
+// Pinned because a wrong section name is the one error whose message a rewrite is most
+// likely to get right for the wrong reason: "not a known section parser" is also what a
+// MISSING EXTENSION produces. ../fixtures/t2-dataquality.pure parses against the same
+// classpath, so the DataQuality extension is present and this rejection is about the name.
+//
+// The body below is valid DataQualityValidation -- it is the second element of that fixture
+// verbatim -- so nothing but the section header can be responsible.
+###DataQuality
+DataQualityValidation fixture::neg::WrongSectionName
+{
+   context: fromMappingAndRuntime(fixture::neg::M, fixture::neg::R);
+   validationTree: $[ fixture::neg::Person { name } ]$;
+}

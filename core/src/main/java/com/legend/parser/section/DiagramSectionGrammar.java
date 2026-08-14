@@ -32,11 +32,13 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
         return "Diagram";
     }
 
-    /** The SPI feed — same raw parse, protocol JSON out. */
+    /** The SPI feed — same raw parse, protocol JSON out; the drop-in
+     *  overlay hosts the ENGINE grammar level. */
     @Override
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
-        for (var pe : parseRaw(src).elements()) {
+        for (var pe : parseRaw(src,
+                com.legend.parser.Dialect.LEGEND_ENGINE).elements()) {
             Protocol.PDiagram d = (Protocol.PDiagram) pe.protocol();
             out.accept(d.qualifiedName(),
                     com.legend.protocol.ProtocolEmitter.emitElement(d));
@@ -46,12 +48,15 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     @Override
     public LexableSectionGrammar.ParsedSection parseRaw(
             com.legend.spi.SectionSource src) {
-        return parseRaw(src, false);
+        // dialect-less callers get the PRODUCT surface; the internal
+        // pipeline passes its dialect explicitly (ElementParser)
+        return parseRaw(src, com.legend.parser.Dialect.LEGEND_LITE);
     }
 
     @Override
     public LexableSectionGrammar.ParsedSection parseRaw(
-            com.legend.spi.SectionSource src, boolean legendStrict) {
+            com.legend.spi.SectionSource src,
+            com.legend.parser.Dialect dialect) {
         Raw r = new Raw(src.text(), src.startLine());
         List<LexableSectionGrammar.ParsedElement> elements = new ArrayList<>();
         List<String> imports = new ArrayList<>();
@@ -61,12 +66,40 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 break;
             }
             if (r.startsWith("import ")) {
-                imports.add(r.toSemicolon().substring(7).trim());
+                // EXACTLY `import pkg(::pkg)*::*;` — a dotted separator
+                // refuses like the engine (MutationFuzzTest package-dot)
+                String imp = r.toSemicolon().substring(7).trim();
+                boolean ok = imp.length() > 3
+                        && imp.charAt(imp.length() - 1) == '*'
+                        && imp.charAt(imp.length() - 2) == ':'
+                        && imp.charAt(imp.length() - 3) == ':';
+                boolean segEmpty = true;
+                for (int ci = 0; ok && ci < imp.length() - 3; ci++) {
+                    char ch = imp.charAt(ci);
+                    if (ch == ':') {
+                        if (segEmpty || ci + 1 >= imp.length() - 3
+                                || imp.charAt(ci + 1) != ':') {
+                            ok = false;
+                        } else {
+                            ci++;
+                            segEmpty = true;
+                        }
+                    } else if (Character.isLetterOrDigit(ch) || ch == '_'
+                            || ch == '$') {
+                        segEmpty = false;
+                    } else {
+                        ok = false;
+                    }
+                }
+                if (!ok || segEmpty) {
+                    throw r.fail("malformed import '" + imp + "'");
+                }
+                imports.add(imp);
                 continue;
             }
             int elOffset = r.i;
             elements.add(new LexableSectionGrammar.ParsedElement(
-                    parseDiagram(r, legendStrict), elOffset));
+                    parseDiagram(r, dialect), elOffset));
         }
         return new LexableSectionGrammar.ParsedSection(elements, imports);
     }
@@ -79,7 +112,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     }
 
     private static Protocol.PDiagram parseDiagram(Raw r,
-            boolean legendStrict) {
+            com.legend.parser.Dialect dialect) {
         int[] start = r.mark();
         r.expectWord("Diagram");
         r.skipWs();
@@ -115,9 +148,9 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 // need acceptance)
                 case "TypeView", "AssociationView", "PropertyView",
                         "GeneralizationView" -> {
-                    if (legendStrict) {
+                    if (dialect.refusesPlatformDialect()) {
                         // dialect quarantine: the engine grammar has no m2
-                        // view arms — the strict surface refuses like it does
+                        // view arms (a PLATFORM construct)
                         throw r.fail("Unexpected token '" + kw + "'");
                     }
                     r.skipWs();

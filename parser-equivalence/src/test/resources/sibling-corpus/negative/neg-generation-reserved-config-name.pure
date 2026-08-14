@@ -1,0 +1,16 @@
+// REJECTS: Can't have config property with reserved name 'scopeElements'
+//
+// A FileGeneration body is `(scopeElements | generationOutputPath | configProperty)*`, and
+// configProperty matches ANY `name: value;` -- including the two names that have dedicated
+// rules. Give `scopeElements:` a scalar instead of the `[...]` array its own rule demands
+// and the parser falls through to the generic arm, where the walker refuses it by name.
+//
+// This is a genuinely surprising interaction between an open-ended rule and a specific one:
+// the grammar cannot express "these two names are taken", so the walker does, and a rewrite
+// that keeps only the open-ended arm would accept a config property that shadows a real
+// field.
+###FileGeneration
+Avro fixture::neg::ReservedConfigName
+{
+   scopeElements: 'fixture::neg::Person';
+}

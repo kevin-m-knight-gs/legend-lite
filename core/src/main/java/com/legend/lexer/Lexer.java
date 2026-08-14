@@ -775,10 +775,6 @@ public final class Lexer {
         if (c == '}' && pos + 1 < length && source.charAt(pos + 1) == '#') {
             emit(TokenType.ISLAND_END, pos, pos + 2); pos += 2; islandDepth--; return;
         }
-        // }-> — ISLAND_ARROW_EXIT (MUST check before plain })
-        if (c == '}' && pos + 2 < length && source.charAt(pos + 1) == '-' && source.charAt(pos + 2) == '>') {
-            emit(TokenType.ISLAND_ARROW_EXIT, pos, pos + 3); pos += 3; islandDepth--; return;
-        }
         // } — ISLAND_BRACE_CLOSE
         if (c == '}') { emit(TokenType.ISLAND_BRACE_CLOSE, pos, pos + 1); pos++; return; }
         // #{ — ISLAND_START (nested island)

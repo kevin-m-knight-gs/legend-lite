@@ -1,0 +1,49 @@
+// REJECTS: Unknown test assertion type: EqualToTDS
+//
+// EqualToTDS ships a complete lexer AND parser grammar -- EqualToTDSAssertionLexerGrammar
+// declares 'EqualToTDS' and 'expected', the parser rule takes an embeddedData island -- and
+// no TestAssertion parser registers the type. The grammar surface exists; the routing does
+// not.
+//
+// That is the whole reason this file is here rather than a positive fixture: a keyword that
+// is declared, reachable in the .g4, and refused at runtime looks exactly like a keyword a
+// rewrite forgot to implement. Pinning the message distinguishes "legend-engine refuses this
+// too" from "we have a gap", and if upstream ever registers the parser this fixture fails
+// and says so.
+###Service
+Service fixture::neg::EqualToTdsAssertion
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         tests:
+         [
+            t1:
+            {
+               asserts:
+               [
+                  a1:
+                     EqualToTDS
+                     #{
+                        expected:
+                           TDS
+                           #{
+                              id, name
+                              1, Ada
+                           }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

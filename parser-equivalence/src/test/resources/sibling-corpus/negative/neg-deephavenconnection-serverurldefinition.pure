@@ -1,0 +1,26 @@
+// REJECTS: Unexpected token
+//
+// `serverUrlDefinition:` on a DeephavenConnection. SERVER_URL_DEFINITION is declared by
+// DeephavenConnectionLexerGrammar.g4:11 and consumed by NOTHING -- the parser rule that shares
+// its name, `serverUrlDefinition`, consumes SERVER_URL instead. The token is dead, found
+// mechanically by keywords.dead_tokens() through ANTLR's tokenVocab link, and independently
+// confirmed here by running it.
+//
+// A dead token used as a FIELD NAME is the specific hazard: unlike a dead token that is merely
+// unreachable, this one reads as documentation. A rewrite harvesting its field table from the
+// lexer -- the obvious mechanical approach, and the one that gets every other field in this
+// grammar right -- gains a `serverUrlDefinition:` field that upstream refuses and no protocol
+// class has a slot for.
+//
+// The `serverUrl:` line it is replacing is otherwise unchanged, semicolon-less spelling and
+// all (see ./neg-deephavenconnection-serverurl-semicolon.pure), so the field name is the only
+// variable.
+###Connection
+DeephavenConnection fixture::neg::UrlDefinition
+{
+    store: fixture::neg::Store;
+    serverUrlDefinition: 'dummyurl.com:12345'
+    authentication: # PSK {
+        psk: 'abcde';
+    }#;
+}

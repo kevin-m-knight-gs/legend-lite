@@ -1,0 +1,27 @@
+// REJECTS: Field 'doc' is required
+//
+// `doc`, `trigger` and `service` are the three fields required on EVERY Persistence element,
+// v1 or v2, and all three sit in the same unordered `(...)*` as the optional ones. There is
+// no way to tell from the .g4 that an element with only a persister is incomplete.
+###Persistence
+Persistence test::persistence::neg::NoDoc
+{
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

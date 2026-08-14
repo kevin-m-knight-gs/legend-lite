@@ -1,0 +1,14 @@
+// REJECTS: Field 'class' is required
+//
+// A JsonModelConnection requires class and url. Its grammar is one shared
+// `definition: (modelConnectionClass | connectionUrl | modelChainMappings)* EOF` covering
+// Json, Xml AND ModelChain connections, so nothing in the .g4 distinguishes them at all.
+//
+// That sharing is also where legend-engine is permissive: `mappings:` on a
+// JsonModelConnection and `class:` on a ModelChainConnection both parse and are silently
+// discarded. Only the required-field check does any work here.
+###Connection
+JsonModelConnection fixture::neg::JsonWithoutClass
+{
+   url: 'model://fixture/person.json';
+}

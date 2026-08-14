@@ -1388,13 +1388,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     // ==================== Relation API Tests ====================
 
     @Test
-    @DisplayName("Relation API: #>{DB.TABLE}->from(runtime) - execute via QueryService")
+    @DisplayName("Relation API: #>{DB.TABLE}#->from(runtime) - execute via QueryService")
     void testRelationApiDirectTableQuery() throws Exception {
         // GIVEN: A Relation query with ->from(runtime)
-        // The query: #>{store::PersonDatabase.T_PERSON}->from(test::TestRuntime)
+        // The query: #>{store::PersonDatabase.T_PERSON}#->from(test::TestRuntime)
 
         String pureSource = getCompletePureModelWithRuntime();
-        String relationQuery = "#>{store::PersonDatabase.T_PERSON}->from(test::TestRuntime)";
+        String relationQuery = "#>{store::PersonDatabase.T_PERSON}#->from(test::TestRuntime)";
 
         // WHEN: Execute through QueryService (parse → compile → SQL → execute)
         var result = queryService.execute(
@@ -1462,7 +1462,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 """;
 
         // WHEN: Execute a relation query with distinct()
-        String relationQuery = "#>{store::ItemDb.T_ITEMS}->select(~[CATEGORY, VALUE])->distinct()->from(test::TestRuntime)";
+        String relationQuery = "#>{store::ItemDb.T_ITEMS}#->select(~[CATEGORY, VALUE])->distinct()->from(test::TestRuntime)";
 
         var result = queryService.execute(
                 pureSource, relationQuery, "test::TestRuntime", connection);
@@ -1482,7 +1482,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String pureSource = getCompletePureModelWithRuntime();
 
         // WHEN: Execute a relation query with rename()
-        String relationQuery = "#>{store::PersonDatabase.T_PERSON}->select(~FIRST_NAME)->rename(~FIRST_NAME, ~givenName)->from(test::TestRuntime)";
+        String relationQuery = "#>{store::PersonDatabase.T_PERSON}#->select(~FIRST_NAME)->rename(~FIRST_NAME, ~givenName)->from(test::TestRuntime)";
 
         var result = queryService.execute(
                 pureSource, relationQuery, "test::TestRuntime", connection);
@@ -1542,8 +1542,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // WHEN: Execute a relation query with concatenate()
         String relationQuery = """
-                #>{store::UserDb.T_ACTIVE_USERS}->select(~[ID, NAME])
-                    ->concatenate(#>{store::UserDb.T_INACTIVE_USERS}->select(~[ID, NAME]))
+                #>{store::UserDb.T_ACTIVE_USERS}#->select(~[ID, NAME])
+                    ->concatenate(#>{store::UserDb.T_INACTIVE_USERS}#->select(~[ID, NAME]))
                     ->from(test::TestRuntime)
                 """;
 

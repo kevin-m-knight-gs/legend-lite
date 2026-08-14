@@ -224,18 +224,19 @@ class FixtureAdjudicationTest {
                         ? "." : Path.of("").toAbsolutePath().getParent()
                                 .toString()));
         List<Path> out = new ArrayList<>();
-        for (String mod : List.of("core", "engine")) {
-            Path dir = root.resolve(mod).resolve("src/test/java");
-            if (!Files.isDirectory(dir)) {
-                continue;
-            }
-            try (Stream<Path> s = Files.walk(dir)) {
-                s.filter(f -> f.toString().endsWith(".java"))
-                        .filter(f -> !f.toString().contains("/target/"))
-                        .sorted().forEach(out::add);
-            } catch (IOException e) {
-                throw new IllegalStateException("cannot walk " + dir, e);
-            }
+        // ONE module: the "engine" module was deleted (cd31b9f3) and the
+        // silent isDirectory-skip made this walk half-dead (deep-audit #2)
+        Path dir = root.resolve("core").resolve("src/test/java");
+        if (!Files.isDirectory(dir)) {
+            throw new IllegalStateException("core test tree missing at "
+                    + dir + " — set -Dlegend.lite.root");
+        }
+        try (Stream<Path> s = Files.walk(dir)) {
+            s.filter(f -> f.toString().endsWith(".java"))
+                    .filter(f -> !f.toString().contains("/target/"))
+                    .sorted().forEach(out::add);
+        } catch (IOException e) {
+            throw new IllegalStateException("cannot walk " + dir, e);
         }
         return out;
     }

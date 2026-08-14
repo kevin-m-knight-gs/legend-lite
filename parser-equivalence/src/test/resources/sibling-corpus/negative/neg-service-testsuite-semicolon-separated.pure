@@ -1,0 +1,52 @@
+// REJECTS: Unexpected token ';'. Valid alternatives: [',', ']']
+//
+// Test elements inside `tests: [ ... ]` are COMMA-separated. Every other statement in a
+// service body is semicolon-terminated -- pattern, documentation, mapping, runtime -- so the
+// semicolon is the natural thing to type and the wrong one.
+//
+// The separator is a list separator, not a terminator: the last element takes none. A
+// rewritten parser that accepts either punctuation, or tolerates a trailing separator,
+// diverges here with no visible symptom.
+###Service
+Service fixture::neg::SemicolonSeparatedTests
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         tests:
+         [
+            t1:
+            {
+               asserts:
+               [
+                  a1:
+                     EqualTo
+                     #{
+                        expected: '1';
+                     }#
+               ]
+            };
+            t2:
+            {
+               asserts:
+               [
+                  a2:
+                     EqualTo
+                     #{
+                        expected: '2';
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

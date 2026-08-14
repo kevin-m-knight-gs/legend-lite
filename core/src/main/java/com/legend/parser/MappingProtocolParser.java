@@ -22,7 +22,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private final TokenStream tokens;
     private int pos;
 
-    /** See {@link TokenStreamCursor#legendStrict()} — carried from the
+    /** The three-level {@link Dialect} — carried from the
      *  constructing parser so m2-only mapping forms and body-level dialect
      *  constructs gate on the drop-in surface. */
     private final Dialect dialect;
@@ -30,10 +30,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     @Override
     public Dialect dialect() {
         return dialect;
-    }
-
-    public boolean legendStrict() {
-        return dialect.refusesPlatformDialect();
     }
 
     MappingProtocolParser(TokenStream tokens, int pos,
@@ -2225,6 +2221,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             if ("doc".equals(key)) {
                 // doc: '<string>'; — suite documentation (harvest
                 // testSimpleTestSuite; wire "doc" right after _type)
+                if (doc != null) {
+                    // once-only (mutant duplicate-field probe)
+                    throw error("Field 'doc' should be specified only once");
+                }
                 advance();
                 expect(TokenType.COLON);
                 doc = consumeStringLiteral("'doc'");
@@ -2232,6 +2232,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 continue;
             }
             if ("function".equals(key)) {
+                if (func != null) {
+                    throw error("Field 'function' should be specified"
+                            + " only once");
+                }
                 advance();
                 expect(TokenType.COLON);
                 int fS = pos;

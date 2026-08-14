@@ -161,7 +161,6 @@ public enum TokenType {
     // it must never flow silently into a parse (audit: it used to).
     INVALID,        // #...{
     ISLAND_END,         // }#
-    ISLAND_ARROW_EXIT,  // }->
     ISLAND_BRACE_OPEN,  // { (inside island)
     ISLAND_BRACE_CLOSE, // } (inside island)
     TDS_LITERAL,        // #TDS...#

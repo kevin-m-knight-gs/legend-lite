@@ -1,0 +1,18 @@
+// REJECTS: Unexpected token
+//
+// `persistenceStrategy:` on a DataQualityValidation. Same category as
+// ./no-registered-island-processor.pure and a cleaner example of it: nothing implements
+// IDataQualityGrammarParserExtension, so getExtraDataQualityPersistenceStrategyParsers()
+// returns emptyList and parseIsland's orElseThrow fires for every island type. Against the
+// runner's jars the grammar refuses it earlier still.
+//
+// Pinned because "no processor is registered" is indistinguishable, from the outside, from
+// "this construct is invalid" -- and from "the extension is not on your classpath". Three
+// causes, one symptom. legend-lite has to decide deliberately which it is implementing.
+###DataQualityValidation
+DataQualityValidation fixture::neg::WithStrategy
+{
+   context: fromMappingAndRuntime(fixture::neg::M, fixture::neg::R);
+   validationTree: $[ fixture::neg::Person { name } ]$;
+   persistenceStrategy: Relational { };
+}

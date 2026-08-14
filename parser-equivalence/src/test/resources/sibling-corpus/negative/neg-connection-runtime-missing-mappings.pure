@@ -1,0 +1,20 @@
+// REJECTS: Field 'mappings' is required
+//
+// `mappings:` is required on a Runtime and on a SingleConnectionRuntime; `connections:` and
+// `connectionStores:` are both optional. The grammar requires none of them -- the body is
+// `(mappings | connections | connectionStoresList)*` -- so this too is a walker rule.
+//
+// The asymmetry is the point: a runtime with connections and no mappings looks more useful
+// than one with mappings and no connections, and it is the illegal one. A rewrite that
+// treats all three as optional accepts it.
+###Runtime
+Runtime fixture::neg::NoMappings
+{
+   connections:
+   [
+      fixture::neg::Db:
+      [
+         c1: fixture::neg::Conn
+      ]
+   ];
+}

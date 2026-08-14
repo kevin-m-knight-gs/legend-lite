@@ -1,0 +1,24 @@
+// REJECTS: Unexpected token '..'. Valid alternatives: [']', '.']
+//
+// `String[0..1]` in a DeephavenApp function signature. Deephaven writes its own multiplicity
+// rule rather than using M3's:
+//     appMultiplicity : BRACKET_OPEN (STAR | INTEGER (DOT DOT INTEGER?)?) BRACKET_CLOSE
+// -- a range spelled as TWO separate DOT tokens. But this section is lexed with
+// CoreLexerGrammar, which lexes `..` as a SINGLE token, so the DOT DOT sequence the rule asks
+// for can never be produced. The range arm is unreachable by construction, and only `[n]` and
+// `[*]` are typeable.
+//
+// A grammar bug that a rewrite fixes by accident: transcribe `appMultiplicity` against a lexer
+// that does not have a `..` token -- or simply reuse M3's `multiplicity`, which every other
+// function signature in Legend uses and which accepts `[0..1]` -- and the rewrite is more
+// permissive than legend-engine on the most ordinary multiplicity there is.
+//
+// The alternative list is the tell: at that position the parser wants `]` or a single `.`,
+// and the input has neither because the lexer already glued the pair together.
+###Deephaven
+DeephavenApp fixture::neg::RangeMultiplicity
+{
+    applicationName: 'MyTestApp';
+    function: fixture::neg::myFunc(String[0..1]):Any[*];
+    ownership: Deployment { identifier: 'owner123' };
+}

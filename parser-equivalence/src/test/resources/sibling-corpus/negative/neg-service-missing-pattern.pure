@@ -1,0 +1,19 @@
+// REJECTS: Field 'pattern' is required
+//
+// A Service requires pattern, documentation and execution. The grammar's body is an
+// unordered `( ... )*`, so NOTHING in the parse tree makes any of them mandatory -- the
+// requirement is enforced afterwards by the walker, naming the field.
+//
+// This is the class of rule a generated parser misses entirely: the .g4 is satisfied, the
+// tree builds, and only ServiceParseTreeWalker refuses.
+###Service
+Service fixture::neg::NoPattern
+{
+   documentation: 'no pattern';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::Mapping;
+      runtime: fixture::neg::Runtime;
+   }
+}

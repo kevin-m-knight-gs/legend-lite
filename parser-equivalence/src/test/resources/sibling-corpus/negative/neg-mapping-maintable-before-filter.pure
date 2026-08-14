@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token '~filter'
+//
+// A relational class mapping's modifiers are ordered:
+//     ~filter? ~distinct? ~groupBy? ~primaryKey? ~mainTable?
+// ~mainTable is LAST. This writes it first, which is where every reader would put it --
+// naming the table you are mapping before filtering it.
+//
+// The stress corpus and the positive fixtures only ever write ~mainTable alongside
+// ~primaryKey, so the constraint is invisible to them: a rewrite can accept the modifiers
+// in any order and pass every fixture that exists. Swapping these two lines makes it parse.
+###Mapping
+Mapping fixture::neg::MainTableFirst
+(
+   fixture::neg::Person: Relational
+   {
+      ~mainTable [fixture::neg::Db]T
+      ~filter [fixture::neg::Db] ActiveFilter
+      id: [fixture::neg::Db]T.ID
+   }
+)

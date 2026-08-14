@@ -1,0 +1,27 @@
+// REJECTS: Unsupported SecurityScheme - OAuth
+//
+// `security: [ OAuth ]`. The field is REQUIRED on every Service (ServiceStoreParseTreeWalker
+// :204) and the grammar accepts a comma-separated list of scheme islands -- but nothing in
+// legend-engine implements IServiceStoreGrammarParserExtension.getExtraSecuritySchemesParsers(),
+// so the lookup at :380 fails for EVERY name a user could write. `security: []` is the only
+// spelling that reaches the token, which is why ../fixtures/t2-servicestore.pure writes the
+// empty list twice and never a scheme.
+//
+// A required list that must always be empty is not a thing a grammar can express, so this is
+// invisible to anyone transcribing the .g4: they get a working `security: [ Basic ]` for free
+// and a store that upstream refuses. Same category as ./no-registered-island-processor.pure
+// (HostedService `actions`) and ./no-registered-persistence-strategy.pure -- island types
+// with zero registered processors -- but this one fails with a NAMED message rather than a
+// crash, and the name is what distinguishes "no processor registered" from "extension missing
+// from the classpath".
+###ServiceStore
+ServiceStore fixture::neg::SecuredStore
+(
+  Service GetEmployee
+  (
+    path: '/employees';
+    method: GET;
+    response: fixture::neg::Employee <- fixture::neg::Binding;
+    security: [ OAuth ];
+  )
+)

@@ -1,0 +1,30 @@
+// COVERS DataSpaceLexerGrammar: DataSpace, executionContexts, defaultExecutionContext, name, mapping, defaultRuntime, supportInfo, Email, address, documentationUrl
+//
+// The other arm of `supportInfo:`. The rule is
+//     supportInfo: SUPPORT_INFO COLON (supportEmail | supportCombinedInfo) SEMI_COLON
+// -- exactly one alternative, so `Email` and `Combined` cannot share a DataSpace and the
+// split into two fixtures is forced by the grammar, not by taste.
+//
+// `documentationUrl` is legal in BOTH arms (supportDocumentationUrl is listed inside
+// supportEmail and supportCombinedInfo); it is written here as well as in t2-dataspace.pure
+// so the Email arm is exercised in full rather than reduced to its one unique field.
+//
+// `address` is REQUIRED once `Email` is chosen -- DataSpaceParseTreeWalker.java:425 --
+// which is why this element cannot be trimmed further.
+###DataSpace
+DataSpace fixture::ds::EmailSupported
+{
+  executionContexts:
+  [
+    {
+      name: 'Context 1';
+      mapping: fixture::ds::Mapping;
+      defaultRuntime: fixture::ds::Runtime;
+    }
+  ];
+  defaultExecutionContext: 'Context 1';
+  supportInfo: Email {
+    documentationUrl: 'https://example.org/docs';
+    address: 'support@example.org';
+  };
+}

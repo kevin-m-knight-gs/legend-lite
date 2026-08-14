@@ -1,0 +1,169 @@
+// COVERS ServiceStoreLexerGrammar: ServiceStore, description, Service, ServiceGroup, path, method, parameters, requestBody, response, security, location, required, style, explode, enum, allowReserved, ~service, ~path, ~request, body, $service, ~paramMapping
+// COVERS ServiceStoreConnectionLexerGrammar: store, baseUrl
+// COVERS ServiceStoreEmbeddedDataLexerGrammar: request, method, url, urlPath, headerParameters, queryParameters, bodyPatterns, response, body
+//
+// ServiceStore is one lexer reached from THREE sections, and this file writes all of them:
+// the store definition (###ServiceStore), the class mapping that consumes it (###Mapping --
+// that is where ~service / ~path / ~request / body / $service / ~paramMapping live, and
+// nowhere else), the connection (###Connection) and the stub data (###Data).
+//
+// Walker constraints that shape the code below, all in ServiceStoreParseTreeWalker:
+//   - `security` is REQUIRED on every Service (:204) but must be EMPTY. A non-empty list
+//     goes to visitSecurityScheme, and nothing in the repository implements
+//     IServiceStoreGrammarParserExtension.getExtraSecuritySchemesParsers(), so any scheme
+//     name is rejected with "Unsupported SecurityScheme - X" (:380). `security: []` is
+//     therefore the only spelling that reaches the token.
+//   - `path` must start with '/' and not end with '/' (:133); every `location = path`
+//     parameter must literally appear in the path as `{name}` (:224); path parameters
+//     cannot be optional (:273).
+//   - `style` and `explode` are rejected on a NON-list parameter (:294,:300), which is why
+//     they sit on the `[Integer]` parameter here and not the `String` one.
+//   - `requestBody` is rejected on a GET endpoint (:215), hence the POST service.
+//   - `baseUrl` must not end with '/' (ServiceStoreConnectionParseTreeWalker:61).
+//
+// `~paramMapping` and the bare `prop: $service.parameters.x` block are both marked
+// "TODO: TO BE REMOVED" in the .g4 and appear in no upstream test, but the walker still
+// wires them (:422-438) and they are the only rules that reach PARAM_MAPPING and the
+// `$service.parameters` form of SERVICE_REFERENCE.
+//
+// `description` on the store parses and is then DISCARDED -- visitServiceStore never reads
+// ctx.description(). It is grammar surface with no protocol behind it.
+###ServiceStore
+ServiceStore fixture::ss::Store
+(
+  description: 'a fixture service store';
+
+  Service GetEmployee
+  (
+    path: '/employees/{employeeId}';
+    method: GET;
+    parameters:
+    (
+      employeeId: String ( location = path, required = true ),
+      "odd.param.name": [Integer] ( location = query, style = simple, explode = true, enum = fixture::ss::Region, allowReserved = true )
+    );
+    response: fixture::ss::Employee <- fixture::ss::Binding;
+    security: [];
+  )
+  ServiceGroup EmployeeServices
+  (
+    path: '/emp';
+
+    Service CreateEmployee
+    (
+      path: '/create';
+      requestBody: [fixture::ss::Employee <- fixture::ss::Binding];
+      method: POST;
+      parameters:
+      (
+        region: String ( location = header, required = false )
+      );
+      response: fixture::ss::Employee <- fixture::ss::Binding;
+      security: [];
+    )
+  )
+)
+
+###Mapping
+Mapping fixture::ss::Mapping
+(
+  *fixture::ss::Employee: ServiceStore
+  {
+    +localProp: String[1];
+
+    ~service [fixture::ss::Store] EmployeeServices.CreateEmployee
+    (
+      ~path $service.response.nested.pathProperty
+      ~request
+      (
+        parameters
+        (
+          region = $this.localProp,
+          "odd.param.name" = 1
+        )
+        body = ^fixture::ss::RequestBody(propA=$this.localProp, propB=1)
+      )
+    )
+    ~service [fixture::ss::Store] GetEmployee
+    (
+      ~paramMapping
+      (
+        employeeId: $this.localProp
+      )
+      firmId: $service.parameters.employeeId
+    )
+  }
+)
+
+###Connection
+ServiceStoreConnection fixture::ss::Connection
+{
+  store: fixture::ss::Store;
+  baseUrl: 'http://example.org';
+}
+
+###Data
+Data fixture::ss::StubData
+{
+  ServiceStore
+  #{
+    [
+      {
+        request:
+        {
+          method: GET;
+          url: '/employees';
+          urlPath: '/employees';
+          headerParameters:
+          {
+            region:
+              EqualTo
+              #{
+                expected: 'EMEA';
+              }#
+          };
+          queryParameters:
+          {
+            employeeId:
+              EqualTo
+              #{
+                expected: '123';
+              }#
+          };
+        };
+        response:
+        {
+          body:
+            ExternalFormat
+            #{
+              contentType: 'application/json';
+              data: '[{"firstName":"Ada"}]';
+            }#;
+        };
+      },
+      {
+        request:
+        {
+          method: POST;
+          url: '/emp/create';
+          bodyPatterns:
+          [
+            EqualToJson
+            #{
+              expected: '{"name":"Ada"}';
+            }#
+          ];
+        };
+        response:
+        {
+          body:
+            ExternalFormat
+            #{
+              contentType: 'application/json';
+              data: '[]';
+            }#;
+        };
+      }
+    ]
+  }#
+}

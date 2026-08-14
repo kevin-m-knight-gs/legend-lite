@@ -85,7 +85,10 @@ public final class DataQualityValidationSectionGrammar
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            if (!"filter".equals(key)) {
+                // filter duplicates freely (first wins, probed dup wire)
+                TokenStreamCursor.once(seenKeys, key, c);
+            }
             c.expect(TokenType.COLON);
             switch (key) {
                 case "context" -> {
@@ -104,7 +107,13 @@ public final class DataQualityValidationSectionGrammar
                     c.expect(TokenType.PAREN_CLOSE);
                 }
                 case "validationTree" -> tree = parseTreeIsland(c);
-                case "filter" -> filter = SectionParse.specToSemicolon(c);
+                case "filter" -> {
+                    // duplicates legal, FIRST wins (probed dup wire)
+                    var f2 = SectionParse.specToSemicolon(c);
+                    if (filter == null) {
+                        filter = f2;
+                    }
+                }
                 default -> throw c.error(
                         "unknown DataQualityValidation key '" + key + "'");
             }

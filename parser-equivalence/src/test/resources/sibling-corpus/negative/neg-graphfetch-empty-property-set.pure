@@ -1,0 +1,18 @@
+// REJECTS: Unexpected token '}'. Valid alternatives: ['->subType(@']
+//
+// A graph fetch subtree must fetch SOMETHING. `Class { }` is not "fetch the class with no
+// properties", it is unparseable -- and the single alternative offered says why: at that
+// position the grammar wants a property name or the root-level cast, and has no empty
+// alternative to fall back on.
+//
+// Empty collections are the classic accidental permission. A rewrite writing `while (not
+// '}') parseProperty()` accepts the empty body for free, without a decision ever being
+// made, and emits a tree node with zero subtrees that serialises fine and fetches nothing.
+###Pure
+function fixture::neg::emptyTree(): meta::pure::metamodel::type::Any[*]
+{
+   #{
+      fixture::neg::Catalog {
+      }
+   }#
+}

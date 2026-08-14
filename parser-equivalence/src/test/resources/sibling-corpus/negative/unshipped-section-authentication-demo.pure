@@ -1,0 +1,34 @@
+// REJECTS: 'AuthenticationDemo' is not a known section parser
+//
+// A third way legend-engine declares surface it will not accept, distinct from both dead
+// tokens and walker-rejection. The tokens ARE referenced by rules in
+// AuthenticationParserGrammar, and those rules parse -- what is missing is the SectionParser
+// that would route text to the grammar at all. AuthenticationDemoParserExtension registers
+// ENVIRONMENTAL BY NATURE -- that is the finding, not a flaw in the fixture. The section
+// parser genuinely is absent from the shipped jar because it lives in src/test/java. Unlike
+// the two wrong-section fixtures beside it, no positive fixture can prove otherwise: there
+// is no shipped ###AuthenticationDemo to prove loads.
+//
+// ###AuthenticationDemo and lives in src/test/java, so it is absent from the shipped jar.
+//
+// This is exactly the shape of the classpath trap that makes the REJECTS line necessary: a
+// section failing because its extension is not loaded looks identical to a section failing
+// because the construct is invalid. Only the message distinguishes them, and the message is
+// what this fixture pins.
+//
+// The grammar's other 43 keywords ARE reachable, through an `authentication:` island in a
+// connection, and are covered that way in ../fixtures/t2-authentication.pure.
+###AuthenticationDemo
+import meta::pure::test::*;
+
+Authentication demo::auth::Basic
+{
+   authentication: UserPassword
+   {
+      username: 'user';
+      password: PropertiesFileSecret
+      {
+         propertyName: 'pw';
+      };
+   };
+}

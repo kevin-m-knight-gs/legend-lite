@@ -92,6 +92,12 @@ public class CorpusSweepTest {
      *  strict element surface's own census. Down-only. */
     private static final int MAX_PARSER_LENIENT_ACCEPTS = 181;   // measured 2026-08-12 post burn-down (was 187)
 
+    /** CEILING on the platform-surface leniency catalog (deep-audit #2
+     *  2d: the population was unbounded — every row classifies, but
+     *  nothing stopped the TOTAL from growing silently). Shrink-only;
+     *  measured 2026-08-14. */
+    private static final int MAX_LENIENCY_CATALOG = 1470;
+
     /** M3 second-reference agreement floor on oracle-accepted
      *  section-free sources — below this the "m3-corroborated"
      *  allowlist label stops meaning anything. */
@@ -148,6 +154,7 @@ public class CorpusSweepTest {
         List<String> unclassified = new ArrayList<>();
         List<String> strictLenientIds = new ArrayList<>();
         List<String> strictUnexplained = new ArrayList<>();
+        List<String> protocolInvalid = new ArrayList<>();
         Map<String, Integer> strictLenientByClass = new TreeMap<>();
         Map<String, Integer> catalogByClass = new TreeMap<>();
         StringBuilder catalog = new StringBuilder();
@@ -224,6 +231,25 @@ public class CorpusSweepTest {
             if (!docAccepts && !strictAccepts) {
                 bothReject++;
             } else {
+                if (docAccepts) {
+                    // PROTOCOL-CHECK (sibling handoff instrument, adopted
+                    // 2026-08-14): a document WE accept that the oracle
+                    // refuses must still emit JSON the ENGINE's own
+                    // protocol classes deserialize — a wrong-kind key
+                    // emits wire no downstream consumer can read (the
+                    // Persistence corruption class). Byte-matched docs
+                    // are exempt by construction: their wire IS the
+                    // engine's.
+                    try {
+                        mapper.readValue(com.legend.parser.PmcdParser
+                                .parseDocument(src.text()),
+                                org.finos.legend.engine.protocol.pure.v1
+                                        .model.context.PureModelContextData.class);
+                    } catch (Throwable t) {
+                        protocolInvalid.add(src.id() + " :: "
+                                + msgOf(rootOf(t)));
+                    }
+                }
                 // CLAIM 2b: verdict symmetry — every asymmetry is an
                 // allowlist line
                 String category = !pureOnly ? "sectioned"
@@ -306,6 +332,8 @@ public class CorpusSweepTest {
         final double fCal = calibration;
         final int fAccepts = oracleAccepts;
         final int fBoth = bothReject;
+        final int fCatalogTotal = catalogByClass.values().stream()
+                .mapToInt(Integer::intValue).sum();
         System.out.println("strictLenient by class: " + strictLenientByClass);
         assertAll(
                 () -> assertEquals(0, strictUnexplained.size(),
@@ -365,7 +393,16 @@ public class CorpusSweepTest {
                                 + " label is no longer trustworthy",
                                 fCal, M3_CALIBRATION_FLOOR)),
                 () -> assertTrue(fAccepts > 0 && fBoth > 0,
-                        "degenerate sweep: the corpus did not load"));
+                        "degenerate sweep: the corpus did not load"),
+                () -> assertTrue(fCatalogTotal <= MAX_LENIENCY_CATALOG,
+                        "leniency catalog grew: " + fCatalogTotal + " > "
+                                + MAX_LENIENCY_CATALOG
+                                + " — new leniency must be adjudicated"),
+                () -> assertEquals(0, protocolInvalid.size(),
+                        () -> "PROTOCOL-INVALID wire on lenient-accepted"
+                                + " docs — the engine's own deserializer"
+                                + " refuses what we emit:\n  "
+                                + head(protocolInvalid)));
     }
 
     // ------------------------------------------------------------------
@@ -417,7 +454,13 @@ public class CorpusSweepTest {
         if ("Unexpected token".equals(msg.trim())) {
             try {
                 Surfaces.engine(text);
-                return "VERSION-SKEW-grammar";
+                // OUR engine-dialect parser accepting is NOT evidence of
+                // unreleased grammar — that's what an over-permissive
+                // lite bug looks like (deep-audit #2 2c: this arm was
+                // CIRCULAR). Skew is a CLAIM: each row needs a reviewed
+                // line in version-skew-claims.tsv or it goes red.
+                return versionSkewClaim(root) ? "VERSION-SKEW-claimed"
+                        : null;
             } catch (Throwable strict) {
                 String sm = String.valueOf(strict.getMessage());
                 if (sm.contains("not authorized in Legend Engine")) {

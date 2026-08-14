@@ -1,0 +1,18 @@
+// REJECTS: Field 'dataProcessingUnits' is required
+//
+// PersistenceCloudParserGrammar is the smallest grammar in the whole surface: one rule, one
+// keyword. `definition: (awsGlueDpuCount)* EOF` -- a star, so an EMPTY AwsGlue island is a
+// complete parse tree, and PersistenceCloudParseTreeWalker requires the field.
+//
+// Worth its own file because it proves the island body reached the cloud grammar at all: if
+// the AwsGlue processor were missing from the classpath this would fail with an
+// "Unsupported persistence platform type" instead, and the two are indistinguishable without
+// the message.
+###Persistence
+PersistenceContext test::persistence::neg::AwsGlueNoDpu
+{
+  persistence: test::persistence::TestPersistence;
+  platform: AwsGlue
+  #{
+  }#;
+}

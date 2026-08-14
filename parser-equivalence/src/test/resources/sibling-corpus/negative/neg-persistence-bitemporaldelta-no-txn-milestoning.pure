@@ -1,0 +1,37 @@
+// REJECTS: Field 'transactionMilestoning' is required
+//
+// BitemporalDelta is the only ingest mode with THREE required sub-blocks (mergeStrategy,
+// transactionMilestoning, validityMilestoning). Here the transaction milestoning is missing
+// and the other two are present, so the tree is well-formed and only the walker objects.
+###Persistence
+Persistence test::persistence::neg::BiDeltaNoTxnMilestoning
+{
+  doc: 'bitemporal delta missing its transaction milestoning';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalDelta
+    {
+      mergeStrategy: NoDeletes;
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+        derivation: SourceSpecifiesFromDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

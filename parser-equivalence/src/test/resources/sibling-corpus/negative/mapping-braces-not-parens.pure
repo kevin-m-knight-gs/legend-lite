@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token '{'
+//
+// A Mapping body is delimited by PARENTHESES; every other element type uses braces. The
+// MappingLexerGrammar comment calls this a historical quirk and it is the reason Mapping
+// needs an island grammar at all.
+//
+// Pinned because it is the single most plausible thing for a rewrite to normalise away out
+// of tidiness, and doing so would accept models legend-engine rejects.
+###Mapping
+Mapping fixture::neg::Braces
+{
+   fixture::neg::Person: Relational
+   {
+      firstName: [fixture::neg::Db]T.FIRST_NAME
+   }
+}

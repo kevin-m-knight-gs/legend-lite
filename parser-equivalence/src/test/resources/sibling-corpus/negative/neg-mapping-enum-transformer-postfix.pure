@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token 'EnumerationMapping'. Valid alternatives: [',']
+//
+// A transformer is a PREFIX on the mapped operation:
+//     kind: EnumerationMapping KindMapping: [db]T.KIND
+// with its own trailing colon. It is not a suffix on the column, and it is not an optional
+// tail of the property mapping.
+//
+// Written the other way round it reads like the natural thing -- name the column, then say
+// how to transform it -- and a rewrite that parses the right-hand side as an operation
+// followed by optional annotations accepts it. The same position is shared with the Binding
+// transformer, so getting it wrong moves both.
+###Mapping
+Mapping fixture::neg::EnumTransformerPostfix
+(
+   fixture::neg::Person: Relational
+   {
+      ~mainTable [fixture::neg::Db]T
+      kind: [fixture::neg::Db]T.KIND EnumerationMapping KindMapping
+   }
+)

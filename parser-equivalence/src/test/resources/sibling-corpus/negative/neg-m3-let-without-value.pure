@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token 'x'. Valid alternatives: ['&&', '||', '==', '!=', '->'
+//
+// `let` has no declaration-only form. There is no `let x;` awaiting assignment, and the
+// error proves why: `let` is not a statement keyword the parser dispatches on. It is
+// listed in the identifier rule, so `let` was read as an ordinary expression and then `x`
+// had nowhere to go -- the alternatives offered are binary operators, not '='.
+//
+// A rewrite that special-cases `let` as a statement keyword (the natural implementation)
+// makes `let x;` a plausible declaration, and also quietly loses the ability to name a
+// property `let`, which m3-expressions.pure and the identifier rule both permit.
+###Pure
+function fixture::neg::emptyLet(): Integer[1]
+{
+   let x;
+   1;
+}

@@ -1,0 +1,15 @@
+// REJECTS: Column data type INTEGER does not expect any parameters
+//
+// The other direction of the same walker check: INTEGER, BIGINT, DATE, TIMESTAMP, FLOAT and
+// friends take NO parameters, and `INTEGER(10)` is refused even though the grammar's shared
+// column rule happily matches it.
+//
+// `INT(10)` is valid DDL in several dialects, so this is a construct a user can plausibly
+// write and a rewrite can plausibly accept. Both halves of the arity rule are pinned
+// because a rewrite that implements one and not the other looks correct on every fixture
+// that exercises the other.
+###Relational
+Database fixture::neg::IntWidth
+(
+   Table T (ID INTEGER(10) PRIMARY KEY)
+)

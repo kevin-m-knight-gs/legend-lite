@@ -487,7 +487,8 @@ public final class PmcdParser {
         var parsed = com.legend.parser.section.DiagramSectionGrammar.INSTANCE
                 .parseRaw(new com.legend.spi.SectionSource("Diagram",
                         source.substring((int) r[0], (int) r[1]),
-                        (int) r[0], (int) r[1], startLine), true);
+                        (int) r[0], (int) r[1], startLine),
+                        com.legend.parser.Dialect.LEGEND_ENGINE);
         List<String> out = new ArrayList<>();
         for (String imp : parsed.imports()) {
             String path = stripWildcard(imp);
@@ -516,7 +517,8 @@ public final class PmcdParser {
         var parsed = com.legend.parser.section.DiagramSectionGrammar.INSTANCE
                 .parseRaw(new com.legend.spi.SectionSource("Diagram",
                         source.substring((int) r[0], (int) r[1]),
-                        (int) r[0], (int) r[1], startLine), true);
+                        (int) r[0], (int) r[1], startLine),
+                        com.legend.parser.Dialect.LEGEND_ENGINE);
         List<DocElement> out = new ArrayList<>();
         for (var pe : parsed.elements()) {
             Protocol.PDiagram d = (Protocol.PDiagram) pe.protocol();
@@ -626,7 +628,11 @@ public final class PmcdParser {
                     el = fa;
                     // the config walkers never register a path — the
                     // section's element list carries a literal null
-                    path = fa.kind().endsWith("DeploymentConfiguration")
+                    // (EXACT kind names; no suffix matching)
+                    path = "BigQueryFunctionDeploymentConfiguration"
+                            .equals(fa.kind())
+                            || "HostedServiceDeploymentConfiguration"
+                                    .equals(fa.kind())
                             ? null : fa.qualifiedName();
                 } else {
                     // ExecutionEnvironment hosted by ###HostedService

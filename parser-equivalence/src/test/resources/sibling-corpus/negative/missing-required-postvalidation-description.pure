@@ -1,0 +1,27 @@
+// REJECTS: Field 'description' is required
+//
+// A postValidation requires all three of description, params and assertions. Only
+// description is omitted, so the diagnostic names it.
+//
+// Paired with missing-required-classview-rectangle.pure to pin the required-field
+// behaviour in two unrelated grammars: the message names the FIELD, and it comes from the
+// walker after the tree is built, not from the grammar at the closing brace.
+###Service
+Service fixture::neg::NoDescription
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   postValidations:
+   [
+      {
+         params: [];
+         assertions: [ a: t: TabularDataSet[1]|true; ];
+      }
+   ]
+}

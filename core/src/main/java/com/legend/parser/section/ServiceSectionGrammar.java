@@ -1166,6 +1166,11 @@ public final class ServiceSectionGrammar
             }
             switch (key) {
                 case "mapping" -> {
+                    if (runtime != null || embedded != null) {
+                        // the .g4 fixes mapping BEFORE runtime (mutant
+                        // swap-siblings probe: engine refuses the swap)
+                        throw c.error("Unexpected token 'mapping'");
+                    }
                     int ms = c.pos();
                     mapping = Protocol.unquotePath(c.parseQualifiedName());
                     mappingSpan = c.spanOf(ms, c.pos() - 1);

@@ -1,0 +1,29 @@
+// COVERS DomainLexerGrammar: Enum, as
+//
+// `as` is reachable only as an IDENTIFIER -- DomainParserGrammar lists AS in its identifier
+// rule, and the one construct that uses the AS token proper is the treePath alias, which
+// belongs to the `projects` projection form that the walker NPEs on. So the surface a user
+// can actually reach is `as` used as a property name.
+//
+// Same reason as keyword-as-identifier.pure: a parser that dispatches on the token before
+// trying the identifier arm accepts everything here except a property called `as`.
+###Pure
+Enum fixture::domain::Region
+{
+   EMEA,
+   APAC,
+   AMERICAS
+}
+
+Enum fixture::domain::Side
+{
+   BUY,
+   SELL
+}
+
+Class fixture::domain::Trade
+{
+   as: String[1];
+   region: fixture::domain::Region[1];
+   side: fixture::domain::Side[1];
+}

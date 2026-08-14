@@ -1,0 +1,16 @@
+// REJECTS: Field 'url' is required
+//
+// ModelConnectionParserGrammar has ONE definition rule shared by all three model
+// connections: `(modelConnectionClass | connectionUrl | modelChainMappings)*`. Every field
+// is optional and every field is legal in every one of them, as far as the grammar goes.
+//
+// What each connection actually requires is decided in the walker, per type: Json and Xml
+// require class AND url, ModelChain requires mappings. So a generated parser accepts a
+// JsonModelConnection with no url, an XmlModelConnection with `mappings:`, and a
+// ModelChainConnection with a `class:` -- three different wrong models from one permissive
+// rule. (The last two are accepted by legend-engine too; see the harness notes.)
+###Connection
+JsonModelConnection fixture::neg::NoUrl
+{
+   class: fixture::neg::Person;
+}

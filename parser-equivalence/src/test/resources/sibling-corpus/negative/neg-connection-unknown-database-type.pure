@@ -1,0 +1,19 @@
+// REJECTS: Unknown database type 'Frobnicate'
+//
+// `type:` takes any identifier as far as the grammar is concerned; the value is matched
+// against the DatabaseType enum in the walker. The set is closed and it is large -- H2,
+// Postgres, Snowflake, MemSQL, BigQuery, Databricks, Trino, Spanner and more all parse --
+// which is exactly why a rewrite is tempted to keep the string and move on.
+//
+// Pinned because a permissive `type:` is invisible until execution: the connection loads,
+// the model compiles, and the failure appears in whichever component tries to pick a SQL
+// dialect. The message also distinguishes a genuinely unknown type from a vendor grammar
+// extension missing off the classpath, which reports "Unsupported syntax" instead.
+###Connection
+RelationalDatabaseConnection fixture::neg::BogusType
+{
+   store: fixture::neg::Db;
+   type: Frobnicate;
+   specification: LocalH2 {  };
+   auth: DefaultH2;
+}

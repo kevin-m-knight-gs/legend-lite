@@ -1,0 +1,113 @@
+// COVERS DataSpaceLexerGrammar: DataSpace, executionContexts, defaultExecutionContext, name, title, description, mapping, defaultRuntime, testData, diagrams, diagram, elements, executables, executable, query, id, executionContextKey, supportInfo, Combined, documentationUrl, emails, website, faqUrl, supportUrl, groupId, artifactId, versionId, featuredDiagrams, stereotypes, tags
+//
+// The whole DataSpace grammar bar the `Email` support-info arm, which is in
+// t2-dataspace-email.pure because `supportInfo:` takes exactly ONE of Email/Combined.
+//
+// Three things the .g4 does not tell you, all enforced by DataSpaceParseTreeWalker:
+//   - `executionContexts` and `defaultExecutionContext` are REQUIRED on every DataSpace
+//     (validateAndExtractRequiredField, DataSpaceParseTreeWalker.java:90,94), so a
+//     minimal element is not legal;
+//   - an execution context must define exactly one of `mapping` / `mappingProvider`
+//     (throws at :206 for neither, :210 for both);
+//   - `testData` must be a DataElementReference, not any embedded data: `Reference #{..}#`
+//     parses, `ExternalFormat #{..}#` throws at :235.
+//
+// `mappingProvider` is deliberately absent. It exists in the .g4 in the legend-engine
+// checkout the keyword census reads, but NOT in the 4.138.2 jars this harness parses
+// with -- DataSpaceLexerGrammar there has no DATA_SPACE_MAPPING_PROVIDER token at all, so
+// any use is rejected with a bare "Unexpected token". It is a version skew, not a gap.
+//
+// `stereotypes` and `tags` are keywords of this lexer but appear in NO parser rule other
+// than `identifier`. The only way to reach them is to name something with them, so they
+// are spelled here as elements of the `elements:` scope list.
+//
+// The deprecated quartet groupId/artifactId/versionId/featuredDiagrams still parses and
+// still round-trips upstream; `featuredDiagrams` may coexist with `diagrams`.
+###DataSpace
+DataSpace <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'fixture'} fixture::ds::Full
+{
+  groupId: 'org.fixture';
+  artifactId: 'fixture-data-space';
+  versionId: '1.0.0';
+  executionContexts:
+  [
+    {
+      name: 'Context 1';
+      title: 'Integration';
+      description: 'context resolved through a mapping';
+      mapping: fixture::ds::Mapping;
+      defaultRuntime: fixture::ds::Runtime;
+      testData:
+        Reference
+        #{
+          fixture::ds::SeedData
+        }#;
+    },
+    {
+      name: 'Context 2';
+      description: 'a second context, no test data';
+      mapping: fixture::ds::Mapping2;
+      defaultRuntime: fixture::ds::Runtime2;
+    }
+  ];
+  defaultExecutionContext: 'Context 1';
+  title: 'Fixture data space';
+  description: 'every reachable DataSpace construct except the Email support arm';
+  featuredDiagrams:
+  [
+    fixture::ds::LegacyDiagram
+  ];
+  diagrams:
+  [
+    {
+      title: 'Diagram 1';
+      description: 'first diagram';
+      diagram: fixture::ds::Diagram1;
+    },
+    {
+      title: 'Diagram 2';
+      diagram: fixture::ds::Diagram2;
+    }
+  ];
+  elements:
+  [
+    fixture::ds,
+    fixture::ds::Class1,
+    fixture::ds::stereotypes,
+    fixture::ds::tags,
+    -fixture::ds::HiddenEnum
+  ];
+  executables:
+  [
+    {
+      title: 'Executable 1';
+      description: 'a packageable element executable';
+      executable: fixture::ds::MyExecutable;
+    },
+    {
+      id: 2;
+      title: 'Executable 2';
+      description: 'a function-pointer executable';
+      executable: fixture::ds::COVIDData_QueryFunction():TabularDataSet[1];
+      executionContextKey: 'Context 1';
+    },
+    {
+      id: 1;
+      title: 'Template 1';
+      description: 'a template executable carrying an inline query';
+      query: |fixture::ds::Firm.all()->project([x|$x.id, x|$x.employees.firstName], ['Id', 'Employees/First Name']);
+      executionContextKey: 'Context 1';
+    }
+  ];
+  supportInfo: Combined {
+    documentationUrl: 'https://example.org/docs';
+    website: 'https://example.org';
+    faqUrl: 'https://example.org/faq';
+    supportUrl: 'https://example.org/support';
+    emails:
+    [
+      'support@example.org',
+      'oncall@example.org'
+    ];
+  };
+}

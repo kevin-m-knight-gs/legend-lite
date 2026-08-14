@@ -1,0 +1,32 @@
+// REJECTS: Field 'mergeStrategy' is required
+//
+// UnitemporalDelta requires mergeStrategy AND transactionMilestoning. With only the
+// milestoning present this is a byte-for-byte legal UnitemporalSnapshot body -- the ingest
+// mode keyword is the sole difference, and the grammar attaches no requirement to it.
+###Persistence
+Persistence test::persistence::neg::UniDeltaNoMerge
+{
+  doc: 'unitemporal delta without a merge strategy';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalDelta
+    {
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

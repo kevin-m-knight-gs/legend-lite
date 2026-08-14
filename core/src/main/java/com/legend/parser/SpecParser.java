@@ -211,15 +211,12 @@ public final class SpecParser implements TokenStreamCursor {
     private final TokenStream tokens;
     private int pos;
 
-    /** See {@link TokenStreamCursor#legendStrict()} — body-level dialect
-     *  constructs ({@code .allVersionsInRange}, function-type literals)
-     *  gate on it. */
+    /** Body-level dialect constructs ({@code .allVersionsInRange},
+     *  function-type literals, m2 forms) gate on the THREE-LEVEL
+     *  {@link Dialect} — always via the PRECISE predicate
+     *  ({@code refusesPlatformDialect} vs {@code refusesLiteExtensions});
+     *  the old two-valued {@code legendStrict} conflated them. */
     private final Dialect dialect;
-
-    @Override
-    public boolean legendStrict() {
-        return dialect.refusesPlatformDialect();
-    }
 
     @Override
     public Dialect dialect() {
@@ -551,7 +548,7 @@ public final class SpecParser implements TokenStreamCursor {
             // TEST_NOT_EQUAL) and '<>' (lexed as NOT_EQUAL). Both
             // desugar to the same 'notEqual' AppliedFunction so the
             // model layer doesn't have to know which form was written.
-            if (t == TokenType.NOT_EQUAL && legendStrict()) {
+            if (t == TokenType.NOT_EQUAL && dialect.refusesPlatformDialect()) {
                 // '<>' is a PURE-DIALECT spelling: the engine has no such
                 // token and refuses (adversarial audit fuzz, oracle-verified)
                 throw error("Unexpected token '<>'");
@@ -925,7 +922,7 @@ public final class SpecParser implements TokenStreamCursor {
         String value = raw.substring(1);
         int datePos = pos;
         pos++;
-        if (legendStrict() && value.indexOf('Z') >= 0) {
+        if (dialect.refusesPlatformDialect() && value.indexOf('Z') >= 0) {
             // the engine's DATETIME lexer has no 'Z' timezone suffix and
             // refuses it (adversarial audit fuzz, oracle-verified); the
             // pure dialect keeps the audit-M5 Z support
@@ -935,7 +932,7 @@ public final class SpecParser implements TokenStreamCursor {
             // STRICT surfaces defer component-range validation like the
             // engine (%2024-02-30 parses there; the compiler validates) —
             // the platform dialect validates at parse, legend-pure style
-            return new CDate(PureDateLiteral.parse(value, !legendStrict()),
+            return new CDate(PureDateLiteral.parse(value, !dialect.refusesPlatformDialect()),
                     value, spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,
@@ -1024,13 +1021,13 @@ public final class SpecParser implements TokenStreamCursor {
         // `expression`, which has no top-level arithmetic/boolean parts:
         // [1 + 2] refuses there (adversarial audit 1c, oracle-verified).
         // The pure dialect keeps the wider combinedExpression.
-        values.add(legendStrict() ? parseExpression() : parseCombinedExpression());
+        values.add(dialect.refusesPlatformDialect() ? parseExpression() : parseCombinedExpression());
         while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
             if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
                 throw error("trailing comma in collection literal");
             }
-            values.add(legendStrict() ? parseExpression() : parseCombinedExpression());
+            values.add(dialect.refusesPlatformDialect() ? parseExpression() : parseCombinedExpression());
         }
         expect(TokenType.BRACKET_CLOSE, "expected ']' to close collection literal");
         // Engine convention: a literal collection's span covers `[...]`, brackets inclusive.
@@ -1262,7 +1259,7 @@ public final class SpecParser implements TokenStreamCursor {
         expect(TokenType.COMMA, "expected ',' between range endpoints in '.allVersionsInRange'");
         ValueSpecification end = parseMilestoningExpression();
         expect(TokenType.PAREN_CLOSE, "expected ')' to close '.allVersionsInRange(...)'");
-        if (legendStrict()) {
+        if (dialect.refusesPlatformDialect()) {
             // engine-verbatim refusal (dialect quarantine): the range sweep
             // is pure-dialect only
             throw error(".allVersionsInRange" + compactText(argsStart, pos - 1)
@@ -2561,7 +2558,7 @@ public final class SpecParser implements TokenStreamCursor {
      * them in bracket-indexing position.
      */
     private ValueSpecification parseBracketPostfix(ValueSpecification receiver) {
-        if (legendStrict()) {
+        if (dialect.refusesPlatformDialect()) {
             // engine-verbatim (probed live): bracket indexing is an m3
             // platform construct the engine refuses (deep-audit 1c/D1 —
             // it was previously parsed ungated and crashed the emitter)
@@ -2952,13 +2949,13 @@ public final class SpecParser implements TokenStreamCursor {
     /**
      * Parse a DSL-island expression. Grammar:
      * <pre>
-     *   dsl = ISLAND_OPEN islandContent (ISLAND_END | ISLAND_ARROW_EXIT)
+     *   dsl = ISLAND_OPEN islandContent ISLAND_END
      * </pre>
      *
      * <p>An island is a "hole" in the main Pure grammar where an
      * embedded sub-language is spelled verbatim. The lexer flips
-     * into island mode between {@code #{} and {@code }#} (or
-     * {@code }-&gt;}) and emits {@code ISLAND_BRACE_OPEN} /
+     * into island mode between {@code #{} and {@code }#} and emits
+     * {@code ISLAND_BRACE_OPEN} /
      * {@code ISLAND_BRACE_CLOSE} / text tokens for everything in
      * between so the main parser can track depth without committing
      * to a specific sub-grammar at lex time.
@@ -2979,16 +2976,11 @@ public final class SpecParser implements TokenStreamCursor {
      * directly), which matches engine-lite and is fine because
      * graph-fetch / table-reference syntax is whitespace-tolerant.
      *
-     * <p>After the island is consumed, if the closer was
-     * {@code ISLAND_ARROW_EXIT} ({@code }-&gt;}), the next tokens
-     * are an arrow-chain continuation ({@code .func(args)->...}).
-     * We handle this by synthesising an arrow-postfix loop over
-     * the produced DSL value. Engine-lite uses a dedicated
-     * {@code parseFunctionChainAfterArrow} method; we reuse
-     * {@link #parseArrowPostfix} because the only structural
-     * difference (the {@code ->} is implicit from
-     * ISLAND_ARROW_EXIT) can be handled by treating the first
-     * chain call specially.
+     * <p>Islands close with {@code }#} ONLY. Engine-lite's fused
+     * {@code }->} exit was an INVENTED closer with no engine
+     * counterpart — deleted 2026-08-14 (MutationFuzzTest caught a
+     * damaged {@code }#} re-lexing as the invented exit and
+     * silently parsing).
      */
     private ValueSpecification parseDsl() {
         int islandStart = pos;
@@ -2999,7 +2991,6 @@ public final class SpecParser implements TokenStreamCursor {
         String dslType = islandOpen.substring(1, islandOpen.length() - 1);
 
         StringBuilder content = new StringBuilder();
-        boolean arrowExit = false;
         int depth = 0;   // NESTED #{...}# islands stay inside the outer one (audit M8a)
         while (!atEnd()) {
             TokenType t = peek();
@@ -3014,14 +3005,6 @@ public final class SpecParser implements TokenStreamCursor {
                     break;
                 }
                 depth--;
-                content.append(text());
-            } else if (t == TokenType.ISLAND_ARROW_EXIT) {
-                if (depth == 0) {
-                    pos++;
-                    arrowExit = true;
-                    break;
-                }
-                depth--;   // a NESTED island closed by '}->' (re-audit M7)
                 content.append(text());
             } else if (t == TokenType.ISLAND_BRACE_OPEN) {
                 content.append('{');
@@ -3063,33 +3046,7 @@ public final class SpecParser implements TokenStreamCursor {
                     "unknown DSL island type: '#" + dslType + "{'");
         };
 
-        // Post-island arrow chain: if the closer was '}->' then the
-        // next tokens form a function-call chain whose first arrow
-        // has already been consumed as part of ISLAND_ARROW_EXIT.
-        // We inject a synthetic call by running the standard
-        // arrow-chain machinery once, then let the main postfix
-        // loop handle any subsequent arrows.
-        if (arrowExit) {
-            result = parseArrowChainAfterIslandExit(result);
-        }
         return result;
-    }
-
-    /**
-     * After {@code ISLAND_ARROW_EXIT} the next tokens look like
-     * {@code funcName(args)} (no leading {@code ->} because the
-     * exit token consumed it). Engine-lite calls this
-     * {@code parseFunctionChainAfterArrow}; we mirror the shape.
-     * After the first synthesised call, the main postfix loop
-     * picks up any subsequent explicit {@code ->} arrows.
-     */
-    private ValueSpecification parseArrowChainAfterIslandExit(ValueSpecification source) {
-        String funcName = parseQualifiedName();
-        List<ValueSpecification> args = parseArgList();
-        List<ValueSpecification> params = new ArrayList<>(1 + args.size());
-        params.add(source);
-        params.addAll(args);
-        return new AppliedFunction(funcName, params);
     }
 
     /**
@@ -3117,6 +3074,17 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private AppliedFunction parseTableReference(String content,
             com.legend.protocol.SourceInfo span) {
+        // the accessor grammar admits only a dotted qualified path — a
+        // DAMAGED island close (}# -> }) swallows source through the NEXT
+        // }# and the junk arrived here as a "table name" (MutationFuzzTest
+        // island-close-plain; the engine refuses)
+        for (char ch : content.toCharArray()) {
+            if (ch == '(' || ch == ')' || ch == '|' || ch == ';'
+                    || ch == '=' || ch == '{' || ch == '}' || ch == '\n') {
+                throw new ParseException("Unexpected token",
+                        span.startLine(), span.startColumn());
+            }
+        }
         // Split at the FIRST dot after the ::-path: "db::DB.schema.TABLE"
         // is (db::DB, "schema.TABLE") — lastIndexOf('.') mis-split it into
         // an FQN with an embedded dot (audit M7). The db part is the

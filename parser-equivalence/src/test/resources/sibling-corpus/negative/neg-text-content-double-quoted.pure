@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token '"'
+//
+// Pure string literals are SINGLE-quoted. A double-quoted string is not an alternative
+// spelling -- '"' is not a string delimiter anywhere in the language, which is why the
+// error is on the quote character itself rather than on the content.
+//
+// Text is the right place to pin it: `content:` holds free prose, prose contains
+// apostrophes, and a rewrite that adds double quotes as an escape-free convenience for
+// exactly that reason makes every Text element it writes unreadable to legend-engine while
+// reading its own output back perfectly.
+###Text
+Text fixture::neg::DoubleQuoted
+{
+   type: 'plainText';
+   content: "double quoted body";
+}

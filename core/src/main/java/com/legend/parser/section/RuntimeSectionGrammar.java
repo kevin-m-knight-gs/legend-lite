@@ -280,7 +280,8 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
                     }
                 }
                 c.expect(TokenType.BRACKET_CLOSE);
-                c.match(TokenType.SEMI_COLON);
+                // mandatory in the .g4 (mutant drop-semicolon probe)
+                c.expect(TokenType.SEMI_COLON);
             } else if (key == TokenType.CONNECTIONS && !single) {
                 parseConnections(c, connections);
             } else if (!single && "connectionStores".equals(keyText)) {

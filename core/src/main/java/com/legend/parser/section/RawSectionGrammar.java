@@ -26,11 +26,12 @@ public interface RawSectionGrammar extends com.legend.spi.SectionGrammar {
     LexableSectionGrammar.ParsedSection parseRaw(com.legend.spi.SectionSource src);
 
     /** As {@link #parseRaw(com.legend.spi.SectionSource)} with the parse
-     *  mode ({@code TokenStreamCursor#legendStrict()}): strict refuses
+     *  {@link com.legend.parser.Dialect}: the engine level refuses
      *  pure-dialect-only forms (m2 diagram views). The default ignores the
      *  mode — for grammars whose section has no dialect split. */
     default LexableSectionGrammar.ParsedSection parseRaw(
-            com.legend.spi.SectionSource src, boolean legendStrict) {
+            com.legend.spi.SectionSource src,
+            com.legend.parser.Dialect dialect) {
         return parseRaw(src);
     }
 

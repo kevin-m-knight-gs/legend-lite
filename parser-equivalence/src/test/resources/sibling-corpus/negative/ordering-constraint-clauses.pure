@@ -1,0 +1,22 @@
+// REJECTS: no viable alternative at input
+//
+// Constraint clause ORDER is fixed by the grammar, not stylistic:
+//     ~owner? ~externalId? ~function ~enforcementLevel? ~message?
+// with ~function the only required clause. This puts ~message first.
+//
+// Worth pinning because a hand-written recursive-descent parser naturally accepts clauses
+// in any order -- you loop over "which clause is next" -- and would silently be MORE
+// permissive than legend-engine. That kind of divergence never surfaces as a failure; it
+// surfaces as a model that one engine loads and the other rejects.
+###Pure
+Class fixture::neg::Reordered
+[
+   backwards
+   (
+      ~message: 'this clause may not precede ~function'
+      ~function: $this.code->length() > 2
+   )
+]
+{
+   code: String[1];
+}

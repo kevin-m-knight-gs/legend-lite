@@ -1,0 +1,128 @@
+// COVERS AuthenticationStrategyLexerGrammar: UserNamePassword, ApiToken, OAuth, DelegatedKerberos, GCPApplicationDefaultCredentials, GCPWorkloadIdentityFederation, MiddleTierUserNamePassword, baseVaultReference, userNameVaultReference, passwordVaultReference, apiToken, oauthKey, scopeName, vaultReference, serverPrincipal, serviceAccountEmail, additionalGcpScopes
+// COVERS DataSourceSpecificationLexerGrammar: Static, EmbeddedH2, autoServerMode
+// COVERS RelationalDatabaseConnectionLexerGrammar: mode
+//
+// `auth:` takes exactly one strategy and `specification:` exactly one datasource spec, so
+// covering the alternatives needs one connection element each -- they cannot be stacked.
+// `mode: local;` REPLACES both: when it is present the parser resolves specification and
+// auth by extension and parses neither, so it needs an element of its own too.
+//
+// Ten more keywords in this grammar are NOT here and cannot be: host, port, name, mode,
+// directory, account, warehouse, region, projectId, defaultDataset are declared by
+// AuthenticationStrategyLexerGrammar and referenced by no rule in its parser. Writing
+// `host` in an auth block is answered with "Valid alternatives: ['baseVaultReference',
+// 'userNameVaultReference', 'passwordVaultReference']". They are excluded from the
+// denominator by keywords.dead_tokens(), which finds them via ANTLR's tokenVocab link.
+###Connection
+RelationalDatabaseConnection fixture::auth::UserPass
+{
+   store: fixture::auth::Db;
+   type: SqlServer;
+   specification: Static
+   {
+      name: 'name';
+      host: 'host';
+      port: 1234;
+   };
+   auth: UserNamePassword
+   {
+      baseVaultReference: 'vault/prefix/';
+      userNameVaultReference: 'user';
+      passwordVaultReference: 'pwd';
+   };
+}
+
+RelationalDatabaseConnection fixture::auth::Embedded
+{
+   store: fixture::auth::Db;
+   type: H2;
+   specification: EmbeddedH2
+   {
+      name: 'name';
+      directory: 'dir';
+      autoServerMode: true;
+   };
+   auth: ApiToken
+   {
+      apiToken: 'token';
+   };
+}
+
+RelationalDatabaseConnection fixture::auth::OAuthConn
+{
+   store: fixture::auth::Db;
+   type: H2;
+   specification: LocalH2
+   {
+   };
+   auth: OAuth
+   {
+      oauthKey: 'cjeib2f84ur';
+      scopeName: 'UserPass';
+   };
+}
+
+RelationalDatabaseConnection fixture::auth::MiddleTier
+{
+   store: fixture::auth::Db;
+   type: MemSQL;
+   specification: Static
+   {
+      name: 'db';
+      host: 'host';
+      port: 7777;
+   };
+   auth: MiddleTierUserNamePassword
+   {
+      vaultReference: 'abc123';
+   };
+}
+
+RelationalDatabaseConnection fixture::auth::Kerberos
+{
+   store: fixture::auth::Db;
+   type: H2;
+   specification: LocalH2
+   {
+   };
+   auth: DelegatedKerberos
+   {
+      serverPrincipal: 'principal';
+   };
+}
+
+RelationalDatabaseConnection fixture::auth::GcpAdc
+{
+   store: fixture::auth::Db;
+   type: H2;
+   specification: LocalH2
+   {
+   };
+   auth: GCPApplicationDefaultCredentials;
+}
+
+RelationalDatabaseConnection fixture::auth::GcpWif
+{
+   store: fixture::auth::Db;
+   type: BigQuery;
+   specification: BigQuery
+   {
+      projectId: 'proj1';
+      defaultDataset: 'dataset1';
+   };
+   auth: GCPWorkloadIdentityFederation
+   {
+      serviceAccountEmail: 'svc@example.com';
+      additionalGcpScopes: [
+         'gcpScope',
+         'anotherGcpScope'
+         ];
+   };
+}
+
+RelationalDatabaseConnection fixture::auth::LocalMode
+{
+   store: fixture::auth::Db;
+   type: Snowflake;
+   mode: local;
+}

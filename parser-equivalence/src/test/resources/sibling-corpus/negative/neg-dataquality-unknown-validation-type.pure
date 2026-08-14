@@ -1,0 +1,27 @@
+// REJECTS: Unexpected token 'COLUMN_LEVEL'. Valid alternatives: ['ROW_LEVEL', 'AGGREGATE']
+//
+// `type:` on a relation validation is a CLOSED two-value token set, not an identifier that
+// is mapped to an enum later. DataQualityLexerGrammar declares ROW_LEVEL and AGGREGATE as
+// their own tokens and `validationType` names exactly those two, so an unknown value dies in
+// the parser with the full alternative list rather than in a downstream valueOf().
+//
+// Worth pinning because the sibling grammars in this batch do the opposite and disagree with
+// each other: Snowflake's `permissionScheme` is an identifier validated by the walker (see
+// ./neg-snowflake-permission-scheme.pure) and Snowflake's `accountType` is an identifier that
+// is NOT validated at all. Three enum-shaped fields, three different enforcement points. A
+// rewrite that picks one policy for all of them diverges on two thirds of them.
+//
+// `type` is placed before `assertion` here on purpose: after a lambda the parser's error
+// recovery reports the colon instead, which names nothing.
+###DataQualityValidation
+DataQualityRelationValidation fixture::neg::UnknownValidationType
+{
+   query: |#>{fixture::neg::Store.myTable}#->from(fixture::neg::Runtime);
+   validations: [
+   {
+     name: 'nameIsNotError';
+     type: COLUMN_LEVEL;
+     assertion: row|$row.name != 'error';
+   }
+   ];
+}

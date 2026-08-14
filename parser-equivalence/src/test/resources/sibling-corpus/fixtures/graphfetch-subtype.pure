@@ -1,0 +1,60 @@
+// COVERS GraphFetchTreeLexerGrammar: ->subType(@
+//
+// The entire GraphFetchTree lexer is this ONE token: `SUBTYPE_START: '->subType(@'`. The
+// stress corpus writes graph fetch trees in six services and never a downcast, so the
+// grammar was at zero.
+//
+// Both placements are here. Property-level (`prop->subType(@T){...}`) nests anywhere; the
+// bare root-level form is restricted -- nesting one inside another, or inside a nested
+// property tree, is answered with "->subType() is supported only at root level".
+###Pure
+Class fixture::gf::Address
+{
+   zipCode: String[1];
+}
+
+Class fixture::gf::Street extends fixture::gf::Address
+{
+   street: String[1];
+}
+
+Class fixture::gf::Shape
+{
+   area: Float[1];
+}
+
+Class fixture::gf::Circle extends fixture::gf::Shape
+{
+   radius: Float[1];
+}
+
+Class fixture::gf::Catalog
+{
+   shapes: fixture::gf::Shape[*];
+}
+
+function fixture::gf::propertyLevelCast(): meta::pure::metamodel::type::Any[*]
+{
+   fixture::gf::Catalog.all()->graphFetch(#{
+      fixture::gf::Catalog {
+         shapes {
+            area
+         },
+         shapes->subType(@fixture::gf::Circle) {
+            radius
+         }
+      }
+   }#)
+}
+
+function fixture::gf::rootLevelCast(): meta::pure::metamodel::type::Any[*]
+{
+   #{
+      fixture::gf::Address {
+         zipCode,
+         ->subType(@fixture::gf::Street) {
+            street
+         }
+      }
+   }#
+}

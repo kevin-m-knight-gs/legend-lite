@@ -1,0 +1,10 @@
+// REJECTS: Field 'persistence' is required
+//
+// A PersistenceContext has exactly one required field -- `persistence:`, the element it is a
+// context FOR -- and the `context` rule is the usual unordered star over all four, so a
+// context that configures a sink connection and names nothing to apply it to parses.
+###Persistence
+PersistenceContext test::persistence::neg::ContextNoPersistence
+{
+  sinkConnection: test::persistence::TestConnection;
+}

@@ -1,0 +1,23 @@
+// REJECTS: Unexpected token
+//
+// A Table body is `milestoneSpec? (columnDefinition (COMMA columnDefinition)*)?`. The
+// milestoning block must come FIRST, before any column. This declares the columns and then
+// the milestoning that describes them.
+//
+// Reading order argues for exactly this file: you cannot say a column is the business-from
+// date until the column exists. The grammar disagrees, and it disagrees silently -- a
+// rewrite that treats a Table body as a list of entries and sorts out which is which
+// afterwards accepts both orders. Moving the block above the columns makes this parse.
+###Relational
+Database fixture::neg::MilestoningLate
+(
+   Table T
+   (
+      ID VARCHAR(32) PRIMARY KEY,
+      SNAP DATE,
+      milestoning
+      (
+         business(BUS_SNAPSHOT_DATE = SNAP)
+      )
+   )
+)

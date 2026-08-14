@@ -1,0 +1,72 @@
+// COVERS DeephavenLexerGrammar: import, Deephaven, Table, tables, columns, columnDefinition, BOOLEAN, INT, FLOAT, DOUBLE, DECIMAL, STRING, TIMESTAMP, DATETIME, DeephavenApp, applicationName, function, ownership, Deployment, identifier, description
+// COVERS DeephavenConnectionLexerGrammar: store, serverUrl, authentication
+//
+// Two element kinds in one ###Deephaven section -- `Deephaven` (a store of `Table`s) and
+// `DeephavenApp` -- plus the `DeephavenConnection` that pairs with the store.
+//
+// `tables`, `columns` and `columnDefinition` are declared by the lexer but NO rule in
+// DeephavenParserGrammar consumes them as fields: `tables`/`columns`/`columnDefinition` are
+// the names of parser RULES, and the tokens of the same spelling appear only in the
+// `unquotedIdentifier` alternation. So the one place a user can type them is inside a
+// qualified name, which is exactly what the upstream identifier-inclusion test does
+// (TestDeephavenGrammarParser.getParserGrammarIdentifierInclusionTestCode joins keywords
+// with `::` into the store's path). They are covered here the same way.
+//
+// `serverUrlDefinition` is NOT covered and cannot be: the token SERVER_URL_DEFINITION is
+// declared in DeephavenConnectionLexerGrammar.g4:11 but the parser rule of that name
+// (DeephavenConnectionParserGrammar.g4, rule `serverUrlDefinition`) consumes SERVER_URL,
+// not SERVER_URL_DEFINITION. keywords.dead_tokens() finds it independently.
+//
+// `appMultiplicity` is spelled `BRACKET_OPEN (STAR | INTEGER (DOT DOT ...)?) BRACKET_CLOSE`
+// -- two separate DOT tokens -- but CoreLexerGrammar lexes `..` as one token, so a ranged
+// multiplicity like `[0..1]` is rejected with "Unexpected token '..'". Only `[n]` and `[*]`
+// are typeable in a DeephavenApp function signature.
+//
+// Also note the connection's `serverUrl: '...'` line carries NO trailing semicolon -- the
+// rule is `SERVER_URL COLON serverUrl` with no SEMI_COLON, and adding one is a parse error.
+// The url must be quoted (upstream asserts "Unexpected token 'http'" otherwise). It is
+// written WITHOUT the `http://` scheme here purely for the harness: keywords.strip_noncode
+// removes `//...` line comments BEFORE it removes '...' strings, so a `//` inside a quoted
+// url unbalances the quotes and swallows the next few lines of real code -- which made
+// `authentication` below read as uncovered.
+###Deephaven
+import abc::abc::*;
+
+Deephaven fixture::deephaven::tables::columns::columnDefinition::Store
+(
+    Table trades
+    (
+        prop1: STRING,
+        prop2: INT,
+        prop3: BOOLEAN,
+        prop4: DATETIME,
+        prop5: FLOAT,
+        prop6: DOUBLE,
+        prop7: TIMESTAMP,
+        prop8: DECIMAL(10, 2)
+    )
+
+    Table 'quoted table'
+    (
+        'quoted col': STRING
+    )
+)
+
+DeephavenApp fixture::deephaven::MyApp
+{
+    applicationName: 'MyTestApp';
+    function: fixture::deephaven::myFunc(String[1], Integer[*]):Any[*];
+    description: 'A test app';
+    ownership: Deployment { identifier: 'owner123' };
+}
+
+
+###Connection
+DeephavenConnection fixture::deephaven::Conn
+{
+    store: fixture::deephaven::Store;
+    serverUrl: 'dummyurl.com:12345'
+    authentication: # PSK {
+        psk: 'abcde';
+    }#;
+}

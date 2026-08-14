@@ -1,0 +1,20 @@
+// REJECTS: Unsupported persistence platform type 'AzureBatch'
+//
+// The third island, and the only one in the PersistenceContext element: `platform:`.
+// `platformSpecification: platformType (platformValue)?`, platformType is `identifier`, and
+// exactly two PersistencePlatform processors are registered: `Default`, which takes no body
+// (PersistenceParserExtension:83-95), and `AwsGlue`, which is where the entire
+// PersistenceCloudLexerGrammar lives. Any third name is refused.
+//
+// All three islands (trigger, platform, target) share this shape, and all three fail the
+// same way through IPersistenceParserExtension.process. A file per island, because the
+// message names the island kind and that is the part worth pinning.
+###Persistence
+PersistenceContext test::persistence::neg::InventedPlatform
+{
+  persistence: test::persistence::TestPersistence;
+  platform: AzureBatch
+  #{
+    dataProcessingUnits: 10;
+  }#;
+}

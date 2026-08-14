@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token 'connections'. Valid alternatives: ['mappings', 'connection']
+//
+// The other direction: a SingleConnectionRuntime takes `mappings:` and `connection:` and
+// nothing else -- not `connections:`, not `connectionStores:`, even with a single entry in
+// the list.
+//
+// Note what the two messages between them establish: the legal alternative sets are
+// DISJOINT except for `mappings`. A rewrite that shares one body parser between the two
+// runtime kinds accepts four keywords in both places and passes every positive fixture,
+// because a positive fixture can only ever write one of them at a time.
+###Runtime
+SingleConnectionRuntime fixture::neg::PluralConnections
+{
+   connections:
+   [
+      fixture::neg::Db:
+      [
+         c1: fixture::neg::Conn
+      ]
+   ];
+   mappings:
+   [
+      fixture::neg::PersonMapping
+   ];
+}

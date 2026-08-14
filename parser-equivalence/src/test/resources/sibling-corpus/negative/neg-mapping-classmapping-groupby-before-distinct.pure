@@ -1,0 +1,27 @@
+// REJECTS: Unexpected token
+//
+// This is the second half of the trap named in ordering-view-modifiers.pure, and the reason
+// that one alone is not enough.
+//
+// On a View the order is   ~filter ~groupBy ~distinct.
+// On a class mapping it is ~filter ~distinct ~groupBy.
+//
+// Same two modifiers, same spelling, opposite order. This file writes the VIEW's order in a
+// class mapping; the other file writes the CLASS MAPPING's order in a View. A rewrite that
+// shares one modifier routine between the two accepts both files, and a rewrite that hard-
+// codes either order and applies it to both rejects one legal construct. Only the pair
+// distinguishes a parser that got this right from one that got it uniformly wrong.
+###Mapping
+Mapping fixture::neg::GroupByBeforeDistinct
+(
+   fixture::neg::Person: Relational
+   {
+      ~groupBy
+      (
+         [fixture::neg::Db]T.ID
+      )
+      ~distinct
+      ~mainTable [fixture::neg::Db]T
+      id: [fixture::neg::Db]T.ID
+   }
+)

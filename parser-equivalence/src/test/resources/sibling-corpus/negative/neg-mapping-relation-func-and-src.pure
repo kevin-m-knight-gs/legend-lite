@@ -1,0 +1,21 @@
+// REJECTS: Unexpected token 'fixture'. Valid alternatives: ['(', ':']
+//
+// A relation function mapping takes EXACTLY ONE source clause: `~func <descriptor>` naming
+// an existing function, OR `~src <expression>` giving one inline. They are alternatives of a
+// single rule, not two optional clauses, so a mapping cannot carry both.
+//
+// The diagnostic shows how the constraint is enforced, and it is not by a mutual-exclusion
+// check: RELATION_SRC is one of the tokens `identifier` admits, so after the ~func arm has
+// matched, the second clause is re-read as a PROPERTY named `~src` and the error lands on
+// the expression behind it. A rewrite treating both as optional named clauses -- the shape
+// the source text suggests -- accepts this and then has to decide which source wins.
+###Mapping
+Mapping fixture::neg::RelationFuncAndSrc
+(
+   fixture::neg::Person: Relation
+   {
+      ~func fixture::neg::personRelation():Relation<Any>[1]
+      ~src fixture::neg::Db.PERSON->select()
+      firstName: FIRST_NAME
+   }
+)

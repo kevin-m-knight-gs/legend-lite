@@ -183,20 +183,6 @@ public interface TokenStreamCursor {
         return tokens().text(pos());
     }
 
-    /**
-     * ENGINE-STRICT mode: the drop-in surface refuses the pure-dialect
-     * constructs engine's PureGrammarParser refuses (generics, function-type
-     * literals, {@code native function}, {@code .allVersionsInRange}, m2
-     * forms), each with the engine's own message. {@code false} — the
-     * pure-mode default — keeps legend-lite's full dialect: the internal
-     * pipeline and the legend-pure corpora parse the superset. Overridden
-     * by parsers that carry the mode ({@code ElementParser.at/parseStrict}
-     * and the parsers they construct).
-     */
-    default boolean legendStrict() {
-        return dialect().refusesPlatformDialect();
-    }
-
     /** Which of the THREE dialect levels this parse serves
      *  ({@link Dialect}). ABSTRACT on purpose: there is no default level.
      *  Every cursor names its dialect at construction — island re-lex
@@ -869,7 +855,8 @@ public interface TokenStreamCursor {
                 String value;
                 com.legend.protocol.SourceInfo tvSpan;
                 if (peek() == TokenType.DOC_STRING) {
-                    if (legendStrict() && text().indexOf('\n') < 0) {
+                    if (dialect().refusesPlatformDialect()
+                            && text().indexOf('\n') < 0) {
                         // single-line ''' — the oracle's lexer splits it into
                         // adjacent strings and refuses (probed live 2026-08-12)
                         throw error("Unexpected token '" + text() + "'");

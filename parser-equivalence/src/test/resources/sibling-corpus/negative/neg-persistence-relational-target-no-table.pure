@@ -1,0 +1,43 @@
+// REJECTS: Field 'table' is required
+//
+// Inside `-> Relational #{ ... }#` the body is re-lexed with PersistenceRelationalLexer-
+// Grammar, a separate 32-keyword grammar whose entry rule is
+// `definition: (table | database | temporality)* EOF` -- three stars and an EOF. An EMPTY
+// island is a complete parse; `table` and `database` are required by
+// PersistenceRelationalParseTreeWalker and `temporality` genuinely is optional.
+//
+// The island is also where the same spellings mean different things: `database:` here is
+// TARGET_RELATIONAL_DATABASE, not the SINK_DATABASE of the outer grammar, and `DateTime`
+// and `None` are re-declared too. So this file is checking that the right grammar was
+// reached, as much as that the field is required.
+###Persistence
+Persistence test::persistence::neg::RelationalTargetNoTable
+{
+  doc: 'a relational persistence target that names no table';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      database: test::persistence::Database;
+      temporality: None
+      {
+        auditing: None;
+        updatesHandling: Overwrite;
+      }
+    }#
+  ];
+}

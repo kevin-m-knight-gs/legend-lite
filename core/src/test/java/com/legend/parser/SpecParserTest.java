@@ -2835,13 +2835,12 @@ final class SpecParserTest {
 
     @Test
     void graphFetchFollowedByArrowChain() {
-        // '#{Person {name}}->serialize()' \u2014 the '}->' closer
-        // (ISLAND_ARROW_EXIT) exits the island and consumes the
-        // leading '->', so the next tokens form a function call.
-        // Pin the arrow-chain continuation works: the DSL result
-        // becomes the first parameter of the outer 'serialize' call.
+        // '#{Person {name}}#->serialize()' — the ENGINE island closer
+        // ('}#') followed by an ordinary arrow chain. The engine-lite
+        // '}->' fused exit was an INVENTION and is DELETED (2026-08-14);
+        // the invented spelling now refuses like the real engine.
         ValueSpecification result = com.legend.testing.Platform.spec(
-                "#{Person {name}}->serialize()");
+                "#{Person {name}}#->serialize()");
         assertTrue(result instanceof AppliedFunction af
                         && af.function().equals("serialize")
                         && af.parameters().size() == 1

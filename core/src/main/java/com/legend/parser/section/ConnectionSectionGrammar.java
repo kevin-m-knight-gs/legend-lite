@@ -406,6 +406,14 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 case "store" -> {
                     int eS = c.pos();
                     element = Protocol.unquotePath(c.parseQualifiedName());
+                    // MIXED ./:: separators are engine-legal here (mutant
+                    // package-dot probes: fixture::mongo.Db AND
+                    // fixture.mongo::Db both accept)
+                    while (c.peek() == TokenType.DOT) {
+                        c.advance();
+                        element += "." + Protocol.unquotePath(
+                                c.parseQualifiedName());
+                    }
                     elementSpan = c.spanOf(eS, c.pos() - 1);
                 }
                 case "serverURLs" -> {
@@ -431,12 +439,19 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 default -> throw c.error(
                         "unknown MongoDBConnection key: " + key);
             }
-            c.match(TokenType.SEMI_COLON);
+            // every field rule ends SEMI_COLON in the .g4 (mutant
+            // drop-semicolon probe: engine refuses without it)
+            c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (database == null || auth == null) {
             throw c.error("MongoDBConnection needs database and"
                     + " authentication");
+        }
+        if (urls.isEmpty()) {
+            // walker-required (mutant delete-field probe)
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'serverURLs' is required");
         }
         return new Protocol.PMongoDbConnection(database, urls, auth, element,
                 elementSpan, c.spanOf(declStart, c.pos() - 1));

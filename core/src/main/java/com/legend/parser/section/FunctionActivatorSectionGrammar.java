@@ -31,6 +31,13 @@ public final class FunctionActivatorSectionGrammar
     private static final Set<String> BOOLEAN_KEYS = Set.of(
             "autoActivateUpdates", "generateLineage", "storeModel");
 
+    /** The censused config-element kinds (EXACT names — no suffix
+     *  matching on element kinds). */
+    private static final Set<String> DEPLOYMENT_CONFIG_KINDS = Set.of(
+            "SnowflakeAppDeploymentConfiguration",
+            "BigQueryFunctionDeploymentConfiguration",
+            "HostedServiceDeploymentConfiguration");
+
     private final String section;
     private final Set<String> kinds;
 
@@ -133,7 +140,7 @@ public final class FunctionActivatorSectionGrammar
         c.expect(TokenType.BRACE_OPEN);
         String conn = null;
         com.legend.protocol.SourceInfo connSpan = null;
-        boolean hosted = kind.startsWith("HostedService");
+        boolean hosted = "HostedServiceDeploymentConfiguration".equals(kind);
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
@@ -173,7 +180,7 @@ public final class FunctionActivatorSectionGrammar
         if ("ExecutionEnvironment".equals(kind)) {
             return ServiceSectionGrammar.parseExecutionEnvironment(c);
         }
-        if (kind.endsWith("DeploymentConfiguration")) {
+        if (DEPLOYMENT_CONFIG_KINDS.contains(kind)) {
             return parseDeploymentConfig(c, kind);
         }
         c.advance();
@@ -196,7 +203,12 @@ public final class FunctionActivatorSectionGrammar
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            if (!("FunctionJar".equals(kind)
+                    && "activationConfiguration".equals(key))) {
+                // FunctionJar's activationConfiguration DUPLICATES freely —
+                // the walker drops the block entirely (mutant probe)
+                TokenStreamCursor.once(seenKeys, key, c);
+            }
             c.expect(TokenType.COLON);
             if (STRING_KEYS.contains(key)) {
                 scalars.put(key, SectionParse.stringValue(c));
@@ -313,6 +325,13 @@ public final class FunctionActivatorSectionGrammar
                 && !"BigQueryFunction".equals(kind)) {
             throw com.legend.parser.TokenStreamCursor.throwAt(
                     c.tokens(), declStart, "Field 'ownership' is required");
+        }
+        if ("DeephavenApp".equals(kind)
+                && !scalars.containsKey("applicationName")) {
+            // walker-required (mutant delete-field probe)
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    "Field 'applicationName' is required");
         }
         if ("MemSqlFunction".equals(kind)
                 && !scalars.containsKey("functionName")) {

@@ -1,0 +1,50 @@
+// COVERS AuroraLexerGrammar: Aurora, GlobalAurora, host, port, name, clusterInstanceHostPattern, region, globalClusterInstanceHostPatterns
+//
+// Every token AuroraLexerGrammar.g4 declares. Syntax from legend-engine's
+// TestAuroraConnectionGrammarRoundtrip (testAuroraConnectionGrammarWithClusterPattern and
+// testGlobalAuroraConnectionGrammar).
+//
+// Aurora declares TWO datasource specifications and they do not accept the same elements,
+// so covering the grammar takes two connection elements. `auroraDsp` takes host, port, name
+// and the singular `clusterInstanceHostPattern`; `globalAuroraDsp` takes host, port, name,
+// `region` and the plural `globalClusterInstanceHostPatterns` -- and NOT the singular one.
+// `region` is reachable only through GlobalAurora (AuroraParserGrammar.g4: globalAuroraRegion
+// appears in globalAuroraDsp only), so writing it in an `Aurora` block does not parse.
+// `globalClusterInstanceHostPatterns` is the only bracketed list, `STRING (COMMA STRING)*`.
+###Connection
+RelationalDatabaseConnection fixture::t2::AuroraCluster
+{
+  store: fixture::t2::Db;
+  type: Aurora;
+  specification: Aurora
+  {
+    host: 'mydb.cluster-xyz.us-east-1.rds.amazonaws.com';
+    port: 5432;
+    name: 'mydb';
+    clusterInstanceHostPattern: '?.xyz.us-east-1.rds.amazonaws.com';
+  };
+  auth: UserNamePassword
+  {
+    userNameVaultReference: 'user';
+    passwordVaultReference: 'pwd';
+  };
+}
+
+RelationalDatabaseConnection fixture::t2::AuroraGlobal
+{
+  store: fixture::t2::Db;
+  type: Aurora;
+  specification: GlobalAurora
+  {
+    host: 'mydb.global-xyz.rds.amazonaws.com';
+    port: 5432;
+    name: 'mydb';
+    region: 'us-east-1';
+    globalClusterInstanceHostPatterns: ['?.XYZ1.us-east-1.rds.amazonaws.com', '?.XYZ2.us-west-2.rds.amazonaws.com'];
+  };
+  auth: UserNamePassword
+  {
+    userNameVaultReference: 'user';
+    passwordVaultReference: 'pwd';
+  };
+}

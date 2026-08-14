@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token ';'. Valid alternatives: ['[', '(', '<']
+//
+// Multiplicity is NOT optional on a Pure property. `code: String;` is the shape every
+// other schema language in the world would accept and default to "exactly one"; Legend
+// requires [1] written out.
+//
+// This is precisely the kind of rule a rewrite relaxes by accident -- defaulting a missing
+// multiplicity to [1] is a one-line convenience that makes strictly more models load, so
+// no test fails. It then produces protocol that legend-engine will refuse, and the model
+// is portable in exactly one direction.
+###Pure
+Class fixture::neg::NoMultiplicity
+{
+   code: String;
+}

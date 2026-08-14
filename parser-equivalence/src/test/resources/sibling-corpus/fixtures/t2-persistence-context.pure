@@ -1,0 +1,71 @@
+// COVERS PersistenceLexerGrammar: import, PersistenceContext, persistence, platform, serviceParameters, sinkConnection
+// COVERS PersistenceCloudLexerGrammar: dataProcessingUnits
+//
+// PersistenceContext is the second element type of the Persistence section (the other is
+// Persistence itself) and nothing in the stress corpus writes one. It carries the whole
+// `serviceParameters` / `sinkConnection` / `platform` surface.
+//
+// Three things here are not obvious from the .g4:
+//
+//   * `platform:` is an ISLAND. `platformSpecification: platformType (platformValue)?` and
+//     platformValue is `#{ ... }#`. The island body is handed to a registered
+//     PersistencePlatform processor keyed on the type name, so the type must be one that
+//     exists -- `AwsGlue` is the only one shipped, and it is where the entire
+//     PersistenceCloudLexerGrammar lives (one keyword, `dataProcessingUnits`). An unknown
+//     platform type is a walker rejection, not a parse error, so it still fails this
+//     harness.
+//   * `serviceParameters` entries are `name=value` where value is a primitive, a connection
+//     POINTER (a bare qualified name) or an embedded `#{ ... }#` connection -- three
+//     different arms of `serviceParameter`.
+//   * `sinkConnection` takes the same pointer-or-embedded pair, so both forms appear below.
+//
+// `import` is declared here rather than in a Persistence fixture because the Persistence
+// section's `imports` rule sits before elementDefinition*, and a context-only file is the
+// smallest thing that reaches it.
+###Persistence
+import test::persistence::model::*;
+
+PersistenceContext test::persistence::ContextWithPlatform
+{
+  persistence: test::persistence::TestPersistence;
+  platform: AwsGlue
+  #{
+    dataProcessingUnits: 10;
+  }#;
+  serviceParameters:
+  [
+    foo='hello',
+    bar=1,
+    con1=test::persistence::TestConnection,
+    con2=
+    #{
+      RelationalDatabaseConnection
+      {
+        store: test::persistence::TestDatabase;
+        type: H2;
+        specification: LocalH2
+        {
+        };
+        auth: Test;
+      }
+    }#
+  ];
+  sinkConnection:
+  #{
+    RelationalDatabaseConnection
+    {
+      store: test::persistence::TestDatabase;
+      type: H2;
+      specification: LocalH2
+      {
+      };
+      auth: Test;
+    }
+  }#;
+}
+
+PersistenceContext test::persistence::ContextDefaultPlatform
+{
+  persistence: test::persistence::TestPersistence;
+  sinkConnection: test::persistence::TestConnection;
+}

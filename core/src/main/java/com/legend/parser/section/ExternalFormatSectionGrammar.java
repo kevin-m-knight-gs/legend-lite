@@ -113,9 +113,12 @@ public final class ExternalFormatSectionGrammar
             String location = null;
             String content = null;
             SourceInfo contentSpan = null;
+            java.util.Set<String> seenSchemaKeys = new java.util.HashSet<>();
             while (c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String k = c.parseIdentifier();
+                // once-only per schema entry (mutant duplicate-field probe)
+                TokenStreamCursor.once(seenSchemaKeys, k, c);
                 c.expect(TokenType.COLON);
                 switch (k) {
                     case "id" -> id = c.parseIdentifier();

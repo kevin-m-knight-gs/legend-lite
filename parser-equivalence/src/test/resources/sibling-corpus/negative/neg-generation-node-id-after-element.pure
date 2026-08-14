@@ -1,0 +1,21 @@
+// REJECTS: Unexpected token 'id'
+//
+// `generationNode: { (nodeId)? generationElement }` is an ORDERED rule: the optional id
+// comes FIRST. Writing it after the element -- which reads perfectly well and is how every
+// other body in these grammars would take it -- is a parse error.
+//
+// Nearly every element body in Legend is an unordered `( ... )*` whose constraints are
+// applied later by the walker. This is one of the few that is not, so a rewrite that applies
+// the house style uniformly accepts this file, and a rewrite that hardcodes order elsewhere
+// rejects files legend-engine accepts. Paired with neg-generation-node-missing-element.pure,
+// which pins the same rule's other half.
+###GenerationSpecification
+GenerationSpecification fixture::neg::NodeIdAfterElement
+{
+   generationNodes: [
+      {
+         generationElement: fixture::neg::AvroConfig;
+         id: 'afterTheElement';
+      }
+   ];
+}

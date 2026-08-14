@@ -1,0 +1,146 @@
+// COVERS PersistenceLexerGrammar: tests, testBatches, data, connection, asserts, isTestDataFromServiceOutput, graphFetchPath
+//
+// The `tests:` block. Structurally it looks like the Service testSuite block but it is a
+// separate grammar arm with different spellings: `testBatches` not `tests`, `connection`
+// (singular, no id) not `connections`, and no `parameters`.
+//
+// What the .g4 says is optional and the walker says is not (PersistenceParseTreeWalker.java
+// :828-855): a testBatch MUST have `data` and MUST have `asserts`. `data` must contain a
+// `connection` block. So the empty `testBatches: [ ]` that upstream's roundtrip tests
+// mostly write is legal only because the emptiness check is per-batch, not per-list -- an
+// empty LIST is fine, an empty BATCH is "TestData cannot be empty or null within
+// Persistence TestBatch". Both shapes appear below.
+//
+// `graphFetchPath` only makes sense against a graph-fetch service output, so the element
+// carrying it uses one; the TDS element omits it. Both booleans of
+// `isTestDataFromServiceOutput` appear.
+//
+// The `data:` inside the ExternalFormat `#{ }#` island is the Data grammar's keyword, not
+// this one -- the Persistence `data` being claimed here is the block opener on line
+// `data:` immediately above `connection:`.
+###Persistence
+Persistence test::persistence::TestedTdsOutput
+{
+  doc: 'a persistence with a populated test batch';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo, bar
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+      deduplication: None;
+    }
+    ->
+    {
+    }
+  ];
+  tests:
+  [
+    test1:
+    {
+      testBatches:
+      [
+        testBatch1:
+        {
+          data:
+          {
+            connection:
+            {
+              ExternalFormat
+              #{
+                contentType: 'application/x.flatdata';
+                data: 'FIRST_NAME,LAST_NAME\nFred,Bloggs\nJane,Doe';
+              }#
+            }
+          }
+          asserts:
+          [
+            assert1:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"Age":12, "Name":"dummy"}';
+                  }#;
+              }#
+          ]
+        },
+        testBatch2:
+        {
+          data:
+          {
+            connection:
+            {
+              ExternalFormat
+              #{
+                contentType: 'application/x.flatdata';
+                data: 'FIRST_NAME,LAST_NAME\nAda,Lovelace';
+              }#
+            }
+          }
+          asserts:
+          [
+            assert1:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"Age":36, "Name":"Ada"}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+      isTestDataFromServiceOutput: true;
+    }
+  ]
+}
+
+Persistence test::persistence::TestedGraphFetchOutput
+{
+  doc: 'graphFetchPath names the sub-tree the test data corresponds to';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    #/test::example::MyType/hello#
+    {
+      keys:
+      [
+        #/test::example::MyType/hello/key1#
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+      deduplication: None;
+    }
+    ->
+    {
+    }
+  ];
+  tests:
+  [
+    test1:
+    {
+      testBatches:
+      [
+
+      ]
+      isTestDataFromServiceOutput: false;
+      graphFetchPath: #/test::example::MyType/hello#;
+    }
+  ]
+}

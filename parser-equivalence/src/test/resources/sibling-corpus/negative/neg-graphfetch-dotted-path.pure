@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token '.'. Valid alternatives: ['->subType(@', ',', '(']
+//
+// Nesting in a graph fetch tree is by SUBTREE, never by dotted path. `shapes { area }`, not
+// `shapes.area`.
+//
+// The dotted form is how the same traversal is written everywhere else in Pure -- it is
+// exactly what `$this.shapes.area` means in a constraint two sections up -- so a rewrite
+// that reuses its expression-level qualified-name parser inside the island accepts it
+// immediately. The result is a tree whose root has one child named `shapes.area`, which is
+// not a property of anything.
+###Pure
+function fixture::neg::dottedPath(): meta::pure::metamodel::type::Any[*]
+{
+   #{
+      fixture::neg::Catalog {
+         shapes.area
+      }
+   }#
+}

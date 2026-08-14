@@ -1,0 +1,22 @@
+// REJECTS: no viable alternative at input 'AssociationMapping(~mainTable'
+//
+// An AssociationMapping body is property mappings and nothing else. It has no ~mainTable,
+// no ~filter, no ~primaryKey: an association is mapped by the joins on its two ends, so
+// there is no single main table for it to name.
+//
+// The relational grammar routes `associationMapping | classMapping` from one entry point,
+// and the two share the whole property-mapping machinery -- so the modifier clauses are one
+// rule away from being reachable here. A rewrite that parses "a relational mapping body"
+// once and only afterwards asks whether it was an association accepts this.
+###Mapping
+Mapping fixture::neg::MainTableInAssociation
+(
+   fixture::neg::PersonFirm: Relational
+   {
+      AssociationMapping
+      (
+         ~mainTable [fixture::neg::Db]PERSON
+         employees[firm_id, person_id]: [fixture::neg::Db]@PersonFirm
+      )
+   }
+)

@@ -57,6 +57,11 @@ public final class ServiceStoreSectionGrammar
             String kw = c.safeText();
             switch (kw) {
                 case "description" -> {
+                    if (description != null) {
+                        // once-only (mutant duplicate-field probe)
+                        throw c.error("Field 'description' should be"
+                                + " specified only once");
+                    }
                     c.advance();
                     c.expect(TokenType.COLON);
                     description = SectionParse.stringValue(c);
@@ -147,6 +152,10 @@ public final class ServiceStoreSectionGrammar
                 }
                 case "requestBody" -> requestBody = parseTypeRef(c);
                 case "method" -> {
+                    if (method != null) {
+                        throw c.error("Field 'method' should be"
+                                + " specified only once");
+                    }
                     method = c.parseIdentifier();
                     if (!"GET".equals(method) && !"POST".equals(method)) {
                         // engine-verbatim (embedded-data pin #12)

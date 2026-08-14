@@ -1,0 +1,24 @@
+// COVERS DomainLexerGrammar: composite, shared, none
+//
+// Property aggregation kind -- a parenthesised prefix on a property, legal in both Class
+// and Association bodies. Three keywords the stress corpus never wrote because nothing it
+// models needed ownership semantics.
+###Pure
+Class fixture::domain::Part
+{
+   sku: String[1];
+}
+
+Class fixture::domain::Assembly
+{
+   (none) code: String[1];
+   (composite) owned: fixture::domain::Part[*];
+   (shared) borrowed: fixture::domain::Part[*];
+   plain: String[1];
+}
+
+Association fixture::domain::AssemblyPart
+{
+   (composite) parts: fixture::domain::Part[*];
+   (none) assembly: fixture::domain::Assembly[1];
+}

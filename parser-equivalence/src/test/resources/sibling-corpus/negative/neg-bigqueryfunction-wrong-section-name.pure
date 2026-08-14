@@ -1,0 +1,29 @@
+// REJECTS: 'BigQueryFunction' is not a known section parser
+//
+// ENVIRONMENTAL-LOOKING, AND DELIBERATELY SO. "is not a known section parser" is the
+// same message a MISSING GRAMMAR EXTENSION produces -- four really were absent from this
+// runner's classpath until recently. What distinguishes this case: ../fixtures/t2-bigquery.pure
+// parses, using `###BigQuery`, which proves the extension IS loaded. So the rejection here
+// is about the NAME, not the environment.
+//
+// `###BigQueryFunction`. The element is spelled BigQueryFunction, the grammar file is
+// BigQueryFunctionLexerGrammar.g4, the parser extension class is
+// BigQueryFunctionGrammarParserExtension -- and the section it registers is `###BigQuery`
+// (that class, line 38: NAME = "BigQuery"). Every other name in the chain says Function and
+// the one the user types does not.
+//
+// Section names are the one part of these grammars with no syntax to derive them from: they
+// are string constants in Java. This batch alone has `###BigQuery` for BigQueryFunction,
+// `###MemSql` for MemSqlFunction, `###Snowflake` for SnowflakeApp, `###Deephaven` for
+// DeephavenApp, and `###DataQualityValidation` -- which does NOT shorten (see
+// ./neg-dataquality-wrong-section-name.pure).
+//
+// CLASSPATH CHECK: this message is also what a missing extension produces. It is not one here
+// -- ../fixtures/t2-bigquery.pure parses `###BigQuery` against this same runner, so the
+// extension is loaded and the name is what is being refused.
+###BigQueryFunction
+BigQueryFunction fixture::neg::WrongSectionName
+{
+   functionName : 'MyFunction';
+   function : zxx(Integer[1]):String[1];
+}

@@ -1,0 +1,50 @@
+// COVERS ExternalFormatLexerGrammar: SchemaSet, Binding, format, schemas, id, location, content, contentType, modelIncludes, modelExcludes, schemaSet, schemaId, import
+// COVERS-EMBEDDED FlatDataLexerGrammar: section, Record, STRING, optional, trueString, falseString, format, timeZone
+//
+// The whole ###ExternalFormat section, which nothing here had ever written.
+//
+// FlatData is NOT its own section -- that was the thing worth finding out. It is a
+// self-contained sub-grammar (its .g4 re-declares STRING and BRACE_OPEN precisely so it can
+// parse independently), written inside the QUOTED `content:` string of a SchemaSet whose
+// format is FlatData. So its keywords live inside a string literal, which is exactly the
+// shape the coverage measurement strips before counting -- the reason this file declares
+// both grammars explicitly rather than relying on the section attribution.
+//
+// Note `id` inside a schemas entry versus `schemaId` on the Binding: different keywords for
+// the same referent, and a natural place to get it backwards.
+###ExternalFormat
+import fixture::ef::*;
+
+SchemaSet fixture::ef::FlatSet
+{
+   format: FlatData;
+   schemas: [
+      {
+         id: primary;
+         location: 'people.schema';
+         content: 'section people: DelimitedWithHeadings\n{\n  scope.untilEof;\n  delimiter: \',\';\n  nullString: \'null\';\n  mayContainBlankLines;\n\n  Record\n  {\n    FIRST_NAME       : STRING;\n    LAST_NAME        : STRING(optional);\n    ACTIVE           : BOOLEAN(trueString=\'Y\', falseString=\'N\', optional);\n    JOINED           : DATE(format=\'MM-dd-yyyy\');\n    LAST_SEEN        : DATETIME(format=\'yyyy-MM-dd HH:mm:ss\', timeZone=\'UTC\');\n    SALARY           : DECIMAL(optional);\n  }\n}';
+      }
+   ];
+}
+
+Binding fixture::ef::PeopleBinding
+{
+   schemaSet: fixture::ef::FlatSet;
+   schemaId: primary;
+   contentType: 'application/x.flatdata';
+   modelIncludes: [
+      fixture::ef::Person,
+      fixture::ef::Address
+   ];
+   modelExcludes: [
+      fixture::ef::Internal
+   ];
+}
+
+Binding fixture::ef::SchemalessBinding
+{
+   contentType: 'application/json';
+   modelIncludes: [
+      fixture::ef::Person
+   ];
+}

@@ -90,10 +90,24 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
         String action = null;
         Protocol.PBsonSchema schema = null;
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
+        int lastRank = -1;
         while (c.peek() != TokenType.PAREN_CLOSE) {
             String key = c.parseIdentifier();
             TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
+            // the .g4 fixes the field ORDER (mutant swap-siblings probe:
+            // engine refuses validationAction before validationLevel)
+            int rank = switch (key) {
+                case "validationLevel" -> 0;
+                case "validationAction" -> 1;
+                case "jsonSchema" -> 2;
+                default -> throw c.error(
+                        "unknown Collection key '" + key + "'");
+            };
+            if (rank < lastRank) {
+                throw c.error("Unexpected token '" + key + "'");
+            }
+            lastRank = rank;
             switch (key) {
                 case "validationLevel" -> level = c.parseIdentifier();
                 case "validationAction" -> action = c.parseIdentifier();
@@ -104,9 +118,16 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.PAREN_CLOSE);
-        if (level == null || action == null || schema == null) {
-            throw c.error("Collection '" + collName + "' needs "
-                    + "validationLevel, validationAction and jsonSchema");
+        // validationLevel/validationAction are OPTIONAL with wire
+        // DEFAULTS strict/error (probed both-absent 2026-08-14)
+        if (level == null) {
+            level = "strict";
+        }
+        if (action == null) {
+            action = "error";
+        }
+        if (schema == null) {
+            throw c.error("Collection '" + collName + "' needs jsonSchema");
         }
         return new Protocol.PMongoDatabase.PMongoCollection(collName, level,
                 action, schema);
@@ -119,6 +140,13 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
         Object parsed = parseJsonValue(c);
         if (!(parsed instanceof java.util.Map<?, ?> m)) {
             throw c.error("jsonSchema is not a JSON object");
+        }
+        Object rootType = m.get("bsonType");
+        if (rootType != null && !"object".equals(rootType)) {
+            // the ROOT schema must be an object (sibling negative
+            // neg-mongodb-jsonschema-not-object; engine's Jackson
+            // deserialization refuses a non-object root)
+            throw c.error("jsonSchema root must be an object");
         }
         return schemaOf(m, true, c);
     }

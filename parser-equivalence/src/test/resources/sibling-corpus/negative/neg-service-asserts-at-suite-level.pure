@@ -1,0 +1,42 @@
+// REJECTS: Unexpected token 'asserts'. Valid alternatives: ['data', 'tests']
+//
+// `asserts:` belongs to a test element, one level further in. A test SUITE takes only
+// `data:` and `tests:`.
+//
+// This is the nesting mistake, not a spelling mistake: every keyword here is a real Service
+// keyword and the shape is plausible. A rewritten parser that collects suite-body clauses
+// into one bag and sorts them out later accepts a suite-level assert and attaches it
+// nowhere.
+###Service
+Service fixture::neg::AssertsAtSuiteLevel
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         asserts:
+         [
+            a1:
+               EqualTo
+               #{
+                  expected: '1';
+               }#
+         ]
+         tests:
+         [
+            t1:
+            {
+               parameters: []
+            }
+         ]
+      }
+   ]
+}

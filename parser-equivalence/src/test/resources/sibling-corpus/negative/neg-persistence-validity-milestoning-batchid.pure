@@ -1,0 +1,41 @@
+// REJECTS: Unexpected token 'BatchId'. Valid alternatives: ['DateTime']
+//
+// `validityMilestoning` has exactly ONE arm -- `dateTimeValidityMilestoning`
+// (PersistenceParserGrammar.g4:660). There is no BatchId validity scheme, even though
+// BatchId is a perfectly good TRANSACTION milestoning scheme two lines above in the same
+// ingest mode, spelled with the same token.
+//
+// This one the grammar itself catches, and the fixture records which side of the line it
+// falls on: a parser is allowed to reject it at parse time rather than in a walker.
+###Persistence
+Persistence test::persistence::neg::ValidityBatchId
+{
+  doc: 'a batch-id validity milestoning, which does not exist';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalSnapshot
+    {
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+      validityMilestoning: BatchId
+      {
+        batchIdInName: 'FROM_BATCH';
+        batchIdOutName: 'THRU_BATCH';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
