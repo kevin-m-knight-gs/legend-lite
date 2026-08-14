@@ -410,7 +410,7 @@ class TypeCheckerTest {
     @Test
     void extendWithWindowedAggregate() {
         TypedSpec n = typeQuery(T_PERSON
-                + "->extend(over(~LAST_NAME), ~avgAge : {p, w, r | $r.AGE} : y | $y->avg())");
+                + "->extend(over(~LAST_NAME), ~avgAge : {p, w, r | $r.AGE} : y | $y->average())");
         TypedExtendWindow ext = assertInstanceOf(TypedExtendWindow.class, n);
         assertEquals(1, ext.aggs().size());
         assertEquals(Type.Primitive.FLOAT, columnType(schemaOf(n), "avgAge"));
@@ -507,7 +507,7 @@ class TypeCheckerTest {
         // signature's K is shared only syntactically; per-column bindings isolate it.
         Type.RelationType rt = schemaOf(typeQuery(T_PERSON
                 + "->groupBy(~[FIRST_NAME, LAST_NAME],"
-                + " ~[TOTAL : x|$x.AGE : y|$y->sum(), AVG_SAL : x|$x.SALARY : y|$y->avg()])"));
+                + " ~[TOTAL : x|$x.AGE : y|$y->sum(), AVG_SAL : x|$x.SALARY : y|$y->average()])"));
         assertEquals(java.util.List.of("FIRST_NAME", "LAST_NAME", "TOTAL", "AVG_SAL"),
                 rt.columns().stream().map(Type.Column::name).toList());
         assertEquals(Type.Primitive.INTEGER, columnType(rt, "TOTAL"));  // sum(Integer[*]):Integer[1]

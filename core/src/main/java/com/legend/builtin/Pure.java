@@ -743,47 +743,125 @@ public final class Pure {
      */
     private static final List<NativeFunctionDefinition> ALL = new ArrayList<>();
 
-    /** INTERNAL DESUGAR IR (invention audit 2026-08-14, per-name
-     *  VERIFIED against both upstream repos): names emitted by lite's
-     *  normalizer/lowering that exist nowhere upstream and have no real
-     *  functional counterpart — legacy-mapping semantics
-     *  (legacyX, otherwise, navigate, sourceUrl), declared-type shims
-     *  (castAsDeclared/typeAsDeclared), and the arity-disambiguating
-     *  renames of engine dynaFns (parseDate/convertDate/convertDateTime/
-     *  convertTimeZone with a format arg -> *Format). The user-facing
-     *  resolution partition is chartered in LITE_INVENTION_CENSUS.md;
-     *  the governance test pins this set shrink-only. */
-    public static final java.util.Set<String> INTERNAL_DESUGAR =
-            java.util.Set.of("castAsDeclared", "convertDateFormat",
-                    "convertDateTimeFormat", "convertTimeZoneFormat",
-                    "legacyAssocPredicate", "legacyLocalProperty",
-                    "legacyNavigate", "navigate", "otherwise",
-                    "parseDateFormat", "sourceUrl", "typeAsDeclared",
-                    // the #TDS literal's desugar target (SpecParser)
-                    "tds");
+    /**
+     * The lite-internal native package's vocabulary, as COMPILE-TIME
+     * CONSTANTS — the only sanctioned spellings for internal producers
+     * (normalizer/lowering emissions), internal consumers (structural
+     * matchers), and lowering registrations. A bare name is a QUERY
+     * against the user's namespace; the compiler talking to itself uses
+     * exact identity, so string literals of these names at use sites
+     * are banned. The governance test binds every constant to a
+     * registered catalog native (a typo here cannot survive one run).
+     */
+    public static final class Lite {
+        public static final String PKG = "meta::legend::lite::";
 
-    /** ENGINE-VOCABULARY typing shims (per-name verified): the NAME is
-     *  legend-engine's own — 'divideRound' is an engine dynaFunction
-     *  (pureToSQLQuery processDynaFunction), 'notEqualAnsi' rides the
-     *  engine's relationalExtension, 'avg' is the legacy ~groupBy
-     *  aggregate spelling the corpus writes — only the typing-shim FQN
-     *  package is ours. The invention audit mis-filed all three as
-     *  inventions. */
+        // -- INTERNAL DESUGAR IR (invention audit 2026-08-14, per-name
+        // verified against both upstream repos): emitted by lite's
+        // normalizer/lowering, no upstream counterpart — legacy-mapping
+        // semantics, declared-type shims, and arity-disambiguating
+        // renames of engine dynaFns (parseDate etc. with a format
+        // arg -> *Format). NOT user-reachable: bare-name resolution
+        // excludes the lite package.
+        public static final String CAST_AS_DECLARED = PKG + "castAsDeclared";
+        public static final String TYPE_AS_DECLARED = PKG + "typeAsDeclared";
+        public static final String LEGACY_NAVIGATE = PKG + "legacyNavigate";
+        public static final String LEGACY_ASSOC_PREDICATE = PKG + "legacyAssocPredicate";
+        public static final String LEGACY_LOCAL_PROPERTY = PKG + "legacyLocalProperty";
+        public static final String OTHERWISE = PKG + "otherwise";
+        public static final String PARSE_DATE_FORMAT = PKG + "parseDateFormat";
+        public static final String CONVERT_DATE_FORMAT = PKG + "convertDateFormat";
+        public static final String CONVERT_DATE_TIME_FORMAT = PKG + "convertDateTimeFormat";
+        public static final String CONVERT_TIME_ZONE_FORMAT = PKG + "convertTimeZoneFormat";
+        /** The #TDS literal's desugar target (SpecParser spells this
+         *  FQN literally — the parser stays free of this class). */
+        public static final String TDS = PKG + "tds";
+
+        // -- ENGINE-VOCABULARY typing shims (per-name verified): the
+        // NAME is legend-engine's own wire/dynaFn vocabulary
+        // ('divideRound' pureToSQLQuery dynaFunction, 'notEqualAnsi'
+        // relationalExtension, 'avg' legacy ~groupBy aggregate, 'sub'
+        // databricks dynaFns, 'isNumeric' duckdb extension, 'hash'
+        // memsql dialect); 'join' is the REAL relation join's name —
+        // lite carries a same-name overload shim. Only the typing-shim
+        // FQN package is ours.
+        public static final String AVG = PKG + "avg";
+        public static final String DIVIDE_ROUND = PKG + "divideRound";
+        public static final String NOT_EQUAL_ANSI = PKG + "notEqualAnsi";
+        public static final String SUB = PKG + "sub";
+        public static final String IS_NUMERIC = PKG + "isNumeric";
+        public static final String HASH = PKG + "hash";
+        public static final String JOIN = PKG + "join";
+
+        // -- USER-FACING lite natives (product surface): bare-name
+        // resolvable. 'navigate' is the relation-navigation extension
+        // the integration tests pin from user query text (it subsumed
+        // the deleted traverse machinery; zero internal emitters).
+        // 'sourceUrl' is the data-URI relation source, DELIBERATELY
+        // user-callable (SourceUrlUserCallableTest javadoc: "not just
+        // inside synthesised mapping bodies") — it also has internal
+        // emitters, which spell this constant. The 08-14 census had
+        // mis-filed both as internal.
+        public static final String NAVIGATE = PKG + "navigate";
+        public static final String SOURCE_URL = PKG + "sourceUrl";
+
+        private Lite() {
+        }
+    }
+
+    private static String liteLocalName(String fqn) {
+        return fqn.substring(Lite.PKG.length());
+    }
+
+    /** Bare names of the internal-desugar IR — the governance census
+     *  surface, DERIVED from the {@link Lite} constants (single point
+     *  of truth). Pinned shrink-only. */
+    public static final java.util.Set<String> INTERNAL_DESUGAR =
+            java.util.stream.Stream.of(Lite.CAST_AS_DECLARED,
+                    Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE,
+                    Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
+                    Lite.OTHERWISE, Lite.PARSE_DATE_FORMAT,
+                    Lite.CONVERT_DATE_FORMAT, Lite.CONVERT_DATE_TIME_FORMAT,
+                    Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS)
+                    .map(Pure::liteLocalName)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    /** Bare names of the engine-vocabulary typing shims (see
+     *  {@link Lite}). Pinned shrink-only. */
     public static final java.util.Set<String> ENGINE_VOCAB_SHIMS =
-            java.util.Set.of("avg", "divideRound", "notEqualAnsi",
-                    // engine dynaFn / dialect vocabulary (probed):
-                    // 'sub' (databricks dynaFns), 'isNumeric' (duckdb
-                    // extension), 'hash' (memsql dialect); 'join' is the
-                    // REAL relation join's name — lite carries a
-                    // same-name overload shim
-                    "sub", "isNumeric", "hash", "join");
+            java.util.stream.Stream.of(Lite.AVG, Lite.DIVIDE_ROUND,
+                    Lite.NOT_EQUAL_ANSI, Lite.SUB, Lite.IS_NUMERIC,
+                    Lite.HASH, Lite.JOIN)
+                    .map(Pure::liteLocalName)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    /** Bare names of the user-facing lite product natives (see
+     *  {@link Lite#NAVIGATE}, {@link Lite#SOURCE_URL}): these STAY
+     *  bare-name resolvable. */
+    public static final java.util.Set<String> LITE_SURFACE =
+            java.util.Set.of(liteLocalName(Lite.NAVIGATE),
+                    liteLocalName(Lite.SOURCE_URL));
+
+    /**
+     * Translation at the engine-wire DATA BOUNDARY: a name arriving
+     * from the engine's relational-operation vocabulary (protocol
+     * dynaFns, legacy ~groupBy aggregates) is respelled to its exact
+     * lite-internal identity the moment it enters our AST; every other
+     * name passes through untouched (it is real pure vocabulary and
+     * resolves in the user namespace).
+     */
+    public static String wireEmissionName(String wireName) {
+        return INTERNAL_DESUGAR.contains(wireName)
+                || ENGINE_VOCAB_SHIMS.contains(wireName)
+                ? Lite.PKG + wireName : wireName;
+    }
 
 
     /** Every registered native in the lite-internal package — the
      *  governance test's census surface. */
     public static java.util.List<String> liteInternalNatives() {
         return ALL.stream().map(NativeFunctionDefinition::qualifiedName)
-                .filter(q -> q.startsWith("meta::legend::lite::"))
+                .filter(q -> q.startsWith(Lite.PKG))
                 .distinct().sorted().toList();
     }
 
@@ -806,7 +884,14 @@ public final class Pure {
         static final java.util.Map<String, ClassDefinition> CLASS_BY_FQN = new java.util.HashMap<>();
         static final java.util.Map<String, EnumDefinition> ENUM_BY_FQN = new java.util.HashMap<>();
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_FQN = new java.util.HashMap<>();
-        /** bare name -> ALL overloads across packages (filter ∈ collection+relation, ...). */
+        /** bare name -> the USER-RESOLVABLE overloads across packages
+         *  (filter ∈ collection+relation, ...). A bare name is a QUERY
+         *  against the user's namespace, so this index holds exactly
+         *  that namespace: lite-internal defs (desugar IR + engine-vocab
+         *  shims) are excluded — internal producers and consumers spell
+         *  {@link Pure#lite} and resolve through FN_BY_FQN. LITE_SURFACE
+         *  names (user-facing product natives that happen to live in the
+         *  lite package) stay. */
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_BARE = new java.util.HashMap<>();
         /** name -> overload signature keys; nativeNamed's O(1) surface (re-audit M5). */
         static final java.util.Map<String, java.util.Set<String>> KEYS_BY_NAME = new java.util.HashMap<>();
@@ -823,12 +908,20 @@ public final class Pure {
                 String bare = nfd.qualifiedName().contains("::")
                         ? nfd.qualifiedName().substring(nfd.qualifiedName().lastIndexOf("::") + 2)
                         : nfd.qualifiedName();
-                FN_BY_BARE.computeIfAbsent(bare, k -> new ArrayList<>()).add(nfd);
-                // keys index serves BOTH spellings (registration tables use bare).
+                boolean userResolvable = !nfd.qualifiedName().startsWith(Lite.PKG)
+                        || LITE_SURFACE.contains(bare);
+                if (userResolvable) {
+                    FN_BY_BARE.computeIfAbsent(bare, k -> new ArrayList<>()).add(nfd);
+                }
+                // keys index serves BOTH spellings (registration tables
+                // use bare) — the bare spelling under the same partition
+                // rule as FN_BY_BARE.
                 KEYS_BY_NAME.computeIfAbsent(nfd.qualifiedName(), k -> new java.util.HashSet<>())
                         .add(nfd.signatureKey());
-                KEYS_BY_NAME.computeIfAbsent(bare, k -> new java.util.HashSet<>())
-                        .add(nfd.signatureKey());
+                if (userResolvable) {
+                    KEYS_BY_NAME.computeIfAbsent(bare, k -> new java.util.HashSet<>())
+                            .add(nfd.signatureKey());
+                }
             }
         }
     }

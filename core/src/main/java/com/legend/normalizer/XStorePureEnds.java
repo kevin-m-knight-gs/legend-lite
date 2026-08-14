@@ -3,6 +3,7 @@
 
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
@@ -199,7 +200,7 @@ final class XStorePureEnds {
         }
         Variable a = new Variable("a");
         Variable b = new Variable("b");
-        ValueSpecification body = new AppliedFunction("legacyAssocPredicate",
+        ValueSpecification body = new AppliedFunction(Pure.Lite.LEGACY_ASSOC_PREDICATE,
                 List.of(a, b,
                         new CString(endA.setId()),
                         new CString(endB.setId()),
@@ -238,7 +239,7 @@ final class XStorePureEnds {
                 && rowByVar.containsKey(var.name())) {
             Variable row = rowByVar.get(var.name());
             if (java.util.Objects.requireNonNull(endByVar.get(var.name())).localProps().contains(ap.property())) {
-                return new AppliedFunction("legacyLocalProperty",
+                return new AppliedFunction(Pure.Lite.LEGACY_LOCAL_PROPERTY,
                         List.of(row, new CString(ap.property())));
             }
             return new AppliedProperty(row, ap.property());

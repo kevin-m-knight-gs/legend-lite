@@ -2,6 +2,7 @@
 
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
@@ -1167,7 +1168,7 @@ final class UnionSynthesis {
                     if (!wrapped.add(st.alias())) {
                         continue;
                     }
-                    threadPipe = new AppliedFunction("join", List.of(threadPipe,
+                    threadPipe = new AppliedFunction(Pure.Lite.JOIN, List.of(threadPipe,
                             new ColSpec(st.alias(), new LambdaFunction(List.of(),
                                     List.of(ViewRelation.relationExpr(
                                             st.db(), st.table(), model, md))),
@@ -1188,7 +1189,7 @@ final class UnionSynthesis {
                     List.of(new AppliedFunction("getAll", List.of(
                             new PackageableElementPtr(lf.targetClassFqn()))))),
                     null);
-            union = new AppliedFunction("legacyNavigate",
+            union = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
                     lf.pairedCondition() == null
                             ? List.of(union, slot, lf.targetRows(), lf.condition())
                             : List.of(union, slot, lf.targetRows(), lf.condition(),

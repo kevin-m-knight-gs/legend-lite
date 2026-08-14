@@ -156,7 +156,7 @@ public class ScalarFunctionIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void testHash() throws SQLException {
-        var result = executeRelation("|'test'->hash()");
+        var result = executeRelation("|'test'->hashCode()");
         assertNotNull(result.rows().get(0).get(0));
     }
 

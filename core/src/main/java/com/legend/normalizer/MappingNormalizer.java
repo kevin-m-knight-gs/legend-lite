@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
@@ -868,7 +869,7 @@ public final class MappingNormalizer {
         // the property-space local marker legacyLocalProperty($row, 'p')
         // is rooted at its row argument (XStorePureEnds emission)
         if (v instanceof AppliedFunction af2 && af2.parameters().size() == 2
-                && "legacyLocalProperty".equals(af2.function())) {
+                && Pure.Lite.LEGACY_LOCAL_PROPERTY.equals(af2.function())) {
             return rootedAt(af2.parameters().get(0), var);
         }
         return false;
@@ -1177,7 +1178,7 @@ public final class MappingNormalizer {
         }
         Variable a = new Variable("a");
         Variable b = new Variable("b");
-        ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
+        ValueSpecification body = new AppliedFunction(Pure.Lite.LEGACY_ASSOC_PREDICATE, List.of(
                 a, b,
                 endA.pipeline(),
                 endB.pipeline(),
@@ -1252,7 +1253,7 @@ public final class MappingNormalizer {
                 model);
         Variable a = new Variable("a");
         Variable b = new Variable("b");
-        ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
+        ValueSpecification body = new AppliedFunction(Pure.Lite.LEGACY_ASSOC_PREDICATE, List.of(
                 a, b,
                 pipeA,
                 pipeB,
@@ -1799,7 +1800,7 @@ public final class MappingNormalizer {
     private static ValueSpecification synthJsonSourceMapping(LegacyMappingDefinition md,
                                                             ClassMapping.Relational rcm,
                                                             ModelBuilder model) {
-        ValueSpecification source = new AppliedFunction("sourceUrl",
+        ValueSpecification source = new AppliedFunction(Pure.Lite.SOURCE_URL,
                 List.of(new CString(java.util.Objects.requireNonNull(rcm.sourceUrl(),
                         "sourceUrl-backed set without a source url"))));
         Variable rowBind = new Variable("row");
@@ -2332,7 +2333,7 @@ public final class MappingNormalizer {
         // a WIRE coercion (the engine runtime converts on the wire and
         // its SQL/plan text never spells it) — castAsDeclared casts at
         // execution, reads bare in the engine-text funnel
-        return new AppliedFunction("castAsDeclared", List.of(value,
+        return new AppliedFunction(Pure.Lite.CAST_AS_DECLARED, List.of(value,
                 new TypeAnnotation.Named(
                         new TypeExpression.NameRef(simple))));
     }
@@ -2414,7 +2415,7 @@ public final class MappingNormalizer {
         if (colKind == null || colKind.equals(declared)) {
             return read;
         }
-        return new AppliedFunction("typeAsDeclared", List.of(read,
+        return new AppliedFunction(Pure.Lite.TYPE_AS_DECLARED, List.of(read,
                 new TypeAnnotation.Named(
                         new TypeExpression.NameRef(declared))));
     }
@@ -2447,7 +2448,7 @@ public final class MappingNormalizer {
         // engine-text funnel reads the expression bare (engine goldens
         // never spell wire coercions; the runtime converts on the wire)
         if ("String".equals(declared) || "Boolean".equals(declared)) {
-            return new AppliedFunction("castAsDeclared", List.of(read,
+            return new AppliedFunction(Pure.Lite.CAST_AS_DECLARED, List.of(read,
                     new TypeAnnotation.Named(
                             new TypeExpression.NameRef(declared))));
         }
@@ -2462,7 +2463,7 @@ public final class MappingNormalizer {
         }
         Set<String> numeric = Set.of("Float", "Decimal", "Integer", "Number");
         if (numeric.contains(declared) && numeric.contains(colKind)) {
-            return new AppliedFunction("typeAsDeclared", List.of(read,
+            return new AppliedFunction(Pure.Lite.TYPE_AS_DECLARED, List.of(read,
                     new TypeAnnotation.Named(
                             new TypeExpression.NameRef(declared))));
         }
@@ -2732,7 +2733,7 @@ public final class MappingNormalizer {
                 oe.embedded(), rowBind, tableScope, defaultTable, pipeline,
                 ownerClassFqn, md, model, new HashSet<>(), null);
         ValueSpecification fallback = new AppliedProperty(rowBind, oe.propertyName());
-        return new AppliedFunction("otherwise", List.of(partial, fallback));
+        return new AppliedFunction(Pure.Lite.OTHERWISE, List.of(partial, fallback));
     }
 
     // InlineEmbedded (§5.4.8): splice the referenced set's PMs inline.
@@ -3395,8 +3396,8 @@ public final class MappingNormalizer {
             }
             boolean exempt = v instanceof AppliedFunction af
                     && (af.function().equals("navigate")
-                        || af.function().equals("legacyNavigate")
-                        || af.function().equals("otherwise")
+                        || af.function().equals(Pure.Lite.LEGACY_NAVIGATE)
+                        || af.function().equals(Pure.Lite.OTHERWISE)
                         || af.function().equals("new"));
             wrapped.put(name, toOneDeclared && !exempt
                     ? new KeyExpression(new AppliedFunction("toOne", List.of(v)),

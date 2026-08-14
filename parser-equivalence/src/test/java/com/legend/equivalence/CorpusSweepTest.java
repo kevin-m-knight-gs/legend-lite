@@ -464,10 +464,10 @@ public class CorpusSweepTest {
             } catch (Throwable strict) {
                 String sm = String.valueOf(strict.getMessage());
                 if (sm.contains("not authorized in Legend Engine")) {
-                    return "DIALECT-generics";
+                    return "PURE-DIALECT-generics";
                 }
                 if (sm.contains("is not supported yet")) {
-                    return "DIALECT-function-types";
+                    return "PURE-DIALECT-function-types";
                 }
                 if (sm.contains(".allVersionsInRange")) {
                     return "DIALECT-milestoning-range";
@@ -487,10 +487,10 @@ public class CorpusSweepTest {
         }
         // DIALECT-GAP — the engine names its own subset
         if (msg.contains("not authorized in Legend")) {
-            return "DIALECT-generics";
+            return "PURE-DIALECT-generics";
         }
         if (msg.matches("(?s).*The type \\{.*}.* is not sup.*")) {
-            return "DIALECT-function-types";
+            return "PURE-DIALECT-function-types";
         }
         if (msg.contains(".allVersionsInRange(")
                 && msg.contains("is not supported")) {

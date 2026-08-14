@@ -3,6 +3,7 @@
 
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.error.NotImplementedException;
 import com.legend.model.AssociationDefinition;
@@ -121,7 +122,7 @@ final class ModelJoinNesting {
                     Map.of(nPair[0], j0, nPair[1], j1),
                     Map.of(nPair[0], rf0, nPair[1], nRf),
                     nmj.associationName(), md, Map.of());
-            ValueSpecification composite = new AppliedFunction("join", List.of(
+            ValueSpecification composite = new AppliedFunction(Pure.Lite.JOIN, List.of(
                     var.equals(aVar) ? pipeA : pipeB,
                     new com.legend.protocol.spec.ColSpec(prop,
                             new LambdaFunction(List.of(),

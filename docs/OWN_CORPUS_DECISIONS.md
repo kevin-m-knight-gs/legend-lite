@@ -80,7 +80,7 @@ mappings-as-functions (clean-sheet bodies are
 
 ---
 
-## 1. DIALECT-function-types — 13 rows
+## 1. PURE-DIALECT-function-types — 13 rows
 
 Function-type signatures (`Function<{Integer[1]->Integer[1]}>[1]`,
 lambda-typed parameters). Engine message: *"The type {…->…} is not
@@ -102,7 +102,7 @@ against DuckDB today).
 - **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP** (pure-dialect; engine says "yet";
   executable feature).
 
-## 2. DIALECT-generics — 7 rows
+## 2. PURE-DIALECT-generics — 7 rows
 
 Type/multiplicity parameters on functions/classes
 (`function f<T>(…)`, `<T\|m>`). Engine: *"Type and/or multiplicity

@@ -13,7 +13,7 @@ previous pin was 4.133.0 — an earlier revision of this doc mis-recorded
 it as "5.88.1"), extension set as loaded by parser-equivalence. Corpus:
 full engine+pure checkouts plus Java-inline snippets. Authoritative
 counts = `LeniencyCatalogTest` output (2026-08-10 post-re-pin + extension close-out, 1,459
-rows): `DIALECT-function-types=278, DIALECT-generics=331,
+rows): `PURE-DIALECT-function-types=278, PURE-DIALECT-generics=331,
 DIALECT-milestoning-range=31, DIALECT-native-or-m2=102,
 ENGINE-TEST-SCOPED-section=10,
 ORACLE-DEFECT-InputMismatchException=344, ORACLE-DEFECT-crash=338,

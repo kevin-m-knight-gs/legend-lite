@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
@@ -186,7 +187,10 @@ final class ViewRelation {
                     aggCols.add(new ColSpec(vc.name(),
                             new LambdaFunction(List.of(r), List.of(selector)),
                             new LambdaFunction(List.of(vals),
-                                    List.of(new AppliedFunction(fc.name(), List.of(vals))))));
+                                    // wire vocabulary ('avg' -> lite shim)
+                                    List.of(new AppliedFunction(
+                                            Pure.wireEmissionName(fc.name()),
+                                            List.of(vals))))));
                     continue;
                 }
                 int match = -1;

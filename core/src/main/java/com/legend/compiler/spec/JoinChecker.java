@@ -41,6 +41,11 @@ final class JoinChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // the pipeline SLOT form is lite-INTERNAL vocabulary: it exists
+        // ONLY under its exact spelling (normalizer emissions); a
+        // user-written bare 'join' must never reach it
+        boolean liteSlotSpelling = af.function()
+                .equals(com.legend.builtin.Pure.Lite.JOIN);
         // FQN spellings canonicalize to the parse name up front (the
         // ProjectChecker lesson): rebuilds and generic resolution key on
         // the name, and an FQN finds only its own narrow catalog entry.
@@ -52,7 +57,7 @@ final class JoinChecker {
             return shared;
         }
         af = tdsLegacyToModern(af);
-        if (af.parameters().size() == 3) {
+        if (af.parameters().size() == 3 && liteSlotSpelling) {
             return slot(t, af, env);
         }
         if (af.parameters().size() == 5) {
@@ -331,7 +336,9 @@ final class JoinChecker {
      * algebra cannot spell).
      */
     private static TypedSpec slot(Typer t, AppliedFunction af, Env env) {
-        TypedFunction sig = t.model().findFunction(CoreFn.JOIN.parseName()).stream()
+        // the slot overload is lite-INTERNAL vocabulary (not in the
+        // user bare-name namespace) — resolve by exact identity
+        TypedFunction sig = t.model().findFunction(com.legend.builtin.Pure.Lite.JOIN).stream()
                 .filter(c -> c.parameters().size() == 3)
                 .findFirst()
                 .orElseThrow(() -> new TypeInferenceException(

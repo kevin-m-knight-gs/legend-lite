@@ -33,8 +33,10 @@ final class TdsChecker {
             throw new TypeInferenceException("malformed TDS literal: expected tds('TDS', body)");
         }
         // Validate against the registered native signature — never ignored.
+        // (lite-INTERNAL vocabulary: resolve by exact identity, the bare
+        // name is not in the user namespace)
         InferenceKernel.Resolution sig = t.kernel().resolveOverload(
-                t.model().findFunction(CoreFn.TDS.parseName()),
+                t.model().findFunction(com.legend.builtin.Pure.Lite.TDS),
                 List.of(ExprType.one(Type.Primitive.STRING), ExprType.one(Type.Primitive.STRING)));
 
         String content = rawLit.value().strip();

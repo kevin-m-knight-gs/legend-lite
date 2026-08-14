@@ -1081,7 +1081,7 @@ final class Typer {
                 }
                 ExprType out = new ExprType(tr.target(),
                         ta.args().get(0).info().multiplicity());
-                if ("castAsDeclared".equals(af.function())) {
+                if (com.legend.builtin.Pure.Lite.CAST_AS_DECLARED.equals(af.function())) {
                     // a WIRE-flagged cast: every TypedCast consumer rides
                     // it unchanged; only the lowering treats it specially
                     yield new com.legend.compiler.spec.typed.TypedCast(

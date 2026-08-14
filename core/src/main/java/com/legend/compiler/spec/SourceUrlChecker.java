@@ -27,8 +27,10 @@ final class SourceUrlChecker {
             throw new TypeInferenceException("sourceUrl expects a string-literal URL");
         }
         // Validate against the registered native signature — never ignored.
+        // (lite-INTERNAL vocabulary: resolve by exact identity, the bare
+        // name is not in the user namespace)
         InferenceKernel.Resolution sig = t.kernel().resolveOverload(
-                t.model().findFunction(CoreFn.SOURCE_URL.parseName()),
+                t.model().findFunction(com.legend.builtin.Pure.Lite.SOURCE_URL),
                 List.of(ExprType.one(Type.Primitive.STRING)));
 
         Type.RelationType schema = new Type.RelationType(List.of(new Type.Column(

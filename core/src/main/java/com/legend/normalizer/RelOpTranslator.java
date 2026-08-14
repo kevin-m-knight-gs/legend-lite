@@ -1,5 +1,6 @@
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
@@ -225,7 +226,7 @@ final class RelOpTranslator {
                                     targetVarOrNull, rowBindOrNull, pipeline))));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("isNumeric") && call.args().size() == 1 ->
-                    new AppliedFunction("isNumeric", translateArgs(call, tableScope,
+                    new AppliedFunction(Pure.Lite.IS_NUMERIC, translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("dayOfWeekNumber")
@@ -273,7 +274,7 @@ final class RelOpTranslator {
             }
             case RelationalOperation.FunctionCall call
                     when call.name().equals("convertTimeZone") && call.args().size() == 3 ->
-                    new AppliedFunction("convertTimeZoneFormat", translateArgs(call,
+                    new AppliedFunction(Pure.Lite.CONVERT_TIME_ZONE_FORMAT, translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline));
             // FORMAT dynafunctions: parseDate/convertDate/convertDateTime/
             // toTimestamp with a format string route to the lite natives
@@ -282,13 +283,13 @@ final class RelOpTranslator {
             // the VARCHAR coercion.
             case RelationalOperation.FunctionCall call
                     when call.name().equals("parseDate") && call.args().size() == 2 ->
-                    new AppliedFunction("parseDateFormat", translateArgs(call, tableScope,
+                    new AppliedFunction(Pure.Lite.PARSE_DATE_FORMAT, translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("convertDate") && call.args().size() <= 2 -> {
                     List<ValueSpecification> as = translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline);
-                    yield new AppliedFunction("convertDateFormat",
+                    yield new AppliedFunction(Pure.Lite.CONVERT_DATE_FORMAT,
                             as.size() == 2 ? as
                                     : List.of(as.get(0), new CString("yyyy-MM-dd")));
             }
@@ -296,7 +297,7 @@ final class RelOpTranslator {
                     when (call.name().equals("convertDateTime")
                             || call.name().equals("toTimestamp"))
                     && call.args().size() == 2 ->
-                    new AppliedFunction("convertDateTimeFormat", translateArgs(call,
+                    new AppliedFunction(Pure.Lite.CONVERT_DATE_TIME_FORMAT, translateArgs(call,
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("convertVarchar128") && call.args().size() == 1 ->
@@ -480,8 +481,13 @@ final class RelOpTranslator {
                 }
                 yield acc;
             }
+            // Wire-vocabulary passthrough — the DATA BOUNDARY: a name in
+            // the engine's dynaFn vocabulary that types against a
+            // lite-internal shim is respelled to its exact identity HERE
+            // (wireEmissionName); real pure names pass through and
+            // resolve in the user namespace.
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
-                    call.name(),
+                    Pure.wireEmissionName(call.name()),
                     translateArgs(call, tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline));
             case RelationalOperation.Comparison cmp -> {

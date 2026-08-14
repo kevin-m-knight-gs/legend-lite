@@ -2686,7 +2686,7 @@ final class SpecParserTest {
         // carrying BOTH the wire's tdsString and the desugared tds() call
         // the compiler consumes (the resolver dissolves it, like PathLiteral)
         assertTrue(result instanceof com.legend.protocol.spec.TdsLiteral tl
-                        && tl.desugared().function().equals("tds")
+                        && tl.desugared().function().equals("meta::legend::lite::tds")
                         && tl.desugared().parameters().size() == 2
                         && tl.desugared().parameters().get(0)
                                 .equals(new CString("TDS")),

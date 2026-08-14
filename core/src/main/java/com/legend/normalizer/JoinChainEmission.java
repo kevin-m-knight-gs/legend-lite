@@ -2,6 +2,7 @@
 
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
@@ -394,7 +395,7 @@ final class JoinChainEmission {
                     navCond = rn.cond();
                     targetRows = rn.rows();
                 }
-                p.expr = new AppliedFunction("legacyNavigate",
+                p.expr = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
                         List.of(p.expr, slot, targetRows, navCond));
                 p.classSlots.add(slotAlias);
             } else {
@@ -408,7 +409,7 @@ final class JoinChainEmission {
                 ColSpec slot = new ColSpec(java.util.Objects.requireNonNull(slotAlias, "slotAlias"),
                         new LambdaFunction(List.of(), List.of(targetRel)),
                         null, viewTarget);
-                p.expr = new AppliedFunction("join",
+                p.expr = new AppliedFunction(Pure.Lite.JOIN,
                         List.of(p.expr, slot, condLambda));
             }
             p.aliasToTargetTable.put(slotAlias, targetTable);

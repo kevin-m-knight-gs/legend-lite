@@ -2877,13 +2877,15 @@ public final class SpecParser implements TokenStreamCursor {
     /**
      * Parse a TDS literal. {@code TDS_LITERAL} is a lexer-side
      * aggregation of a {@code #TDS ... #} test-fixture block into a
-     * single token carrying the verbatim CSV-ish body. Engine-lite
-     * desugars the literal into
-     * {@code AppliedFunction("tds", [CString("TDS"), CString(body)])}
-     * so downstream resolution can dispatch on the function name.
-     * We emit the same shape; the {@code "TDS"} leading argument is
-     * a type-discriminator that the stdlib's {@code tds} function
-     * uses to distinguish bag-of-values overloads.
+     * single token carrying the verbatim CSV-ish body. The literal
+     * desugars into an application of the lite-internal {@code tds}
+     * native, spelled by its EXACT FQN ({@code meta::legend::lite::tds}
+     * — the literal string here keeps the parser free of the builtin
+     * catalog; NativeCatalogGovernanceTest binds the spelling): the
+     * bare name {@code tds} is NOT user-resolvable, so the only route
+     * to the native is this literal. The {@code "TDS"} leading argument
+     * is a type-discriminator that the {@code tds} native uses to
+     * distinguish bag-of-values overloads.
      */
     private ValueSpecification parseTdsLiteral() {
         // NO dialect gate: #TDS is REAL — legend-pure ships the TDS DSL
@@ -2909,7 +2911,7 @@ public final class SpecParser implements TokenStreamCursor {
         String inner = open >= 0 && close > open
                 ? raw.substring(open + 1, close) : raw;
         return new com.legend.protocol.spec.TdsLiteral(inner,
-                new AppliedFunction("tds",
+                new AppliedFunction("meta::legend::lite::tds",
                         List.of(new CString("TDS"), new CString(raw))),
                 spanOf(tok, tok));
     }
@@ -3210,7 +3212,8 @@ public final class SpecParser implements TokenStreamCursor {
                         // engine graphPaths has no trailing comma
                         throw error("Unexpected token '}'");
                     }
-                    break; // trailing comma tolerated (lite dialect)
+                    break; // trailing comma tolerated (PLATFORM dialect —
+                           // gated refusesPlatformDialect on drop-in/lite)
                 }
                 specs.add(parseGraphPath(depth));
             }

@@ -225,8 +225,8 @@ class OwnCorpusConformanceTest {
         // pattern-default was CONFORMED away (required on both surfaces);
         // every remaining class is DECIDED-KEEP or proposed-KEEP there.
         Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
-                Map.entry("DIALECT-function-types", 13),
-                Map.entry("DIALECT-generics", 7),
+                Map.entry("PURE-DIALECT-function-types", 13),
+                Map.entry("PURE-DIALECT-generics", 7),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

@@ -3075,7 +3075,7 @@ final class Substitution {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedNativeCall oc && oc.args().size() == 2
-                && Pure.nativeNamed("otherwise",
+                && Pure.nativeNamed(Pure.Lite.OTHERWISE,
                         oc.callee().signatureKey())
                 && oc.args().get(0)
                         instanceof TypedNewInstance) {

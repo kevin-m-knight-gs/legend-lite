@@ -381,6 +381,10 @@ final class Scalars {
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
         }
+        // the 1-arg memsql-dialect 'hash' typing shim (the bare 'hash'
+        // entry above registers only the REAL 2-arg hash::hash — the
+        // shim is not user-resolvable and registers by exact identity)
+        familyIfPresent(SqlFn.HASH, Pure.Lite.HASH);
         // startsWith/endsWith carry the pure [0..1]-overload guards
         // (stringExtension.pure: $source->isNotEmpty() && ...) — the
         // COMPARISON-SITE null tolerance (audit 20a H2), overriding the
@@ -780,7 +784,7 @@ final class Scalars {
                         new SqlExpr.IntLit(0));
             });
         }
-        familyIfPresent(SqlFn.MINUS, "sub");
+        familyIfPresent(SqlFn.MINUS, Pure.Lite.SUB);
         // makeString: the Any[*] joiner. Elements stringify; a NULL element
         // prints 'TDSNull' (engine TDS-cell convention — ordinary pure
         // collections hold no empties, so the coalesce is unobservable
@@ -977,12 +981,12 @@ final class Scalars {
                         new SqlType.Decimal(38, 18));
             });
         }
-        for (String f : Pure.nativeKeysAt("divideRound")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.DIVIDE_ROUND)) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ROUND, List.of(
                     SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0), args.get(1)),
                     args.get(2))));
         }
-        for (String f : Pure.nativeKeysAt("notEqualAnsi")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.NOT_EQUAL_ANSI)) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                     args.get(0), args.get(1)));
         }
@@ -2083,13 +2087,13 @@ final class Scalars {
         // FORMAT dynafunctions: strptime with engine tokens translated to
         // C-style (the format must be a LITERAL — mapping expressions always
         // spell it inline; anything else is loud)
-        for (String f : Pure.nativeKeysAt("parseDateFormat")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.PARSE_DATE_FORMAT)) {
             RULES.put(f, (n, args) -> strptimeOf(args, false));
         }
-        for (String f : Pure.nativeKeysAt("convertDateTimeFormat")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.CONVERT_DATE_TIME_FORMAT)) {
             RULES.put(f, (n, args) -> strptimeOf(args, false));
         }
-        for (String f : Pure.nativeKeysAt("convertDateFormat")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.CONVERT_DATE_FORMAT)) {
             RULES.put(f, (n, args) -> strptimeOf(args, true));
         }
         // isNumeric(str): PINNED to the engine's H2 emission
@@ -2097,7 +2101,7 @@ final class Scalars {
         // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
         // '1.2.3' are all "numeric") but it is what generated every corpus
         // expectation; a tighter regex silently diverges on those inputs.
-        for (String f : Pure.nativeKeysAt("isNumeric")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.IS_NUMERIC)) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
                     SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
                     SqlExpr.Call.of(SqlFn.UPPER, args.get(0))));
@@ -2108,7 +2112,7 @@ final class Scalars {
         // the naive value as tz-local), so pin the instant first:
         // timezone('UTC', dt) tags the naive value AS UTC, then
         // timezone(tz, ...) renders that instant in the target zone.
-        for (String f : Pure.nativeKeysAt("convertTimeZoneFormat")) {
+        for (String f : Pure.nativeKeysAt(Pure.Lite.CONVERT_TIME_ZONE_FORMAT)) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(2) instanceof SqlExpr.StringLit fmt)) {
                     throw new NotImplementedException(

@@ -72,7 +72,8 @@ wrong:
 |---|---|---|
 | **DELETED** (5) | `maxDate`, `minDate`, `variantTo` (zero emitters, zero upstream — dead surface); `percentileCont`, `percentileDisc` (zero emitters; the REAL `meta::pure::functions::math::percentile` 4-arg form carries the continuous flag and lite already lowers it — the pair was pure user-reachable duplication, which the audit had mis-filed as keep) | emitter census + upstream greps 2026-08-14 |
 | **ENGINE VOCABULARY, not inventions** (7) | `avg` (legacy `~groupBy` aggregate spelling), `divideRound` (engine dynaFunction), `notEqualAnsi` (engine relationalExtension), `sub` (databricks dynaFn tests), `isNumeric` (duckdb extension), `hash` (memsql dialect), `join` (the REAL relation join's name — lite carries a same-name overload shim) | the audit's census only saw pure-function FQNs, not the engine's relational operation vocabulary |
-| **INTERNAL DESUGAR IR** (13, incl. `tds` — the #TDS literal's desugar target) | `legacyNavigate`, `legacyAssocPredicate`, `legacyLocalProperty`, `castAsDeclared`, `typeAsDeclared`, `otherwise`, `navigate`, `sourceUrl`, `parseDateFormat`, `convertDateFormat`, `convertDateTimeFormat`, `convertTimeZoneFormat` (the last four are arity-disambiguating renames of the engine dynaFns `parseDate`/`convertDate`/`convertDateTime`/`convertTimeZone` with a format argument) | emit-site census: each has live normalizer/lowering emitters and no upstream functional counterpart |
+| **INTERNAL DESUGAR IR** (11, incl. `tds` — the #TDS literal's desugar target) | `legacyNavigate`, `legacyAssocPredicate`, `legacyLocalProperty`, `castAsDeclared`, `typeAsDeclared`, `otherwise`, `parseDateFormat`, `convertDateFormat`, `convertDateTimeFormat`, `convertTimeZoneFormat` (the last four are arity-disambiguating renames of the engine dynaFns `parseDate`/`convertDate`/`convertDateTime`/`convertTimeZone` with a format argument) | emit-site census: each has live normalizer/lowering emitters and no upstream functional counterpart; NOT user-reachable (partition below) |
+| **LITE SURFACE** (2, user-facing product natives — bare-name resolvable) | `navigate` (relation navigation; subsumed traverse; ZERO internal emitters — the initial census filing as "internal" was refuted by the emit-site check), `sourceUrl` (data-URI relation source, deliberately user-callable per `SourceUrlUserCallableTest`'s charter javadoc; also internally emitted, by FQN) | integration tests pin both from user query text |
 
 The audit's `%latest` dialect-leak claim was also wrong — `%latest` is
 the engine's own `LATEST_DATE` lexer token (oracle accepts
@@ -96,12 +97,44 @@ sources) and reverted; `#TDS` carries no dialect gate at all. `^$x`
 is legend-pure copy-with-update (the engine wire walker NPEs on it —
 upstream row): gated drop-in only, classified `DIALECT-copy-new`.
 
-**Chartered follow-up — the user-reachability partition:** the 12
-internal names still resolve from user query text because internal
-emitters use bare names through the same index. The partition requires
-the ~15 emit sites to move to FQN spelling first; until then,
-`NativeCatalogGovernanceTest` pins both sets shrink-only so the
-surface cannot grow.
+**`^$x(...)` — RULED KEEP at LITE (user, 2026-08-14):** it is the
+record-update primitive (copy-with-update — construct a modified copy
+of an immutable instance without respelling every field), legend-pure
+vocabulary that PLATFORM needs mandatorily (the prelude and corpus
+sources use it) and that the LITE product keeps as a declared
+extension; only the engine drop-in surface refuses it (the engine's
+own wire walker NPEs on it — upstream row).
+
+**The user-reachability partition — DONE 2026-08-14.** Principle: a
+bare name is a QUERY against the user's namespace; the compiler
+talking to itself uses exact identity. Concretely:
+
+- `Pure.Lite` holds one compile-time constant per lite-internal name
+  (string literals of these names at use sites are banned;
+  `NativeCatalogGovernanceTest` binds every constant to a registered
+  catalog native, so a typo cannot survive one run).
+- Every internal producer (normalizer/lowering emissions, the #TDS
+  parser desugar), internal consumer (structural matchers,
+  `JoinChecker`/`TdsChecker`/`SourceUrlChecker` signature
+  resolutions) and lowering registration spells the constant.
+- `Pure.wireEmissionName` is the DATA-BOUNDARY translation: engine
+  wire vocabulary (`avg`, `divideRound`, dialect `hash`, …) arriving
+  through the relational-operation channel is respelled to exact
+  identity the moment it enters our AST.
+- The bare-name index (`FN_BY_BARE`) simply excludes the lite package
+  (minus `LITE_SURFACE`), and `CoreFn.of` refuses bare dispatch of
+  INTERNAL_DESUGAR spellings — so user-written `->avg()`,
+  `->otherwise(...)`, `tds(...)`, slot-`join` all refuse as unknown
+  functions, while shim names that collide with REAL pure functions
+  (`join`, `hash`) keep exactly their real overloads.
+- Own tests that user-spelled internal vocabulary were themselves
+  harness-compensation and were migrated to the REAL spellings:
+  `->avg()` → `->average()`, 1-arg `->hash()` → `->hashCode()`.
+
+`NativeCatalogGovernanceTest` pins the whole shape: three named sets
+(11 desugar / 7 shims / 2 surface, shrink-only), constants bound to
+the catalog, and a leak test asserting no lite-package definition
+resolves from any internal bare name.
 
 ## Standing verification
 

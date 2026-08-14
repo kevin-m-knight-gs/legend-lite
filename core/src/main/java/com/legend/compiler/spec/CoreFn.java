@@ -157,6 +157,14 @@ public enum CoreFn {
     public static Optional<CoreFn> of(String parseName) {
         CoreFn direct = BY_NAME.get(parseName);
         if (direct != null) {
+            // INTERNAL-ONLY constructs (the lite desugar IR) dispatch
+            // solely on their exact FQN spelling — a user-written bare
+            // 'tds'/'otherwise'/... must fall through to generic
+            // resolution, where the partitioned bare-name index refuses
+            // it as an unknown function.
+            if (com.legend.builtin.Pure.INTERNAL_DESUGAR.contains(parseName)) {
+                return Optional.empty();
+            }
             return Optional.of(direct);
         }
         // FQN-keyed catalog era (FQN_MIGRATION step 1): a platform-qualified

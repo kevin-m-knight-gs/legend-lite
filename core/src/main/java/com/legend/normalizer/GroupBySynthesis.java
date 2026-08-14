@@ -2,6 +2,7 @@
 
 package com.legend.normalizer;
 
+import com.legend.builtin.Pure;
 import com.legend.error.NotImplementedException;
 import com.legend.model.ClassMapping;
 import com.legend.model.LegacyMappingDefinition;
@@ -83,7 +84,7 @@ final class GroupBySynthesis {
             ValueSpecification expr, Map<String, String> groupedNames,
             String propName, LegacyMappingDefinition md) {
         if (!(expr instanceof AppliedFunction nav
-                && nav.function().equals("legacyNavigate")
+                && nav.function().equals(Pure.Lite.LEGACY_NAVIGATE)
                 && nav.parameters().size() == 4
                 && nav.parameters().get(3) instanceof LambdaFunction cond
                 && cond.parameters().size() == 2)) {
@@ -205,8 +206,10 @@ final class GroupBySynthesis {
             ValueSpecification selector = RelOpTranslator.translate(fc.args().get(0), scope, null,
                     rowBind, p.view());
             Variable vals = new Variable("vals");
+            // ~groupBy aggregate names are WIRE vocabulary ('avg' types
+            // against the lite shim) — respell at the data boundary
             ValueSpecification aggBody = new AppliedFunction(
-                    fc.name(), List.of(vals));
+                    Pure.wireEmissionName(fc.name()), List.of(vals));
             aggCols.add(new ColSpec(pm.propertyName(),
                     new LambdaFunction(List.of(rowBind), List.of(selector)),
                     new LambdaFunction(List.of(vals), List.of(aggBody))));

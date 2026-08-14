@@ -138,10 +138,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testHashCodeReturnsInteger() throws SQLException {
-                // Pure: |'a'->hash() -> Integer (DuckDB HASH returns UBIGINT/BigInteger)
+                // Pure: |'a'->hashCode() -> Integer (DuckDB HASH returns UBIGINT/BigInteger)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
-                                "|'a'->hash()",
+                                "|'a'->hashCode()",
                                 "test::TestRuntime",
                                 connection);
                 Object value = result.rows().get(0).get(0);
