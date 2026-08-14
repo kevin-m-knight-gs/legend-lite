@@ -1051,6 +1051,11 @@ public final class MappingNormalizer {
     /** Resolve a Relation mapping's {@code ~func} ref and inline its body. */
     static ValueSpecification relationFunctionPipeline(
             ClassMapping.RelationFunction rf, ModelBuilder model) {
+        if (rf.funcRef() == null) {
+            // ~src inline expression IS the pipeline — no resolution step
+            // (engine #4941: _relationFunction holds the lambda itself)
+            return java.util.Objects.requireNonNull(rf.inlineSource());
+        }
         String ref = rf.funcRef();
         List<Function> fns = model.findFunction(ref);
         if (fns.isEmpty()) {
