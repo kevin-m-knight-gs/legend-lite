@@ -29,10 +29,12 @@ public class LiteParseMain
     {
         List<Path> files = new ArrayList<>();
         boolean expectFail = false;
+        boolean protocolCheck = false;
 
         for (String a : args)
         {
             if (a.equals("--expect-fail")) expectFail = true;
+            else if (a.equals("--protocol-check")) protocolCheck = true;
             else
             {
                 Path p = Paths.get(a);
@@ -61,7 +63,20 @@ public class LiteParseMain
             String parseError = null;
             try
             {
-                com.legend.parser.PmcdParser.parseDocument(Files.readString(f));
+                String json = com.legend.parser.PmcdParser.parseDocument(Files.readString(f));
+                if (protocolCheck)
+                {
+                    // Does what lite produced round-trip into the ENGINE's own protocol
+                    // classes? This is the question that decides whether an accepted
+                    // mis-ordered input is harmless or corrupting. Accepting input the
+                    // engine's grammar refuses costs nothing if the resulting document is
+                    // still one the engine could have produced; it costs a great deal if
+                    // the document is unrepresentable and only fails downstream.
+                    org.finos.legend.engine.shared.core.ObjectMapperFactory
+                            .getNewStandardObjectMapperWithPureProtocolExtensionSupports()
+                            .readValue(json, org.finos.legend.engine.protocol.pure.v1
+                                    .model.context.PureModelContextData.class);
+                }
             }
             catch (Throwable t)
             {

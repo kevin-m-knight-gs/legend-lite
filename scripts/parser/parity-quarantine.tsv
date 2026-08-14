@@ -8,3 +8,5 @@ connection-snowflake__drop-final-delimiter__16.pure	F19: as above.
 t2-databricks__drop-final-delimiter__16.pure	F19: as above.
 t2-deephaven__drop-final-delimiter__19.pure	F19: as above.
 t2-duckdb__drop-final-delimiter__14.pure	F19: as above.
+neg-persistence-tds-keys-navigation-path.pure	F23: legend-engine CRASHES here (NullPointerException, no source information) and legend-lite parses cleanly. Matching parity would mean reproducing a crash. lite is right; the reference is not.
+neg-persistence-graphfetch-keys-identifier.pure	F23: as above. One of six unguarded call sites behind serviceOutputValue's two-meaning rule.
