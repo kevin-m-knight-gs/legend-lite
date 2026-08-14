@@ -866,4 +866,12 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   the null. Not filed as a defect — the engine is right and the model and data genuinely
   disagree — but it is another instance of the two paths differing, and any corpus with
   deliberate nulls has to know about it.
+- **Harness note, not an engine defect: a testable run does not release DuckDB connections
+  until the JVM exits.** At 182 testables in one process the pool (100) drains, and every
+  subsequent test fails with `Connection is not available, request timed out after 30001ms`.
+  Recorded here because the failure shape is dangerously misleading — it presents as "every
+  service after a certain point is broken", which is exactly what a real mid-run crash looks
+  like, and the services all pass individually and in small groups. `scripts/corpus/run.py`
+  now batches 40 testables per JVM. Whether the non-release is by design (connections closed
+  at shutdown) or a leak has NOT been established; only the exhaustion is observed.
 

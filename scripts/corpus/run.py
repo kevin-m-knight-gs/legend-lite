@@ -43,9 +43,22 @@ def testables() -> list[str]:
     return [n for n in out if n not in HANGS] + functest.testables()
 
 
-# Testables per JVM. Small enough that one exhausted process cannot take the tail of the
-# suite with it, large enough that JVM startup (~2s of engine class loading) is amortised
-# rather than dominating. 40 keeps a 182-test suite at five processes.
+# Testables per JVM, and the ceiling is a CONNECTION POOL, not a guess.
+#
+# At 182 testables in one process the run reported twelve ERRORs -- every service after a
+# point -- and the services were fine: each passed alone, and all nineteen of the new ones
+# passed together as a group. The engine's own message says what actually happened:
+#
+#   DBPool_DuckDB_... - Connection is not available, request timed out after 30001ms
+#   (total=100...)
+#
+# The pool holds 100 connections and a full suite drains it, after which every remaining
+# test blocks for the 30-second timeout and fails. That is also where the runtime went:
+# twelve tests waiting out 30s each is six minutes of doing nothing.
+#
+# So BATCH must stay comfortably under the pool size -- 40 leaves room for the connections
+# a single batch holds concurrently, and puts a 182-test suite at five processes. Raising it
+# past ~90 would reintroduce the same failure with the same misleading shape.
 BATCH = 40
 
 
