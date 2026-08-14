@@ -49,6 +49,7 @@ Run from the repo root; they read both upstream checkouts directly and write to
 | `idx.py` | every function FQN defined upstream (20,805) and the unmatched diff |
 | `cls.py` | the same for native classes |
 | `usage2.py` | which invented names any corpus `.pure` really writes — **strips string literals and comments first**, without which SQL goldens produce false hits (this is how `avg` initially looked legitimate) |
+| `usage3.py` | **the corrected version** — `usage2.py`'s call regex counted `^$tds(…)` as a call to `tds`. Use this one; it is what makes the count 20, not 19. |
 | `bare.py` | bare-name collision between `meta::legend::lite::*` and upstream |
 | `final.py` | buckets invented natives by whether anything inside legend-lite consumes them |
 

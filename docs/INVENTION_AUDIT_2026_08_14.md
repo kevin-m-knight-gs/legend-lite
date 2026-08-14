@@ -20,7 +20,7 @@
 Two independent gaps, one of which I initially missed.
 
 **(A) The name catalog is ungoverned.** 26 natives sit in `meta::legend::lite::*`,
-a package that cannot exist upstream. **19 name functions that exist nowhere in
+a package that cannot exist upstream. **20 name functions that exist nowhere in
 legend-engine or legend-pure and are written by no corpus source — and user query
 text can call them.** Probe-verified.
 
@@ -33,7 +33,7 @@ engine refuses — 38 of them from a single unguarded compensation.
 
 | axis | surface | invented / leaking | governed by a gate? |
 |---|---:|---:|---|
-| native functions | 421 FQNs | **19** | **no** |
+| native functions | 421 FQNs | **20** | **no** |
 | native classes | 200 | **1** | no |
 | declared grammar extensions | 65 own-corpus rows | 65, all named | **yes — ratcheted** |
 | **dialect-gate enforcement** | every construct | **3 leaks + 44 fuzz rows** | **no — spot-checked only** |
@@ -57,13 +57,13 @@ both upstream repos, 28 are unmatched; 26 of those sit in `meta::legend::lite::*
 Filtering to names that (a) exist nowhere upstream under any package and (b) are
 never written by any upstream `.pure` source — with string literals and comments
 stripped, because SQL goldens contain `avg(` and produce false hits — leaves
-**19 invented names**:
+**20 invented names**:
 
 ```
 avg  castAsDeclared  convertDateTimeFormat  convertTimeZoneFormat  divideRound
 legacyAssocPredicate  legacyLocalProperty  legacyNavigate  maxDate  minDate
 navigate  notEqualAnsi  otherwise  parseDateFormat  percentileCont
-percentileDisc  sourceUrl  typeAsDeclared  variantTo
+percentileDisc  sourceUrl  tds  typeAsDeclared  variantTo
 ```
 
 ### They are reachable from user source
@@ -128,7 +128,7 @@ the accepted language.
 Delete the three `NativeFunctionDefinition` constants. Nothing can break: nothing
 reads them.
 
-### KEEP but GATE — 16 names, real internal desugar vocabulary
+### KEEP but GATE — 17 names, real internal desugar vocabulary
 
 Each is emitted by legend-lite's own normalizer/lowering, mostly to desugar the
 **legacy relational mapping DSL** into typed calls:
@@ -146,6 +146,7 @@ Each is emitted by legend-lite's own normalizer/lowering, mostly to desugar the
 | `percentileCont`, `percentileDisc` | `lowering/Aggregates`, `lowering/Scalars` |
 | `divideRound` | `lowering/Scalars` |
 | `navigate`, `sourceUrl` | `compiler/spec/CoreFn`, `normalizer/MappingNormalizer` |
+| `tds` | `compiler/spec/CoreFn`, `normalizer/MappingNormalizer` |
 
 **These should not be deleted — they are load-bearing.** The defect is narrower
 and cheaper to fix: *internal IR vocabulary is registered in the same index that
@@ -412,7 +413,56 @@ allowlist. Ratchet the allowlist down-only, exactly as
 | 8 | Re-label `DIALECT-function-types` / `DIALECT-generics` as `PURE-DIALECT-*` | XS | none — labels only |
 | 9 | Decide `BOOLEAN`/`BOOL`: keep the second spelling or conform to `BIT` | XS | low — gated either way |
 
-Items 1–3 make `LEGEND_ENGINE` actually mean drop-in. Items 4–6 remove a 19-name
+Items 1–3 make `LEGEND_ENGINE` actually mean drop-in. Items 4–6 remove a 20-name
 parallel language from the user surface and stop a 20th appearing. Both gaps have
 the same shape: **a compatibility claim enforced by spot-checks rather than by a
 sweep**, and in both cases the sweep is cheap.
+
+
+---
+
+## Appendix A — every invented native, with its `Pure.java` constant
+
+The working list for actions 4 and 5. One row per **declared constant**, so a
+name with several overloads appears several times — all of them need the same
+treatment. "Internal consumers" counts files under `core/src/main/java` that
+reference the bare name, excluding `Pure.java` itself.
+
+| bare name | Java constant in `Pure.java` | internal consumers | verdict |
+|---|---|---:|---|
+| `avg` | `AVG__NUMBER_MANY` | 3 | KEEP, gate out of user resolution |
+| `castAsDeclared` | `CAST_AS_DECLARED__ANY_01__T_1` | 3 | KEEP, gate out of user resolution |
+| `convertDateTimeFormat` | `CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1` | 2 | KEEP, gate out of user resolution |
+| `convertTimeZoneFormat` | `CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1` | 2 | KEEP, gate out of user resolution |
+| `divideRound` | `DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1` | 1 | KEEP, gate out of user resolution |
+| `legacyAssocPredicate` | `LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1` | 3 | KEEP, gate out of user resolution |
+| `legacyAssocPredicate` | `LEGACY_ASSOC_PREDICATE__A_1__B_1__STRING_1__STRING_1__FUNCTION_1` | 3 | KEEP, gate out of user resolution |
+| `legacyLocalProperty` | `LEGACY_LOCAL_PROPERTY__ANY_1__STRING_1` | 2 | KEEP, gate out of user resolution |
+| `legacyNavigate` | `LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1` | 5 | KEEP, gate out of user resolution |
+| `legacyNavigate` | `LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1__FUNCTION_1` | 5 | KEEP, gate out of user resolution |
+| `maxDate` | `MAX_DATE__DATE_1__DATE_1` | 0 | **DELETE** — dead |
+| `minDate` | `MIN_DATE__DATE_1__DATE_1` | 0 | **DELETE** — dead |
+| `navigate` | `NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1` | 2 | KEEP, gate out of user resolution |
+| `navigate` | `NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1` | 2 | KEEP, gate out of user resolution |
+| `navigate` | `NAVIGATE__T_MANY__FUNCTION_1` | 2 | KEEP, gate out of user resolution |
+| `notEqualAnsi` | `NOT_EQUAL_ANSI__ANY_1__ANY_1` | 3 | KEEP, gate out of user resolution |
+| `otherwise` | `OTHERWISE__T_1__T_0_1` | 2 | KEEP, gate out of user resolution |
+| `parseDateFormat` | `PARSE_DATE_FORMAT__STRING_0_1__STRING_1` | 2 | KEEP, gate out of user resolution |
+| `percentileCont` | `PERCENTILE_CONT__NUMBER_MANY__NUMBER_1` | 2 | KEEP, gate out of user resolution |
+| `percentileDisc` | `PERCENTILE_DISC__NUMBER_MANY__NUMBER_1` | 2 | KEEP, gate out of user resolution |
+| `sourceUrl` | `SOURCE_URL__STRING_1` | 2 | KEEP, gate out of user resolution |
+| `tds` | `TDS__STRING_1__STRING_1` | 2 | KEEP, gate out of user resolution |
+| `typeAsDeclared` | `TYPE_AS_DECLARED__ANY_01__T_1` | 2 | KEEP, gate out of user resolution |
+| `variantTo` | `VARIANT_TO__ANY_1__T_1` | 0 | **DELETE** — dead |
+
+Also in `meta::legend::lite::*` but NOT counted as inventions (the bare name exists upstream, or the corpus really calls it):
+  `convertDateFormat`, `hash`, `isNumeric`, `join`, `sub`, `traverse`
+
+**Correction, found while assembling this appendix.** The body of this document
+first reported **19** invented names. It is **20**: `tds` was wrongly excluded
+because the corpus appeared to call it. Those hits are `^$tds(rows = …)` —
+copy-instance expressions on a *variable* named `$tds` — and my call-detection
+regex's negative lookbehind omitted `$`. `probes/usage3.py` carries the corrected
+pattern (`(?<![A-Za-z0-9_:$^.])`). This is the fourth false positive the method
+produced and the second caused by matching text that only looks like a call; the
+first three are in §5.
