@@ -1,0 +1,16 @@
+// REJECTS: Field 'data' is required
+//
+// The ExternalFormat embedded-data island requires BOTH contentType and data. Its grammar is
+// `definition: (contentType | data)* EOF` -- each optional, each repeatable, in any order --
+// so an island carrying only a content type is a complete parse of a useless payload.
+//
+// Islands are the place a rewrite is most likely to stop at "the delimiters matched", and
+// this is what is enforced after they do.
+###Data
+Data fixture::neg::ExternalFormatWithoutData
+{
+   ExternalFormat
+   #{
+      contentType: 'application/json';
+   }#
+}

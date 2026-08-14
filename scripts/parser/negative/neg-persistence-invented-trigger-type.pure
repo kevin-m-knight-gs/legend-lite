@@ -1,0 +1,34 @@
+// REJECTS: Unsupported trigger type 'Weekly'
+//
+// `trigger:` is an ISLAND-typed field: `triggerSpecification: triggerType (triggerValue)?`
+// where triggerType is just `identifier`. ANY identifier parses. The type name is then
+// looked up among the registered trigger processors and only `Manual` and `Cron` exist
+// (PersistenceParserExtension); IPersistenceParserExtension.process throws when the lookup
+// finds nothing.
+//
+// So this is a WALKER rejection with no grammar involvement at all, and the failing token is
+// a perfectly ordinary identifier. A parser derived from the .g4 has no way to refuse it --
+// it has to carry the registry.
+###Persistence
+Persistence test::persistence::neg::InventedTrigger
+{
+  doc: 'a trigger type nobody registered';
+  trigger: Weekly;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

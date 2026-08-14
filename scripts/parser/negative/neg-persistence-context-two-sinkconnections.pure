@@ -1,0 +1,25 @@
+// REJECTS: Field 'sinkConnection' should be specified only once
+//
+// The repetition rule on the context element, and worth a file separate from the Persistence
+// one because it is a DIFFERENT walker (PersistenceContextParseTreeWalker) reading the same
+// `(...)* ` shape. The two connections below are the two legal FORMS of sinkConnection -- a
+// pointer and an embedded `#{ }#` connection -- so the file also shows that the "only once"
+// rule counts occurrences of the field, not of any particular arm.
+###Persistence
+PersistenceContext test::persistence::neg::TwoSinkConnections
+{
+  persistence: test::persistence::TestPersistence;
+  sinkConnection: test::persistence::TestConnection;
+  sinkConnection:
+  #{
+    RelationalDatabaseConnection
+    {
+      store: test::persistence::TestDatabase;
+      type: H2;
+      specification: LocalH2
+      {
+      };
+      auth: Test;
+    }
+  }#;
+}

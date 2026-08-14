@@ -1,0 +1,21 @@
+// REJECTS: Unexpected token 'schemaId'. Valid alternatives: ['id', 'location', 'content']
+//
+// `schemaId` is a BINDING keyword. Inside a SchemaSet's `schemas:` entry the field is `id`.
+// Two spellings for the same referent, one legal on each side of the reference, and the
+// diagnostic here lists exactly what a schema entry accepts.
+//
+// Paired with neg-extformat-id-on-binding.pure, its exact mirror. A rewritten parser that
+// gives SchemaSet and Binding one shared "identifier field" rule accepts both files and
+// produces a SchemaSet whose id legend-engine would have refused to read.
+###ExternalFormat
+SchemaSet fixture::neg::SchemaIdOnSchemaSet
+{
+   format: FlatData;
+   schemas: [
+      {
+         schemaId: primary;
+         location: 'people.schema';
+         content: 'section people: DelimitedWithHeadings\n{\n  scope.untilEof;\n  delimiter: \',\';\n\n  Record\n  {\n    NAME : STRING;\n  }\n}';
+      }
+   ];
+}

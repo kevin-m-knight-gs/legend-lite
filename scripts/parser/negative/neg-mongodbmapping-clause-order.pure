@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token
+//
+// A MongoDB class mapping with `~mainCollection` written BEFORE `~filter`. The three commands
+// are a fixed SEQUENCE in the rule, not a set: filter, then mainCollection, then binding, in
+// that order and no other. The body below contains exactly the same three clauses as the one
+// in ../fixtures/t2-mongodb.pure with the first two transposed.
+//
+// Ordering constraints are the cheapest thing for a rewrite to lose: a loop over "whichever
+// clause comes next" is simpler to write than a sequence, handles the legal corpus perfectly,
+// and is silently more permissive. Nothing downstream cares -- the protocol object has three
+// independent slots -- so the divergence is invisible until two parsers disagree about whether
+// a file is legal.
+//
+// legend-engine has this same shape in several grammars; ./ordering-constraint-clauses.pure
+// and ./ordering-view-modifiers.pure pin two others. This is the MongoDB one.
+###Mapping
+Mapping fixture::neg::MongoMappingOutOfOrder
+(
+  *fixture::neg::Person[person_id]: MongoDB
+  {
+    ~mainCollection [fixture::neg::PersonDb] Person
+    ~filter [fixture::neg::PersonDb] activeOnly
+    ~binding fixture::neg::PersonBinding
+  }
+)

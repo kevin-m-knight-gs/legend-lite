@@ -806,4 +806,12 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   `Invalid month: 13`. Worth recording because the obvious assumption runs the other way: a
   rewrite that validates dates in its lexer would be *wrongly strict* and would reject models
   legend-engine accepts. Being stricter is still a divergence.
+- **A multiplicity whose lower bound exceeds its upper bound is accepted, and compiles.**
+  `String[2..1]` and `Integer[10..3]` pass both parse and compile; no value can satisfy
+  either. This is not general laxity about multiplicity syntax — `[1..]` *is* a grammar
+  error, so the shape is validated and only the range check is absent. The comparison that
+  makes it a gap rather than a policy: an `Association` with one property also parses, and is
+  then rejected at compile with `Expected 2 properties for an association`. Arity is checked
+  one stage later; multiplicity bounds simply are not.
+  (`scripts/corpus/repro/inverted-multiplicity/`)
 

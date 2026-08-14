@@ -60,6 +60,28 @@ rejects valid files.
 rejections were not about duplication at all: they were files whose duplicated block put an
 `import` after an element, which is separately illegal (see below).
 
+**Almost every keyword is a legal property name.** `Class`, `let`, `all`, `toBytes` and
+`native` all work as property names in a `Class` body — Domain's `identifier` rule admits
+them. The exceptions are `true` and `false`. A rewrite that dispatches on the token before
+trying the identifier arm rejects ordinary models.
+
+**Semantic rules are checked one stage later, or not at all.** Several things that look like
+parse errors are not:
+
+| written | parses | compiles |
+|---|---|---|
+| `Class A extends B, C` (multiple supertypes) | yes | **yes** |
+| `String[2..1]` (lower bound above upper) | yes | **yes** — filed as F20 |
+| `Association` with one or three properties | yes | no — `Expected 2 properties` |
+| `%2018-13-45` | yes | no — `Invalid month: 13` |
+| `Profile { stereotypes: ['alpha']; }` (quoted where identifiers are expected) | yes | — |
+| `Measure` unit with no conversion function | yes | — |
+| `Text` with no `type:` (only `content:` is required) | yes | — |
+| Diagram `position: (1,2)` (integers, not floats) | yes | — |
+
+The first two are the ones to be careful about: they survive compilation, so a rewrite that
+rejects them at parse time is stricter than legend-engine is at *any* stage.
+
 **Most capitalised words are not keywords.** Of 152 lowercase-the-first-letter mutations, 64
 were accepted — because the word was a package segment or an element name, not a keyword.
 Case sensitivity is real (88 rejections) but narrower than it looks.

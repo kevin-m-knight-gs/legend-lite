@@ -1,0 +1,26 @@
+// REJECTS: no viable alternative at input '{'bsonType''
+//
+// A `jsonSchema:` body written with SINGLE quotes. MongoDBSchemaLexerGrammar imports
+// M3LexerGrammar and then declares its OWN `QUOTED_STRING` on DOUBLE quotes, because the
+// schema body is literal JSON handed to Jackson -- so in this section, and nowhere else in
+// Legend, `"..."` is the string form and `'...'` is not a string at all.
+//
+// Every other grammar in the corpus is the other way round: M3's STRING is single-quoted and
+// a double quote is invalid. A rewrite with one shared string lexer -- or one that treats the
+// two quote characters as interchangeable, which is what a hand-written lexer does by default
+// and what most languages do -- accepts this file and then hands Jackson something it cannot
+// read.
+//
+// The single-quote convention also governs collection names and `include` paths in this
+// section: ../fixtures/t2-mongodb.pure writes `Collection "firm-data"`, double-quoted.
+###MongoDB
+Database fixture::neg::SingleQuotedSchema
+(
+  Collection Person
+  (
+    jsonSchema: {
+      'bsonType': 'object',
+      'properties': {}
+    };
+  )
+)
