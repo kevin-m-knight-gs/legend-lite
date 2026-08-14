@@ -743,3 +743,31 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   `TestRuntimeBuilder` swaps the runtime's connections for a seeded local H2. The stress
   runtime declares DuckDB and the tests still run — so this harness cannot be used for
   dialect-invariance testing.
+- **`Class X projects Y { ... }` crashes the parser with a NullPointerException.** Not
+  "unsupported" — a crash. `DomainParserGrammar` carries a full projection rule set
+  (`classDefinition: ... (PROJECTS projection)`, `projection: dsl | treePath`), so the text
+  parses to a tree; `DomainParseTreeWalker.visitClass` then dereferences `ctx.classBody()`
+  unconditionally and the projection form has none. The user sees
+  `An exception of type 'NullPointerException' occurred, please notify developer` — no line,
+  no column, no construct named. Compare `native function`, which the same walker declines
+  cleanly with "Unsupported syntax"; that is the diagnostic this should produce. Sharper
+  still: legend-engine ships
+  `core_relational/relational/tests/testModel/projectionTestModel.pure`, written in exactly
+  this syntax, because legend-pure's M3 grammar *does* accept it — so the two front ends
+  disagree about a construct present in the repository's own model files.
+  (`scripts/corpus/repro/projects-npe/`)
+- **Four more constructs are declared and then refused by the walker.** `native` and
+  `allVersionsInRange` (Domain/M3), `extend` (embedded GraphQL), `EqualToTDS` (an orphaned
+  grammar with no registered parser and no protocol class). `allVersionsInRange` is the
+  clearest: `DomainParseTreeWalker.java:1742` throws unconditionally — the branch exists
+  only to reject — while `allVersions` on the line above maps to `getAllVersions`. GraphQL's
+  `extend` reaches `throw new RuntimeException("Error")`, a message that names nothing.
+  Each is pinned by a fixture in `scripts/parser/negative/`.
+- **Ten keywords in `AuthenticationStrategyLexerGrammar` are declared and unreachable** —
+  `host`, `port`, `name`, `mode`, `directory`, `account`, `warehouse`, `region`,
+  `projectId`, `defaultDataset`. No rule in its parser grammar references them, so writing
+  `host` in an `auth:` block is answered with `Valid alternatives: ['baseVaultReference',
+  'userNameVaultReference', 'passwordVaultReference']`. Harmless, but it means the lexer
+  advertises a surface the parser does not have, and any tool deriving completions or
+  documentation from the grammar will offer fields that cannot be typed.
+
