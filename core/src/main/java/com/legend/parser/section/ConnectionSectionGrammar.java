@@ -347,15 +347,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             throw c.error("DeephavenConnection needs serverUrl and"
                     + " authentication");
         }
-        // engine's walker composes the value span END from TWO nodes: the
-        // LINE of the connection's closing brace and the COLUMN of the
-        // island's '}' (corpus DIFF pinned the cross-product)
+        // the engine reparses the connection VALUE with a +4 column
+        // offset that leaks into the ctx END: span = first body token
+        // through the outer '}' at closeCol+4 (probe matrix 2026-08-14 —
+        // the old island-'}' cross-product was a coincidental fit; same
+        // overshoot family as the ES connection)
         var sp = c.spanOf(bodyStart, closeTok);
-        com.legend.protocol.SourceInfo vSpan = islandEndTok >= 0
-                ? new com.legend.protocol.SourceInfo("", sp.startLine(),
+        com.legend.protocol.SourceInfo vSpan =
+                new com.legend.protocol.SourceInfo("", sp.startLine(),
                         sp.startColumn(), sp.endLine(),
-                        c.tokens().startColumn(islandEndTok))
-                : sp;
+                        c.tokens().startColumn(closeTok) + 4);
         return new Protocol.PDeephavenConnection(serverUrl, psk, element,
                 elementSpan, vSpan);
     }

@@ -75,7 +75,7 @@ public class CorpusSweepTest {
     // ------------------------------------------------------------------
 
     /** Oracle-accepted documents lite must byte-match. Up-only. */
-    private static final int MIN_DOCS_MATCHED = 6488;   // C12 lane complete 2026-08-14: every oracle-accepted source but ONE ledgered deephaven span row
+    private static final int MIN_DOCS_MATCHED = 6489;   // 2026-08-14: EVERY oracle-accepted source byte-matches — 100%
 
     /** Seam byte coverage floor. Up-only. */
     private static final int MIN_SEAM_MATCHED = 5911;
