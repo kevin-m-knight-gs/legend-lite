@@ -1,5 +1,4 @@
 kind	name	reason
-section	Elasticsearch	ES store extension — charter in memory, own leg (2026-08-14)
 embeddedData	Relation	FOUND BY CENSUS 2026-08-14 — we parse Relation only in function-test assert position; verify/implement general embedded-data position next
 embeddedData	DataspaceTestData	FOUND BY CENSUS 2026-08-14 — dataspace test-data embedded type unparsed; implement with dataspace test suites
 embeddedPure	GQL	FOUND BY CENSUS v2 2026-08-14 — #GQL{...} island unparsed (we handle SQL/>/TDS); implement or refuse engine-shaped
