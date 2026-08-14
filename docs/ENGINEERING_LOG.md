@@ -156,6 +156,21 @@ git commit (document deltas per-commit) && push origin main
 
 ## Active queue (weight = current error census)
 
+> **2026-08-14 — read `docs/E2E_BURNDOWN_2026_08_14.md` before picking from this
+> list.** It supersedes the counts below: a fresh 8-gate run put the corpus at
+> **2299/2575**, root-caused all 276 non-passing tests, and censused the whole
+> legend-engine estate (**5390** `<<test.Test>>` functions, of which
+> `core_relational` is 2727). Evidence base and repro scripts in
+> `docs/burndown-2026-08-14/`. Three findings change how this queue should be
+> read:
+> 1. The scoreboard's denominator is wrong — `Runner.testKindOf` counts 77
+>    `<<test.ToFix>>`-only functions as excluded tests. Real total is 2721.
+> 2. **82 of 95 SHAPE rows are platform gaps mislabelled as harness gaps** by
+>    `EngineTestExecutor.java:878-886`. The harness is not the bottleneck
+>    anywhere; only ~3 SHAPE rows are real assert-form gaps.
+> 3. ~7 failures are DuckDB row-order artifacts on positional asserts over
+>    unordered queries, proven by an H2-backend sweep — not pipeline defects.
+
 - 56× `unknown function` (mixed: parse-wall-dark corpus fns + harness vocab
   in untypeable positions).
 - 50× `property not mapped` (union/subtype mapping dispatch gaps).
