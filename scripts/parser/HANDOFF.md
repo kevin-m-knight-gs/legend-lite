@@ -254,10 +254,39 @@ that has no such field.
 
 **Recommended work, in order:**
 
-1. **Persistence permitted-keys check — 8 fixes, one mechanism.**
-   `PersistenceSectionGrammar` already has a `REQUIRED_FIELDS` map keyed by `slot/kind`, which
-   is exactly the key a `PERMITTED_FIELDS` check needs. This is the only group that corrupts
-   anything today.
+1. **Persistence permitted-keys check — 8 fixes, one mechanism. Start here.**
+
+   `core/src/main/java/com/legend/parser/section/PersistenceSectionGrammar.java` already has
+   a `REQUIRED_FIELDS` map keyed by `slot/kind` (e.g. `"ingestMode/UnitemporalDelta"`), read
+   by `validateNode`, which walks the generic node tree and enforces required-and-once. A
+   `PERMITTED_FIELDS` map on the *same key* plus a rejection for any entry outside it closes
+   all eight. Nothing new is needed structurally — `validateNode` already iterates
+   `node.entries()` for the duplicate check, so the permitted test goes in that same loop.
+
+   The permitted sets do not have to be guessed. legend-engine states each one in its own
+   rejection message:
+
+   | slot/kind | offending key | engine's permitted set |
+   |---|---|---|
+   | `persister/Streaming` | `ingestMode` | `['sink']` |
+   | `targetShape/Flat` | `transactionScope` | `['partitionFields', 'modelClass', 'targetName', …]` |
+   | `datasetType/Snapshot` | `actionIndicator` | `['partitioning']` |
+   | `transactionMilestoning/BatchId` | `derivation` | `['batchIdInName', 'batchIdOutName']` |
+   | v2 service-output target | `sink` (a v1 block) | `['keys', 'deduplication', 'datasetType']` |
+   | relational `sourceFields` | `endField` first | `['startField']` — ordered pair |
+   | relational unitemporal | `sourceDerivedDimension` | `['processingDimension']` |
+   | validity `derivation` | `SourceSpecifiesFromDateTime` | `['SourceSpecifiesInDateTime', …]` |
+
+   Regenerate the live list any time with:
+   ```bash
+   java -cp tools/engine-runner/target/classes:$(cat tools/engine-runner/cp.txt) \
+        perf.ParseMain scripts/parser/negative/neg-persistence-*.pure
+   ```
+   Confirm a fix with `LiteParseMain --protocol-check` on the same file: it must go from
+   `Unrecognized field …` to `ok`. That is the real acceptance test, not the parity count.
+
+   This is the only group that corrupts anything today — legend-lite currently emits JSON no
+   downstream engine consumer can deserialize.
 2. **Five required-field entries** — map entries in validation code that already exists.
 3. **Two one-liners** — `Unknown database type 'Frobnicate'`, and the execution-env key
    space check.
@@ -276,6 +305,69 @@ In `parity-quarantine.tsv`, each with a reason:
   cleanly. Matching parity would mean reproducing a NullPointerException.
 
 ---
+
+## 6.4 Do NOT be stricter than legend-engine — read `PERMISSIVENESS.md`
+
+Parser parity fails in two directions and only one is obvious. Accepting what the engine
+rejects breaks in production. **Rejecting what it accepts looks like rigour** and surfaces as
+a model that has worked for two years suddenly failing to load, reported as "your parser is
+broken" rather than "your model was always malformed".
+
+`PERMISSIVENESS.md` is the full catalogue, derived from 1636 mutants. The rules a rewrite is
+most likely to get wrong:
+
+- **Field order is free** — 110 of 114 sibling swaps accepted. Two exceptions corpus-wide:
+  `ExecutionEnvironment` needs `mapping` before `runtime`; MongoDB needs `validationAction`
+  before `validationLevel`.
+- **Section order is free** — all 15 swaps accepted; resolution is by name, not position.
+- **A file with no `###` header parses as Pure.** `Class fx::A {…}` alone is valid; a
+  `Database` with no header is rejected with Pure's alternatives list.
+- **`import` must precede every element in its section** — the one structural ordering rule
+  that IS enforced.
+- **Date literals are not validated at parse time.** `%2024-13-45` parses; the *compiler*
+  says `Invalid month: 13`. Validating dates in a lexer is an obvious move and would be wrong.
+- **The same element may be declared twice**, and a class may declare the same property twice.
+- **`String[2..1]` and `Class A extends B, C` survive compilation** (F20) — a rewrite
+  rejecting them at parse is stricter than the engine at *any* stage.
+- **Almost every keyword is a legal property name** — `Class`, `let`, `all`, `toBytes`,
+  `native` all work; only `true`/`false` do not.
+
+## 6.5 Per-grammar quirks that exist nowhere else
+
+Found during the tier-2 sweep, recorded here because they are not derivable from any `.g4`
+and would otherwise be lost:
+
+- **Validation is wildly inconsistent between sibling grammars.** Snowflake's
+  `permissionScheme` is walker-checked against a closed set; `accountType` in the same element
+  is unvalidated (upstream's own roundtrip test feeds it `BadOption`). MemSql's `port` is a
+  STRING run through `Integer.valueOf` at parse time, so `port: 'abc'` is rejected; Databricks'
+  `port` is the same field name, same type, and is not coerced. `ownership` is optional for
+  `BigQueryFunction` and required for the otherwise-identical `MemSqlFunction`.
+- **Identifier-only reachability is the single most common reason a keyword looks
+  uncoverable.** `stage` (BigQueryFunction, MemSqlFunction),
+  `SnowflakeUDFDeploymentConfiguration`, Deephaven's `tables`/`columns`/`columnDefinition`,
+  MongoDB's `~distinct`/`~primaryKey`/`debug`, Persistence's `Notifier`/`serviceOutput`/
+  `target`, `relation`, `FileGeneration`. In each case the rule that looks like it consumes
+  the token as a field is absent or uses a different token, so the only way to type it is to
+  NAME something with it. Worth testing rather than skipping — keyword-as-identifier is a
+  classic parser defect.
+- **Section names are not guessable from the element or grammar name.**
+  `BigQueryFunctionGrammarParserExtension` registers `###BigQuery`;
+  `DataQualityGrammarParserExtension` registers `###DataQualityValidation`;
+  `RelationalMapper` lives in `###QueryPostProcessor`, not `###RelationalMapper`. Always read
+  the `NAME` constant in the `*ParserExtension.java`.
+- **Deephaven `appMultiplicity` accepts only `[n]` and `[*]`** — `[0..1]` is unreachable
+  because CoreLexer lexes `..` as a single token.
+- **MongoDB schemas use double-quoted strings**, and `jsonSchema:` is Jackson-deserialized at
+  parse time, so `"bsonType": "object"` is mandatory.
+- **ServiceStore requires `binding: X;;`** — a double semicolon.
+- **Persistence's `.g4` is far weaker than its walker.** Every ingest-mode sub-block is `(x)*`
+  in the grammar; the real requirements live in `PersistenceParseTreeWalker.visit*`. A parser
+  generated straight from the grammar accepts a great deal the engine refuses — which is
+  precisely why 16 of the 34 over-permissive cases are Persistence.
+- **`derivation` is optional under `transactionMilestoning` and required under
+  `validityMilestoning`** — an asymmetry invisible in upstream's own tests, which always write
+  it.
 
 ## 7. Traps — every one of these cost real time
 
