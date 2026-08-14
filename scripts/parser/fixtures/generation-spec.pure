@@ -1,0 +1,55 @@
+// COVERS FileGenerationLexerGrammar: scopeElements, generationOutputPath, import, FileGeneration
+// COVERS GenerationSpecificationLexerGrammar: GenerationSpecification, generationNodes, generationElement, fileGenerations, id, import
+//
+// Both generation sections.
+//
+// The literal keyword `FileGeneration` is NOT the element keyword, which is the trap here.
+// The rule is `fileGeneration: identifier qualifiedName { ... }` -- the leading word is the
+// generation TYPE (Avro, Java, Protobuf, JsonSchema), never the word FileGeneration. The
+// token is reachable only through FileGenerationParserGrammar's `identifier` rule, so the
+// one way a user types it is by NAMING something with it, which the third element below
+// does.
+###FileGeneration
+import fixture::gen::*;
+
+Avro fixture::gen::AvroConfig
+{
+   scopeElements: [fixture::gen::Person, fixture::gen];
+   generationOutputPath: 'generated/avro';
+   includeNamespace: true;
+   propertyProfile: ['fixture::gen::myProfile'];
+}
+
+Protobuf fixture::gen::ProtobufConfig
+{
+   generationOutputPath: 'generated/protobuf';
+   namespaceOverride: {
+      key1: 'mapValue1';
+      key2: 'mapValue2';
+   };
+}
+
+Avro fixture::gen::FileGeneration
+{
+   generationOutputPath: 'generated/named-after-a-keyword';
+}
+
+###GenerationSpecification
+import fixture::gen::*;
+
+GenerationSpecification fixture::gen::Spec
+{
+   generationNodes: [
+      {
+         generationElement: fixture::gen::AvroConfig;
+      },
+      {
+         id: 'secondGeneration';
+         generationElement: fixture::gen::ProtobufConfig;
+      }
+   ];
+   fileGenerations: [
+      fixture::gen::AvroConfig,
+      fixture::gen::ProtobufConfig
+   ];
+}

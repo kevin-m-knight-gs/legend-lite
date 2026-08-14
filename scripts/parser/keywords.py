@@ -58,7 +58,14 @@ def harvest() -> dict[str, set[str]]:
         for _token, literal in _TOKEN.findall(text):
             if _PUNCT.match(literal) or _ESCAPE.match(literal):
                 continue
-            out[g4.stem].add(literal)
+            # Composite tokens keep only their first quoted fragment through the regex
+            # above. MappingLexerGrammar declares
+            #     INCLUDETYPE: 'include '[a-z]([a-z])*' ';
+            # and the harvest read `include ` -- with a trailing space, which no word-
+            # boundary search can ever match, since what follows is always a letter. The
+            # text a user actually types is `include`, so trim. It collapses onto the plain
+            # INCLUDE token, which is right: they are one spelling with two arms.
+            out[g4.stem].add(literal.strip())
     return dict(out)
 
 
@@ -149,9 +156,26 @@ def covered(keywords: set[str], text: str) -> set[str]:
     """
     found = set()
     for k in keywords:
-        if re.search(rf"(?<![A-Za-z0-9_]){re.escape(k)}(?![A-Za-z0-9_])", text):
+        if re.search(word_pattern(k), text):
             found.add(k)
     return found
+
+
+def word_pattern(keyword: str) -> str:
+    """Boundary-anchored pattern, anchored only where a boundary can exist.
+
+    Applying both lookarounds unconditionally is wrong for any literal that does not begin
+    and end with a word character, and it silently reports such a keyword as never covered.
+    Two in tier 1 alone: GraphFetchTree's entire lexer is `->subType(@`, whose next
+    character is always a type name, and MappingLexerGrammar's INCLUDETYPE fragment ends in
+    a space. Both were sitting at zero coverage with fixtures that plainly used them.
+    """
+    pattern = re.escape(keyword)
+    if keyword[:1].isalnum() or keyword[:1] == "_":
+        pattern = r"(?<![A-Za-z0-9_])" + pattern
+    if keyword[-1:].isalnum() or keyword[-1:] == "_":
+        pattern = pattern + r"(?![A-Za-z0-9_])"
+    return pattern
 
 
 def _keywords_in(grammars: dict[str, set[str]], stems) -> set[str]:

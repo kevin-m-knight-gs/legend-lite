@@ -1,0 +1,22 @@
+// COVERS DataSourceSpecificationLexerGrammar: region
+// COVERS SnowflakeLexerGrammar: Snowflake, account, warehouse
+//
+// `region` looked unreachable from reading DataSourceSpecificationParserGrammar -- its rule
+// is defined there and referenced nowhere in that file. It is referenced from the SNOWFLAKE
+// extension's grammar, which imports the same token vocabulary. Reading one grammar file
+// was not enough to tell, and running it was: this parses, the same field in Static,
+// LocalH2 and EmbeddedH2 does not.
+###Connection
+RelationalDatabaseConnection fixture::sf::Conn
+{
+   store: fixture::sf::Db;
+   type: Snowflake;
+   specification: Snowflake
+   {
+      name: 'warehouseDb';
+      account: 'acct1';
+      warehouse: 'COMPUTE_WH';
+      region: 'us-east-1';
+   };
+   auth: DefaultH2;
+}

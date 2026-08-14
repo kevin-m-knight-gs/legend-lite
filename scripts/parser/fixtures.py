@@ -37,13 +37,23 @@ JAVA_HOME = os.environ.get("JAVA_HOME", str(Path.home() / "jdk/jdk-21.0.11+10/Co
 
 _COVERS = re.compile(r"^//\s*COVERS\s+([A-Za-z0-9]+)\s*:\s*(.+)$", re.M)
 
+# A second form, for sub-grammars whose input IS a string literal.
+#
+#     // COVERS-EMBEDDED FlatDataLexerGrammar: section, Record, STRING
+#
+# FlatData is written inside the quoted `content:` of a SchemaSet, and its .g4 re-declares
+# STRING and BRACE_OPEN precisely so it can parse standalone. For that grammar the string
+# body is not prose around code -- it is the code. Checked against RAW text rather than
+# stripped, and kept as a separate marker so the exemption has to be claimed deliberately
+# per grammar instead of weakening the check for everything.
+_COVERS_EMBEDDED = re.compile(r"^//\s*COVERS-EMBEDDED\s+([A-Za-z0-9]+)\s*:\s*(.+)$", re.M)
 
-def declarations(path: Path) -> list[tuple[str, list[str]]]:
-    """(grammar, [keyword, ...]) for each COVERS line in a fixture."""
-    out = []
-    for grammar, rest in _COVERS.findall(path.read_text()):
-        out.append((grammar, [k.strip() for k in rest.split(",") if k.strip()]))
-    return out
+
+def declarations(path: Path, embedded: bool = False) -> list[tuple[str, list[str]]]:
+    """(grammar, [keyword, ...]) for each COVERS (or COVERS-EMBEDDED) line."""
+    pattern = _COVERS_EMBEDDED if embedded else _COVERS
+    return [(grammar, [k.strip() for k in rest.split(",") if k.strip()])
+            for grammar, rest in pattern.findall(path.read_text())]
 
 
 def run_parser(paths: list[Path], expect_fail: bool = False) -> tuple[int, str]:
@@ -65,18 +75,21 @@ def check_declarations(grammars: dict[str, set[str]]) -> list[str]:
     gets renamed upstream, or a fixture is edited and the declaration is not."""
     problems = []
     for f in sorted(POSITIVE.rglob("*.pure")):
-        decls = declarations(f)
+        raw = f.read_text()
+        decls = [(g, k, False) for g, k in declarations(f)]
+        decls += [(g, k, True) for g, k in declarations(f, embedded=True)]
         if not decls:
             problems.append(f"{f.name}: no COVERS line -- fixture claims nothing")
-        code = K.strip_noncode(f.read_text())
-        for grammar, kws in decls:
+        code = K.strip_noncode(raw)
+        for grammar, kws, in_string in decls:
+            haystack = raw if in_string else code
             if grammar not in grammars:
                 problems.append(f"{f.name}: unknown grammar {grammar}")
                 continue
             for k in kws:
                 if k not in grammars[grammar]:
                     problems.append(f"{f.name}: {k!r} is not a keyword of {grammar}")
-                elif not re.search(rf"(?<![A-Za-z0-9_]){re.escape(k)}(?![A-Za-z0-9_])", code):
+                elif not re.search(K.word_pattern(k), haystack):
                     problems.append(f"{f.name}: declares {k!r} but its code does not use it")
     return problems
 
@@ -98,21 +111,30 @@ def by_section(text: str) -> dict[str, list[str]]:
     return out
 
 
-def corpus_coverage(grammars: dict[str, set[str]]) -> dict[str, set[str]]:
-    """What the EXISTING sources already cover, attributed by section.
+def corpus_coverage(grammars: dict[str, set[str]],
+                    extra: list[Path] | None = None) -> dict[str, set[str]]:
+    """What sources cover WITHOUT a COVERS line, attributed by section.
 
-    These files are not fixtures and carry no COVERS line, but they parse -- they are run
-    against real databases every commit -- so the evidence is as good. Re-authoring a
-    fixture for `Database` because the stress corpus happens to spell it would be busywork.
+    Two inputs. The existing stress corpus, which carries no declarations but parses and is
+    run against real databases every commit -- re-authoring a fixture for `Database` because
+    that corpus happens to spell it would be busywork. And the fixtures that PARSED, for
+    everything they exercise incidentally: a Diagram fixture declaring `classView` also
+    writes `source` and `target`, and demanding they be declared too would turn every
+    fixture's header into a transcription of its own body.
+
+    The COVERS declaration stays the stronger claim -- it pins a keyword to one grammar
+    rather than to every grammar the section routes to -- and stays required for the
+    embedded sub-grammars, where section attribution cannot reach inside a string.
     """
     have: dict[str, set[str]] = defaultdict(set)
+    sources = list(extra or [])
     for root in ("core/src/test/resources", "scripts", "pct-corpus", "experiments"):
         base = REPO / root
-        if not base.is_dir():
-            continue
-        for p in base.rglob("*.pure"):
-            if POSITIVE in p.parents or NEGATIVE in p.parents:
-                continue
+        if base.is_dir():
+            sources += [p for p in base.rglob("*.pure")
+                        if POSITIVE not in p.parents and NEGATIVE not in p.parents]
+    if True:
+        for p in sources:
             for section, blocks in by_section(p.read_text(errors="replace")).items():
                 for stem in tiers.SECTION_GRAMMARS.get(section, set()):
                     body = "\n".join(blocks)
@@ -155,10 +177,10 @@ def main() -> None:
     for f in fixtures:
         if f.name not in parsed:
             continue
-        for grammar, kws in declarations(f):
+        for grammar, kws in declarations(f) + declarations(f, embedded=True):
             from_fixtures[grammar].update(kws)
 
-    existing = corpus_coverage(grammars)
+    existing = corpus_coverage(grammars, [f for f in fixtures if f.name in parsed])
     have = {s: from_fixtures.get(s, set()) | existing.get(s, set())
             for s in set(from_fixtures) | set(existing)}
 
@@ -189,11 +211,13 @@ def main() -> None:
         _ = fx
 
     if "--gaps" in sys.argv:
-        print("\nstill missing, by grammar:\n")
+        print("\nstill missing, by grammar (unreachable already removed):\n")
         for stem in sorted(tiers.TIER1 | tiers.TIER1_EMBEDDED):
-            miss = sorted(grammars.get(stem, set()) - have.get(stem, set()))
+            reachable = grammars.get(stem, set()) - dead.get(stem, set())
+            reachable -= {k for (s, k) in tiers.WALKER_REJECTED if s == stem}
+            miss = sorted(reachable - have.get(stem, set()))
             if miss:
-                print(f"[{len(grammars[stem]) - len(miss):>3} of {len(grammars[stem]):>3}] "
+                print(f"[{len(reachable) - len(miss):>3} of {len(reachable):>3}] "
                       f"{stem.replace('LexerGrammar', '')}")
                 print("       " + ", ".join(miss))
 

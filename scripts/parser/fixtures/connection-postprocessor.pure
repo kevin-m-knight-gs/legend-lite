@@ -1,0 +1,72 @@
+// COVERS RelationalMapperLexerGrammar: RelationalMapper, DatabaseMappers, SchemaMappers, TableMappers, import
+// COVERS PostProcessorLexerGrammar: mappers, relationalMapper, table, schema, from, to, schemaFrom, schemaTo
+// COVERS QueryGenerationConfigsLexerGrammar: GenerationFeaturesConfig, enabled, disabled
+// COVERS RelationalDatabaseConnectionLexerGrammar: postProcessors, queryGenerationConfigs, quoteIdentifiers, queryTimeOutInSeconds, timezone
+// COVERS DataSourceSpecificationLexerGrammar: testDataSetupCSV, testDataSetupSqls
+//
+// The RelationalMapper element lives in ###QueryPostProcessor, NOT in a ###RelationalMapper
+// section -- there is no such section, which is the kind of thing only checking finds.
+//
+// Two post-processor kinds are exercised: `mapper` (from/to renaming of schemas and tables)
+// and `relationalMapper` (referencing the element above). Inside `mapper`, schemaFrom and
+// schemaTo are legal only in a `table {}` entry; a `schema {}` entry takes from/to alone.
+###QueryPostProcessor
+import fixture::pp::*;
+
+RelationalMapper fixture::pp::Mapper
+(
+   DatabaseMappers:
+   [
+      [fixture::pp::AccountDB.alloytest, fixture::pp::AccountDB.default] -> 'SnowflakeOrgDB',
+      [fixture::pp::AccountDB.alloytest1] -> 'SnowflakeOrgDBNew'
+   ];
+   SchemaMappers:
+   [
+      fixture::pp::AccountDB.alloytest -> 'AlloySchema'
+   ];
+   TableMappers:
+   [
+      fixture::pp::AccountDB.alloytest.ACCOUNT -> 'AccountTable'
+   ];
+)
+
+###Connection
+RelationalDatabaseConnection fixture::pp::Conn
+{
+   store: fixture::pp::AccountDB;
+   type: H2;
+   timezone: 'UTC';
+   quoteIdentifiers: false;
+   specification: LocalH2
+   {
+      testDataSetupCSV: 'default\nPersonTable\nid,name\n1,Ada\n\n';
+      testDataSetupSqls: [
+         'drop table if exists PersonTable',
+         'create table PersonTable(id INT, name VARCHAR(200))'
+         ];
+   };
+   auth: DefaultH2;
+   queryTimeOutInSeconds: 5555;
+   postProcessors:
+   [
+      mapper
+      {
+         mappers:
+         [
+            table {from: 'a'; to: 'A'; schemaFrom: 'b'; schemaTo: 'B';},
+            schema {from: 'c'; to: 'C';}
+         ];
+      },
+      relationalMapper
+      {
+         fixture::pp::Mapper
+      }
+   ];
+   queryGenerationConfigs: [
+      GenerationFeaturesConfig
+      {
+         enabled: ['FEAT_1', 'FEAT_2'];
+         disabled: ['FEAT_3'];
+      }
+   ];
+}

@@ -1,0 +1,60 @@
+// COVERS RelationElementsDataLexerGrammar: relation
+// COVERS RelationalMapperLexerGrammar: include, relationalMapper
+//
+// Keywords reachable ONLY as identifiers. Each of these appears in its grammar's
+// `unquotedIdentifier` rule and nowhere else -- RelationElementsData lists RELATION beside
+// ALL and LET; RelationalMapper lists INCLUDE and RELATIONAL_MAPPER beside VALID_STRING.
+// So the only way a user reaches the token is by NAMING something with it.
+//
+// That makes these the most worthwhile fixtures in the set rather than the most pedantic.
+// Keyword-as-identifier is a classic parser defect: a hand-written parser that dispatches
+// on the token before trying the identifier arm accepts `Table PERSON` and then rejects a
+// column called `relation`. This corpus has already produced one finding of exactly that
+// shape -- a table named with a reserved word -- so the failure mode is not hypothetical.
+###QueryPostProcessor
+RelationalMapper fixture::kw::relationalMapper
+(
+   SchemaMappers:
+   [
+      fixture::kw::include.relationalMapper -> 'RenamedSchema'
+   ];
+)
+
+###Mapping
+Mapping fixture::kw::Map
+(
+   testSuites:
+   [
+      suite1:
+      {
+         function: |fixture::kw::Person.all()->project([col(p|$p.relation, 'relation')]);
+         tests:
+         [
+            test1:
+            {
+               data:
+               [
+                  ModelStore:
+                     ModelStore
+                     #{
+                        fixture::kw::Src:
+                           Reference
+                           #{
+                              fixture::kw::TestData
+                           }#
+                     }#
+               ];
+               asserts:
+               [
+                  assert1:
+                     Relation
+                     #{
+                        relation, fullName
+                        a, john;
+                     }#
+               ];
+            }
+         ];
+      }
+   ]
+)
