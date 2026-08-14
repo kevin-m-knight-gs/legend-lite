@@ -1514,7 +1514,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         IslandParse ip = reLexIsland(c);
         Cursor ic = ip.cursor();
         String username = null;
-        Protocol.PMongoSecret secret = null;
+        Protocol.PVaultSecret secret = null;
         while (!ic.atEnd()) {
             String ik = ic.parseIdentifier();
             ic.expect(TokenType.COLON);
@@ -1630,10 +1630,85 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         vs.endColumn() + 4));
     }
 
-    /** One {@code <Kind>Secret { field: 'v'; }} vault secret. */
-    private static Protocol.PMongoSecret parseVaultSecret(Cursor ic) {
+    /** One vault secret: the single-field kinds or the AWS secrets
+     *  manager shape (probed 2026-08-14; STSAssumeRole credentials are
+     *  oracle-unreachable at the 4.138.2 pin). */
+    private static Protocol.PVaultSecret parseVaultSecret(Cursor ic) {
         int vS = ic.pos();
         String sk = ic.parseIdentifier();
+        if ("AWSSecretsManagerSecret".equals(sk)) {
+            ic.expect(TokenType.BRACE_OPEN);
+            String secretId = null;
+            String versionId = null;
+            String versionStage = null;
+            String credsKind = null;
+            Protocol.PMongoSecret accessKeyId = null;
+            Protocol.PMongoSecret secretAccessKey = null;
+            com.legend.protocol.SourceInfo credsSpan = null;
+            while (!ic.atEnd() && ic.peek() != TokenType.BRACE_CLOSE) {
+                String k = ic.parseIdentifier();
+                ic.expect(TokenType.COLON);
+                switch (k) {
+                    case "secretId" -> {
+                        secretId = SectionParse.stringValue(ic);
+                        ic.expect(TokenType.SEMI_COLON);
+                    }
+                    case "versionId" -> {
+                        versionId = SectionParse.stringValue(ic);
+                        ic.expect(TokenType.SEMI_COLON);
+                    }
+                    case "versionStage" -> {
+                        versionStage = SectionParse.stringValue(ic);
+                        ic.expect(TokenType.SEMI_COLON);
+                    }
+                    case "awsCredentials" -> {
+                        int cS = ic.pos();
+                        String ck = ic.parseIdentifier();
+                        ic.expect(TokenType.BRACE_OPEN);
+                        if ("Default".equals(ck)) {
+                            credsKind = "awsDefault";
+                            ic.expect(TokenType.BRACE_CLOSE);
+                            // spanless on the wire (probed asymmetry)
+                        } else if ("Static".equals(ck)) {
+                            credsKind = "awsStatic";
+                            while (!ic.atEnd()
+                                    && ic.peek() != TokenType.BRACE_CLOSE) {
+                                String ak = ic.parseIdentifier();
+                                ic.expect(TokenType.COLON);
+                                var sec = parseVaultSecret(ic);
+                                if (!(sec instanceof
+                                        Protocol.PMongoSecret ms)) {
+                                    throw ic.error("nested AWS credentials"
+                                            + " need a single-field secret");
+                                }
+                                switch (ak) {
+                                    case "accessKeyId" -> accessKeyId = ms;
+                                    case "secretAccessKey" ->
+                                            secretAccessKey = ms;
+                                    default -> throw ic.error(
+                                            "unknown Static key: " + ak);
+                                }
+                            }
+                            ic.expect(TokenType.BRACE_CLOSE);
+                            credsSpan = ic.spanOf(cS, ic.pos() - 1);
+                        } else {
+                            throw ic.error("unsupported awsCredentials"
+                                    + " kind: " + ck);
+                        }
+                    }
+                    default -> throw ic.error(
+                            "unknown AWSSecretsManagerSecret key: " + k);
+                }
+            }
+            ic.expect(TokenType.BRACE_CLOSE);
+            if (secretId == null || credsKind == null) {
+                throw ic.error("AWSSecretsManagerSecret needs secretId and"
+                        + " awsCredentials");
+            }
+            ic.expect(TokenType.SEMI_COLON);
+            return new Protocol.PAwsSecret(secretId, versionId, versionStage,
+                    credsKind, accessKeyId, secretAccessKey, credsSpan);
+        }
         String wireKind;
         String wireField;
         switch (sk) {
@@ -1708,7 +1783,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 Cursor ic = ip.cursor();
                 String location = null;
                 String keyName = null;
-                Protocol.PMongoSecret value = null;
+                Protocol.PVaultSecret value = null;
                 while (!ic.atEnd()) {
                     String ik = ic.parseIdentifier();
                     ic.expect(TokenType.COLON);
@@ -1736,8 +1811,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 IslandParse ip = reLexIsland(c);
                 Cursor ic = ip.cursor();
                 String userName = null;
-                Protocol.PMongoSecret privateKey = null;
-                Protocol.PMongoSecret passphrase = null;
+                Protocol.PVaultSecret privateKey = null;
+                Protocol.PVaultSecret passphrase = null;
                 while (!ic.atEnd()) {
                     String ik = ic.parseIdentifier();
                     ic.expect(TokenType.COLON);

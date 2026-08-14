@@ -889,23 +889,9 @@ public final class ProtocolEmitter {
             case Protocol.PMongoDbConnection mc2 -> {
                 b.append("{\"_type\":\"MongoDBConnection\","
                         + "\"authenticationSpecification\":"
-                        + "{\"_type\":\"userPassword\",\"password\":{"
-                        + "\"_type\":");
-                Protocol.PMongoSecret sec = mc2.auth().password();
-                str(b, sec.kind());
-                // wire fields sit alphabetically around sourceInformation
-                if ("properties".equals(sec.kind())) {
-                    b.append(",\"").append(sec.fieldKey()).append("\":");
-                    str(b, sec.value());
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, sec.sourceInformation());
-                } else {
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, sec.sourceInformation());
-                    b.append(",\"").append(sec.fieldKey()).append("\":");
-                    str(b, sec.value());
-                }
-                b.append("},\"sourceInformation\":");
+                        + "{\"_type\":\"userPassword\",\"password\":");
+                vaultSecret(b, mc2.auth().password());
+                b.append(",\"sourceInformation\":");
                 srcInfo(b, mc2.auth().sourceInformation());
                 b.append(",\"username\":");
                 str(b, mc2.auth().username());
@@ -3368,7 +3354,39 @@ public final class ProtocolEmitter {
     /** One vault secret ({@code _type properties/systemproperties}); wire
      *  fields sit alphabetically around sourceInformation. */
     private static void vaultSecret(StringBuilder b,
-            Protocol.PMongoSecret sec) {
+            Protocol.PVaultSecret secret) {
+        if (secret instanceof Protocol.PAwsSecret aws) {
+            // NO sourceInformation on the secret; awsDefault credentials
+            // are spanless, awsStatic carries its block span (probed)
+            b.append("{\"_type\":\"awssecretsmanager\","
+                    + "\"awsCredentials\":{\"_type\":");
+            str(b, aws.credsKind());
+            if (aws.accessKeyId() != null) {
+                b.append(",\"accessKeyId\":");
+                vaultSecret(b, aws.accessKeyId());
+            }
+            if (aws.secretAccessKey() != null) {
+                b.append(",\"secretAccessKey\":");
+                vaultSecret(b, aws.secretAccessKey());
+            }
+            if (aws.credsSpan() != null) {
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, aws.credsSpan());
+            }
+            b.append("},\"secretId\":");
+            str(b, aws.secretId());
+            if (aws.versionId() != null) {
+                b.append(",\"versionId\":");
+                str(b, aws.versionId());
+            }
+            if (aws.versionStage() != null) {
+                b.append(",\"versionStage\":");
+                str(b, aws.versionStage());
+            }
+            b.append('}');
+            return;
+        }
+        Protocol.PMongoSecret sec = (Protocol.PMongoSecret) secret;
         b.append("{\"_type\":");
         str(b, sec.kind());
         // fields sit ALPHABETICALLY around sourceInformation (Jackson):

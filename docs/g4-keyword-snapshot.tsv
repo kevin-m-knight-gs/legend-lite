@@ -2,7 +2,7 @@ keyword	grammars	status
 AGGREGATE	DataQuality	present
 ALL_TARGETS	Persistence	parsed-generic
 AWSIdP	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
-AWSSecretsManagerSecret	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+AWSSecretsManagerSecret	Authentication	present
 AllowDuplicates	PersistenceRelational	present
 AnyVersion	Persistence	present
 ApiKey	Authentication	present
@@ -138,7 +138,7 @@ RelationalMapper	RelationalMapper	present
 Runtime	Runtime	present
 SINGLE_TARGET	Persistence	parsed-generic
 STRING	Deephaven	present
-STSAssumeRole	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+STSAssumeRole	Authentication	present
 Schema	Relational	present
 SchemaMappers	RelationalMapper	present
 SchemaSet	ExternalFormat	present
@@ -184,7 +184,7 @@ UserPassword	Authentication	present
 View	Relational	present
 Views	AggregationAware	present
 Warn	Domain	present
-accessKeyId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+accessKeyId	Authentication	present
 account	AuthenticationStrategy,Snowflake	present
 accountId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 accountType	Snowflake	present
@@ -215,7 +215,7 @@ auth	RelationalDatabaseConnection	present
 authentication	Authentication,DeephavenConnection,ElasticsearchConnection,MongoDBConnection	present
 autoActivateUpdates	HostedService,Service	present
 autoServerMode	DataSourceSpecification	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
-awsCredentials	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+awsCredentials	Authentication	present
 baseUrl	ServiceStoreConnection	present
 baseVaultReference	AuthenticationStrategy	present
 batchIdIn	PersistenceRelational	present
@@ -441,8 +441,8 @@ schemas	ExternalFormat	present
 scope	Relational	present
 scopeElements	FileGeneration	present
 scopeName	AuthenticationStrategy	present
-secretAccessKey	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
-secretId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+secretAccessKey	Authentication	present
+secretId	Authentication	present
 section	FlatData	present
 security	ServiceStore	present
 serializationFormat	HostedService,Service	present
@@ -530,7 +530,7 @@ value	Authentication	present
 vaultReference	AuthenticationStrategy	present
 versionField	Persistence	present
 versionId	Authentication,DataSpace	present
-versionStage	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+versionStage	Authentication	present
 warehouse	AuthenticationStrategy,Snowflake	present
 warn	MongoDBSchema	present
 website	DataSpace	present

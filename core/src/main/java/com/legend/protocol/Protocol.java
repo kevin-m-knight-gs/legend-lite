@@ -2023,7 +2023,7 @@ public final class Protocol {
 
     /** {@code _type:"apiKey"} — location is UPPERCASED on the wire. */
     public record PApiKeyAuth(String keyName, String location,
-                              PMongoSecret value,
+                              PVaultSecret value,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthSpecValue {
     }
@@ -2034,13 +2034,13 @@ public final class Protocol {
     }
 
     /** {@code _type:"encryptedPrivateKey"}. */
-    public record PEpkAuth(String userName, PMongoSecret privateKey,
-                           PMongoSecret passphrase,
+    public record PEpkAuth(String userName, PVaultSecret privateKey,
+                           PVaultSecret passphrase,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthSpecValue {
     }
 
-    public record PMongoAuth(String username, PMongoSecret password,
+    public record PMongoAuth(String username, PVaultSecret password,
                              com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthSpecValue {
     }
@@ -2049,8 +2049,28 @@ public final class Protocol {
      *  ({@code properties} / {@code systemproperties}), {@code fieldKey}
      *  the wire field name, {@code value} its content; span = the secret
      *  VALUE region. */
+    /** A credential-vault secret — the single-field kinds
+     *  (properties/systemproperties/environment) or the AWS secrets
+     *  manager shape (probed 2026-08-14). */
+    public sealed interface PVaultSecret permits PMongoSecret, PAwsSecret {
+    }
+
+    /** {@code _type:"awssecretsmanager"} — NO sourceInformation on the
+     *  secret itself; awsDefault credentials are spanless, awsStatic
+     *  carries its block span (probed asymmetry). */
+    public record PAwsSecret(String secretId,
+                             @com.legend.Nullable String versionId,
+                             @com.legend.Nullable String versionStage,
+                             String credsKind,
+                             @com.legend.Nullable PMongoSecret accessKeyId,
+                             @com.legend.Nullable PMongoSecret secretAccessKey,
+                             @com.legend.Nullable com.legend.protocol.SourceInfo credsSpan)
+            implements PVaultSecret {
+    }
+
     public record PMongoSecret(String kind, String fieldKey, String value,
-                               com.legend.protocol.SourceInfo sourceInformation) {
+                               com.legend.protocol.SourceInfo sourceInformation) 
+            implements PVaultSecret {
     }
 
     /** {@code _type:"connectionPointer"}. */
