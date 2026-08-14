@@ -900,4 +900,18 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   `operation = MERGE` with `validationFunction = null`. The correct form is
   `merge_...([a, b], lambda)`. A user who copies a `union` and changes the word gets a merge
   that silently has nothing to merge on. Verified.
+- **Dynafunction names in a property mapping are validated at neither parse nor compile
+  time.** `label: totallyBogusFunctionName([db]T.A, [db]T.B)` compiles clean, and so does
+  `upper(...)` -- which is not a dynafunction at all (the real names are `toUpper`/`toLower`).
+  Validity is decided much later, at SQL generation, by `DbExtension.dynaFuncDispatch`
+  against the `dynaFnToSql` registry. So a user who types `subtsring` gets no error from the
+  parser, no error from the compiler, and a failure only when the query runs -- and the
+  corpus cannot use "it compiles" as evidence that a dynafunction is real. Verified both
+  cases directly.
+
+  The real registry is 178 names: 111 dialect-independent in
+  `core_relational/.../sqlQueryToString/extensionDefaults.pure`, 74 in the H2 extension
+  (10 overriding), plus `case`, `not` and `extractFromSemiStructured` special-cased in
+  `dbExtension.pure#processDynaFunction`. Confirmed ABSENT in every dialect: `upper`,
+  `lower`, `substr`, `nvl`, `ifnull`, `len`, `to_char`, `date_part`.
 

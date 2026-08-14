@@ -48,7 +48,10 @@ Mapping test::M
 
     // a local property may hold a dyna function or a join navigation too
     +displayName: String[1]: concat([test::db]PERSON_TBL.FIRSTNAME, ' ', [test::db]PERSON_TBL.LASTNAME),
-    +employerName: String[1]: [test::db]@Person_Firm | FIRM_TBL.LEGAL_NAME
+    +employerName: String[1]: [test::db]@Person_Firm | FIRM_TBL.LEGAL_NAME,
+
+    // the declared type is a qualifiedName, so a user class works too
+    +employer: test::Firm[1]: [test::db]@Person_Firm
   }
 
   *test::Firm: Relational
