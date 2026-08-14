@@ -1176,8 +1176,9 @@ public final class ProtocolEmitter {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, requirePos(spanOverride != null ? spanOverride : gi.pos(),
                 "GQL island"));
-        b.append(",\"type\":\"GQL\",\"value\":").append(gi.valueJson())
-                .append('}');
+        b.append(",\"type\":\"GQL\",\"value\":");
+        GqlEmitter.document(b, gi.document());
+        b.append('}');
     }
 
     private static void sqlIsland(StringBuilder b,

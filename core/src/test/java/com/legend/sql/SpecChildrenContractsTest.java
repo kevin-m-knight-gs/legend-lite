@@ -283,6 +283,11 @@ class SpecChildrenContractsTest {
         }
         // self-recursive record (Node holds List<Node>) — the generic builder
         // would recurse forever; pin a leaf
+        if (type == com.legend.protocol.spec.Gql.Selection.class) {
+            // Field nests selections of itself — spread is the leaf form
+            return new com.legend.protocol.spec.Gql.FragmentSpread(
+                    "f", List.of());
+        }
         if (type == com.legend.protocol.spec.GraphFetchLiteral.Node.class) {
             return new com.legend.protocol.spec.GraphFetchLiteral.Node(
                     "p", null, List.of(), null, null, List.of());

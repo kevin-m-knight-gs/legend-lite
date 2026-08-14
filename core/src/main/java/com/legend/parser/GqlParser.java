@@ -3,27 +3,25 @@
 
 package com.legend.parser;
 
+import com.legend.protocol.spec.Gql;
+
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * The {@code #GQL{ ... }#} island content: a GraphQL document parsed from
  * the RAW island text (GraphQL treats commas as whitespace and {@code $},
  * {@code @}, {@code !}, {@code ...} as its own lexemes, so the Pure token
- * stream is the wrong instrument). Produces the engine's canonical wire
- * JSON directly — fields alphabetical per node, matching the probed
- * serialization (scratchpad gql-wire.txt, 2026-08-14):
+ * stream is the wrong instrument — token reconstruction also merges
+ * {@code query Hero} into one word). Scannerless by design: the lexical
+ * grammar is trivial and needs no lookahead, so a separate token stream
+ * would be ceremony.
  *
- * <ul>
- *   <li>{@code executableDocument} / {@code operationDefinition} (the
- *       {@code type} field is OMITTED for a bare selection document);</li>
- *   <li>{@code field} with {@code alias} carrying the trailing colon
- *       verbatim ({@code "h:"} — the engine keeps it);</li>
- *   <li>variable DEFINITIONS keep the {@code $} prefix in {@code name},
- *       variable USES drop it;</li>
- *   <li>values: int/float/string/boolean/null/enum/list/object;</li>
- *   <li>{@code fragmentDefinition}/{@code fragmentSpread}; INLINE
- *       fragments are refused — the reference refuses them too;</li>
- *   <li>SDL {@code objectTypeDefinition} ({@code type X { f: T }});
- *       other type-system kinds refuse loudly until probed.</li>
- * </ul>
+ * <p>Produces typed {@link Gql} nodes; {@code GqlEmitter} owns the
+ * byte-exact wire (probe gql-wire 2026-08-14; the gql-islands battery in
+ * AdversarialParityTest pins every shape). Grammar facts probed live:
+ * INLINE fragments are refused by the reference, and SDL kinds beyond
+ * {@code type} are unprobed and refuse loudly.
  */
 public final class GqlParser {
 
@@ -38,70 +36,54 @@ public final class GqlParser {
         this.baseCol = baseCol;
     }
 
-    /** Parse a whole island content into the wire {@code value} JSON. */
-    public static String parseDocument(String content, int baseLine,
+    /** Parse a whole island content into its typed document. */
+    public static Gql.Document parseDocument(String content, int baseLine,
             int baseCol) {
         GqlParser p = new GqlParser(content, baseLine, baseCol);
-        StringBuilder b = new StringBuilder();
-        b.append("{\"_type\":\"executableDocument\",\"definitions\":[");
-        boolean first = true;
+        List<Gql.Definition> defs = new ArrayList<>();
         p.ws();
         while (!p.atEnd()) {
-            if (!first) {
-                b.append(',');
-            }
-            first = false;
-            p.definition(b);
+            defs.add(p.definition());
             p.ws();
         }
-        b.append("]}");
-        if (first) {
+        if (defs.isEmpty()) {
             throw p.fail("empty GraphQL document");
         }
-        return b.toString();
+        return new Gql.Document(defs);
     }
 
     // ------------------------------------------------------------------
     // Definitions
     // ------------------------------------------------------------------
 
-    private void definition(StringBuilder b) {
+    private Gql.Definition definition() {
         if (peekc() == '{') {
-            // bare selection set: an operationDefinition with NO type field
-            b.append("{\"_type\":\"operationDefinition\",\"directives\":[],"
-                    + "\"selectionSet\":[");
-            selectionSet(b);
-            b.append("],\"variables\":[]}");
-            return;
+            // bare selection set: an operation whose TYPE the wire omits
+            return new Gql.Operation(null, null, List.of(), List.of(),
+                    selectionSet());
         }
         String kw = name("definition keyword");
-        switch (kw) {
-            case "query", "mutation", "subscription" -> operation(b, kw);
-            case "fragment" -> fragmentDefinition(b);
-            case "type" -> objectTypeDefinition(b);
+        return switch (kw) {
+            case "query", "mutation", "subscription" -> operation(kw);
+            case "fragment" -> fragmentDefinition();
+            case "type" -> objectTypeDefinition();
             default -> throw fail("unbuilt GraphQL definition kind '" + kw
                     + "'");
-        }
+        };
     }
 
-    private void operation(StringBuilder b, String opType) {
+    private Gql.Operation operation(String opType) {
         ws();
         String opName = isNameStart(peekc()) ? name("operation name") : null;
         ws();
-        String variables = peekc() == '(' ? variableDefinitions() : "[]";
-        String directives = directives();
-        b.append("{\"_type\":\"operationDefinition\",\"directives\":")
-                .append(directives);
-        if (opName != null) {
-            b.append(",\"name\":").append(json(opName));
-        }
-        b.append(",\"selectionSet\":[");
-        selectionSet(b);
-        b.append("],\"type\":").append(json(opType))
-                .append(",\"variables\":").append(variables).append('}');
+        List<Gql.VariableDef> variables = peekc() == '('
+                ? variableDefinitions() : List.of();
+        List<Gql.Directive> directives = directives();
+        return new Gql.Operation(opType, opName, variables, directives,
+                selectionSet());
     }
 
-    private void fragmentDefinition(StringBuilder b) {
+    private Gql.Fragment fragmentDefinition() {
         ws();
         String fragName = name("fragment name");
         ws();
@@ -110,15 +92,11 @@ public final class GqlParser {
         }
         ws();
         String cond = name("fragment type condition");
-        String directives = directives();
-        b.append("{\"_type\":\"fragmentDefinition\",\"directives\":")
-                .append(directives).append(",\"name\":").append(json(fragName))
-                .append(",\"selectionSet\":[");
-        selectionSet(b);
-        b.append("],\"typeCondition\":").append(json(cond)).append('}');
+        List<Gql.Directive> directives = directives();
+        return new Gql.Fragment(fragName, cond, directives, selectionSet());
     }
 
-    private void objectTypeDefinition(StringBuilder b) {
+    private Gql.ObjectType objectTypeDefinition() {
         ws();
         String typeName = name("type name");
         ws();
@@ -127,47 +105,36 @@ public final class GqlParser {
                     + "directives are unprobed)");
         }
         expect('{');
-        b.append("{\"_type\":\"objectTypeDefinition\",\"_implements\":[],"
-                + "\"directives\":[],\"fields\":[");
-        boolean first = true;
+        List<Gql.FieldDef> fields = new ArrayList<>();
         ws();
         while (peekc() != '}') {
-            if (!first) {
-                b.append(',');
-            }
-            first = false;
             String fieldName = name("field name");
             ws();
             expect(':');
-            b.append("{\"argumentDefinitions\":[],\"directives\":[],"
-                    + "\"name\":").append(json(fieldName))
-                    .append(",\"type\":").append(typeReference()).append('}');
+            fields.add(new Gql.FieldDef(fieldName, typeReference()));
             ws();
         }
         expect('}');
-        b.append("],\"name\":").append(json(typeName)).append('}');
+        return new Gql.ObjectType(typeName, fields);
     }
 
     // ------------------------------------------------------------------
     // Selections
     // ------------------------------------------------------------------
 
-    private void selectionSet(StringBuilder b) {
+    private List<Gql.Selection> selectionSet() {
         expect('{');
-        boolean first = true;
+        List<Gql.Selection> out = new ArrayList<>();
         ws();
         while (peekc() != '}') {
-            if (!first) {
-                b.append(',');
-            }
-            first = false;
-            selection(b);
+            out.add(selection());
             ws();
         }
         expect('}');
+        return out;
     }
 
-    private void selection(StringBuilder b) {
+    private Gql.Selection selection() {
         if (peekc() == '.') {
             expect('.');
             expect('.');
@@ -180,10 +147,7 @@ public final class GqlParser {
                 throw fail("inline fragments are refused by the reference"
                         + " GraphQL grammar");
             }
-            b.append("{\"_type\":\"fragmentSpread\",\"directives\":")
-                    .append(directives()).append(",\"name\":")
-                    .append(json(spread)).append('}');
-            return;
+            return new Gql.FragmentSpread(spread, directives());
         }
         String first = name("field name");
         ws();
@@ -197,174 +161,128 @@ public final class GqlParser {
             fieldName = name("aliased field name");
             ws();
         }
-        String arguments = peekc() == '(' ? arguments() : "[]";
-        String directives = directives();
-        b.append("{\"_type\":\"field\"");
-        if (alias != null) {
-            b.append(",\"alias\":").append(json(alias));
-        }
-        b.append(",\"arguments\":").append(arguments)
-                .append(",\"directives\":").append(directives)
-                .append(",\"name\":").append(json(fieldName))
-                .append(",\"selectionSet\":[");
+        List<Gql.Argument> arguments = peekc() == '(' ? arguments()
+                : List.of();
+        List<Gql.Directive> directives = directives();
         ws();
-        if (peekc() == '{') {
-            selectionSet(b);
-        }
-        b.append("]}");
+        List<Gql.Selection> nested = peekc() == '{' ? selectionSet()
+                : List.of();
+        return new Gql.Field(alias, fieldName, arguments, directives, nested);
     }
 
     // ------------------------------------------------------------------
     // Arguments / directives / variables / types / values
     // ------------------------------------------------------------------
 
-    private String arguments() {
+    private List<Gql.Argument> arguments() {
         expect('(');
-        StringBuilder b = new StringBuilder("[");
-        boolean first = true;
+        List<Gql.Argument> out = new ArrayList<>();
         ws();
         while (peekc() != ')') {
-            if (!first) {
-                b.append(',');
-            }
-            first = false;
             String argName = name("argument name");
             ws();
             expect(':');
-            b.append("{\"name\":").append(json(argName))
-                    .append(",\"value\":").append(value()).append('}');
+            out.add(new Gql.Argument(argName, value()));
             ws();
         }
         expect(')');
-        return b.append(']').toString();
+        return out;
     }
 
-    private String directives() {
+    private List<Gql.Directive> directives() {
         ws();
-        StringBuilder b = new StringBuilder("[");
-        boolean first = true;
+        List<Gql.Directive> out = new ArrayList<>();
         while (peekc() == '@') {
             pos++;
             String dirName = name("directive name");
             ws();
-            String args = peekc() == '(' ? arguments() : "[]";
-            if (!first) {
-                b.append(',');
-            }
-            first = false;
-            b.append("{\"arguments\":").append(args).append(",\"name\":")
-                    .append(json(dirName)).append('}');
+            out.add(new Gql.Directive(dirName,
+                    peekc() == '(' ? arguments() : List.of()));
             ws();
         }
-        return b.append(']').toString();
+        return out;
     }
 
-    private String variableDefinitions() {
+    private List<Gql.VariableDef> variableDefinitions() {
         expect('(');
-        StringBuilder b = new StringBuilder("[");
-        boolean first = true;
+        List<Gql.VariableDef> out = new ArrayList<>();
         ws();
         while (peekc() != ')') {
-            if (!first) {
-                b.append(',');
-            }
-            first = false;
             expect('$');
             String varName = name("variable name");
             ws();
             expect(':');
-            String type = typeReference();
+            Gql.TypeRef type = typeReference();
             ws();
-            String dflt = null;
+            Gql.Value dflt = null;
             if (peekc() == '=') {
                 pos++;
                 dflt = value();
                 ws();
             }
-            // wire order: defaultValue?, directives, name (WITH $), type
-            b.append('{');
-            if (dflt != null) {
-                b.append("\"defaultValue\":").append(dflt).append(',');
-            }
-            b.append("\"directives\":[],\"name\":").append(json("$" + varName))
-                    .append(",\"type\":").append(type).append('}');
+            out.add(new Gql.VariableDef("$" + varName, type, dflt));
             ws();
         }
         expect(')');
-        return b.append(']').toString();
+        return out;
     }
 
-    private String typeReference() {
+    private Gql.TypeRef typeReference() {
         ws();
-        String inner;
         if (peekc() == '[') {
             pos++;
-            String item = typeReference();
+            Gql.TypeRef item = typeReference();
             ws();
             expect(']');
-            inner = "{\"_type\":\"listTypeReference\",\"itemType\":" + item;
-        } else {
-            inner = "{\"_type\":\"namedTypeReference\",\"name\":"
-                    + json(name("type name"));
+            return new Gql.ListType(item, !bang());
         }
-        ws();
-        boolean nullable = true;
-        if (peekc() == '!') {
-            pos++;
-            nullable = false;
-        }
-        return inner + ",\"nullable\":" + nullable + "}";
+        String typeName = name("type name");
+        return new Gql.NamedType(typeName, !bang());
     }
 
-    private String value() {
+    private boolean bang() {
+        ws();
+        if (peekc() == '!') {
+            pos++;
+            return true;
+        }
+        return false;
+    }
+
+    private Gql.Value value() {
         ws();
         char c = peekc();
         if (c == '$') {
             pos++;
-            return "{\"_type\":\"variable\",\"name\":"
-                    + json(name("variable name")) + "}";
+            return new Gql.VariableRef(name("variable name"));
         }
         if (c == '"') {
-            return "{\"_type\":\"stringValue\",\"value\":"
-                    + json(stringLiteral()) + "}";
+            return new Gql.StringValue(stringLiteral());
         }
         if (c == '[') {
             pos++;
-            StringBuilder b = new StringBuilder(
-                    "{\"_type\":\"listValue\",\"values\":[");
-            boolean first = true;
+            List<Gql.Value> values = new ArrayList<>();
             ws();
             while (peekc() != ']') {
-                if (!first) {
-                    b.append(',');
-                }
-                first = false;
-                b.append(value());
+                values.add(value());
                 ws();
             }
             pos++;
-            return b.append("]}").toString();
+            return new Gql.ListValue(values);
         }
         if (c == '{') {
             pos++;
-            StringBuilder b = new StringBuilder(
-                    "{\"_type\":\"objectValue\",\"fields\":[");
-            boolean first = true;
+            List<Gql.Argument> fields = new ArrayList<>();
             ws();
             while (peekc() != '}') {
-                if (!first) {
-                    b.append(',');
-                }
-                first = false;
                 String f = name("object field name");
                 ws();
                 expect(':');
-                b.append("{\"name\":").append(json(f)).append(",\"value\":")
-                        .append(value()).append('}');
+                fields.add(new Gql.Argument(f, value()));
                 ws();
             }
             pos++;
-            return b.append("]}").toString();
+            return new Gql.ObjectValue(fields);
         }
         if (c == '-' || (c >= '0' && c <= '9')) {
             int s = pos;
@@ -387,16 +305,14 @@ public final class GqlParser {
                 }
             }
             String num = src.substring(s, pos);
-            return "{\"_type\":\"" + (isFloat ? "floatValue" : "intValue")
-                    + "\",\"value\":" + num + "}";
+            return isFloat ? new Gql.FloatValue(num) : new Gql.IntValue(num);
         }
         String word = name("value");
         return switch (word) {
-            case "true" -> "{\"_type\":\"booleanValue\",\"value\":true}";
-            case "false" -> "{\"_type\":\"booleanValue\",\"value\":false}";
-            case "null" -> "{\"_type\":\"nullValue\"}";
-            default -> "{\"_type\":\"enumValue\",\"value\":" + json(word)
-                    + "}";
+            case "true" -> new Gql.BooleanValue(true);
+            case "false" -> new Gql.BooleanValue(false);
+            case "null" -> new Gql.NullValue();
+            default -> new Gql.EnumValue(word);
         };
     }
 
@@ -493,28 +409,5 @@ public final class GqlParser {
             }
         }
         return new ParseException("GQL: " + message, line, col);
-    }
-
-    /** Minimal JSON string rendering (quotes/backslash/control chars). */
-    private static String json(String s) {
-        StringBuilder b = new StringBuilder("\"");
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> b.append("\\\"");
-                case '\\' -> b.append("\\\\");
-                case '\n' -> b.append("\\n");
-                case '\r' -> b.append("\\r");
-                case '\t' -> b.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        b.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        b.append(c);
-                    }
-                }
-            }
-        }
-        return b.append('"').toString();
     }
 }
