@@ -203,14 +203,23 @@ class deleted in the 08-12 sweep consolidation — deep-audit §6).
 
 | Constant | Value | Source |
 |---|---:|---|
-| `MIN_PINS` | 43 | `RejectionParityTest.java` |
+| `MIN_PINS` | 424 | `RejectionParityTest.java` |
+| `MIN_LINE_AGREEMENT` | 417 of 423 | `RejectionParityTest.java` |
+| `MIN_COLUMN_EXACT` | 337 | `RejectionParityTest.java` |
+| `MIN_DOCS_MATCHED` | 6489 (100%) | `CorpusSweepTest.java` |
 | `MAX_SEAM_LENIENT_ACCEPTS` | 22 | `CorpusSweepTest.java` |
 | `MAX_ENGINE_JSON_ASYMMETRY` | 9 | `CorpusSweepTest.java` |
-| `MAX_PARSER_LENIENT_ACCEPTS` | 187 | `CorpusSweepTest.java` |
-| `MIN_FILES_PARSED` | (see source) | `SectionParseSentinelTest.java` |
-| `MAX_DROP_IN_DEFECTS` | 184 | `SectionParseSentinelTest.java` |
-| `MAX_LENIENT` | 69 | `SectionParseSentinelTest.java` |
-| `MAX_UNJUSTIFIED_LENIENCY` | 52 | `SectionParseSentinelTest.java` |
+| `MAX_PARSER_LENIENT_ACCEPTS` | 181 | `CorpusSweepTest.java` |
+| `MIN_BEHAVIOUR_MATCHED` | 2093 | `SectionParseSentinelTest.java` |
+| `MAX_DROP_IN_DEFECTS` | 0 | `SectionParseSentinelTest.java` |
+| `MAX_LENIENT` | 17 | `SectionParseSentinelTest.java` |
+| `MAX_UNJUSTIFIED_LENIENCY` | 0 | `SectionParseSentinelTest.java` |
+
+> This table is re-checked against source whenever a floor moves (deep audit
+> #2 found it wrong in 6 of 12 rows — the SOURCE constants are authority,
+> this table is a courtesy). `SurfaceCensusTest` and `MessageParityTest` are
+> gate-8 members since 2026-08-14; `AdversarialParityTest`'s class filter in
+> `tools/allgates.sh` is the authoritative list, not the one quoted above.
 | `MAX_LENIENCY_KINDS` | 21 | `FixtureAdjudicationTest.java` (distinct kinds, not fixtures) |
 | `MAX_OVER_STRICTNESS` | 6 | `FixtureAdjudicationTest.java` |
 | `MIN_SECTIONS` | 25 | `EngineSectionRosterTest.java` — DENOMINATOR: sections engine can parse |
