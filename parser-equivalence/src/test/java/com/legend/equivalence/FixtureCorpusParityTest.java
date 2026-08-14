@@ -46,21 +46,23 @@ class FixtureCorpusParityTest {
      * Baselines. Raise on improvement; a drop is a regression and should fail.
      * -------------------------------------------------------------------------------- */
 
-    /** Fixtures the engine accepts and lite also accepts. 32 of 51 on 2026-08-14. */
-    private static final int MIN_POSITIVE_AGREEMENT = 32;
+    /** Fixtures the engine accepts and lite also accepts. 37 of 51 on 2026-08-14. */
+    private static final int MIN_POSITIVE_AGREEMENT = 37;
 
-    /** Fixtures the engine rejects and lite also rejects. 164 of 215 on 2026-08-14.
+    /** Fixtures the engine rejects and lite also rejects. 179 of 215 on 2026-08-14.
      *
-     *  ENVIRONMENT-DEPENDENT, and the difference is instructive. scripts/parser/parity.py
-     *  measures 169 for the same corpus because it runs against tools/engine-runner's
-     *  classpath, which carries every published extension. THIS module's oracle is
-     *  deliberately production-shaped (extensions-collection-generation plus the handful of
-     *  main-scoped store grammars it omits), so it rejects a few inputs the fuller classpath
-     *  accepts, and those rejections are not matched by lite.
+     *  Both baselines were first set from a STALE build of core -- 32 and 164 -- and were
+     *  wrong in the direction that flatters this harness and slanders legend-lite. Rebuild
+     *  core before trusting a number here; `mvn -o -pl core install -DskipTests` is what
+     *  refreshes what this test actually links against, and a merge that touches core will
+     *  not do it for you.
      *
-     *  The baseline belongs to the environment that asserts it. Copying 169 here because
-     *  another harness printed it would have produced a red build with no defect behind it. */
-    private static final int MIN_NEGATIVE_AGREEMENT = 164;
+     *  Baselines belong to the environment that asserts them. scripts/parser/parity.py can
+     *  report slightly different figures for the same corpus because it drives
+     *  tools/engine-runner's classpath, which carries every published extension, while this
+     *  module's oracle is deliberately production-shaped. Neither is wrong; copying one into
+     *  the other produces a red build with no defect behind it. */
+    private static final int MIN_NEGATIVE_AGREEMENT = 179;
 
     /** Corpus floors -- agreement can otherwise be "improved" by deleting fixtures. */
     private static final int MIN_POSITIVES = 51;
