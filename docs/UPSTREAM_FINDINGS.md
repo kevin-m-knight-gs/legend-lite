@@ -882,4 +882,22 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   right there; what is missing is the wrapper. A user is sent looking for a missing or
   misspelled class instead of a missing keyword. Verified independently of the report that
   surfaced it.
+- **An unregistered Operation function path fails with a raw null-dereference message.**
+  legend-engine registers exactly four operations -- `union`, `special_union`, `inheritance`,
+  `merge` -- keyed by exact fully-qualified name. Any other spelling (a short `union(a,b)`, a
+  plausible-but-absent `intersection_...`) parses, and the compiler then reports
+  `Cannot invoke "String.startsWith(String)" because "id" is null`: the walker stores the
+  `null` returned by its lookup map and something downstream dereferences it. No source
+  information, the offending name is not echoed, and the four valid operations are not
+  listed -- so the one piece of information the user needs is exactly what is missing.
+
+  **Ninth instance of the pattern.** F17 (`projects`), HostedService `actions`, the six
+  Persistence `serviceOutputValue` sites, and now this: an optional or alternative element
+  whose absence is not checked before use. Four unrelated grammars.
+- **`merge` written with `union`'s argument shape compiles into a merge with no predicate.**
+  `merge_OperationSetImplementation_1__SetImplementation_MANY_(a, b)` -- no bracketed id
+  list, no lambda -- takes the plain `parameters` grammar branch and yields
+  `operation = MERGE` with `validationFunction = null`. The correct form is
+  `merge_...([a, b], lambda)`. A user who copies a `union` and changes the word gets a merge
+  that silently has nothing to merge on. Verified.
 

@@ -1,0 +1,105 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+  address: test::Address[1];
+  billing: test::Address[1];
+  employer: test::Firm[1];
+}
+
+Class test::Address
+{
+  line1: String[1];
+  city: String[1];
+  country: test::Country[1];
+}
+
+Class test::Country
+{
+  name: String[1];
+}
+
+Class test::Firm
+{
+  legalName: String[1];
+}
+
+###Relational
+Database test::db
+(
+  Table PERSON_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    ADDR_LINE1 VARCHAR(200),
+    ADDR_CITY VARCHAR(200),
+    ADDR_COUNTRY VARCHAR(200),
+    BILL_ID INTEGER,
+    FIRM_ID INTEGER
+  )
+  Table ADDR_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    LINE1 VARCHAR(200),
+    CITY VARCHAR(200),
+    COUNTRY VARCHAR(200)
+  )
+  Table FIRM_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGAL_NAME VARCHAR(200)
+  )
+
+  Join Person_Addr(PERSON_TBL.BILL_ID = ADDR_TBL.ID)
+  Join Person_Firm(PERSON_TBL.FIRM_ID = FIRM_TBL.ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  *test::Person: Relational
+  {
+    ~mainTable [test::db]PERSON_TBL
+    firstName: [test::db]PERSON_TBL.FIRSTNAME,
+
+    // embedded property mapping: columns of the SAME table become a nested object.
+    // Nesting is arbitrary-depth; ~primaryKey is allowed as the first clause inside.
+    address
+    (
+      ~primaryKey
+      (
+        [test::db]PERSON_TBL.ID
+      )
+      line1: [test::db]PERSON_TBL.ADDR_LINE1,
+      city: [test::db]PERSON_TBL.ADDR_CITY,
+      country
+      (
+        name: [test::db]PERSON_TBL.ADDR_COUNTRY
+      )
+    ),
+
+    // embedded ... Otherwise (...) : use the embedded form unless the graph
+    // needs the full object, in which case follow the join to set [addr_set]
+    billing
+    (
+      line1: [test::db]PERSON_TBL.ADDR_LINE1,
+      city: [test::db]PERSON_TBL.ADDR_CITY
+    ) Otherwise ([addr_set]: [test::db]@Person_Addr),
+
+    // inline embedded property mapping: reuse an existing set's property mappings
+    employer() Inline[firm_set]
+  }
+
+  test::Address[addr_set]: Relational
+  {
+    ~mainTable [test::db]ADDR_TBL
+    line1: [test::db]ADDR_TBL.LINE1,
+    city: [test::db]ADDR_TBL.CITY
+  }
+
+  test::Firm[firm_set]: Relational
+  {
+    ~mainTable [test::db]FIRM_TBL
+    legalName: [test::db]FIRM_TBL.LEGAL_NAME
+  }
+)
