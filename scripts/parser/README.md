@@ -75,8 +75,9 @@ clothes. Pinning the message is what distinguishes the two.
 
 ## The denominator, and what is excluded from it
 
-Not every declared keyword is reachable. Three categories are excluded, each with evidence
-recorded in `tiers.py` rather than asserted:
+Not every declared keyword is reachable. Five categories are excluded, each mechanically
+detected or empirically confirmed, with the evidence recorded in `tiers.py` rather than
+asserted:
 
 - **Out of scope** — grammars no user can reach by typing into a `.pure` file. Haskell,
   Protobuf3, MongoDBQuery, SqlBase: none registers a `SectionParser` or an
@@ -96,8 +97,7 @@ recorded in `tiers.py` rather than asserted:
   `asserts`. See below; this one nearly invalidated the whole number.
 
 A target containing keywords no fixture can cover makes 100% impossible and turns the number
-into a permanent accusation instead of a goal. All three categories are pinned by negative
-fixtures instead — legend-lite must refuse them too, and if upstream ever makes one *work*,
+into a permanent accusation instead of a goal. They are pinned by negative fixtures instead — legend-lite must refuse them too, and if upstream ever makes one *work*,
 the negative fixture fails and says so.
 
 ## Things that went wrong, kept here so they do not recur
