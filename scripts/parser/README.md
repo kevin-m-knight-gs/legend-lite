@@ -25,6 +25,9 @@ cd scripts/parser
 python3 fixtures.py            # coverage + both harnesses; exit non-zero on any problem
 python3 fixtures.py --gaps     # what is still missing, by grammar
 python3 keywords.py --tier1    # the raw keyword census, no fixtures involved
+python3 mutants.py             # regenerate the mutation manifest
+python3 mutants.py --check     # fail on drift instead of overwriting
+python3 mutants.py --accepted  # the review queue: mutations legend-engine tolerated
 ```
 
 Needs `tools/engine-runner` built (see its README). Everything runs in one JVM.
@@ -152,12 +155,33 @@ narrow it because they are one section each, but they do not close it.
 ## Layout
 
 ```
-keywords.py   harvest the grammar surface; dead-token detection; the raw census
-tiers.py      what is in scope and why; the exclusions and their evidence
-fixtures.py   run both harnesses, recompute coverage from fixtures that parse
-fixtures/     positive fixtures, each declaring COVERS
-negative/     must-be-rejected fixtures, each declaring REJECTS
+keywords.py        harvest the grammar surface; dead-token and version-skew detection
+tiers.py           what is in scope and why; the exclusions and their evidence
+fixtures.py        run both harnesses, recompute coverage from fixtures that parse
+mutants.py         damage every positive fixture; record what legend-engine does
+mutants.tsv        the manifest -- one row per mutant, committed and diffable
+PERMISSIVENESS.md  where legend-engine accepts more than it looks like it should
+fixtures/          positive fixtures, each declaring COVERS
+negative/          must-be-rejected fixtures, each declaring REJECTS
 ```
+
+## Three harnesses, three strengths of claim
+
+**Positive fixtures** prove a construct is reachable: it parsed, so the surface exists.
+
+**Negative fixtures** prove a construct is refused *and why* — each pins the message, so it
+cannot pass for an accidental reason.
+
+**Mutants** prove nothing on their own. They record behaviour across ~1600 damaged inputs
+nobody would write by hand, and their value is differential: legend-lite must agree verdict
+for verdict. The weakest claim of the three, and the only one with the breadth to have found
+F19 — 16 of 51 fixtures tolerated a deleted final delimiter and all 16 were `###Connection`,
+which no hand-written negative would have discovered because nobody tries the same deletion
+in eight different sections.
+
+See PERMISSIVENESS.md for what the accepted mutants revealed. That file matters more than it
+looks: rejecting what legend-engine accepts is the divergence direction nobody plans for,
+because it looks like rigour.
 
 `ParseMain` (in `tools/engine-runner`) parses each file individually and reports a per-file
 verdict; `--expect-fail` inverts it for the negative corpus. An empty run exits non-zero,

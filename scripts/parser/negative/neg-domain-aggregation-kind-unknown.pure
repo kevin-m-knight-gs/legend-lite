@@ -1,0 +1,17 @@
+// REJECTS: Unexpected token 'dependent'. Valid alternatives: ['composite', 'shared', 'none']
+//
+// Property aggregation kind is a CLOSED set of three keywords. `(dependent)` is not a
+// fourth kind the walker will reject later -- the parenthesised prefix is a token choice
+// in the grammar, and the message enumerates the whole set.
+//
+// The parens make this dangerous. `(x)` in property-prefix position is also how a
+// QUALIFIED property's parameter list begins, so a rewrite that reads "an identifier in
+// parens" and maps it to an aggregation kind afterwards has a rule that accepts any word,
+// and one that dispatches on the word first has to decide which construct it is looking at
+// before it knows. legend-engine settles it in the lexer: only these three tokens can
+// appear there at all.
+###Pure
+Class fixture::neg::UnknownAggregation
+{
+   (dependent) owned: fixture::neg::Part[*];
+}
