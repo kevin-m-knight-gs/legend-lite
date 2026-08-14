@@ -888,14 +888,9 @@ public final class ProtocolEmitter {
                     elasticsearchConnection(b, ec);
             case Protocol.PMongoDbConnection mc2 -> {
                 b.append("{\"_type\":\"MongoDBConnection\","
-                        + "\"authenticationSpecification\":"
-                        + "{\"_type\":\"userPassword\",\"password\":");
-                vaultSecret(b, mc2.auth().password());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, mc2.auth().sourceInformation());
-                b.append(",\"username\":");
-                str(b, mc2.auth().username());
-                b.append("},\"dataSourceSpecification\":{\"databaseName\":");
+                        + "\"authenticationSpecification\":");
+                AuthSpecEmitter.esAuthSpec(b, mc2.auth());
+                b.append(",\"dataSourceSpecification\":{\"databaseName\":");
                 str(b, mc2.databaseName());
                 b.append(",\"serverURLs\":[");
                 for (int i = 0; i < mc2.serverUrls().size(); i++) {
@@ -1051,6 +1046,26 @@ public final class ProtocolEmitter {
      */
     private static void functionActivator(StringBuilder b,
             Protocol.PFunctionActivator fa) {
+        if ("HostedServiceDeploymentConfiguration".equals(fa.kind())) {
+            // NAMELESS element, port defaults 0 (probe t2-hostedservice)
+            b.append("{\"_type\":\"hostedServiceDeploymentConfiguration\","
+                    + "\"port\":0}");
+            return;
+        }
+        if ("BigQueryFunctionDeploymentConfiguration".equals(fa.kind())) {
+            // NAMELESS element: no name/package/sourceInformation on the
+            // wire (probe 2026-08-14)
+            b.append("{\"_type\":\"bigQueryFunctionConfig\","
+                    + "\"activationConnection\":{\"_type\":"
+                    + "\"connectionPointer\",\"connection\":");
+            str(b, java.util.Objects.requireNonNull(
+                    fa.activationConnection()));
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, java.util.Objects.requireNonNull(
+                    fa.activationConnectionSpan()));
+            b.append("}}");
+            return;
+        }
         String wireType = switch (fa.kind()) {
             case "SnowflakeApp" -> "snowflakeApp";
             case "SnowflakeM2MUdf" -> "snowflakeM2MUdf";
@@ -1064,13 +1079,18 @@ public final class ProtocolEmitter {
         };
         b.append("{\"_type\":\"").append(wireType)
                 .append("\",\"actions\":[]");
-        if (fa.activationConnection() != null) {
+        if (fa.activationConnection() != null
+                && !"FunctionJar".equals(fa.kind())
+                && !"HostedService".equals(fa.kind())) {
             String cfgType = switch (fa.kind()) {
                 case "SnowflakeApp" -> "snowflakeDeploymentConfiguration";
                 case "SnowflakeM2MUdf" ->
                         "snowflakeM2MUdfDeploymentConfiguration";
                 case "MemSqlFunction" -> "memSqlFunctionConfig";
                 case "BigQueryFunction" -> "bigQueryFunctionConfig";
+                // FunctionJar: the walker parses activationConfiguration
+                // and DROPS it — no wire field at all (probe t2-functionjar
+                // 2026-08-14); handled by the guard above
                 default -> throw new UnsupportedOperationException(
                         "activationConfiguration wire for " + fa.kind()
                                 + " is unprobed");
@@ -1105,8 +1125,9 @@ public final class ProtocolEmitter {
         b.append(",\"type\":\"FUNCTION\"}");
         scalarSlot(b, fa, "functionName");
         if ("HostedService".equals(fa.kind())) {
-            b.append(",\"generateLineage\":").append(
-                    fa.booleans().getOrDefault("generateLineage", false));
+            // the walker PARSES generateLineage/storeModel and DISCARDS
+            // the values — the wire always spells false (probe 2026-08-14)
+            b.append(",\"generateLineage\":false");
         }
         b.append(",\"name\":");
         str(b, fa.name());
@@ -1133,8 +1154,7 @@ public final class ProtocolEmitter {
         b.append(",\"stereotypes\":");
         stereotypes(b, fa.stereotypes());
         if ("HostedService".equals(fa.kind())) {
-            b.append(",\"storeModel\":").append(
-                    fa.booleans().getOrDefault("storeModel", false));
+            b.append(",\"storeModel\":false");
         }
         b.append(",\"taggedValues\":");
         taggedValues(b, fa.taggedValues());
@@ -3269,7 +3289,13 @@ public final class ProtocolEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            str(b, s.elements().get(i));
+            String e = s.elements().get(i);
+            if (e == null) {
+                // the BigQuery deployment-config walker registers null
+                b.append("null");
+            } else {
+                str(b, e);
+            }
         }
         b.append(']');
         if (s.importAware()) {
@@ -3342,7 +3368,7 @@ public final class ProtocolEmitter {
             Protocol.PElasticsearchConnection ec) {
         b.append("{\"_type\":\"elasticsearch7StoreConnection\","
                 + "\"authSpec\":");
-        esAuthSpec(b, ec.auth());
+        AuthSpecEmitter.esAuthSpec(b, ec.auth());
         b.append(",\"element\":");
         str(b, ec.element());
         b.append(",\"elementSourceInformation\":");
@@ -3356,7 +3382,7 @@ public final class ProtocolEmitter {
 
     /** One vault secret ({@code _type properties/systemproperties}); wire
      *  fields sit alphabetically around sourceInformation. */
-    private static void vaultSecret(StringBuilder b,
+    static void vaultSecret(StringBuilder b,
             Protocol.PVaultSecret secret) {
         if (secret instanceof Protocol.PAwsSecret aws) {
             // NO sourceInformation on the secret; awsDefault credentials
@@ -3409,55 +3435,5 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    /** The authentication-module island wire (probed auth-wire
-     *  2026-08-14): userPassword / apiKey (location UPPERCASED) /
-     *  kerberos (empty) / encryptedPrivateKey. */
-    private static void esAuthSpec(StringBuilder b,
-            Protocol.PAuthSpecValue auth) {
-        switch (auth) {
-            case Protocol.PMongoAuth up -> {
-                b.append("{\"_type\":\"userPassword\",\"password\":");
-                vaultSecret(b, up.password());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, up.sourceInformation());
-                b.append(",\"username\":");
-                str(b, up.username());
-                b.append('}');
-            }
-            case Protocol.PApiKeyAuth ak -> {
-                b.append("{\"_type\":\"apiKey\",\"keyName\":");
-                str(b, ak.keyName());
-                b.append(",\"location\":");
-                str(b, ak.location());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, ak.sourceInformation());
-                b.append(",\"value\":");
-                vaultSecret(b, ak.value());
-                b.append('}');
-            }
-            case Protocol.PKerberosAuth k -> {
-                b.append("{\"_type\":\"kerberos\","
-                        + "\"sourceInformation\":");
-                srcInfo(b, k.sourceInformation());
-                b.append('}');
-            }
-            case Protocol.PPskAuth psk -> {
-                b.append("{\"_type\":\"PSK\",\"psk\":");
-                str(b, psk.psk());
-                b.append('}');
-            }
-            case Protocol.PEpkAuth ek -> {
-                b.append("{\"_type\":\"encryptedPrivateKey\","
-                        + "\"passphrase\":");
-                vaultSecret(b, ek.passphrase());
-                b.append(",\"privateKey\":");
-                vaultSecret(b, ek.privateKey());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, ek.sourceInformation());
-                b.append(",\"userName\":");
-                str(b, ek.userName());
-                b.append('}');
-            }
-        }
-    }
+
 }

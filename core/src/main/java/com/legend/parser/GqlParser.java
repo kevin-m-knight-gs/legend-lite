@@ -67,9 +67,268 @@ public final class GqlParser {
             case "query", "mutation", "subscription" -> operation(kw);
             case "fragment" -> fragmentDefinition();
             case "type" -> objectTypeDefinition();
+            case "schema" -> schemaDefinition();
+            case "directive" -> directiveDefinition();
+            case "scalar" -> scalarDefinition();
+            case "interface" -> interfaceDefinition();
+            case "union" -> unionDefinition();
+            case "enum" -> enumDefinition();
+            case "input" -> inputDefinition();
             default -> throw fail("unbuilt GraphQL definition kind '" + kw
                     + "'");
         };
+    }
+
+    private Gql.SchemaDef schemaDefinition() {
+        List<Gql.Directive> dirs = directives();
+        expect('{');
+        List<Gql.RootOp> roots = new ArrayList<>();
+        ws();
+        while (peekc() != '}') {
+            String op = name("root operation type");
+            if (!"query".equals(op) && !"mutation".equals(op)
+                    && !"subscription".equals(op)) {
+                throw fail("unknown root operation '" + op + "'");
+            }
+            ws();
+            expect(':');
+            ws();
+            roots.add(new Gql.RootOp(op, ident("root type name")));
+            ws();
+        }
+        expect('}');
+        if (roots.isEmpty()) {
+            throw fail("empty schema body");
+        }
+        return new Gql.SchemaDef(dirs, roots);
+    }
+
+    /** The engine's two directive-location enums, in declaration order —
+     *  membership decides which wire list a location lands in. */
+    private static final java.util.Set<String> EXEC_LOCATIONS =
+            java.util.Set.of("QUERY", "MUTATION", "SUBSCRIPTION", "FIELD",
+                    "FRAGMENT_DEFINITION", "FRAGMENT_SPREAD",
+                    "INLINE_FRAGMENT");
+    private static final java.util.Set<String> TYPE_SYSTEM_LOCATIONS =
+            java.util.Set.of("SCHEMA", "SCALAR", "OBJECT",
+                    "FIELD_DEFINITION", "ARGUMENT_DEFINITION", "INTERFACE",
+                    "UNION", "ENUM", "ENUM_VALUE", "INPUT_OBJECT",
+                    "INPUT_FIELD_DEFINITION");
+
+    private Gql.DirectiveDef directiveDefinition() {
+        ws();
+        expect('@');
+        String dirName = name("directive name");
+        ws();
+        List<Gql.InputValueDef> args = peekc() == '('
+                ? inputValueList(')') : List.of();
+        ws();
+        if (!"on".equals(name("'on'"))) {
+            throw fail("directive definition needs 'on <locations>'");
+        }
+        List<String> exec = new ArrayList<>();
+        List<String> typeSystem = new ArrayList<>();
+        ws();
+        if (peekc() == '|') {
+            pos++;
+            ws();
+        }
+        while (true) {
+            String loc = name("directive location");
+            if (EXEC_LOCATIONS.contains(loc)) {
+                exec.add(loc);
+            } else if (TYPE_SYSTEM_LOCATIONS.contains(loc)) {
+                typeSystem.add(loc);
+            } else {
+                throw fail("unknown directive location '" + loc + "'");
+            }
+            ws();
+            if (peekc() != '|') {
+                break;
+            }
+            pos++;
+            ws();
+        }
+        return new Gql.DirectiveDef(dirName, args, exec, typeSystem);
+    }
+
+    private Gql.ScalarType scalarDefinition() {
+        ws();
+        String scalarName = name("scalar name");
+        return new Gql.ScalarType(scalarName, directives());
+    }
+
+    private Gql.InterfaceType interfaceDefinition() {
+        ws();
+        String ifName = name("interface name");
+        List<String> impls = implementsClause();
+        List<Gql.Directive> dirs = directives();
+        return new Gql.InterfaceType(ifName, dirs, fieldDefinitions(),
+                impls);
+    }
+
+    private Gql.UnionType unionDefinition() {
+        ws();
+        String unionName = name("union name");
+        List<Gql.Directive> dirs = directives();
+        ws();
+        expect('=');
+        List<String> members = new ArrayList<>();
+        ws();
+        if (peekc() == '|') {
+            pos++;
+            ws();
+        }
+        while (true) {
+            members.add(name("union member"));
+            ws();
+            if (peekc() != '|') {
+                break;
+            }
+            pos++;
+            ws();
+        }
+        return new Gql.UnionType(unionName, dirs, members);
+    }
+
+    private Gql.EnumType enumDefinition() {
+        ws();
+        String enumName = name("enum name");
+        List<Gql.Directive> dirs = directives();
+        expect('{');
+        List<Gql.EnumValueDef> values = new ArrayList<>();
+        ws();
+        while (peekc() != '}') {
+            String v = name("enum value");
+            values.add(new Gql.EnumValueDef(v, directives()));
+            ws();
+        }
+        expect('}');
+        if (values.isEmpty()) {
+            throw fail("empty enum body");
+        }
+        return new Gql.EnumType(enumName, dirs, values);
+    }
+
+    private Gql.InputObjectType inputDefinition() {
+        ws();
+        String inputName = name("input name");
+        List<Gql.Directive> dirs = directives();
+        ws();
+        expect('{');
+        List<Gql.InputValueDef> fields = inputValueBody();
+        return new Gql.InputObjectType(inputName, dirs, fields);
+    }
+
+    /** {@code implements A & B} / {@code implements A, B} (both spellings
+     *  live in the reference grammar). */
+    private List<String> implementsClause() {
+        ws();
+        if (!isNameStart(peekc())) {
+            return List.of();
+        }
+        int save = pos;
+        String kw = name("clause");
+        if (!"implements".equals(kw)) {
+            pos = save;
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        ws();
+        if (peekc() == '&') {
+            pos++;
+            ws();
+        }
+        while (true) {
+            out.add(name("implemented interface"));
+            ws();
+            if (peekc() == '&' || peekc() == ',') {
+                pos++;
+                ws();
+                continue;
+            }
+            break;
+        }
+        return out;
+    }
+
+    /** {@code ( name: Type = default @dirs, ... )} — argument
+     *  definitions; also the input-object body via {@link #inputValueBody}. */
+    private List<Gql.InputValueDef> inputValueList(char close) {
+        expect(close == ')' ? '(' : '{');
+        List<Gql.InputValueDef> out = new ArrayList<>();
+        ws();
+        while (peekc() != close) {
+            out.add(inputValue());
+            ws();
+            if (peekc() == ',') {
+                pos++;
+                ws();
+            }
+        }
+        pos++;                                  // the close char
+        if (out.isEmpty()) {
+            throw fail("empty input value list");
+        }
+        return out;
+    }
+
+    private List<Gql.InputValueDef> inputValueBody() {
+        List<Gql.InputValueDef> out = new ArrayList<>();
+        ws();
+        while (peekc() != '}') {
+            out.add(inputValue());
+            ws();
+            if (peekc() == ',') {
+                pos++;
+                ws();
+            }
+        }
+        pos++;
+        if (out.isEmpty()) {
+            throw fail("empty input body");
+        }
+        return out;
+    }
+
+    private Gql.InputValueDef inputValue() {
+        String ivName = name("input value name");
+        ws();
+        expect(':');
+        Gql.TypeRef t = typeReference();
+        ws();
+        Gql.Value dflt = null;
+        if (peekc() == '=') {
+            pos++;
+            ws();
+            dflt = value();
+            ws();
+        }
+        return new Gql.InputValueDef(ivName, t, dflt, directives());
+    }
+
+    /** {@code { name(args): Type @dirs ... }} — object/interface bodies. */
+    private List<Gql.FieldDef> fieldDefinitions() {
+        ws();
+        expect('{');
+        List<Gql.FieldDef> fields = new ArrayList<>();
+        ws();
+        while (peekc() != '}') {
+            String fieldName = name("field name");
+            ws();
+            List<Gql.InputValueDef> args = peekc() == '('
+                    ? inputValueList(')') : List.of();
+            ws();
+            expect(':');
+            Gql.TypeRef t = typeReference();
+            fields.add(new Gql.FieldDef(fieldName, t, args, directives()));
+            ws();
+        }
+        expect('}');
+        if (fields.isEmpty()) {
+            throw fail("empty type body");
+        }
+        return fields;
     }
 
     private Gql.Operation operation(String opType) {
@@ -101,26 +360,8 @@ public final class GqlParser {
     private Gql.ObjectType objectTypeDefinition() {
         ws();
         String typeName = name("type name");
-        ws();
-        if (isNameStart(peekc())) {
-            throw fail("unbuilt SDL clause after type name (implements/"
-                    + "directives are unprobed)");
-        }
-        expect('{');
-        List<Gql.FieldDef> fields = new ArrayList<>();
-        ws();
-        while (peekc() != '}') {
-            String fieldName = name("field name");
-            ws();
-            expect(':');
-            fields.add(new Gql.FieldDef(fieldName, typeReference()));
-            ws();
-        }
-        expect('}');
-        if (fields.isEmpty()) {
-            throw fail("empty type body");
-        }
-        return new Gql.ObjectType(typeName, fields);
+        List<String> impls = implementsClause();
+        return new Gql.ObjectType(typeName, fieldDefinitions(), impls);
     }
 
     // ------------------------------------------------------------------

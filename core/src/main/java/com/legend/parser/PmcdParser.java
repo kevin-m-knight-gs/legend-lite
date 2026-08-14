@@ -97,7 +97,7 @@ public final class PmcdParser {
      *  lists (functions use their MANGLED path, like the engine), and the
      *  PROTOCOL type (for rule-grouping — the old JSON-prefix sniff broke
      *  silently on any emitter field-order change, adversarial audit). */
-    public record DocElement(String path, String json,
+    public record DocElement(@com.legend.Nullable String path, String json,
             Class<? extends Protocol.Element> kind) {
     }
 
@@ -444,8 +444,11 @@ public final class PmcdParser {
                 headsOut.add(t);
             }
             int[] end = new int[1];
-            out.add(parseOneAt(ts, cursor, kind, mappingSectionLine,
-                    tailGrammar, activatorGrammar, end));
+            DocElement de = parseOneAt(ts, cursor, kind, mappingSectionLine,
+                    tailGrammar, activatorGrammar, end);
+            if (de != null) {
+                out.add(de);
+            }
             cursor = end[0];
         }
         return out;
@@ -523,7 +526,7 @@ public final class PmcdParser {
         return out;
     }
 
-    private static DocElement parseOneAt(TokenStream ts, int site, int kind,
+    private static @com.legend.Nullable DocElement parseOneAt(TokenStream ts, int site, int kind,
             int mappingSectionLine,
             com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
             com.legend.parser.section.@com.legend.Nullable FunctionActivatorSectionGrammar activatorGrammar,
@@ -610,11 +613,27 @@ public final class PmcdParser {
             }
             case 11 -> {
                 ElementParser p = at(ts, site);
-                Protocol.PFunctionActivator fa = java.util.Objects
+                Protocol.Element ae = java.util.Objects
                         .requireNonNull(activatorGrammar).parseElement(p);
-                el = fa;
-                path = fa.qualifiedName();
                 endOut[0] = p.pos();
+                if (ae instanceof Protocol.PFunctionActivator fa) {
+                    if ("SnowflakeAppDeploymentConfiguration"
+                            .equals(fa.kind())) {
+                        // parsed then DROPPED by the walker: no element,
+                        // no section entry (probe 2026-08-14)
+                        return null;
+                    }
+                    el = fa;
+                    // the config walkers never register a path — the
+                    // section's element list carries a literal null
+                    path = fa.kind().endsWith("DeploymentConfiguration")
+                            ? null : fa.qualifiedName();
+                } else {
+                    // ExecutionEnvironment hosted by ###HostedService
+                    el = ae;
+                    path = ((Protocol.PExecutionEnvironment) ae)
+                            .qualifiedName();
+                }
             }
             case 12 -> {
                 ElementParser p = at(ts, site);

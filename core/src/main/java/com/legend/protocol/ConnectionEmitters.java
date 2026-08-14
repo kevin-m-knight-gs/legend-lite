@@ -195,6 +195,17 @@ final class ConnectionEmitters {
                     // loudly beats inventing a _type the engine never reads
                     throw new IllegalStateException("SQLite datasource specs"
                             + " have no engine wire shape (lite backend)");
+            case Protocol.PH2EmbeddedSpec eh -> {
+                b.append("{\"_type\":\"h2Embedded\",\"autoServerMode\":")
+                        .append(eh.autoServerMode());
+                b.append(",\"databaseName\":");
+                str(b, eh.databaseName());
+                b.append(",\"directory\":");
+                str(b, eh.directory());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, eh.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PStaticSpec st -> {
                 b.append("{\"_type\":\"static\",\"databaseName\":");
                 str(b, st.databaseName());

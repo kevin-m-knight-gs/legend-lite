@@ -170,9 +170,12 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 }
                 case "position" -> position = r.pair();
                 case "rectangle" -> rectangle = r.pair();
-                case "hideProperties" -> hideProperties = r.bool();
-                case "hideTaggedValue" -> hideTaggedValues = r.bool();
-                case "hideStereotype" -> hideStereotypes = r.bool();
+                // FALSE is indistinguishable from absent on the wire: the
+                // walker sets each flag only when parseBoolean is true
+                // (sibling fixture diagram-full, sweep 2026-08-14)
+                case "hideProperties" -> hideProperties = r.bool() ? true : null;
+                case "hideTaggedValue" -> hideTaggedValues = r.bool() ? true : null;
+                case "hideStereotype" -> hideStereotypes = r.bool() ? true : null;
                 default -> throw r.fail("unknown classView key '" + key + "'");
             }
             r.skipWs();

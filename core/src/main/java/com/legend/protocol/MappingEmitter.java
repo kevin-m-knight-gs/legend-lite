@@ -506,12 +506,17 @@ final class MappingEmitter {
                                 entries.get(k).transformSpan());
                         b.append('}');
                     }
-                    b.append("],\"sourceInformation\":");
-                    srcInfo(b, req.parameters().sourceInformation());
+                    b.append(']');
+                    if (req.parameters().sourceInformation() != null) {
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, req.parameters().sourceInformation());
+                    }
                     b.append('}');
                 }
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, req.sourceInformation());
+                if (req.sourceInformation() != null) {
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, req.sourceInformation());
+                }
                 b.append("},");
             }
             b.append("\"service\":");

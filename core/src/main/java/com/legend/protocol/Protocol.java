@@ -232,12 +232,12 @@ public final class Protocol {
     public record PRequestBuildInfo(
             @com.legend.Nullable PParametersBuildInfo parameters,
             @com.legend.Nullable PBodyBuildInfo body,
-            com.legend.protocol.SourceInfo sourceInformation) {
+            @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code parameters ( name = expr, ... )}. */
     public record PParametersBuildInfo(List<PParameterBuildInfo> entries,
-                                       com.legend.protocol.SourceInfo sourceInformation) {
+                                       @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation) {
         public PParametersBuildInfo {
             entries = List.copyOf(entries);
         }
@@ -1330,6 +1330,7 @@ public final class Protocol {
      *  ({@code Kind { ... }}), no key, no semicolon. */
     public sealed interface PDataSpaceSupport {
         record PSupportEmail(String address,
+                             @com.legend.Nullable String documentationUrl,
                              com.legend.protocol.SourceInfo sourceInformation)
                 implements PDataSpaceSupport {
         }
@@ -1734,6 +1735,7 @@ public final class Protocol {
                               @com.legend.Nullable String property,
                               List<String> constraints,
                               List<PDqTreeNode> subTrees,
+                              @com.legend.Nullable String subType,
                               com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1997,7 +1999,7 @@ public final class Protocol {
      *  (ZTailProbe "mongodb-conn"). */
     public record PMongoDbConnection(String databaseName,
                                      List<PMongoServerUrl> serverUrls,
-                                     PMongoAuth auth,
+                                     PAuthSpecValue auth,
                                      @com.legend.Nullable String element,
                                      @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
                                      com.legend.protocol.SourceInfo sourceInformation)
@@ -2019,7 +2021,44 @@ public final class Protocol {
      *  UserPassword, ApiKey, Kerberos, EncryptedPrivateKey). */
     public sealed interface PAuthSpecValue
             permits PMongoAuth, PApiKeyAuth, PKerberosAuth, PEpkAuth,
-                    PPskAuth {
+                    PPskAuth, PGcpWifIslandAuth {
+    }
+
+    /** {@code _type:"gcpWithAWSIdP"} — the GCPWIFWithAWSIdP auth island
+     *  (probe t2-authentication 2026-08-14): idP + workload blocks with
+     *  recursive AWS credentials. */
+    public record PGcpWifIslandAuth(String serviceAccountEmail,
+                                    String accountId, String region,
+                                    String role, PAwsCredentials awsCredentials,
+                                    String projectNumber, String providerId,
+                                    String poolId,
+                                    com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthSpecValue {
+    }
+
+    /** AWS credentials value — recursive via STSAssumeRole. */
+    public sealed interface PAwsCredentials
+            permits PAwsDefault, PAwsStatic, PAwsStsRole {
+    }
+
+    /** {@code _type:"awsDefault"} — spanless (probed). */
+    public record PAwsDefault() implements PAwsCredentials {
+    }
+
+    /** {@code _type:"awsStatic"} — span runs the kind keyword through
+     *  the closing brace. */
+    public record PAwsStatic(PMongoSecret accessKeyId,
+                             PMongoSecret secretAccessKey,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements PAwsCredentials {
+    }
+
+    /** {@code _type:"awsSTSAssumeRole"} — nests another credentials
+     *  value. */
+    public record PAwsStsRole(String roleArn, String roleSessionName,
+                              PAwsCredentials awsCredentials,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PAwsCredentials {
     }
 
     /** {@code _type:"PSK"} — Deephaven pre-shared key; the walker never
@@ -2186,9 +2225,17 @@ public final class Protocol {
      *  DuckDB-first operation. The extension flavors have NO engine wire
      *  shape — {@link ProtocolEmitter} refuses them loudly. */
     public sealed interface PDatasourceSpec
-            permits PH2Local, PStaticSpec, PDuckDBSpec, PSQLiteSpec,
-            PSnowflakeSpec, PSpannerSpec, PDatabricksSpec, PBigQuerySpec,
-            PRedshiftSpec, PTrinoSpec {
+            permits PH2Local, PStaticSpec, PH2EmbeddedSpec, PDuckDBSpec,
+            PSQLiteSpec, PSnowflakeSpec, PSpannerSpec, PDatabricksSpec,
+            PBigQuerySpec, PRedshiftSpec, PTrinoSpec {
+    }
+
+    /** {@code _type:"h2Embedded"} — EmbeddedH2 { name; directory;
+     *  autoServerMode; } (probe connection-auth 2026-08-14). */
+    public record PH2EmbeddedSpec(String databaseName, String directory,
+                                  boolean autoServerMode,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
     }
 
     /** {@code _type:"duckDB"} — the engine's DuckDB datasource spec
@@ -2765,7 +2812,10 @@ public final class Protocol {
                            List<String> elements, List<String> imports,
                            com.legend.protocol.SourceInfo sourceInformation) {
         public PSection {
-            elements = List.copyOf(elements);
+            // NOT List.copyOf: the BigQuery deployment-config walker
+            // registers a literal null element entry (probe 2026-08-14)
+            elements = java.util.Collections.unmodifiableList(
+                    new java.util.ArrayList<>(elements));
             imports = List.copyOf(imports);
         }
     }

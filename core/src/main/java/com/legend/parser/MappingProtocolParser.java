@@ -668,6 +668,20 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             pathOffset, null, spanOf(svcStart, outerEnd0)));
                     continue;
                 }
+                if (peek() == TokenType.TILDE
+                        && !"request".equals(peekText(1))) {
+                    // the LEGACY blocks (grammar: "TO BE REMOVED"):
+                    // ~paramMapping(...) and/or a bare elementMapping list
+                    services.add(ServiceLegacyMappingParser.parseTail(this,
+                            store, segments, pathOffset, null, svcStart));
+                    continue;
+                }
+                if (peek() != TokenType.TILDE) {
+                    // bare mappingBlock with no ~request/~paramMapping
+                    services.add(ServiceLegacyMappingParser.parseTail(this,
+                            store, segments, pathOffset, null, svcStart));
+                    continue;
+                }
                 int reqStart = pos;
                 expect(TokenType.TILDE);
                 String rkw = parseIdentifier();
@@ -721,10 +735,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 int reqEnd = pos;
                 expect(TokenType.PAREN_CLOSE);
-                int outerEnd = pos;
-                expect(TokenType.PAREN_CLOSE);
                 request = new Protocol.PRequestBuildInfo(params, body,
                         spanOf(reqStart, reqEnd));
+                if (peek() != TokenType.PAREN_CLOSE) {
+                    // legacy blocks after a ~request — the walker REPLACES
+                    // the request's parameters with the legacy list
+                    services.add(ServiceLegacyMappingParser.parseTail(this,
+                            store, segments, pathOffset, request, svcStart));
+                    continue;
+                }
+                int outerEnd = pos;
+                expect(TokenType.PAREN_CLOSE);
                 services.add(new Protocol.PServiceMapping(
                         new Protocol.PServicePtr(store, segments), pathOffset,
                         request, spanOf(svcStart, outerEnd)));
@@ -742,7 +763,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** One transform expression up to the next top-level {@code ,} or
      *  {@code )} — spec-parsed on a slice of the SHARED stream so spans
      *  stay file-absolute. */
-    private com.legend.protocol.spec.ValueSpecification parseTransformExpr() {
+    com.legend.protocol.spec.ValueSpecification parseTransformExpr() {
         int bs = pos;
         int d = 0;
         while (!atEnd()) {
@@ -773,15 +794,31 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String store = null;
         String coll = null;
         String binding = null;
-        while (!atEnd() && peek() == TokenType.TILDE) {
-            advance();
-            String kw = parseIdentifier();
+        while (!atEnd() && (peek() == TokenType.TILDE
+                || peek() == TokenType.FILTER_CMD)) {
+            String kw;
+            if (peek() == TokenType.FILTER_CMD) {
+                // '~filter' fuses in the lexer
+                advance();
+                kw = "filter";
+            } else {
+                advance();
+                kw = parseIdentifier();
+            }
             switch (kw) {
                 case "mainCollection" -> {
                     expect(TokenType.BRACKET_OPEN);
                     store = Protocol.unquotePath(parseQualifiedName());
                     expect(TokenType.BRACKET_CLOSE);
-                    coll = parseIdentifier();
+                    coll = mongoName();
+                }
+                case "filter" -> {
+                    // ~filter [store] name — parsed and DROPPED: not on
+                    // the wire at all (probe t2-mongodb 2026-08-14)
+                    expect(TokenType.BRACKET_OPEN);
+                    Protocol.unquotePath(parseQualifiedName());
+                    expect(TokenType.BRACKET_CLOSE);
+                    mongoName();
                 }
                 case "binding" ->
                         binding = Protocol.unquotePath(parseQualifiedName());
@@ -795,6 +832,23 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         return new Protocol.PClassMappingMongoDb(target, id, root, store,
                 coll, binding);
+    }
+
+    /** A Mongo collection/filter NAME — plain identifier or a
+     *  {@code ~}-spelled keyword ({@code ~distinct}/{@code ~primaryKey}
+     *  are identifier-only-reachable; the wire keeps the tilde
+     *  verbatim, probe t2-mongodb mainCollectionName "~distinct"). */
+    private String mongoName() {
+        if (peek() == TokenType.TILDE) {
+            advance();
+            return "~" + parseIdentifier();
+        }
+        if (!atEnd() && text().startsWith("~")) {
+            String t = text();
+            advance();
+            return t;
+        }
+        return parseIdentifier();
     }
 
     /** As {@link #cleanSheetAhead()} but the kind keyword is still

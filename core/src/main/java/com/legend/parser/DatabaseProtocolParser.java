@@ -284,7 +284,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             String colName = parseIdentifier();
             Protocol.PDbType type = parseDbType(colName);
             boolean nullable = true;
-            while (peek() == TokenType.PRIMARY_KEY
+            // (PRIMARY_KEY | NOT_NULL)? — AT MOST ONE constraint in the
+            // .g4 (sibling negative neg-relational-primarykey-and-notnull)
+            if (peek() == TokenType.PRIMARY_KEY
                     || peek() == TokenType.NOT_NULL) {
                 nullable = false;
                 advance();
@@ -321,8 +323,10 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             Decorations colDec = parseDecorations();
             Protocol.PDbType type = parseDbType(colName);
             boolean nullable = true;
-            // PRIMARY KEY / NOT NULL lex as single tokens
-            while (peek() == TokenType.PRIMARY_KEY
+            // PRIMARY KEY / NOT NULL lex as single tokens; the .g4 allows
+            // AT MOST ONE constraint per column ((PRIMARY_KEY|NOT_NULL)? —
+            // sibling negative neg-relational-primarykey-and-notnull)
+            if (peek() == TokenType.PRIMARY_KEY
                     || peek() == TokenType.NOT_NULL) {
                 if (peek() == TokenType.PRIMARY_KEY) {
                     primaryKey.add(colName);

@@ -149,6 +149,21 @@ public final class DataQualityValidationSectionGrammar
             }
             c.expect(TokenType.GREATER_THAN);
         }
+        String subType = null;
+        if (c.peek() == TokenType.ARROW) {
+            // ->subType(@qn) — the property node gains a subType field;
+            // the span still covers the property name only (probe
+            // t2-dataquality 2026-08-14)
+            c.advance();
+            String stw = c.parseIdentifier();
+            if (!"subType".equals(stw)) {
+                throw c.error("unknown tree arrow '" + stw + "'");
+            }
+            c.expect(TokenType.PAREN_OPEN);
+            c.expect(TokenType.AT);
+            subType = Protocol.unquotePath(c.parseQualifiedName());
+            c.expect(TokenType.PAREN_CLOSE);
+        }
         List<Protocol.PDqTreeNode> subTrees = new ArrayList<>();
         if (c.match(TokenType.BRACE_OPEN)) {
             while (c.peek() != TokenType.BRACE_CLOSE) {
@@ -160,7 +175,7 @@ public final class DataQualityValidationSectionGrammar
             c.expect(TokenType.BRACE_CLOSE);
         }
         return new Protocol.PDqTreeNode(root ? qn : null, root ? null : qn,
-                constraints, subTrees, span);
+                constraints, subTrees, subType, span);
     }
 
     private static Protocol.PDataQualityRelationValidation

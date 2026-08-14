@@ -174,6 +174,12 @@ public final class ExternalFormatSectionGrammar
         if (contentType == null) {
             throw c.error("Binding needs a contentType");
         }
+        if (includes.isEmpty()) {
+            // walker-required (sibling negative
+            // neg-extformat-binding-missing-modelincludes)
+            throw TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "Field 'modelIncludes' is required");
+        }
         return new Protocol.PBinding(h.pkg(), h.name(), schemaSet, schemaId,
                 contentType, includes, excludes,
                 c.spanOf(h.declStart(), c.pos() - 1));

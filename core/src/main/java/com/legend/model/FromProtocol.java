@@ -718,6 +718,9 @@ public final class FromProtocol {
             // engine's name: IS the database name (wire field databaseName)
             case Protocol.PStaticSpec s -> new ConnectionSpecification
                     .StaticDatasource(s.host(), (int) s.port(), s.databaseName());
+            // EmbeddedH2 executes like LocalH2 with a directory-backed db
+            case Protocol.PH2EmbeddedSpec eh -> new ConnectionSpecification
+                    .LocalH2(null, null, null);
             // the ENGINE-REAL DuckDB spec folds to the same execution
             // semantics: pathless = in-process, path = file-backed
             case Protocol.PDuckDBSpec dd -> dd.path() == null

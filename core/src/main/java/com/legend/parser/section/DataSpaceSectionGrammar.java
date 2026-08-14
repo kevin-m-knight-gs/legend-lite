@@ -231,7 +231,8 @@ public final class DataSpaceSectionGrammar
                     throw TokenStreamCursor.throwAt(c.tokens(), start,
                             "Field 'address' is required");
                 }
-                yield new Protocol.PDataSpaceSupport.PSupportEmail(address, span);
+                yield new Protocol.PDataSpaceSupport.PSupportEmail(address,
+                        documentationUrl, span);
             }
             case "Combined" -> new Protocol.PDataSpaceSupport
                     .PSupportCombined(documentationUrl, website, faqUrl,

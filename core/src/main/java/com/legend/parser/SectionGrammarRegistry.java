@@ -73,16 +73,20 @@ public final class SectionGrammarRegistry {
         m.put("Snowflake",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
                         "Snowflake", java.util.Set.of("SnowflakeApp",
-                                "SnowflakeM2MUdf")));
+                                "SnowflakeM2MUdf",
+                                "SnowflakeAppDeploymentConfiguration")));
         m.put("MemSql",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
                         "MemSql", java.util.Set.of("MemSqlFunction")));
         m.put("BigQuery",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "BigQuery", java.util.Set.of("BigQueryFunction")));
+                        "BigQuery", java.util.Set.of("BigQueryFunction",
+                                "BigQueryFunctionDeploymentConfiguration")));
         m.put("HostedService",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "HostedService", java.util.Set.of("HostedService")));
+                        "HostedService", java.util.Set.of("HostedService",
+                                "ExecutionEnvironment",
+                                "HostedServiceDeploymentConfiguration")));
         m.put("FunctionJar",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
                         "FunctionJar", java.util.Set.of("FunctionJar")));

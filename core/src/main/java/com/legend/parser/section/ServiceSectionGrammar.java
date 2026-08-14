@@ -147,14 +147,23 @@ public final class ServiceSectionGrammar
                 case "ownership" -> {
                     // ownership: DID { identifier: '...' } |
                     //            UserList { users: [...] }
-                    // (probed: deploymentOwnership / userListOwnership)
+                    // — the kind PAIRS with its body key in the .g4
+                    // (sibling negative neg-service-ownership-did-with-
+                    // users: DID takes ONLY identifier)
                     ownershipKind = c.parseIdentifier();
+                    if (!"DID".equals(ownershipKind)
+                            && !"UserList".equals(ownershipKind)) {
+                        throw c.error("unknown ownership kind: "
+                                + ownershipKind);
+                    }
                     c.expect(TokenType.BRACE_OPEN);
                     String ik = c.parseIdentifier();
                     c.expect(TokenType.COLON);
-                    if ("identifier".equals(ik)) {
+                    if ("identifier".equals(ik)
+                            && "DID".equals(ownershipKind)) {
                         ownershipId = SectionParse.stringValue(c);
-                    } else if ("users".equals(ik)) {
+                    } else if ("users".equals(ik)
+                            && "UserList".equals(ownershipKind)) {
                         ownershipUsers = new ArrayList<>();
                         c.expect(TokenType.BRACKET_OPEN);
                         while (c.peek() != TokenType.BRACKET_CLOSE
@@ -1133,6 +1142,13 @@ public final class ServiceSectionGrammar
     private static Protocol.PKeyedExecution parseKeyedBody(
             TokenStreamCursor c, String keyValue, int start,
             boolean requireRuntime) {
+        if (keyValue.contains(" ")) {
+            // ServiceParseTreeWalker:787, engine-verbatim (sibling
+            // negative neg-service-execenv-key-with-space)
+            throw TokenStreamCursor.throwAt(c.tokens(), start,
+                    "Execution param key cannot contain spaces."
+                    + " Invalid Key: " + keyValue);
+        }
         c.expect(TokenType.BRACE_OPEN);
         String mapping = null;
         SourceInfo mappingSpan = null;
@@ -1302,7 +1318,7 @@ public final class ServiceSectionGrammar
     // ExecutionEnvironment
     // ============================================================
 
-    private static Protocol.PExecutionEnvironment parseExecutionEnvironment(
+    static Protocol.PExecutionEnvironment parseExecutionEnvironment(
             TokenStreamCursor c) {
         int declStart = c.pos();
         c.advance();                        // 'ExecutionEnvironment'

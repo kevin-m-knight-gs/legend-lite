@@ -37,6 +37,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     public static final ConnectionSectionGrammar INSTANCE =
             new ConnectionSectionGrammar();
 
+    /** DatabaseType at the 4.138.2 oracle pin — the walker refuses
+     *  anything else via valueOf (javap'd from the oracle jar; re-check
+     *  on an oracle bump). */
+    private static final java.util.Set<String> DATABASE_TYPES =
+            java.util.Set.of("DB2", "H2", "MemSQL", "Sybase", "SybaseIQ",
+                    "Composite", "Postgres", "SqlServer", "Hive", "Snowflake",
+                    "Presto", "Trino", "BigQuery", "Redshift", "Databricks",
+                    "Spanner", "Athena", "DuckDB", "Oracle", "ClickHouse",
+                    "Aurora");
+
     private ConnectionSectionGrammar() {
     }
 
@@ -311,8 +321,17 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     int eS = c.pos();
                     element = Protocol.unquotePath(c.parseQualifiedName());
                     elementSpan = c.spanOf(eS, c.pos() - 1);
+                    c.expect(TokenType.SEMI_COLON);
                 }
-                case "serverUrl" -> serverUrl = SectionParse.stringValue(c);
+                case "serverUrl" -> {
+                    // serverUrlDefinition has NO SEMI_COLON in the .g4 —
+                    // a trailing ';' is an engine refusal (sibling
+                    // negative neg-deephavenconnection-serverurl-semicolon)
+                    serverUrl = SectionParse.stringValue(c);
+                    if (c.peek() == TokenType.SEMI_COLON) {
+                        throw c.error("Unexpected token");
+                    }
+                }
                 case "authentication" -> {
                     if (c.peek() != TokenType.ISLAND_OPEN) {
                         throw c.error("DeephavenConnection authentication"
@@ -326,20 +345,24 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     IslandParse ip = reLexIsland(c);
                     islandEndTok = ip.endTok();
                     Cursor ic = ip.cursor();
-                    while (!ic.atEnd()) {
-                        String ik = ic.parseIdentifier();
-                        ic.expect(TokenType.COLON);
-                        if (!"psk".equals(ik)) {
-                            throw ic.error("unknown PSK key: " + ik);
-                        }
-                        psk = SectionParse.stringValue(ic);
-                        ic.expect(TokenType.SEMI_COLON);
+                    String ik = ic.parseIdentifier();
+                    ic.expect(TokenType.COLON);
+                    if (!"psk".equals(ik)) {
+                        throw ic.error("unknown PSK key: " + ik);
                     }
+                    psk = SectionParse.stringValue(ic);
+                    ic.expect(TokenType.SEMI_COLON);
+                    // pskAuthentication has no EOF — trailing island
+                    // tokens are ignored, first psk wins (same rule as
+                    // the ES PSK island)
+                    while (!ic.atEnd()) {
+                        ic.advance();
+                    }
+                    c.expect(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error(
                         "unknown DeephavenConnection key: " + key);
             }
-            c.match(TokenType.SEMI_COLON);
         }
         int closeTok = c.pos();
         c.expect(TokenType.BRACE_CLOSE);
@@ -371,7 +394,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String element = null;
         com.legend.protocol.SourceInfo elementSpan = null;
         List<Protocol.PMongoServerUrl> urls = new ArrayList<>();
-        Protocol.PMongoAuth auth = null;
+        Protocol.PAuthSpecValue auth = null;
         java.util.Set<String> seenKeys4 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int keyTok = c.pos();
@@ -388,7 +411,14 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 case "serverURLs" -> {
                     c.expect(TokenType.BRACKET_OPEN);
                     while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
-                        String host = c.parseIdentifier();
+                        // HOST_STRING is [a-zA-Z0-9-.]+ in the engine
+                        // lexer — dashes and dots ride unquoted (probe
+                        // t2-mongodb f12345-001.ab.com)
+                        int hS = c.pos();
+                        while (!c.atEnd() && c.peek() != TokenType.COLON) {
+                            c.advance();
+                        }
+                        String host = c.reconstructText(hS, c.pos());
                         c.expect(TokenType.COLON);
                         long port = c.consumeLong();
                         urls.add(new Protocol.PMongoServerUrl(host, port));
@@ -479,7 +509,18 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "type" -> {
+                    int tTok = c.pos();
                     dbType = c.parseIdentifier();
+                    // DatabaseType.valueOf in the walker — enum javap'd
+                    // from the 4.138.2 oracle jar (21 values); SQLite is
+                    // a DECLARED lite extension (same gate as BOOLEAN/BOOL
+                    // columns), so it refuses only on the drop-in surface
+                    if (!DATABASE_TYPES.contains(dbType)
+                            && !(!c.dialect().refusesLiteExtensions()
+                                    && "SQLite".equals(dbType))) {
+                        throw TokenStreamCursor.throwAt(c.tokens(), tTok,
+                                "Unknown database type '" + dbType + "'");
+                    }
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "specification" -> spec = parseDatasourceSpec(c, kS);
@@ -731,6 +772,17 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
+        // per-flavor key sets are CLOSED in the .g4: schema takes only
+        // from/to (sibling negative neg-connection-schemafrom-in-schema-
+        // mapper), table adds schemaFrom/schemaTo
+        java.util.Set<String> allowed = "table".equals(flavor)
+                ? java.util.Set.of("from", "to", "schemaFrom", "schemaTo")
+                : java.util.Set.of("from", "to");
+        for (String k : kv.keySet()) {
+            if (!allowed.contains(k)) {
+                throw c.error("unknown " + flavor + " mapper key: " + k);
+            }
+        }
         String from = kv.get("from");
         String to = kv.get("to");
         if (from == null || to == null) {
@@ -832,8 +884,13 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 if (name == null || host == null) {
                     throw c.error("Static needs name (or database) and host");
                 }
-                yield new Protocol.PStaticSpec(name, host,
-                        port == null ? 0 : port,
+                if (port == null) {
+                    // walker: validateAndExtractRequiredField (sibling
+                    // negative neg-connection-static-missing-port)
+                    throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
+                            "Field 'port' is required");
+                }
+                yield new Protocol.PStaticSpec(name, host, port,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             case "DuckDB" -> {
@@ -957,6 +1014,39 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PBigQuerySpec(defaultDataset, projectId,
                         bqProxyHost, bqProxyPort,
                         c.spanOf(keywordTok, c.pos() - 1));
+            }
+            case "EmbeddedH2" -> {
+                // EmbeddedH2 { name; directory; autoServerMode; } —
+                // _type:"h2Embedded" (probe connection-auth 2026-08-14)
+                c.expect(TokenType.BRACE_OPEN);
+                String ename = null;
+                String directory = null;
+                Boolean autoServer = null;
+                java.util.Set<String> seenEh = new java.util.HashSet<>();
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String key = c.parseIdentifier();
+                    TokenStreamCursor.once(seenEh, key, c);
+                    c.expect(TokenType.COLON);
+                    switch (key) {
+                        case "name" -> ename = SectionParse.stringValue(c);
+                        case "directory" ->
+                                directory = SectionParse.stringValue(c);
+                        case "autoServerMode" ->
+                                autoServer = parseBoolean(c);
+                        default -> throw c.error(
+                                "unknown EmbeddedH2 key: " + key);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (ename == null || directory == null
+                        || autoServer == null) {
+                    throw c.error("EmbeddedH2 needs name, directory and"
+                            + " autoServerMode");
+                }
+                yield new Protocol.PH2EmbeddedSpec(ename, directory,
+                        autoServer, c.spanOf(keywordTok, c.pos() - 1));
             }
             default -> throw c.error("unsupported datasource specification: "
                     + kind + " (corpus-censused shapes only)");
@@ -1494,17 +1584,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     /** {@code # UserPassword { username; password: <Kind>Secret {...}; }#}
      *  — ONE owner for the auth island (Mongo + Elasticsearch share the
      *  engine's authentication module wire). */
-    private static Protocol.PMongoAuth parseUserPasswordAuthIsland(
+    private static Protocol.PAuthSpecValue parseUserPasswordAuthIsland(
             TokenStreamCursor c, int keyTok) {
         if (c.peek() != TokenType.ISLAND_OPEN) {
             throw c.error("MongoDBConnection authentication must"
-                    + " be a # UserPassword {...}# island");
+                    + " be a # <Kind> {...}# island");
         }
-        String kind = islandKind(c);
-        if (!"UserPassword".equals(kind)) {
-            throw c.error("unsupported MongoDB auth kind: " + kind);
-        }
-        return parseUserPasswordBody(c, keyTok);
+        // the walker dispatches through the SAME registered auth-module
+        // extensions as ES — ANY kind is legal (probe t2-authentication:
+        // ApiKey on a MongoDBConnection)
+        return parseEsAuthIsland(c, keyTok);
     }
 
     /** The {@code UserPassword} island BODY (kind already consumed) —
@@ -1747,6 +1836,81 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         return secret;
     }
 
+    /** One AWS credentials value ({@code Default {} | Static {...} |
+     *  STSAssumeRole {...}}) — recursive; span = kind keyword through the
+     *  closing brace; Default is spanless (probe t2-authentication). */
+    private static Protocol.PAwsCredentials parseAwsCredentials(Cursor ic) {
+        int kS = ic.pos();
+        String ck = ic.parseIdentifier();
+        switch (ck) {
+            case "Default" -> {
+                ic.expect(TokenType.BRACE_OPEN);
+                ic.expect(TokenType.BRACE_CLOSE);
+                return new Protocol.PAwsDefault();
+            }
+            case "Static" -> {
+                ic.expect(TokenType.BRACE_OPEN);
+                Protocol.PMongoSecret accessKeyId = null;
+                Protocol.PMongoSecret secretAccessKey = null;
+                while (!ic.atEnd() && ic.peek() != TokenType.BRACE_CLOSE) {
+                    String k = ic.parseIdentifier();
+                    ic.expect(TokenType.COLON);
+                    var sec = parseVaultSecret(ic);
+                    if (!(sec instanceof Protocol.PMongoSecret ms)) {
+                        throw ic.error("Static credentials need"
+                                + " single-field secrets");
+                    }
+                    switch (k) {
+                        case "accessKeyId" -> accessKeyId = ms;
+                        case "secretAccessKey" -> secretAccessKey = ms;
+                        default -> throw ic.error("unknown Static key: " + k);
+                    }
+                }
+                ic.expect(TokenType.BRACE_CLOSE);
+                if (accessKeyId == null || secretAccessKey == null) {
+                    throw ic.error("Static needs accessKeyId and"
+                            + " secretAccessKey");
+                }
+                return new Protocol.PAwsStatic(accessKeyId, secretAccessKey,
+                        ic.spanOf(kS, ic.pos() - 1));
+            }
+            case "STSAssumeRole" -> {
+                ic.expect(TokenType.BRACE_OPEN);
+                String roleArn = null;
+                String roleSessionName = null;
+                Protocol.PAwsCredentials nested = null;
+                while (!ic.atEnd() && ic.peek() != TokenType.BRACE_CLOSE) {
+                    String k = ic.parseIdentifier();
+                    ic.expect(TokenType.COLON);
+                    switch (k) {
+                        case "roleArn" -> {
+                            roleArn = SectionParse.stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                        }
+                        case "roleSessionName" -> {
+                            roleSessionName = SectionParse.stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                        }
+                        case "awsCredentials" ->
+                                nested = parseAwsCredentials(ic);
+                        default -> throw ic.error(
+                                "unknown STSAssumeRole key: " + k);
+                    }
+                }
+                ic.expect(TokenType.BRACE_CLOSE);
+                if (roleArn == null || roleSessionName == null
+                        || nested == null) {
+                    throw ic.error("STSAssumeRole needs roleArn,"
+                            + " roleSessionName and awsCredentials");
+                }
+                return new Protocol.PAwsStsRole(roleArn, roleSessionName,
+                        nested, ic.spanOf(kS, ic.pos() - 1));
+            }
+            default -> throw ic.error("unsupported awsCredentials kind: "
+                    + ck);
+        }
+    }
+
     /** The auth-island CONTENT span: first content token through the
      *  island close +3 (the reparse overshoot family); an EMPTY island
      *  anchors at its own '}#' (probed # Kerberos {}#: 7:3..7:7). */
@@ -1819,6 +1983,102 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 }
                 yield new Protocol.PApiKeyAuth(keyName, location, value,
                         authSpan(c, keyTok, ip));
+            }
+            case "GCPWIFWithAWSIdP" -> {
+                IslandParse ip = reLexIsland(c);
+                Cursor ic = ip.cursor();
+                String email = null;
+                String accountId = null;
+                String region = null;
+                String role = null;
+                Protocol.PAwsCredentials creds = null;
+                String projectNumber = null;
+                String providerId = null;
+                String poolId = null;
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                while (!ic.atEnd()) {
+                    String ik = ic.parseIdentifier();
+                    TokenStreamCursor.once(seen, ik, ic);
+                    ic.expect(TokenType.COLON);
+                    switch (ik) {
+                        case "serviceAccountEmail" -> {
+                            email = SectionParse.stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                        }
+                        case "idP" -> {
+                            String ipk = ic.parseIdentifier();
+                            if (!"AWSIdP".equals(ipk)) {
+                                throw ic.error("unknown idP kind: " + ipk);
+                            }
+                            ic.expect(TokenType.BRACE_OPEN);
+                            java.util.Set<String> seenIdp =
+                                    new java.util.HashSet<>();
+                            while (!ic.atEnd()
+                                    && ic.peek() != TokenType.BRACE_CLOSE) {
+                                String k2 = ic.parseIdentifier();
+                                TokenStreamCursor.once(seenIdp, k2, ic);
+                                ic.expect(TokenType.COLON);
+                                switch (k2) {
+                                    case "accountId" -> {
+                                        accountId = SectionParse.stringValue(ic);
+                                        ic.expect(TokenType.SEMI_COLON);
+                                    }
+                                    case "region" -> {
+                                        region = SectionParse.stringValue(ic);
+                                        ic.expect(TokenType.SEMI_COLON);
+                                    }
+                                    case "role" -> {
+                                        role = SectionParse.stringValue(ic);
+                                        ic.expect(TokenType.SEMI_COLON);
+                                    }
+                                    case "awsCredentials" ->
+                                            creds = parseAwsCredentials(ic);
+                                    default -> throw ic.error(
+                                            "unknown AWSIdP key: " + k2);
+                                }
+                            }
+                            ic.expect(TokenType.BRACE_CLOSE);
+                        }
+                        case "workload" -> {
+                            String wk = ic.parseIdentifier();
+                            if (!"GCPWorkload".equals(wk)) {
+                                throw ic.error("unknown workload kind: "
+                                        + wk);
+                            }
+                            ic.expect(TokenType.BRACE_OPEN);
+                            java.util.Set<String> seenW =
+                                    new java.util.HashSet<>();
+                            while (!ic.atEnd()
+                                    && ic.peek() != TokenType.BRACE_CLOSE) {
+                                String k3 = ic.parseIdentifier();
+                                TokenStreamCursor.once(seenW, k3, ic);
+                                ic.expect(TokenType.COLON);
+                                String v = SectionParse.stringValue(ic);
+                                ic.expect(TokenType.SEMI_COLON);
+                                switch (k3) {
+                                    case "projectNumber" -> projectNumber = v;
+                                    case "providerId" -> providerId = v;
+                                    case "poolId" -> poolId = v;
+                                    default -> throw ic.error(
+                                            "unknown GCPWorkload key: " + k3);
+                                }
+                            }
+                            ic.expect(TokenType.BRACE_CLOSE);
+                        }
+                        default -> throw ic.error(
+                                "unknown GCPWIFWithAWSIdP key: " + ik);
+                    }
+                }
+                if (email == null || accountId == null || region == null
+                        || role == null || creds == null
+                        || projectNumber == null || providerId == null
+                        || poolId == null) {
+                    throw c.error("GCPWIFWithAWSIdP needs "
+                            + "serviceAccountEmail, idP and workload");
+                }
+                yield new Protocol.PGcpWifIslandAuth(email, accountId,
+                        region, role, creds, projectNumber, providerId,
+                        poolId, authSpan(c, keyTok, ip));
             }
             case "PSK" -> {
                 // pskAuthentication: PSK COLON STRING SEMI_COLON — the

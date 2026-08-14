@@ -49,6 +49,20 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
                 new ArrayList<>();
         while (!c.atEnd() && c.peek() != TokenType.PAREN_CLOSE) {
             String ck = c.parseIdentifier();
+            if ("include".equals(ck)) {
+                // the walker parses `include qn` and DROPS it —
+                // includedStores stays [] on the wire (probe t2-mongodb
+                // 2026-08-14)
+                c.parseQualifiedName();
+                continue;
+            }
+            if ("Join".equals(ck)) {
+                // Join name ( ... ) — parsed and DROPPED the same way
+                // (probe t2-mongodb: no join on the wire)
+                c.parseIdentifier();
+                c.skipBalancedBlock();
+                continue;
+            }
             if (!"Collection".equals(ck)) {
                 throw c.error("expected Collection, got " + ck);
             }
@@ -163,10 +177,23 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
                 c.advance();
                 return Boolean.FALSE;
             }
-            default -> throw c.error("unsupported jsonSchema value: "
-                    + c.safeText());
+            default -> {
+                if ("null".equals(c.safeText())) {
+                    // JSON null — Jackson keeps the key with a null value;
+                    // unknown schema keys drop anyway (probe t2-mongodb)
+                    c.advance();
+                    return JSON_NULL;
+                }
+                throw c.error("unsupported jsonSchema value: "
+                        + c.safeText());
+            }
         }
     }
+
+    /** Sentinel for a JSON {@code null} literal inside a jsonSchema —
+     *  kept out of the map-consumer casts (the null-policy sentinel tier;
+     *  unknown keys drop on the wire regardless). */
+    private static final Object JSON_NULL = new Object();
 
     private static Protocol.PBsonSchema schemaOf(java.util.Map<?, ?> m,
             boolean root, TokenStreamCursor at) {

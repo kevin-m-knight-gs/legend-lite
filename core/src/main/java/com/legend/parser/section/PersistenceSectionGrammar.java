@@ -148,6 +148,15 @@ public final class PersistenceSectionGrammar
         if (persister != null) {
             validateNode(c, "persister", persister);
         }
+        if (outputTargets != null) {
+            // the v2 tree validates the same way as the persister tree —
+            // it was UNVALIDATED until the sibling fixtures caught the
+            // wrong-kind keys leaking through (sweep 2026-08-14)
+            for (Protocol.PServiceOutputTarget t : outputTargets) {
+                validateNode(c, "serviceOutput", t.serviceOutput());
+                validateNode(c, "target", t.persistenceTarget());
+            }
+        }
         return new Protocol.PPersistence(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), doc,
                 java.util.Objects.requireNonNull(triggerKind), service,
@@ -231,7 +240,14 @@ public final class PersistenceSectionGrammar
                     java.util.Map.entry("notifyees/Email",
                             List.of("address")),
                     java.util.Map.entry("notifyees/PagerDuty",
-                            List.of("url")));
+                            List.of("url")),
+                    // v2 tree (sibling negatives, sweep 2026-08-14)
+                    java.util.Map.entry("serviceOutput/TDS",
+                            List.of("keys")),
+                    java.util.Map.entry("target/Relational",
+                            List.of("table")),
+                    java.util.Map.entry("temporality/None",
+                            List.of("updatesHandling")));
 
     /** Recursive engine-walker cardinality over the generic node tree:
      *  every key at most once; the {@link #REQUIRED_FIELDS} set for the
@@ -241,13 +257,46 @@ public final class PersistenceSectionGrammar
      *  (a wrong-kind key emits JSON the engine's Jackson cannot
      *  deserialize); sets grounded in the g4 rules. Grows down-only. */
     private static final java.util.Map<String, List<String>> PERMITTED_FIELDS =
+            java.util.Map.ofEntries(
+                    java.util.Map.entry("persister/Streaming",
+                            List.of("sink")),
+                    java.util.Map.entry("targetShape/Flat",
+                            List.of("modelClass", "targetName",
+                                    "partitionFields",
+                                    "deduplicationStrategy")),
+                    java.util.Map.entry("transactionMilestoning/BatchId",
+                            List.of("batchIdInName", "batchIdOutName")),
+                    java.util.Map.entry("datasetType/Snapshot",
+                            List.of("partitioning")),
+                    // tdsServiceOutput / graphFetchServiceOutput: only
+                    // datasetKeys | deduplication | datasetType
+                    java.util.Map.entry("serviceOutput/TDS",
+                            List.of("keys", "deduplication", "datasetType")),
+                    // PersistenceRelationalParserGrammar temporality arms
+                    java.util.Map.entry("temporality/None",
+                            List.of("auditing", "updatesHandling")),
+                    java.util.Map.entry("temporality/Unitemporal",
+                            List.of("processingDimension")),
+                    java.util.Map.entry("temporality/Bitemporal",
+                            List.of("processingDimension",
+                                    "sourceDerivedDimension")),
+                    java.util.Map.entry("sourceFields/Start",
+                            List.of("startField")),
+                    java.util.Map.entry("sourceFields/StartAndEnd",
+                            List.of("startField", "endField")));
+
+    /** Derivation KINDS are context-split in the .g4: the transaction
+     *  arm admits only In/InAndOut, the validity arm only From/
+     *  FromAndThru (sibling negative neg-persistence-validity-
+     *  derivation-under-transaction). Keyed {@code parentSlot/childKey}. */
+    private static final java.util.Map<String, List<String>> CHILD_KINDS =
             java.util.Map.of(
-                    "persister/Streaming", List.of("sink"),
-                    "targetShape/Flat", List.of("modelClass", "targetName",
-                            "partitionFields", "deduplicationStrategy"),
-                    "transactionMilestoning/BatchId",
-                    List.of("batchIdInName", "batchIdOutName"),
-                    "datasetType/Snapshot", List.of("partitioning"));
+                    "transactionMilestoning/derivation",
+                    List.of("SourceSpecifiesInDateTime",
+                            "SourceSpecifiesInAndOutDateTime"),
+                    "validityMilestoning/derivation",
+                    List.of("SourceSpecifiesFromDateTime",
+                            "SourceSpecifiesFromAndThruDateTime"));
 
     private static void validateNode(TokenStreamCursor c, String slot,
             Protocol.PPersistenceNode node) {
@@ -266,6 +315,15 @@ public final class PersistenceSectionGrammar
         if (permitted != null) {
             for (Protocol.PPersistenceEntry e : node.entries()) {
                 if (!permitted.contains(e.key())) {
+                    throw new com.legend.parser.ParseException(
+                            "Unexpected token", line, col);
+                }
+            }
+        }
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            if (e instanceof Protocol.PPersistenceEntry.Node nd) {
+                List<String> kinds = CHILD_KINDS.get(slot + "/" + nd.key());
+                if (kinds != null && !kinds.contains(nd.node().kind())) {
                     throw new com.legend.parser.ParseException(
                             "Unexpected token", line, col);
                 }
@@ -492,6 +550,13 @@ public final class PersistenceSectionGrammar
                     while (c.peek() != TokenType.BRACKET_CLOSE) {
                         if (c.peek() == TokenType.STRING) {
                             vals.add(SectionParse.stringValue(c));
+                        } else if ("deleteValues".equals(key)) {
+                            // mergeStrategyDeleteValues: STRING (COMMA
+                            // STRING)* — bare identifiers refuse (sibling
+                            // negative neg-persistence-mergestrategy-
+                            // deletevalues-identifier)
+                            throw c.error("Unexpected token '"
+                                    + c.safeText() + "'");
                         } else {
                             vals.add(c.parseIdentifier());
                         }
@@ -574,21 +639,25 @@ public final class PersistenceSectionGrammar
             TokenStreamCursor c) {
         List<Protocol.PServiceOutputTarget> out = new ArrayList<>();
         c.expect(TokenType.BRACKET_OPEN);
+        if (c.peek() == TokenType.BRACKET_CLOSE) {
+            // serviceOutputTarget (COMMA ...)* — non-empty in the .g4
+            // (sibling negative neg-persistence-empty-serviceoutputtargets)
+            throw c.error("Unexpected token ']'");
+        }
         while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
             int s = c.pos();
             Protocol.PPersistenceNode serviceOutput = parseNode(c);
             c.expect(TokenType.ARROW);
             Protocol.PPersistenceNode target;
             if (c.peek() == TokenType.BRACE_OPEN) {
-                // a KEYLESS target `-> { }` — the wire omits the
+                // a KEYLESS target: strictly `{ }` in the .g4
+                // (BRACE_OPEN BRACE_CLOSE) — the wire omits the
                 // persistenceTarget slot entirely
                 int ts = c.pos();
                 c.expect(TokenType.BRACE_OPEN);
-                List<Protocol.PPersistenceEntry> te = new ArrayList<>();
-                parseEntries(c, te, TokenType.BRACE_CLOSE);
                 c.expect(TokenType.BRACE_CLOSE);
-                target = new Protocol.PPersistenceNode("__empty__", te,
-                        c.spanOf(ts, c.pos() - 1));
+                target = new Protocol.PPersistenceNode("__empty__",
+                        List.of(), c.spanOf(ts, c.pos() - 1));
             } else {
                 target = contentAnchoredIslandNode(c);
             }

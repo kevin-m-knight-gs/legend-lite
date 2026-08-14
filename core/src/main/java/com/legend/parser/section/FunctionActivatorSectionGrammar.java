@@ -63,9 +63,17 @@ public final class FunctionActivatorSectionGrammar
                 SectionImports.parseImport(c);
                 continue;
             }
-            Protocol.PFunctionActivator a = parseElement(c);
-            out.accept(a.qualifiedName(),
-                    com.legend.protocol.ProtocolEmitter.emitElement(a));
+            Protocol.Element e = parseElement(c);
+            if (e instanceof Protocol.PFunctionActivator a
+                    && "SnowflakeAppDeploymentConfiguration"
+                            .equals(a.kind())) {
+                continue;       // walker-dropped (probe 2026-08-14)
+            }
+            String qname = e instanceof Protocol.PFunctionActivator a2
+                    ? a2.qualifiedName()
+                    : ((Protocol.PExecutionEnvironment) e).qualifiedName();
+            out.accept(qname,
+                    com.legend.protocol.ProtocolEmitter.emitElement(e));
         }
     }
 
@@ -106,8 +114,53 @@ public final class FunctionActivatorSectionGrammar
                 a.qualifiedName(), a.kind(), fields);
     }
 
-    /** One {@code Kind <<dec>> qn { key: value; ... }} activator. */
-    public Protocol.PFunctionActivator parseElement(TokenStreamCursor c) {
+    /** {@code XDeploymentConfiguration qn { activationConnection: qn; }}
+     *  — the walkers treat these strangely (probed 2026-08-14): the
+     *  Snowflake config is parsed then DROPPED (no element, no section
+     *  entry); the BigQuery config emits a NAMELESS element
+     *  ({@code bigQueryFunctionConfig} with no name/package/span) and a
+     *  literal {@code null} in the section's element list. The kind rides
+     *  a PFunctionActivator with an empty functionPath; the emitter and
+     *  PmcdParser dispatch on the kind before anything reads it. */
+    private Protocol.PFunctionActivator parseDeploymentConfig(
+            TokenStreamCursor c, String kind) {
+        int declStart = c.pos();
+        c.advance();
+        String qn = Protocol.unquotePath(c.parseQualifiedName());
+        int cut = qn.lastIndexOf("::");
+        String pkg = cut < 0 ? "" : qn.substring(0, cut);
+        String name = cut < 0 ? qn : qn.substring(cut + 2);
+        c.expect(TokenType.BRACE_OPEN);
+        String conn = null;
+        com.legend.protocol.SourceInfo connSpan = null;
+        boolean hosted = kind.startsWith("HostedService");
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            if (!"activationConnection".equals(key)) {
+                throw c.error("unknown " + kind + " key: " + key);
+            }
+            int aS = c.pos();
+            conn = Protocol.unquotePath(c.parseQualifiedName());
+            connSpan = c.spanOf(aS, c.pos() - 1);
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        if (conn == null && !hosted) {
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'activationConnection' is required");
+        }
+        var span = c.spanOf(declStart, c.pos() - 1);
+        return new Protocol.PFunctionActivator(pkg, name, kind,
+                java.util.List.of(), java.util.List.of(),
+                java.util.Map.of(), java.util.Map.of(), "", span,
+                null, null, conn, connSpan, span);
+    }
+
+    /** One {@code Kind <<dec>> qn { key: value; ... }} activator (or an
+     *  {@code ExecutionEnvironment} — the HostedService section hosts
+     *  them with the SERVICE grammar's shape, probe t2-hostedservice). */
+    public Protocol.Element parseElement(TokenStreamCursor c) {
         int declStart = c.pos();
         if (!c.isIdentifierToken(c.peek())) {
             throw c.error("unsupported ###" + section + " element: "
@@ -116,6 +169,12 @@ public final class FunctionActivatorSectionGrammar
         String kind = c.safeText();
         if (!kinds.contains(kind)) {
             throw c.error("unsupported ###" + section + " element: " + kind);
+        }
+        if ("ExecutionEnvironment".equals(kind)) {
+            return ServiceSectionGrammar.parseExecutionEnvironment(c);
+        }
+        if (kind.endsWith("DeploymentConfiguration")) {
+            return parseDeploymentConfig(c, kind);
         }
         c.advance();
         TokenStreamCursor.Decorations dec = c.parseDecorations();
@@ -145,12 +204,28 @@ public final class FunctionActivatorSectionGrammar
                 booleans.put(key, SectionParse.booleanValue(c));
             } else if ("function".equals(key)) {
                 // the SHARED pointer-site scan (TokenStreamCursor
-                // #parseFunctionDescriptor); this site renders the raw
-                // SPELLING (reconstructText), unquoting only the fqn
+                // #parseFunctionDescriptor); the signature joins token
+                // texts with NO separators — the walkers all render
+                // ctx.getText(), so `f(String[1], Integer[*])` loses the
+                // space (sibling fixture t2-deephaven); the fqn part
+                // keeps raw spelling, unquoted
                 var fd = c.parseFunctionDescriptor();
+                if ("Deephaven".equals(section)) {
+                    // appMultiplicity wants DOT DOT but CoreLexer emits
+                    // one DOT_DOT token — ranges are unreachable in the
+                    // DEEPHAVEN grammar only (M3-imported activators
+                    // accept them; sibling negative
+                    // neg-deephaven-app-multiplicity-range)
+                    for (int i = fd.nameEnd(); i < fd.end(); i++) {
+                        if ("..".equals(c.tokens().text(i))) {
+                            throw TokenStreamCursor.throwAt(c.tokens(), i,
+                                    "Unexpected token '..'");
+                        }
+                    }
+                }
                 functionPath = Protocol.unquotePath(
                         c.reconstructText(fd.start(), fd.nameEnd()))
-                        + c.reconstructText(fd.nameEnd(), fd.end());
+                        + c.compactText(fd.nameEnd(), fd.end() - 1);
                 functionSpan = c.spanOf(fd.start(), fd.end() - 1);
             } else if ("ownership".equals(key)) {
                 String oKind = c.parseIdentifier();
@@ -162,7 +237,11 @@ public final class FunctionActivatorSectionGrammar
                         throw c.error("unknown Deployment key: " + ik);
                     }
                     ownerId = SectionParse.stringValue(c);
-                } else if ("UserList".equals(oKind)) {
+                } else if ("UserList".equals(oKind)
+                        && "HostedService".equals(section)) {
+                    // UserList exists ONLY in the HostedService .g4; the
+                    // other activator grammars are Deployment-only
+                    // (sibling negative neg-functionjar-userlist-ownership)
                     if (!"users".equals(ik)) {
                         throw c.error("unknown UserList key: " + ik);
                     }
@@ -194,6 +273,26 @@ public final class FunctionActivatorSectionGrammar
                 int aS = c.pos();
                 actConn = Protocol.unquotePath(c.parseQualifiedName());
                 actConnSpan = c.spanOf(aS, c.pos() - 1);
+            } else if ("HostedService".equals(section)
+                    && "contentType".equals(key)) {
+                // parsed and DROPPED by the walker — no wire field
+                // (probe t2-hostedservice 2026-08-14)
+                SectionParse.stringValue(c);
+            } else if ("HostedService".equals(section)
+                    && "binding".equals(key)) {
+                // serviceBindingOrContent: the rule AND serviceBinding
+                // both end SEMI_COLON — `binding: p::B;;` (double
+                // semicolon); dropped from the wire
+                c.parseQualifiedName();
+                c.expect(TokenType.SEMI_COLON);
+            } else if ("HostedService".equals(section)
+                    && ("postValidations".equals(key)
+                            || "testSuites".equals(key))) {
+                // both blocks are walker-DROPPED on the wire; captured
+                // balanced (islands ride as coarse tokens)
+                c.skipBalancedBlock();
+                c.match(TokenType.SEMI_COLON);
+                continue;
             } else {
                 throw c.error("unknown key '" + key + "' inside " + kind
                         + " '" + qn + "'");

@@ -847,6 +847,10 @@ final class TailEmitter {
             case Protocol.PDataSpaceSupport.PSupportEmail e -> {
                 b.append("{\"_type\":\"email\",\"address\":");
                 ProtocolEmitter.str(b, e.address());
+                if (e.documentationUrl() != null) {
+                    b.append(",\"documentationUrl\":");
+                    ProtocolEmitter.str(b, e.documentationUrl());
+                }
                 b.append(",\"sourceInformation\":");
                 ProtocolEmitter.srcInfo(b, e.sourceInformation());
                 b.append('}');
@@ -2177,7 +2181,12 @@ final class TailEmitter {
             }
             dqTree(b, n.subTrees().get(i), false);
         }
-        b.append("],\"subTypeTrees\":[]}");
+        b.append(']');
+        if (n.subType() != null) {
+            b.append(",\"subType\":");
+            ProtocolEmitter.str(b, n.subType());
+        }
+        b.append(",\"subTypeTrees\":[]}");
     }
 
     static void dataQualityRelationValidation(StringBuilder b,

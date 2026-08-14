@@ -30,7 +30,96 @@ public final class Gql {
 
     /** One top-level definition. */
     public sealed interface Definition
-            permits Operation, Fragment, ObjectType {
+            permits Operation, Fragment, ObjectType, SchemaDef,
+            DirectiveDef, ScalarType, InterfaceType, UnionType,
+            EnumType, InputObjectType {
+    }
+
+    /** SDL {@code schema { query: Q ... }}. */
+    public record SchemaDef(List<Directive> directives,
+            List<RootOp> rootOps) implements Definition {
+        public SchemaDef {
+            directives = List.copyOf(directives);
+            rootOps = List.copyOf(rootOps);
+        }
+    }
+
+    /** One {@code query|mutation|subscription: TypeName} root binding. */
+    public record RootOp(String operationType, String type) {
+    }
+
+    /** SDL {@code directive @name on LOC | ...} — locations split by the
+     *  engine's two enums (executable vs type-system). */
+    public record DirectiveDef(String name, List<InputValueDef> args,
+            List<String> execLocations,
+            List<String> typeSystemLocations) implements Definition {
+        public DirectiveDef {
+            args = List.copyOf(args);
+            execLocations = List.copyOf(execLocations);
+            typeSystemLocations = List.copyOf(typeSystemLocations);
+        }
+    }
+
+    /** SDL {@code scalar Name}. */
+    public record ScalarType(String name,
+            List<Directive> directives) implements Definition {
+        public ScalarType {
+            directives = List.copyOf(directives);
+        }
+    }
+
+    /** SDL {@code interface Name { fields }}. */
+    public record InterfaceType(String name, List<Directive> directives,
+            List<FieldDef> fields,
+            List<String> implementsList) implements Definition {
+        public InterfaceType {
+            directives = List.copyOf(directives);
+            fields = List.copyOf(fields);
+            implementsList = List.copyOf(implementsList);
+        }
+    }
+
+    /** SDL {@code union Name = A | B}. */
+    public record UnionType(String name, List<Directive> directives,
+            List<String> members) implements Definition {
+        public UnionType {
+            directives = List.copyOf(directives);
+            members = List.copyOf(members);
+        }
+    }
+
+    /** SDL {@code enum Name { V1 V2 }}. */
+    public record EnumType(String name, List<Directive> directives,
+            List<EnumValueDef> values) implements Definition {
+        public EnumType {
+            directives = List.copyOf(directives);
+            values = List.copyOf(values);
+        }
+    }
+
+    /** One enum value with its directives. */
+    public record EnumValueDef(String value, List<Directive> directives) {
+        public EnumValueDef {
+            directives = List.copyOf(directives);
+        }
+    }
+
+    /** SDL {@code input Name { fields }}. */
+    public record InputObjectType(String name, List<Directive> directives,
+            List<InputValueDef> fields) implements Definition {
+        public InputObjectType {
+            directives = List.copyOf(directives);
+            fields = List.copyOf(fields);
+        }
+    }
+
+    /** One SDL input value ({@code name: Type = default @dirs}). */
+    public record InputValueDef(String name, TypeRef type,
+            @com.legend.Nullable Value defaultValue,
+            List<Directive> directives) {
+        public InputValueDef {
+            directives = List.copyOf(directives);
+        }
     }
 
     /** {@code operationDefinition} — {@code type} is null for a BARE
@@ -58,17 +147,30 @@ public final class Gql {
         }
     }
 
-    /** SDL {@code objectTypeDefinition} ({@code type X { f: T }}). */
+    /** SDL {@code objectTypeDefinition} ({@code type X implements I
+     *  { f: T }}). */
     public record ObjectType(String name,
-            List<FieldDef> fields) implements Definition {
+            List<FieldDef> fields,
+            List<String> implementsList) implements Definition {
         public ObjectType {
             Objects.requireNonNull(name, "name");
             fields = List.copyOf(fields);
+            implementsList = List.copyOf(implementsList);
         }
     }
 
-    /** One SDL field definition. */
-    public record FieldDef(String name, TypeRef type) {
+    /** One SDL field definition ({@code name(args): Type @dirs}). */
+    public record FieldDef(String name, TypeRef type,
+            List<InputValueDef> args, List<Directive> directives) {
+        public FieldDef {
+            args = List.copyOf(args);
+            directives = List.copyOf(directives);
+        }
+
+        /** The pre-SDL two-field form (existing call sites). */
+        public FieldDef(String name, TypeRef type) {
+            this(name, type, List.of(), List.of());
+        }
     }
 
     /** One selection inside a selection set. */

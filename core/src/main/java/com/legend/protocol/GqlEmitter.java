@@ -67,25 +67,164 @@ final class GqlEmitter {
             }
             case Gql.ObjectType t -> {
                 b.append("{\"_type\":\"objectTypeDefinition\","
-                        + "\"_implements\":[],\"directives\":[],"
-                        + "\"fields\":[");
-                for (int i = 0; i < t.fields().size(); i++) {
-                    if (i > 0) {
-                        b.append(',');
-                    }
-                    Gql.FieldDef fd = t.fields().get(i);
-                    b.append("{\"argumentDefinitions\":[],\"directives\":[],"
-                            + "\"name\":");
-                    ProtocolEmitter.str(b, fd.name());
-                    b.append(",\"type\":");
-                    typeRef(b, fd.type());
-                    b.append('}');
-                }
-                b.append("],\"name\":");
+                        + "\"_implements\":");
+                strings(b, t.implementsList());
+                b.append(",\"directives\":[],\"fields\":");
+                fieldDefs(b, t.fields());
+                b.append(",\"name\":");
                 ProtocolEmitter.str(b, t.name());
                 b.append('}');
             }
+            case Gql.SchemaDef s -> {
+                b.append("{\"_type\":\"schemaDefinition\",\"directives\":");
+                directives(b, s.directives());
+                b.append(",\"rootOperationTypeDefinitions\":[");
+                for (int i = 0; i < s.rootOps().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"operationType\":\"")
+                            .append(s.rootOps().get(i).operationType())
+                            .append("\",\"type\":");
+                    ProtocolEmitter.str(b, s.rootOps().get(i).type());
+                    b.append('}');
+                }
+                b.append("]}");
+            }
+            case Gql.DirectiveDef dd -> {
+                b.append("{\"_type\":\"directiveDefinition\","
+                        + "\"argumentDefinitions\":");
+                inputValues(b, dd.args());
+                b.append(",\"executableLocation\":");
+                strings(b, dd.execLocations());
+                b.append(",\"name\":");
+                ProtocolEmitter.str(b, dd.name());
+                b.append(",\"typeSystemLocation\":");
+                strings(b, dd.typeSystemLocations());
+                b.append('}');
+            }
+            case Gql.ScalarType st -> {
+                b.append("{\"_type\":\"scalarTypeDefinition\","
+                        + "\"directives\":");
+                directives(b, st.directives());
+                b.append(",\"name\":");
+                ProtocolEmitter.str(b, st.name());
+                b.append('}');
+            }
+            case Gql.InterfaceType it -> {
+                b.append("{\"_type\":\"interfaceTypeDefinition\","
+                        + "\"_implements\":");
+                strings(b, it.implementsList());
+                b.append(",\"directives\":");
+                directives(b, it.directives());
+                b.append(",\"fields\":");
+                fieldDefs(b, it.fields());
+                b.append(",\"name\":");
+                ProtocolEmitter.str(b, it.name());
+                b.append('}');
+            }
+            case Gql.UnionType ut -> {
+                b.append("{\"_type\":\"unionTypeDefinition\","
+                        + "\"directives\":");
+                directives(b, ut.directives());
+                b.append(",\"members\":");
+                strings(b, ut.members());
+                b.append(",\"name\":");
+                ProtocolEmitter.str(b, ut.name());
+                b.append('}');
+            }
+            case Gql.EnumType et -> {
+                b.append("{\"_type\":\"enumTypeDefinition\","
+                        + "\"directives\":");
+                directives(b, et.directives());
+                b.append(",\"name\":");
+                ProtocolEmitter.str(b, et.name());
+                b.append(",\"values\":[");
+                for (int i = 0; i < et.values().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    b.append("{\"directives\":");
+                    directives(b, et.values().get(i).directives());
+                    b.append(",\"value\":");
+                    ProtocolEmitter.str(b, et.values().get(i).value());
+                    b.append('}');
+                }
+                b.append("]}");
+            }
+            case Gql.InputObjectType iot -> {
+                b.append("{\"_type\":\"inputObjectTypeDefinition\","
+                        + "\"directives\":");
+                directives(b, iot.directives());
+                b.append(",\"fields\":");
+                inputValues(b, iot.fields());
+                b.append(",\"name\":");
+                ProtocolEmitter.str(b, iot.name());
+                b.append('}');
+            }
         }
+    }
+
+    private static void strings(StringBuilder b,
+            java.util.List<String> xs) {
+        b.append('[');
+        for (int i = 0; i < xs.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, xs.get(i));
+        }
+        b.append(']');
+    }
+
+    /** SDL field definitions ({@code argumentDefinitions, directives,
+     *  name, type} — no _type discriminator on the wire). */
+    private static void fieldDefs(StringBuilder b,
+            java.util.List<Gql.FieldDef> fields) {
+        b.append('[');
+        for (int i = 0; i < fields.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Gql.FieldDef fd = fields.get(i);
+            b.append("{\"argumentDefinitions\":");
+            inputValues(b, fd.args());
+            b.append(",\"directives\":");
+            directives(b, fd.directives());
+            b.append(",\"name\":");
+            ProtocolEmitter.str(b, fd.name());
+            b.append(",\"type\":");
+            typeRef(b, fd.type());
+            b.append('}');
+        }
+        b.append(']');
+    }
+
+    /** Input values ({@code [defaultValue,] directives, name, type} —
+     *  defaultValue only when present; no _type). */
+    private static void inputValues(StringBuilder b,
+            java.util.List<Gql.InputValueDef> ivs) {
+        b.append('[');
+        for (int i = 0; i < ivs.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Gql.InputValueDef iv = ivs.get(i);
+            b.append('{');
+            if (iv.defaultValue() != null) {
+                b.append("\"defaultValue\":");
+                value(b, iv.defaultValue());
+                b.append(',');
+            }
+            b.append("\"directives\":");
+            directives(b, iv.directives());
+            b.append(",\"name\":");
+            ProtocolEmitter.str(b, iv.name());
+            b.append(",\"type\":");
+            typeRef(b, iv.type());
+            b.append('}');
+        }
+        b.append(']');
     }
 
     private static void selections(StringBuilder b,
