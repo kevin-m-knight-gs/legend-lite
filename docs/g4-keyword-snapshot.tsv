@@ -62,7 +62,7 @@ DuplicateCount	Persistence	present
 Elasticsearch7Cluster	Elasticsearch	present
 Email	DataSpace,Persistence	present
 EmbeddedH2	DataSourceSpecification	queued-relational-flavors
-EncryptedPrivateKey	Authentication	queued-auth-module
+EncryptedPrivateKey	Authentication	present
 Enum	Domain	present
 EnumerationMapping	PureInstanceClassMapping,RelationFunctionMapping,Relational	present
 EnvironmentSecret	Authentication	queued-auth-module

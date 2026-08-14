@@ -3351,35 +3351,84 @@ public final class ProtocolEmitter {
     /** Split from connectionValue (method-shape guardrail). */
     private static void elasticsearchConnection(StringBuilder b,
             Protocol.PElasticsearchConnection ec) {
+        b.append("{\"_type\":\"elasticsearch7StoreConnection\","
+                + "\"authSpec\":");
+        esAuthSpec(b, ec.auth());
+        b.append(",\"element\":");
+        str(b, ec.element());
+        b.append(",\"elementSourceInformation\":");
+        srcInfo(b, ec.elementSourceInformation());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, ec.sourceInformation());
+        b.append(",\"sourceSpec\":{\"url\":");
+        str(b, ec.url());
+        b.append("}}");
+    }
 
-                b.append("{\"_type\":\"elasticsearch7StoreConnection\","
-                        + "\"authSpec\":{\"_type\":\"userPassword\","
-                        + "\"password\":{\"_type\":");
-                Protocol.PMongoSecret sec = ec.auth().password();
-                str(b, sec.kind());
-                if ("properties".equals(sec.kind())) {
-                    b.append(",\"").append(sec.fieldKey()).append("\":");
-                    str(b, sec.value());
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, sec.sourceInformation());
-                } else {
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, sec.sourceInformation());
-                    b.append(",\"").append(sec.fieldKey()).append("\":");
-                    str(b, sec.value());
-                }
-                b.append("},\"sourceInformation\":");
-                srcInfo(b, ec.auth().sourceInformation());
-                b.append(",\"username\":");
-                str(b, ec.auth().username());
-                b.append("},\"element\":");
-                str(b, ec.element());
-                b.append(",\"elementSourceInformation\":");
-                srcInfo(b, ec.elementSourceInformation());
+    /** One vault secret ({@code _type properties/systemproperties}); wire
+     *  fields sit alphabetically around sourceInformation. */
+    private static void vaultSecret(StringBuilder b,
+            Protocol.PMongoSecret sec) {
+        b.append("{\"_type\":");
+        str(b, sec.kind());
+        if ("properties".equals(sec.kind())) {
+            b.append(",\"").append(sec.fieldKey()).append("\":");
+            str(b, sec.value());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, sec.sourceInformation());
+        } else {
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, sec.sourceInformation());
+            b.append(",\"").append(sec.fieldKey()).append("\":");
+            str(b, sec.value());
+        }
+        b.append('}');
+    }
+
+    /** The authentication-module island wire (probed auth-wire
+     *  2026-08-14): userPassword / apiKey (location UPPERCASED) /
+     *  kerberos (empty) / encryptedPrivateKey. */
+    private static void esAuthSpec(StringBuilder b,
+            Protocol.PAuthSpecValue auth) {
+        switch (auth) {
+            case Protocol.PMongoAuth up -> {
+                b.append("{\"_type\":\"userPassword\",\"password\":");
+                vaultSecret(b, up.password());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, ec.sourceInformation());
-                b.append(",\"sourceSpec\":{\"url\":");
-                str(b, ec.url());
-                b.append("}}");
-                }
+                srcInfo(b, up.sourceInformation());
+                b.append(",\"username\":");
+                str(b, up.username());
+                b.append('}');
+            }
+            case Protocol.PApiKeyAuth ak -> {
+                b.append("{\"_type\":\"apiKey\",\"keyName\":");
+                str(b, ak.keyName());
+                b.append(",\"location\":");
+                str(b, ak.location());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ak.sourceInformation());
+                b.append(",\"value\":");
+                vaultSecret(b, ak.value());
+                b.append('}');
+            }
+            case Protocol.PKerberosAuth k -> {
+                b.append("{\"_type\":\"kerberos\","
+                        + "\"sourceInformation\":");
+                srcInfo(b, k.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PEpkAuth ek -> {
+                b.append("{\"_type\":\"encryptedPrivateKey\","
+                        + "\"passphrase\":");
+                vaultSecret(b, ek.passphrase());
+                b.append(",\"privateKey\":");
+                vaultSecret(b, ek.privateKey());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ek.sourceInformation());
+                b.append(",\"userName\":");
+                str(b, ek.userName());
+                b.append('}');
+            }
+        }
+    }
 }

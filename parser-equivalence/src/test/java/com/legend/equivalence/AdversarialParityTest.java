@@ -137,6 +137,21 @@ class AdversarialParityTest {
     }
 
     @Test
+    void esAuthKinds() {
+        // the auth-module island beyond UserPassword (probed auth-wire
+        // 2026-08-14): apiKey / kerberos / encryptedPrivateKey
+        String h = "###Connection\nElasticsearch7ClusterConnection a::C\n{\n"
+                + "  store: t::S;\n"
+                + "  clusterDetails: # URL { http://u.com:1 }#;\n"
+                + "  authentication: ";
+        runFamily("es-auth-kinds", List.of(
+                new Row("apiKey", h + "# ApiKey {\n    location: 'header';\n    keyName: 'key1';\n    value: SystemPropertiesSecret\n    {\n      systemPropertyName: 's';\n    };\n  }#;\n}\n"),
+                new Row("kerberos empty", h + "# Kerberos {\n  }#;\n}\n"),
+                new Row("encryptedPrivateKey", h + "# EncryptedPrivateKey {\n    userName: 'alice';\n    privateKey: PropertiesFileSecret\n    {\n      propertyName: 'p1';\n    };\n    passphrase: PropertiesFileSecret\n    {\n      propertyName: 'p2';\n    };\n  }#;\n}\n")),
+                0);
+    }
+
+    @Test
     void booleanColumnTypes() {
         // test-corpus audit F3: the engine refuses BOOLEAN/BOOL columns;
         // lite keeps them as a DECLARED extension on its own dialect, so

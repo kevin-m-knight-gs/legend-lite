@@ -1496,76 +1496,42 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
      *  engine's authentication module wire). */
     private static Protocol.PMongoAuth parseUserPasswordAuthIsland(
             TokenStreamCursor c, int keyTok) {
-        Protocol.PMongoAuth auth;
+        if (c.peek() != TokenType.ISLAND_OPEN) {
+            throw c.error("MongoDBConnection authentication must"
+                    + " be a # UserPassword {...}# island");
+        }
+        String kind = islandKind(c);
+        if (!"UserPassword".equals(kind)) {
+            throw c.error("unsupported MongoDB auth kind: " + kind);
+        }
+        return parseUserPasswordBody(c, keyTok);
+    }
 
-                    if (c.peek() != TokenType.ISLAND_OPEN) {
-                        throw c.error("MongoDBConnection authentication must"
-                                + " be a # UserPassword {...}# island");
-                    }
-                    String kind = islandKind(c);
-                    if (!"UserPassword".equals(kind)) {
-                        throw c.error("unsupported MongoDB auth kind: " + kind);
-                    }
-                    IslandParse ip = reLexIsland(c);
-                    Cursor ic = ip.cursor();
-                    String username = null;
-                    Protocol.PMongoSecret secret = null;
-                    while (!ic.atEnd()) {
-                        String ik = ic.parseIdentifier();
-                        ic.expect(TokenType.COLON);
-                        if ("username".equals(ik)) {
-                            username = SectionParse.stringValue(ic);
-                            ic.expect(TokenType.SEMI_COLON);
-                        } else if ("password".equals(ik)) {
-                            int vS = ic.pos();
-                            String sk = ic.parseIdentifier();
-                            String wireKind;
-                            String wireField;
-                            switch (sk) {
-                                case "PropertiesFileSecret" -> {
-                                    wireKind = "properties";
-                                    wireField = "propertyName";
-                                }
-                                case "SystemPropertiesSecret" -> {
-                                    wireKind = "systemproperties";
-                                    wireField = "systemPropertyName";
-                                }
-                                default -> throw ic.error(
-                                        "unsupported secret kind: " + sk);
-                            }
-                            ic.expect(TokenType.BRACE_OPEN);
-                            String fieldKey = ic.parseIdentifier();
-                            ic.expect(TokenType.COLON);
-                            String v = SectionParse.stringValue(ic);
-                            ic.expect(TokenType.SEMI_COLON);
-                            ic.expect(TokenType.BRACE_CLOSE);
-                            if (!wireField.equals(fieldKey)) {
-                                throw ic.error("unknown " + sk + " key: "
-                                        + fieldKey);
-                            }
-                            secret = new Protocol.PMongoSecret(wireKind,
-                                    wireField, v, ic.spanOf(vS, ic.pos() - 1));
-                            ic.expect(TokenType.SEMI_COLON);
-                        } else {
-                            throw ic.error("unknown UserPassword key: " + ik);
-                        }
-                    }
-                    if (username == null || secret == null) {
-                        throw c.error("UserPassword needs username and"
-                                + " password");
-                    }
-                    // the auth span is the island CONTENT region: it
-                    // STARTS at the first content token and its end
-                    // overshoots the island close by 3 — the reparse quirk
-                    // family PRelationData pins
-                    var aSp = c.spanOf(keyTok, ip.endTok());
-                    var firstTok = ip.cursor().spanOf(0, 0);
-                    auth = new Protocol.PMongoAuth(username, secret,
-                            new com.legend.protocol.SourceInfo("",
-                                    firstTok.startLine(),
-                                    firstTok.startColumn(),
-                                    aSp.endLine(), aSp.endColumn() + 3));
-                        return auth;
+    /** The {@code UserPassword} island BODY (kind already consumed) —
+     *  shared by the Mongo-restricted and the general (ES) auth paths. */
+    private static Protocol.PMongoAuth parseUserPasswordBody(
+            TokenStreamCursor c, int keyTok) {
+        IslandParse ip = reLexIsland(c);
+        Cursor ic = ip.cursor();
+        String username = null;
+        Protocol.PMongoSecret secret = null;
+        while (!ic.atEnd()) {
+            String ik = ic.parseIdentifier();
+            ic.expect(TokenType.COLON);
+            if ("username".equals(ik)) {
+                username = SectionParse.stringValue(ic);
+                ic.expect(TokenType.SEMI_COLON);
+            } else if ("password".equals(ik)) {
+                secret = parseVaultSecret(ic);
+            } else {
+                throw ic.error("unknown UserPassword key: " + ik);
+            }
+        }
+        if (username == null || secret == null) {
+            throw c.error("UserPassword needs username and password");
+        }
+        return new Protocol.PMongoAuth(username, secret,
+                authSpan(c, keyTok, ip));
     }
 
     /** {@code { store: qn; clusterDetails: # URL { <uri> }#;
@@ -1579,7 +1545,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         String element = null;
         com.legend.protocol.SourceInfo elementSpan = null;
         String url = null;
-        Protocol.PMongoAuth auth = null;
+        Protocol.PAuthSpecValue auth = null;
         java.util.Set<String> seenEs = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int keyTok = c.pos();
@@ -1634,7 +1600,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     }
                 }
                 case "authentication" ->
-                        auth = parseUserPasswordAuthIsland(c, keyTok);
+                        auth = parseEsAuthIsland(c, keyTok);
                 default -> throw c.error(
                         "unknown Elasticsearch7ClusterConnection key: "
                         + key);
@@ -1662,5 +1628,133 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 url, auth, new com.legend.protocol.SourceInfo(vs.sourceId(),
                         vs.startLine(), vs.startColumn(), vs.endLine(),
                         vs.endColumn() + 4));
+    }
+
+    /** One {@code <Kind>Secret { field: 'v'; }} vault secret. */
+    private static Protocol.PMongoSecret parseVaultSecret(Cursor ic) {
+        int vS = ic.pos();
+        String sk = ic.parseIdentifier();
+        String wireKind;
+        String wireField;
+        switch (sk) {
+            case "PropertiesFileSecret" -> {
+                wireKind = "properties";
+                wireField = "propertyName";
+            }
+            case "SystemPropertiesSecret" -> {
+                wireKind = "systemproperties";
+                wireField = "systemPropertyName";
+            }
+            default -> throw ic.error("unsupported secret kind: " + sk);
+        }
+        ic.expect(TokenType.BRACE_OPEN);
+        String fieldKey = ic.parseIdentifier();
+        ic.expect(TokenType.COLON);
+        String v = SectionParse.stringValue(ic);
+        ic.expect(TokenType.SEMI_COLON);
+        ic.expect(TokenType.BRACE_CLOSE);
+        if (!wireField.equals(fieldKey)) {
+            throw ic.error("unknown " + sk + " key: " + fieldKey);
+        }
+        Protocol.PMongoSecret secret = new Protocol.PMongoSecret(wireKind,
+                wireField, v, ic.spanOf(vS, ic.pos() - 1));
+        ic.expect(TokenType.SEMI_COLON);
+        return secret;
+    }
+
+    /** The auth-island CONTENT span: first content token through the
+     *  island close +3 (the reparse overshoot family); an EMPTY island
+     *  anchors at its own '}#' (probed # Kerberos {}#: 7:3..7:7). */
+    private static com.legend.protocol.SourceInfo authSpan(
+            TokenStreamCursor c, int keyTok, IslandParse ip) {
+        var aSp = c.spanOf(keyTok, ip.endTok());
+        if (ip.cursor().tokens().count() == 0) {
+            return new com.legend.protocol.SourceInfo("",
+                    c.tokens().startLine(ip.endTok()),
+                    c.tokens().startColumn(ip.endTok()),
+                    aSp.endLine(), aSp.endColumn() + 3);
+        }
+        var firstTok = ip.cursor().spanOf(0, 0);
+        return new com.legend.protocol.SourceInfo("", firstTok.startLine(),
+                firstTok.startColumn(), aSp.endLine(), aSp.endColumn() + 3);
+    }
+
+    /** The GENERAL authentication island for stores whose walker accepts
+     *  any registered auth spec (Elasticsearch; probed 2026-08-14 —
+     *  ApiKey/Kerberos/EncryptedPrivateKey beyond UserPassword). */
+    private static Protocol.PAuthSpecValue parseEsAuthIsland(
+            TokenStreamCursor c, int keyTok) {
+        if (c.peek() != TokenType.ISLAND_OPEN) {
+            throw c.error("authentication must be a # <Kind> {...}# island");
+        }
+        String kind = islandKind(c);
+        return switch (kind) {
+            case "UserPassword" -> parseUserPasswordBody(c, keyTok);
+            case "Kerberos" -> {
+                IslandParse ip = reLexIsland(c);
+                if (!ip.cursor().atEnd()) {
+                    throw c.error("Kerberos auth takes no fields");
+                }
+                yield new Protocol.PKerberosAuth(authSpan(c, keyTok, ip));
+            }
+            case "ApiKey" -> {
+                IslandParse ip = reLexIsland(c);
+                Cursor ic = ip.cursor();
+                String location = null;
+                String keyName = null;
+                Protocol.PMongoSecret value = null;
+                while (!ic.atEnd()) {
+                    String ik = ic.parseIdentifier();
+                    ic.expect(TokenType.COLON);
+                    switch (ik) {
+                        case "location" -> {
+                            location = SectionParse.stringValue(ic)
+                                    .toUpperCase(java.util.Locale.ROOT);
+                            ic.expect(TokenType.SEMI_COLON);
+                        }
+                        case "keyName" -> {
+                            keyName = SectionParse.stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                        }
+                        case "value" -> value = parseVaultSecret(ic);
+                        default -> throw ic.error("unknown ApiKey key: " + ik);
+                    }
+                }
+                if (location == null || keyName == null || value == null) {
+                    throw c.error("ApiKey needs location, keyName and value");
+                }
+                yield new Protocol.PApiKeyAuth(keyName, location, value,
+                        authSpan(c, keyTok, ip));
+            }
+            case "EncryptedPrivateKey" -> {
+                IslandParse ip = reLexIsland(c);
+                Cursor ic = ip.cursor();
+                String userName = null;
+                Protocol.PMongoSecret privateKey = null;
+                Protocol.PMongoSecret passphrase = null;
+                while (!ic.atEnd()) {
+                    String ik = ic.parseIdentifier();
+                    ic.expect(TokenType.COLON);
+                    switch (ik) {
+                        case "userName" -> {
+                            userName = SectionParse.stringValue(ic);
+                            ic.expect(TokenType.SEMI_COLON);
+                        }
+                        case "privateKey" -> privateKey = parseVaultSecret(ic);
+                        case "passphrase" -> passphrase = parseVaultSecret(ic);
+                        default -> throw ic.error(
+                                "unknown EncryptedPrivateKey key: " + ik);
+                    }
+                }
+                if (userName == null || privateKey == null
+                        || passphrase == null) {
+                    throw c.error("EncryptedPrivateKey needs userName,"
+                            + " privateKey and passphrase");
+                }
+                yield new Protocol.PEpkAuth(userName, privateKey, passphrase,
+                        authSpan(c, keyTok, ip));
+            }
+            default -> throw c.error("unsupported auth island kind: " + kind);
+        };
     }
 }

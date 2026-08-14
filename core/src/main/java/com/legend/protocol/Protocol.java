@@ -1966,7 +1966,7 @@ public final class Protocol {
      *  wire (C12 ES leg; wire probed live). */
     public record PElasticsearchConnection(String element,
                                com.legend.protocol.SourceInfo elementSourceInformation,
-                               String url, PMongoAuth auth,
+                               String url, PAuthSpecValue auth,
                                com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
     }
@@ -2014,8 +2014,35 @@ public final class Protocol {
     /** {@code # UserPassword { username; password: <Kind>Secret {...}; }#} —
      *  {@code _type:"userPassword"}; span = the {@code authentication} key
      *  through the island close. */
+    /** An authentication-module island value ({@code # <Kind> {...}#}) —
+     *  the kinds the ORACLE's registered extensions accept (probed:
+     *  UserPassword, ApiKey, Kerberos, EncryptedPrivateKey). */
+    public sealed interface PAuthSpecValue
+            permits PMongoAuth, PApiKeyAuth, PKerberosAuth, PEpkAuth {
+    }
+
+    /** {@code _type:"apiKey"} — location is UPPERCASED on the wire. */
+    public record PApiKeyAuth(String keyName, String location,
+                              PMongoSecret value,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthSpecValue {
+    }
+
+    /** {@code _type:"kerberos"} — empty body. */
+    public record PKerberosAuth(com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthSpecValue {
+    }
+
+    /** {@code _type:"encryptedPrivateKey"}. */
+    public record PEpkAuth(String userName, PMongoSecret privateKey,
+                           PMongoSecret passphrase,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthSpecValue {
+    }
+
     public record PMongoAuth(String username, PMongoSecret password,
-                             com.legend.protocol.SourceInfo sourceInformation) {
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthSpecValue {
     }
 
     /** A secret reference: {@code kind} is the wire discriminator
