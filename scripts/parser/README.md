@@ -1,0 +1,136 @@
+# Parser completeness
+
+A harness that answers one question: **is legend-lite's parser complete, and does it refuse
+exactly what legend-engine refuses?**
+
+## Why this exists separately from the corpus
+
+The stress corpus tests what happens *after* parsing — mappings, execution paths, results
+against real databases. It is very good at that and structurally blind to this: a construct
+nobody happened to write is invisible to it. Thirty-plus files, 89 services, 210 tables, and
+it had never written `let`, `Schema`, `or`, or `is null`.
+
+There is also a keyword census in parser-equivalence, and it answers a different question —
+*does this keyword appear anywhere in legend-engine's own corpus*. That is the right
+denominator for "has the parity harness seen this grammar arm" and the wrong one for "is the
+parser complete": ninety percent of upstream's fixtures says nothing about the other ten
+percent of the grammar.
+
+This measures the **grammar** directly, and grades coverage on fixtures that parse.
+
+## Running it
+
+```
+cd scripts/parser
+python3 fixtures.py            # coverage + both harnesses; exit non-zero on any problem
+python3 fixtures.py --gaps     # what is still missing, by grammar
+python3 keywords.py --tier1    # the raw keyword census, no fixtures involved
+```
+
+Needs `tools/engine-runner` built (see its README). Everything runs in one JVM.
+
+## What counts as coverage
+
+A keyword counts when a fixture **parses** and claims it:
+
+```
+// COVERS RelationalLexerGrammar: Schema, TabularFunction, MultiGrainFilter
+```
+
+The claim is checked three ways — the grammar must exist, the keyword must be one of *its*
+keywords, and the fixture's own code must contain it outside comments and string literals. A
+declaration that lies fails before it can inflate anything.
+
+`COVERS-EMBEDDED` is the same thing for sub-grammars whose input *is* a string literal.
+FlatData is written inside the quoted `content:` of a SchemaSet and its `.g4` re-declares
+`STRING` and `BRACE_OPEN` precisely so it can parse standalone; for that grammar the string
+body is not prose around code, it is the code.
+
+Existing sources count too, attributed by `###Section`, so nobody re-authors a fixture for
+`Database` because the stress corpus happens to spell it. Section attribution is not an
+approximation of legend-engine's routing — the section is where it dispatches to a grammar.
+
+**Parse, not compile.** A fixture exercising `~distinct` does not need a runtime, a
+connection and seeded data to prove the parser accepts `~distinct`. Demanding compilation
+would make every fixture ten times the size and make the coverage number quietly depend on
+the compiler, which is the next stage's problem.
+
+## Negative fixtures
+
+`negative/` holds constructs that **must** be rejected, and each declares why:
+
+```
+// REJECTS: Field 'auth' should be specified only once
+```
+
+checked as a substring of the parser's actual message. This is not ceremony. A negative
+fixture asserting only "this was rejected" is satisfiable by a typo, and would keep passing
+forever while the construct it guards quietly started working.
+
+It also guards a failure mode that is easy to miss: **a missing grammar extension makes any
+content in that section look correctly rejected.** Four vendor grammar extensions really
+were absent from the runner classpath, and `specification: Athena` was failing with
+"Unsupported Data Source Specification type" — a packaging gap wearing a grammar limit's
+clothes. Pinning the message is what distinguishes the two.
+
+## The denominator, and what is excluded from it
+
+Not every declared keyword is reachable. Three categories are excluded, each with evidence
+recorded in `tiers.py` rather than asserted:
+
+- **Out of scope** — grammars no user can reach by typing into a `.pure` file. Haskell,
+  Protobuf3, MongoDBQuery, SqlBase: none registers a `SectionParser` or an
+  `EmbeddedPureParser`. Each was traced to its only non-test caller.
+- **Dead tokens** — declared by a lexer, referenced by no parser rule. Found mechanically
+  via ANTLR's `tokenVocab` link. `AuthenticationStrategyLexerGrammar` has ten.
+- **Walker-rejected** — a parser rule exists, the tree builds, the walker refuses. `native`,
+  `projects`, `allVersionsInRange`, GraphQL `extend`, `EqualToTDS`. Every one confirmed by
+  running it, not by reading.
+
+A target containing keywords no fixture can cover makes 100% impossible and turns the number
+into a permanent accusation instead of a goal. All three categories are pinned by negative
+fixtures instead — legend-lite must refuse them too, and if upstream ever makes one *work*,
+the negative fixture fails and says so.
+
+## Things that went wrong, kept here so they do not recur
+
+Every correction to this measurement has moved the number **down**. That is the direction to
+expect when a measurement stops flattering itself, and a correction that moves it up
+deserves suspicion.
+
+| Bug | Effect |
+|---|---|
+| counted keywords in comments and `###Data` payloads | 186 → 122 |
+| credited a keyword to a grammar whose section did not define it | 97 → 83 |
+| word boundaries applied unconditionally | `->subType(@` uncoverable by construction |
+| composite token `'include '[a-z]+' '` kept only its first fragment | `include` uncoverable |
+| GraphQL byte-order marks harvested as keywords | demanded fixtures for a file encoding |
+| grammars keyed by file stem | two Snowflake grammars merged into one bucket |
+
+One tool was **built and discarded**: a rule-reachability detector meant to find dead parser
+rules. It claimed `UserNamePassword` was unreachable, which a passing fixture disproves —
+these grammars have no `definition` rule, their entry points are invoked from Java, so
+reachability needs roots that cannot be derived from the `.g4` alone. A false "unreachable"
+silently shrinks the denominator, which is the one direction this harness must never move on
+its own. The token-level `tokenVocab` check survives because it only claims dead when no
+parser text mentions the token at all.
+
+Also worth knowing: `$s->toBytes()` in a function body parses, but lexes as an ordinary
+function call rather than M3's `TO_BYTES` token, which is reachable only from
+`primitiveValueAtomic` — test parameters and `EqualTo` expected values. The `COVERS` check
+proves the text is present, not which token it became. That residual gap is real; fixtures
+narrow it because they are one section each, but they do not close it.
+
+## Layout
+
+```
+keywords.py   harvest the grammar surface; dead-token detection; the raw census
+tiers.py      what is in scope and why; the exclusions and their evidence
+fixtures.py   run both harnesses, recompute coverage from fixtures that parse
+fixtures/     positive fixtures, each declaring COVERS
+negative/     must-be-rejected fixtures, each declaring REJECTS
+```
+
+`ParseMain` (in `tools/engine-runner`) parses each file individually and reports a per-file
+verdict; `--expect-fail` inverts it for the negative corpus. An empty run exits non-zero,
+because a mistyped path reporting "0 wrong" would read as success.
