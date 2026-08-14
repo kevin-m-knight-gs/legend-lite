@@ -899,6 +899,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield parseSqliteSpec(c, keywordTok);
             }
             case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
+            case "Redshift" -> parseRedshiftSpec(c, keywordTok);
+            case "Trino" -> parseTrinoSpec(c, keywordTok);
             case "Spanner" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 String projectId = null;
@@ -967,6 +969,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 c.expect(TokenType.BRACE_OPEN);
                 String projectId = null;
                 String defaultDataset = null;
+                String bqProxyHost = null;
+                String bqProxyPort = null;
                 java.util.Set<String> seenKeys14 = new java.util.HashSet<>();
                 while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                     String key = c.parseIdentifier();
@@ -975,6 +979,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     switch (key) {
                         case "projectId" -> projectId = SectionParse.stringValue(c);
                         case "defaultDataset" -> defaultDataset = SectionParse.stringValue(c);
+                        case "proxyHost" -> bqProxyHost = SectionParse.stringValue(c);
+                        case "proxyPort" -> bqProxyPort = stringOrInt(c);
                         default -> throw c.error("unknown BigQuery key: " + key);
                     }
                     c.expect(TokenType.SEMI_COLON);
@@ -985,6 +991,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     throw c.error("BigQuery needs projectId and defaultDataset");
                 }
                 yield new Protocol.PBigQuerySpec(defaultDataset, projectId,
+                        bqProxyHost, bqProxyPort,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
             default -> throw c.error("unsupported datasource specification: "
@@ -1220,44 +1227,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PMiddleTierUserNamePassword(vaultReference,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
-            case "GCPWorkloadIdentityFederation" -> {
-                c.expect(TokenType.BRACE_OPEN);
-                String serviceAccountEmail = null;
-                List<String> scopes = null;
-                java.util.Set<String> seenWif = new java.util.HashSet<>();
-                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
-                    String k = c.parseIdentifier();
-                    TokenStreamCursor.once(seenWif, k, c, keywordTok);
-                    c.expect(TokenType.COLON);
-                    switch (k) {
-                        case "serviceAccountEmail" ->
-                                serviceAccountEmail = SectionParse.stringValue(c);
-                        case "additionalGcpScopes" -> {
-                            scopes = new ArrayList<>();
-                            c.expect(TokenType.BRACKET_OPEN);
-                            while (c.peek() != TokenType.BRACKET_CLOSE) {
-                                scopes.add(SectionParse.stringValue(c));
-                                if (!c.match(TokenType.COMMA)) {
-                                    break;
-                                }
-                            }
-                            c.expect(TokenType.BRACKET_CLOSE);
-                        }
-                        default -> throw c.error(
-                                "unknown GCPWorkloadIdentityFederation key: "
-                                + k);
-                    }
-                    c.expect(TokenType.SEMI_COLON);
-                }
-                c.expect(TokenType.BRACE_CLOSE);
-                c.expect(TokenType.SEMI_COLON);
-                if (serviceAccountEmail == null) {
-                    throw c.error("GCPWorkloadIdentityFederation needs"
-                            + " serviceAccountEmail");
-                }
-                yield new Protocol.PGcpWifAuth(scopes, serviceAccountEmail,
-                        c.spanOf(keywordTok, c.pos() - 1));
-            }
+            case "TrinoDelegatedKerberos" ->
+                    parseTrinoKerberosAuth(c, keywordTok);
+            case "GCPWorkloadIdentityFederation" ->
+                    parseGcpWifAuth(c, keywordTok);
             default -> throw c.error("unsupported auth strategy: " + kind
                     + " (corpus-censused shapes only)");
         };
@@ -1377,6 +1350,180 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         organization, proxyHost, proxyPort,
                         quotedIdentifiersIgnoreCase, region, role,
                         tempTableDb, tempTableSchema, warehouse,
+                        c.spanOf(keywordTok, c.pos() - 1));
+                }
+
+    /** {@code Redshift { name; host; port; clusterID; region;
+     *  endpointURL; }} — engine grammar (census C12 flavor leg). */
+    private static Protocol.PRedshiftSpec parseRedshiftSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String name = null;
+        String host = null;
+        Long port = null;
+        String clusterID = null;
+        String region = null;
+        String endpointURL = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "name" -> name = SectionParse.stringValue(c);
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> port = c.consumeLong();
+                case "clusterID" -> clusterID = SectionParse.stringValue(c);
+                case "region" -> region = SectionParse.stringValue(c);
+                case "endpointURL" -> endpointURL = SectionParse.stringValue(c);
+                default -> throw c.error("unknown Redshift key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (name == null || host == null || port == null || clusterID == null
+                || region == null) {
+            throw c.error("Redshift needs name, host, port, clusterID"
+                    + " and region");
+        }
+        return new Protocol.PRedshiftSpec(clusterID, name, endpointURL, host,
+                port, region, c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code Trino { host; port; catalog?; schema?; clientTags?;
+     *  sslSpecification: {...}?; }} (census C12 flavor leg). */
+    private static Protocol.PTrinoSpec parseTrinoSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String host = null;
+        Long port = null;
+        String catalog = null;
+        String schema = null;
+        String clientTags = null;
+        Protocol.PTrinoSsl ssl = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> port = c.consumeLong();
+                case "catalog" -> catalog = SectionParse.stringValue(c);
+                case "schema" -> schema = SectionParse.stringValue(c);
+                case "clientTags" -> clientTags = SectionParse.stringValue(c);
+                case "sslSpecification" -> {
+                    c.expect(TokenType.BRACE_OPEN);
+                    Boolean sslFlag = null;
+                    String tsPath = null;
+                    String tsPass = null;
+                    java.util.Set<String> seenSsl = new java.util.HashSet<>();
+                    while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                        String sk = c.parseIdentifier();
+                        TokenStreamCursor.once(seenSsl, sk, c, keywordTok);
+                        c.expect(TokenType.COLON);
+                        switch (sk) {
+                            case "ssl" -> sslFlag = parseBoolean(c);
+                            case "trustStorePathVaultReference" ->
+                                    tsPath = SectionParse.stringValue(c);
+                            case "trustStorePasswordVaultReference" ->
+                                    tsPass = SectionParse.stringValue(c);
+                            default -> throw c.error(
+                                    "unknown sslSpecification key: " + sk);
+                        }
+                        c.expect(TokenType.SEMI_COLON);
+                    }
+                    c.expect(TokenType.BRACE_CLOSE);
+                    if (sslFlag == null) {
+                        throw c.error("sslSpecification needs ssl");
+                    }
+                    ssl = new Protocol.PTrinoSsl(sslFlag, tsPath, tsPass);
+                }
+                default -> throw c.error("unknown Trino key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (host == null || port == null) {
+            throw c.error("Trino needs host and port");
+        }
+        return new Protocol.PTrinoSpec(catalog, clientTags, host, port,
+                schema, ssl, c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** Split from parseAuthStrategy (method-shape guardrail). */
+    private static Protocol.PTrinoKerberosAuth parseTrinoKerberosAuth(
+            TokenStreamCursor c, int keywordTok) {
+
+                c.expect(TokenType.BRACE_OPEN);
+                String remoteService = null;
+                Boolean canonical = null;
+                String serverPrincipal = null;
+                java.util.Set<String> seenTk = new java.util.HashSet<>();
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String k = c.parseIdentifier();
+                    TokenStreamCursor.once(seenTk, k, c, keywordTok);
+                    c.expect(TokenType.COLON);
+                    switch (k) {
+                        case "kerberosRemoteServiceName" ->
+                                remoteService = SectionParse.stringValue(c);
+                        case "kerberosUseCanonicalHostname" ->
+                                canonical = parseBoolean(c);
+                        case "serverPrincipal" ->
+                                serverPrincipal = SectionParse.stringValue(c);
+                        default -> throw c.error(
+                                "unknown TrinoDelegatedKerberos key: " + k);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                return new Protocol.PTrinoKerberosAuth(remoteService,
+                        canonical, serverPrincipal,
+                        c.spanOf(keywordTok, c.pos() - 1));
+                }
+
+    /** Split from parseAuthStrategy (method-shape guardrail). */
+    private static Protocol.PGcpWifAuth parseGcpWifAuth(
+            TokenStreamCursor c, int keywordTok) {
+
+                c.expect(TokenType.BRACE_OPEN);
+                String serviceAccountEmail = null;
+                List<String> scopes = null;
+                java.util.Set<String> seenWif = new java.util.HashSet<>();
+                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                    String k = c.parseIdentifier();
+                    TokenStreamCursor.once(seenWif, k, c, keywordTok);
+                    c.expect(TokenType.COLON);
+                    switch (k) {
+                        case "serviceAccountEmail" ->
+                                serviceAccountEmail = SectionParse.stringValue(c);
+                        case "additionalGcpScopes" -> {
+                            scopes = new ArrayList<>();
+                            c.expect(TokenType.BRACKET_OPEN);
+                            while (c.peek() != TokenType.BRACKET_CLOSE) {
+                                scopes.add(SectionParse.stringValue(c));
+                                if (!c.match(TokenType.COMMA)) {
+                                    break;
+                                }
+                            }
+                            c.expect(TokenType.BRACKET_CLOSE);
+                        }
+                        default -> throw c.error(
+                                "unknown GCPWorkloadIdentityFederation key: "
+                                + k);
+                    }
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                c.expect(TokenType.BRACE_CLOSE);
+                c.expect(TokenType.SEMI_COLON);
+                if (serviceAccountEmail == null) {
+                    throw c.error("GCPWorkloadIdentityFederation needs"
+                            + " serviceAccountEmail");
+                }
+                return new Protocol.PGcpWifAuth(scopes, serviceAccountEmail,
                         c.spanOf(keywordTok, c.pos() - 1));
                 }
 }

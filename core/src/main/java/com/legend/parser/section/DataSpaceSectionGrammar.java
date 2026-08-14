@@ -75,6 +75,7 @@ public final class DataSpaceSectionGrammar
         String description = null;
         List<Protocol.PDataSpaceExecutable> executables = null;
         List<Protocol.PDataSpaceDiagram> diagrams = null;
+        List<Protocol.PDataSpaceDiagram> featuredDiagrams = new ArrayList<>();
         Protocol.PDataSpaceSupport supportInfo = null;
         List<Protocol.PDataSpaceElementRef> elements = null;
 
@@ -84,6 +85,32 @@ public final class DataSpaceSectionGrammar
             TokenStreamCursor.once(seenKeys, key, c, declStart);
             c.expect(TokenType.COLON);
             switch (key) {
+                case "groupId", "artifactId", "versionId" -> {
+                    // parsed and DROPPED: the engine grammar admits these
+                    // deprecated coordinates but its walker never reads
+                    // them (C12 TestDataSpaceGrammarRoundtrip#7)
+                    SectionParse.stringValue(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "featuredDiagrams" -> {
+                    // deprecated alias: each path becomes a diagram entry
+                    // with an EMPTY title, spans = the path; the walker
+                    // APPENDS featured after declared diagrams
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        int ds = c.pos();
+                        String path = Protocol.unquotePath(
+                                c.parseQualifiedName());
+                        var span = c.spanOf(ds, c.pos() - 1);
+                        featuredDiagrams.add(new Protocol.PDataSpaceDiagram(
+                                "", null, path, span, span));
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    c.expect(TokenType.SEMI_COLON);
+                }
                 case "executionContexts" -> parseContexts(c, contexts);
                 case "defaultExecutionContext" -> {
                     defaultContext = SectionParse.stringValue(c);
@@ -140,9 +167,18 @@ public final class DataSpaceSectionGrammar
             throw TokenStreamCursor.throwAt(c.tokens(), declStart,
                     "Field 'defaultExecutionContext' is required");
         }
+        List<Protocol.PDataSpaceDiagram> mergedDiagrams = diagrams;
+        if (!featuredDiagrams.isEmpty()) {
+            mergedDiagrams = mergedDiagrams == null
+                    ? featuredDiagrams
+                    : new ArrayList<>(mergedDiagrams);
+            if (mergedDiagrams != featuredDiagrams) {
+                mergedDiagrams.addAll(featuredDiagrams);
+            }
+        }
         return new Protocol.PDataSpace(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), contexts, defaultContext, title,
-                description, executables, diagrams, supportInfo,
+                description, executables, mergedDiagrams, supportInfo,
                 elements, c.spanOf(declStart, c.pos() - 1));
     }
 
@@ -292,8 +328,16 @@ public final class DataSpaceSectionGrammar
                     // ids appear as bare identifiers AND integers — the
                     // wire stringifies both
                     case "id" -> {
-                        id = c.safeText();
-                        c.advance();
+                        // ids can be digit-PREFIXED (2Id) — the engine
+                        // lexes that as INTEGER + identifier and the walker
+                        // concatenates (C12 TestDataSpaceGrammarParser#68)
+                        StringBuilder idb = new StringBuilder();
+                        while (!c.atEnd()
+                                && c.peek() != TokenType.SEMI_COLON) {
+                            idb.append(c.safeText());
+                            c.advance();
+                        }
+                        id = idb.toString();
                     }
                     case "title" -> title = SectionParse.stringValue(c);
                     case "description" -> description = SectionParse.stringValue(c);

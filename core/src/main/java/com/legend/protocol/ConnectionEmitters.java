@@ -93,6 +93,24 @@ final class ConnectionEmitters {
                 str(b, m.vaultReference());
                 b.append('}');
             }
+            case Protocol.PTrinoKerberosAuth k -> {
+                b.append("{\"_type\":\"TrinoDelegatedKerberosAuth\"");
+                if (k.kerberosRemoteServiceName() != null) {
+                    b.append(",\"kerberosRemoteServiceName\":");
+                    str(b, k.kerberosRemoteServiceName());
+                }
+                if (k.kerberosUseCanonicalHostname() != null) {
+                    b.append(",\"kerberosUseCanonicalHostname\":")
+                            .append(k.kerberosUseCanonicalHostname());
+                }
+                if (k.serverPrincipal() != null) {
+                    b.append(",\"serverPrincipal\":");
+                    str(b, k.serverPrincipal());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, k.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PGcpWifAuth w -> {
                 b.append("{\"_type\":\"gcpWorkloadIdentityFederation\"");
                 if (w.additionalGcpScopes() != null) {
@@ -259,6 +277,62 @@ final class ConnectionEmitters {
                 srcInfo(b, s.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PRedshiftSpec s -> {
+                b.append("{\"_type\":\"redshift\",\"clusterID\":");
+                str(b, s.clusterID());
+                b.append(",\"databaseName\":");
+                str(b, s.databaseName());
+                if (s.endpointURL() != null) {
+                    b.append(",\"endpointURL\":");
+                    str(b, s.endpointURL());
+                }
+                b.append(",\"host\":");
+                str(b, s.host());
+                b.append(",\"port\":").append(s.port());
+                b.append(",\"region\":");
+                str(b, s.region());
+                // the redshift extension's wire OMITS sourceInformation
+                // (C12 byte pin)
+                b.append('}');
+            }
+            case Protocol.PTrinoSpec s -> {
+                b.append("{\"_type\":\"Trino\"");
+                if (s.catalog() != null) {
+                    b.append(",\"catalog\":");
+                    str(b, s.catalog());
+                }
+                if (s.clientTags() != null) {
+                    b.append(",\"clientTags\":");
+                    str(b, s.clientTags());
+                }
+                b.append(",\"host\":");
+                str(b, s.host());
+                b.append(",\"port\":").append(s.port());
+                if (s.schema() != null) {
+                    b.append(",\"schema\":");
+                    str(b, s.schema());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                if (s.sslSpecification() != null) {
+                    b.append(",\"sslSpecification\":{\"ssl\":")
+                            .append(s.sslSpecification().ssl());
+                    if (s.sslSpecification()
+                            .trustStorePasswordVaultReference() != null) {
+                        b.append(",\"trustStorePasswordVaultReference\":");
+                        str(b, s.sslSpecification()
+                                .trustStorePasswordVaultReference());
+                    }
+                    if (s.sslSpecification()
+                            .trustStorePathVaultReference() != null) {
+                        b.append(",\"trustStorePathVaultReference\":");
+                        str(b, s.sslSpecification()
+                                .trustStorePathVaultReference());
+                    }
+                    b.append('}');
+                }
+                b.append('}');
+            }
             case Protocol.PDatabricksSpec s -> {
                 b.append("{\"_type\":\"databricks\",\"hostname\":");
                 str(b, s.hostname());
@@ -277,6 +351,14 @@ final class ConnectionEmitters {
                 str(b, s.defaultDataset());
                 b.append(",\"projectId\":");
                 str(b, s.projectId());
+                if (s.proxyHost() != null) {
+                    b.append(",\"proxyHost\":");
+                    str(b, s.proxyHost());
+                }
+                if (s.proxyPort() != null) {
+                    b.append(",\"proxyPort\":");
+                    str(b, s.proxyPort());
+                }
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, s.sourceInformation());
                 b.append('}');

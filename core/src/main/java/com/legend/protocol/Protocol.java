@@ -1703,7 +1703,8 @@ public final class Protocol {
                               @com.legend.Nullable String title,
                               @com.legend.Nullable String description,
                               @com.legend.Nullable Long minLength,
-                              @com.legend.Nullable Long maxLength) {
+                              @com.legend.Nullable Long maxLength,
+                              @com.legend.Nullable List<PBsonSchema> items) {
     }
 
     /** {@code ###MongoDB} database (ZTailProbe "mongo-db"/"mongo-rich"):
@@ -1754,7 +1755,8 @@ public final class Protocol {
     /** One {@code validations:} entry of a relation validation. */
     public record PDqRelationCheck(String name,
                                    @com.legend.Nullable String description,
-                                   com.legend.protocol.spec.ValueSpecification assertion) {
+                                   com.legend.protocol.spec.ValueSpecification assertion,
+                                   @com.legend.Nullable String type) {
     }
 
     /** {@code DataQualityRelationValidation} (ZTailProbe
@@ -1779,6 +1781,8 @@ public final class Protocol {
                                                  com.legend.protocol.spec.ValueSpecification source,
                                                  com.legend.protocol.spec.ValueSpecification target,
                                                  List<String> keys,
+                                                 List<String> columnsToCompare,
+                                                 @com.legend.Nullable Double expectedMatch,
                                                  PReconStrategy strategy,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
@@ -1938,7 +1942,8 @@ public final class Protocol {
 
     /** A typeless store pointer inside connectionStores. */
     public record PStorePointer(String path,
-                                com.legend.protocol.SourceInfo sourceInformation) {
+                                com.legend.protocol.SourceInfo sourceInformation,
+                                @com.legend.Nullable String type) {
     }
 
     /** A connection VALUE: a pointer, or a concrete connection (standalone
@@ -2112,7 +2117,8 @@ public final class Protocol {
      *  shape — {@link ProtocolEmitter} refuses them loudly. */
     public sealed interface PDatasourceSpec
             permits PH2Local, PStaticSpec, PDuckDBSpec, PSQLiteSpec,
-            PSnowflakeSpec, PSpannerSpec, PDatabricksSpec, PBigQuerySpec {
+            PSnowflakeSpec, PSpannerSpec, PDatabricksSpec, PBigQuerySpec,
+            PRedshiftSpec, PTrinoSpec {
     }
 
     /** {@code _type:"duckDB"} — the engine's DuckDB datasource spec
@@ -2165,6 +2171,40 @@ public final class Protocol {
             implements PDatasourceSpec {
     }
 
+    /** {@code _type:"redshift"} (census queued-relational-flavors). */
+    public record PRedshiftSpec(String clusterID, String databaseName,
+                                @com.legend.Nullable String endpointURL,
+                                String host, long port, String region,
+                                com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"Trino"} — capitalized on the wire (census
+     *  queued-relational-flavors). */
+    public record PTrinoSpec(@com.legend.Nullable String catalog,
+                             @com.legend.Nullable String clientTags,
+                             String host, long port,
+                             @com.legend.Nullable String schema,
+                             @com.legend.Nullable PTrinoSsl sslSpecification,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** Trino {@code sslSpecification { ssl; trustStore...; }}. */
+    public record PTrinoSsl(boolean ssl,
+                            @com.legend.Nullable String trustStorePathVaultReference,
+                            @com.legend.Nullable String trustStorePasswordVaultReference) {
+    }
+
+    /** {@code _type:"TrinoDelegatedKerberosAuth"} (census C12 flavor). */
+    public record PTrinoKerberosAuth(
+            @com.legend.Nullable String kerberosRemoteServiceName,
+            @com.legend.Nullable Boolean kerberosUseCanonicalHostname,
+            @com.legend.Nullable String serverPrincipal,
+            com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
     /** {@code _type:"gcpWorkloadIdentityFederation"} (census
      *  queued-relational-flavors, C12 sentinel). */
     public record PGcpWifAuth(@com.legend.Nullable List<String> additionalGcpScopes,
@@ -2183,6 +2223,8 @@ public final class Protocol {
 
     /** {@code _type:"bigQuery"} (probe ZConnWidenProbe). */
     public record PBigQuerySpec(String defaultDataset, String projectId,
+                                @com.legend.Nullable String proxyHost,
+                                @com.legend.Nullable String proxyPort,
                                 com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2211,7 +2253,7 @@ public final class Protocol {
             permits PH2Default, PTestAuth, PDelegatedKerberos,
             PUserNamePassword, POAuth,
             PSnowflakePublic, PGCPApplicationDefaultCredentials, PApiToken,
-            PMiddleTierUserNamePassword, PGcpWifAuth {
+            PMiddleTierUserNamePassword, PGcpWifAuth, PTrinoKerberosAuth {
     }
 
     /** {@code _type:"oauth"} — oauthKey + scopeName, both required

@@ -259,12 +259,26 @@ final class TailEmitter {
                 .append("\",\"_enum\":[]");
         boolean isObject = "schema".equals(s.wireType())
                 || "objectType".equals(s.wireType());
+        if ("arrayType".equals(s.wireType())) {
+            // engine ArrayType default (C12 byte pin TestMongoDBCompiler)
+            b.append(",\"additionalItemsAllowed\":false");
+        }
         if (isObject) {
             b.append(",\"additionalPropertiesAllowed\":").append(
                     s.additionalPropertiesAllowed() != null
                             && s.additionalPropertiesAllowed());
         }
         b.append(",\"allOf\":[],\"anyOf\":[]");
+        if (s.items() != null) {
+            b.append(",\"items\":[");
+            for (int i = 0; i < s.items().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                bsonSchema(b, s.items().get(i), false);
+            }
+            b.append(']');
+        }
         if (s.description() != null) {
             b.append(",\"description\":");
             ProtocolEmitter.str(b, s.description());
@@ -276,6 +290,10 @@ final class TailEmitter {
             b.append(",\"minLength\":").append(s.minLength());
         }
         b.append(",\"oneOf\":[]");
+        if ("arrayType".equals(s.wireType())) {
+            // engine ArrayType default (C12 byte pin)
+            b.append(",\"uniqueItems\":false");
+        }
         if (isObject) {
             b.append(",\"properties\":[");
             for (int i = 0; i < s.properties().size(); i++) {
@@ -719,13 +737,17 @@ final class TailEmitter {
         ProtocolEmitter.srcInfo(b, ctx.sourceInformation());
         Protocol.PDataSpaceTestData td = ctx.testData();
         if (td != null) {
-            if (!"Reference".equals(td.kind())) {
-                throw new IllegalStateException("unprobed dataspace testData"
-                        + " kind: " + td.kind());
-            }
+            // Reference -> DATA pointer; DataspaceTestData -> DATASPACE
+            // pointer (engine DataspaceDataElementReferenceParser)
+            String ptrType = switch (td.kind()) {
+                case "Reference" -> "DATA";
+                case "DataspaceTestData" -> "DATASPACE";
+                default -> throw new IllegalStateException(
+                        "unprobed dataspace testData kind: " + td.kind());
+            };
             b.append(",\"testData\":{\"_type\":\"reference\","
                     + "\"dataElement\":");
-            pointer(b, td.path(), td.sourceInformation(), "DATA");
+            pointer(b, td.path(), td.sourceInformation(), ptrType);
             b.append(",\"sourceInformation\":");
             ProtocolEmitter.srcInfo(b, td.sourceInformation());
             b.append('}');
@@ -2148,6 +2170,10 @@ final class TailEmitter {
             }
             b.append(",\"name\":");
             ProtocolEmitter.str(b, ch.name());
+            if (ch.type() != null) {
+                b.append(",\"type\":");
+                ProtocolEmitter.str(b, ch.type());
+            }
             b.append('}');
         }
         b.append("]}");
@@ -2156,7 +2182,18 @@ final class TailEmitter {
     static void dataQualityRelationComparison(StringBuilder b,
             Protocol.PDataQualityRelationComparison v) {
         b.append("{\"_type\":\"dataQualityRelationComparison\","
-                + "\"columnsToCompare\":[],\"keys\":[");
+                + "\"columnsToCompare\":[");
+        for (int i = 0; i < v.columnsToCompare().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, v.columnsToCompare().get(i));
+        }
+        b.append(']');
+        if (v.expectedMatch() != null) {
+            b.append(",\"expectedMatch\":").append(v.expectedMatch());
+        }
+        b.append(",\"keys\":[");
         List<String> keys = v.keys();
         for (int i = 0; i < keys.size(); i++) {
             if (i > 0) {

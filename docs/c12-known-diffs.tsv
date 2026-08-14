@@ -1,4 +1,3 @@
 # C12 KNOWN BYTE-DIFFS — shrink-only; each row is queued work with a family
 legend-engine-xts-deephaven/legend-engine-xt-deephaven-grammar/src/test/java/org/finos/legend/engine/language/deephaven/grammar/TestDeephavenGrammarRoundTrip.java#0	deephaven auth-span cross-product: engine ends at the ';' after '}#' in this shape (earlier corpus pin ends at '}') — probe the walker composition
 legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-V7-grammar/src/test/java/org/finos/legend/engine/language/stores/elasticsearch/v7/to/TestElasticsearchGrammarRoundtrip.java#2	queued-elasticsearch: property wire naming _short/shortNumberProperty vs our shortProperty
-legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-grammar-integration/src/test/java/org/finos/legend/engine/language/pure/grammar/integration/TestMongoDBCompiler.java#2	mongodb schema: arrayType omits additionalItemsAllowed:false default

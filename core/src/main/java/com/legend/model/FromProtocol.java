@@ -724,6 +724,12 @@ public final class FromProtocol {
                             s.httpPath());
             case Protocol.PBigQuerySpec s -> new ConnectionSpecification
                     .BigQuery(s.projectId(), s.defaultDataset());
+            case Protocol.PRedshiftSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(),
+                            s.databaseName());
+            case Protocol.PTrinoSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(),
+                            s.catalog() == null ? "" : s.catalog());
         };
         AuthenticationSpec auth = switch (r.authenticationStrategy()) {
             case Protocol.PH2Default d -> new AuthenticationSpec.DefaultH2();
@@ -747,6 +753,9 @@ public final class FromProtocol {
                             m.vaultReference());
             case Protocol.POAuth o -> new AuthenticationSpec.OAuth(
                     o.oauthKey(), o.scopeName());
+            case Protocol.PTrinoKerberosAuth k ->
+                    new AuthenticationSpec.DelegatedKerberos(
+                            k.serverPrincipal());
             case Protocol.PGcpWifAuth w ->
                     new AuthenticationSpec.GcpWorkloadIdentityFederation(
                             w.serviceAccountEmail(),

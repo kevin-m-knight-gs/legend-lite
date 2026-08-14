@@ -187,6 +187,11 @@ public final class ProtocolEmitter {
                 str(b, cs.storePointers().get(j).path());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, cs.storePointers().get(j).sourceInformation());
+                String spType = cs.storePointers().get(j).type();
+                if (spType != null) {
+                    b.append(",\"type\":");
+                    str(b, spType);
+                }
                 b.append('}');
             }
             b.append("]}");

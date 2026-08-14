@@ -295,9 +295,19 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
                     List<Protocol.PStorePointer> stores = new ArrayList<>();
                     while (c.peek() != TokenType.BRACKET_CLOSE && !c.atEnd()) {
                         int pStart = c.pos();
+                        // optional (dataspace) element-type qualifier —
+                        // engine storeProviderPointer (C12
+                        // TestDataSpaceCompilationFromGrammar)
+                        String ptrType = null;
+                        if (c.peek() == TokenType.PAREN_OPEN) {
+                            c.advance();
+                            ptrType = c.parseIdentifier()
+                                    .toUpperCase(java.util.Locale.ROOT);
+                            c.expect(TokenType.PAREN_CLOSE);
+                        }
                         stores.add(new Protocol.PStorePointer(
                                 Protocol.unquotePath(c.parseQualifiedName()),
-                                c.spanOf(pStart, c.pos() - 1)));
+                                c.spanOf(pStart, c.pos() - 1), ptrType));
                         c.match(TokenType.COMMA);
                     }
                     int groupEnd = c.pos();
