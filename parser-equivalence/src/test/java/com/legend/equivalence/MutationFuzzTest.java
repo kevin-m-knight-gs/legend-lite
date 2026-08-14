@@ -56,6 +56,12 @@ class MutationFuzzTest {
                     // lands inside the final Connection element
                     "truncate :: connection-auth.pure");
 
+    /** ONE oracle instance for all 950 mutants — newInstance() rebuilds
+     *  the extension list per call (the sweep's own precedent; the
+     *  per-mutant spelling cost ~seconds of gate 8). */
+    private static final PureGrammarParser ORACLE =
+            PureGrammarParser.newInstance();
+
     @Test
     void mutantVerdictParity() throws Exception {
         List<String> divergences = new ArrayList<>();
@@ -68,7 +74,7 @@ class MutationFuzzTest {
                 total++;
                 boolean engineAccepts;
                 try {
-                    PureGrammarParser.newInstance().parseModel(m.text());
+                    ORACLE.parseModel(m.text());
                     engineAccepts = true;
                 } catch (Throwable t) {
                     engineAccepts = false;

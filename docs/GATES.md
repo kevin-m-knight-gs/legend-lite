@@ -116,6 +116,25 @@ G6 76s, G7 24s, G8 50s — **5m22s total, back under the 5.5m ceiling**.
 Standing rule reaffirmed: time a full chain after every harness-shape
 change; a budget breach is an entry here, never an absorbed drift.
 
+## Budget decision, 2026-08-14 — gate 8 +13s for three new standing gates
+
+An in-chain reading of 380s (6m20s) triggered an audit; most of the
+delta was same-day cache/thermal contention (three chains back to
+back). Isolated re-measure: G8 63s (was 50) — +6.5s is the actual
+test time of THREE new members (`FixtureCorpusParityTest`, 266
+vendored sibling sources; `MutationFuzzTest`, 950 live differential
+mutants; protocol-check inside the sweep) and ~6s is compiling the
+larger core; the sweep itself is unchanged at ~39s. G4 97s / G5 ~50s
+(+5-7s each — the Phase-1/2 validation walks now run inside corpus
+parsing). Honest chain estimate ≈ **5m45s**. Decision: the ceiling
+moves to 6m — 950 mutants + the fixture ratchet + engine-side
+protocol validation are the cheapest coverage per second in the whole
+chain, and the alternative (sampling them) reintroduces the silent
+blind spots they exist to close. Per-mutant oracle instances were
+already hoisted (FixtureCorpusParityTest 2.4s -> 0.5s); the next real
+lever, if the budget ever binds, is sharing one surefire JVM across
+gates 4/5 (the family-sharding speed leg), not thinning coverage.
+
 ## The time budget: ~6m40s measured 2026-08-11 — re-pin pending
 
 The 5.5-minute lock (measured 2026-08-08) was already exceeded BEFORE the
