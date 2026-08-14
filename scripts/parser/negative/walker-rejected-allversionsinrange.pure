@@ -1,3 +1,5 @@
+// REJECTS: is not supported
+//
 // DomainParseTreeWalker.java:1742 throws unconditionally on allVersionsInRange. The branch
 // exists only to reject; `allVersions`, handled on the line above, maps to getAllVersions.
 // Rejected on businesstemporal and bitemporal classes alike.

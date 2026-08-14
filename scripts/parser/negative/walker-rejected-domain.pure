@@ -1,3 +1,5 @@
+// REJECTS: Unsupported syntax
+//
 // legend-engine's GRAMMAR accepts `native function`; its WALKER does not.
 // DomainParseTreeWalker.visitElement handles class/association/enum/profile/function/
 // measure and falls through to "Unsupported syntax".

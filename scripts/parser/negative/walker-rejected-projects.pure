@@ -1,3 +1,5 @@
+// REJECTS: NullPointerException
+//
 // `Class X projects Y { ... }`. The grammar has a full projection rule set; the walker
 // NPEs on it, because visitClass dereferences ctx.classBody() and the projection form has
 // none. The observed message is "An exception of type 'NullPointerException' occurred,

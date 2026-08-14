@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token '~groupBy'
+//
+// View modifier order is ~filter, ~groupBy, ~distinct. This has ~distinct before ~groupBy.
+//
+// The trap: on a relational CLASS MAPPING the order is the other way round -- ~filter,
+// ~distinct, ~groupBy. Same two modifiers, same spelling, opposite order depending on
+// which construct encloses them. A parser that shares one modifier-parsing routine between
+// View and class mapping will accept both orders in both places.
+###Relational
+Database fixture::neg::ViewOrder
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY, VAL VARCHAR(32))
+   View V
+   (
+      ~distinct
+      ~groupBy
+      (
+         T.VAL
+      )
+      id: T.ID PRIMARY KEY
+   )
+)

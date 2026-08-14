@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token '<EOF>'
+//
+// An embedded-data island opened with #{ and never closed with }#. The parser must run to
+// end-of-input and fail there rather than recovering at the enclosing brace.
+//
+// Island delimiters are where a hand-written parser is most likely to differ: the tempting
+// implementation scans forward for the next '}' and treats the island as closed, which
+// truncates the payload and produces a model that parses but is missing data.
+###Data
+Data fixture::neg::Unterminated
+{
+   ExternalFormat
+   #{
+      contentType: 'application/json';
+      data: '{}';
+}

@@ -1,0 +1,13 @@
+// REJECTS: Unexpected token
+//
+// `is null` is a POSTFIX self-operator and takes no right-hand side. This gives it one.
+//
+// A parser that treats `is null` as an ordinary binary comparison -- the obvious way to
+// implement it alongside = and <> -- accepts this and builds a two-operand node that means
+// nothing downstream.
+###Relational
+Database fixture::neg::NullOperand
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY, VAL VARCHAR(32))
+   Filter F(T.VAL is null 'x')
+)

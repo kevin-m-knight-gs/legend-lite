@@ -1,3 +1,5 @@
+// REJECTS: EngineException: Error
+//
 // GraphQL type-system extensions. GraphQLGrammarParser.visitDefinition has no branch for
 // typeSystemExtension and falls through to `throw new RuntimeException("Error")`, so all
 // six extension rules -- scalar, type, interface, union, schema, enum -- are unreachable

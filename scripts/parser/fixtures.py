@@ -94,6 +94,40 @@ def check_declarations(grammars: dict[str, set[str]]) -> list[str]:
     return problems
 
 
+# What a negative fixture must declare:
+#
+#     // REJECTS: Unexpected token 'Schema'
+#
+# checked as a substring of the parser's actual message. Without this a negative fixture
+# passes as long as it fails SOMEHOW -- and the easiest way to fail is a typo, which pins
+# nothing and keeps passing forever while the construct it was written to guard quietly
+# starts working. "It was rejected" is not the assertion; "it was rejected FOR THIS REASON"
+# is.
+_REJECTS = re.compile(r"^//\s*REJECTS:\s*(.+?)\s*$", re.M)
+
+
+def check_rejections(out: str) -> list[str]:
+    """Every negative fixture declares the message it expects, and gets it."""
+    actual = {}
+    for line in out.splitlines():
+        if "  REJECTED: " in line:
+            head, _, msg = line.partition("  REJECTED: ")
+            actual[head.split()[-1]] = msg.strip()
+    problems = []
+    for f in sorted(NEGATIVE.rglob("*.pure")):
+        declared = _REJECTS.findall(f.read_text())
+        if not declared:
+            problems.append(f"{f.name}: no REJECTS line -- pins nothing")
+            continue
+        got = actual.get(f.name)
+        if got is None:
+            continue                      # accepted; already reported as WRONG
+        for want in declared:
+            if want not in got:
+                problems.append(f"{f.name}:\n    expected {want!r}\n    but got  {got!r}")
+    return problems
+
+
 _SECTION = re.compile(r"^###([A-Za-z]+)\s*$", re.M)
 
 
@@ -170,6 +204,12 @@ def main() -> None:
         if rc_neg:
             print(out_neg)
             print()
+        mismatched = check_rejections(out_neg)
+        for m in mismatched:
+            print("REJECTION:", m)
+        if mismatched:
+            print()
+            problems += mismatched
 
     # Only fixtures that PARSED contribute. A fixture that claims six keywords and is
     # rejected has demonstrated nothing about any of them.
