@@ -28,6 +28,7 @@ import model
 import oracle
 import query
 import seed
+import aggregates
 import graphs
 import stacks
 from model import STRESS
@@ -171,6 +172,10 @@ def generate() -> dict[Path, str]:
     # over. Four hand-picked roots became sixty ranked ones without a new property being
     # invented, which is the whole point of the split.
     generated += graphs.build(c, seeded_now, TABLES)
+    # Aggregate instances over to-many ends whose every parent HAS children -- the
+    # non-empty half of the property the F-series pins on the empty half. F6 is what makes
+    # the split necessary: it fails a whole service if any one row hits the empty case.
+    generated += aggregates.build(c, seeded_now, TABLES)
     fan = []
     for spec in list(battery.SPECS) + generated:
         expected = _expect(c, spec, TABLES)

@@ -43,18 +43,37 @@ def testables() -> list[str]:
     return [n for n in out if n not in HANGS] + functest.testables()
 
 
+# Testables per JVM. Small enough that one exhausted process cannot take the tail of the
+# suite with it, large enough that JVM startup (~2s of engine class loading) is amortised
+# rather than dominating. 40 keeps a 182-test suite at five processes.
+BATCH = 40
+
+
 def main() -> None:
     names = testables()
     cp = (RUNNER / "cp.txt").read_text().strip()
     if not (RUNNER / "target" / "classes").is_dir():
         raise SystemExit(f"runner not built; see {RUNNER}/README.md")
     env = dict(os.environ, JAVA_HOME=JAVA_HOME, PATH=f"{JAVA_HOME}/bin:" + os.environ["PATH"])
-    r = subprocess.run(
-        [f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}", "perf.TestableMain",
-         *sorted(str(p) for p in STRESS.glob("*.pure")),
-         *(f"--testable={n}" for n in names)],
-        capture_output=True, text=True, env=env, cwd=RUNNER, timeout=3600)
-    out = r.stdout + r.stderr
+    # BATCHED, one JVM per chunk. Running every testable in a single process stopped
+    # working somewhere past ~170: the corpus grew to 182 and twelve services reported
+    # ERROR that pass individually AND pass as a group of nineteen. The failures were
+    # everything after a point, which is the same shape as the ClassCastException that
+    # once killed a run mid-way -- state accumulating in one JVM, not a defect in the
+    # services.
+    #
+    # Chunking also bounds the blast radius: whatever exhausts a process now takes one
+    # batch with it instead of the tail of the suite, and the batch that broke is named.
+    files = sorted(str(p) for p in STRESS.glob("*.pure"))
+    chunks = [names[i:i + BATCH] for i in range(0, len(names), BATCH)] or [[]]
+    parts = []
+    for chunk in chunks:
+        r = subprocess.run(
+            [f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}",
+             "perf.TestableMain", *files, *(f"--testable={n}" for n in chunk)],
+            capture_output=True, text=True, env=env, cwd=RUNNER, timeout=3600)
+        parts.append(r.stdout + r.stderr)
+    out = "\n".join(parts)
     if "-v" in sys.argv:
         print(out)
 
