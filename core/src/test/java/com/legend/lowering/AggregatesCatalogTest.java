@@ -22,7 +22,7 @@ class AggregatesCatalogTest {
     @DisplayName("names the old hand list missed are reducers")
     void previouslyMissedNamesAreReducers() {
         for (String name : new String[] {"stdDev", "variance", "mode",
-                "corr", "percentileDisc", "covarSample", "covarPopulation"}) {
+                "corr", "covarSample", "covarPopulation"}) {
             var keys = Pure.nativeKeysAt(name);
             assertFalse(keys.isEmpty(), name + " must be registered");
             keys.forEach(k -> assertTrue(Aggregates.isReducerKey(k),

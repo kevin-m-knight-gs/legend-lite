@@ -1383,18 +1383,18 @@ class AssociationIntegrationTest {
         }
     }
 
-    // ==================== 1l. Combined Association Nav + extend(traverse()) ====================
+    // ==================== 1l. Combined Association Nav + navigate()+extend() ====================
 
     @Nested
-    @DisplayName("1l. Combined Association Nav + extend(traverse())")
+    @DisplayName("1l. Combined Association Nav + navigate()+extend()")
     class CombinedTraverse {
 
         @BeforeEach
         void setup() throws SQLException { setupTables(); }
 
         /**
-         * Model with deptId mapped so it's available in TDS for extend(traverse()) FK reference.
-         * Classic association nav (firm) + explicit extend(traverse()) (dept) in same query.
+         * Model with deptId mapped so it's available in TDS for navigate()+extend() FK reference.
+         * Classic association nav (firm) + explicit navigate()+extend() (dept) in same query.
          */
         private String combinedModel() {
             return withRuntime("""
@@ -1441,11 +1441,11 @@ class AssociationIntegrationTest {
         }
 
         @Test
-        @DisplayName("Association nav project + extend(traverse()) in same query")
+        @DisplayName("Association nav project + navigate()+extend() in same query")
         void testAssocNavPlusExtendTraverse() throws SQLException {
-            // Classic association: Person->firm.legalName (MappingNormalizer-synthesized traverse)
-            // User-written: extend(traverse(T_DEPT), ~deptName) (explicit Relation API traverse)
-            // Project includes deptId so traverse can use it as FK
+            // Classic association: Person->firm.legalName (MappingNormalizer-synthesized navigate)
+            // User-written: navigate(~n1, ...)->extend(~deptName) (explicit Relation API navigate)
+            // Project includes deptId so navigate can use it as FK
             var r = exec(combinedModel(),
                 "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
                 "->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)" +
@@ -1469,9 +1469,9 @@ class AssociationIntegrationTest {
         }
 
         @Test
-        @DisplayName("Filter on association nav, then extend(traverse()) on result")
+        @DisplayName("Filter on association nav, then navigate()+extend() on result")
         void testFilterAssocThenExtendTraverse() throws SQLException {
-            // Filter via classic association (firm='Acme'), then add dept via extend(traverse())
+            // Filter via classic association (firm='Acme'), then add dept via navigate()+extend()
             var r = exec(combinedModel(),
                 "test::Person.all()->filter({p|$p.firm.legalName == 'Acme'})" +
                 "->project(~[name:x|$x.name, deptId:x|$x.deptId])" +
@@ -1484,7 +1484,7 @@ class AssociationIntegrationTest {
         }
 
         @Test
-        @DisplayName("extend(traverse()) multi-hop + association nav in same query")
+        @DisplayName("navigate()+extend() multi-hop + association nav in same query")
         void testMultiHopExtendTraversePlusAssocNav() throws SQLException {
             // User-written multi-hop traverse: Person -> Dept -> Org (via extend)
             // Classic association: Person -> firm.legalName
@@ -1499,7 +1499,7 @@ class AssociationIntegrationTest {
             // firm via association nav
             assertEquals("Acme", colStr(r, 1).get(0));
             assertEquals("Globex", colStr(r, 1).get(2));
-            // org via extend(traverse()) multi-hop
+            // org via navigate()+extend() multi-hop
             assertEquals("Acme Corp", colStr(r, 2).get(0));
             assertEquals("Acme Corp", colStr(r, 2).get(1));
             assertEquals("Acme Corp", colStr(r, 2).get(2));
@@ -1507,9 +1507,9 @@ class AssociationIntegrationTest {
         }
 
         @Test
-        @DisplayName("extend(traverse()) then filter on traversed + association column")
+        @DisplayName("navigate()+extend() then filter on traversed + association column")
         void testExtendTraverseThenFilterOnBoth() throws SQLException {
-            // Add dept via extend(traverse()), then filter on traversed col AND association col
+            // Add dept via navigate()+extend(), then filter on traversed col AND association col
             var r = exec(combinedModel(),
                 "test::Person.all()->project([x|$x.name, x|$x.firm.legalName, x|$x.deptId], ['name', 'firm', 'deptId'])" +
                 "->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.deptId == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)" +
@@ -1547,7 +1547,7 @@ class AssociationIntegrationTest {
         }
 
         /**
-         * 7-table model, all in mapping — no user-written extend(traverse()):
+         * 7-table model, all in mapping — no user-written navigate()+extend():
          *   - Association: PersonFirm (firm nav)
          *   - 1-hop chain: deptName (@Person_Dept | T_DEPT.NAME)
          *   - 1-hop chain: city (@Person_Addr | T_ADDR.CITY)

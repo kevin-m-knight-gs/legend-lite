@@ -309,7 +309,6 @@ public final class FromProtocol {
             com.legend.protocol.Protocol.PDbType t) {
         int size = t.size() == null ? 0 : t.size().intValue();
         return switch (t.kind()) {
-            case "Boolean" -> new RelationalDataType.Bool();
             case "BigInt" -> new RelationalDataType.BigInt();
             case "SmallInt" -> new RelationalDataType.SmallInt();
             case "TinyInt" -> new RelationalDataType.TinyInt();

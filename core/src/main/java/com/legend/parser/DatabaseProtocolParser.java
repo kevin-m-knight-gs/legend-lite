@@ -293,7 +293,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             }
             columns.add(new Protocol.PDbColumn(colName, nullable, type,
                     List.of(), List.of(), spanOf(cS, pos - 1)));
-            match(TokenType.COMMA);
+            // columnDefinition (COMMA columnDefinition)* — a next column
+            // WITHOUT the comma refuses (invention audit family 3)
+            if (!match(TokenType.COMMA) && peek() != TokenType.PAREN_CLOSE) {
+                throw error("Unexpected token '" + safeText() + "'");
+            }
         }
         expect(TokenType.PAREN_CLOSE);
         return new Protocol.PDbTable(name, columns, List.of(), List.of(),
@@ -337,7 +341,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             columns.add(new Protocol.PDbColumn(colName, nullable,
                     type, colDec.stereotypes(), colDec.taggedValues(),
                     spanOf(cS, pos - 1)));
-            match(TokenType.COMMA);
+            // columnDefinition (COMMA columnDefinition)* — a next column
+            // WITHOUT the comma refuses (invention audit family 3); the
+            // milestoning block may follow the last column comma-free
+            if (!match(TokenType.COMMA) && peek() != TokenType.PAREN_CLOSE
+                    && !(peek() == TokenType.VALID_STRING
+                            && "milestoning".equals(text()))) {
+                throw error("Unexpected token '" + safeText() + "'");
+            }
         }
         expect(TokenType.PAREN_CLOSE);
         return new Protocol.PDbTable(name, columns, milestoning, primaryKey,

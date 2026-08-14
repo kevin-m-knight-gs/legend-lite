@@ -1540,6 +1540,13 @@ public final class SpecParser implements TokenStreamCursor {
         List<TypeExpression> typeArgs = List.of();
         List<String> typeMultArgs = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.DOLLAR) {
+            if (dialect().refusesLiteExtensions()) {
+                // ^$x(...) copy-with-update is PURE-DIALECT spelling
+                // (legend-pure uses it everywhere) that the ENGINE wire
+                // grammar cannot parse (its walker NPEs — oracle-probed);
+                // adopted on the LITE product surface, refused drop-in
+                throw error("copy-with-update (^$var) is not supported");
+            }
             pos++; // consume '$'
             if (!isFqnSegmentToken(peek())) {
                 throw error("expected variable name after '^$' in copy-with-update");
@@ -2658,6 +2665,30 @@ public final class SpecParser implements TokenStreamCursor {
         String inner = text.substring(2, text.length() - 1);   // strip '#/' and '#'
         List<String> segList = splitChar(inner, '/');
         String[] segs = segList.toArray(new String[0]);
+        // the TYPE segment must be a well-formed qualified name — the
+        // engine refuses single/multiple colons (#/my:P/..#, #/my::::P/..#
+        // — invention audit family 2, oracle-probed)
+        if (segs.length > 0) {
+            String tseg = segs[0].strip();
+            boolean prevColon = false;
+            int colons = 0;
+            for (int ci = 0; ci < tseg.length(); ci++) {
+                if (tseg.charAt(ci) == ':') {
+                    colons++;
+                    if (colons > 2 || ci == 0 || ci == tseg.length() - 1) {
+                        throw error("Unexpected token");
+                    }
+                } else {
+                    if (colons == 1) {
+                        throw error("Unexpected token");
+                    }
+                    colons = 0;
+                }
+            }
+            if (colons == 1) {
+                throw error("Unexpected token");
+            }
+        }
         // a SEGMENT-LESS path (#/Person#) is legal: path [] + startType on the wire
         // (probe "pf path exotic")
         // Track each PLAIN segment's 0-based char range inside the literal text — the
@@ -2855,6 +2886,11 @@ public final class SpecParser implements TokenStreamCursor {
      * uses to distinguish bag-of-values overloads.
      */
     private ValueSpecification parseTdsLiteral() {
+        // NO dialect gate: #TDS is REAL — legend-pure ships the TDS DSL
+        // (platform_dsl_tds) and the ENGINE's xts-tds extension parses
+        // the accessor forms (the 2026-08-14 gate attempt refused six
+        // oracle-ACCEPTED corpus sources; the invention audit's "engine
+        // refuses #TDS" held only for a bare parser without extensions)
         // NOT platform-gated: the ENGINE's xt-tds extension parses #TDS
         // accessors (6 oracle-accepted TestTDSAccessor/TestTDSCompiler
         // files byte-match through here — a 2026-08-12 gate attempt went

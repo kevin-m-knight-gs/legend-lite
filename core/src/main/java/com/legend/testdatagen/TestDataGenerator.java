@@ -1273,7 +1273,6 @@ public final class TestDataGenerator {
 
     private static String duckType(RelationalDataType t) {
         return switch (t) {
-            case RelationalDataType.Bool ignored -> "BOOLEAN";
             case RelationalDataType.Bit ignored -> "BOOLEAN";
             case RelationalDataType.BigInt ignored -> "BIGINT";
             case RelationalDataType.SmallInt ignored -> "BIGINT";

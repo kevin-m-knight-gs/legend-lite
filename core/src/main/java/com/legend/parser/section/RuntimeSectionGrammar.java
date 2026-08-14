@@ -150,7 +150,8 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
             c.match(TokenType.COMMA);
         }
         c.expect(TokenType.BRACKET_CLOSE);
-        c.match(TokenType.SEMI_COLON);
+        // mandatory in the .g4 (invention audit family 4)
+        c.expect(TokenType.SEMI_COLON);
     }
 
     /** Embedded {@code #{ <Flavor> {...} }#} island — extract the coarse
@@ -319,7 +320,8 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
                     c.match(TokenType.COMMA);
                 }
                 c.expect(TokenType.BRACKET_CLOSE);
-                c.match(TokenType.SEMI_COLON);
+                // mandatory in the .g4 (invention audit family 4)
+                c.expect(TokenType.SEMI_COLON);
             } else if (key == TokenType.CONNECTION && single) {
                 int cStart = c.pos();
                 String conn = Protocol.unquotePath(c.parseQualifiedName());
@@ -328,7 +330,8 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
                 connectionStores.add(new Protocol.PConnectionStores(
                         new Protocol.PConnectionPointer(conn, cSpan),
                         List.of(), cSpan));
-                c.match(TokenType.SEMI_COLON);
+                // mandatory in the .g4 (invention audit family 4)
+                c.expect(TokenType.SEMI_COLON);
             } else {
                 throw c.error("unknown key '" + keyText + "' inside "
                         + (single ? "SingleConnectionRuntime" : "Runtime")

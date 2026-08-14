@@ -1625,10 +1625,10 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("percentileCont — continuous 50th percentile (no-window)")
-        void testPercentileCont() throws SQLException {
+        @DisplayName("percentile-continuous — continuous 50th percentile (no-window)")
+        void testPercentileContinuous() throws SQLException {
             var r = executeRelation(NUMS +
-                    "->extend(~pc:c|$c.v:y|$y->percentileCont(0.5))");
+                    "->extend(~pc:c|$c.v:y|$y->percentile(0.5, true, true))");
             assertEquals(5, r.rowCount());
             double pc = ((Number) r.rows().get(0).get(colIdx(r, "pc"))).doubleValue();
             // percentile_cont(0.5) on [10,20,30,100,200] = 30
@@ -1636,10 +1636,10 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
         }
 
         @Test
-        @DisplayName("percentileDisc — discrete 50th percentile (no-window)")
-        void testPercentileDisc() throws SQLException {
+        @DisplayName("percentile-discrete — discrete 50th percentile (no-window)")
+        void testPercentileDiscrete() throws SQLException {
             var r = executeRelation(NUMS +
-                    "->extend(~pd:c|$c.v:y|$y->percentileDisc(0.5))");
+                    "->extend(~pd:c|$c.v:y|$y->percentile(0.5, true, false))");
             assertEquals(5, r.rowCount());
             double pd = ((Number) r.rows().get(0).get(colIdx(r, "pd"))).doubleValue();
             // percentile_disc(0.5) on [10,20,30,100,200] = 30

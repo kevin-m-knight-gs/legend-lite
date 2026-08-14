@@ -484,7 +484,9 @@ class NativeFunctionTest {
         // 200: +GenericType (genericType().rawType reflection) +
         // TDSNull (the null-cell TYPE for match arms; value stays sqlNull) +
         //     ElementOverride (M3 Any.elementOverride, folded empty).
-        assertEquals(200, Pure.allNativeClasses().size(),
+        // 199: -_Traversal (2026-08-14 — the old engine-lite traverse
+        // machinery deleted; navigate subsumed it)
+        assertEquals(199, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -991,8 +993,8 @@ class NativeFunctionTest {
                 Pure.ANY, Pure.TYPE, Pure.NIL,
                 Pure.NUMBER, Pure.INTEGER, Pure.FLOAT, Pure.DECIMAL,
                 Pure.STRING, Pure.BOOLEAN, Pure.BYTE,
-                Pure.DATE, Pure.STRICT_DATE, Pure.DATE_TIME, Pure.LATEST_DATE,
-                Pure.TRAVERSAL)) {
+                Pure.DATE, Pure.STRICT_DATE, Pure.DATE_TIME,
+                Pure.LATEST_DATE)) {
             assertTrue(c.typeParams().isEmpty(),
                     () -> "expected no type params on " + c.qualifiedName()
                             + ", got " + c.typeParams());
@@ -1011,7 +1013,7 @@ class NativeFunctionTest {
                 "Date", "StrictDate", "DateTime", "LatestDate",
                 "Relation", "ColSpec", "FuncColSpec", "AggColSpec",
                 "Function",
-                "_Window", "_Traversal", "SortInfo")) {
+                "_Window", "SortInfo")) {
             assertTrue(simpleNames.contains(required),
                     () -> "required native class '" + required
                             + "' missing from Pure.allNativeClasses()");

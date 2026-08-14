@@ -778,7 +778,6 @@ public final class PlanText {
             case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
             case RelationalDataType.Date_ ignored -> "DATE";
             case RelationalDataType.Bit ignored -> "BIT";
-            case RelationalDataType.Bool ignored -> "BOOLEAN";
             // Pending spellings — EXPLICIT so a new variant is a compile
             // error here, not a runtime surprise (T3.1).
             case RelationalDataType.Binary ignored -> throw new NotImplementedException(

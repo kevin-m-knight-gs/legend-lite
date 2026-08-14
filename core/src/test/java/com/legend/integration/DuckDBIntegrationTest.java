@@ -2082,8 +2082,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("Pure syntax: groupBy with percentileCont() ordered-set aggregate")
-    void testPureSyntaxGroupByWithPercentileCont() throws Exception {
+    @DisplayName("Pure syntax: groupBy with percentile-continuous() ordered-set aggregate")
+    void testPureSyntaxGroupByWithPercentileContinuous() throws Exception {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS T_PERCENTILE");
             stmt.execute("CREATE TABLE T_PERCENTILE (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
@@ -2122,11 +2122,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::PctMap ]; connections: [ store::PctDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        // percentileCont(0.5) = median with interpolation
-        String pureQuery = "model::PctEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentileCont(0.5)})], ['dept', 'medianSal'])";
+        // percentile(0.5, true, true) = median with interpolation
+        String pureQuery = "model::PctEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentile(0.5, true, true)})], ['dept', 'medianSal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
-        System.out.println("percentileCont result: " + result.rows());
+        System.out.println("percentile-continuous result: " + result.rows());
         assertEquals(2, result.rows().size());
 
         // Verify results
@@ -2144,8 +2144,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("Pure syntax: groupBy with percentileDisc() ordered-set aggregate")
-    void testPureSyntaxGroupByWithPercentileDisc() throws Exception {
+    @DisplayName("Pure syntax: groupBy with percentile-discrete() ordered-set aggregate")
+    void testPureSyntaxGroupByWithPercentileDiscrete() throws Exception {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS T_PERCENTILE_DISC");
             stmt.execute("CREATE TABLE T_PERCENTILE_DISC (ID INTEGER, DEPT VARCHAR, SAL INTEGER)");
@@ -2181,11 +2181,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DiscMap ]; connections: [ store::DiscDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        // percentileDisc(0.75) = 75th percentile (discrete, actual value from dataset)
-        String pureQuery = "model::DiscEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentileDisc(0.75)})], ['dept', 'q3Sal'])";
+        // percentile(0.75, true, false) = 75th percentile (discrete, actual value from dataset)
+        String pureQuery = "model::DiscEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentile(0.75, true, false)})], ['dept', 'q3Sal'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
-        System.out.println("percentileDisc result: " + result.rows());
+        System.out.println("percentile-discrete result: " + result.rows());
         assertEquals(1, result.rows().size());
 
         // Verify - discrete percentile returns actual value from dataset

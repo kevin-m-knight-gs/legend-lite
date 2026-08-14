@@ -39,7 +39,6 @@ import java.util.Objects;
  * constructed directly via their constructors.
  */
 public sealed interface RelationalDataType permits
-        RelationalDataType.Bool,
         RelationalDataType.BigInt,
         RelationalDataType.SmallInt,
         RelationalDataType.TinyInt,
@@ -63,7 +62,6 @@ public sealed interface RelationalDataType permits
         RelationalDataType.Object_ {
 
     // ---- Nullary core types ----
-    record Bool()           implements RelationalDataType { }
     record BigInt()         implements RelationalDataType { }
     record SmallInt()       implements RelationalDataType { }
     record TinyInt()        implements RelationalDataType { }
@@ -123,7 +121,6 @@ public sealed interface RelationalDataType permits
      */
     static RelationalDataType fromName(String name) {
         return switch (name.toUpperCase()) {
-            case "BOOLEAN"        -> new Bool();
             case "BIGINT"         -> new BigInt();
             case "SMALLINT"       -> new SmallInt();
             case "TINYINT"        -> new TinyInt();

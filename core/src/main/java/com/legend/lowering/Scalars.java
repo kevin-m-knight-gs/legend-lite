@@ -873,12 +873,6 @@ final class Scalars {
                 return pureDiscretePercentile(args.get(0), args.get(1), asc);
             });
         }
-        for (String f : Pure.nativeKeysAt("percentileCont")) {
-            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(SqlAgg.Fn.QUANTILE_CONT, args.get(0), List.of(args.get(1))));
-        }
-        for (String f : Pure.nativeKeysAt("percentileDisc")) {
-            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(SqlAgg.Fn.QUANTILE_DISC, args.get(0), List.of(args.get(1))));
-        }
         // collection sort: bare list_sort; a COMPARATOR must be a bare
         // compare over the two parameters (its argument order IS the
         // direction); a KEY function sorts {k, i, v} structs by key —

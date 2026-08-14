@@ -311,7 +311,6 @@ public final class Ddl {
     /** The H2-flavored spelling of a store column type. */
     private static String spell(RelationalDataType t) {
         return switch (t) {
-            case RelationalDataType.Bool ignored -> "BOOLEAN";
             case RelationalDataType.BigInt ignored -> "BIGINT";
             case RelationalDataType.SmallInt ignored -> "SMALLINT";
             case RelationalDataType.TinyInt ignored -> "TINYINT";

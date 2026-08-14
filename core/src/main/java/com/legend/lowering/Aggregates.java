@@ -71,8 +71,6 @@ public final class Aggregates {
         // percentile: DuckDB QUANTILE family; the 4-arg overload's
         // ascending/continuous flags are folded in the lowering (aggExpr).
         family(SqlAgg.Fn.QUANTILE_CONT, "percentile");
-        family(SqlAgg.Fn.QUANTILE_CONT, "percentileCont");
-        family(SqlAgg.Fn.QUANTILE_DISC, "percentileDisc");
         // BI-VARIATE reducers — the map body is rowMapper(a, b); aggExpr
         // decomposes it into the two SQL arguments.
         family(SqlAgg.Fn.CORR, "corr");

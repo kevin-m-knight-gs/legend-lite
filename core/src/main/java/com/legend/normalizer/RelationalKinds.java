@@ -32,7 +32,6 @@ public final class RelationalKinds {
             case RelationalDataType.Real r -> "Float";
             case RelationalDataType.Decimal d -> "Decimal";
             case RelationalDataType.Numeric n -> "Decimal";
-            case RelationalDataType.Bool b -> "Boolean";
             case RelationalDataType.Bit b -> "Boolean";
             case RelationalDataType.Timestamp ts -> "DateTime";
             case RelationalDataType.Date_ d -> "StrictDate";

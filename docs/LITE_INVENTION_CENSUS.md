@@ -58,6 +58,51 @@ DELIBERATE product features earn the `LEGEND_LITE` dialect gate.
   `_pure_protocol_type`, the nameless DeploymentConfiguration elements.
   These look invented but are the ENGINE's own behavior.
 
+## The FUNCTION catalog (sibling INVENTION_AUDIT_2026_08_14, per-name re-verified)
+
+The sibling audit found a second axis: 26 natives in
+`meta::legend::lite::*` (their count was 19 — `convertDateFormat`,
+`hash`, `isNumeric`, `join`, `sub`, `tds` and `traverse` were missed;
+the governance test found them on its first run). Every name was RE-VERIFIED here against both upstream repos
+(pure definitions, Java registrations, dynaFunction strings) because
+the audit itself recorded false positives. Three of its verdicts were
+wrong:
+
+| verdict | names | evidence |
+|---|---|---|
+| **DELETED** (5) | `maxDate`, `minDate`, `variantTo` (zero emitters, zero upstream — dead surface); `percentileCont`, `percentileDisc` (zero emitters; the REAL `meta::pure::functions::math::percentile` 4-arg form carries the continuous flag and lite already lowers it — the pair was pure user-reachable duplication, which the audit had mis-filed as keep) | emitter census + upstream greps 2026-08-14 |
+| **ENGINE VOCABULARY, not inventions** (7) | `avg` (legacy `~groupBy` aggregate spelling), `divideRound` (engine dynaFunction), `notEqualAnsi` (engine relationalExtension), `sub` (databricks dynaFn tests), `isNumeric` (duckdb extension), `hash` (memsql dialect), `join` (the REAL relation join's name — lite carries a same-name overload shim) | the audit's census only saw pure-function FQNs, not the engine's relational operation vocabulary |
+| **INTERNAL DESUGAR IR** (13, incl. `tds` — the #TDS literal's desugar target) | `legacyNavigate`, `legacyAssocPredicate`, `legacyLocalProperty`, `castAsDeclared`, `typeAsDeclared`, `otherwise`, `navigate`, `sourceUrl`, `parseDateFormat`, `convertDateFormat`, `convertDateTimeFormat`, `convertTimeZoneFormat` (the last four are arity-disambiguating renames of the engine dynaFns `parseDate`/`convertDate`/`convertDateTime`/`convertTimeZone` with a format argument) | emit-site census: each has live normalizer/lowering emitters and no upstream functional counterpart |
+
+The audit's `%latest` dialect-leak claim was also wrong — `%latest` is
+the engine's own `LATEST_DATE` lexer token (oracle accepts
+`.all(%latest)`); its other two leaks (`#TDS`, `^$x(...)`) were real
+and are now gated as declared lite extensions.
+
+**`traverse` — RULED AND DELETED (2026-08-14):** it was the OLD
+engine-lite first navigation implementation; `navigate` subsumed it
+(NavigateChecker's javadoc records the replacement) and verification
+showed the integration tests had ALREADY migrated to `navigate()` —
+only their comments still said traverse. The two `traverse` natives,
+the `_Traversal` class and both `extend(…,_Traversal,…)` overloads
+had ZERO handlers anywhere in main code. All deleted; class pin
+200 -> 199.
+
+**`#TDS` and `^$x(...)` — PURE-DIALECT, not lite extensions (user
+correction):** legend-pure ships the TDS DSL (`platform_dsl_tds`) and
+the engine's own `xts-tds` extension parses the accessor forms — the
+gate attempt on `#TDS` was REFUTED BY THE GATES (six oracle-accepted
+sources) and reverted; `#TDS` carries no dialect gate at all. `^$x`
+is legend-pure copy-with-update (the engine wire walker NPEs on it —
+upstream row): gated drop-in only, classified `DIALECT-copy-new`.
+
+**Chartered follow-up — the user-reachability partition:** the 12
+internal names still resolve from user query text because internal
+emitters use bare names through the same index. The partition requires
+the ~15 emit sites to move to FQN spelling first; until then,
+`NativeCatalogGovernanceTest` pins both sets shrink-only so the
+surface cannot grow.
+
 ## Standing verification
 
 `OwnDialectCensusTest` (whitelist shrink-only) + `MutationFuzzTest` +

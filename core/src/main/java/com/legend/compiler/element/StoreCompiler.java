@@ -174,7 +174,6 @@ final class StoreCompiler {
 
     private static Type columnType(RelationalDataType dt) {
         return switch (dt) {
-            case RelationalDataType.Bool b -> Type.Primitive.BOOLEAN;
             case RelationalDataType.Bit b -> Type.Primitive.BOOLEAN;
             case RelationalDataType.TinyInt i -> Type.Primitive.INTEGER;
             case RelationalDataType.SmallInt i -> Type.Primitive.INTEGER;

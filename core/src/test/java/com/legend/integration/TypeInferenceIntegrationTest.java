@@ -1794,23 +1794,23 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertEquals(false, result.rows().get(0).get(0));
         }
 
-        // --- 13c: percentileCont on lists ---
+        // --- 13c: percentile-continuous on lists ---
         @Test
-        void testPercentileContOnList() throws SQLException {
-                // PCT: |[1, 2, 3, 4, 5]->percentileCont(0.5) => 3.0 (median)
+        void testPercentileContinuousOnList() throws SQLException {
+                // PCT: |[1, 2, 3, 4, 5]->percentile(0.5, true, true) => 3.0 (median)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
-                                "|[1, 2, 3, 4, 5]->percentileCont(0.5)",
+                                "|[1, 2, 3, 4, 5]->percentile(0.5, true, true)",
                                 "test::TestRuntime", connection);
                 assertEquals(3.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
 
         @Test
-        void testPercentileContOnListQuartile() throws SQLException {
-                // PCT: |[1, 2, 3, 4, 5]->percentileCont(0.25) => 2.0
+        void testPercentileContinuousOnListQuartile() throws SQLException {
+                // PCT: |[1, 2, 3, 4, 5]->percentile(0.25, true, true) => 2.0
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
-                                "|[1, 2, 3, 4, 5]->percentileCont(0.25)",
+                                "|[1, 2, 3, 4, 5]->percentile(0.25, true, true)",
                                 "test::TestRuntime", connection);
                 assertEquals(2.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }

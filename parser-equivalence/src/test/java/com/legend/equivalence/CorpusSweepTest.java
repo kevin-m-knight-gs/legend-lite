@@ -78,11 +78,11 @@ public class CorpusSweepTest {
     private static final int MIN_DOCS_MATCHED = 6489;   // 2026-08-14: EVERY oracle-accepted source byte-matches — 100%
 
     /** Seam byte coverage floor. Up-only. */
-    private static final int MIN_SEAM_MATCHED = 5911;
+    private static final int MIN_SEAM_MATCHED = 6480;   // 2026-08-14: the strictness batch (stray-')' + copy-new gates) earned +569
 
     /** Vanilla-rejected sources the SPI seam accepts — post-flip residue
      *  (upstream walker defects + the reviewed allowlist). Down-only. */
-    private static final int MAX_SEAM_LENIENT_ACCEPTS = 22;
+    private static final int MAX_SEAM_LENIENT_ACCEPTS = 18;   // 2026-08-14 post-strictness
 
     /** Seam rows whose delta is the ENGINE's serialize-only field,
      *  membership-proven per row. Down-only. */
@@ -90,7 +90,7 @@ public class CorpusSweepTest {
 
     /** Pure-only vanilla-rejected files raw parseStrict accepts — the
      *  strict element surface's own census. Down-only. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 181;   // measured 2026-08-12 post burn-down (was 187)
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 22;   // 2026-08-14: was 181 — the stray-')' gate alone retired the 161-row oracle-NPE class from the lenient side
 
     /** CEILING on the platform-surface leniency catalog (deep-audit #2
      *  2d: the population was unbounded — every row classifies, but
@@ -474,6 +474,11 @@ public class CorpusSweepTest {
                 }
                 if (sm.contains("Unsupported syntax")) {
                     return "DIALECT-native-or-m2";
+                }
+                if (sm.contains("copy-with-update")) {
+                    // ^$x(...) — pure-dialect copy-new, adopted on the
+                    // LITE surface, refused drop-in (2026-08-14 gate)
+                    return "DIALECT-copy-new";
                 }
                 // an UNRECOGNIZED strict refusal is not skew — it must be
                 // named (deep-audit H2: this arm was a pardon)
