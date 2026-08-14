@@ -1,0 +1,28 @@
+// REJECTS: Unexpected token 'schemaFrom'. Valid alternatives: ['from', 'to']
+//
+// In a `mapper` post-processor, a `table {}` entry takes from, to, schemaFrom and schemaTo;
+// a `schema {}` entry takes from and to ONLY. schemaFrom/schemaTo exist to qualify which
+// schema a renamed TABLE lives in, and a schema entry is already about a schema.
+//
+// Both entries are the same shape and sit in the same list, so a rewrite with one
+// "mapper entry" routine and a union of the four fields accepts this -- and the extra
+// fields have no meaning, so nothing downstream complains. connection-postprocessor.pure
+// writes both entries legally and cannot see the difference.
+###Connection
+RelationalDatabaseConnection fixture::neg::SchemaFromInSchema
+{
+   store: fixture::neg::Db;
+   type: H2;
+   specification: LocalH2 {  };
+   auth: DefaultH2;
+   postProcessors:
+   [
+      mapper
+      {
+         mappers:
+         [
+            schema {schemaFrom: 'b'; from: 'c'; to: 'C';}
+         ];
+      }
+   ];
+}

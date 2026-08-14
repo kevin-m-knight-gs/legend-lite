@@ -814,4 +814,38 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   then rejected at compile with `Expected 2 properties for an association`. Arity is checked
   one stage later; multiplicity bounds simply are not.
   (`scripts/corpus/repro/inverted-multiplicity/`)
+- **Fields that do not belong to the chosen variant are parsed and silently discarded.**
+  Three instances of one shape. `mode: local` alongside `specification:` and `auth:` is
+  accepted, and the walker — which treats local mode as an if/else — replaces both with
+  *synthesised placeholders* (`accountName: "legend-local-snowflake-accountName-..."`); a
+  vault reference written by the author does not appear anywhere in the output. `mappings:`
+  on a `JsonModelConnection` and `class:` on a `ModelChainConnection` are dropped outright,
+  because all three model connections share one `definition` rule and each walker extracts
+  only what its own type needs. No diagnostic in any case. The consequence is that a
+  round-trip through parse-and-compose does not preserve the file: anything re-emitting a
+  model silently rewrites it, and the author is never told which lines stopped existing.
+  (`scripts/corpus/repro/silently-discarded-fields/`)
+- **Any identifier is a valid `###FileGeneration` type — the validation is dead code.**
+  `FileGenerationParseTreeWalker` wraps its type extraction in a catch for
+  `IllegalArgumentException` around a `substring`/`toLowerCase` that cannot throw one, so
+  `"Generation type '...' is not supported."` is unreachable and
+  `CompletelyMadeUpType fx::G { ... }` parses, recording `"type": "completelyMadeUpType"`.
+  The shipped types (Avro, Java, Protobuf, JsonSchema, Cdm, Slang) are enforced nowhere at
+  parse time. (`scripts/corpus/repro/generation-type-unvalidated/`)
+- **Six more unguarded dereferences behind one NullPointerException, in Persistence.**
+  `serviceOutputValue: (identifier | dslNavigationPath)` is one rule with two meanings; the
+  walker picks the accessor by dataset kind (TDS takes `.identifier()`, graph-fetch takes
+  `.dslNavigationPath()`) and never null-checks. Writing the other arm produces
+  `An exception of type 'NullPointerException' occurred, please notify developer`. It is six
+  call sites — `keys` on both sides, `DeleteIndicator.deleteField`, `FieldBased.partitionFields`,
+  `MaxVersion.versionField` — so a fix that patches `keys` alone is incomplete.
+  (`scripts/corpus/repro/persistence-npe/`)
+
+  **This is now a pattern rather than three coincidences.** Eight sites across three
+  unrelated grammars share one shape: *an optional or alternative grammar element
+  dereferenced without a null check*. F17 (`projects`, a null `classBody`), HostedService
+  `actions` (a null `actionBody`), and these six (a null alternative arm). Every one is
+  reachable by typing into a `.pure` file and every one surfaces as a stack trace with no
+  line, no column and no construct named. The grammar says "optional"; the walker assumes
+  "present".
 

@@ -1,0 +1,41 @@
+// REJECTS: Unexpected token '1'. Valid alternatives: ['EqualToJson', 'expected']
+//
+// The mirror of neg-service-equalto-given-embedded-data.pure. `EqualToJson`'s expected value
+// is an embeddedData island -- `identifier ISLAND_OPEN ...` -- never a primitive; `EqualTo`'s
+// is a primitive and never an island.
+//
+// Having both directions matters: a rewrite with one permissive "expected: anything" rule
+// fails neither file, and a rewrite that swaps the two rules fails both. Only the pair
+// distinguishes those cases from a correct implementation.
+###Service
+Service fixture::neg::EqualToJsonWithPrimitive
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         tests:
+         [
+            t1:
+            {
+               asserts:
+               [
+                  a1:
+                     EqualToJson
+                     #{
+                        expected: 1;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

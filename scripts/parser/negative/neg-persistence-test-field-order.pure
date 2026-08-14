@@ -1,0 +1,52 @@
+// REJECTS: Unexpected token 'isTestDataFromServiceOutput'. Valid alternatives: ['testBatches']
+//
+// Almost every block in this grammar is an unordered `(a | b | c)*` where order is free and
+// repetition is forbidden. `test` is the exception:
+//
+//   test: identifier COLON BRACE_OPEN ( persistenceTestBatches (isTestDataFromServiceOutput)?
+//                                       (graphFetchPath)? )* BRACE_CLOSE
+//
+// -- a SEQUENCE. `testBatches` must come first, then the flag, then the path, and the whole
+// triple may repeat. The two trailing fields are optional, so this file is a pure ordering
+// violation: move the `isTestDataFromServiceOutput` line below the `testBatches` block and
+// it parses, with nothing added or removed.
+//
+// That makes it the one place where a parser built out of unordered field sets -- the right
+// model for the other forty rules in this grammar -- is wrong. Reordering `graphFetchPath`
+// and the flag relative to each other fails the same way, but the message degrades to a
+// bare "Unexpected token" there, so the claim is pinned at this position.
+###Persistence
+Persistence test::persistence::neg::TestFieldOrder
+{
+  doc: 'a test whose optional fields precede the batches they qualify';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    #/test::example::MyType/hello#
+    {
+      keys:
+      [
+        #/test::example::MyType/hello/key1#
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+  tests:
+  [
+    test1:
+    {
+      isTestDataFromServiceOutput: false;
+      graphFetchPath: #/test::example::MyType/hello#;
+      testBatches:
+      [
+      ]
+    }
+  ]
+}

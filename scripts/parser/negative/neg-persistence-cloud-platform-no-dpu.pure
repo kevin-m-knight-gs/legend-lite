@@ -1,6 +1,6 @@
 // REJECTS: Field 'dataProcessingUnits' is required
 //
-// PersistenceCloudParserGrammar is the smallest grammar in the surface: one rule, one
+// PersistenceCloudParserGrammar is the smallest grammar in the whole surface: one rule, one
 // keyword. `definition: (awsGlueDpuCount)* EOF` -- a star, so an EMPTY AwsGlue island is a
 // complete parse tree, and PersistenceCloudParseTreeWalker requires the field.
 //

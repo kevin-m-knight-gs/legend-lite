@@ -108,6 +108,37 @@ after a `Class` in the same `###Pure` section is rejected with
 `Unexpected token '*'. Valid alternatives: ['import']`. This is the exception to "field
 order is free" being about fields rather than section structure.
 
+## Silently discarded, not rejected
+
+The worst case is neither accept nor reject: **parsed, then dropped without a word.**
+
+- `mode: local` alongside `specification:` and `auth:` — both blocks parse and are replaced
+  by synthesised placeholders. A vault reference written by the author appears nowhere in the
+  output.
+- `mappings:` on a `JsonModelConnection`, `class:` on a `ModelChainConnection` — all three
+  model connections share one `definition` rule, and each walker extracts only what its own
+  type needs.
+- `trigger: Manual #{ whatever: 1; }#` — the `Manual` processor ignores its island body
+  entirely; arbitrary content is parsed and discarded.
+
+Filed as F21. It means a round-trip through parse-and-compose does not preserve the file, and
+the author is never told which lines stopped existing.
+
+## Validation that is not there at all
+
+- **Any identifier is a valid `###FileGeneration` type.** `CompletelyMadeUpType fx::G { }`
+  parses and records `"type": "completelyMadeUpType"`. The walker's
+  `"Generation type '...' is not supported."` sits behind a catch for an exception the code
+  above it cannot throw — dead code. Filed as F22.
+- **`accountType` on a Snowflake connection is unvalidated** while `permissionScheme` in the
+  sibling grammar is walker-checked against a closed set. Upstream's own roundtrip test feeds
+  `accountType` the value `BadOption`.
+- **`port` is `Integer.valueOf`'d at parse time for MemSql and not for Databricks** — same
+  field name, same STRING type, different behaviour.
+
+None of these is derivable from a `.g4`. All three are places a rewrite would guess wrong in
+either direction.
+
 ## Reading the manifest
 
 `mutants.tsv` has one row per mutant: fixture, operator, site, verdict, message. It records

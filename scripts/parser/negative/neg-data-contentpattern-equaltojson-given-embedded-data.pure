@@ -1,0 +1,48 @@
+// REJECTS: Unexpected token 'ExternalFormat'
+//
+// `EqualToJson` means two different things in two different places. As a TEST ASSERTION its
+// expected value is an embedded-data island. As a ServiceStore CONTENT PATTERN -- which is
+// what this is -- its whole grammar is `EXPECTED COLON STRING SEMI_COLON`, a plain string.
+//
+// Same keyword, same field name, two grammars, incompatible value shapes. This file writes
+// the assertion form in the content-pattern position, which is the shape a rewrite that
+// keeps ONE EqualToJson rule accepts without noticing there were ever two.
+###Data
+Data fixture::neg::ContentPatternWithEmbeddedData
+{
+   ServiceStore
+   #{
+     [
+       {
+         request:
+         {
+           method: GET;
+           url: '/employees';
+           urlPath: '/employees';
+           headerParameters:
+           {
+             region:
+               EqualToJson
+               #{
+                 expected:
+                   ExternalFormat
+                   #{
+                     contentType: 'application/json';
+                     data: '{"region":"EMEA"}';
+                   }#;
+               }#
+           };
+         };
+         response:
+         {
+           body:
+             ExternalFormat
+             #{
+               contentType: 'application/json';
+               data: '[]';
+             }#;
+         };
+       }
+     ]
+   }#
+}

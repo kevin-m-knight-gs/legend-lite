@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token 'host'. Valid alternatives: ['baseVaultReference', 'userNameVaultReference', 'passwordVaultReference']
+//
+// AuthenticationStrategyLexerGrammar declares ten tokens that NO rule in its parser
+// references: host, port, name, mode, directory, account, warehouse, region, projectId,
+// defaultDataset. They lex, and then nothing can consume them.
+//
+// This is the failure mode that makes them dangerous. They are all real field names --
+// borrowed from the datasource specifications, which is why they look plausible inside an
+// auth block -- and a rewrite that harvests its keyword set from the lexer, or that shares
+// one field table across the connection's sub-grammars, will accept `host` here. The
+// message is the pin: it names the three fields that ARE legal, which is what distinguishes
+// a dead token from a missing grammar extension.
+###Connection
+RelationalDatabaseConnection fixture::neg::AuthHost
+{
+   store: fixture::neg::Db;
+   type: SqlServer;
+   specification: Static { name: 'db'; host: 'h'; port: 1234; };
+   auth: UserNamePassword
+   {
+      host: 'h';
+      userNameVaultReference: 'user';
+      passwordVaultReference: 'pwd';
+   };
+}

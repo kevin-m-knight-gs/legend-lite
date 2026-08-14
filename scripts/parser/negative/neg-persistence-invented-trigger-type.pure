@@ -2,9 +2,10 @@
 //
 // `trigger:` is an ISLAND-typed field: `triggerSpecification: triggerType (triggerValue)?`
 // where triggerType is just `identifier`. ANY identifier parses. The type name is then
-// looked up among the registered trigger processors and only `Manual` and `Cron` exist
-// (PersistenceParserExtension); IPersistenceParserExtension.process throws when the lookup
-// finds nothing.
+// looked up among the registered trigger processors and `Manual` is the only one that
+// resolves -- the switch in PersistenceParserExtension:66-80 names `Cron` too but returns
+// null for it, so `trigger: Cron;` fails with this same message. IPersistenceParserExtension
+// .process throws whenever the lookup produces nothing.
 //
 // So this is a WALKER rejection with no grammar involvement at all, and the failing token is
 // a perfectly ordinary identifier. A parser derived from the .g4 has no way to refuse it --

@@ -1,0 +1,35 @@
+// REJECTS: An exception of type 'NullPointerException' occurred
+//
+// UPSTREAM DEFECT, the mirror image of neg-persistence-tds-keys-navigation-path.
+//
+// A graph-fetch service output takes `.dslNavigationPath()` off every serviceOutputValue; a
+// bare identifier makes that null, and it goes to visitPath, which calls `ctx.getText()` on
+// it. Same rule, opposite direction, same NPE.
+//
+// Both directions are needed because a parser could plausibly get one right by accident --
+// e.g. by always trying the path form first -- and the pair is what pins that the CHOICE is
+// made by the dataset kind rather than by the value's own syntax.
+###Persistence
+Persistence test::persistence::neg::GraphFetchKeysAsIdentifiers
+{
+  doc: 'a graph-fetch service output whose keys are bare identifiers';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    #/test::example::MyType/prop#
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+}

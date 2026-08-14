@@ -2,8 +2,9 @@
 //
 // The third island, and the only one in the PersistenceContext element: `platform:`.
 // `platformSpecification: platformType (platformValue)?`, platformType is `identifier`, and
-// the sole registered PersistencePlatform is `AwsGlue` -- which is where the entire
-// PersistenceCloudLexerGrammar lives.
+// exactly two PersistencePlatform processors are registered: `Default`, which takes no body
+// (PersistenceParserExtension:83-95), and `AwsGlue`, which is where the entire
+// PersistenceCloudLexerGrammar lives. Any third name is refused.
 //
 // All three islands (trigger, platform, target) share this shape, and all three fail the
 // same way through IPersistenceParserExtension.process. A file per island, because the

@@ -1,0 +1,57 @@
+// REJECTS: Unexpected token 'sourceDerivedDimension'. Valid alternatives: ['processingDimension']
+//
+// Unitemporal has ONE dimension, Bitemporal has two:
+//
+//   unitemporal: TEMPORAL_UNI BRACE_OPEN (processingDimension)* BRACE_CLOSE
+//   bitemporal:  TEMPORAL_BI  BRACE_OPEN (processingDimension | sourceDerivedDimension)* BRACE_CLOSE
+//
+// -- that is the entire difference between the two, and it is the only exclusivity in the
+// relational island the grammar can actually enforce. Everything else about temporality is
+// left to the walker.
+//
+// The sourceDerivedDimension is written first so the reported alternative set is the
+// one-element one.
+###Persistence
+Persistence test::persistence::neg::RelationalUniWithSourceDerived
+{
+  doc: 'a unitemporal relational target carrying a source-derived dimension';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableA;
+      database: test::persistence::Database;
+      temporality: Unitemporal
+      {
+        sourceDerivedDimension: DateTime
+        {
+          dateTimeStart: from_z;
+          dateTimeEnd: thru_z;
+          sourceFields: Start
+          {
+            startField: someTime;
+          }
+        }
+        processingDimension: BatchId
+        {
+          batchIdIn: batch_in;
+          batchIdOut: batch_out;
+        }
+      }
+    }#
+  ];
+}
