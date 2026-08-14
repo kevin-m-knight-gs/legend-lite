@@ -39,6 +39,12 @@ WORK = Path(os.environ.get("CLAUDE_JOB_DIR", "/tmp")) / "tmp" / "mutants"
 
 QUARANTINE = HERE / "parity-quarantine.tsv"
 
+# NOTE ON ORACLES. This drives tools/engine-runner, whose classpath carries every published
+# extension. parser-equivalence's FixtureCorpusParityTest drives a deliberately
+# PRODUCTION-SHAPED oracle and therefore reports slightly different numbers for the same
+# corpus -- it rejects a few inputs this one accepts. Neither is wrong; a baseline just has
+# to come from the environment that asserts it.
+
 
 def _run(main: str, target: Path) -> dict[str, str]:
     """name -> "" when accepted, else the rejection message."""
@@ -144,10 +150,13 @@ def main() -> None:
 
     if detail:
         for label, (rejects, accepts) in results.items():
-            for name, msg in rejects[:40]:
-                print(f"LITE-REJECTS  {label:<9}{name:<58}{msg[:70]}")
-            for name, msg in accepts[:40]:
-                print(f"LITE-ACCEPTS  {label:<9}{name:<58}engine said: {msg[:56]}")
+            # No truncation. An earlier version capped at 40 per population, which quietly
+            # hid 6 of the 46 over-permissive negatives and made a cross-environment diff
+            # look like a real disagreement.
+            for name, msg in rejects:
+                print(f"LITE-REJECTS  {label:<9}  {name}  ->  {msg[:70]}")
+            for name, msg in accepts:
+                print(f"LITE-ACCEPTS  {label:<9}  {name}  ->  engine said: {msg[:56]}")
 
 
 if __name__ == "__main__":

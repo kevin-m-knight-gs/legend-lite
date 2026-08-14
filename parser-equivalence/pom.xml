@@ -102,6 +102,39 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Same case as DuckDB above, found the same way. The grammar-driven
+             fixture corpus (scripts/parser) writes `specification: Athena` and
+             friends; extensions-collection-generation ships their -protocol and
+             -execution jars but NOT their -grammar jars, so without these the
+             oracle answered "Unsupported Data Source Specification type" and a
+             POSITIVE fixture looked like a legend-lite gap. These are published
+             main-scoped artifacts (production-shaped, not test-scoped), so the
+             oracle stays what it claims to be. -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-relationalStore-athena-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-relationalStore-oracle-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-relationalStore-aurora-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-relationalStore-memsql-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
