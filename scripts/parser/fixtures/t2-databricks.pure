@@ -1,0 +1,28 @@
+// COVERS DatabricksLexerGrammar: Databricks, hostname, port, protocol, httpPath
+//
+// The whole grammar: five tokens, one datasource specification, every field optional in the
+// grammar (DatabricksParserGrammar.g4:13 is a `( ... )*` alternation) and all four required
+// by the walker. Syntax copied from TestDatabricksConnectionGrammarRoundtrip.
+//
+// `port` here is a STRING, not an integer literal -- upstream's own test writes
+// `port: 'port';`, a non-numeric value, and it parses, so unlike MemSql's `port` this one is
+// not converted at parse time. A numeric-looking value is used anyway; the point of the note
+// is that `hostname`/`port` are Databricks' spellings and are NOT interchangeable with the
+// `host`/`port` pair of the Static or MemSql specs, which are different grammars.
+###Connection
+RelationalDatabaseConnection fixture::dbx::Conn
+{
+   store: fixture::dbx::Db;
+   type: Databricks;
+   specification: Databricks
+   {
+      hostname: 'dbc-1234.cloud.databricks.com';
+      port: '443';
+      protocol: 'https';
+      httpPath: '/sql/1.0/endpoints/abc123';
+   };
+   auth: ApiToken
+   {
+      apiToken: 'token';
+   };
+}

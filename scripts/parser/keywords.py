@@ -50,9 +50,30 @@ _PUNCT = re.compile(r"^[^A-Za-z]+$")
 _ESCAPE = re.compile(r"^\\[uU]")
 
 
+def _grammar_key(g4: Path, duplicated: set[str]) -> str:
+    """Grammar identity. The file stem, EXCEPT where two modules ship the same stem.
+
+    legend-engine has exactly one such collision and it is not cosmetic:
+    SnowflakeLexerGrammar exists twice, once under relationalStore-snowflake (the
+    ###Connection datasource spec, 20 tokens) and once under xts-snowflake (the ###Snowflake
+    function activator, 17 tokens). Keying on stem merged two grammars that route to
+    DIFFERENT sections into one bucket of 37. The total happened to be right, which is worse
+    than being wrong -- the number looked fine while the attribution was nonsense, and
+    anyone reading "SnowflakeLexerGrammar: 37" would go looking for one grammar.
+    """
+    if g4.stem not in duplicated:
+        return g4.stem
+    # The owning maven module disambiguates and stays readable in the work queue.
+    module = next((part for part in reversed(g4.parts)
+                   if part.startswith("legend-engine-xt")), g4.parent.name)
+    return f"{g4.stem}@{module}"
+
+
 def harvest() -> dict[str, set[str]]:
-    """grammar file stem -> the literal keywords it defines."""
+    """grammar identity -> the literal keywords it defines."""
     out: dict[str, set[str]] = defaultdict(set)
+    stems = [g.stem for g in ENGINE.rglob("*.g4")]
+    duplicated = {s for s in stems if stems.count(s) > 1}
     for g4 in sorted(ENGINE.rglob("*.g4")):
         text = g4.read_text(errors="replace")
         for _token, literal in _TOKEN.findall(text):
@@ -65,7 +86,7 @@ def harvest() -> dict[str, set[str]]:
             # boundary search can ever match, since what follows is always a letter. The
             # text a user actually types is `include`, so trim. It collapses onto the plain
             # INCLUDE token, which is right: they are one spelling with two arms.
-            out[g4.stem].add(literal.strip())
+            out[_grammar_key(g4, duplicated)].add(literal.strip())
     return dict(out)
 
 
@@ -90,6 +111,8 @@ def dead_tokens() -> dict[str, set[str]]:
     in by ANTLR `import` like Core and M3) falls back to every grammar's text, which is
     generous on purpose -- silence is the right answer when the link cannot be established.
     """
+    stems = [g.stem for g in ENGINE.rglob("*.g4")]
+    duplicated = {s for s in stems if stems.count(s) > 1}
     consumers: dict[str, list[str]] = defaultdict(list)
     every = []
     for g4 in ENGINE.rglob("*.g4"):
@@ -102,11 +125,12 @@ def dead_tokens() -> dict[str, set[str]]:
     out: dict[str, set[str]] = defaultdict(set)
     for g4 in sorted(ENGINE.rglob("*.g4")):
         reachable_in = "\n".join(consumers.get(g4.stem, [])) or all_text
+        key = _grammar_key(g4, duplicated)
         for name, literal in _TOKEN.findall(g4.read_text(errors="replace")):
             if _PUNCT.match(literal) or _ESCAPE.match(literal):
                 continue
             if not re.search(rf"(?<![A-Za-z0-9_]){name}(?![A-Za-z0-9_])", reachable_in):
-                out[g4.stem].add(literal)
+                out[key].add(literal)
     return dict(out)
 
 

@@ -55,7 +55,10 @@ TIER1_EMBEDDED = {"GraphQL"}
 #   the extension DSLs are nested grammars needing shaped fixtures (Persistence at 103
 #   keywords is larger than Domain and Relational combined).
 TIER2_VENDOR = {
-    "SnowflakeLexerGrammar", "TrinoLexerGrammar", "BigQueryLexerGrammar",
+    # Two distinct grammars sharing a stem -- see keywords._grammar_key. The first is the
+    # ###Connection datasource spec, the second the ###Snowflake function activator.
+    "SnowflakeLexerGrammar@legend-engine-xt-relationalStore-snowflake-grammar",
+    "SnowflakeLexerGrammar@legend-engine-xt-snowflake-grammar", "TrinoLexerGrammar", "BigQueryLexerGrammar",
     "BigQueryFunctionLexerGrammar", "MemSqlLexerGrammar", "MemSqlFunctionLexerGrammar",
     "RedshiftLexerGrammar", "SpannerLexerGrammar", "OracleLexerGrammar",
     "AthenaLexerGrammar", "AuroraLexerGrammar", "DatabricksLexerGrammar",
@@ -185,7 +188,8 @@ SECTION_GRAMMARS = {
                    "PostProcessorLexerGrammar", "QueryGenerationConfigsLexerGrammar",
                    "ModelConnectionLexerGrammar", "CoreLexerGrammar",
                    "ServiceStoreConnectionLexerGrammar", "MongoDBConnectionLexerGrammar",
-                   "DeephavenConnectionLexerGrammar", "ElasticsearchConnectionLexerGrammar"},
+                   "DeephavenConnectionLexerGrammar", "ElasticsearchConnectionLexerGrammar",
+                   "SnowflakeLexerGrammar@legend-engine-xt-relationalStore-snowflake-grammar"},
     "Service": {"ServiceLexerGrammar", "CoreLexerGrammar", "M3LexerGrammar",
                 "EqualToAssertionLexerGrammar", "EqualToTDSAssertionLexerGrammar",
                 "EqualToJsonAssertionLexerGrammar", "EqualToContentPatternLexerGrammar",
@@ -208,7 +212,7 @@ SECTION_GRAMMARS = {
     "ServiceStore": {"ServiceStoreLexerGrammar"},
     "HostedService": {"HostedServiceLexerGrammar"},
     "FunctionJar": {"FunctionJarLexerGrammar"},
-    "Snowflake": {"SnowflakeLexerGrammar"},
+    "Snowflake": {"SnowflakeLexerGrammar@legend-engine-xt-snowflake-grammar"},
     "BigQuery": {"BigQueryFunctionLexerGrammar"},
     "MemSql": {"MemSqlFunctionLexerGrammar"},
     "Deephaven": {"DeephavenLexerGrammar"},

@@ -1,0 +1,24 @@
+// COVERS SpannerLexerGrammar: Spanner, projectId, instanceId, databaseId, proxyHost, proxyPort
+//
+// Every token SpannerLexerGrammar.g4 declares. Syntax from legend-engine's
+// TestSpannerConnectionGrammarRoundtrip.testSpannerConnectionSpecification.
+//
+// Spanner has no authentication strategy of its own -- it declares six datasource-spec
+// tokens and nothing else -- so the `auth:` here is borrowed from
+// AuthenticationStrategyLexerGrammar and is not claimed above.
+// `proxyPort` is the only INTEGER of the six.
+###Connection
+RelationalDatabaseConnection fixture::t2::SpannerFull
+{
+  store: fixture::t2::Db;
+  type: Spanner;
+  specification: Spanner
+  {
+    projectId: 'spanner-emulator-test-1';
+    instanceId: 'test-instance-1';
+    databaseId: 'test-db';
+    proxyHost: 'localhost';
+    proxyPort: 9010;
+  };
+  auth: GCPApplicationDefaultCredentials;
+}

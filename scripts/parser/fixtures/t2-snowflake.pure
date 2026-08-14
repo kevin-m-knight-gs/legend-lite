@@ -1,0 +1,95 @@
+// COVERS SnowflakeLexerGrammar: Snowflake, name, account, warehouse, region, cloudType, quotedIdentifiersIgnoreCase, proxyHost, proxyPort, nonProxyHosts, tempTableDb, tempTableSchema, accountType, organization, role, enableQueryTags, SnowflakePublic, privateKeyVaultReference, passPhraseVaultReference, publicUserName
+// COVERS SnowflakeLexerGrammar: SnowflakeApp, applicationName, usageRole, permissionScheme, SnowflakeAppDeploymentConfiguration, SnowflakeM2MUdf, udfName, deploymentSchema, deploymentStage, description, function, ownership, Deployment, identifier, activationConfiguration, activationConnection, SnowflakeUDFDeploymentConfiguration
+//
+// TWO grammar files share the stem `SnowflakeLexerGrammar` and the harvest merges them, so
+// one fixture has to cover both halves and they live in different sections:
+//   * the connection datasource spec + SnowflakePublic auth  (###Connection)
+//     legend-engine-xt-relationalStore-snowflake-grammar .../connection/SnowflakeLexerGrammar.g4
+//   * the SnowflakeApp / SnowflakeM2MUdf function activator  (###Snowflake)
+//     legend-engine-xt-snowflake-grammar .../SnowflakeLexerGrammar.g4
+// Syntax copied from TestSnowflakeConnectionGrammarRoundtrip, TestSnowflakeAppRoundtrip and
+// TestSnowflakeM2MUdfRoundtrip.
+//
+// Three things that are not obvious:
+//
+// `accountType` takes a bare identifier, not a string -- upstream's own roundtrip test even
+// feeds it `BadOption`, so the enum is not validated at parse time. `permissionScheme` also
+// takes an identifier but IS validated by the walker: SnowflakeTreeWalker.java:113 throws
+// "Unknown permission scheme" for anything outside SnowflakePermissionScheme {DEFAULT,
+// SEQUESTERED}, so that one field cannot be used to smuggle an arbitrary token.
+//
+// `SnowflakeUDFDeploymentConfiguration` has NO element rule. deploymentConfig in
+// SnowflakeParserGrammar.g4:87 names only SNOWFLAKE_APP__CONFIGURATION; the M2M-UDF spelling
+// appears solely in the `identifier` alternation (line 13), so the only way to reach the
+// token is to NAME something with it. That is what the last element here does.
+//
+// `mode: local;` on a Snowflake connection belongs to RelationalDatabaseConnection, not to
+// this grammar, and is already covered by connection-auth.pure.
+###Connection
+RelationalDatabaseConnection fixture::sf::Full
+{
+   store: fixture::sf::Db;
+   type: Snowflake;
+   specification: Snowflake
+   {
+      name: 'test';
+      account: 'account';
+      warehouse: 'warehousename';
+      region: 'us-east-1';
+      cloudType: 'aws';
+      quotedIdentifiersIgnoreCase: false;
+      enableQueryTags: true;
+      proxyHost: 'sampleHost';
+      proxyPort: 'samplePort';
+      nonProxyHosts: 'sample';
+      accountType: MultiTenant;
+      organization: 'sampleOrganization';
+      role: 'aRole';
+      tempTableDb: 'temp_table_db';
+      tempTableSchema: 'temp_table_schema';
+   };
+   auth: SnowflakePublic
+   {
+      publicUserName: 'myName';
+      privateKeyVaultReference: 'privateKeyRef';
+      passPhraseVaultReference: 'passRef';
+   };
+}
+
+###Snowflake
+SnowflakeApp <<fixture::sf::A.test>> {fixture::sf::A.val = 'ok'} fixture::sf::MyApp
+{
+   applicationName : 'MyApp';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'appOwner'};
+   description : 'A super nice app!';
+   usageRole : 'PRIVATE';
+   permissionScheme : SEQUESTERED;
+   deploymentSchema : 'legend_native_apps_1';
+   activationConfiguration : fixture::sf::Full;
+}
+
+SnowflakeM2MUdf fixture::sf::MyUdf
+{
+   udfName : 'MyUDF';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'udfOwner'};
+   deploymentSchema : 'legend_native_apps_1';
+   deploymentStage : 'snowflakeStage';
+   description : 'A super nice udf!';
+   activationConfiguration : fixture::sf::Full;
+}
+
+SnowflakeAppDeploymentConfiguration fixture::sf::AppConfig
+{
+   activationConnection : fixture::sf::Full;
+}
+
+SnowflakeM2MUdf fixture::sf::SnowflakeUDFDeploymentConfiguration
+{
+   udfName : 'KeywordNamedUdf';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'udfOwner'};
+   deploymentSchema : 'legend_native_apps_1';
+   deploymentStage : 'snowflakeStage';
+}

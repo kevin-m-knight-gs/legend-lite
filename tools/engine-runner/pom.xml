@@ -25,5 +25,22 @@
          missing-relational-extension error rather than anything about DuckDB. -->
     <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-xt-relationalStore-duckdb-execution</artifactId><version>${legend.version}</version></dependency>
     <dependency><groupId>org.duckdb</groupId><artifactId>duckdb_jdbc</artifactId><version>1.3.0.0</version></dependency>
+    <!-- extensions-collection-generation does NOT pull the athena/oracle/aurora GRAMMAR
+         extensions (it brings their -protocol and -execution jars only), so without these
+         three the parser rejects `specification: Athena|Oracle|Aurora|GlobalAurora` with
+         "Unsupported Data Source Specification type", which is a missing extension rather
+         than a grammar limit. The Trino, Redshift, Spanner and DuckDB grammar extensions
+         already arrive transitively; these three do not. -->
+    <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-xt-relationalStore-athena-grammar</artifactId><version>${legend.version}</version></dependency>
+    <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-xt-relationalStore-oracle-grammar</artifactId><version>${legend.version}</version></dependency>
+    <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-xt-relationalStore-aurora-grammar</artifactId><version>${legend.version}</version></dependency>
+    <!-- Same story for MemSql, and it is the sharpest case of it: the memsql -protocol and
+         -execution jars DO arrive transitively, so `MemSqlDatasourceSpecification` is on the
+         classpath and only the parser extension is missing. `specification: MemSql` was
+         answered with "Unsupported Data Source Specification type 'MemSql'", which reads
+         like a grammar gap and is a packaging gap. Its sibling vendors (snowflake,
+         bigquery, databricks) all bring their -grammar jars transitively; memsql does
+         not. -->
+    <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-xt-relationalStore-memsql-grammar</artifactId><version>${legend.version}</version></dependency>
   </dependencies>
 </project>

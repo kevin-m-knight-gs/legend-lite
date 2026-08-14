@@ -1,0 +1,242 @@
+// COVERS PersistenceLexerGrammar: UnitemporalSnapshot, BitemporalSnapshot, NontemporalDelta, UnitemporalDelta, BitemporalDelta, AppendOnly, mergeStrategy, NoDeletes, DeleteIndicator, deleteField, deleteValues, filterDuplicates, true, false
+//
+// The seven `ingestMode:` alternatives. One per Persistence element, because ingestMode is a
+// single required field on a Batch persister -- there is no way to write two.
+//
+// What each arm REQUIRES is not in the .g4 (every sub-rule is `(x)*` there); it is enforced
+// in PersistenceParseTreeWalker.visit*, lines 1202-1315:
+//
+//   NontemporalSnapshot   auditing
+//   UnitemporalSnapshot   transactionMilestoning
+//   BitemporalSnapshot    transactionMilestoning + validityMilestoning
+//   NontemporalDelta      mergeStrategy + auditing
+//   UnitemporalDelta      mergeStrategy + transactionMilestoning
+//   BitemporalDelta       mergeStrategy + transactionMilestoning + validityMilestoning
+//   AppendOnly            auditing + filterDuplicates
+//
+// so omitting any of them is a walker rejection even though the grammar accepts it. The
+// milestoning arms themselves are exercised in t2-persistence-milestoning.pure; here they
+// are held at their simplest form so the ingest-mode alternation is what is being tested.
+//
+// One asymmetry worth recording, because it costs a rejection to discover: `derivation` is
+// OPTIONAL under transactionMilestoning (walker line 1445) but REQUIRED under
+// validityMilestoning (walker line 1553, "Field 'derivation' is required"). Upstream's own
+// roundtrip tests always write it under validity, which hides the difference.
+//
+// `mergeStrategy` has two arms and both are here: `NoDeletes;` (a bare terminal) and
+// `DeleteIndicator { deleteField: <identifier>; deleteValues: [<STRING>...]; }`. Note the
+// asymmetry with the v2 `actionIndicator: DeleteIndicator` block, where deleteValues are
+// IDENTIFIERS rather than strings (PersistenceParserGrammar.g4:333 vs :721).
+//
+// `true` and `false` are both reachable only through `filterDuplicates:` in the v1 arm and
+// `isTestDataFromServiceOutput:` in tests -- both spellings appear below outside strings.
+###Persistence
+Persistence test::persistence::UniSnapshot
+{
+  doc: 'unitemporal snapshot';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalSnapshot
+    {
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::BiSnapshot
+{
+  doc: 'bitemporal snapshot needs both milestoning schemes';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalSnapshot
+    {
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+        derivation: SourceSpecifiesFromDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::NonTemporalDeltaNoDeletes
+{
+  doc: 'nontemporal delta with the no-deletes merge strategy';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalDelta
+    {
+      mergeStrategy: NoDeletes;
+      auditing: DateTime
+      {
+        dateTimeName: 'AUDIT_TS';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::UniDeltaDeleteIndicator
+{
+  doc: 'unitemporal delta with a delete-indicator merge strategy';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalDelta
+    {
+      mergeStrategy: DeleteIndicator
+      {
+        deleteField: deleted;
+        deleteValues: ['Y', '1', 'yes'];
+      }
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::BiDelta
+{
+  doc: 'bitemporal delta -- merge strategy plus both milestoning schemes';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalDelta
+    {
+      mergeStrategy: NoDeletes;
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+        derivation: SourceSpecifiesFromDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::AppendOnlyFiltered
+{
+  doc: 'append only, filtering duplicates';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: AppendOnly
+    {
+      auditing: None;
+      filterDuplicates: true;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::AppendOnlyUnfiltered
+{
+  doc: 'append only, keeping duplicates -- the FALSE arm of filterDuplicates';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: AppendOnly
+    {
+      auditing: DateTime
+      {
+        dateTimeName: 'AUDIT_TS';
+      }
+      filterDuplicates: false;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

@@ -1,0 +1,64 @@
+// COVERS MemSqlLexerGrammar: MemSql, host, port, databaseName, useSsl
+// COVERS MemSqlFunctionLexerGrammar: MemSqlFunction, functionName, function, ownership, Deployment, identifier, description, activationConfiguration, MemSqlFunctionDeploymentConfiguration, activationConnection, stage
+//
+// Two unrelated grammars sharing a vendor. MemSqlLexerGrammar is the relational datasource
+// spec (###Connection, `specification: MemSql` -- note the spelling differs from the
+// connection's own `type: MemSQL`); MemSqlFunctionLexerGrammar is the function activator,
+// whose section is `###MemSql` (MemSqlFunctionGrammarParserExtension.java:37).
+//
+// Activator syntax from TestMemSqlFunctionRoundtrip. There is NO upstream grammar test for
+// the MemSql datasource spec at all -- the field list and their types come from the .g4 plus
+// MemSqlGrammarParserExtension.visitMemSqlDatasourceSpecification. Two traps that file
+// documents and no test does: `port` is a STRING in the grammar and then run through
+// Integer.valueOf AT PARSE TIME (line 53), so `port: 'abc';` is a parse failure, not a
+// compile failure; `useSsl` is likewise a STRING parsed as a Boolean, not a BOOLEAN literal.
+// host and port are required, databaseName and useSsl optional.
+//
+// `stage` is reachable only as an identifier -- MemSqlFunctionParserGrammar.g4:68 defines the
+// rule and nothing references it (`definition` at line 29 admits only memSqlFunction and
+// deploymentConfig; deploymentConfig at line 59 holds only activationConnection). The token
+// lives on in the `identifier` alternation (line 19), so an element is named with it.
+//
+// Unlike BigQueryFunction, MemSqlFunction REQUIRES ownership (validateAndExtractRequiredField,
+// MemSqlFunctionTreeWalker.java), so even the keyword-named element carries it.
+###Connection
+RelationalDatabaseConnection fixture::ms::Conn
+{
+   store: fixture::ms::Db;
+   type: MemSQL;
+   specification: MemSql
+   {
+      host: 'localhost';
+      port: '3306';
+      databaseName: 'mydb';
+      useSsl: 'true';
+   };
+   auth: UserNamePassword
+   {
+      baseVaultReference: 'vault/prefix/';
+      userNameVaultReference: 'user';
+      passwordVaultReference: 'pwd';
+   };
+}
+
+###MemSql
+MemSqlFunction <<fixture::ms::A.test>> {fixture::ms::A.val = 'ok'} fixture::ms::MyFunction
+{
+   functionName : 'demoFunction';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'testDeployment' };
+   description : 'Its a single store function!';
+   activationConfiguration : fixture::ms::Conn;
+}
+
+MemSqlFunction fixture::ms::stage
+{
+   functionName : 'keywordNamedFunction';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'testDeployment' };
+}
+
+MemSqlFunctionDeploymentConfiguration fixture::ms::Config
+{
+   activationConnection : fixture::ms::Conn;
+}

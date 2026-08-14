@@ -1,0 +1,180 @@
+// COVERS PersistenceLexerGrammar: transactionMilestoning, BatchId, BatchIdAndDateTime, batchIdInName, batchIdOutName, dateTimeInName, dateTimeOutName, derivation, SourceSpecifiesInDateTime, SourceSpecifiesInAndOutDateTime, sourceDateTimeInField, sourceDateTimeOutField, validityMilestoning, dateTimeFromName, dateTimeThruName, SourceSpecifiesFromDateTime, SourceSpecifiesFromAndThruDateTime, sourceDateTimeFromField, sourceDateTimeThruField
+//
+// Milestoning is the deepest nest in the grammar: ingestMode > transactionMilestoning >
+// scheme > derivation > field. Every level is an exclusive alternation and every level is a
+// single field on its parent, so each combination costs a whole Persistence element.
+//
+//   transactionMilestoning: BatchId              { batchIdInName, batchIdOutName }
+//                           DateTime             { dateTimeInName, dateTimeOutName, derivation? }
+//                           BatchIdAndDateTime   { all four names, derivation? }
+//   derivation (transaction): SourceSpecifiesInDateTime       { sourceDateTimeInField }
+//                             SourceSpecifiesInAndOutDateTime { sourceDateTimeInField, sourceDateTimeOutField }
+//
+//   validityMilestoning:    DateTime ONLY -- `dateTimeValidityMilestoning` is the sole arm
+//                           of the rule (PersistenceParserGrammar.g4:660), so there is no
+//                           BatchId validity scheme to write.
+//   derivation (validity):  SourceSpecifiesFromDateTime        { sourceDateTimeFromField }
+//                           SourceSpecifiesFromAndThruDateTime { sourceDateTimeFromField, sourceDateTimeThruField }
+//
+// Note that `DateTime` is one token doing four different jobs -- auditing scheme,
+// transaction milestoning scheme, validity milestoning scheme, and (in the relational
+// target grammar) processing/source-derived dimension. Which one it means is positional.
+//
+// The four elements below are the minimum that reaches every derivation arm: transaction
+// derivation only attaches to the DateTime and BatchIdAndDateTime schemes, and validity
+// milestoning only exists on the bitemporal ingest modes.
+###Persistence
+Persistence test::persistence::TxnDateTimeSourceIn
+{
+  doc: 'DateTime transaction milestoning, source specifies the in date only';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalSnapshot
+    {
+      transactionMilestoning: DateTime
+      {
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+        derivation: SourceSpecifiesInDateTime
+        {
+          sourceDateTimeInField: sourceIn;
+        }
+      }
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+        derivation: SourceSpecifiesFromDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::TxnDateTimeSourceInAndOut
+{
+  doc: 'DateTime transaction milestoning, source specifies both in and out';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalDelta
+    {
+      mergeStrategy: NoDeletes;
+      transactionMilestoning: DateTime
+      {
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+        derivation: SourceSpecifiesInAndOutDateTime
+        {
+          sourceDateTimeInField: sourceIn;
+          sourceDateTimeOutField: sourceOut;
+        }
+      }
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+        derivation: SourceSpecifiesFromAndThruDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+          sourceDateTimeThruField: sourceThru;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::TxnBatchIdAndDateTime
+{
+  doc: 'the combined BatchIdAndDateTime scheme carries all four column names';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalSnapshot
+    {
+      transactionMilestoning: BatchIdAndDateTime
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+        derivation: SourceSpecifiesInAndOutDateTime
+        {
+          sourceDateTimeInField: sourceIn;
+          sourceDateTimeOutField: sourceOut;
+        }
+      }
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+        derivation: SourceSpecifiesFromAndThruDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+          sourceDateTimeThruField: sourceThru;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
+
+Persistence test::persistence::TxnBatchIdNoDerivation
+{
+  doc: 'BatchId scheme -- the one transaction milestoning arm with no derivation slot';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalDelta
+    {
+      mergeStrategy: NoDeletes;
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}
