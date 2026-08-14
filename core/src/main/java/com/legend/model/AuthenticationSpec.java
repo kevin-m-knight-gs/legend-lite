@@ -38,7 +38,12 @@ public sealed interface AuthenticationSpec
     record TestAuth() implements AuthenticationSpec {}
 
     /** Engine's {@code auth: DelegatedKerberos;}, optional server principal. */
-    record DelegatedKerberos(@com.legend.Nullable String serverPrincipal)
+    /** Both kerberos flavors ride here — the plain strategy leaves the
+     *  Trino-only fields null; the Trino flavor carries them (they were
+     *  silently DROPPED before — deep-audit #2 §3, fixed 2026-08-14). */
+    record DelegatedKerberos(@com.legend.Nullable String serverPrincipal,
+            @com.legend.Nullable String kerberosRemoteServiceName,
+            @com.legend.Nullable Boolean kerberosUseCanonicalHostname)
             implements AuthenticationSpec {}
 
     /** Engine's {@code auth: UserNamePassword { ...VaultReference... };} —

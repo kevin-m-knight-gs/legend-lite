@@ -410,6 +410,13 @@ public final class FromProtocol {
                     new GenericSectionElementDefinition("Connection",
                             "ServiceStoreConnection", c.qualifiedName(),
                             java.util.Map.of("baseUrl", sc.baseUrl()), null);
+            // The island-auth backends (Deephaven/Mongo/ES) stay OPAQUE
+            // here on purpose: lite does not execute them, so their
+            // PAuthSpecValue never reaches the model. Exhaustiveness over
+            // that sealed interface is enforced at the EMITTER
+            // (AuthSpecEmitter.esAuthSpec) — a new auth variant breaks
+            // compile there, which is the protection deep-audit #2 §3
+            // asked for; a second, dead switch here would add none.
             case Protocol.PDeephavenConnection dc ->
                     new GenericSectionElementDefinition("Connection",
                             "DeephavenConnection", c.qualifiedName(),
@@ -752,7 +759,8 @@ public final class FromProtocol {
             case Protocol.PH2Default d -> new AuthenticationSpec.DefaultH2();
             case Protocol.PTestAuth t -> new AuthenticationSpec.TestAuth();
             case Protocol.PDelegatedKerberos k ->
-                    new AuthenticationSpec.DelegatedKerberos(k.serverPrincipal());
+                    new AuthenticationSpec.DelegatedKerberos(
+                            k.serverPrincipal(), null, null);
             case Protocol.PUserNamePassword u ->
                     new AuthenticationSpec.VaultUserNamePassword(
                             u.baseVaultReference(), u.userNameVaultReference(),
@@ -772,7 +780,9 @@ public final class FromProtocol {
                     o.oauthKey(), o.scopeName());
             case Protocol.PTrinoKerberosAuth k ->
                     new AuthenticationSpec.DelegatedKerberos(
-                            k.serverPrincipal());
+                            k.serverPrincipal(),
+                            k.kerberosRemoteServiceName(),
+                            k.kerberosUseCanonicalHostname());
             case Protocol.PGcpWifAuth w ->
                     new AuthenticationSpec.GcpWorkloadIdentityFederation(
                             w.serviceAccountEmail(),
