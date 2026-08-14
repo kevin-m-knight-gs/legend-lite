@@ -327,7 +327,7 @@ class SpecCompilerTest {
     @Test
     void check_multiStatementChecksOnlyTheLast() {
         CompiledFunction cf = checkOnly(
-                "function model::f(x:" + INT + "[1]):" + INT + "[1] { 1; $x }", "model::f");
+                "function model::f(x:" + INT + "[1]):" + INT + "[1] { 1; $x; }", "model::f");
         assertEquals(2, cf.body().size());
         assertEquals(one(Type.Primitive.INTEGER), cf.result().info());
     }
@@ -450,14 +450,14 @@ class SpecCompilerTest {
     @Test
     void check_letBindingIsInScopeForLaterStatements() {
         CompiledFunction cf = checkOnly(
-                "function model::f(x:" + INT + "[1]):" + INT + "[1] { let y = $x; $y }", "model::f");
+                "function model::f(x:" + INT + "[1]):" + INT + "[1] { let y = $x; $y; }", "model::f");
         assertEquals(one(Type.Primitive.INTEGER), cf.result().info());
     }
 
     @Test
     void check_letWithDifferentlyTypedValue() {
         CompiledFunction cf = checkOnly(
-                "function model::f(x:" + INT + "[1]):" + STR + "[1] { let s = 'hi'; $s }", "model::f");
+                "function model::f(x:" + INT + "[1]):" + STR + "[1] { let s = 'hi'; $s; }", "model::f");
         assertEquals(one(Type.Primitive.STRING), cf.result().info());
     }
 

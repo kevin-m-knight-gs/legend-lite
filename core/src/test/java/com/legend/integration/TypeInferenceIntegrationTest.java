@@ -3190,10 +3190,11 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testContainsWithFunction() throws SQLException {
                 // PCT: [^Class(name='f1'), ^Class(name='f2')]->contains(^Class(name='f1'),
-                // comparator(...){$a.name == $b.name})
+                // {a:T[1], b:T[1] | $a.name == $b.name}) — REAL typed-lambda
+                // spelling (the inline comparator invention is deleted)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
-                                "|[^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), ^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f2')]->meta::pure::functions::collection::contains(^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), comparator(a: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1], b: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1]): Boolean[1]\n       {\n         $a.name == $b.name\n       })",
+                                "|[^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), ^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f2')]->meta::pure::functions::collection::contains(^meta::pure::functions::collection::tests::contains::ClassWithoutEquality(name='f1'), {a: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1], b: meta::pure::functions::collection::tests::contains::ClassWithoutEquality[1] | $a.name == $b.name})",
                                 "test::TestRuntime", connection);
                 assertEquals(true, result.rows().get(0).get(0));
         }

@@ -445,11 +445,13 @@ public final class SpecParser implements TokenStreamCursor {
             stmts.add(parseProgramLine());
             lastTerminated = false;
         }
-        if (dialect().refusesLiteExtensions() && stmts.size() > 1
-                && !lastTerminated && atTerminator(terminator)) {
-            // engine codeBlock: in a MULTI-statement body every statement
-            // carries ';' — only a lone statement may omit it
-            // (adversarial audit divergence 16, oracle-verified)
+        if (stmts.size() > 1 && !lastTerminated && atTerminator(terminator)) {
+            // EVERY dialect: in a MULTI-statement body every statement
+            // carries ';' — only a lone statement may omit it. The engine
+            // refuses (adversarial audit divergence 16, oracle-verified)
+            // and so does REAL legend-pure (M3 codeBlock: programLine
+            // (END_LINE (programLine END_LINE)*)? — the old LITE/PLATFORM
+            // tolerance was an engine-lite INVENTION, census D4)
             throw error("Unexpected token");
         }
         return stmts;
@@ -724,7 +726,6 @@ public final class SpecParser implements TokenStreamCursor {
             case DISTINCT_CMD, FILTER_CMD, GROUP_BY_CMD, MAIN_TABLE_CMD,
                     PRIMARY_KEY_CMD, SRC_CMD -> parseTildeCommandColSpec();
             case AT -> parseTypeAnnotation();
-            case COMPARATOR -> parseComparatorExpression();
             case TDS_LITERAL -> parseTdsLiteral();
             case PATH_LITERAL -> parsePathLiteral();
             case ISLAND_OPEN -> parseDsl();
@@ -2586,71 +2587,6 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     // -------------------------------------------------------------------
-    // Comparator expressions (C.7a): comparator(a:T[1], b:T[1]): Bool[1] { body }
-    // -------------------------------------------------------------------
-
-    /**
-     * Parse a {@code comparator} expression. Grammar:
-     * <pre>
-     *   comparatorExpr = 'comparator' '(' typedParam (',' typedParam)* ')'
-     *                    ':' type multiplicity '{' statements '}'
-     *   typedParam     = identifier ':' type multiplicity
-     * </pre>
-     *
-     * <p>Desugars to a {@link LambdaFunction} whose parameters carry
-     * the declared types and multiplicities. Matches engine-lite's
-     * behaviour of collapsing the named {@code comparator} syntax
-     * into a plain typed-lambda AST &mdash; downstream
-     * overload-resolution dispatches on the {@code Comparator<T>}
-     * function type which is recovered from the lambda's parameter
-     * types, not from a distinct AST variant.
-     *
-     * <p>The trailing return-type and return-multiplicity are
-     * consumed but dropped: the lambda's return type is inferred by
-     * the type-checker and the declared annotation is redundant
-     * (engine-lite does the same).
-     */
-    private LambdaFunction parseComparatorExpression() {
-        if (dialect().refusesLiteExtensions()) {
-            // ENGINE surface only — the engine's grammar has no comparator
-            // expression (adversarial audit D2); lite's product surface
-            // keeps it (own integration tests use it via the Compiler)
-            throw error("Unexpected token 'comparator'");
-        }
-        pos++; // consume 'comparator'
-        expect(TokenType.PAREN_OPEN, "expected '(' after 'comparator'");
-        List<Variable> params = new ArrayList<>();
-        params.add(parseComparatorParam());
-        while (!atEnd() && peek() == TokenType.COMMA) {
-            pos++;
-            params.add(parseComparatorParam());
-        }
-        expect(TokenType.PAREN_CLOSE, "expected ')' to close comparator parameter list");
-        expect(TokenType.COLON, "expected ':' and return type after comparator parameters");
-        parseType();          // return type, discarded
-        parseMultiplicity();  // return multiplicity, discarded
-        expect(TokenType.BRACE_OPEN, "expected '{' to open comparator body");
-        List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
-        expect(TokenType.BRACE_CLOSE, "expected '}' to close comparator body");
-        return new LambdaFunction(params, body);
-    }
-
-    private Variable parseComparatorParam() {
-        if (!isFqnSegmentToken(peek())) {
-            throw error("expected parameter name in comparator(...)");
-        }
-        String name = text();
-        pos++;
-        expect(TokenType.COLON, "comparator parameter requires ': Type[mult]' annotation");
-        TypeExpression type = parseType();
-        Multiplicity mult = parseMultiplicity();
-        return new Variable(name, type, mult);
-    }
-
-    // -------------------------------------------------------------------
-    // TDS literal (C.7a)
-    // -------------------------------------------------------------------
-
     /**
      * {@code #/Type/prop1/prop2#} — a navigation PATH. Its value semantics
      * for plain property segments IS the navigation lambda

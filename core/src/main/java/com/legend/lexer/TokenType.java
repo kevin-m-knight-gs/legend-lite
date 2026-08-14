@@ -62,7 +62,6 @@ public enum TokenType {
     // ==================== M3 Keywords ====================
     ALL,                // all
     LET,                // let
-    COMPARATOR,         // comparator
     ALL_VERSIONS,       // allVersions
     ALL_VERSIONS_IN_RANGE,  // allVersionsInRange
 

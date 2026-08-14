@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * all supported Pure types, diverse mapping strategies, and chaotic queries.
  *
  * Property types: String, Integer, Boolean, Date, DateTime, Float, Decimal
- * SQL column types: VARCHAR, INT, BIGINT, BOOLEAN, DATE, TIMESTAMP, DOUBLE, DECIMAL
+ * SQL column types: VARCHAR, INT, BIGINT, BIT, DATE, TIMESTAMP, DOUBLE, DECIMAL
  *
  * Class shapes:
  *   - Tiny (1-3 props): id + 0-2 fields
@@ -74,7 +74,7 @@ class StressTestChaotic {
         {"String",   "VARCHAR(200)"},
         {"Integer",  "INT"},
         {"Integer",  "BIGINT"},
-        {"Boolean",  "BOOLEAN"},
+        {"Boolean",  "BIT"},
         {"Date",     "DATE"},
         {"DateTime", "TIMESTAMP"},
         {"Float",    "DOUBLE"},

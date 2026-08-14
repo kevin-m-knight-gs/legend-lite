@@ -39,7 +39,6 @@ public final class Lexer {
         // M3
         KEYWORDS.put("all", TokenType.ALL);
         KEYWORDS.put("let", TokenType.LET);
-        KEYWORDS.put("comparator", TokenType.COMPARATOR);
         KEYWORDS.put("allVersions", TokenType.ALL_VERSIONS);
         KEYWORDS.put("allVersionsInRange", TokenType.ALL_VERSIONS_IN_RANGE);
         // Domain

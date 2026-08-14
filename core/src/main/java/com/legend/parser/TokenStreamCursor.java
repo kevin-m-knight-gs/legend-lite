@@ -117,7 +117,6 @@ public interface TokenStreamCursor {
             TokenType.VALID_STRING, TokenType.STRING,
             // M3
             TokenType.ALL, TokenType.LET, TokenType.ALL_VERSIONS, TokenType.ALL_VERSIONS_IN_RANGE,
-            TokenType.COMPARATOR, // Domain
             TokenType.IMPORT, TokenType.CLASS, TokenType.FUNCTION, TokenType.PROFILE,
             TokenType.ASSOCIATION, TokenType.ENUM, TokenType.EXTENDS,
             TokenType.STEREOTYPES, TokenType.TAGS, TokenType.NATIVE, TokenType.AS,

@@ -194,7 +194,24 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
       let substitutedValues = $iv.values->map(v |
         $v->match([
           vs:ValueSpecification[1] | substituteInExpression($vs, $openVars),
-          fd:FunctionDefinition<Any>[1] | 
+          cfd:ConcreteFunctionDefinition<Any>[1] |
+            // A NAMED function passed by reference: lite's model does not
+            // host the PCT support functions, so the reference must be
+            // inlined. Print it as a REAL typed lambda — the old path let
+            // printFunctionDefinition emit `name(a:T[1],...):R[1] {body}`,
+            // a PRINT-ONLY form no real parser accepts (invention census
+            // D2; the lite parse arm for it is deleted).
+            let substExprs = $cfd.expressionSequence->evaluateAndDeactivate()->map(e |
+              substituteInExpression($e, $openVars)
+            );
+            ^GenericType(
+              rawType = LambdaFunction,
+              typeArguments = $cfd.classifierGenericType.typeArguments
+            )->meta::pure::functions::lang::dynamicNew([
+              ^KeyValue(key = 'expressionSequence',
+                        value = $substExprs->cast(@ValueSpecification))
+            ])->cast(@LambdaFunction<Any>);,
+          fd:FunctionDefinition<Any>[1] |
             // Handle nested lambdas
             let substExprs = $fd.expressionSequence->evaluateAndDeactivate()->map(e |
               substituteInExpression($e, $openVars)

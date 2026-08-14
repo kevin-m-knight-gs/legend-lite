@@ -361,17 +361,6 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "FLOAT" -> "Float";
             case "REAL" -> "Real";
             case "BIT" -> "Bit";
-            // LITE extension (three-dialect discipline): the ENGINE
-            // refuses BOOLEAN/BOOL columns (test-corpus audit F3, oracle
-            // probed: "Unsupported column data type 'BOOLEAN'"); lite's own
-            // model has had Bool since the start and keeps it
-            case "BOOLEAN", "BOOL" -> {
-                if (dialect.refusesLiteExtensions()) {
-                    throw TokenStreamCursor.throwAt(tokens, typeStart,
-                            "Unsupported column data type '" + kindWord + "'");
-                }
-                yield "Boolean";
-            }
             case "DATE" -> "Date";
             case "TIMESTAMP" -> "Timestamp";
             case "SEMISTRUCTURED" -> "SemiStructured";

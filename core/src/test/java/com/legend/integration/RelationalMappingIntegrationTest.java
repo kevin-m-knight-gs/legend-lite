@@ -220,7 +220,7 @@ class RelationalMappingIntegrationTest {
                 "INSERT INTO MIXED VALUES (1, 'hello', 42, 3.14, true, '2024-01-01')");
             String m = singleTableModel("R", "MIXED", "store::DB", "model::M",
                     "Class model::R { s: String[1]; i: Integer[1]; f: Float[1]; b: Boolean[1]; d: Date[1]; }",
-                    "ID INTEGER, S VARCHAR(100), I BIGINT, F DOUBLE, B BOOLEAN, D DATE",
+                    "ID INTEGER, S VARCHAR(100), I BIGINT, F DOUBLE, B BIT, D DATE",
                     "s: [store::DB] MIXED.S, i: [store::DB] MIXED.I, f: [store::DB] MIXED.F, b: [store::DB] MIXED.B, d: [store::DB] MIXED.D");
             var r = exec(m, "model::R.all()->project(~[s:x|$x.s, i:x|$x.i, f:x|$x.f, b:x|$x.b, d:x|$x.d])");
             assertEquals(1, r.rowCount());

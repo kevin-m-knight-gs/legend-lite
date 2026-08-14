@@ -1348,7 +1348,7 @@ final class SpecParserTest {
                                         new CString("x"), new Variable("p"))),
                                 nary("plus",
                                         new Variable("x"), new CInteger(1L)))),
-                com.legend.testing.Platform.spec("{p | let x = $p; $x + 1}"));
+                com.legend.testing.Platform.spec("{p | let x = $p; $x + 1;}"));
     }
 
     // ----- lambdas: shorthand forms (C.4) ------------------------------
@@ -1470,7 +1470,7 @@ final class SpecParserTest {
                                                 new CInteger(2L)))),
                                 new Variable("y"))),
                 com.legend.testing.Platform.spec(
-                        "{p | let x = $p + 1; let y = $x * 2; $y}"));
+                        "{p | let x = $p + 1; let y = $x * 2; $y;}"));
     }
 
     @Test
@@ -1486,7 +1486,7 @@ final class SpecParserTest {
         // independence of each let (each desugars to its own
         // letFunction call without any cross-statement state).
         List<ValueSpecification> stmts = com.legend.testing.Platform.block(
-                "let f = {p | $p + 1}; let g = {q | $q * 2}; $f");
+                "let f = {p | $p + 1}; let g = {q | $q * 2}; $f;");
         assertEquals(
                 List.of(
                         new AppliedFunction("letFunction", List.of(
@@ -1828,7 +1828,7 @@ final class SpecParserTest {
         // program line (so 'let' is admitted on each, each desugaring
         // independently to its own letFunction call).
         List<ValueSpecification> stmts = com.legend.testing.Platform.block(
-                "let x = 1; let y = 2; $x + $y");
+                "let x = 1; let y = 2; $x + $y;");
         assertEquals(
                 List.of(
                         new AppliedFunction("letFunction", List.of(
@@ -2145,7 +2145,7 @@ final class SpecParserTest {
                                                 new Variable("y"),
                                                 new CInteger(2L)))),
                         null),
-                com.legend.testing.Platform.spec("~total:{x | let y = 1; $y + 2}"));
+                com.legend.testing.Platform.spec("~total:{x | let y = 1; $y + 2;}"));
     }
 
     @Test
@@ -2650,27 +2650,23 @@ final class SpecParserTest {
                 "1.0000000000000001", com.legend.parser.Dialect.LEGEND_ENGINE));
     }
 
-    // ----- C.7a: comparator expressions --------------------------------
+    // ----- C.7a (RETIRED): the inline 'comparator' expression ----------
 
     @Test
-    void comparatorExpressionDesugarsToTypedLambda() {
-        // 'comparator(a: Integer[1], b: Integer[1]): Bool[1] {
-        //     $a - $b }'
-        // Desugars to a LambdaFunction with typed parameters. The
-        // trailing ': Bool[1]' is parsed and discarded (engine-lite
-        // does the same \u2014 return type is inferred).
-        assertEquals(
-                new LambdaFunction(
-                        List.of(
-                                new Variable("a", nr("Integer"),
-                                        Multiplicity.Concrete.PURE_ONE),
-                                new Variable("b", nr("Integer"),
-                                        Multiplicity.Concrete.PURE_ONE)),
-                        List.of(nary("minus",
-                                new Variable("a"),
-                                new Variable("b")))),
+    void comparatorInlineExpressionIsDeleted() {
+        // 'comparator(a:T[1], b:T[1]): R[1] { body }' was an engine-lite
+        // INVENTION — a PRINT-ONLY form of legend-pure's
+        // printFunctionDefinition that no real parser (engine or M3)
+        // accepts. Deleted per the invention census (D2, 2026-08-14);
+        // the PCT adapter now prints typed LAMBDAS for function-valued
+        // arguments. 'comparator' is an ordinary identifier again.
+        assertThrows(ParseException.class, () ->
                 com.legend.testing.Platform.spec(
-                        "comparator(a: Integer[1], b: Integer[1]): Bool[1] { $a - $b }"));
+                        "comparator(a: Integer[1], b: Integer[1]):"
+                                + " Bool[1] { $a - $b }"));
+        // and as a plain identifier it still works
+        assertEquals(new Variable("comparator"),
+                com.legend.testing.Platform.spec("$comparator"));
     }
 
     // ----- C.7a: TDS literal -------------------------------------------
