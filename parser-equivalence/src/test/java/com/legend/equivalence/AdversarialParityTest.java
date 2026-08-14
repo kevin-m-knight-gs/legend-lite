@@ -137,6 +137,21 @@ class AdversarialParityTest {
     }
 
     @Test
+    void booleanColumnTypes() {
+        // test-corpus audit F3: the engine refuses BOOLEAN/BOOL columns;
+        // lite keeps them as a DECLARED extension on its own dialect, so
+        // the drop-in surface must refuse engine-verbatim
+        runFamily("boolean-columns", List.of(
+                new Row("BOOLEAN column",
+                        "###Relational\nDatabase d::DB\n(\n  Table T (ID INTEGER PRIMARY KEY, FLAG BOOLEAN)\n)\n"),
+                new Row("BOOL column",
+                        "###Relational\nDatabase d::DB\n(\n  Table T (ID INTEGER PRIMARY KEY, FLAG BOOL)\n)\n"),
+                new Row("BIT column (engine-legal)",
+                        "###Relational\nDatabase d::DB\n(\n  Table T (ID INTEGER PRIMARY KEY, FLAG BIT)\n)\n")),
+                0);
+    }
+
+    @Test
     void gqlIslands() {
         // #GQL{...}# — the graphQL embedded-Pure extension (census row
         // retired 2026-08-14). Every accepted form byte-pinned against
