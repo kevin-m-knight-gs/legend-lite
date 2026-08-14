@@ -292,13 +292,10 @@ class SectionParseSentinelTest {
     // which is why the total falls by 14 rather than 17. The ceiling had been
     // sitting 82 above the actual count, so it could not have caught a
     // regression of any size worth catching.
-    // RE-BASELINE 2026-08-14 (C12 harvest lane): widening the corpus +
-    // fixing header-line residue made 16 previously-invisible defects
-    // measurable — all queued census families (DQ '~' forms x3, dataspace
-    // template PAREN x2, ES connection x2, RDB 'mode' x2, Relation
-    // mapping-source x2, + tail). Down-only from here; each family fix
-    // lowers it.
-    private static final int MAX_DROP_IN_DEFECTS = 17;
+    // 2026-08-14 C12 families all landed: 17 -> 2. The residue is the
+    // Relation-mapping EXPRESSION source (we require a named function,
+    // the engine accepts an expression) — the R3 protocol-first seam.
+    private static final int MAX_DROP_IN_DEFECTS = 2;
     // 126 -> 127 is the ONE increment this ratchet has ever taken, and it is a
     // gap becoming VISIBLE rather than a capability being lost: refusing
     // unknown sections turned a silently-skipped ###Diagram that the engine
