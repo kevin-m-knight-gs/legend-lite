@@ -25,11 +25,24 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Or apply it without editing by hand:
+Or apply it without editing by hand. Use the heredoc form — a `python3 -c`
+one-liner breaks with `IndentationError` if the terminal wraps the paste, which
+is exactly what happened the first time:
 
 ```bash
-/usr/bin/python3 -c "import json,os; p=os.path.expanduser('~/.claude/settings.json'); d=json.load(open(p)); d.setdefault('env',{})['CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION']='400'; json.dump(d,open(p,'w'),indent=2); print(open(p).read())"
+python3 <<'EOF'
+import json, os
+p = os.path.expanduser('~/.claude/settings.json')
+d = json.load(open(p))
+d.setdefault('env', {})['CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION'] = '400'
+json.dump(d, open(p, 'w'), indent=2)
+print(open(p).read())
+EOF
 ```
+
+(That failure is harmless: `IndentationError` is raised at compile time, so
+nothing runs and the settings file is untouched. Verify with
+`python3 -c "import json,os;json.load(open(os.path.expanduser('~/.claude/settings.json')))"`.)
 
 400, not 200: the plan below is ~150 agents with headroom for follow-ups and
 verification passes.
