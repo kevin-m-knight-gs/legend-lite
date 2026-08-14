@@ -725,6 +725,13 @@ public final class ElementParser implements TokenStreamCursor {
     /** Elements whose keyword is not a reserved token. */
     private PackageableElement keywordElement(TokenType t) {
         if ("Primitive".equals(safeText())) {
+            // pure-m2 dialect: the ENGINE wire grammar has no Primitive
+            // element (its parser dies with a raw InputMismatchException,
+            // null message — adjudication probe 2026-08-14, upstream
+            // defect row); PLATFORM/LITE keep it
+            if (dialect.refusesLiteExtensions()) {
+                throw error("Primitive type declarations are not supported");
+            }
             return primitiveElement();
         }
         if ("Data".equals(safeText())) {

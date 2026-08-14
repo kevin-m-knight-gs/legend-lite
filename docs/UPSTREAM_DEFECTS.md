@@ -16,6 +16,7 @@ add the issue link; when fixed upstream, the oracle-bump procedure
 | U3 | GraphFetch `InstanceLiteralContext.instanceLiteralToken()` NPE; Domain `ToMultiplicityContext.getText()` NPE; `AssociationBodyContext.properties()` NPE | catalog signatures (2/2/1 rows) |
 | U4 | Persistence `serviceOutputValue` two-meaning rule: 6 unguarded call sites NPE on identifier-vs-path confusion (e.g. graphFetch keys as identifier, TDS keys as navigation path) | `parity-quarantine.tsv` F23; sibling fixtures `neg-persistence-graphfetch-keys-identifier.pure`, `neg-persistence-tds-keys-navigation-path.pure` |
 | U5 | DataSpace `Email {}` (missing address): raw NPE instead of "Field 'address' is required" | adversarial audit row 14 |
+| U17 | Pure-m2 `Primitive X extends Y` declarations crash the wire parser with a raw null-message `InputMismatchException` instead of a positioned "unsupported element" refusal | adjudication probe 2026-08-14 (synthetic minimal: `Primitive a::P extends String`); 7 corpus sources |
 
 ## Silent-wrong class (accepts and corrupts, or drops data)
 

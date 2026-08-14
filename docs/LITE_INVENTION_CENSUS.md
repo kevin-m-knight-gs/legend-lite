@@ -93,7 +93,19 @@ had ZERO handlers anywhere in main code. All deleted; class pin
 correction):** legend-pure ships the TDS DSL (`platform_dsl_tds`) and
 the engine's own `xts-tds` extension parses the accessor forms — the
 gate attempt on `#TDS` was REFUTED BY THE GATES (six oracle-accepted
-sources) and reverted; `#TDS` carries no dialect gate at all. `^$x`
+sources) and reverted. **Sharpened by the 2026-08-14 adjudication
+probe:** the two claims were about DIFFERENT spellings. The engine's
+xt-tds accepts only the BRACE form `#TDS{...}#` (that's what the six
+oracle-accepted sources use); the BRACE-LESS `#TDS ... #` form is
+legend-pure's `platform_dsl_tds` spelling and the engine REFUSES it —
+so the brace-less form now carries a drop-in gate
+(`refusesLiteExtensions`, classified `PURE-DIALECT-tds-braceless`)
+while PLATFORM/LITE keep it. Same probe: pure-m2 `Primitive X extends
+Y` declarations crash the engine's wire parser outright (raw
+`InputMismatchException`, null message — upstream row U17) and are now
+gated the same way (`PURE-DIALECT-primitive`). The two gates closed
+the strict/oracle asymmetry census from 22 rows to 2 (both walker-NPE
+upstream defects) and the seam census from 18 to 0. `^$x`
 is legend-pure copy-with-update (the engine wire walker NPEs on it —
 upstream row): gated drop-in only, classified `DIALECT-copy-new`.
 

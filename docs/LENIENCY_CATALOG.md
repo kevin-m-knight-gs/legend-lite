@@ -1,12 +1,17 @@
-# Leniency Catalog
+# Platform-Coverage Catalog (formerly "Leniency Catalog")
 
-Every corpus source that **legend-lite accepts and the reference oracle
-refuses**, adjudicated one by one. The row universe is generated (and
-enforced) by `LeniencyCatalogTest`: it re-parses the ENTIRE corpus with the
-oracle, and every refusal of a file we accept must classify into one of the
-named classes below — an unclassified row fails the build. This document
-records each class's JUSTIFICATION with the evidence that established it;
-the test records membership row by row (`target/leniency-catalog.txt`).
+Every corpus source that **the PLATFORM dialect accepts and the
+reference oracle refuses**, adjudicated one by one. Renamed 2026-08-14:
+"leniency" suggested a tolerant parser mode, but no such mode exists —
+every dialect is strict about its own grammar, and this catalog simply
+measures the PLATFORM tier's coverage of the legend-pure superset
+(exactly the sources gates 4/5 must parse to execute). The row universe
+is generated (and enforced) by the sweep (`CorpusSweepTest`): every
+oracle-refusal of a platform-accepted file must classify into one of
+the named classes below — an unclassified row fails the build. This
+document records each class's JUSTIFICATION with the evidence that
+established it; the test records membership row by row
+(`target/platform-coverage-catalog.txt`).
 
 Oracle: legend-engine **4.138.2** jars (W10 re-pin, 2026-08-10; the
 previous pin was 4.133.0 — an earlier revision of this doc mis-recorded

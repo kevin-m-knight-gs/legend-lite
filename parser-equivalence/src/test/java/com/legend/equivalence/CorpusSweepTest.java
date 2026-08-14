@@ -82,7 +82,7 @@ public class CorpusSweepTest {
 
     /** Vanilla-rejected sources the SPI seam accepts — post-flip residue
      *  (upstream walker defects + the reviewed allowlist). Down-only. */
-    private static final int MAX_SEAM_LENIENT_ACCEPTS = 18;   // 2026-08-14 post-strictness
+    private static final int MAX_SEAM_ORACLE_ASYMMETRY = 0;   // 2026-08-14: Primitive + brace-less #TDS gates closed the last 18
 
     /** Seam rows whose delta is the ENGINE's serialize-only field,
      *  membership-proven per row. Down-only. */
@@ -90,13 +90,13 @@ public class CorpusSweepTest {
 
     /** Pure-only vanilla-rejected files raw parseStrict accepts — the
      *  strict element surface's own census. Down-only. */
-    private static final int MAX_PARSER_LENIENT_ACCEPTS = 22;   // 2026-08-14: was 181 — the stray-')' gate alone retired the 161-row oracle-NPE class from the lenient side
+    private static final int MAX_STRICT_ORACLE_ASYMMETRY = 2;   // 2026-08-14: was 181 -> 22 (stray-')' gate) -> 2 (Primitive + brace-less #TDS gates); the 2 are ORACLE-DEFECT-crash walker NPEs (U3), named in UPSTREAM_DEFECTS.md
 
-    /** CEILING on the platform-surface leniency catalog (deep-audit #2
+    /** CEILING on the platform-COVERAGE catalog (each oracle-refused source the PLATFORM dialect accepts, classified) (deep-audit #2
      *  2d: the population was unbounded — every row classifies, but
      *  nothing stopped the TOTAL from growing silently). Shrink-only;
      *  measured 2026-08-14. */
-    private static final int MAX_LENIENCY_CATALOG = 1470;
+    private static final int MAX_PLATFORM_CATALOG = 1470;
 
     /** M3 second-reference agreement floor on oracle-accepted
      *  section-free sources — below this the "m3-corroborated"
@@ -140,7 +140,7 @@ public class CorpusSweepTest {
         int oracleAccepts = 0;
         int calAccepted = 0;
         int calAgree = 0;
-        int strictLenient = 0;
+        int strictAsymmetry = 0;
         List<String> docDiffs = new ArrayList<>();
         List<String> weRefuse = new ArrayList<>();
         List<String> modelRefuse = new ArrayList<>();
@@ -152,10 +152,10 @@ public class CorpusSweepTest {
         List<String> unlistedAsym = new ArrayList<>();
         List<String> dialectLeaks = new ArrayList<>();
         List<String> unclassified = new ArrayList<>();
-        List<String> strictLenientIds = new ArrayList<>();
+        List<String> strictAsymmetryIds = new ArrayList<>();
         List<String> strictUnexplained = new ArrayList<>();
         List<String> protocolInvalid = new ArrayList<>();
-        Map<String, Integer> strictLenientByClass = new TreeMap<>();
+        Map<String, Integer> strictAsymmetryByClass = new TreeMap<>();
         Map<String, Integer> catalogByClass = new TreeMap<>();
         StringBuilder catalog = new StringBuilder();
         java.util.Set<String> asymIds = new java.util.HashSet<>();
@@ -225,7 +225,7 @@ public class CorpusSweepTest {
             boolean docAccepts = accepts(() -> com.legend.parser.PmcdParser
                     .parseDocument(src.text()));
             boolean strictAccepts = accepts(() -> Surfaces.engine(src.text()));
-            boolean lenientAccepts = accepts(() -> Surfaces.platform(src.text()));
+            boolean platformAccepts = accepts(() -> Surfaces.platform(src.text()));
             boolean pureOnly = !SECTION.matcher(src.text()).find();
 
             if (!docAccepts && !strictAccepts) {
@@ -267,8 +267,8 @@ public class CorpusSweepTest {
                 }
             }
             if (pureOnly && strictAccepts) {
-                strictLenient++;
-                strictLenientIds.add(src.id() + " :: vanilla: "
+                strictAsymmetry++;
+                strictAsymmetryIds.add(src.id() + " :: vanilla: "
                         + msgOf(oracleRoot));
                 // LEG-1 CLOSURE (2026-08-13): every strict-lenient row must
                 // CLASSIFY — the bare count looked like unadjudicated debt
@@ -281,7 +281,7 @@ public class CorpusSweepTest {
                     strictUnexplained.add(src.id() + " :: "
                             + msgOf(oracleRoot));
                 } else {
-                    strictLenientByClass.merge(scls, 1, Integer::sum);
+                    strictAsymmetryByClass.merge(scls, 1, Integer::sum);
                 }
             }
             // seam census: the drop-in accepting what vanilla refuses
@@ -290,7 +290,7 @@ public class CorpusSweepTest {
                         + msgOf(oracleRoot));
             }
             // leniency catalog + dialect parity (the lenient MODEL surface)
-            if (lenientAccepts) {
+            if (platformAccepts) {
                 CLASSIFYING_ID.set(src.id());
                 String cls = classify(oracleRoot, src.text());
                 CLASSIFYING_ID.remove();
@@ -313,28 +313,28 @@ public class CorpusSweepTest {
 
         writeReports(sources.size(), oracleAccepts, docsMatched, docDiffs,
                 weRefuse, bothReject, seamMatched, engineAsym, seamDiffs,
-                seamAccepts, seamRejects, strictLenient, strictLenientIds,
+                seamAccepts, seamRejects, strictAsymmetry, strictAsymmetryIds,
                 asymRows, catalog, catalogByClass, stale);
         double calibration = calAccepted == 0 ? 0
                 : 100.0 * calAgree / calAccepted;
         System.out.printf("SWEEP: %d sources | oracle accepts %d | docs"
                 + " matched %d diff %d weRefuse %d | seam %d/%d asym %d |"
-                + " both-reject %d asymmetric %d (stale %d) | strictLenient"
+                + " both-reject %d asymmetric %d (stale %d) | strictAsymmetry"
                 + " %d | M3 cal %.1f%%%n",
                 sources.size(), oracleAccepts, docsMatched, docDiffs.size(),
                 weRefuse.size(), seamMatched, seamRejects.size(),
                 engineAsym.size(), bothReject, asymRows.size(), stale.size(),
-                strictLenient, calibration);
+                strictAsymmetry, calibration);
 
         final int fDocs = docsMatched;
         final int fSeam = seamMatched;
-        final int fStrict = strictLenient;
+        final int fStrict = strictAsymmetry;
         final double fCal = calibration;
         final int fAccepts = oracleAccepts;
         final int fBoth = bothReject;
         final int fCatalogTotal = catalogByClass.values().stream()
                 .mapToInt(Integer::intValue).sum();
-        System.out.println("strictLenient by class: " + strictLenientByClass);
+        System.out.println("strictAsymmetry by class: " + strictAsymmetryByClass);
         assertAll(
                 () -> assertEquals(0, strictUnexplained.size(),
                         () -> "STRICT-LENIENT rows with NO catalog class —"
@@ -378,15 +378,15 @@ public class CorpusSweepTest {
                 () -> assertTrue(fSeam >= MIN_SEAM_MATCHED,
                         "seam coverage shrank: " + fSeam + " < "
                                 + MIN_SEAM_MATCHED),
-                () -> assertTrue(seamAccepts.size() <= MAX_SEAM_LENIENT_ACCEPTS,
+                () -> assertTrue(seamAccepts.size() <= MAX_SEAM_ORACLE_ASYMMETRY,
                         "seam leniency census grew: " + seamAccepts.size()
-                                + " > " + MAX_SEAM_LENIENT_ACCEPTS),
+                                + " > " + MAX_SEAM_ORACLE_ASYMMETRY),
                 () -> assertTrue(engineAsym.size() <= MAX_ENGINE_JSON_ASYMMETRY,
                         "engine JSON-asymmetry bucket grew: "
                                 + engineAsym.size()),
-                () -> assertTrue(fStrict <= MAX_PARSER_LENIENT_ACCEPTS,
+                () -> assertTrue(fStrict <= MAX_STRICT_ORACLE_ASYMMETRY,
                         "parseStrict leniency census grew: " + fStrict
-                                + " > " + MAX_PARSER_LENIENT_ACCEPTS),
+                                + " > " + MAX_STRICT_ORACLE_ASYMMETRY),
                 () -> assertTrue(fCal >= M3_CALIBRATION_FLOOR,
                         String.format("M3 second-reference calibration %.1f%%"
                                 + " below floor %.1f%% — the m3-corroborated"
@@ -394,9 +394,9 @@ public class CorpusSweepTest {
                                 fCal, M3_CALIBRATION_FLOOR)),
                 () -> assertTrue(fAccepts > 0 && fBoth > 0,
                         "degenerate sweep: the corpus did not load"),
-                () -> assertTrue(fCatalogTotal <= MAX_LENIENCY_CATALOG,
+                () -> assertTrue(fCatalogTotal <= MAX_PLATFORM_CATALOG,
                         "leniency catalog grew: " + fCatalogTotal + " > "
-                                + MAX_LENIENCY_CATALOG
+                                + MAX_PLATFORM_CATALOG
                                 + " — new leniency must be adjudicated"),
                 () -> assertEquals(0, protocolInvalid.size(),
                         () -> "PROTOCOL-INVALID wire on lenient-accepted"
@@ -479,6 +479,17 @@ public class CorpusSweepTest {
                     // ^$x(...) — pure-dialect copy-new, adopted on the
                     // LITE surface, refused drop-in (2026-08-14 gate)
                     return "DIALECT-copy-new";
+                }
+                if (sm.contains("brace-less #TDS")) {
+                    // platform_dsl_tds spelling — the engine's xt-tds
+                    // accepts only #TDS{...}# (adjudication 2026-08-14)
+                    return "PURE-DIALECT-tds-braceless";
+                }
+                if (sm.contains("Primitive type declarations")) {
+                    // pure-m2 Primitive element — the engine wire parser
+                    // CRASHES on it (raw InputMismatchException, null
+                    // message; adjudication 2026-08-14)
+                    return "PURE-DIALECT-primitive";
                 }
                 // an UNRECOGNIZED strict refusal is not skew — it must be
                 // named (deep-audit H2: this arm was a pardon)
@@ -657,8 +668,8 @@ public class CorpusSweepTest {
             int docsMatched, List<String> docDiffs, List<String> weRefuse,
             int bothReject, int seamMatched, List<String> engineAsym,
             List<String> seamDiffs, List<String> seamAccepts,
-            List<String> seamRejects, int strictLenient,
-            List<String> strictLenientIds, List<String> asymRows,
+            List<String> seamRejects, int strictAsymmetry,
+            List<String> strictAsymmetryIds, List<String> asymRows,
             StringBuilder catalog, Map<String, Integer> catalogByClass,
             List<String> stale) throws java.io.IOException {
         // equivalence-report.txt — the gate-log extraction reads lines 4-10
@@ -697,8 +708,8 @@ public class CorpusSweepTest {
                         seamDiffs.size()))
                 .append(String.format("asymmetric rejects    : %d%n",
                         seamAccepts.size() + seamRejects.size()))
-                .append(String.format("parseStrict lenient   : %d%n",
-                        strictLenient));
+                .append(String.format("strict/oracle asym    : %d%n",
+                        strictAsymmetry));
         engineAsym.stream().limit(20).forEach(d ->
                 seam.append("  ENGINE-ASYM ").append(d).append('\n'));
         seamAccepts.stream().limit(400).forEach(d ->
@@ -717,10 +728,10 @@ public class CorpusSweepTest {
         Files.writeString(Path.of("target", "refusal-asymmetry.tsv"),
                 asym.toString());
 
-        Files.writeString(Path.of("target", "leniency-catalog.txt"),
+        Files.writeString(Path.of("target", "platform-coverage-catalog.txt"),
                 "by class: " + catalogByClass + "\n" + catalog);
-        Files.writeString(Path.of("target", "parser-leniency.txt"),
-                String.join("\n", strictLenientIds));
+        Files.writeString(Path.of("target", "strict-oracle-asymmetry.txt"),
+                String.join("\n", strictAsymmetryIds));
         if (!stale.isEmpty()) {
             System.out.println("refusal-allowlist STALE rows (fixed parity —"
                     + " REMOVE the lines): " + stale.size());

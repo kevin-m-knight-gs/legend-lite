@@ -2908,6 +2908,15 @@ public final class SpecParser implements TokenStreamCursor {
         // has always consumed
         int open = raw.indexOf('{');
         int close = raw.lastIndexOf('}');
+        // The BRACE form (#TDS{...}#) is the ENGINE's own xt-tds grammar;
+        // the BRACE-LESS form (#TDS ... #) is legend-pure's
+        // platform_dsl_tds spelling, which the engine REFUSES
+        // (adjudication probe 2026-08-14: brace form ACCEPT, brace-less
+        // refuse — the earlier "#TDS is real everywhere" note conflated
+        // the two). Drop-in refuses brace-less; PLATFORM/LITE keep it.
+        if (!(open >= 0 && close > open) && dialect().refusesLiteExtensions()) {
+            throw error("brace-less #TDS literal is not supported");
+        }
         String inner = open >= 0 && close > open
                 ? raw.substring(open + 1, close) : raw;
         return new com.legend.protocol.spec.TdsLiteral(inner,
