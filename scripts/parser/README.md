@@ -84,8 +84,16 @@ recorded in `tiers.py` rather than asserted:
 - **Dead tokens** — declared by a lexer, referenced by no parser rule. Found mechanically
   via ANTLR's `tokenVocab` link. `AuthenticationStrategyLexerGrammar` has ten.
 - **Walker-rejected** — a parser rule exists, the tree builds, the walker refuses. `native`,
-  `projects`, `allVersionsInRange`, GraphQL `extend`, `EqualToTDS`. Every one confirmed by
-  running it, not by reading.
+  `projects`, `allVersionsInRange`, GraphQL `extend`, `EqualToTDS`, plus two island types
+  whose processor has zero implementors anywhere (`HostedService.actions`,
+  `DataQualityValidation.persistenceStrategy`). Every one confirmed by running it.
+- **Unshipped section** — the tokens are referenced by parser rules and the rules parse, but
+  the `SectionParser` that would route text to them lives in `src/test/java`.
+  `###AuthenticationDemo`. Invisible to both checks above: nothing is dead, nothing is
+  refused — the routing simply is not there.
+- **Version skew** — declared by the `.g4` working copy at git HEAD but absent from the
+  runner's released jars. `mappingProvider`, and DataQuality's `testSuites`/`data`/`tests`/
+  `asserts`. See below; this one nearly invalidated the whole number.
 
 A target containing keywords no fixture can cover makes 100% impossible and turns the number
 into a permanent accusation instead of a goal. All three categories are pinned by negative
@@ -106,6 +114,26 @@ deserves suspicion.
 | composite token `'include '[a-z]+' '` kept only its first fragment | `include` uncoverable |
 | GraphQL byte-order marks harvested as keywords | demanded fixtures for a file encoding |
 | grammars keyed by file stem | two Snowflake grammars merged into one bucket |
+| `//` inside a string literal stripped as a comment | swallowed real code to end of file |
+| census read `.g4` at git HEAD, oracle ran released jars | measured a parser nobody runs |
+
+That last one is the one to remember. The denominator came from a legend-engine **working
+copy**; every verdict came from **4.138.2 jars**. Five keywords existed only in the former,
+so no fixture could ever cover them, and "100%" would have been a claim about a parser
+nobody was running. The fix takes the surface from the same artifact that parses:
+`perf.TokenDump` reads the `Vocabulary` ANTLR bakes into every generated lexer — the same
+table the parser uses to produce its "Valid alternatives: [...]" messages — into
+`tools/engine-runner/vocab.tsv`. **Regenerate it whenever the engine version moves:**
+
+```
+java -cp tools/engine-runner/target/classes:$(cat tools/engine-runner/cp.txt) \
+     perf.TokenDump > tools/engine-runner/vocab.tsv
+```
+
+If that file is missing the harness says so rather than quietly skipping the check. Note
+only simple-literal tokens are comparable: a composite like
+`CONSTRAINT_OWNER: '~owner' CONSTRAINT_SEPARATOR;` has no literal name in the vocabulary and
+would otherwise read as skew while parsing perfectly — five of those in Domain alone.
 
 One tool was **built and discarded**: a rule-reachability detector meant to find dead parser
 rules. It claimed `UserNamePassword` was unreachable, which a passing fixture disproves —

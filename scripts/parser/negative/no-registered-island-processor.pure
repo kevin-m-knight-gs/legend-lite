@@ -1,0 +1,25 @@
+// REJECTS: NullPointerException
+//
+// `actions:` on a HostedService. An island type whose processor does not exist: nothing in
+// legend-engine implements IPostDeploymentActionGrammarParserExtension -- zero implementors
+// repo-wide -- so HostedServiceTreeWalker:150 throws for every action type a user could
+// name.
+//
+// But it does not reach that throw. The bare form CRASHES first: the grammar makes
+// actionBody optional (`postDeploymentAction: actionType (actionBody)?`) and the walker
+// dereferences spec.actionBody().actionValue() unconditionally. This is the SECOND
+// NullPointerException of exactly this shape -- see ./walker-rejected-projects.pure and F17
+// -- an optional grammar element dereferenced without a null check, surfacing as a stack
+// trace with no source information.
+//
+// The braced form `actions: [ MyAction { actionValue: 'x'; } ]` does not help: the runner's
+// 4.138.2 grammar rejects it at the brace with "Valid alternatives: [',', ']']". So no
+// spelling of this keyword reaches a working parser.
+###HostedService
+HostedService fixture::neg::CrashingAction
+{
+   pattern: '/hs';
+   ownership: Deployment { identifier: '1' };
+   function: fixture::neg::f():String[1];
+   actions: [ MyAction ];
+}

@@ -770,4 +770,27 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   'userNameVaultReference', 'passwordVaultReference']`. Harmless, but it means the lexer
   advertises a surface the parser does not have, and any tool deriving completions or
   documentation from the grammar will offer fields that cannot be typed.
+- **A second NullPointerException of the same shape: `actions: [ MyAction ];` on a
+  HostedService.** `postDeploymentAction: actionType (actionBody)?` makes the body optional;
+  `HostedServiceTreeWalker.java:142` dereferences `spec.actionBody().actionValue()`
+  unconditionally. The user gets `An exception of type 'NullPointerException' occurred,
+  please notify developer` — again with no line, no column, no construct named. Two
+  independent instances of *optional grammar element dereferenced without a null check* now
+  suggest a pattern rather than an oversight, and both are reachable by typing.
+  Pinned by `scripts/parser/negative/no-registered-island-processor.pure`.
+- **Two island types have no registered processor anywhere in legend-engine.**
+  `IPostDeploymentActionGrammarParserExtension` and `IDataQualityGrammarParserExtension` have
+  zero implementors repo-wide, so `HostedService.actions` and
+  `DataQualityValidation.persistenceStrategy` reject every value a user could write —
+  `Unsupported type`, `Unsupported Persistence Strategy type`. The same is true of
+  ServiceStore's `security:` scheme, which survives only because `security: []` parses.
+  Worth stating because from outside, "no processor is registered" is indistinguishable from
+  "this construct is invalid" and from "the extension is missing from your classpath" —
+  three causes, one symptom.
+- **`###AuthenticationDemo`'s section parser ships only in test sources.**
+  `AuthenticationDemoParserExtension` lives in `src/test/java`, so the section is
+  unreachable in a deployed engine (`'AuthenticationDemo' is not a known section parser`)
+  while `AuthenticationLexerGrammar`'s other 43 keywords remain reachable through
+  `authentication:` islands. A grammar can therefore be half-live, and nothing in the
+  grammar says which half.
 

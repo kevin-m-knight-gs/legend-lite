@@ -92,6 +92,62 @@ def harvest() -> dict[str, set[str]]:
 
 _VOCAB = re.compile(r"tokenVocab\s*=\s*([A-Za-z0-9_]+)")
 
+# A token whose rule is NOTHING BUT a quoted literal. Only these can be checked against a
+# compiled Vocabulary: ANTLR gives a literal name only to tokens defined as a single literal,
+# so a composite like
+#     CONSTRAINT_OWNER: '~owner' CONSTRAINT_SEPARATOR;
+# has no literal name at all and would look "missing from the jar" while parsing perfectly.
+# Five of those in DomainLexerGrammar alone, every one of them covered by a passing fixture.
+_SIMPLE_TOKEN = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*:\s*'([^']+)'\s*;", re.M)
+
+RUNNER_VOCAB = Path(__file__).resolve().parents[2] / "tools" / "engine-runner" / "vocab.tsv"
+
+
+def runner_vocabulary() -> dict[str, set[str]]:
+    """lexer simple-name -> the literals the RUNNER'S JARS can lex.
+
+    Produced by perf.TokenDump; regenerate whenever the engine version moves. Absent file
+    means the check is skipped rather than silently passing -- see version_skew.
+    """
+    if not RUNNER_VOCAB.is_file():
+        return {}
+    out = {}
+    for line in RUNNER_VOCAB.read_text().splitlines():
+        parts = line.split("\t")
+        if parts:
+            out[parts[0]] = set(parts[1:])
+    return out
+
+
+def version_skew() -> dict[str, set[str]]:
+    """Keywords the .g4 SOURCE declares that the runner's JARS do not have.
+
+    The census reads a legend-engine working copy at git HEAD; the runner parses with
+    released jars. Where they disagree, the source is describing a parser nobody here is
+    running, and no fixture can cover the difference. Reporting those as "missing" would
+    make 100% unreachable for a reason that has nothing to do with legend-lite.
+
+    Only simple-literal tokens are comparable, and only for lexers that exist as a class in
+    the jars -- Core, M3 and GraphQL are compiled into their importers and have no class of
+    their own, so for them this returns nothing rather than guessing.
+    """
+    vocab = runner_vocabulary()
+    if not vocab:
+        return {}
+    out: dict[str, set[str]] = defaultdict(set)
+    stems = [g.stem for g in ENGINE.rglob("*.g4")]
+    duplicated = {s for s in stems if stems.count(s) > 1}
+    for g4 in sorted(ENGINE.rglob("*.g4")):
+        if g4.stem not in vocab:
+            continue
+        for _name, literal in _SIMPLE_TOKEN.findall(g4.read_text(errors="replace")):
+            lit = literal.strip()
+            if _PUNCT.match(lit) or _ESCAPE.match(lit):
+                continue
+            if lit not in vocab[g4.stem]:
+                out[_grammar_key(g4, duplicated)].add(lit)
+    return dict(out)
+
 
 def dead_tokens() -> dict[str, set[str]]:
     """Keywords a lexer DECLARES that no parser rule can ever reach.

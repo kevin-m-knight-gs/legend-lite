@@ -150,6 +150,24 @@ WALKER_REJECTED = {
         "six extension rules (scalar/type/interface/union/schema/enum). Observed on "
         "`extend type Firm { rank: Int }` -> EngineException: Error."
     ),
+    ("HostedServiceLexerGrammar", "actions"): (
+        "An island type with NO registered processor -- nothing in legend-engine implements "
+        "IPostDeploymentActionGrammarParserExtension (0 implementors repo-wide), so "
+        "HostedServiceTreeWalker:150 throws for every possible action type. Worse, the bare "
+        "form CRASHES: `actions: [ MyAction ];` -> \"An exception of type "
+        "'NullPointerException' occurred, please notify developer\", because the walker "
+        "dereferences spec.actionBody().actionValue() unconditionally while the grammar "
+        "makes actionBody optional. The braced form is rejected outright by the runner's "
+        "4.138.2 grammar (\"Valid alternatives: [',', ']']\"), so no spelling of this "
+        "keyword reaches a working parser. Second NPE of the same shape as `projects`."
+    ),
+    ("DataQualityLexerGrammar", "persistenceStrategy"): (
+        "Another island type with no registered processor: nothing implements "
+        "IDataQualityGrammarParserExtension (0 implementors repo-wide), so "
+        "getExtraDataQualityPersistenceStrategyParsers() returns emptyList and parseIsland's "
+        "orElseThrow fires for every island type. Observed: 'Unsupported Persistence "
+        "Strategy type'."
+    ),
     ("EqualToTDSAssertionLexerGrammar", "EqualToTDS"): (
         "An orphaned grammar. No TestAssertionParser registers the type, there is no "
         "protocol class beside EqualTo/EqualToJson/EqualToRelation, and the only files in "
