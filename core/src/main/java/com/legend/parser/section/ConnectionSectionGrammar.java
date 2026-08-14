@@ -1515,8 +1515,10 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         Cursor ic = ip.cursor();
         String username = null;
         Protocol.PVaultSecret secret = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
         while (!ic.atEnd()) {
             String ik = ic.parseIdentifier();
+            TokenStreamCursor.once(seen, ik, ic);
             ic.expect(TokenType.COLON);
             if ("username".equals(ik)) {
                 username = SectionParse.stringValue(ic);
@@ -1605,7 +1607,9 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                         "unknown Elasticsearch7ClusterConnection key: "
                         + key);
             }
-            c.match(TokenType.SEMI_COLON);
+            // every connection field rule ends SEMI_COLON in the .g4 —
+            // a missing semicolon is an engine refusal, not leniency
+            c.expect(TokenType.SEMI_COLON);
         }
         int closeTok = c.pos();
         c.expect(TokenType.BRACE_CLOSE);
@@ -1784,13 +1788,22 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 String location = null;
                 String keyName = null;
                 Protocol.PVaultSecret value = null;
+                java.util.Set<String> seen = new java.util.HashSet<>();
                 while (!ic.atEnd()) {
                     String ik = ic.parseIdentifier();
+                    TokenStreamCursor.once(seen, ik, ic);
                     ic.expect(TokenType.COLON);
                     switch (ik) {
                         case "location" -> {
+                            // the walker does Location.valueOf(upper) —
+                            // anything outside {HEADER, COOKIE} throws
                             location = SectionParse.stringValue(ic)
                                     .toUpperCase(java.util.Locale.ROOT);
+                            if (!"HEADER".equals(location)
+                                    && !"COOKIE".equals(location)) {
+                                throw ic.error("unknown ApiKey location: "
+                                        + location);
+                            }
                             ic.expect(TokenType.SEMI_COLON);
                         }
                         case "keyName" -> {
@@ -1807,14 +1820,37 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PApiKeyAuth(keyName, location, value,
                         authSpan(c, keyTok, ip));
             }
+            case "PSK" -> {
+                // pskAuthentication: PSK COLON STRING SEMI_COLON — the
+                // Deephaven pre-shared key registered on the general
+                // island registry (engine accepts it on ANY auth island)
+                IslandParse ip = reLexIsland(c);
+                Cursor ic = ip.cursor();
+                String ik = ic.parseIdentifier();
+                if (!"psk".equals(ik)) {
+                    throw ic.error("unknown PSK key: " + ik);
+                }
+                ic.expect(TokenType.COLON);
+                String psk = SectionParse.stringValue(ic);
+                ic.expect(TokenType.SEMI_COLON);
+                // pskAuthentication has NO trailing EOF in the .g4 —
+                // ANTLR stops after the first field and silently ignores
+                // the rest of the island (probed "psk extra field")
+                while (!ic.atEnd()) {
+                    ic.advance();
+                }
+                yield new Protocol.PPskAuth(psk);
+            }
             case "EncryptedPrivateKey" -> {
                 IslandParse ip = reLexIsland(c);
                 Cursor ic = ip.cursor();
                 String userName = null;
                 Protocol.PVaultSecret privateKey = null;
                 Protocol.PVaultSecret passphrase = null;
+                java.util.Set<String> seen = new java.util.HashSet<>();
                 while (!ic.atEnd()) {
                     String ik = ic.parseIdentifier();
+                    TokenStreamCursor.once(seen, ik, ic);
                     ic.expect(TokenType.COLON);
                     switch (ik) {
                         case "userName" -> {

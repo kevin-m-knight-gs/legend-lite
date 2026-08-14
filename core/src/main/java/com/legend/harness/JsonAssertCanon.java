@@ -50,10 +50,10 @@ final class JsonAssertCanon {
         if (!(n instanceof NewInstance ni)
                 || !simpleOf(ni.className()).equals("JSONArray")
                 || ni.properties().size() != 1
-                || ni.properties().get("values") == null) {
+                || ni.first("values") == null) {
             return null;
         }
-        ValueSpecification values = ni.properties().get("values").value();
+        ValueSpecification values = ni.first("values").value();
         if (!(values instanceof AppliedFunction sb)
                 || !EngineTestExecutor.simpleName(sb.function()).equals("sortBy")
                 || sb.parameters().size() != 2

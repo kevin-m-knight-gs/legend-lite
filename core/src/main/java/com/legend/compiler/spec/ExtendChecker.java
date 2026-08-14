@@ -127,11 +127,11 @@ final class ExtendChecker {
                                 "meta::pure::tds::BasicColumnSpecification"))
                 && nw.parameters().get(1)
                         instanceof com.legend.protocol.spec.NewInstance ni
-                && ni.properties().get("func") != null
-                && ni.properties().get("name") != null
-                && ni.properties().get("func").value()
+                && ni.first("func") != null
+                && ni.first("name") != null
+                && ni.first("func").value()
                         instanceof com.legend.protocol.spec.LambdaFunction bf
-                && ni.properties().get("name").value()
+                && ni.first("name").value()
                         instanceof com.legend.protocol.spec.CString bn) {
             fn = bf;
             nm = bn;

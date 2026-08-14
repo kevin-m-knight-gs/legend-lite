@@ -814,14 +814,14 @@ final class UnionSynthesis {
                         NewInstance ector = fv == null ? null
                                 : ctorOf(fv.value());
                         if (ector != null) {
-                            for (var pe : ector.properties().entrySet()) {
-                                if (ctorOf(pe.getValue().value()) == null
+                            for (var pe : ector.properties()) {
+                                if (ctorOf(pe.expression().value()) == null
                                         && isThreadProjectable(
-                                                pe.getValue().value(),
+                                                pe.expression().value(),
                                                 parts.get(j).rowBind().name())) {
                                     subTypeProps.computeIfAbsent(target,
                                             k -> new LinkedHashSet<>())
-                                            .add(prop + "__" + pe.getKey());
+                                            .add(prop + "__" + pe.key());
                                 }
                             }
                         }
@@ -943,8 +943,8 @@ final class UnionSynthesis {
         KeyExpression fv = own ? pp.fields().get(top) : null;
         NewInstance ector = fv == null ? null : ctorOf(fv.value());
         ValueSpecification value = ector != null
-                && ector.properties().containsKey(sub)
-                ? ector.properties().get(sub).value()
+                && ector.first(sub) != null
+                ? java.util.Objects.requireNonNull(ector.first(sub)).value()
                 : MappingNormalizer.nullOfDeclaredType(inner, sub, model);
         value = MappingNormalizer.coerceToDeclaredNumeric(value, sub,
                 inner == null ? target : inner.qualifiedName(), model);
@@ -1409,8 +1409,9 @@ final class UnionSynthesis {
             NewInstance ector = ctorAtPath(pp.fields(), epath);
             for (String sub : epe.getValue()) {
                 ValueSpecification sv = ector != null
-                        && ector.properties().containsKey(sub)
-                        ? ector.properties().get(sub).value()
+                        && ector.first(sub) != null
+                        ? java.util.Objects.requireNonNull(
+                                ector.first(sub)).value()
                         : MappingNormalizer.nullOfDeclaredType(
                                 inner, sub, model);
                 sv = MappingNormalizer.coerceToDeclaredNumeric(
@@ -1443,14 +1444,14 @@ final class UnionSynthesis {
         embInner.putIfAbsent(pathKey, ni.className());
         pathClasses.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
                 .add(ni.className());
-        for (var pe : ni.properties().entrySet()) {
-            NewInstance sub = ctorOf(pe.getValue().value());
+        for (var pe : ni.properties()) {
+            NewInstance sub = ctorOf(pe.expression().value());
             if (sub != null) {
-                collectEmbLeaves(top, pathKey + "." + pe.getKey(), sub,
+                collectEmbLeaves(top, pathKey + "." + pe.key(), sub,
                         rowVar, embSubs, embInner, poisoned, pathClasses);
-            } else if (isThreadProjectable(pe.getValue().value(), rowVar)) {
+            } else if (isThreadProjectable(pe.expression().value(), rowVar)) {
                 embSubs.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
-                        .add(pe.getKey());
+                        .add(pe.key());
             } else {
                 poisoned.add(top);
             }
@@ -1464,7 +1465,7 @@ final class UnionSynthesis {
         KeyExpression ke = fields.get(segs[0]);
         NewInstance ni = ke == null ? null : ctorOf(ke.value());
         for (int i = 1; ni != null && i < segs.length; i++) {
-            KeyExpression sub = ni.properties().get(segs[i]);
+            KeyExpression sub = ni.first(segs[i]);
             ni = sub == null ? null : ctorOf(sub.value());
         }
         return ni;

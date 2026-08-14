@@ -1560,8 +1560,8 @@ public final class NameResolver {
             case NewInstance ni -> {
                 String className = resolveName(ni.className(), scope);
                 List<TypeExpression> typeArgs = resolveTypeList(ni.typeArguments(), scope);
-                Map<String, KeyExpression> props = resolveKeyExpressionMap(
-                        ni.properties(), scope);
+                java.util.List<NewInstance.KeyBinding> props =
+                        resolveKeyBindings(ni.properties(), scope);
                 if (className.equals(ni.className())
                         && typeArgs == ni.typeArguments()
                         && props == ni.properties()) {
@@ -1640,18 +1640,20 @@ public final class NameResolver {
                 : new LambdaFunction(params, body);
     }
 
-    private static Map<String, KeyExpression> resolveKeyExpressionMap(
-            Map<String, KeyExpression> props, Scope scope) {
+    private static java.util.List<NewInstance.KeyBinding> resolveKeyBindings(
+            java.util.List<NewInstance.KeyBinding> props, Scope scope) {
         if (props.isEmpty()) return props;
         boolean changed = false;
-        Map<String, KeyExpression> out = new LinkedHashMap<>(props.size());
-        for (Map.Entry<String, KeyExpression> e : props.entrySet()) {
-            KeyExpression ke = e.getValue();
+        java.util.List<NewInstance.KeyBinding> out =
+                new java.util.ArrayList<>(props.size());
+        for (NewInstance.KeyBinding e : props) {
+            KeyExpression ke = e.expression();
             ValueSpecification r = resolveVs(ke.value(), scope);
             if (r == ke.value()) {
-                out.put(e.getKey(), ke);
+                out.add(e);
             } else {
-                out.put(e.getKey(), ke.withValue(nn(r)));
+                out.add(new NewInstance.KeyBinding(e.key(),
+                        ke.withValue(nn(r))));
                 changed = true;
             }
         }
@@ -1662,7 +1664,7 @@ public final class NameResolver {
         // wall text for an ill-typed instantiation changed between runs and the
         // corpus scoreboard was not byte-reproducible. NewInstance's own compact
         // constructor documents this exact hazard; the damage was done before it.
-        return changed ? java.util.Collections.unmodifiableMap(out) : props;
+        return changed ? java.util.List.copyOf(out) : props;
     }
 
     private static TypeAnnotation.RelationShape.Column resolveRelationShapeColumn(

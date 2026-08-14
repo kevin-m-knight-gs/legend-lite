@@ -926,7 +926,9 @@ public final class Runner {
                     work.addFirst(pc.values().get(i));
                 }
             } else if (v instanceof com.legend.protocol.spec.NewInstance ni) {
-                var kes = new java.util.ArrayList<>(ni.properties().values());
+                var kes = ni.properties().stream()
+                        .map(com.legend.protocol.spec.NewInstance.KeyBinding::expression)
+                        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
                 for (int i = kes.size() - 1; i >= 0; i--) {
                     work.addFirst(kes.get(i).value());
                 }
@@ -1733,7 +1735,7 @@ public final class Runner {
         while (!q.isEmpty()) {
             com.legend.protocol.spec.ValueSpecification v = q.poll();
             if (v instanceof com.legend.protocol.spec.NewInstance ni
-                    && ni.properties().containsKey("testDataSetupCsv")) {
+                    && ni.first("testDataSetupCsv") != null) {
                 return true;
             }
             q.addAll(v.children());
@@ -2050,8 +2052,8 @@ public final class Runner {
         } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
             pc.values().forEach(x -> collectCalledFqns(x, out, elements));
         } else if (v instanceof com.legend.protocol.spec.NewInstance ni) {
-            ni.properties().values().forEach(ke ->
-                    collectCalledFqns(ke.value(), out, elements));
+            ni.properties().forEach(kb ->
+                    collectCalledFqns(kb.expression().value(), out, elements));
         } else if (v instanceof com.legend.protocol.spec.NewInstanceCast nic) {
             collectCalledFqns(nic.src(), out, elements);
         } else if (v instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {

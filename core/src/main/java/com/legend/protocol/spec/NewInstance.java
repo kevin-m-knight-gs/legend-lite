@@ -2,10 +2,7 @@ package com.legend.protocol.spec;
 
 import com.legend.protocol.TypeExpression;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -33,7 +30,7 @@ import java.util.Objects;
  *       {...})} (parametric class with type arguments)</li>
  *   <li>{@code ^MyClass(xs += 1, xs += 2)} &rarr;
  *       <em>only the second binding survives</em>: parse-time
- *       last-wins via the underlying {@link LinkedHashMap}, matching
+ *       every binding kept in source order, including duplicates
  *       engine-lite. The retained binding's {@link KeyExpression}
  *       carries {@code isAdd=true}.</li>
  * </ul>
@@ -46,11 +43,11 @@ import java.util.Objects;
  *
  * <h2>Shape rationale</h2>
  *
- * <p>{@code Map<String, KeyExpression>} (LinkedHashMap to preserve
+ * <p>{@code List<KeyBinding>} (source order preserved,
  * source order) is a deliberate hybrid of engine-lite and engine-pure:
  *
  * <ul>
- *   <li><strong>From engine-lite</strong>: properties as a {@code Map}
+ *   <li><strong>Engine-true</strong>: properties as a {@code List}
  *       keyed by property name. Direct lookup for the typechecker;
  *       silent last-wins on duplicates (engine never validates
  *       duplicates anyway &mdash; verified in {@code NewValidator}).</li>
@@ -81,11 +78,32 @@ public record NewInstance(
         String className,
         List<TypeExpression> typeArguments,
         List<String> typeMultiplicityArguments,
-        Map<String, KeyExpression> properties) implements ValueSpecification {
+        List<KeyBinding> properties) implements ValueSpecification {
+
+    /** One {@code key = expr} binding. A LIST, not a map: the engine keeps
+     *  every binding including DUPLICATE keys (deep audit #2 1b — the map
+     *  silently collapsed {@code ^A(x=1, x=2)} to one binding). */
+    public record KeyBinding(String key, KeyExpression expression) {
+        public KeyBinding {
+            Objects.requireNonNull(key, "key");
+            Objects.requireNonNull(expression, "expression");
+        }
+    }
+
+    /** First binding for {@code key}, or null — the lookup consumers'
+     *  view (caret specials, TDS literals); wire emission iterates ALL. */
+    public @com.legend.Nullable KeyExpression first(String key) {
+        for (KeyBinding b : properties) {
+            if (b.key().equals(key)) {
+                return b.expression();
+            }
+        }
+        return null;
+    }
 
     /** The common form: no multiplicity arguments on the constructed type. */
     public NewInstance(String className, List<TypeExpression> typeArguments,
-            Map<String, KeyExpression> properties) {
+            List<KeyBinding> properties) {
         this(className, typeArguments, List.of(), properties);
     }
 
@@ -96,9 +114,6 @@ public record NewInstance(
         typeArguments = List.copyOf(typeArguments);
         typeMultiplicityArguments = typeMultiplicityArguments == null ? List.of()
                 : List.copyOf(typeMultiplicityArguments);
-        // Preserve insertion order; Map.copyOf returns an unordered
-        // copy so we explicitly wrap a LinkedHashMap with
-        // unmodifiableMap to keep both immutability AND source order.
-        properties = Collections.unmodifiableMap(new LinkedHashMap<>(properties));
+        properties = List.copyOf(properties);
     }
 }

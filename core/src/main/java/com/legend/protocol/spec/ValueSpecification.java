@@ -107,7 +107,7 @@ public sealed interface ValueSpecification permits
             case AppliedFunction af -> af.parameters();
             case AppliedProperty ap -> java.util.List.of(ap.receiver());
             case LambdaFunction lf -> lf.body();
-            case NewInstance ni -> ni.properties().values().stream()
+            case NewInstance ni -> ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList().stream()
                     .map(KeyExpression::value)
                     .map(v -> (ValueSpecification) v).toList();
             case NewInstanceCast nc -> java.util.List.of(nc.src());
@@ -166,16 +166,18 @@ public sealed interface ValueSpecification permits
             case LambdaFunction lf ->
                     new LambdaFunction(lf.parameters(), cs);
             case NewInstance ni -> {
-                java.util.Map<String, KeyExpression> props =
-                        new java.util.LinkedHashMap<>();
+                java.util.List<NewInstance.KeyBinding> props =
+                        new java.util.ArrayList<>();
                 int i = 0;
-                for (var e : ni.properties().entrySet()) {
-                    props.put(e.getKey(), new KeyExpression(cs.get(i++),
-                            e.getValue().isAdd(), e.getValue().isLocal()));
+                for (var e : ni.properties()) {
+                    props.add(new NewInstance.KeyBinding(e.key(),
+                            new KeyExpression(cs.get(i++),
+                                    e.expression().isAdd(),
+                                    e.expression().isLocal())));
                 }
                 yield new NewInstance(ni.className(), ni.typeArguments(),
                         ni.typeMultiplicityArguments(),
-                        java.util.Collections.unmodifiableMap(props));
+                        java.util.List.copyOf(props));
             }
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
                     nc.typeArguments(), cs.get(0), nc.targetSetId());

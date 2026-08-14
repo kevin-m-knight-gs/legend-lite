@@ -3322,7 +3322,10 @@ public final class MappingNormalizer {
         return new AppliedFunction("new", List.of(
                 new PackageableElementPtr(fqnNN),
                 new NewInstance(fqnNN, List.of(),
-                        Collections.unmodifiableMap(new LinkedHashMap<>(fields)))));
+                        fields.entrySet().stream().map(e ->
+                                new com.legend.protocol.spec.NewInstance
+                                        .KeyBinding(e.getKey(), e.getValue()))
+                                .toList())));
     }
 
     /**

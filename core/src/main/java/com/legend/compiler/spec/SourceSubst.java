@@ -90,10 +90,15 @@ public final class SourceSubst {
             case ColSpecArray ca -> new ColSpecArray(ca.colSpecs().stream()
                     .map(c -> (ColSpec) substitute(c, env)).toList());
             case NewInstance ni -> {
-                Map<String, KeyExpression> props = new LinkedHashMap<>();
-                ni.properties().forEach((k, ke) -> props.put(k,
-                        new KeyExpression(substitute(ke.value(), env),
-                                ke.isAdd(), ke.isLocal())));
+                java.util.List<NewInstance.KeyBinding> props =
+                        ni.properties().stream().map(b ->
+                                new NewInstance.KeyBinding(b.key(),
+                                        new KeyExpression(
+                                                substitute(b.expression()
+                                                        .value(), env),
+                                                b.expression().isAdd(),
+                                                b.expression().isLocal())))
+                                .toList();
                 yield new NewInstance(ni.className(), ni.typeArguments(), props);
             }
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),

@@ -969,11 +969,11 @@ final class Typer {
                 if (pu instanceof NewInstance ni
                         && (ni.className().equals("Pair") || ni.className()
                                 .equals("meta::pure::functions::collection::Pair"))
-                        && ni.properties().get("first") != null
-                        && ni.properties().get("first").value()
+                        && ni.first("first") != null
+                        && ni.first("first").value()
                                 instanceof CString pof
-                        && ni.properties().get("second") != null
-                        && ni.properties().get("second").value()
+                        && ni.first("second") != null
+                        && ni.first("second").value()
                                 instanceof CString pnf) {
                     po = pof.value();
                     pn = pnf.value();

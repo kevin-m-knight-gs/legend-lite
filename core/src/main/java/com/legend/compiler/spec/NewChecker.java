@@ -37,7 +37,9 @@ final class NewChecker {
                     "^$var(...) copies a CLASS instance; the variable is " + st.typeName());
         };
         Map<String, TypedSpec> overrides = new LinkedHashMap<>();
-        ni.properties().forEach((name, key) -> {
+        ni.properties().forEach(kb -> {
+            String name = kb.key();
+            com.legend.protocol.spec.KeyExpression key = kb.expression();
             Property prop = t.model().findProperty(classFqn, name).orElseThrow(() ->
                     new TypeInferenceException("class '" + classFqn + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);
@@ -67,7 +69,9 @@ final class NewChecker {
             throw new TypeInferenceException("unknown class '" + ni.className() + "' in ^" + ni.className() + "(…)");
         }
         Map<String, TypedSpec> properties = new LinkedHashMap<>();
-        ni.properties().forEach((name, key) -> {
+        ni.properties().forEach(kb -> {
+            String name = kb.key();
+            com.legend.protocol.spec.KeyExpression key = kb.expression();
             if (key.isLocal()) {
                 // mapping-LOCAL property (+id: Integer[1]: COL): owned by
                 // the MAPPING, not the class (engine local-property

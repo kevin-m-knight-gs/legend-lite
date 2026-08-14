@@ -1565,10 +1565,10 @@ public final class SpecParser implements TokenStreamCursor {
             pos++;
         }
         expect(TokenType.PAREN_OPEN, "expected '(' after class name or $variable in ^NewInstance");
-        // LinkedHashMap to preserve source order for the small
-        // observable cases (debug pretty-printers, AST dumps);
-        // duplicate keys silently last-win matching engine-lite.
-        Map<String, KeyExpression> properties = new LinkedHashMap<>();
+        // a LIST: the engine keeps EVERY binding including duplicate
+        // keys (deep audit #2 1b — a map silently collapsed them)
+        List<com.legend.protocol.spec.NewInstance.KeyBinding> properties =
+                new ArrayList<>();
         if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
             pos++;
             return wrapNewInstance(receiver, className, typeArgs, typeMultArgs, properties);
@@ -1623,7 +1623,7 @@ public final class SpecParser implements TokenStreamCursor {
             String className,
             List<TypeExpression> typeArgs,
             List<String> typeMultArgs,
-            Map<String, KeyExpression> properties) {
+            List<com.legend.protocol.spec.NewInstance.KeyBinding> properties) {
         return new AppliedFunction(
                 "new",
                 List.of(
@@ -1644,7 +1644,8 @@ public final class SpecParser implements TokenStreamCursor {
      * never tracks seen keys), so the silent last-wins is
      * cross-engine-consistent.
      */
-    private void parseAndPutKeyExpression(Map<String, KeyExpression> properties) {
+    private void parseAndPutKeyExpression(
+            List<com.legend.protocol.spec.NewInstance.KeyBinding> properties) {
         // quoted keys are legal: ^A('first name' = ...) — the wire keeps the RAW
         // quoted spelling (corpus DIFF: key.value = "'firstname'")
         if (peek() == TokenType.STRING && pos + 1 < tokens.count()
@@ -1652,7 +1653,8 @@ public final class SpecParser implements TokenStreamCursor {
             String key = text();
             pos += 2;                               // name + '='
             ValueSpecification value = parseCombinedExpression();
-            properties.put(key, new KeyExpression(value, false, false));
+            properties.add(new com.legend.protocol.spec.NewInstance
+                    .KeyBinding(key, new KeyExpression(value, false, false)));
             return;
         }
         if (!isFqnSegmentToken(peek())) {
@@ -1686,7 +1688,9 @@ public final class SpecParser implements TokenStreamCursor {
                 + "' after property name '" + key
                 + "' in ^NewInstance binding");
         ValueSpecification value = parseCombinedExpression();
-        properties.put(key.toString(), new KeyExpression(value, isAdd, false));
+        properties.add(new com.legend.protocol.spec.NewInstance
+                .KeyBinding(key.toString(),
+                        new KeyExpression(value, isAdd, false)));
     }
 
     /**

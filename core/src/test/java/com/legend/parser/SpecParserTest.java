@@ -920,7 +920,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
-                        new NewInstance("Foo", List.of(), Map.of()))),
+                        new NewInstance("Foo", List.of(), List.of()))),
                 com.legend.testing.Platform.spec("^Foo()"));
     }
 
@@ -932,9 +932,9 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Person"),
-                        new NewInstance("Person", List.of(), Map.of(
-                                "name", new KeyExpression(new CString("Alice"), false, false),
-                                "age", new KeyExpression(new CInteger(30L), false, false))))),
+                        new NewInstance("Person", List.of(), List.of(
+                                new NewInstance.KeyBinding("name", new KeyExpression(new CString("Alice"), false, false)),
+                                new NewInstance.KeyBinding("age", new KeyExpression(new CInteger(30L), false, false)))))),
                 com.legend.testing.Platform.spec("^Person(name='Alice', age=30)"));
     }
 
@@ -948,8 +948,8 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("my::app::Person"),
-                        new NewInstance("my::app::Person", List.of(), Map.of(
-                                "name", new KeyExpression(new CString("Bob"), false, false))))),
+                        new NewInstance("my::app::Person", List.of(), List.of(
+                                new NewInstance.KeyBinding("name", new KeyExpression(new CString("Bob"), false, false)))))),
                 com.legend.testing.Platform.spec("^my::app::Person(name='Bob')"));
     }
 
@@ -962,9 +962,9 @@ final class SpecParserTest {
                         new PackageableElementPtr("Pair"),
                         new NewInstance("Pair",
                                 List.of(nr("Integer"), nr("String")),
-                                Map.of(
-                                        "first", new KeyExpression(new CInteger(1L), false, false),
-                                        "second", new KeyExpression(new CString("a"), false, false))))),
+                                List.of(
+                                new NewInstance.KeyBinding("first", new KeyExpression(new CInteger(1L), false, false)),
+                                new NewInstance.KeyBinding("second", new KeyExpression(new CString("a"), false, false)))))),
                 com.legend.testing.Platform.spec("^Pair<Integer, String>(first=1, second='a')"));
     }
 
@@ -975,10 +975,10 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Box"),
-                        new NewInstance("Box", List.of(), Map.of(
-                                "value", new KeyExpression(
+                        new NewInstance("Box", List.of(), List.of(
+                                new NewInstance.KeyBinding("value", new KeyExpression(
                                         nary("plus", new CInteger(1L), new CInteger(2L)),
-                                        false, false)))
+                                        false, false))))
                 )),
                 com.legend.testing.Platform.spec("^Box(value=1+2)"));
     }
@@ -998,30 +998,32 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Person"),
-                        new NewInstance("Person", List.of(), Map.of(
-                                "name", new KeyExpression(
-                                        new CString("Alice"), false, false),
-                                "tags", new KeyExpression(
-                                        new CString("admin"), true, false))))),
+                        new NewInstance("Person", List.of(), List.of(
+                                new NewInstance.KeyBinding("name", new KeyExpression(
+                                        new CString("Alice"), false, false)),
+                                new NewInstance.KeyBinding("tags", new KeyExpression(
+                                        new CString("admin"), true, false)))))),
                 com.legend.testing.Platform.spec("^Person(name='Alice', tags+='admin')"));
     }
 
     @Test
-    void newInstanceDuplicateKeySilentlyLastWins() {
-        // Pin engine-cross-consistent behaviour: ^Foo(x=1, x=2)
-        // produces ONE binding {x -> KeyExpression(2, false)}; the
-        // first is silently dropped via Map.put. Engine-lite does the
-        // same (also Map-based); engine-pure keeps both in a list but
-        // its validator iterates without tracking duplicates, so the
-        // observable behaviour is also last-wins. Documented here so
-        // a future change to a stricter parse-time validator would
-        // flip this test loudly.
-        assertEquals(
-                new AppliedFunction("new", List.of(
-                        new PackageableElementPtr("Foo"),
-                        new NewInstance("Foo", List.of(), Map.of(
-                                "x", new KeyExpression(new CInteger(2L), false, false))))),
-                com.legend.testing.Platform.spec("^Foo(x=1, x=2)"));
+    void newInstanceDuplicateKeysAllKeptInSourceOrder() {
+        // Engine-true behaviour (deep audit #2 finding 1b): ^Foo(x=1, x=2)
+        // keeps BOTH bindings in source order — the engine's wire carries
+        // two keyExpressions (multiplicity 2). The old Map carrier
+        // silently collapsed to last-wins; the List carrier pins the fix.
+        // Lookup consumers see the FIRST binding via first().
+        var parsed = (AppliedFunction)
+                com.legend.testing.Platform.spec("^Foo(x=1, x=2)");
+        var ni = (NewInstance) parsed.parameters().get(1);
+        assertEquals(2, ni.properties().size(),
+                "both duplicate bindings survive the parse");
+        assertEquals(List.of("x", "x"),
+                ni.properties().stream()
+                        .map(NewInstance.KeyBinding::key).toList());
+        assertEquals(new CInteger(1L),
+                java.util.Objects.requireNonNull(ni.first("x")).value(),
+                "first() sees the FIRST binding");
     }
 
     @Test
@@ -1114,8 +1116,8 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Person"),
-                        new NewInstance("Person", List.of(), Map.of(
-                                "name", new KeyExpression(new CString("Alice"), false, false))))),
+                        new NewInstance("Person", List.of(), List.of(
+                                new NewInstance.KeyBinding("name", new KeyExpression(new CString("Alice"), false, false)))))),
                 com.legend.testing.Platform.spec("^Person(name='Alice')"));
     }
 
@@ -1127,7 +1129,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
-                        new NewInstance("Foo", List.of(), Map.of()))),
+                        new NewInstance("Foo", List.of(), List.of()))),
                 com.legend.testing.Platform.spec("^Foo()"));
     }
 
@@ -2869,8 +2871,9 @@ final class SpecParserTest {
         // recovered from the variable's static type at type-check
         // time. Function name stays 'new' for engine-lite binding
         // parity.
-        Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("name", new KeyExpression(new CString("new"), false, false));
+        List<NewInstance.KeyBinding> props = List.of(
+                new NewInstance.KeyBinding("name",
+                        new KeyExpression(new CString("new"), false, false)));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new Variable("existing"),
@@ -2883,8 +2886,8 @@ final class SpecParserTest {
         // '^$list(items+=$x)' \u2014 copy-with-update with '+='
         // append-form binding. KeyExpression.isAdd must be preserved
         // so the type-checker can distinguish the append form.
-        Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("items", new KeyExpression(new Variable("x"), true, false));
+        List<NewInstance.KeyBinding> props = new java.util.ArrayList<>();
+        props.add(new NewInstance.KeyBinding("items", new KeyExpression(new Variable("x"), true, false)));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new Variable("list"),
@@ -2909,8 +2912,8 @@ final class SpecParserTest {
         // for atomic nested-field update. Key is joined with '.'
         // into a single map key; TypeChecker walks the chain
         // against the class's declared properties.
-        Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("addr.city", new KeyExpression(new CString("NYC"), false, false));
+        List<NewInstance.KeyBinding> props = new java.util.ArrayList<>();
+        props.add(new NewInstance.KeyBinding("addr.city", new KeyExpression(new CString("NYC"), false, false)));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
@@ -2921,8 +2924,8 @@ final class SpecParserTest {
     @Test
     void newInstanceDeepDottedPropertyKey() {
         // '^Foo(a.b.c.d = 1)' \u2014 arbitrary-depth dotted path.
-        Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("a.b.c.d", new KeyExpression(new CInteger(1L), false, false));
+        List<NewInstance.KeyBinding> props = new java.util.ArrayList<>();
+        props.add(new NewInstance.KeyBinding("a.b.c.d", new KeyExpression(new CInteger(1L), false, false)));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
@@ -2949,8 +2952,8 @@ final class SpecParserTest {
     void copyWithUpdateDottedKey() {
         // '^$x(addr.city = \\'NYC\\')' \u2014 the two features compose.
         // Copy-with-update receiver + dotted property key.
-        Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("addr.city", new KeyExpression(new CString("NYC"), false, false));
+        List<NewInstance.KeyBinding> props = new java.util.ArrayList<>();
+        props.add(new NewInstance.KeyBinding("addr.city", new KeyExpression(new CString("NYC"), false, false)));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new Variable("x"),

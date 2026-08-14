@@ -402,7 +402,7 @@ class NameResolverTest {
     void valueSpecNewInstanceClassNameAndTypeArgsResolved() {
         var ni = new NewInstance("Person",
                 List.of(nameRef("Firm")),
-                Map.of("name", new KeyExpression(new CString("alice"), false, false)));
+                List.of(new NewInstance.KeyBinding("name", new KeyExpression(new CString("alice"), false, false))));
         var r = (NewInstance) NameResolver.resolve(ni, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.className());
         assertEquals("model::Firm",
@@ -1282,12 +1282,12 @@ class NameResolverTest {
     @Test
     void newInstancePropertyValuesRecursivelyResolved() {
         // ^Person(friend = ^Firm(...))
-        var inner = new NewInstance("Firm", List.of(), Map.of());
+        var inner = new NewInstance("Firm", List.of(), List.of());
         var outer = new NewInstance("Person", List.of(),
-                Map.of("friend", new KeyExpression(inner, false, false)));
+                List.of(new NewInstance.KeyBinding("friend", new KeyExpression(inner, false, false))));
         var r = (NewInstance) NameResolver.resolve(outer, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.className());
-        var rInner = (NewInstance) r.properties().get("friend").value();
+        var rInner = (NewInstance) r.first("friend").value();
         assertEquals("model::Firm", rInner.className());
     }
 

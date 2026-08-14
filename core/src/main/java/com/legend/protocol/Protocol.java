@@ -2018,7 +2018,13 @@ public final class Protocol {
      *  the kinds the ORACLE's registered extensions accept (probed:
      *  UserPassword, ApiKey, Kerberos, EncryptedPrivateKey). */
     public sealed interface PAuthSpecValue
-            permits PMongoAuth, PApiKeyAuth, PKerberosAuth, PEpkAuth {
+            permits PMongoAuth, PApiKeyAuth, PKerberosAuth, PEpkAuth,
+                    PPskAuth {
+    }
+
+    /** {@code _type:"PSK"} — Deephaven pre-shared key; the walker never
+     *  sets sourceInformation (spanless on the wire). */
+    public record PPskAuth(String psk) implements PAuthSpecValue {
     }
 
     /** {@code _type:"apiKey"} — location is UPPERCASED on the wire. */

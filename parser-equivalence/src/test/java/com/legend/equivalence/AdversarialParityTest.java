@@ -155,6 +155,47 @@ class AdversarialParityTest {
     }
 
     @Test
+    void esValidationCluster() {
+        // deep-audit #2 "ES validation gaps" + handoff PSK — every row
+        // probed live 2026-08-14 (EsProbe session): required/once fields,
+        // non-empty arrays, scalar-vs-complex body keys, PSK's missing
+        // EOF (trailing island tokens IGNORED), and ORDER_MAP_ENTRIES_BY_KEYS
+        // on the nested fields/properties maps.
+        String ch = "###Connection\nElasticsearch7ClusterConnection c::C\n{\n"
+                + "  store: s::S;\n"
+                + "  clusterDetails: # URL { http://localhost:9200 }#;\n"
+                + "  authentication: ";
+        String ct = ";\n}\n";
+        String cs = "###Elasticsearch\nElasticsearch7Cluster s::S\n{\n"
+                + "  indices: [ i1: { properties: [ p: Keyword ]; } ];\n}\n";
+        String h = "###Elasticsearch\nElasticsearch7Cluster s::S\n{\n";
+        runFamily("es-validation", List.of(
+                new Row("psk auth", ch + "# PSK { psk: 'abc'; }#" + ct + cs),
+                new Row("psk trailing ignored", ch + "# PSK { psk: 'abc'; psk: 'd'; }#" + ct + cs),
+                new Row("apikey bad location", ch + "# ApiKey { location: 'body'; keyName: 'k'; value: PropertiesFileSecret { propertyName: 'p'; }; }#" + ct + cs),
+                new Row("apikey cookie", ch + "# ApiKey { location: 'cookie'; keyName: 'k'; value: PropertiesFileSecret { propertyName: 'p'; }; }#" + ct + cs),
+                new Row("apikey dup keyName", ch + "# ApiKey { location: 'header'; keyName: 'k'; keyName: 'j'; value: PropertiesFileSecret { propertyName: 'p'; }; }#" + ct + cs),
+                new Row("conn missing semi", "###Connection\nElasticsearch7ClusterConnection c::C\n{\n  store: s::S\n  clusterDetails: # URL { http://localhost:9200 }#;\n  authentication: # Kerberos {}#;\n}\n" + cs),
+                new Row("userpass dup username", ch + "# UserPassword { username: 'u'; username: 'v'; password: PropertiesFileSecret { propertyName: 'p'; }; }#" + ct + cs),
+                new Row("store no indices", h + "}\n"),
+                new Row("index no properties", h + "  indices: [ i1: { } ];\n}\n"),
+                new Row("empty properties array", h + "  indices: [ i1: { properties: [ ]; } ];\n}\n"),
+                new Row("trailing comma", h + "  indices: [ i1: { properties: [ p: Keyword, ]; } ];\n}\n"),
+                new Row("scalar with properties key", h + "  indices: [ i1: { properties: [ p: Keyword { properties: [ q: Text ]; } ]; } ];\n}\n"),
+                new Row("complex with fields key", h + "  indices: [ i1: { properties: [ p: Object { fields: [ q: Text ]; } ]; } ];\n}\n"),
+                new Row("object no body", h + "  indices: [ i1: { properties: [ p: Object ]; } ];\n}\n"),
+                new Row("object empty body", h + "  indices: [ i1: { properties: [ p: Object { } ]; } ];\n}\n"),
+                new Row("scalar empty body", h + "  indices: [ i1: { properties: [ p: Keyword { } ]; } ];\n}\n"),
+                new Row("nested dup names", h + "  indices: [ i1: { properties: [ p: Object { properties: [ q: Text, q: Keyword ]; } ]; } ];\n}\n"),
+                new Row("top-level dup names", h + "  indices: [ i1: { properties: [ p: Keyword, p: Text ]; } ];\n}\n"),
+                new Row("nested multi order", h + "  indices: [ i1: { properties: [ p: Object { properties: [ zz: Text, aa: Keyword, mm: Long ]; } ]; } ];\n}\n"),
+                new Row("fields multi order", h + "  indices: [ i1: { properties: [ p: Text { fields: [ zz: Keyword, aa: Keyword ]; } ]; } ];\n}\n"),
+                new Row("dup indices blocks", h + "  indices: [ i1: { properties: [ p: Keyword ]; } ];\n  indices: [ i2: { properties: [ p: Keyword ]; } ];\n}\n"),
+                new Row("dup properties blocks", h + "  indices: [ i1: { properties: [ p: Keyword ]; properties: [ q: Text ]; } ];\n}\n")),
+                0);
+    }
+
+    @Test
     void booleanColumnTypes() {
         // test-corpus audit F3: the engine refuses BOOLEAN/BOOL columns;
         // lite keeps them as a DECLARED extension on its own dialect, so
@@ -166,6 +207,21 @@ class AdversarialParityTest {
                         "###Relational\nDatabase d::DB\n(\n  Table T (ID INTEGER PRIMARY KEY, FLAG BOOL)\n)\n"),
                 new Row("BIT column (engine-legal)",
                         "###Relational\nDatabase d::DB\n(\n  Table T (ID INTEGER PRIMARY KEY, FLAG BIT)\n)\n")),
+                0);
+    }
+
+    @Test
+    void newInstanceDuplicateKeys() {
+        // deep audit #2 finding 1b: engine keeps EVERY ^new binding
+        // including duplicate keys (two keyExpressions on the wire);
+        // the old Map carrier silently collapsed them to one.
+        String h = "function f::q(): Any[*]\n{\n  ";
+        String t = ";\n}\n";
+        runFamily("newinstance-duplicate-keys", List.of(
+                new Row("dup assign", h + "^a::A(x = 1, x = 2)" + t),
+                new Row("dup add", h + "^a::A(xs += 1, xs += 2)" + t),
+                new Row("dup mixed with other key", h + "^a::A(x = 1, y = 'a', x = 2)" + t),
+                new Row("triple dup", h + "^a::A(x = 1, x = 2, x = 3)" + t)),
                 0);
     }
 

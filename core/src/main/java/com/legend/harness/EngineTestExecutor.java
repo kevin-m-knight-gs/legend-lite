@@ -1354,7 +1354,7 @@ public final class EngineTestExecutor {
                 lf.parameters().forEach(p -> inner.add(p.name()));
                 lf.body().forEach(x -> collectOpenVars(x, lets, inner, out));
             }
-            case NewInstance ni -> ni.properties().values().forEach(
+            case NewInstance ni -> ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList().forEach(
                     ke -> collectOpenVars(ke.value(), lets, bound, out));
             default -> {
             }
@@ -2664,11 +2664,11 @@ public final class EngineTestExecutor {
             List<ValueSpecification> sink) {
         switch (v) {
             case NewInstance ni -> {
-                KeyExpression k = ni.properties().get("testDataSetupCsv");
+                KeyExpression k = ni.first("testDataSetupCsv");
                 if (k != null) {
                     sink.add(k.value());
                 }
-                ni.properties().values().forEach(x ->
+                ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList().forEach(x ->
                         collectInlineCsv(x.value(), sink));
             }
             case AppliedFunction af ->

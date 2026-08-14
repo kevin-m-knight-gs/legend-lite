@@ -208,6 +208,12 @@ final class TailEmitter {
             return;
         }
         b.append(",\"").append(label).append("\":{");
+        // the walker collects these into a MAP and the engine mapper
+        // enables ORDER_MAP_ENTRIES_BY_KEYS — wire order is sorted by
+        // property name, not source order (probed "nested multi order")
+        children = children.stream().sorted(java.util.Comparator.comparing(
+                Protocol.PElasticsearch7Cluster.PEsProperty::propertyName))
+                .toList();
         for (int i = 0; i < children.size(); i++) {
             var f = children.get(i);
             if (i > 0) {

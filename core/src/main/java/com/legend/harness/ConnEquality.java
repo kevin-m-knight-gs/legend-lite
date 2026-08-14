@@ -88,12 +88,13 @@ final class ConnEquality {
             if (!na.className().equals(nb.className())) {
                 return false;
             }
-            Set<String> keys = new LinkedHashSet<>(na.properties().keySet());
-            keys.addAll(nb.properties().keySet());
+            Set<String> keys = new LinkedHashSet<>();
+            na.properties().forEach(kb2 -> keys.add(kb2.key()));
+            nb.properties().forEach(kb2 -> keys.add(kb2.key()));
             keys.remove("element");
             for (String k : keys) {
-                KeyExpression ka = na.properties().get(k);
-                KeyExpression kb = nb.properties().get(k);
+                KeyExpression ka = na.first(k);
+                KeyExpression kb = nb.first(k);
                 if (!structEquals(ka == null ? null : ka.value(),
                         kb == null ? null : kb.value())) {
                     return false;

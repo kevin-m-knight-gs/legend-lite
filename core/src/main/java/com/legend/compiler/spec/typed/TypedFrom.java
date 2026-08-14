@@ -127,7 +127,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             };
             if (simple != null) {
                 com.legend.protocol.spec.KeyExpression ke =
-                        ni.properties().get("type");
+                        ni.first("type");
                 String db = ke != null && ke.value()
                         instanceof com.legend.protocol.spec.EnumValue ev
                         ? ev.value() : "H2";
@@ -139,9 +139,8 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     case com.legend.protocol.spec.AppliedFunction af ->
                             af.parameters();
                     case com.legend.protocol.spec.NewInstance ni2 ->
-                            ni2.properties().values().stream()
-                                    .map(com.legend.protocol.spec
-                                            .KeyExpression::value)
+                            ni2.properties().stream()
+                                    .map(b -> b.expression().value())
                                     .toList();
                     case com.legend.protocol.spec.PureCollection pc ->
                             pc.values();
@@ -213,8 +212,8 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         switch (v) {
             case com.legend.protocol.spec.NewInstance ni -> {
                 if (ni.className().endsWith("JsonModelConnection")) {
-                    var cls = ni.properties().get("class");
-                    var url = ni.properties().get("url");
+                    var cls = ni.first("class");
+                    var url = ni.first("url");
                     if (cls != null && cls.value() instanceof
                             com.legend.protocol.spec.PackageableElementPtr pr
                             && url != null && url.value() instanceof
@@ -223,7 +222,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     }
                     return;
                 }
-                for (var ke : ni.properties().values()) {
+                for (var ke : ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList()) {
                     collectJsonRaw(ke.value(), out, canon);
                 }
             }
@@ -400,7 +399,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             }
             case com.legend.protocol.spec.NewInstance ni -> {
                 if (ni.className().endsWith("LocalH2DatasourceSpecification")) {
-                    var ke = ni.properties().get("testDataSetupSqls");
+                    var ke = ni.first("testDataSetupSqls");
                     String s = ke == null ? null
                             : foldRawLiteral(ke.value(), lets);
                     if (s != null) {
@@ -408,7 +407,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     }
                     return;
                 }
-                for (var ke : ni.properties().values()) {
+                for (var ke : ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList()) {
                     collectSqlSetupsRaw(ke.value(), lets, out, fnBody, depth);
                 }
             }

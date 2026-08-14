@@ -2560,30 +2560,33 @@ public final class ProtocolEmitter {
                 .append(ni.properties().size()).append(",\"upperBound\":")
                 .append(ni.properties().size()).append("},\"values\":[");
         boolean first = true;
-        for (java.util.Map.Entry<String, com.legend.protocol.spec.KeyExpression> e
-                : ni.properties().entrySet()) {
+        for (com.legend.protocol.spec.NewInstance.KeyBinding kb
+                : ni.properties()) {
             if (!first) {
                 b.append(',');
             }
             first = false;
-            require(!e.getValue().isLocal(), "local key expression", e.getKey());
-            if (e.getValue().value() instanceof com.legend.protocol.spec.PackageableElementPtr root
+            require(!kb.expression().isLocal(), "local key expression", kb.key());
+            if (kb.expression().value() instanceof com.legend.protocol.spec.PackageableElementPtr root
                     && "::".equals(root.fullPath())) {
                 // ENGINE QUIRK (harness DIFF on storeContract): `package=::` maps the root-
                 // package reference to null, and NON_NULL drops the expression field whole.
                 b.append("{\"_type\":\"keyExpression\",\"add\":")
-                        .append(e.getValue().isAdd()).append(",\"key\":{\"_type\":\"string\",\"value\":");
-                str(b, e.getKey());
+                        .append(false).append(",\"key\":{\"_type\":\"string\",\"value\":");
+                str(b, kb.key());
                 b.append("}}");
                 continue;
             }
+            // add is ALWAYS false on the engine wire: DomainParseTreeWalker
+            // never sets KeyExpression.add, even for `+=` (the lite AST keeps
+            // isAdd semantically; the wire conforms by emission).
             b.append("{\"_type\":\"keyExpression\",\"add\":")
-                    .append(e.getValue().isAdd()).append(",\"expression\":");
+                    .append(false).append(",\"expression\":");
             // ENGINE DATA-LOSS BUG, reproduced for byte parity (ProbeWireShapes "burn
             // zoo 2" keyChain; harness DIFF on ruleBasedTransformation for the boolean
             // flavor): a key expression keeps only the FIRST ATOM of an unparenthesised
             // infix chain — s='a'+'b'+$v emits just 'a', h=$a||$b emits just $a.
-            com.legend.protocol.spec.ValueSpecification kv = e.getValue().value();
+            com.legend.protocol.spec.ValueSpecification kv = kb.expression().value();
             // Two spellings of an infix chain: pairwise params (divide, comparisons,
             // equal/and/or) strip to the first parameter; the n-ary collection carrier
             // (plus/minus/times — parser-shaped like the engine) strips to the first
@@ -2610,8 +2613,8 @@ public final class ProtocolEmitter {
             b.append(",\"key\":{\"_type\":\"string\",\"value\":");
             // the KEY keeps only its first atom too — propToA.prop = ... emits "propToA"
             // (same engine truncation family; inline-snippet corpus TestNewInstance)
-            int dot = e.getKey().indexOf('.');
-            str(b, dot < 0 ? e.getKey() : e.getKey().substring(0, dot));
+            int dot = kb.key().indexOf('.');
+            str(b, dot < 0 ? kb.key() : kb.key().substring(0, dot));
             b.append("}}");
         }
         b.append("]}]");
@@ -2916,7 +2919,7 @@ public final class ProtocolEmitter {
         b.append(",\"parameters\":[");
         int emitted = 0;
         for (int i = 0; i < keys.length; i++) {
-            com.legend.protocol.spec.KeyExpression ke = ni.properties().get(keys[i]);
+            com.legend.protocol.spec.KeyExpression ke = ni.first(keys[i]);
             if (ke == null && dropMissing) {
                 continue;              // engine's select(nonNull) — col's documentation
             }
@@ -3188,21 +3191,21 @@ public final class ProtocolEmitter {
                 .append(ni.properties().size()).append(",\"upperBound\":")
                 .append(ni.properties().size()).append("},\"values\":[");
         boolean first = true;
-        for (java.util.Map.Entry<String, com.legend.protocol.spec.KeyExpression> e
-                : ni.properties().entrySet()) {
+        for (com.legend.protocol.spec.NewInstance.KeyBinding kb
+                : ni.properties()) {
             if (!first) {
                 b.append(',');
             }
             first = false;
-            require(!e.getValue().isLocal(), "local key expression", e.getKey());
+            require(!kb.expression().isLocal(), "local key expression", kb.key());
             b.append("{\"_type\":\"keyExpression\",\"add\":")
-                    .append(e.getValue().isAdd()).append(",\"expression\":");
-            com.legend.protocol.spec.ValueSpecification kv = e.getValue().value();
+                    .append(false).append(",\"expression\":");
+            com.legend.protocol.spec.ValueSpecification kv = kb.expression().value();
             instancesCollection(b, new com.legend.protocol.spec.PureCollection(
                     kv instanceof com.legend.protocol.spec.PureCollection kc
                             ? kc.values() : List.of(kv)));
             b.append(",\"key\":{\"_type\":\"string\",\"value\":");
-            str(b, e.getKey());
+            str(b, kb.key());
             b.append("}}");
         }
         b.append("]}]}");
@@ -3436,6 +3439,11 @@ public final class ProtocolEmitter {
                 b.append("{\"_type\":\"kerberos\","
                         + "\"sourceInformation\":");
                 srcInfo(b, k.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PPskAuth psk -> {
+                b.append("{\"_type\":\"PSK\",\"psk\":");
+                str(b, psk.psk());
                 b.append('}');
             }
             case Protocol.PEpkAuth ek -> {

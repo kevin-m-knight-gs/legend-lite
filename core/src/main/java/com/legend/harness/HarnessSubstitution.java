@@ -146,10 +146,15 @@ final class HarnessSubstitution {
             // ^$dbRuntime(connectionStores=$dbRuntime.connectionStores
             // ->concatenate(...)) reached the Typer with free vars)
             case NewInstance ni -> {
-                Map<String, KeyExpression> props = new LinkedHashMap<>();
-                ni.properties().forEach((k, ke) -> props.put(k,
-                        new KeyExpression(subst(ke.value(), lets),
-                                ke.isAdd(), ke.isLocal())));
+                java.util.List<NewInstance.KeyBinding> props =
+                        ni.properties().stream().map(b ->
+                                new NewInstance.KeyBinding(b.key(),
+                                        new KeyExpression(
+                                                subst(b.expression().value(),
+                                                        lets),
+                                                b.expression().isAdd(),
+                                                b.expression().isLocal())))
+                                .toList();
                 yield new NewInstance(ni.className(), ni.typeArguments(),
                         props);
             }
