@@ -133,12 +133,14 @@ public final class Gql {
             ObjectValue {
     }
 
-    /** Raw spelling preserved (see class doc). */
-    public record IntValue(String raw) implements Value {
+    /** Normalized at parse time via {@code Long.parseLong} — the engine
+     *  refuses malformed numbers and serializes through Jackson (deep
+     *  audit #2 1a-bis: raw carry emitted INVALID JSON). */
+    public record IntValue(long value) implements Value {
     }
 
-    /** Raw spelling preserved (see class doc). */
-    public record FloatValue(String raw) implements Value {
+    /** Normalized via {@code Double.parseDouble} (see {@link IntValue}). */
+    public record FloatValue(double value) implements Value {
     }
 
     public record StringValue(String value) implements Value {

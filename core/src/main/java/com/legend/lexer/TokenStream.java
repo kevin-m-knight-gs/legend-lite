@@ -211,9 +211,12 @@ public final class TokenStream {
         return lo + 1;
     }
 
-    /** 1-based column for a source character offset. */
+    /** 1-based column for a source character offset — counted in CODE
+     *  POINTS, matching ANTLR: a non-BMP character (emoji, CJK Ext-B) is
+     *  ONE column, not two UTF-16 units (deep audit #2 finding 1c). */
     public int columnOf(int offset) {
-        return offset - lineStarts()[lineOf(offset) - 1] + 1;
+        int lineStart = lineStarts()[lineOf(offset) - 1];
+        return source.codePointCount(lineStart, offset) + 1;
     }
 
     /**

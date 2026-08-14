@@ -149,8 +149,6 @@ class RejectionParityTest {
         // down-only ratchet — 135 -> 417 of 423 on 2026-08-14 (ES leg landed); the
         // remaining divergences are censused in
         // target/position-diverges.tsv with messages
-        assertTrue(lineMatch >= 417,
-                "error-line agreement fell: " + lineMatch + " < 417");
         assertTrue(pins.size() >= MIN_PINS,
                 "negative corpus shrank: " + pins.size() + " pins < baseline " + MIN_PINS);
         assertEquals(0, misses.size(),
@@ -168,11 +166,11 @@ class RejectionParityTest {
      *  pins all became exact. The 12 line-agreeing, column-different pins are
      *  genuinely different tokens — ours later, ANTLR's at the first token
      *  that cannot start an alternative. */
-    private static final int MIN_COLUMN_EXACT = 28;
+    private static final int MIN_COLUMN_EXACT = 337;   // ratcheted to measured 2026-08-14
 
     /** Against the engine's LIVE thrown position (the scraped literals are 40%
      *  mispaired — audit §3.5). Bumped as error positioning improves. */
-    private static final int MIN_LINE_AGREEMENT = 40;
+    private static final int MIN_LINE_AGREEMENT = 417;   // ratcheted to measured 2026-08-14 (deep audit #2 §2e: was 40 with 377 slack)
 
     /** The STRICT drop-in surface: the full parse plus every element site through the
      *  same {@code ElementParser.at} path the byte-comparison uses (protocol-only

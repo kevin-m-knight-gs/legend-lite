@@ -311,7 +311,7 @@ class SectionParseSentinelTest {
      * would have had to fight its own gate. Bump when matching grows; a drop
      * means a pull moved the grammar under us.
      */
-    private static final int MIN_BEHAVIOUR_MATCHED = 793;
+    private static final int MIN_BEHAVIOUR_MATCHED = 2093;   // ratcheted to measured 2026-08-14 (deep audit #2 §2e)
     // 932 -> 793 is the ORACLE getting honest, not the parser getting worse.
     // With three grammar jars the reference could not read ###Service /
     // ###Persistence / ###DataSpace either, so 139 files where we fail scored

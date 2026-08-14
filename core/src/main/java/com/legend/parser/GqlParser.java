@@ -74,7 +74,7 @@ public final class GqlParser {
 
     private Gql.Operation operation(String opType) {
         ws();
-        String opName = isNameStart(peekc()) ? name("operation name") : null;
+        String opName = isNameStart(peekc()) ? ident("operation name") : null;
         ws();
         List<Gql.VariableDef> variables = peekc() == '('
                 ? variableDefinitions() : List.of();
@@ -85,15 +85,17 @@ public final class GqlParser {
 
     private Gql.Fragment fragmentDefinition() {
         ws();
-        String fragName = name("fragment name");
+        String fragName = ident("fragment name");
         ws();
         if (!"on".equals(name("'on'"))) {
             throw fail("fragment needs 'on <Type>'");
         }
         ws();
-        String cond = name("fragment type condition");
-        List<Gql.Directive> directives = directives();
-        return new Gql.Fragment(fragName, cond, directives, selectionSet());
+        String cond = ident("fragment type condition");
+        // the engine WALKER never reads fragment-level directives — parse
+        // and DROP to match its wire (deep audit #2)
+        directives();
+        return new Gql.Fragment(fragName, cond, List.of(), selectionSet());
     }
 
     private Gql.ObjectType objectTypeDefinition() {
@@ -115,6 +117,9 @@ public final class GqlParser {
             ws();
         }
         expect('}');
+        if (fields.isEmpty()) {
+            throw fail("empty type body");
+        }
         return new Gql.ObjectType(typeName, fields);
     }
 
@@ -131,6 +136,10 @@ public final class GqlParser {
             ws();
         }
         expect('}');
+        if (out.isEmpty()) {
+            // the .g4 selection rule is ONE-OR-MORE (deep audit #2 1a-ter)
+            throw fail("empty selection set");
+        }
         return out;
     }
 
@@ -147,9 +156,11 @@ public final class GqlParser {
                 throw fail("inline fragments are refused by the reference"
                         + " GraphQL grammar");
             }
-            return new Gql.FragmentSpread(spread, directives());
+            // spread directives: parsed, dropped by the engine walker
+            directives();
+            return new Gql.FragmentSpread(spread, List.of());
         }
-        String first = name("field name");
+        String first = ident("field name");
         ws();
         String alias = null;
         String fieldName = first;
@@ -158,7 +169,7 @@ public final class GqlParser {
             ws();
             // the engine keeps the COLON inside the alias (probed "h:")
             alias = first + ":";
-            fieldName = name("aliased field name");
+            fieldName = ident("aliased field name");
             ws();
         }
         List<Gql.Argument> arguments = peekc() == '(' ? arguments()
@@ -186,6 +197,9 @@ public final class GqlParser {
             ws();
         }
         expect(')');
+        if (out.isEmpty()) {
+            throw fail("empty argument list");
+        }
         return out;
     }
 
@@ -224,6 +238,9 @@ public final class GqlParser {
             ws();
         }
         expect(')');
+        if (out.isEmpty()) {
+            throw fail("empty variable definitions");
+        }
         return out;
     }
 
@@ -285,27 +302,57 @@ public final class GqlParser {
             return new Gql.ObjectValue(fields);
         }
         if (c == '-' || (c >= '0' && c <= '9')) {
+            // the .g4 INT/FLOAT shape, enforced (deep audit #2 1a-bis:
+            // '1.', '-', '1e', '007', '1.2.3' must REFUSE like the engine)
             int s = pos;
             if (c == '-') {
                 pos++;
             }
+            int digitsStart = pos;
             while (!atEnd() && Character.isDigit(peekc())) {
                 pos++;
             }
+            int intDigits = pos - digitsStart;
+            if (intDigits == 0) {
+                throw fail("malformed number");
+            }
+            if (intDigits > 1 && src.charAt(digitsStart) == '0') {
+                throw fail("malformed number (leading zero)");
+            }
             boolean isFloat = false;
-            if (!atEnd() && (peekc() == '.' || peekc() == 'e'
-                    || peekc() == 'E')) {
+            if (!atEnd() && peekc() == '.') {
                 isFloat = true;
                 pos++;
-                while (!atEnd() && (Character.isDigit(peekc())
-                        || peekc() == '+' || peekc() == '-'
-                        || peekc() == 'e' || peekc() == 'E'
-                        || peekc() == '.')) {
+                int fs = pos;
+                while (!atEnd() && Character.isDigit(peekc())) {
                     pos++;
+                }
+                if (pos == fs) {
+                    throw fail("malformed number (bare fraction point)");
+                }
+            }
+            if (!atEnd() && (peekc() == 'e' || peekc() == 'E')) {
+                isFloat = true;
+                pos++;
+                if (!atEnd() && (peekc() == '+' || peekc() == '-')) {
+                    pos++;
+                }
+                int es = pos;
+                while (!atEnd() && Character.isDigit(peekc())) {
+                    pos++;
+                }
+                if (pos == es) {
+                    throw fail("malformed number (empty exponent)");
                 }
             }
             String num = src.substring(s, pos);
-            return isFloat ? new Gql.FloatValue(num) : new Gql.IntValue(num);
+            try {
+                return isFloat
+                        ? new Gql.FloatValue(Double.parseDouble(num))
+                        : new Gql.IntValue(Long.parseLong(num));
+            } catch (NumberFormatException e) {
+                throw fail("number out of range: " + num);
+            }
         }
         String word = name("value");
         return switch (word) {
@@ -336,6 +383,17 @@ public final class GqlParser {
         }
     }
 
+    /** The .g4 name rule EXCLUDES its implicit keyword literals (deep
+     *  audit #2: null/on/implements/directive confirmed refused). */
+    private String ident(String what) {
+        String n = name(what);
+        if ("null".equals(n) || "on".equals(n) || "implements".equals(n)
+                || "directive".equals(n)) {
+            throw fail("reserved word '" + n + "' cannot be a " + what);
+        }
+        return n;
+    }
+
     private String name(String what) {
         ws();
         if (atEnd() || !isNameStart(src.charAt(pos))) {
@@ -350,23 +408,31 @@ public final class GqlParser {
 
     private String stringLiteral() {
         expect('"');
+        if (pos + 1 < src.length() && src.charAt(pos) == '"'
+                && src.charAt(pos + 1) == '"') {
+            // a BLOCK string (triple-quoted) — the engine grammar
+            // has no rule for it; refuse instead of mis-lexing into
+            // three values (deep audit #2 1a-ter)
+            throw fail("block strings are not in the reference"
+                    + " grammar");
+        }
         StringBuilder b = new StringBuilder();
         while (!atEnd() && src.charAt(pos) != '"') {
             char c = src.charAt(pos++);
-            if (c == '\\' && !atEnd()) {
+            b.append(c);
+            if (c == '\\') {
+                // the engine strips the QUOTES and nothing else —
+                // escapes ride the wire RAW (deep audit #2 1a);
+                // validate the .g4 ESC set, keep the bytes
+                if (atEnd()) {
+                    throw fail("dangling escape");
+                }
                 char e = src.charAt(pos++);
-                b.append(switch (e) {
-                    case 'n' -> '\n';
-                    case 't' -> '\t';
-                    case 'r' -> '\r';
-                    case '"' -> '"';
-                    case '\\' -> '\\';
-                    case '/' -> '/';
-                    default -> throw fail("unbuilt string escape '\\" + e
+                if ("\"\\/bfnrt".indexOf(e) < 0 && e != 'u') {
+                    throw fail("unbuilt string escape '\\" + e
                             + "'");
-                });
-            } else {
-                b.append(c);
+                }
+                b.append(e);
             }
         }
         expect('"');

@@ -188,9 +188,9 @@ final class GqlEmitter {
     private static void value(StringBuilder b, Gql.Value v) {
         switch (v) {
             case Gql.IntValue i -> b.append("{\"_type\":\"intValue\","
-                    + "\"value\":").append(i.raw()).append('}');
+                    + "\"value\":").append(i.value()).append('}');
             case Gql.FloatValue f -> b.append("{\"_type\":\"floatValue\","
-                    + "\"value\":").append(f.raw()).append('}');
+                    + "\"value\":").append(f.value()).append('}');
             case Gql.StringValue s -> {
                 b.append("{\"_type\":\"stringValue\",\"value\":");
                 ProtocolEmitter.str(b, s.value());
