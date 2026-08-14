@@ -1,5 +1,8 @@
 # Parser completeness
 
+> **New here?** Read [HANDOFF.md](HANDOFF.md) first — it is written for someone with no
+> context and covers state, findings, the work queue and the traps. This file is design.
+
 A harness that answers one question: **is legend-lite's parser complete, and does it refuse
 exactly what legend-engine refuses?**
 
