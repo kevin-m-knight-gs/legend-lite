@@ -1,0 +1,30 @@
+// REJECTS: For input string: "abc"
+//
+// `port: 'abc';` in a MemSql datasource specification. The grammar types this field as
+// STRING -- `port: 'abc'` is a perfectly well-formed string literal and the tree builds --
+// and MemSqlGrammarParserExtension.visitMemSqlDatasourceSpecification then runs it through
+// Integer.valueOf AT PARSE TIME (line 53). The message is java.lang.NumberFormatException's,
+// leaking through with no source position at all.
+//
+// This is the single sharpest value-validation seam in the vendor grammars, for two reasons.
+// It is invisible: nothing in the .g4 distinguishes this STRING from any other, and there is
+// NO upstream grammar test for the MemSql datasource spec to copy the behaviour from. And it
+// is inconsistent with the vendor next door: Databricks' `port` is also a STRING and is NOT
+// converted -- `port: 'abc'` on a Databricks spec is ACCEPTED by this same runner (verified).
+// Two adjacent grammars, identical field name, identical grammar type, different parse-time
+// behaviour.
+//
+// `useSsl` in this same block is the same trap in Boolean form: a STRING parsed as a boolean.
+// See ./neg-memsql-port-integer-literal.pure for the other half of the port story.
+###Connection
+RelationalDatabaseConnection fixture::neg::MemSqlBadPort
+{
+   store: fixture::neg::Db;
+   type: MemSQL;
+   specification: MemSql
+   {
+      host: 'localhost';
+      port: 'abc';
+   };
+   auth: Test;
+}

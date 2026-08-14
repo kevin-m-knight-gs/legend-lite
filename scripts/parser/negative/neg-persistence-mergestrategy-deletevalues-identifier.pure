@@ -1,4 +1,4 @@
-// REJECTS: PLACEHOLDER
+// REJECTS: Unexpected token 'Y'
 //
 // `deleteValues` is one spelling with two incompatible types:
 //

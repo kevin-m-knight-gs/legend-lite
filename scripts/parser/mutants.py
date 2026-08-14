@@ -157,6 +157,36 @@ def mutate(text: str):
     for m in sites(r"%(\d{4})-\d{2}-\d{2}")[:MAX_SITES]:
         yield "date-impossible", m.group(), text[:m.start()] + f"%{m.group(1)}-13-45" + text[m.end():]
 
+    # SECTION-LEVEL operators. Nothing above tests routing itself -- they all damage a
+    # construct inside one section and leave the ### headers alone.
+    marks = [m for m in re.finditer(r"^###[A-Za-z]+\s*$", text, re.M)]
+
+    if len(marks) >= 2:
+        # Reorder two whole sections. Legend resolves across sections by name rather than by
+        # position, so this SHOULD be accepted -- which makes it a useful pin in the other
+        # direction: a rewrite that requires declaration-before-use would reject it.
+        a, b = marks[0], marks[1]
+        end = marks[2].start() if len(marks) > 2 else len(text)
+        yield ("swap-sections", f"{a.group().strip()} <-> {b.group().strip()}",
+               text[:a.start()] + text[b.start():end] + text[a.start():b.start()] + text[end:])
+
+    for m in marks[:MAX_SITES]:
+        # Delete a section header. Everything below it is then routed to the PREVIOUS
+        # section's grammar -- or, for the first header, to no grammar at all.
+        yield ("drop-section-header", m.group().strip(),
+               text[:m.start()] + text[m.end():])
+
+    if marks:
+        # Duplicate the first section's entire body: the same element declared twice.
+        end = marks[1].start() if len(marks) > 1 else len(text)
+        block = text[marks[0].end():end]
+        yield ("duplicate-element", marks[0].group().strip(),
+               text[:end] + block + text[end:])
+
+    # An element body emptied of everything. Required fields, if any, must now be reported.
+    for m in sites(r"\{[^{}]{40,}?\}", re.S)[:MAX_SITES]:
+        yield "empty-body", f"offset {m.start()}", text[:m.start()] + "{ }" + text[m.end():]
+
     # Keyword case. Legend is case-sensitive; a case-insensitive lexer is a classic rewrite
     # shortcut, and this is the cheapest way to prove the reference implementation is not.
     code = K.strip_noncode(text)

@@ -45,6 +45,21 @@ document. This is Connection-specific: the same deletion is rejected in `###Pure
 `###Relational`, `###Service` and `###Diagram`. Filed as F19; a rewrite must decide
 deliberately whether to reproduce it.
 
+**Section ORDER is free.** All 15 section swaps were accepted. Legend resolves across
+sections by name, not by position, so a `###Mapping` may precede the `###Relational` it
+references. A rewrite that requires declaration-before-use rejects most real models.
+
+**A file with no `###` header is parsed as Pure.** `Class fx::A { x: String[1]; }` with no
+header at all parses; `Database fx::D (...)` with no header is rejected with Pure's
+alternatives list (`['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function',
+'native', '^']`). Pure is the default section, and a rewrite that demands an explicit header
+rejects valid files.
+
+**The same element may be declared twice.** Duplicating a whole `###Pure` body — the same
+`Class` defined twice — parses. 41 of 51 duplicate-element mutants were accepted, and the 10
+rejections were not about duplication at all: they were files whose duplicated block put an
+`import` after an element, which is separately illegal (see below).
+
 **Most capitalised words are not keywords.** Of 152 lowercase-the-first-letter mutations, 64
 were accepted — because the word was a package segment or an element name, not a keyword.
 Case sensitivity is real (88 rejections) but narrower than it looks.
@@ -64,6 +79,12 @@ all 51 fixtures — every single site rejected:
 | unterminated string literal | 109 | must run to EOF, not resynchronise |
 | `[1]` written `[1..]` | 37 | multiplicity is validated in the grammar |
 | `::` written `.` | 149 | the package separator is not a generic dotted path |
+
+And one ordering rule that IS enforced, discovered by accident while investigating the
+above: **`import` statements must precede every element in their section.** An `import`
+after a `Class` in the same `###Pure` section is rejected with
+`Unexpected token '*'. Valid alternatives: ['import']`. This is the exception to "field
+order is free" being about fields rather than section structure.
 
 ## Reading the manifest
 

@@ -1,4 +1,4 @@
-// REJECTS: PLACEHOLDER
+// REJECTS: Field 'targetName' is required
 //
 // `flatTargetShape: ... (targetName | targetModelClass | partitionFields |
 // deduplicationStrategy)* ...` -- four optional-looking blocks of which visitFlatTarget

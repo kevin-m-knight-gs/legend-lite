@@ -1,4 +1,4 @@
-// REJECTS: PLACEHOLDER
+// REJECTS: Field 'targetShape' is required
 //
 // `batchPersister: PERSISTER_BATCH BRACE_OPEN (persisterSink | targetShape | ingestMode)*
 // BRACE_CLOSE` -- all three optional to the grammar, all three required by

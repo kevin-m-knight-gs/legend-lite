@@ -1,0 +1,40 @@
+// REJECTS: Field 'persister' should be specified only once
+//
+// The `persistence` rule is `BRACE_OPEN (documentation | trigger | service |
+// serviceOutputTargets | persister | notifier | tests)* BRACE_CLOSE` -- one flat unordered
+// star over the entire element. Nothing in it says "at most one persister", and nothing says
+// "at most one doc" either; every such rule is a validateAndExtract* call in
+// visitPersistence.
+//
+// Two persisters is the version of that worth pinning because the two here disagree: one
+// Streaming and one Batch, i.e. the element would have to be both kinds at once.
+###Persistence
+Persistence test::persistence::neg::TwoPersisters
+{
+  doc: 'an element with two persisters';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Streaming
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+  }
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

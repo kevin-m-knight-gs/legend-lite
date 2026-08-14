@@ -1,6 +1,7 @@
-// REJECTS: PLACEHOLDER
+// REJECTS: Field 'database' is required
 //
-// The first case of the pair above: `relationalSink: SINK_RELATIONAL BRACE_OPEN
+// The walker half of the sink pair (the grammar half is
+// neg-persistence-relational-sink-with-binding): `relationalSink: SINK_RELATIONAL BRACE_OPEN
 // (sinkDatabase)* BRACE_CLOSE` accepts an empty body, so `sink: Relational { }` is a
 // well-formed tree that names no database at all. visitRelationalSink requires it.
 ###Persistence

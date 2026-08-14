@@ -1,0 +1,33 @@
+// REJECTS: Unexpected token 'TestDataset1'
+//
+// `targetName: TARGET_SHAPE_NAME COLON STRING SEMI_COLON` -- a quoted string, not an
+// identifier. The v1 grammar is inconsistent about this and that inconsistency is the point:
+// `targetName` and `dateTimeName` take STRING, `modelProperty` and `versionField` take
+// identifiers, and the identically-spelled `dateTimeName` inside the RELATIONAL target
+// island takes an identifier instead.
+//
+// A parser that accepts an identifier here accepts every one of those positions
+// interchangeably.
+###Persistence
+Persistence test::persistence::neg::TargetNameIdentifier
+{
+  doc: 'target name written unquoted';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: TestDataset1;
+    }
+  }
+}

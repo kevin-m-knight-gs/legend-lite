@@ -1,0 +1,36 @@
+// REJECTS: Field 'modelProperty' is required
+//
+// `targetPart: BRACE_OPEN (targetModelProperty | targetName | partitionFields |
+// deduplicationStrategy)* BRACE_CLOSE` -- a part with an entirely EMPTY body parses. Here
+// only modelProperty is missing, which makes the part textually identical to a Flat target
+// shape body, and visitMultiFlatTargetPart is what refuses it.
+###Persistence
+Persistence test::persistence::neg::MultiFlatPartNoProperty
+{
+  doc: 'multi-flat part naming no model property';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: MultiFlat
+    {
+      modelClass: test::persistence::WrapperClass;
+      transactionScope: ALL_TARGETS;
+      parts:
+      [
+        {
+          targetName: 'TestDataset1';
+          deduplicationStrategy: None;
+        }
+      ];
+    }
+  }
+}

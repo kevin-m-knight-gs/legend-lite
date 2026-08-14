@@ -1,0 +1,28 @@
+// REJECTS: Unexpected token '3306'
+//
+// `port: 3306;` -- an integer literal -- in a MemSql datasource specification. MemSql types
+// its port as STRING, so the ONLY spelling that parses is the quoted `port: '3306';` in
+// ../fixtures/t2-memsql.pure, even though the value is then converted to an int at parse time
+// (see ./neg-memsql-port-not-numeric.pure).
+//
+// The obvious spelling is the wrong one, and the vendors do not agree: Trino, Redshift,
+// Oracle, Aurora and Spanner all type their ports/proxyPorts as INTEGER and reject the quoted
+// form, while MemSql and Databricks type theirs as STRING and reject the bare form. Nine
+// grammars, one field name, two incompatible token types, no rule for telling which is which
+// short of reading each .g4.
+//
+// A rewrite that normalises this -- accepting either spelling everywhere, which costs nothing
+// and looks like a kindness -- is more permissive than legend-engine in both directions at
+// once. This fixture pins one direction; ./neg-trino-port-string.pure pins the other.
+###Connection
+RelationalDatabaseConnection fixture::neg::MemSqlIntPort
+{
+   store: fixture::neg::Db;
+   type: MemSQL;
+   specification: MemSql
+   {
+      host: 'localhost';
+      port: 3306;
+   };
+   auth: Test;
+}

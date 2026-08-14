@@ -1,4 +1,4 @@
-// REJECTS: PLACEHOLDER
+// REJECTS: Unexpected token
 //
 // The other half of the v1/v2 `deleteValues` divergence: the v1 list is
 // `STRING (COMMA STRING)*` with no `?` around it, so it cannot be EMPTY, while the v2 list is
@@ -6,6 +6,11 @@
 //
 // An empty bracket pair is the kind of thing a hand-written parser normalises away without
 // noticing which of the two rules it is implementing.
+//
+// The claimed message is bare because the token the parser wanted is STRING, which has no
+// literal spelling in the vocabulary and so contributes nothing to the "Valid alternatives"
+// list. Replacing `[]` with `['Y']` in this file -- the only edit -- makes it parse, which
+// is how the message was confirmed to be about the emptiness and not about anything else.
 ###Persistence
 Persistence test::persistence::neg::MergeStrategyEmptyValues
 {

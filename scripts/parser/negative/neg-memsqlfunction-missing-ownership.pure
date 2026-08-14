@@ -1,0 +1,24 @@
+// REJECTS: Field 'ownership' is required
+//
+// A MemSqlFunction with no `ownership`. The grammar makes it optional -- memSqlFunction's body
+// is a `( ... )*` alternation, as every activator's is -- and MemSqlFunctionTreeWalker calls
+// validateAndExtractRequiredField for it.
+//
+// The point of the fixture is the ASYMMETRY, not the requirement. BigQueryFunction's grammar
+// is the same grammar with the words changed: same fields, same order, same optionality in the
+// .g4, same `stage` rule that nothing references, same DeploymentConfiguration element. And
+// BigQueryFunctionTreeWalker calls validateAndExtractOPTIONALField for `ownership`. So
+//     BigQueryFunction fixture::bq::stage { functionName: '...'; function: ...; }
+// parses (it is in ../fixtures/t2-bigquery.pure) and the identical MemSqlFunction below does
+// not.
+//
+// Nothing short of reading both walkers reveals this, and a rewrite that shares one activator
+// implementation between the two vendors -- the obviously correct engineering call -- gets one
+// of them wrong whichever way it chooses.
+###MemSql
+MemSqlFunction fixture::neg::NoOwnership
+{
+   functionName : 'demoFunction';
+   function : zxx(Integer[1]):String[1];
+   description : 'no ownership';
+}

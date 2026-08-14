@@ -1,0 +1,27 @@
+// REJECTS: Field 'service' is required
+//
+// The second of the three always-required element fields. `service:` is the thing being
+// persisted, so an element without one describes a destination and no source -- and parses
+// perfectly.
+###Persistence
+Persistence test::persistence::neg::NoService
+{
+  doc: 'an element that names no service';
+  trigger: Manual;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

@@ -1,4 +1,4 @@
-// REJECTS: PLACEHOLDER
+// REJECTS: Unexpected token 'binding'. Valid alternatives: ['database']
 //
 // `sink:` is Relational{database} XOR ObjectStorage{binding}. The two sub-rules are
 // `(sinkDatabase)*` and `(sinkBinding)*` -- each accepts an EMPTY body, so a sink with

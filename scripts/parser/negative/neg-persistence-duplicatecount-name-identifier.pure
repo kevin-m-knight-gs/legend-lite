@@ -1,0 +1,37 @@
+// REJECTS: Unexpected token 'duplicateCount'
+//
+// The v1 target shape has two "name a column" fields with DIFFERENT value types:
+//
+//   deduplicationDuplicateCountName:  ... COLON STRING SEMI_COLON
+//   deduplicationMaxVersionField:     ... COLON serviceOutputValue SEMI_COLON
+//
+// so `versionField: updateDateTime;` is a bare identifier and `duplicateCountName:
+// 'duplicateCount';` must be quoted, side by side in the same deduplicationStrategy
+// alternation. This file writes the identifier form in the STRING slot.
+###Persistence
+Persistence test::persistence::neg::DuplicateCountIdentifier
+{
+  doc: 'duplicate count name written as an identifier';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+      deduplicationStrategy: DuplicateCount
+      {
+        duplicateCountName: duplicateCount;
+      }
+    }
+  }
+}
