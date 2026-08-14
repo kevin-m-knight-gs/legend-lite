@@ -263,7 +263,8 @@ public final class Protocol {
     public record PClassMappingMongoDb(String className,
                                        @com.legend.Nullable String id,
                                        boolean root, String storePath,
-                                       String mainCollectionName)
+                                       String mainCollectionName,
+                                       @com.legend.Nullable String bindingPath)
             implements PClassMapping {
     }
 

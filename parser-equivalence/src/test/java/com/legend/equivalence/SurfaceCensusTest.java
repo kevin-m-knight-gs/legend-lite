@@ -102,6 +102,7 @@ class SurfaceCensusTest {
     private static final java.util.Set<String> OUR_MAPPING_ELEMENTS =
             java.util.Set.of("Pure", "Relational", "ServiceStore",
                     "XStore", "EnumerationMapping", "Operation", "AggregationAware",
+                    "MongoDB",
                     "ModelJoin", "relation", "Relation");
     private static final java.util.Set<String> OUR_TEST_INPUT_DATA =
             java.util.Set.of("Object", "Relational", "RelationalCSV");
@@ -153,7 +154,7 @@ class SurfaceCensusTest {
             java.util.Set.of("JsonModelConnection", "XmlModelConnection",
                     "ModelChainConnection", "RelationalDatabaseConnection",
                     "ServiceStoreConnection", "DeephavenConnection",
-                    "MongoDBConnection");
+                    "MongoDBConnection", "Elasticsearch7ClusterConnection");
 
     private static final java.util.Set<String> OUR_EMBEDDED_DATA =
             java.util.Set.of("ExternalFormat", "ModelStore", "Relational",

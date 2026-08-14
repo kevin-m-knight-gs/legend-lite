@@ -397,7 +397,12 @@ final class MappingEmitter {
      *  (ZTailProbe "mongodb-mapping"). */
     private static void mongoDbClassMapping(StringBuilder b,
             Protocol.PClassMappingMongoDb mg) {
-        b.append("{\"_type\":\"MongoDB\",\"class\":");
+        b.append("{\"_type\":\"MongoDB\"");
+        if (mg.bindingPath() != null) {
+            b.append(",\"bindingPath\":");
+            str(b, mg.bindingPath());
+        }
+        b.append(",\"class\":");
         str(b, mg.className());
         if (mg.id() != null) {
             b.append(",\"id\":");

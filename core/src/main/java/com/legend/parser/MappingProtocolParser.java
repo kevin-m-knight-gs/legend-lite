@@ -770,17 +770,31 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PClassMappingMongoDb parseMongoDbClassMapping(
             String target, @com.legend.Nullable String id, boolean root) {
         expect(TokenType.BRACE_OPEN);
-        expect(TokenType.TILDE);
-        String kw = parseIdentifier();
-        if (!"mainCollection".equals(kw)) {
-            throw error("unknown MongoDB mapping directive: ~" + kw);
+        String store = null;
+        String coll = null;
+        String binding = null;
+        while (!atEnd() && peek() == TokenType.TILDE) {
+            advance();
+            String kw = parseIdentifier();
+            switch (kw) {
+                case "mainCollection" -> {
+                    expect(TokenType.BRACKET_OPEN);
+                    store = Protocol.unquotePath(parseQualifiedName());
+                    expect(TokenType.BRACKET_CLOSE);
+                    coll = parseIdentifier();
+                }
+                case "binding" ->
+                        binding = Protocol.unquotePath(parseQualifiedName());
+                default -> throw error(
+                        "unknown MongoDB mapping directive: ~" + kw);
+            }
         }
-        expect(TokenType.BRACKET_OPEN);
-        String store = Protocol.unquotePath(parseQualifiedName());
-        expect(TokenType.BRACKET_CLOSE);
-        String coll = parseIdentifier();
         expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PClassMappingMongoDb(target, id, root, store, coll);
+        if (store == null || coll == null) {
+            throw error("MongoDB mapping needs ~mainCollection");
+        }
+        return new Protocol.PClassMappingMongoDb(target, id, root, store,
+                coll, binding);
     }
 
     /** As {@link #cleanSheetAhead()} but the kind keyword is still
