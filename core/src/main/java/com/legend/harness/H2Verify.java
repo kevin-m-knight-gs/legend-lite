@@ -112,8 +112,15 @@ public final class H2Verify {
         return null;
     }
 
+    /** The test currently executing — set by the corpus runner so a
+     *  decline names its test (correctness lane C1: 154 anonymous
+     *  declines were unactionable). */
+    public static final ThreadLocal<String> CURRENT_TEST =
+            ThreadLocal.withInitial(() -> "<unattributed>");
+
     public static void decline(String reason) {
-        System.err.println("[h2-unverifiable] replay declined: " + reason);
+        System.err.println("[h2-unverifiable] replay declined ["
+                + CURRENT_TEST.get() + "]: " + reason);
         UNVERIFIABLE_CENSUS.computeIfAbsent(bucketOf(reason),
                 k -> new java.util.concurrent.atomic.LongAdder()).increment();
     }
@@ -260,6 +267,12 @@ public final class H2Verify {
         try (Connection h2 = DriverManager.getConnection(
                 "jdbc:h2:mem:advisory" + id + SETTINGS, "sa", "")) {
             try (Statement st = h2.createStatement()) {
+                // the engine's H2 extension functions, lite-implemented —
+                // golden SQL calling legend_h2_extension_* declined
+                // verification before (C1)
+                for (String alias : H2ExtensionFunctions.aliases()) {
+                    st.execute(alias);
+                }
                 for (String seed : seeds == null ? List.<String>of()
                         : seeds) {
                     for (String one : seed.split(";\\s*\n|;\\s*$")) {

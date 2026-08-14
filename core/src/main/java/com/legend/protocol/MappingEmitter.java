@@ -397,7 +397,12 @@ final class MappingEmitter {
      *  (ZTailProbe "mongodb-mapping"). */
     private static void mongoDbClassMapping(StringBuilder b,
             Protocol.PClassMappingMongoDb mg) {
-        b.append("{\"_type\":\"MongoDB\",\"class\":");
+        b.append("{\"_type\":\"MongoDB\"");
+        if (mg.bindingPath() != null) {
+            b.append(",\"bindingPath\":");
+            str(b, mg.bindingPath());
+        }
+        b.append(",\"class\":");
         str(b, mg.className());
         if (mg.id() != null) {
             b.append(",\"id\":");
@@ -1225,6 +1230,33 @@ final class MappingEmitter {
         b.append('}');
     }
 
+    private static void stubParams(StringBuilder b, String field,
+            java.util.List<Protocol.PStubParam> paramsIn) {
+        // the engine's mapper sorts MAP entries by key (C12 byte pins
+        // TestServiceTestSuite#65/#70)
+        var params = new java.util.ArrayList<>(paramsIn);
+        params.sort(java.util.Comparator.comparing(Protocol.PStubParam::name));
+        b.append('"').append(field).append("\":{");
+        for (int i = 0; i < params.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, params.get(i).name());
+            b.append(':');
+            stringValuePattern(b, params.get(i).pattern());
+        }
+        b.append("},");
+    }
+
+    private static void stringValuePattern(StringBuilder b,
+            Protocol.PStringValuePattern v) {
+        b.append("{\"_type\":");
+        str(b, v.type());
+        b.append(",\"expectedValue\":");
+        str(b, v.expectedValue());
+        b.append('}');
+    }
+
     static void embeddedDataValue(StringBuilder b,
             Protocol.PEmbeddedDataValue v) {
         switch (v) {
@@ -1237,12 +1269,37 @@ final class MappingEmitter {
                         b.append(',');
                     }
                     Protocol.PServiceStub st = ss.stubs().get(i);
-                    b.append("{\"requestPattern\":{\"method\":");
+                    b.append("{\"requestPattern\":{");
+                    if (st.bodyPatterns() != null) {
+                        b.append("\"bodyPatterns\":[");
+                        for (int k = 0; k < st.bodyPatterns().size(); k++) {
+                            if (k > 0) {
+                                b.append(',');
+                            }
+                            stringValuePattern(b, st.bodyPatterns().get(k));
+                        }
+                        b.append("],");
+                    }
+                    if (st.headerParams() != null) {
+                        stubParams(b, "headerParams", st.headerParams());
+                    }
+                    b.append("\"method\":");
                     str(b, st.method());
+                    if (st.queryParams() != null) {
+                        b.append(',');
+                        stubParams(b, "queryParams", st.queryParams());
+                        b.setLength(b.length() - 1);   // drop trailing comma
+                    }
                     b.append(",\"sourceInformation\":");
                     srcInfo(b, st.requestSpan());
-                    b.append(",\"url\":");
-                    str(b, st.url());
+                    if (st.url() != null) {
+                        b.append(",\"url\":");
+                        str(b, st.url());
+                    }
+                    if (st.urlPath() != null) {
+                        b.append(",\"urlPath\":");
+                        str(b, st.urlPath());
+                    }
                     b.append("},\"responseDefinition\":{\"body\":");
                     externalFormatData(b, st.body());
                     b.append(",\"sourceInformation\":");

@@ -202,7 +202,9 @@ public final class FunctionActivatorSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (functionPath == null || functionSpan == null) {
-            throw c.error(kind + " '" + qn + "' needs a function");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    kind + " '" + qn + "' needs a function");
         }
         // engine-required fields (leniency audit: the engine deserializer
         // refuses these when absent — structured parity refusals).
@@ -210,18 +212,25 @@ public final class FunctionActivatorSectionGrammar
         // fixtures omit it (the corpus adjudicates).
         if (ownerId == null && userListUsers == null
                 && !"BigQueryFunction".equals(kind)) {
-            throw c.error("Field 'ownership' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart, "Field 'ownership' is required");
         }
         if ("MemSqlFunction".equals(kind)
                 && !scalars.containsKey("functionName")) {
-            throw c.error("Field 'functionName' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    "Field 'functionName' is required");
         }
         if ("SnowflakeM2MUdf".equals(kind)) {
             if (!scalars.containsKey("deploymentSchema")) {
-                throw c.error("Field 'deploymentSchema' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field 'deploymentSchema' is required");
             }
             if (!scalars.containsKey("deploymentStage")) {
-                throw c.error("Field 'deploymentStage' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field 'deploymentStage' is required");
             }
         }
         return new Protocol.PFunctionActivator(pkg, name, kind,

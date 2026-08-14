@@ -49,7 +49,7 @@ public final class GenerationSpecificationSectionGrammar
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            TokenStreamCursor.once(seenKeys, key, c, h.declStart());
             c.expect(TokenType.COLON);
             switch (key) {
                 case "generationNodes" -> parseNodes(c, nodes);

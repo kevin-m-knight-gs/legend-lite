@@ -68,6 +68,7 @@ public final class FileGenerationSectionGrammar
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         c.expect(TokenType.BRACE_OPEN);
         String outputPath = null;
+        java.util.Set<String> namedSeen = new java.util.HashSet<>();
         List<String> scopeElements = new ArrayList<>();
         List<Protocol.PConfigProperty> props = new ArrayList<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
@@ -75,8 +76,27 @@ public final class FileGenerationSectionGrammar
             // a quoted property name keeps its QUOTES on the wire
             String key = c.peek() == TokenType.STRING
                     ? SectionParse.rawStringToken(c) : c.parseIdentifier();
+            // NAMED fields are once-only (engine validateAndExtract...;
+            // sectioned negative pins #4/#6); arbitrary CONFIG properties
+            // accumulate and may repeat
+            if (("scopeElements".equals(key) || "generationOutputPath".equals(key))
+                    && !namedSeen.add(key)) {
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field '" + key + "' should be specified only once");
+            }
             c.expect(TokenType.COLON);
             if ("scopeElements".equals(key)) {
+                if (c.peek() != TokenType.BRACKET_OPEN) {
+                    // a non-canonical value shape parses as a CONFIG
+                    // PROPERTY in the engine grammar; the walker then
+                    // refuses the reserved name at the ELEMENT (probed
+                    // reprobe pins #8/#10)
+                    throw com.legend.parser.TokenStreamCursor.throwAt(
+                            c.tokens(), declStart,
+                            "Can't have config property with reserved name '"
+                            + key + "'");
+                }
                 c.expect(TokenType.BRACKET_OPEN);
                 while (c.peek() != TokenType.BRACKET_CLOSE) {
                     scopeElements.add(Protocol.unquotePath(
@@ -90,6 +110,12 @@ public final class FileGenerationSectionGrammar
                 continue;
             }
             if ("generationOutputPath".equals(key)) {
+                if (c.peek() != TokenType.STRING) {
+                    throw com.legend.parser.TokenStreamCursor.throwAt(
+                            c.tokens(), declStart,
+                            "Can't have config property with reserved name '"
+                            + key + "'");
+                }
                 outputPath = SectionParse.stringValue(c);
                 c.expect(TokenType.SEMI_COLON);
                 continue;

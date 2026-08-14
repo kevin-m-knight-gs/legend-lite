@@ -112,7 +112,8 @@ public final class DataQualityValidationSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (ctxKind == null || ctxPath == null || tree == null) {
-            throw c.error("DataQualityValidation needs context and "
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "DataQualityValidation needs context and "
                     + "validationTree");
         }
         return new Protocol.PDataQualityValidation(h.pkg(), h.name(),
@@ -175,8 +176,8 @@ public final class DataQualityValidationSectionGrammar
             TokenStreamCursor.once(seenKeys2, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
-                case "query" -> query = SectionParse.specToSemicolon(c);
-                case "validations" -> parseChecks(c, validations);
+                case "query" -> query = SectionParse.lambdaToSemicolon(c);
+                case "validations" -> parseChecks(c, validations, h.declStart());
                 default -> throw c.error(
                         "unknown DataQualityRelationValidation key '"
                                 + key + "'");
@@ -184,8 +185,14 @@ public final class DataQualityValidationSectionGrammar
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
+        if (!seenKeys2.contains("validations")) {
+            // engine-verbatim (sectioned negative pin #22)
+            throw TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "Field 'validations' is required");
+        }
         if (query == null) {
-            throw c.error("DataQualityRelationValidation needs a query");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "DataQualityRelationValidation needs a query");
         }
         return new Protocol.PDataQualityRelationValidation(h.pkg(), h.name(),
                 h.dec().stereotypes(), h.dec().taggedValues(), query,
@@ -193,12 +200,13 @@ public final class DataQualityValidationSectionGrammar
     }
 
     private static void parseChecks(TokenStreamCursor c,
-            List<Protocol.PDqRelationCheck> out) {
+            List<Protocol.PDqRelationCheck> out, int elementAnchor) {
         c.expect(TokenType.BRACKET_OPEN);
         while (c.peek() != TokenType.BRACKET_CLOSE) {
             c.expect(TokenType.BRACE_OPEN);
             String name = null;
             String description = null;
+            String type = null;
             com.legend.protocol.spec.ValueSpecification assertion = null;
             while (c.peek() != TokenType.BRACE_CLOSE) {
                 String k = c.parseIdentifier();
@@ -209,6 +217,14 @@ public final class DataQualityValidationSectionGrammar
                             description = SectionParse.stringValue(c);
                     case "assertion" ->
                             assertion = SectionParse.specToSemicolon(c);
+                    case "type" -> {
+                        type = c.parseIdentifier();
+                        if (!"ROW_LEVEL".equals(type)
+                                && !"AGGREGATE".equals(type)) {
+                            throw c.error("unknown validation type '"
+                                    + type + "'");
+                        }
+                    }
                     default -> throw c.error(
                             "unknown validation key '" + k + "'");
                 }
@@ -216,10 +232,11 @@ public final class DataQualityValidationSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (name == null || assertion == null) {
-                throw c.error("validation needs name and assertion");
+                throw TokenStreamCursor.throwAt(c.tokens(), elementAnchor,
+                        "validation needs name and assertion");
             }
             out.add(new Protocol.PDqRelationCheck(name, description,
-                    assertion));
+                    assertion, type));
             if (!c.match(TokenType.COMMA)) {
                 break;
             }
@@ -235,15 +252,17 @@ public final class DataQualityValidationSectionGrammar
         com.legend.protocol.spec.ValueSpecification source = null;
         com.legend.protocol.spec.ValueSpecification target = null;
         List<String> keys = new ArrayList<>();
-        String strategy = null;
+        List<String> columnsToCompare = new ArrayList<>();
+        Double expectedMatch = null;
+        Protocol.PReconStrategy strategy = null;
         java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
             TokenStreamCursor.once(seenKeys3, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
-                case "source" -> source = SectionParse.specToSemicolon(c);
-                case "target" -> target = SectionParse.specToSemicolon(c);
+                case "source" -> source = SectionParse.lambdaToSemicolon(c);
+                case "target" -> target = SectionParse.lambdaToSemicolon(c);
                 case "keys" -> {
                     c.expect(TokenType.BRACKET_OPEN);
                     while (c.peek() != TokenType.BRACKET_CLOSE) {
@@ -254,7 +273,22 @@ public final class DataQualityValidationSectionGrammar
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
                 }
-                case "strategy" -> strategy = c.parseIdentifier();
+                case "strategy" -> strategy = parseReconStrategy(c, key);
+                case "columnsToCompare" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        columnsToCompare.add(c.parseIdentifier());
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
+                case "expectedMatch" -> {
+                    String num = c.text();
+                    c.advance();
+                    expectedMatch = Double.valueOf(num);
+                }
                 default -> throw c.error(
                         "unknown DataQualityRelationComparison key '"
                                 + key + "'");
@@ -263,11 +297,54 @@ public final class DataQualityValidationSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (source == null || target == null || strategy == null) {
-            throw c.error("DataQualityRelationComparison needs source, "
+            throw TokenStreamCursor.throwAt(c.tokens(), h.declStart(),
+                    "DataQualityRelationComparison needs source, "
                     + "target and strategy");
         }
         return new Protocol.PDataQualityRelationComparison(h.pkg(), h.name(),
-                source, target, keys, strategy,
-                c.spanOf(h.declStart(), c.pos() - 1));
+                source, target, keys, columnsToCompare, expectedMatch,
+                strategy, c.spanOf(h.declStart(), c.pos() - 1));
+    }
+
+    /** {@code MD5Hash ( '{' (sourceHashColumn|targetHashColumn|
+     *  aggregatedHash)+ '}' )?} — engine grammar; the EMPTY block is an
+     *  ANTLR refusal at the '}' (reprobe TestDataQualityParsing#30). */
+    private static Protocol.PReconStrategy parseReconStrategy(
+            TokenStreamCursor c, String key) {
+        String kind = c.parseIdentifier();
+        String sourceHash = null;
+        String targetHash = null;
+        Boolean aggregated = null;
+        if (c.peek() == TokenType.BRACE_OPEN) {
+            c.advance();
+            if (c.peek() == TokenType.BRACE_CLOSE) {
+                throw c.error("Unexpected token '}'");
+            }
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int kS = c.pos();
+                String k = c.parseIdentifier();
+                TokenStreamCursor.once(seen, k, c, kS);
+                c.expect(TokenType.COLON);
+                switch (k) {
+                    case "sourceHashColumn" -> sourceHash = c.parseIdentifier();
+                    case "targetHashColumn" -> targetHash = c.parseIdentifier();
+                    case "aggregatedHash" -> {
+                        String b = c.safeText();
+                        if (!"true".equals(b) && !"false".equals(b)) {
+                            throw c.error("expected BOOLEAN, got '" + b + "'");
+                        }
+                        c.advance();
+                        aggregated = Boolean.valueOf(b);
+                    }
+                    default -> throw TokenStreamCursor.throwAt(c.tokens(), kS,
+                            "unknown strategy key '" + k + "'");
+                }
+                c.expect(TokenType.SEMI_COLON);
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+        }
+        return new Protocol.PReconStrategy(kind, sourceHash, targetHash,
+                aggregated);
     }
 }

@@ -69,7 +69,12 @@ public final class TokenStream {
      * text, so it should be the one to remember it.
      */
     public record SectionHeader(String name, int nameOffset,
-            int contentStartOffset) {
+            int contentStartOffset,
+            @com.legend.Nullable String residueToken,
+            int residueLine, int residueCol) {
+
+        // residueToken non-null = non-comment residue after the name on
+        // the ### line; the reference refuses it (C12 sentinel #42)
     }
 
     /** Package-private constructor &mdash; only {@link Lexer} creates {@code TokenStream}s. */

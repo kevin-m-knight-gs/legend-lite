@@ -61,14 +61,19 @@ public final class ExternalFormatSectionGrammar
         SectionParse.Head h = SectionParse.head(c, "SchemaSet");
         c.expect(TokenType.BRACE_OPEN);
         String format = null;
+        int formatTok = -1;
         List<Protocol.PSchema> schemas = new ArrayList<>();
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            int keyTok = c.pos();
             String key = c.parseIdentifier();
             TokenStreamCursor.once(seenKeys, key, c);
             c.expect(TokenType.COLON);
             switch (key) {
-                case "format" -> format = c.parseIdentifier();
+                case "format" -> {
+                    formatTok = keyTok;
+                    format = c.parseIdentifier();
+                }
                 case "schemas" -> parseSchemas(c, schemas);
                 default -> throw c.error(
                         "unknown SchemaSet key '" + key + "'");
@@ -84,7 +89,9 @@ public final class ExternalFormatSectionGrammar
         // engine's OWN test sources — production refuses it, so do we.
         if (!"FlatData".equals(format) && !"JSON".equals(format)
                 && !"XSD".equals(format)) {
-            throw c.error("Unknown schema format: " + format);
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), formatTok,
+                    "Unknown schema format: " + format);
         }
         return new Protocol.PSchemaSet(h.pkg(), h.name(), format, schemas,
                 c.spanOf(h.declStart(), c.pos() - 1));
@@ -93,6 +100,12 @@ public final class ExternalFormatSectionGrammar
     private static void parseSchemas(TokenStreamCursor c,
             List<Protocol.PSchema> out) {
         c.expect(TokenType.BRACKET_OPEN);
+        if (c.peek() == TokenType.BRACKET_CLOSE) {
+            // the engine grammar requires >= 1 schema — it refuses the
+            // empty list at the ']' BEFORE any format validation
+            // (reprobe TestExternalFormatGrammarParser#6)
+            throw c.error("Unexpected token ']'");
+        }
         while (c.peek() != TokenType.BRACKET_CLOSE) {
             int nodeStart = c.pos();
             c.expect(TokenType.BRACE_OPEN);

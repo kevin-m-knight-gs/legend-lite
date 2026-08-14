@@ -36,7 +36,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return dialect.refusesPlatformDialect();
     }
 
-    private MappingProtocolParser(TokenStream tokens, int pos,
+    MappingProtocolParser(TokenStream tokens, int pos,
             Dialect dialect) {
         this.tokens = tokens;
         this.pos = pos;
@@ -210,7 +210,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return v;
     }
 
-    private Protocol.PEmbeddedDataValue parseEmbeddedValue() {
+    Protocol.PEmbeddedDataValue parseEmbeddedValue() {
         // 'Relational' is a LEXER KEYWORD, the rest lex as identifiers
         if (peek() == TokenType.RELATIONAL) {
             return parseRelationalCsv();
@@ -278,7 +278,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             List<Protocol.PServiceStub> stubs = new ArrayList<>();
             inner.expect(TokenType.BRACKET_OPEN);
             while (inner.peek() != TokenType.BRACKET_CLOSE && !inner.atEnd()) {
-                stubs.add(inner.parseServiceStub());
+                stubs.add(ServiceStubDataParser.parseServiceStub(inner));
                 inner.match(TokenType.COMMA);
             }
             inner.expect(TokenType.BRACKET_CLOSE);
@@ -563,6 +563,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             return;
         }
         if (peek() == TokenType.VALID_STRING && "ServiceStore".equals(kind)) {
+            if (extendsId != null) {
+                // engine-verbatim (sectioned negative pin,
+                // TestServiceStoreMappingGrammarParser#4)
+                throw error("Service Store Mapping does not support extends");
+            }
             advance();
             classMappings.add(parseServiceStoreClassMapping(target,
                     memberStart, targetSpan, id, root));
@@ -710,7 +715,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                                 spanOf(exprStart, pos - 1),
                                 spanOf(keyStart, pos - 1));
                     } else {
-                        throw error("unknown ~request key: " + key);
+                        throw TokenStreamCursor.throwAt(tokens, keyStart,
+                                "unknown ~request key: " + key);
                     }
                 }
                 int reqEnd = pos;
@@ -764,17 +770,31 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private Protocol.PClassMappingMongoDb parseMongoDbClassMapping(
             String target, @com.legend.Nullable String id, boolean root) {
         expect(TokenType.BRACE_OPEN);
-        expect(TokenType.TILDE);
-        String kw = parseIdentifier();
-        if (!"mainCollection".equals(kw)) {
-            throw error("unknown MongoDB mapping directive: ~" + kw);
+        String store = null;
+        String coll = null;
+        String binding = null;
+        while (!atEnd() && peek() == TokenType.TILDE) {
+            advance();
+            String kw = parseIdentifier();
+            switch (kw) {
+                case "mainCollection" -> {
+                    expect(TokenType.BRACKET_OPEN);
+                    store = Protocol.unquotePath(parseQualifiedName());
+                    expect(TokenType.BRACKET_CLOSE);
+                    coll = parseIdentifier();
+                }
+                case "binding" ->
+                        binding = Protocol.unquotePath(parseQualifiedName());
+                default -> throw error(
+                        "unknown MongoDB mapping directive: ~" + kw);
+            }
         }
-        expect(TokenType.BRACKET_OPEN);
-        String store = Protocol.unquotePath(parseQualifiedName());
-        expect(TokenType.BRACKET_CLOSE);
-        String coll = parseIdentifier();
         expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PClassMappingMongoDb(target, id, root, store, coll);
+        if (store == null || coll == null) {
+            throw error("MongoDB mapping needs ~mainCollection");
+        }
+        return new Protocol.PClassMappingMongoDb(target, id, root, store,
+                coll, binding);
     }
 
     /** As {@link #cleanSheetAhead()} but the kind keyword is still
@@ -1165,8 +1185,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 if (srcClass != null) {
                     // ENGINE-VERBATIM (harvest TestMappingGrammarParser
                     // testPureInstanceClassMapping)
-                    throw error("Field '~src' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, memberStart,
+                            "Field '~src' should be specified only once");
                 }
                 advance();                          // '~src' is ONE token
                 int sS = pos;
@@ -1176,8 +1196,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             if (peek() == TokenType.FILTER_CMD) {
                 if (filterBody != null) {
-                    throw error("Field '~filter' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, memberStart,
+                            "Field '~filter' should be specified only once");
                 }
                 advance();
                 int fStart = pos;
@@ -2206,7 +2226,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         if (func == null) {
-            throw error("mapping test suite without a function");
+            throw TokenStreamCursor.throwAt(tokens, sS,
+                    "mapping test suite without a function");
         }
         return new Protocol.PMappingTestSuite(suiteId, doc, func, tests,
                 spanOf(sS, close));
@@ -2232,8 +2253,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 if (query != null) {
                     // ENGINE-VERBATIM cardinality (harvest
                     // TestMappingGrammarParser#testMappingTest)
-                    throw error("Field 'query' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, tS,
+                            "Field 'query' should be specified only once");
                 }
                 advance();
                 expect(TokenType.COLON);
@@ -2267,8 +2288,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             if ("data".equals(key)) {
                 if (seenData) {
-                    throw error("Field 'data' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, tS,
+                            "Field 'data' should be specified only once");
                 }
                 seenData = true;
                 advance();
@@ -2358,8 +2379,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             if ("assert".equals(key)) {
                 if (expected != null) {
-                    throw error("Field 'assert' should be specified"
-                            + " only once");
+                    throw TokenStreamCursor.throwAt(tokens, tS,
+                            "Field 'assert' should be specified only once");
                 }
                 int aS = pos;
                 advance();
@@ -2386,10 +2407,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.PAREN_CLOSE);
         if (!seenData) {
             // ENGINE-VERBATIM (harvest TestMappingGrammarParser)
-            throw error("Field 'data' is required");
+            throw TokenStreamCursor.throwAt(tokens, tS,
+                    "Field 'data' is required");
         }
         if (query == null || expected == null || assertSpan == null) {
-            throw error("legacy mapping test needs query AND assert");
+            throw TokenStreamCursor.throwAt(tokens, tS,
+                    "legacy mapping test needs query AND assert");
         }
         return new Protocol.PLegacyMappingTest(name, query, inputData,
                 expected, assertSpan, spanOf(tS, close));
@@ -2441,7 +2464,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (asserts.isEmpty()) {
             // ENGINE-VERBATIM (harvest TestMappingGrammarParser
             // testMappingTestSuites)
-            throw error("Field 'asserts' is required");
+            throw TokenStreamCursor.throwAt(tokens, tS,
+                    "Field 'asserts' is required");
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
@@ -2550,8 +2574,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             Protocol.PModelData entry) {
         for (Protocol.PModelData d : seen) {
             if (d.model().equals(entry.model())) {
-                throw error("Multiple entries found for type: '"
-                        + entry.model() + "'");
+                // anchored at the DUPLICATE entry (reprobe pin #10)
+                throw new com.legend.parser.ParseException(
+                        "Multiple entries found for type: '"
+                        + entry.model() + "'",
+                        entry.sourceInformation().startLine(),
+                        entry.sourceInformation().startColumn());
             }
         }
     }
@@ -2762,64 +2790,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  "servicestore-data" + the corpus DIFF that corrected it):
      *  request/response run their KEYWORD through the closing {@code ;};
      *  the stub spans its braces exactly. */
-    private Protocol.PServiceStub parseServiceStub() {
-        int sTok = pos;
-        expect(TokenType.BRACE_OPEN);
-        String method = null;
-        String url = null;
-        SourceInfo requestSpan = null;
-        Protocol.PExternalFormatData body = null;
-        SourceInfo responseSpan = null;
-        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            int keyTok = pos;
-            String key = parseIdentifier();
-            expect(TokenType.COLON);
-            if ("request".equals(key)) {
-                expect(TokenType.BRACE_OPEN);
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String rk = parseIdentifier();
-                    expect(TokenType.COLON);
-                    if ("method".equals(rk)) {
-                        method = parseIdentifier();
-                    } else if ("url".equals(rk)) {
-                        url = consumeStringLiteral("'url'");
-                    } else {
-                        throw error("unknown service-stub request key: " + rk);
-                    }
-                    expect(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);
-                requestSpan = spanOf(keyTok, pos - 1);
-            } else if ("response".equals(key)) {
-                expect(TokenType.BRACE_OPEN);
-                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-                    String rk = parseIdentifier();
-                    expect(TokenType.COLON);
-                    if (!"body".equals(rk)) {
-                        throw error("unknown service-stub response key: " + rk);
-                    }
-                    body = parseExternalFormat();
-                    expect(TokenType.SEMI_COLON);
-                }
-                expect(TokenType.BRACE_CLOSE);
-                expect(TokenType.SEMI_COLON);
-                responseSpan = spanOf(keyTok, pos - 1);
-            } else {
-                throw error("unknown service-stub key: " + key);
-            }
-        }
-        int closeTok = pos;
-        expect(TokenType.BRACE_CLOSE);
-        if (method == null || url == null || requestSpan == null
-                || body == null || responseSpan == null) {
-            throw error("a service stub needs request {method; url;} and"
-                    + " response {body;}");
-        }
-        return new Protocol.PServiceStub(method, url, requestSpan, body,
-                responseSpan, spanOf(sTok, closeTok));
-    }
-
     /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —
      *  span ExternalFormat..}#. */
     private Protocol.PExternalFormatData parseExternalFormat() {
@@ -2848,7 +2818,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
         }
         if (contentType == null || dataStr == null) {
-            throw error("external format needs contentType AND data");
+            throw TokenStreamCursor.throwAt(tokens, efTok,
+                    "external format needs contentType AND data");
         }
         return new Protocol.PExternalFormatData(contentType, dataStr,
                 new SourceInfo("", tokens.startLine(efTok),
@@ -2861,10 +2832,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  arrives as raw chunks; same emulation as the merge getText
      *  reparse). Nested islands re-lex recursively through the SAME
      *  machinery. */
-    private record IslandBlock(TokenStream tokens, int endLine,
+    record IslandBlock(TokenStream tokens, int endLine,
             int endColumn, int contentStart, int contentEnd) { }
 
-    private IslandBlock readIsland() {
+    IslandBlock readIsland() {
         expect(TokenType.ISLAND_OPEN);
         int contentStart = tokens.start(pos);
         int depth = 0;

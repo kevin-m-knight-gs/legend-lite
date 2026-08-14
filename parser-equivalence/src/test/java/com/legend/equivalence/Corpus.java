@@ -150,6 +150,10 @@ public final class Corpus {
         // C4/C5 — Pure snippets embedded in upstream Java TEST sources; the reference
         // parser adjudicates every candidate, so extraction is tolerant by design
         out.addAll(InlineSnippets.extract(engineRoot(), "C4 engine-inline"));
+        // C12 — section-only documents in test Java (no domain decl, so C4's
+        // pinned pattern never saw them: the DB-flavor/auth scope hole)
+        out.addAll(InlineSnippets.extract(engineRoot(),
+                "C12 section-doc-inline", InlineSnippets.SECTION_DOC));
         out.addAll(InlineSnippets.extract(pureRoot(), "C5 pure-inline"));
         // C6 — the engine's own grammar-test fixtures, harvested by
         // EXECUTION (ZEngineFixtureHarvest: the 4.138.2 tests-jars run

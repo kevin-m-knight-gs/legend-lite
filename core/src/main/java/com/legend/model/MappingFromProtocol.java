@@ -365,14 +365,19 @@ public final class MappingFromProtocol {
                 : java.util.Objects.requireNonNull(rel.sourceLambda())
                         .function();
         if (funcRef == null) {
-            // ~src <expression>: the engine parse-accepts and its COMPILER
-            // refuses; this transform is lite's corresponding seam
-            throw new IllegalStateException("a Relation mapping source must"
-                    + " name a function (got an expression)");
+            // ~src <expression>: the engine compiles the expression itself
+            // into _relationFunction (engine #4941) — carry it inline
+            var expr = java.util.Objects.requireNonNull(
+                    java.util.Objects.requireNonNull(rel.sourceLambda()).expr(),
+                    "a Relation mapping source needs a function or an"
+                    + " expression");
+            return new ClassMapping.RelationFunction(rel.className(),
+                    rel.id(), null, rel.root(), null, expr, cols,
+                    rel.primaryKey());
         }
         int sig = funcRef.indexOf('(');
         return new ClassMapping.RelationFunction(rel.className(), rel.id(), null,
-                rel.root(), sig < 0 ? funcRef : funcRef.substring(0, sig),
+                rel.root(), sig < 0 ? funcRef : funcRef.substring(0, sig), null,
                 cols, rel.primaryKey());
     }
 

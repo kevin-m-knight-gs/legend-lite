@@ -103,7 +103,8 @@ class RejectionParityTest {
                         }
                     } else {
                         lineDiverges.add(p.id() + " engine " + engineLine + ":" + engineCol
-                                + " ours " + ourLine + ":" + ourCol);
+                                + " ours " + ourLine + ":" + ourCol
+                                + "\t" + m.replaceAll("\\s+", " "));
                     }
                 }
             }
@@ -128,6 +129,14 @@ class RejectionParityTest {
                         skippedNonPure));
         lineDiverges.stream().limit(10)
                 .forEach(d -> report.append("  LINE-DIVERGE ").append(d).append('\n'));
+        try {
+            java.nio.file.Files.createDirectories(java.nio.file.Path.of("target"));
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target", "position-diverges.tsv"),
+                    String.join("\n", lineDiverges) + "\n");
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
         if (!misses.isEmpty()) {
             report.append("\nMISSES — we accept what the engine refuses\n")
                     .append("-".repeat(72)).append('\n');
@@ -136,6 +145,12 @@ class RejectionParityTest {
         Files.writeString(Path.of("target", "rejection-report.txt"), report.toString());
         System.out.println(report);
 
+        // POSITION FLOOR (position-exactness lane): line agreement is a
+        // down-only ratchet — 135 -> 417 of 423 on 2026-08-14 (ES leg landed); the
+        // remaining divergences are censused in
+        // target/position-diverges.tsv with messages
+        assertTrue(lineMatch >= 417,
+                "error-line agreement fell: " + lineMatch + " < 417");
         assertTrue(pins.size() >= MIN_PINS,
                 "negative corpus shrank: " + pins.size() + " pins < baseline " + MIN_PINS);
         assertEquals(0, misses.size(),
@@ -183,7 +198,7 @@ class RejectionParityTest {
     }
 
     /** Bumped deliberately as extraction improves. Lowering it requires saying why. */
-    private static final int MIN_PINS = 43;
+    private static final int MIN_PINS = 424;   // 43 -> 424: the sectioned pins joined 2026-08-13 (REJECT_MISS 37 -> 0)
 
     private List<Pin> extractPins() {
         List<Pin> pins = new ArrayList<>();
@@ -199,22 +214,12 @@ class RejectionParityTest {
                     if (input.length() < 10) {
                         continue;                   // not a code snippet
                     }
-                    // Pure-only inputs: a broken Mapping section is invisible to a
-                    // parser that lexes non-Pure sections opaquely — no parity
-                    // claim until section parity lands. COUNTED, not silent
-                    // (Phase A): the census prints with the report.
-                    Matcher s = SECTION.matcher(input);
-                    boolean pureOnly = true;
-                    while (s.find()) {
-                        if (!"Pure".equals(s.group(1))) {
-                            pureOnly = false;
-                            break;
-                        }
-                    }
-                    if (!pureOnly) {
-                        skippedNonPure++;
-                        continue;
-                    }
+                    // SECTIONED pins run through the SAME machinery since
+                    // 2026-08-13 — the old skip ("non-Pure sections lex
+                    // opaquely") predates the strict flip; the document
+                    // surface now parses every section strictly, and these
+                    // are the engine's own refusal fixtures hunting
+                    // OVER-ACCEPTANCE in the thin-policy grammars.
                     String lineGroup = m.group(1) != null ? m.group(1) : m.group(3);
                     String colGroup = m.group(2) != null ? m.group(2) : m.group(4);
                     pins.add(new Pin(fr.id() + "#" + i, input,

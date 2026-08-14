@@ -68,6 +68,20 @@ final class SectionParse {
 
     /** A value expression riding to the terminating top-level {@code ;} —
      *  parsed by THE SpecParser on the token slice (file-absolute spans). */
+    /** {@link #specToSemicolon} wrapped the way the engine's walkers
+     *  build DSL queries: a BARE expression becomes a paramless
+     *  {@code lambda} node (C12 byte-diff family, 16 rows — the
+     *  DataQuality/DataSpace walkers call visitLambda unconditionally). */
+    static com.legend.protocol.spec.ValueSpecification lambdaToSemicolon(
+            TokenStreamCursor c) {
+        var spec = specToSemicolon(c);
+        if (spec instanceof com.legend.protocol.spec.LambdaFunction) {
+            return spec;
+        }
+        return new com.legend.protocol.spec.LambdaFunction(
+                java.util.List.of(), java.util.List.of(spec), null);
+    }
+
     static com.legend.protocol.spec.ValueSpecification specToSemicolon(
             TokenStreamCursor c) {
         int bs = c.pos();

@@ -419,6 +419,11 @@ public final class FromProtocol {
                             "MongoDBConnection", c.qualifiedName(),
                             java.util.Map.of("database", mgc.databaseName()),
                             null);
+            case Protocol.PElasticsearchConnection esc ->
+                    new GenericSectionElementDefinition("Connection",
+                            "Elasticsearch7ClusterConnection",
+                            c.qualifiedName(),
+                            java.util.Map.of("url", esc.url()), null);
             case Protocol.PConnectionPointer p -> throw new IllegalStateException(
                     "a connection pointer cannot be a standalone element: "
                             + c.qualifiedName());
@@ -509,6 +514,15 @@ public final class FromProtocol {
                                 "Connection", "MongoDBConnection", synth,
                                 java.util.Map.of("database",
                                         mcv.databaseName()), null));
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                    case Protocol.PElasticsearchConnection ecv -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        inline.add(new GenericSectionElementDefinition(
+                                "Connection",
+                                "Elasticsearch7ClusterConnection", synth,
+                                java.util.Map.of("url", ecv.url()), null));
                         bindings.computeIfAbsent(store, k -> new ArrayList<>())
                                 .add(synth);
                     }
@@ -724,6 +738,12 @@ public final class FromProtocol {
                             s.httpPath());
             case Protocol.PBigQuerySpec s -> new ConnectionSpecification
                     .BigQuery(s.projectId(), s.defaultDataset());
+            case Protocol.PRedshiftSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(),
+                            s.databaseName());
+            case Protocol.PTrinoSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(),
+                            s.catalog() == null ? "" : s.catalog());
         };
         AuthenticationSpec auth = switch (r.authenticationStrategy()) {
             case Protocol.PH2Default d -> new AuthenticationSpec.DefaultH2();
@@ -747,6 +767,15 @@ public final class FromProtocol {
                             m.vaultReference());
             case Protocol.POAuth o -> new AuthenticationSpec.OAuth(
                     o.oauthKey(), o.scopeName());
+            case Protocol.PTrinoKerberosAuth k ->
+                    new AuthenticationSpec.DelegatedKerberos(
+                            k.serverPrincipal());
+            case Protocol.PGcpWifAuth w ->
+                    new AuthenticationSpec.GcpWorkloadIdentityFederation(
+                            w.serviceAccountEmail(),
+                            w.additionalGcpScopes() == null
+                                    ? java.util.List.of()
+                                    : w.additionalGcpScopes());
         };
         // quoteIdentifiers rides the PROTOCOL record only (wire parity);
         // lite's SQL renderers decide quoting themselves, so the model

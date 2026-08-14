@@ -4,6 +4,7 @@
 package com.legend.equivalence;
 
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -36,23 +37,30 @@ class AdversarialParityTest {
 
     private enum Verdict { ACCEPTS, REFUSES, LITE_INTERNAL_ERROR }
 
-    private static Verdict engine(String src) {
+    private record Parse(Verdict verdict, @com.legend.Nullable String json) {
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            ObjectMapperFactory
+                    .getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+
+    private static Parse engine(String src) {
         try {
-            PureGrammarParser.newInstance().parseModel(src);
-            return Verdict.ACCEPTS;
+            return new Parse(Verdict.ACCEPTS, MAPPER.writeValueAsString(
+                    PureGrammarParser.newInstance().parseModel(src)));
         } catch (Throwable t) {
-            return Verdict.REFUSES;
+            return new Parse(Verdict.REFUSES, null);
         }
     }
 
-    private static Verdict lite(String src) {
+    private static Parse lite(String src) {
         try {
-            com.legend.parser.PmcdParser.parseDocument(src);
-            return Verdict.ACCEPTS;
+            return new Parse(Verdict.ACCEPTS,
+                    com.legend.parser.PmcdParser.parseDocument(src));
         } catch (com.legend.parser.ParseException e) {
-            return Verdict.REFUSES;
+            return new Parse(Verdict.REFUSES, null);
         } catch (Throwable t) {
-            return Verdict.LITE_INTERNAL_ERROR;
+            return new Parse(Verdict.LITE_INTERNAL_ERROR, null);
         }
     }
 
@@ -63,13 +71,22 @@ class AdversarialParityTest {
             int maxDivergent) {
         List<String> divergent = new ArrayList<>();
         List<String> internal = new ArrayList<>();
+        List<String> byteDiffs = new ArrayList<>();
         for (Row r : rows) {
-            Verdict e = engine(r.src());
-            Verdict l = lite(r.src());
-            if (l == Verdict.LITE_INTERNAL_ERROR) {
+            Parse e = engine(r.src());
+            Parse l = lite(r.src());
+            if (l.verdict() == Verdict.LITE_INTERNAL_ERROR) {
                 internal.add(r.label());
-            } else if (e != l) {
-                divergent.add(r.label() + " (engine " + e + ", lite " + l + ")");
+            } else if (e.verdict() != l.verdict()) {
+                divergent.add(r.label() + " (engine " + e.verdict()
+                        + ", lite " + l.verdict() + ")");
+            } else if (e.verdict() == Verdict.ACCEPTS
+                    && !Comparators.sameBytes(e.json(), l.json())) {
+                // verdict parity is HALF the claim: an adversarial row both
+                // sides accept must ALSO byte-match — the fixed colspec
+                // spans, escaped aliases, and text blocks were only
+                // verdict-verified until this arm existed
+                byteDiffs.add(r.label());
             }
         }
         assertEquals(List.of(), internal,
@@ -80,6 +97,8 @@ class AdversarialParityTest {
                     + ": verdict divergences grew past the ratchet ("
                     + maxDivergent + ")");
         }
+        assertEquals(List.of(), byteDiffs,
+                family + ": BYTE diffs on both-accept adversarial rows");
     }
 
     // ------------------------------------------------------------------
@@ -184,6 +203,98 @@ class AdversarialParityTest {
                 new Row("single-line triple-quote tv", "###Pure\nProfile a::p { tags: [doc]; }\nClass {a::p.doc = '''hello'''} a::A { x: String[1]; }\n"),
                 new Row("comparator expr", "###Pure\nfunction f::f(): Any[*]\n{\n  [1,2]->contains(1, comparator(a: Integer[1], b: Integer[1]): Boolean[1] { $a == $b })\n}\n"),
                 new Row("quoted path segment with ::", "###Pure\nClass a::'b::c' { x: String[1]; }\n")),
+                0);
+    }
+    @Test
+    void mappingBodies() {
+        String pre = "###Pure\nClass a::A { name: String[1]; qty: Integer[1]; }\n"
+                + "Class a::S { src: String[1]; }\n";
+        String db = "###Relational\nDatabase a::db (Table t (name VARCHAR(20), qty INT))\n";
+        runFamily("mapping-bodies", List.of(
+                new Row("pure mapping basic", pre
+                        + "###Mapping\nMapping a::m\n(\n  a::A: Pure\n  {\n    ~src a::S\n    name: $src.src\n  }\n)\n"),
+                new Row("relational mapping", pre + db
+                        + "###Mapping\nMapping a::m\n(\n  a::A: Relational\n  {\n    name: [a::db]t.name\n  }\n)\n"),
+                new Row("dup property mapping", pre + db
+                        + "###Mapping\nMapping a::m\n(\n  a::A: Relational\n  {\n    name: [a::db]t.name,\n    name: [a::db]t.name\n  }\n)\n"),
+                new Row("keyword-named property", "###Pure\nClass a::A { filter: String[1]; }\nClass a::S { src: String[1]; }\n"
+                        + "###Mapping\nMapping a::m\n(\n  a::A: Pure\n  {\n    ~src a::S\n    filter: $src.src\n  }\n)\n"),
+                new Row("quoted mapping id", pre + db
+                        + "###Mapping\nMapping a::m\n(\n  a::A[id1]: Relational\n  {\n    name: [a::db]t.name\n  }\n)\n"),
+                new Row("escaped string in pure pm", pre
+                        + "###Mapping\nMapping a::m\n(\n  a::A: Pure\n  {\n    ~src a::S\n    name: 'it\\'s'\n  }\n)\n"),
+                new Row("empty mapping", "###Mapping\nMapping a::m\n(\n)\n"),
+                new Row("mapping missing close", "###Mapping\nMapping a::m\n(\n")),
+                0);
+    }
+
+    @Test
+    void databaseDdl() {
+        runFamily("database-ddl", List.of(
+                new Row("quoted column", "###Relational\nDatabase a::db (Table t (\"my col\" VARCHAR(20)))\n"),
+                new Row("column named Table", "###Relational\nDatabase a::db (Table t (Table VARCHAR(20)))\n"),
+                new Row("dup table", "###Relational\nDatabase a::db (Table t (c INT) Table t (c INT))\n"),
+                new Row("join", "###Relational\nDatabase a::db (Table t (id INT) Table u (id INT)\n  Join j (t.id = u.id))\n"),
+                new Row("self join {target}", "###Relational\nDatabase a::db (Table t (id INT, pid INT)\n  Join j (t.pid = {target}.id))\n"),
+                new Row("filter", "###Relational\nDatabase a::db (Table t (id INT)\n  Filter f (t.id > 0))\n"),
+                new Row("view", "###Relational\nDatabase a::db (Table t (id INT)\n  View v (vid: t.id))\n"),
+                new Row("bad column type", "###Relational\nDatabase a::db (Table t (c NOTATYPE(3)))\n"),
+                new Row("negative default-ish int", "###Relational\nDatabase a::db (Table t (c DECIMAL(10, 2)))\n"),
+                new Row("schema dot", "###Relational\nDatabase a::db (Schema s (Table t (c INT)))\n")),
+                0);
+    }
+
+    @Test
+    void runtimeAndConnectionIslands() {
+        String pre = "###Pure\nClass a::A { name: String[1]; }\n"
+                + "###Relational\nDatabase a::db (Table t (name VARCHAR(20)))\n"
+                + "###Mapping\nMapping a::m\n(\n  a::A: Relational\n  {\n    name: [a::db]t.name\n  }\n)\n";
+        runFamily("runtime-connection", List.of(
+                new Row("embedded connection island", pre
+                        + "###Runtime\nRuntime a::r\n{\n  mappings: [a::m];\n  connections:\n  [\n    a::db:\n    [\n      c1: #{\n        RelationalDatabaseConnection\n        {\n          store: a::db;\n          type: H2;\n          specification: LocalH2 {};\n          auth: DefaultH2;\n        }\n      }#\n    ]\n  ];\n}\n"),
+                new Row("named connection ref", pre
+                        + "###Connection\nRelationalDatabaseConnection a::c\n{\n  store: a::db;\n  type: H2;\n  specification: LocalH2 {};\n  auth: DefaultH2;\n}\n"
+                        + "###Runtime\nRuntime a::r\n{\n  mappings: [a::m];\n  connections:\n  [\n    a::db: [c1: a::c]\n  ];\n}\n"),
+                new Row("runtime empty mappings", "###Runtime\nRuntime a::r\n{\n  mappings: [];\n}\n"),
+                new Row("conn dup specification", pre
+                        + "###Connection\nRelationalDatabaseConnection a::c\n{\n  store: a::db;\n  type: H2;\n  specification: LocalH2 {};\n  specification: LocalH2 {};\n  auth: DefaultH2;\n}\n")),
+                0);
+    }
+    @Test
+    void operatorPrecedenceSweep() {
+        // THE 512-expression sweep (08-05 audit §1: 170/512 DIFF, invisible
+        // to every gate — the corpus contains none of these shapes). Now a
+        // permanent family: every 1 op 2 op 3 op 4 combination over the
+        // eight operator spellings, verdict- AND byte-compared.
+        String[] ops = {"+", "-", "*", "/", "<", "==", "&&", "||"};
+        List<Row> rows = new ArrayList<>();
+        for (String a : ops) {
+            for (String b : ops) {
+                for (String c : ops) {
+                    String expr = "1 " + a + " 2 " + b + " 3 " + c + " 4";
+                    rows.add(new Row(expr,
+                            "###Pure\nfunction f::f(): Any[*]\n{\n  "
+                                    + expr + ";\n}\n"));
+                }
+            }
+        }
+        runFamily("operator-precedence-sweep", rows, 0);
+    }
+    @Test
+    void constraintClausesAndQuotedCallables() {
+        // Tier-3 residue (08-05 audit R1-R4 + quoted-callable + quote-blind
+        // path scanner), fixed 2026-08-13 — all oracle-verified
+        String cls = "###Pure\nClass a::T { p(s: String[1]) { $s }: String[1]; }\n";
+        runFamily("constraints-and-callables", List.of(
+                new Row("clauses out of order", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~enforcementLevel: Error\n    ~function: $this.x > 0\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("externalId after function", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~function: $this.x > 0\n    ~externalId: 'ext'\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("repeated externalId", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~externalId: 'a'\n    ~externalId: 'b'\n    ~function: $this.x > 0\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("empty constraints block", "###Pure\nClass t::C [ ] { x: Integer[1]; }\n"),
+                new Row("full ordered clauses", "###Pure\nClass t::C\n[\n  c1\n  (\n    ~externalId: 'ext'\n    ~function: $this.x > 0\n    ~enforcementLevel: Warn\n    ~message: 'bad ' + $this.x->toString()\n  )\n]\n{ x: Integer[1]; }\n"),
+                new Row("quoted callable prefix", "###Pure\nfunction f::f(x: Integer[1]): Any[*]\n{\n  'meta::pure::functions::math::abs'($x)\n}\n"),
+                new Row("quoted callable arrow", "###Pure\nfunction f::f(x: Integer[1]): Any[*]\n{\n  $x->'meta::pure::functions::math::abs'()\n}\n"),
+                new Row("path arg comma in string", cls + "function f::f(): Any[*]\n{\n  #/a::T/p('a,b')#\n}\n"),
+                new Row("path arg slash in string", cls + "function f::f(): Any[*]\n{\n  #/a::T/p('a/b')#\n}\n")),
                 0);
     }
 }

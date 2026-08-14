@@ -376,7 +376,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "VARBINARY" -> "Varbinary";
             case "DECIMAL" -> "Decimal";
             case "NUMERIC" -> "Numeric";
-            default -> throw error("unsupported column datatype: " + kindWord);
+            default -> throw TokenStreamCursor.throwAt(tokens, typeStart,
+                    "unsupported column datatype: " + kindWord);
         };
         boolean sized = kind.equals("Varchar") || kind.equals("Char")
                 || kind.equals("Binary") || kind.equals("Varbinary");
@@ -413,7 +414,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         for (int i = typeStart; i < pos; i++) {
             decl.append(tokens.text(i));
         }
-        return error("Column data type " + kindWord + (sized
+        return TokenStreamCursor.throwAt(tokens, typeStart,
+                "Column data type " + kindWord + (sized
                 ? " requires 1 parameter (size) in declaration '"
                 : " requires 2 parameters (precision, scale) in"
                         + " declaration '")
@@ -434,8 +436,15 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             int argsStart = pos;
             java.util.Map<String, String> kv = new java.util.LinkedHashMap<>();
             Protocol.PDateTimeLit infinity = null;
+            // CLOSED, ORDERED key grammar (RelationalParserGrammar
+            // businessMilestoning/processingMilestoning; sectioned negative
+            // pins #110/#123 + deep-audit: a typo'd key was SILENTLY
+            // ignored here): FROM,THRU (,IS_INCLUSIVE)? (,INFINITY_DATE)?
+            // or SNAPSHOT_DATE alone; INFINITY_DATE may not open.
+            java.util.List<String> keyOrder = new java.util.ArrayList<>();
             while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
                 String key = parseIdentifier();
+                keyOrder.add(key);
                 expect(TokenType.EQUAL);
                 if (peek() == TokenType.DATE) {
                     int dS = pos;
@@ -449,6 +458,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 }
                 match(TokenType.COMMA);
             }
+            validateMilestoningKeys(kind, keyOrder);
             int argsEnd = pos - 1;                  // last token inside ( )
             expect(TokenType.PAREN_CLOSE);
             // business: ARGS span; processing: WHOLE dimension span —
@@ -490,6 +500,48 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             }
         }
         expect(TokenType.PAREN_CLOSE);
+    }
+
+    /** The engine's ordered milestoning key grammar, enforced — an
+     *  unknown, repeated, or misplaced key refuses with the engine's
+     *  alternatives shape (its ANTLR message names what may OPEN). */
+    private void validateMilestoningKeys(String kind, java.util.List<String> keys) {
+        boolean business = "business".equals(kind);
+        String from = business ? "BUS_FROM" : "PROCESSING_IN";
+        String thru = business ? "BUS_THRU" : "PROCESSING_OUT";
+        String incl = business ? "THRU_IS_INCLUSIVE" : "OUT_IS_INCLUSIVE";
+        String snap = business ? "BUS_SNAPSHOT_DATE" : "PROCESSING_SNAPSHOT_DATE";
+        if (keys.size() == 1 && keys.get(0).equals(snap)) {
+            return;
+        }
+        java.util.List<String> expected = new java.util.ArrayList<>(
+                java.util.List.of(from, thru));
+        int i = 0;
+        for (String k : keys) {
+            if (i < 2) {
+                if (!k.equals(expected.get(i))) {
+                    throw error("Unexpected token '" + k
+                            + "'. Valid alternatives: ['" + (i == 0
+                                    ? from + "', '" + snap
+                                    : thru) + "']");
+                }
+                i++;
+                continue;
+            }
+            if (k.equals(incl) && i == 2) {
+                i++;
+                continue;
+            }
+            if (k.equals("INFINITY_DATE") && i >= 2 && i <= 3) {
+                i = 4;
+                continue;
+            }
+            throw error("Unexpected token '" + k + "'");
+        }
+        if (i < 2) {
+            throw error("milestoning '" + kind + "' needs " + from
+                    + " and " + thru + " (or " + snap + ")");
+        }
     }
 
     private static SourceInfo plusOneCols(SourceInfo sp) {

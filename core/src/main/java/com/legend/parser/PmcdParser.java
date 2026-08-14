@@ -63,6 +63,17 @@ public final class PmcdParser {
 
     /** Tail sections (site kind 12) — mirror of the registry's
      *  elementwise grammars. */
+    /** The reference refuses residue after a section name (lexer records
+     *  it; C12 sentinel TestGrammarToJsonApi#42). ONE owner for both the
+     *  document and the strict element surface. */
+    public static void requireCleanHeader(
+            com.legend.lexer.TokenStream.SectionHeader h) {
+        if (h.residueToken() != null) {
+            throw new com.legend.parser.ParseException("Unexpected token '"
+                    + h.residueToken() + "'", h.residueLine(), h.residueCol());
+        }
+    }
+
     private static final List<String> TAIL_SECTIONS = List.of("Text",
             "GenerationSpecification", "FileGeneration", "Deephaven",
             "MongoDB", "DataQualityValidation", "Elasticsearch",
@@ -145,6 +156,7 @@ public final class PmcdParser {
         List<TokenStream.SectionHeader> headers = ts.sectionHeaders();
         bounds.add(new Bounds("Pure", -1, 0));
         for (TokenStream.SectionHeader h : headers) {
+            requireCleanHeader(h);
             bounds.add(new Bounds(h.name(), h.nameOffset() - 3,
                     h.contentStartOffset()));
         }
@@ -646,7 +658,7 @@ public final class PmcdParser {
             "JsonModelConnection", "XmlModelConnection",
             "ModelChainConnection", "RelationalDatabaseConnection",
             "ServiceStoreConnection", "DeephavenConnection",
-            "MongoDBConnection");
+            "MongoDBConnection", "Elasticsearch7ClusterConnection");
 
     private static int skipTo(TokenStream ts, long offset) {
         // token starts are sorted — binary search, not a linear rescan

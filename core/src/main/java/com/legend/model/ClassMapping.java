@@ -390,12 +390,18 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             @com.legend.Nullable String setId,
             @com.legend.Nullable String extendsSetId,
             boolean root,
-            String funcRef,
+            @com.legend.Nullable String funcRef,
+            @com.legend.Nullable com.legend.protocol.spec.ValueSpecification inlineSource,
             List<Col> columns,
             List<String> primaryKey) implements ClassMapping {
         public RelationFunction {
             Objects.requireNonNull(className, "Class name cannot be null");
-            Objects.requireNonNull(funcRef, "funcRef cannot be null");
+            if ((funcRef == null) == (inlineSource == null)) {
+                // exactly ONE source channel: a named ~func ref or the
+                // ~src inline expression (engine #4941 supports both)
+                throw new IllegalStateException("a Relation mapping needs"
+                        + " exactly one of funcRef/inlineSource");
+            }
             columns = columns == null ? List.of() : List.copyOf(columns);
             primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
         }
@@ -405,7 +411,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
                 @com.legend.Nullable String setId,
                 @com.legend.Nullable String extendsSetId, boolean root,
                 String funcRef, List<Col> columns) {
-            this(className, setId, extendsSetId, root, funcRef, columns,
+            this(className, setId, extendsSetId, root, funcRef, null, columns,
                     List.of());
         }
 

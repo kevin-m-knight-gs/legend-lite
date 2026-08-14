@@ -301,6 +301,18 @@ public interface TokenStreamCursor {
         }
     }
 
+    /** {@link #once} ANCHORED at the containing block's start token — the
+     *  engine's walkers pass each definition ctx to validateAndExtract, so
+     *  a duplicate-field error reports at the BLOCK, not the cursor
+     *  (position-exactness lane; anchored at the containing block). */
+    static void once(java.util.Set<String> seen, String key,
+            TokenStreamCursor at, int anchorTok) {
+        if (!seen.add(key)) {
+            throw throwAt(at.tokens(), anchorTok,
+                    "Field '" + key + "' should be specified only once");
+        }
+    }
+
     /** Require a STRING literal at the cursor, return its decoded body,
      *  advance. Positioned refusal on any other token — the old
      *  decode-before-check pattern died with "malformed quoted name" (or a
@@ -1116,8 +1128,10 @@ public interface TokenStreamCursor {
      *  leniency cannot survive in one grammar after dying in another. */
     default void validateJoinType(String joinType) {
         if (!"INNER".equals(joinType) && !"OUTER".equals(joinType)) {
-            throw error("Unsupported join type '" + joinType
-                    + "'. The supported join types are: [INNER, OUTER]");
+            // ENGINE-VERBATIM (message-parity gate 2026-08-13): the thrown
+            // message is the bare form — the "supported join types are"
+            // suffix lite carried does not appear on the 4.138.2 wire
+            throw error("Unsupported join type '" + joinType + "'");
         }
     }
 

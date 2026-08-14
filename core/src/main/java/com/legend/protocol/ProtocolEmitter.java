@@ -187,6 +187,11 @@ public final class ProtocolEmitter {
                 str(b, cs.storePointers().get(j).path());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, cs.storePointers().get(j).sourceInformation());
+                String spType = cs.storePointers().get(j).type();
+                if (spType != null) {
+                    b.append(",\"type\":");
+                    str(b, spType);
+                }
                 b.append('}');
             }
             b.append("]}");
@@ -879,6 +884,8 @@ public final class ProtocolEmitter {
                 str(b, dc.serverUrl());
                 b.append("}}");
             }
+            case Protocol.PElasticsearchConnection ec ->
+                    elasticsearchConnection(b, ec);
             case Protocol.PMongoDbConnection mc2 -> {
                 b.append("{\"_type\":\"MongoDBConnection\","
                         + "\"authenticationSpecification\":"
@@ -940,6 +947,9 @@ public final class ProtocolEmitter {
                     str(b, rc.element());
                     b.append(",\"elementSourceInformation\":");
                     srcInfo(b, rc.elementSourceInformation());
+                }
+                if (rc.localMode() != null) {
+                    b.append(",\"localMode\":").append(rc.localMode());
                 }
                 b.append(",\"postProcessorWithParameter\":[]");
                 if (!rc.postProcessors().isEmpty()) {
@@ -2202,8 +2212,14 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
         }
-        b.append("],\"sourceInformation\":");
-        srcInfo(b, requirePos(lam.pos(), "inline lambda"));
+        b.append(']');
+        // a WALKER-SYNTHESIZED lambda (DSL query wrap) is positionless on
+        // the engine wire — sourceInformation is omitted, not defaulted
+        // (C12 byte pins, TestDataQualityCompilationFromGrammar)
+        if (lam.pos() != null) {
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, lam.pos());
+        }
         b.append('}');
     }
 
@@ -3316,4 +3332,39 @@ public final class ProtocolEmitter {
         }
         b.append('"');
     }
+
+    /** Split from connectionValue (method-shape guardrail). */
+    private static void elasticsearchConnection(StringBuilder b,
+            Protocol.PElasticsearchConnection ec) {
+
+                b.append("{\"_type\":\"elasticsearch7StoreConnection\","
+                        + "\"authSpec\":{\"_type\":\"userPassword\","
+                        + "\"password\":{\"_type\":");
+                Protocol.PMongoSecret sec = ec.auth().password();
+                str(b, sec.kind());
+                if ("properties".equals(sec.kind())) {
+                    b.append(",\"").append(sec.fieldKey()).append("\":");
+                    str(b, sec.value());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sec.sourceInformation());
+                } else {
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sec.sourceInformation());
+                    b.append(",\"").append(sec.fieldKey()).append("\":");
+                    str(b, sec.value());
+                }
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, ec.auth().sourceInformation());
+                b.append(",\"username\":");
+                str(b, ec.auth().username());
+                b.append("},\"element\":");
+                str(b, ec.element());
+                b.append(",\"elementSourceInformation\":");
+                srcInfo(b, ec.elementSourceInformation());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ec.sourceInformation());
+                b.append(",\"sourceSpec\":{\"url\":");
+                str(b, ec.url());
+                b.append("}}");
+                }
 }

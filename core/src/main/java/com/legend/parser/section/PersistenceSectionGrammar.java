@@ -96,8 +96,9 @@ public final class PersistenceSectionGrammar
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!seen.add(key)) {
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(),
+                        declStart, "Field '" + key
+                                + "' should be specified only once");
             }
             switch (key) {
                 case "doc" -> {
@@ -114,8 +115,10 @@ public final class PersistenceSectionGrammar
                     c.expect(TokenType.SEMI_COLON);
                 }
                 case "persister" -> {
+                    // validation DEFERRED: the engine walker checks the
+                    // element trio (doc/trigger/service) BEFORE visiting
+                    // the persister (probed pins #4/#8/#12/#16)
                     persister = parseNode(c);
-                    validateNode(c, "persister", persister);
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "serviceOutputTargets" -> {
@@ -138,8 +141,12 @@ public final class PersistenceSectionGrammar
         // walker-required trio (visitPersistence)
         for (String r : new String[] {"doc", "trigger", "service"}) {
             if (!seen.contains(r)) {
-                throw c.error("Field '" + r + "' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(),
+                        declStart, "Field '" + r + "' is required");
             }
+        }
+        if (persister != null) {
+            validateNode(c, "persister", persister);
         }
         return new Protocol.PPersistence(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), doc,
@@ -231,32 +238,64 @@ public final class PersistenceSectionGrammar
      *  node's {@code slot/kind} present. */
     private static void validateNode(TokenStreamCursor c, String slot,
             Protocol.PPersistenceNode node) {
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        for (Protocol.PPersistenceEntry e : node.entries()) {
-            if (!seen.add(e.key())) {
-                throw c.error("Field '" + e.key()
-                        + "' should be specified only once");
-            }
-        }
-        List<String> req = REQUIRED_FIELDS.get(slot + "/" + node.kind());
-        if (req != null) {
-            for (String r : req) {
-                if (!seen.contains(r)) {
-                    throw c.error("Field '" + r + "' is required");
+        // ANCHORED at the NODE's own span start — the engine walker passes
+        // each definition ctx to validateAndExtract, so a persister-level
+        // error reports at `Batch`, an auditing error at its ingest-mode
+        // block, never at the cursor (position-exactness lane: the
+        // Persistence family carried 67 of the 288 line diverges)
+        int line = node.sourceInformation().startLine();
+        int col = node.sourceInformation().startColumn();
+        // the engine walker extracts each field IN ORDER (once + required
+        // check, then an immediate visit that recurses) — so a nested
+        // error in an EARLIER field outranks a missing LATER field
+        // (probed pin #72: MultiFlat 'parts' beats Batch 'ingestMode')
+        List<String> ordered = REQUIRED_FIELDS.get(slot + "/" + node.kind());
+        java.util.Set<String> walked = new java.util.HashSet<>();
+        if (ordered != null) {
+            for (String r : ordered) {
+                walked.add(r);
+                long n = node.entries().stream()
+                        .filter(e -> r.equals(e.key())).count();
+                if (n > 1) {
+                    throw new com.legend.parser.ParseException("Field '" + r
+                            + "' should be specified only once", line, col);
                 }
-            }
-        }
-        for (Protocol.PPersistenceEntry e : node.entries()) {
-            switch (e) {
-                case Protocol.PPersistenceEntry.Node nd ->
-                        validateNode(c, nd.key(), nd.node());
-                case Protocol.PPersistenceEntry.NodeList nl -> {
-                    for (Protocol.PPersistenceNode n : nl.nodes()) {
-                        validateNode(c, nl.key(), n);
+                if (n == 0) {
+                    throw new com.legend.parser.ParseException(
+                            "Field '" + r + "' is required", line, col);
+                }
+                for (Protocol.PPersistenceEntry e : node.entries()) {
+                    if (r.equals(e.key())) {
+                        recurseEntry(c, e);
                     }
                 }
-                default -> {
+            }
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            if (!walked.contains(e.key()) && !seen.add(e.key())) {
+                throw new com.legend.parser.ParseException("Field '" + e.key()
+                        + "' should be specified only once", line, col);
+            }
+        }
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            if (!walked.contains(e.key())) {
+                recurseEntry(c, e);
+            }
+        }
+    }
+
+    private static void recurseEntry(TokenStreamCursor c,
+            Protocol.PPersistenceEntry e) {
+        switch (e) {
+            case Protocol.PPersistenceEntry.Node nd ->
+                    validateNode(c, nd.key(), nd.node());
+            case Protocol.PPersistenceEntry.NodeList nl -> {
+                for (Protocol.PPersistenceNode n : nl.nodes()) {
+                    validateNode(c, nl.key(), n);
                 }
+            }
+            default -> {
             }
         }
     }
@@ -551,8 +590,9 @@ public final class PersistenceSectionGrammar
                 throw c.error("unknown notifier key '" + key + "'");
             }
             if (notifyeesSpelled) {
-                throw c.error("Field 'notifyees' should be specified"
-                        + " only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(),
+                        keyStart, "Field 'notifyees' should be specified"
+                                + " only once");
             }
             notifyeesSpelled = true;
             c.expect(TokenType.BRACKET_OPEN);
@@ -569,7 +609,8 @@ public final class PersistenceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (!notifyeesSpelled) {
-            throw c.error("Field 'notifyees' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(),
+                    keyStart, "Field 'notifyees' is required");
         }
         return new Protocol.PPersistenceNotifier(notifyees,
                 c.spanOf(keyStart, c.pos() - 1));
@@ -619,7 +660,8 @@ public final class PersistenceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (!batchesSpelled) {
-                throw c.error("Field 'testBatches' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), s, "Field 'testBatches' is required");
             }
             out.add(new Protocol.PPersistenceTest(id, batches,
                     fromServiceOutput, graphFetchPath,
@@ -692,11 +734,13 @@ public final class PersistenceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (connData == null || connSpan == null || dataSpan == null) {
-                throw c.error("Field 'data' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), s, "Field 'data' is required");
             }
             if (!assertsSpelled) {
                 // engine deserializer parity (leniency audit row #30)
-                throw c.error("Field 'asserts' is required");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), s, "Field 'asserts' is required");
             }
             out.add(new Protocol.PPersistenceTestBatch(id, connData,
                     connSpan, dataSpan, asserts, c.spanOf(s, c.pos() - 1)));
@@ -728,8 +772,9 @@ public final class PersistenceSectionGrammar
             String key = c.parseIdentifier();
             c.expect(TokenType.COLON);
             if (!seenCtx.add(key)) {
-                throw c.error("Field '" + key
-                        + "' should be specified only once");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), declStart,
+                        "Field '" + key + "' should be specified only once");
             }
             switch (key) {
                 case "persistence" -> {
@@ -749,6 +794,12 @@ public final class PersistenceSectionGrammar
                                 + " type '" + kind + "'");
                     }
                     if (c.peek() == TokenType.SEMI_COLON) {
+                        if ("AwsGlue".equals(kind)) {
+                            // engine-verbatim (cloud pin #2): the cloud
+                            // platform REQUIRES a body
+                            throw c.error("Persistence platform 'AwsGlue'"
+                                    + " must have a non-empty body");
+                        }
                         // BARE kind: `platform: Default;` — wire
                         // {"_type":"<kind lowercased>"} whose span is the
                         // kind WORD alone (harvest
@@ -788,6 +839,39 @@ public final class PersistenceSectionGrammar
                             c.tokens().startLine(embStart) - 1,
                             c.tokens().startColumn(embStart) - 1,
                             c.dialect()), entries, null);
+                    if ("AwsGlue".equals(kind)) {
+                        // engine-verbatim (cloud pins #4/#7); the cloud
+                        // extension parses the ISLAND CONTENT as its own
+                        // source, so errors anchor at the first content
+                        // token — or the ANTLR EOF position (island-end
+                        // line, col 1) when the island is empty (probed)
+                        var embTs = com.legend.lexer.Lexer.tokenize(emb);
+                        int aLine;
+                        int aCol;
+                        if (embTs.count() > 0) {
+                            int l = embTs.startLine(0);
+                            aLine = l + c.tokens().startLine(embStart) - 1;
+                            aCol = l == 1
+                                    ? embTs.startColumn(0)
+                                            + c.tokens().startColumn(embStart) - 1
+                                    : embTs.startColumn(0);
+                        } else {
+                            aLine = c.tokens().startLine(c.pos());
+                            aCol = 1;
+                        }
+                        long dpu = entries.stream().filter(en ->
+                                "dataProcessingUnits".equals(en.key())).count();
+                        if (dpu == 0) {
+                            throw new com.legend.parser.ParseException(
+                                    "Field 'dataProcessingUnits' is required",
+                                    aLine, aCol);
+                        }
+                        if (dpu > 1) {
+                            throw new com.legend.parser.ParseException(
+                                    "Field 'dataProcessingUnits' should"
+                                    + " be specified only once", aLine, aCol);
+                        }
+                    }
                     SourceInfo cs = c.spanOf(embStart, embStart);
                     // engine walker start = the line AFTER '#{' even when
                     // content shares the opener's line (DIFF-pinned)
@@ -827,7 +911,9 @@ public final class PersistenceSectionGrammar
         }
         c.expect(TokenType.BRACE_CLOSE);
         if (persistence == null) {
-            throw c.error("Field 'persistence' is required");
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    "Field 'persistence' is required");
         }
         return new Protocol.PPersistenceContext(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), persistence,

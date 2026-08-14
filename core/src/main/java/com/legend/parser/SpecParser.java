@@ -701,7 +701,13 @@ public final class SpecParser implements TokenStreamCursor {
             case INTEGER -> parseInteger();
             case FLOAT -> parseFloat();
             case DECIMAL -> parseDecimal();
-            case STRING -> parseString();
+            // a QUOTED NAME can start an expression when a call or path
+            // follows — 'abs'($x) and 'pkg'::f are engine-legal (the
+            // identifier rule admits quoted strings; Tier-3 residue,
+            // oracle-verified); a bare string stays a literal
+            case STRING -> peek(1) == TokenType.PAREN_OPEN
+                    || peek(1) == TokenType.PATH_SEPARATOR
+                    ? parseQualifiedNameStart() : parseString();
             case DOC_STRING -> parseDocString();
             case TRUE -> consumeBoolean(true);
             case FALSE -> consumeBoolean(false);
@@ -1167,7 +1173,8 @@ public final class SpecParser implements TokenStreamCursor {
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             // Top-level call: span = the function-name tokens (engine call convention).
-            AppliedFunction call = new AppliedFunction(fqn, args,
+            AppliedFunction call = new AppliedFunction(
+                    com.legend.protocol.Protocol.unquotePath(fqn), args,
                     java.util.List.of(), spanOf(fqnStart, fqnEnd));
             // the quoted-code fold: compileLegendValueSpecification('literal')
             // parses HERE — strings die at the parser. The payload parses
@@ -1191,9 +1198,18 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private AppliedFunction parseAllCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
+        int nameTok = pos - 1;                       // the 'all' token
         expect(TokenType.PAREN_OPEN, "expected '(' after '.all'");
         List<ValueSpecification> args = new ArrayList<>();
         args.add(new PackageableElementPtr(fqn, fqnSpan));
+        if (!atEnd() && peek() != TokenType.PAREN_CLOSE
+                && !opensMilestoningLiteral(peek())) {
+            // NON-literal first argument: the engine's allFunction grammar
+            // does not match — the expression is a PROPERTY CALL named
+            // 'all' with general arguments, spanning the name token only
+            // (adversarial byte gate caught the getAll mis-wire)
+            return propertyFormCall("all", nameTok, args);
+        }
         if (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             args.add(parseMilestoningExpression());
             if (!atEnd() && peek() == TokenType.COMMA) {
@@ -1207,6 +1223,22 @@ public final class SpecParser implements TokenStreamCursor {
                 spanOf(dotTok, pos - 1));
     }
 
+    /** The engine's property-call fallback for all/allVersionsInRange with
+     *  non-literal arguments: general args after the receiver, wire
+     *  {@code {"_type":"property"}} via the propertyCall marker. */
+    private AppliedFunction propertyFormCall(String name, int nameTok,
+            List<ValueSpecification> args) {
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            args.add(parseCombinedExpression());
+            if (!match(TokenType.COMMA)) {
+                break;
+            }
+        }
+        expect(TokenType.PAREN_CLOSE, "expected ')' to close '." + name + "(...)'");
+        return new AppliedFunction(name, args, java.util.List.of(),
+                spanOf(nameTok, nameTok), true, false, false);
+    }
+
     private AppliedFunction parseAllVersionsCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersions'");
@@ -1218,8 +1250,14 @@ public final class SpecParser implements TokenStreamCursor {
 
     private AppliedFunction parseAllVersionsInRangeCall(String fqn, int dotTok,
             com.legend.protocol.SourceInfo fqnSpan) {
+        int nameTok = pos - 1;
         int argsStart = pos;
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersionsInRange'");
+        if (!atEnd() && !opensMilestoningLiteral(peek())) {
+            List<ValueSpecification> args = new ArrayList<>();
+            args.add(new PackageableElementPtr(fqn, fqnSpan));
+            return propertyFormCall("allVersionsInRange", nameTok, args);
+        }
         ValueSpecification start = parseMilestoningExpression();
         expect(TokenType.COMMA, "expected ',' between range endpoints in '.allVersionsInRange'");
         ValueSpecification end = parseMilestoningExpression();
@@ -1251,7 +1289,21 @@ public final class SpecParser implements TokenStreamCursor {
         if (t == TokenType.LATEST_DATE) return parseLatestDate();
         if (t == TokenType.DATE) return parseDateOrDateTime();
         if (t == TokenType.DOLLAR) return parseVariable();
-        return parseExpression();
+        // ONLY reached when the FIRST argument was a milestoning literal —
+        // the engine then closes the set (all(%latest, now()) refuses with
+        // "Valid alternatives: ['%latest']"); a NON-literal first argument
+        // never gets here (property-form dispatch in parseAllCall)
+        throw error(
+                "expected milestoning expression (%date, %latest, or $variable), got "
+                + t + " ('" + safeText() + "')");
+    }
+
+    /** Whether the token can OPEN a milestoning literal — the dispatch
+     *  between the getAll wire and the engine's property-call fallback
+     *  (a::A.all(now()) is {"_type":"property"} on the wire, probed). */
+    private static boolean opensMilestoningLiteral(TokenType t) {
+        return t == TokenType.LATEST_DATE || t == TokenType.DATE
+                || t == TokenType.DOLLAR;
     }
 
     // parseQualifiedName(), isFqnSegmentToken(TokenType), and
@@ -1366,7 +1418,11 @@ public final class SpecParser implements TokenStreamCursor {
         params.addAll(args);
         // Engine convention: a call's span covers the function-NAME token only,
         // not the receiver, arrow, or argument parens (verified via ProbeWireShapes).
-        return new AppliedFunction(fn, params, List.of(), spanOf(fnStart, fnEnd));
+        // CALLABLE names unquote (PureGrammarParserUtility.fromIdentifier —
+        // 08-05 audit 2.6: $x->'pkg::abs'() kept its quotes on the wire here
+        // while the dot-path unquoted; Protocol.unquotePath is quote-aware)
+        return new AppliedFunction(com.legend.protocol.Protocol.unquotePath(fn),
+                params, List.of(), spanOf(fnStart, fnEnd));
     }
 
     // -------------------------------------------------------------------
@@ -2634,17 +2690,28 @@ public final class SpecParser implements TokenStreamCursor {
      *  where no trailing empties arise in practice; the text-rule gate
      *  bans the regex form). */
     private static List<String> splitChar(String s, char sep) {
+        // QUOTE-AWARE: a separator inside a quoted string ('a/b', 'a,b')
+        // must not split (Tier-3 residue F2 — the blind indexOf mis-split
+        // #/T/p('a/b')# into garbage segments; oracle-verified)
         List<String> out = new ArrayList<>();
         int start = 0;
-        while (true) {
-            int i = s.indexOf(sep, start);
-            if (i < 0) {
+        boolean inQuote = false;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i == s.length()) {
                 out.add(s.substring(start));
-                return out;
+                break;
             }
-            out.add(s.substring(start, i));
-            start = i + 1;
+            char c = s.charAt(i);
+            if (inQuote && c == '\\') {
+                i++;
+            } else if (c == '\'') {
+                inQuote = !inQuote;
+            } else if (c == sep && !inQuote) {
+                out.add(s.substring(start, i));
+                start = i + 1;
+            }
         }
+        return out;
     }
 
     private ValueSpecification parsePathLiteral() {
@@ -2797,9 +2864,22 @@ public final class SpecParser implements TokenStreamCursor {
         List<String> out = new ArrayList<>();
         int depth = 0;
         int start = 0;
+        boolean inQuote = false;
         for (int i = 0; i <= s.length(); i++) {
             char c = i < s.length() ? s.charAt(i) : ',';
-            if (c == '[' || c == '(') {
+            if (inQuote && i < s.length()) {
+                // quoted region: honour escapes, close on the bare quote —
+                // a ',' inside 'a,b' must not split (Tier-3 residue F2)
+                if (c == '\\') {
+                    i++;
+                } else if (c == '\'') {
+                    inQuote = false;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                inQuote = true;
+            } else if (c == '[' || c == '(') {
                 depth++;
             } else if (c == ']' || c == ')') {
                 depth--;
@@ -2951,7 +3031,8 @@ public final class SpecParser implements TokenStreamCursor {
         String contentText = content.toString().trim();
 
         ValueSpecification result = switch (dslType) {
-            case "" -> wrapGraphFetch(parseGraphFetchTree(contentText), islandStart, pos - 1);
+            case "" -> wrapGraphFetch(
+                    parseGraphFetchTree(contentText, islandStart), islandStart, pos - 1);
             // Engine convention (ProbeWireShapes "burn zoo 2" tref): the classInstance
             // spans the whole #>{...}# literal.
             case ">" -> parseTableReference(contentText, spanOf(islandStart, pos - 1));
@@ -3108,18 +3189,51 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
 
-    private ValueSpecification parseGraphFetchTree(String content) {
+    private ValueSpecification parseGraphFetchTree(String content,
+            int islandStart) {
         TokenStream innerTokens = Lexer.tokenize(content);
-        SpecParser inner = new SpecParser(innerTokens, "", dialect);
-        inner.parseQualifiedName();          // skip root class name
-        ValueSpecification tree = inner.parseGraphDefinition(0);
-        if (!inner.atEnd()) {
-            // LOUD: #{Person {name} GARBAGE}# previously dropped GARBAGE
-            // silently (audit M8c).
-            throw inner.error("trailing content after graph-fetch tree: '"
-                    + inner.safeText() + "'");
+        if (innerTokens.count() == 0) {
+            // ENGINE-VERBATIM (reprobe TestMappingGrammarParser#12):
+            // #{}# refuses at the island opener
+            throw new com.legend.parser.ParseException(
+                    "Graph fetch tree must not be empty",
+                    tokens.startLine(islandStart),
+                    tokens.startColumn(islandStart));
         }
-        return tree;
+        SpecParser inner = new SpecParser(innerTokens, "", dialect);
+        try {
+            inner.parseQualifiedName();          // skip root class name
+            ValueSpecification tree = inner.parseGraphDefinition(0);
+            if (!inner.atEnd()) {
+                // LOUD: #{Person {name} GARBAGE}# previously dropped
+                // GARBAGE silently (audit M8c).
+                throw inner.error("trailing content after graph-fetch tree: '"
+                        + inner.safeText() + "'");
+            }
+            return tree;
+        } catch (com.legend.parser.ParseException e) {
+            // the content is RE-LEXED from a reconstructed string, so
+            // inner positions start at 1:1 — compose the island's base
+            // position back in (reprobe: a tree error surfaced at 1:17
+            // inside a line-14 document)
+            int baseTok = Math.min(islandStart + 1, tokens.count() - 1);
+            int baseLine = tokens.startLine(baseTok);
+            int baseCol = tokens.startColumn(baseTok);
+            String raw = String.valueOf(e.getMessage());
+            String prefix = "[" + e.line() + ":" + e.column() + "] ";
+            if (raw.startsWith(prefix)) {
+                raw = raw.substring(prefix.length());
+            }
+            if (e.line() <= 0) {
+                // a positionless inner error (EOF): anchor at the opener
+                throw new com.legend.parser.ParseException(raw,
+                        tokens.startLine(islandStart),
+                        tokens.startColumn(islandStart));
+            }
+            throw new com.legend.parser.ParseException(raw,
+                    baseLine + e.line() - 1,
+                    e.line() == 1 ? baseCol + e.column() - 1 : e.column());
+        }
     }
 
     /**

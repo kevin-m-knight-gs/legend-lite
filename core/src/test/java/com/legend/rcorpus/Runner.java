@@ -1213,6 +1213,7 @@ public final class Runner {
 
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
+        com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
         // #67: record every raw corpus statement this test executes —
         // the H2 advisory second target replays them verbatim to verify
         // golden-SQL asserts by ROWS. Under a FAMILY session (#112) the

@@ -75,15 +75,42 @@ public final class DataSpaceSectionGrammar
         String description = null;
         List<Protocol.PDataSpaceExecutable> executables = null;
         List<Protocol.PDataSpaceDiagram> diagrams = null;
+        List<Protocol.PDataSpaceDiagram> featuredDiagrams = new ArrayList<>();
         Protocol.PDataSpaceSupport supportInfo = null;
         List<Protocol.PDataSpaceElementRef> elements = null;
 
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys, key, c);
+            TokenStreamCursor.once(seenKeys, key, c, declStart);
             c.expect(TokenType.COLON);
             switch (key) {
+                case "groupId", "artifactId", "versionId" -> {
+                    // parsed and DROPPED: the engine grammar admits these
+                    // deprecated coordinates but its walker never reads
+                    // them (C12 TestDataSpaceGrammarRoundtrip#7)
+                    SectionParse.stringValue(c);
+                    c.expect(TokenType.SEMI_COLON);
+                }
+                case "featuredDiagrams" -> {
+                    // deprecated alias: each path becomes a diagram entry
+                    // with an EMPTY title, spans = the path; the walker
+                    // APPENDS featured after declared diagrams
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        int ds = c.pos();
+                        String path = Protocol.unquotePath(
+                                c.parseQualifiedName());
+                        var span = c.spanOf(ds, c.pos() - 1);
+                        featuredDiagrams.add(new Protocol.PDataSpaceDiagram(
+                                "", null, path, span, span));
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    c.expect(TokenType.SEMI_COLON);
+                }
                 case "executionContexts" -> parseContexts(c, contexts);
                 case "defaultExecutionContext" -> {
                     defaultContext = SectionParse.stringValue(c);
@@ -131,9 +158,27 @@ public final class DataSpaceSectionGrammar
             }
         }
         c.expect(TokenType.BRACE_CLOSE);
+        // engine-verbatim required fields (sectioned negative pins #4/#6)
+        if (!seenKeys.contains("executionContexts")) {
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'executionContexts' is required");
+        }
+        if (!seenKeys.contains("defaultExecutionContext")) {
+            throw TokenStreamCursor.throwAt(c.tokens(), declStart,
+                    "Field 'defaultExecutionContext' is required");
+        }
+        List<Protocol.PDataSpaceDiagram> mergedDiagrams = diagrams;
+        if (!featuredDiagrams.isEmpty()) {
+            mergedDiagrams = mergedDiagrams == null
+                    ? featuredDiagrams
+                    : new ArrayList<>(mergedDiagrams);
+            if (mergedDiagrams != featuredDiagrams) {
+                mergedDiagrams.addAll(featuredDiagrams);
+            }
+        }
         return new Protocol.PDataSpace(pkg, name, dec.stereotypes(),
                 dec.taggedValues(), contexts, defaultContext, title,
-                description, executables, diagrams, supportInfo,
+                description, executables, mergedDiagrams, supportInfo,
                 elements, c.spanOf(declStart, c.pos() - 1));
     }
 
@@ -153,7 +198,7 @@ public final class DataSpaceSectionGrammar
         java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
-            TokenStreamCursor.once(seenKeys2, key, c);
+            TokenStreamCursor.once(seenKeys2, key, c, start);
             c.expect(TokenType.COLON);
             switch (key) {
                 case "address" -> address = SectionParse.stringValue(c);
@@ -183,7 +228,8 @@ public final class DataSpaceSectionGrammar
             case "Email" -> {
                 if (address == null) {
                     // engine-verbatim (probed live: Email{} without address)
-                    throw c.error("Field 'address' is required");
+                    throw TokenStreamCursor.throwAt(c.tokens(), start,
+                            "Field 'address' is required");
                 }
                 yield new Protocol.PDataSpaceSupport.PSupportEmail(address, span);
             }
@@ -213,7 +259,7 @@ public final class DataSpaceSectionGrammar
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
-                TokenStreamCursor.once(seenKeys3, key, c);
+                TokenStreamCursor.once(seenKeys3, key, c, ctxStart);
                 c.expect(TokenType.COLON);
                 switch (key) {
                     case "name" -> name = SectionParse.stringValue(c);
@@ -246,7 +292,8 @@ public final class DataSpaceSectionGrammar
             c.expect(TokenType.BRACE_CLOSE);
             if (name == null || mapping == null || mappingSpan == null
                     || defaultRuntime == null || runtimeSpan == null) {
-                throw c.error("an execution context needs name, mapping and"
+                throw TokenStreamCursor.throwAt(c.tokens(), ctxStart,
+                        "an execution context needs name, mapping and"
                         + " defaultRuntime");
             }
             out.add(new Protocol.PDataSpaceContext(name, title, description,
@@ -275,14 +322,22 @@ public final class DataSpaceSectionGrammar
             while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
                 int keyStart = c.pos();
                 String key = c.parseIdentifier();
-                TokenStreamCursor.once(seenKeys4, key, c);
+                TokenStreamCursor.once(seenKeys4, key, c, entryStart);
                 c.expect(TokenType.COLON);
                 switch (key) {
                     // ids appear as bare identifiers AND integers — the
                     // wire stringifies both
                     case "id" -> {
-                        id = c.safeText();
-                        c.advance();
+                        // ids can be digit-PREFIXED (2Id) — the engine
+                        // lexes that as INTEGER + identifier and the walker
+                        // concatenates (C12 TestDataSpaceGrammarParser#68)
+                        StringBuilder idb = new StringBuilder();
+                        while (!c.atEnd()
+                                && c.peek() != TokenType.SEMI_COLON) {
+                            idb.append(c.safeText());
+                            c.advance();
+                        }
+                        id = idb.toString();
                     }
                     case "title" -> title = SectionParse.stringValue(c);
                     case "description" -> description = SectionParse.stringValue(c);
@@ -295,7 +350,7 @@ public final class DataSpaceSectionGrammar
                             executable += rawToSemicolon(c);
                         }
                     }
-                    case "query" -> query = SectionParse.specToSemicolon(c);
+                    case "query" -> query = SectionParse.lambdaToSemicolon(c);
                     case "executionContextKey" -> contextKey = SectionParse.stringValue(c);
                     default -> throw c.error("unknown executables key: " + key);
                 }
@@ -306,8 +361,18 @@ public final class DataSpaceSectionGrammar
                 }
             }
             c.expect(TokenType.BRACE_CLOSE);
+            if (id == null && query != null) {
+                // engine-verbatim (sectioned negative pin #66) — required
+                // for the TEMPLATE form only; the pointer form
+                // (executable: path) is id-less in oracle-accepted corpus
+                // (dataSpaceWithExecutables.pure; the first ceiling here
+                // over-tightened and refused three accepted files)
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), entryStart,
+                        "Field 'id' is required");
+            }
             if (title == null || (executable == null && query == null)) {
-                throw c.error("an executable needs a title and an executable"
+                throw com.legend.parser.TokenStreamCursor.throwAt(c.tokens(), entryStart,
+                        "an executable needs a title and an executable"
                         + " path or query");
             }
             out.add(new Protocol.PDataSpaceExecutable(id, title, description,
@@ -349,7 +414,9 @@ public final class DataSpaceSectionGrammar
             }
             c.expect(TokenType.BRACE_CLOSE);
             if (title == null || diagram == null || diagramSpan == null) {
-                throw c.error("a diagram entry needs title and diagram");
+                throw com.legend.parser.TokenStreamCursor.throwAt(
+                        c.tokens(), entryStart,
+                        "a diagram entry needs title and diagram");
             }
             out.add(new Protocol.PDataSpaceDiagram(title, description,
                     diagram, diagramSpan, c.spanOf(entryStart, c.pos() - 1)));

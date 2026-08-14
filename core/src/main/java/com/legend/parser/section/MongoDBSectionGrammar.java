@@ -180,6 +180,7 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
             case "double" -> "doubleType";
             case "decimal" -> "decimalType";
             case "array" -> "arrayType";
+            case "objectId" -> "objectIdType";
             default -> throw at.error("unmapped bsonType '" + bsonType + "'");
         };
         List<java.util.Map.Entry<String, Protocol.PBsonSchema>> props =
@@ -198,9 +199,19 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
             }
         }
         Object addl = m.get("additionalProperties");
+        List<Protocol.PBsonSchema> items = null;
+        Object it = m.get("items");
+        if (it instanceof java.util.Map<?, ?> one) {
+            items = List.of(schemaOf(one, false, at));
+        } else if (it instanceof List<?> many) {
+            items = new ArrayList<>();
+            for (Object o : many) {
+                items.add(schemaOf((java.util.Map<?, ?>) o, false, at));
+            }
+        }
         return new Protocol.PBsonSchema(wireType,
                 addl == null ? null : (Boolean) addl, props, required,
                 (String) m.get("title"), (String) m.get("description"),
-                (Long) m.get("minLength"), (Long) m.get("maxLength"));
+                (Long) m.get("minLength"), (Long) m.get("maxLength"), items);
     }
 }

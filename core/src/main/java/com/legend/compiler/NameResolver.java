@@ -932,6 +932,17 @@ public final class NameResolver {
             }
             case ClassMapping.RelationFunction rf -> {
                 String className = resolveName(rf.className(), scope);
+                if (rf.funcRef() == null) {
+                    // ~src inline expression: the SOURCE resolves like any
+                    // mapping expression; there is no name to resolve
+                    ValueSpecification src = resolveVs(rf.inlineSource(), scope);
+                    yield className.equals(rf.className())
+                            && src == rf.inlineSource()
+                            ? rf
+                            : new ClassMapping.RelationFunction(className,
+                                    rf.setId(), rf.extendsSetId(), rf.root(),
+                                    null, src, rf.columns(), rf.primaryKey());
+                }
                 String funcRef = resolveName(rf.funcRef(), scope);
                 yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
                         ? rf

@@ -442,6 +442,7 @@ public final class ElementParser implements TokenStreamCursor {
         var out = new java.util.ArrayList<ClaimedSection>();
         for (int i = 0; i < headers.size(); i++) {
             var h = headers.get(i);
+            PmcdParser.requireCleanHeader(h);
             var g = SectionGrammarRegistry.lookup(h.name()).orElse(null);
             if (g instanceof com.legend.parser.section.LexableSectionGrammar lg) {
                 // a FILE-final section runs to EOF — every remaining token
@@ -1018,11 +1019,15 @@ public final class ElementParser implements TokenStreamCursor {
     private List<ConstraintDefinition> parseConstraints() {
         expect(TokenType.BRACKET_OPEN);
         List<ConstraintDefinition> result = new ArrayList<>();
-        if (peek() != TokenType.BRACKET_CLOSE) {
-            result.add(parseConstraint(0));
-            while (match(TokenType.COMMA)) {
-                result.add(parseConstraint(result.size()));
-            }
+        if (peek() == TokenType.BRACKET_CLOSE) {
+            // engine's constraints block requires >= 1 constraint —
+            // `Class C [ ] {...}` refuses there (Tier-3 residue R4,
+            // oracle-verified)
+            throw error("Unexpected token ']'");
+        }
+        result.add(parseConstraint(0));
+        while (match(TokenType.COMMA)) {
+            result.add(parseConstraint(result.size()));
         }
         expect(TokenType.BRACKET_CLOSE);
         return result;
@@ -1051,21 +1056,21 @@ public final class ElementParser implements TokenStreamCursor {
             // ~enforcementLevel? ~message? — externalId is RECORDED (the wire carries it;
             // dropping it was DIFF #1 the harness ever caught on constraints); owner is
             // recorded as present-only until its wire spelling is probed.
+            // ORDERED, ONCE-ONLY prelude — the engine's complexConstraint
+            // fixes ~owner? ~externalId? ~function ~enforcementLevel?
+            // ~message? (Tier-3 residue R2/R3: the old any-order loop
+            // accepted repeats and SWALLOWED malformed values)
             String externalId = null;
             String owner = null;
-            while (kw.equals("owner") || kw.equals("externalId")) {
+            if (kw.equals("owner")) {
                 expect(TokenType.COLON);
-                if (kw.equals("externalId") && peek() == TokenType.STRING) {
-                    // escapes resolve — 'Bee\'s' carries a real apostrophe on the wire
-                    externalId = TokenStreamCursor.unquoteAndUnescape(text(), this);
-                } else if (kw.equals("owner")) {
-                    // single identifier (engine REJECTS a bracketed list — probed); the
-                    // wire carries it as the string field "owner"
-                    owner = text();
-                }
-                while (!atEnd() && peek() != TokenType.TILDE) {
-                    advance();
-                }
+                owner = parseIdentifier();
+                expect(TokenType.TILDE);
+                kw = parseIdentifier();
+            }
+            if (kw.equals("externalId")) {
+                expect(TokenType.COLON);
+                externalId = consumeStringLiteral("'externalId'");
                 expect(TokenType.TILDE);
                 kw = parseIdentifier();
             }
@@ -1098,9 +1103,25 @@ public final class ElementParser implements TokenStreamCursor {
             // (#45); others parse and drop (engine: instantiation concerns)
             ValueSpecification message = null;
             String level = null;
+            boolean sawLevel = false;
+            boolean sawMessage = false;
             while (!atEnd() && peek() == TokenType.TILDE) {
                 expect(TokenType.TILDE);
                 String kw2 = parseIdentifier();
+                // CLOSED, ORDERED tail — ~enforcementLevel? ~message? only
+                // (Tier-3 residue R2: the old loop accepted ANY ~key here
+                // and silently dropped it, so ~externalId AFTER ~function
+                // parsed where the engine refuses)
+                if (kw2.equals("enforcementLevel")
+                        ? (sawLevel || sawMessage) : !kw2.equals("message")) {
+                    throw error("unexpected constraint clause '~" + kw2
+                            + "' — the order is ~owner? ~externalId?"
+                            + " ~function ~enforcementLevel? ~message?");
+                }
+                if (kw2.equals("message") && sawMessage) {
+                    throw error("constraint clause '~message' may appear"
+                            + " only once");
+                }
                 expect(TokenType.COLON);
                 int vStart = pos;
                 int vd = 0;
@@ -1123,8 +1144,10 @@ public final class ElementParser implements TokenStreamCursor {
                     advance();
                 }
                 if (kw2.equals("message")) {
+                    sawMessage = true;
                     message = SpecParser.parse(tokens.slice(vStart, pos), dialect);
                 } else if (kw2.equals("enforcementLevel")) {
+                    sawLevel = true;
                     ValueSpecification lv =
                             SpecParser.parse(tokens.slice(vStart, pos), dialect);
                     level = enforcementLevelName(lv);
@@ -2018,6 +2041,14 @@ public final class ElementParser implements TokenStreamCursor {
                             parseTestPayload();
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualToJson(
                     fmt, fmt.sourceInformation());
+        } else if (peek(1) == TokenType.ISLAND_OPEN
+                && !"Relation".equals(peekText(0))
+                && peek() == TokenType.VALID_STRING) {
+            // an embedded-data assertion of any OTHER kind: the engine
+            // refuses at the kind token (reprobe TestDomainGrammarParser#53)
+            throw error("Unsupported embedded data type for function test"
+                    + " assertion: " + peekText(0)
+                    + ". Only 'Relation' is supported.");
         } else if ("Relation".equals(peekText(0)) && peek(1) == TokenType.ISLAND_OPEN) {
             // => Relation #{...}# — equalToRelation spanning Relation..}#
             int relStart = pos;

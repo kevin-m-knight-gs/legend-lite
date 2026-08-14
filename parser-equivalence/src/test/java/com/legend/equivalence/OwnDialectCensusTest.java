@@ -41,9 +41,9 @@ class OwnDialectCensusTest {
                     "RelationalCorpusRunner.java", "TypeCheckerTest.java",
                     "PlatformInliningTest.java", "CompileFunctionTest.java",
                     // NEGATIVE differential fixtures — rows built to
-                    // REFUSE on purpose (verdict-parity gate); not
-                    // own-dialect code
-                    "AdversarialParityTest.java");
+                    // REFUSE on purpose (verdict/byte/message parity
+                    // gates); not own-dialect code
+                    "AdversarialParityTest.java", "MessageParityTest.java");
 
     /** THE MARKED EXTENSION-TEST SET (user directive 2026-08-12): the
      *  only hosts allowed to carry snippets that pass at LEGEND_LITE and
