@@ -1,5 +1,5 @@
-// COVERS SnowflakeLexerGrammar: Snowflake, name, account, warehouse, region, cloudType, quotedIdentifiersIgnoreCase, proxyHost, proxyPort, nonProxyHosts, tempTableDb, tempTableSchema, accountType, organization, role, enableQueryTags, SnowflakePublic, privateKeyVaultReference, passPhraseVaultReference, publicUserName
-// COVERS SnowflakeLexerGrammar: SnowflakeApp, applicationName, usageRole, permissionScheme, SnowflakeAppDeploymentConfiguration, SnowflakeM2MUdf, udfName, deploymentSchema, deploymentStage, description, function, ownership, Deployment, identifier, activationConfiguration, activationConnection, SnowflakeUDFDeploymentConfiguration
+// COVERS SnowflakeLexerGrammar@legend-engine-xt-relationalStore-snowflake-grammar: Snowflake, name, account, warehouse, region, cloudType, quotedIdentifiersIgnoreCase, proxyHost, proxyPort, nonProxyHosts, tempTableDb, tempTableSchema, accountType, organization, role, enableQueryTags, SnowflakePublic, privateKeyVaultReference, passPhraseVaultReference, publicUserName
+// COVERS SnowflakeLexerGrammar@legend-engine-xt-snowflake-grammar: SnowflakeApp, applicationName, usageRole, permissionScheme, SnowflakeAppDeploymentConfiguration, SnowflakeM2MUdf, udfName, deploymentSchema, deploymentStage, description, function, ownership, Deployment, identifier, activationConfiguration, activationConnection, SnowflakeUDFDeploymentConfiguration
 //
 // TWO grammar files share the stem `SnowflakeLexerGrammar` and the harvest merges them, so
 // one fixture has to cover both halves and they live in different sections:

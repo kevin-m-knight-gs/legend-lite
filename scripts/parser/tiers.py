@@ -116,6 +116,16 @@ OUT_OF_SCOPE = {
 #
 # Every entry was confirmed by running the construct through PureGrammarParser.parseModel,
 # not inferred from reading. The quoted text is what it actually said.
+_AUTH_DEMO = (
+    "The ###AuthenticationDemo section is registered by AuthenticationDemoParserExtension, "
+    "which lives in src/test/java -- not in the shipped jar. The shipped "
+    "AuthenticationGrammarParserExtension provides only getExtraAuthenticationParsers and "
+    "getExtraCredentialVaultSecretParsers, i.e. the ISLAND forms. Observed: "
+    "\"'AuthenticationDemo' is not a known section parser\". The grammar's other 43 "
+    "keywords are reachable through an `authentication:` island (e.g. in a MongoDB "
+    "connection) and are covered that way."
+)
+
 WALKER_REJECTED = {
     ("DomainLexerGrammar", "native"): (
         "DomainParseTreeWalker.visitElement handles class/association/enum/profile/"
@@ -146,6 +156,20 @@ WALKER_REJECTED = {
         "the repo mentioning EqualToTDS are its own two .g4 files. Observed: 'Unknown test "
         "assertion type: EqualToTDS'. Tabular assertions really use `Relation`."
     ),
+}
+
+
+# Keywords reachable only through a section parser that is NOT SHIPPED.
+#
+# A third failure mode, and one neither of the other detectors can see. The tokens ARE
+# referenced by rules in their parser grammar, so the tokenVocab check calls them reachable;
+# the rules parse fine, so the walker never refuses them. What is missing is the
+# SectionParser that would route text to that grammar at all -- it exists, and it lives in
+# src/test/java, so it is absent from the shipped jar.
+UNSHIPPED_SECTION = {
+    ("AuthenticationLexerGrammar", "AuthenticationDemo"): _AUTH_DEMO,
+    ("AuthenticationLexerGrammar", "authentication"): _AUTH_DEMO,
+    ("AuthenticationLexerGrammar", "import"): _AUTH_DEMO,
 }
 
 

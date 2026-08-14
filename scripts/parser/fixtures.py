@@ -35,7 +35,8 @@ NEGATIVE = Path(__file__).resolve().parent / "negative"
 RUNNER = REPO / "tools" / "engine-runner"
 JAVA_HOME = os.environ.get("JAVA_HOME", str(Path.home() / "jdk/jdk-21.0.11+10/Contents/Home"))
 
-_COVERS = re.compile(r"^//\s*COVERS\s+([A-Za-z0-9]+)\s*:\s*(.+)$", re.M)
+_GRAMMAR = r"[A-Za-z0-9][A-Za-z0-9@._-]*"
+_COVERS = re.compile(rf"^//\s*COVERS\s+({_GRAMMAR})\s*:\s*(.+)$", re.M)
 
 # A second form, for sub-grammars whose input IS a string literal.
 #
@@ -46,7 +47,7 @@ _COVERS = re.compile(r"^//\s*COVERS\s+([A-Za-z0-9]+)\s*:\s*(.+)$", re.M)
 # body is not prose around code -- it is the code. Checked against RAW text rather than
 # stripped, and kept as a separate marker so the exemption has to be claimed deliberately
 # per grammar instead of weakening the check for everything.
-_COVERS_EMBEDDED = re.compile(r"^//\s*COVERS-EMBEDDED\s+([A-Za-z0-9]+)\s*:\s*(.+)$", re.M)
+_COVERS_EMBEDDED = re.compile(rf"^//\s*COVERS-EMBEDDED\s+({_GRAMMAR})\s*:\s*(.+)$", re.M)
 
 
 def declarations(path: Path, embedded: bool = False) -> list[tuple[str, list[str]]]:
@@ -240,6 +241,7 @@ def main() -> None:
         declared = set().union(*[grammars[s] for s in stems if s in grammars])
         unreachable = set().union(*[dead.get(s, set()) for s in stems]) if stems else set()
         unreachable |= {k for (s, k) in tiers.WALKER_REJECTED if s in stems}
+        unreachable |= {k for (s, k) in tiers.UNSHIPPED_SECTION if s in stems}
         total = declared - unreachable
         got = set().union(*[have.get(s, set()) for s in stems]) if stems else set()
         got &= total
@@ -255,6 +257,7 @@ def main() -> None:
         for stem in sorted(tiers.TIER1 | tiers.TIER1_EMBEDDED):
             reachable = grammars.get(stem, set()) - dead.get(stem, set())
             reachable -= {k for (s, k) in tiers.WALKER_REJECTED if s == stem}
+            reachable -= {k for (s, k) in tiers.UNSHIPPED_SECTION if s == stem}
             miss = sorted(reachable - have.get(stem, set()))
             if miss:
                 print(f"[{len(reachable) - len(miss):>3} of {len(reachable):>3}] "

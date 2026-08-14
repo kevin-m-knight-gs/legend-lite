@@ -1,5 +1,5 @@
 // COVERS DataSourceSpecificationLexerGrammar: region
-// COVERS SnowflakeLexerGrammar: Snowflake, account, warehouse
+// COVERS SnowflakeLexerGrammar@legend-engine-xt-relationalStore-snowflake-grammar: Snowflake, account, warehouse
 //
 // `region` looked unreachable from reading DataSourceSpecificationParserGrammar -- its rule
 // is defined there and referenced nowhere in that file. It is referenced from the SNOWFLAKE

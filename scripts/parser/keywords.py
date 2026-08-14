@@ -134,19 +134,53 @@ def dead_tokens() -> dict[str, set[str]]:
     return dict(out)
 
 
-# Comments and string literals, stripped before counting. A keyword inside a comment or
-# inside a quoted CSV payload is not a keyword the parser ever saw — and this corpus is
+# Comments and string literals, removed before counting. A keyword inside a comment or
+# inside a quoted CSV payload is not a keyword the parser ever saw -- and this corpus is
 # full of both, since the generated ###Data blocks are megabytes of quoted rows and the
 # hand-written files carry long explanatory comments that name constructs.
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
-_LINE_COMMENT = re.compile(r"//[^\n]*")
-_STRING = re.compile(r"'(?:[^'\\]|\\.)*'")
+#
+# ONE PASS, not three. The obvious implementation runs three regex substitutions in
+# sequence, and it is wrong in a way that hides coverage rather than inflating it: a `//`
+# inside a string literal -- `'http://host'` -- is stripped as a comment first, taking the
+# closing quote with it, which unbalances every string scan that follows and swallows real
+# code to the end of the file. Found by a fixture whose `authentication` keyword read as
+# uncovered because a URL three lines earlier had a scheme in it.
+#
+# Whichever construct opens FIRST wins, which is what the lexer does.
+_OPENERS = re.compile(r"/\*|//|'")
 
 
 def strip_noncode(text: str) -> str:
-    text = _BLOCK_COMMENT.sub(" ", text)
-    text = _LINE_COMMENT.sub(" ", text)
-    return _STRING.sub(" '' ", text)
+    out, i = [], 0
+    while True:
+        m = _OPENERS.search(text, i)
+        if not m:
+            out.append(text[i:])
+            return "".join(out)
+        out.append(text[i:m.start()])
+        tok = m.group()
+        if tok == "/*":
+            end = text.find("*/", m.end())
+            i = len(text) if end < 0 else end + 2
+            out.append(" ")
+        elif tok == "//":
+            end = text.find("\n", m.end())
+            i = len(text) if end < 0 else end
+            out.append(" ")
+        else:
+            # A Pure string literal. Backslash escapes the next character, including a
+            # quote; an unterminated literal runs to end of input rather than re-opening.
+            j = m.end()
+            while j < len(text):
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == "'":
+                    j += 1
+                    break
+                j += 1
+            i = j
+            out.append(" '' ")
 
 
 def our_sources() -> str:
