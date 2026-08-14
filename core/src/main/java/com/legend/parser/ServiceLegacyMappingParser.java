@@ -75,9 +75,10 @@ final class ServiceLegacyMappingParser {
             // the property follows after the dot
             int line = entrySpan.startLine();
             int col = entrySpan.startColumn();
-            var varSpan = new SourceInfo("", line, col, line, col + 4);
-            var propSpan = new SourceInfo("", line, col + 6,
-                    line, col + 6 + prop.length() - 1);
+            var varSpan = com.legend.protocol.SpanOrigin
+                    .syntheticAt(line, col, 5);           // "$this"
+            var propSpan = com.legend.protocol.SpanOrigin
+                    .syntheticAt(line, col + 6, prop.length());
             var expr = new com.legend.protocol.spec.AppliedProperty(
                     new com.legend.protocol.spec.Variable("this", null,
                             null, varSpan), prop, propSpan);

@@ -439,9 +439,9 @@ public final class PersistenceSectionGrammar
         c.expect(TokenType.ISLAND_END);
         SourceInfo es = c.spanOf(endTok, endTok);
         return new Protocol.PPersistenceNode(kind, entries,
-                new SourceInfo("", Math.max(openLine + 1, cs.startLine()),
-                        cs.startColumn(), es.endLine(),
-                        es.endColumn() + 1));
+                com.legend.protocol.SpanOrigin.contentAnchored(
+                        Math.max(openLine + 1, cs.startLine()),
+                        cs.startColumn(), es.endLine(), es.endColumn()));
     }
 
     private static Protocol.PPersistenceNode parseNode(TokenStreamCursor c) {
@@ -1151,7 +1151,7 @@ public final class PersistenceSectionGrammar
 
         @Override
         public com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
-            return TokenStreamCursor.shiftIsland(
+            return com.legend.protocol.SpanOrigin.islandShift(
                     TokenStreamCursor.super.spanOf(fromTok, toTok),
                     lineOffset, colOffset);
         }

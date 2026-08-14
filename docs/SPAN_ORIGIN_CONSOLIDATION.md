@@ -44,17 +44,26 @@ spans are BUILT, so that:
 
 ## Migration order (each step gated by the FULL chain)
 
-1. Introduce `SpanOrigin` + `compose`; port mechanism #3's three
-   overshoot sites (auth +3, ES +4, Deephaven +4) — smallest, purely
-   mechanical, byte-parity-pinned by existing batteries.
-2. Port #2 (`shiftIsland` callers) — the rule already lives in one
-   method; wrap it.
-3. Port #4 and #6 (persistence anchor, legacy service-mapping
-   synthetic) — each has a dedicated battery row.
-4. #5 stays charwise (the content is unlexable by design) but its
-   span construction adopts the named origin.
-5. #7 unchanged (document composition is already centralized in
-   PmcdParser); document it as the top-level origin.
+1. **DONE 2026-08-14** (c9982067): `SpanOrigin` introduced; the three
+   overshoot sites (auth +3, ES +4, Deephaven +4) named
+   (`overshootEnd`/`anchoredOvershoot`).
+2. **DONE 2026-08-14**: the island-shift RULE moved into
+   `SpanOrigin.islandShift` (single implementation; the three section
+   grammars call it; `TokenStreamCursor.shiftIsland` deleted).
+3. **DONE 2026-08-14**: persistence content-anchor named
+   (`SpanOrigin.contentAnchored`); legacy service-mapping synthetic
+   spans named (`SpanOrigin.syntheticAt` — "$this" width 5, property
+   at +6).
+4. #5 (charwise scans) KEEPS its own line/col tracking by design —
+   the content is unlexable by the shared lexer; its constructions are
+   plain token/char extents, not quirk arithmetic, so no named origin
+   is warranted.
+5. #7 (document composition) is already centralized in PmcdParser and
+   pinned by OffsetCompositionParityTest — documented here as the
+   top-level origin; no change.
+
+Every mechanism that encodes an ENGINE QUIRK is now a named
+constructor on one class; the remaining span math is plain extent.
 
 Byte parity (6,489 docs + 266 fixtures + 950 mutants) is the safety
 net for every step: span consolidation must be a ZERO-diff refactor.

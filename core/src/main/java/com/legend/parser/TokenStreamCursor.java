@@ -1135,23 +1135,6 @@ public interface TokenStreamCursor {
                 tokens().end(endToken - 1));
     }
 
-    /** Walker-offset shift for EMBEDDED-island reparses (engine rule: line
-     *  offset applies to every line, column offset to line 1 only). Identity
-     *  when both offsets are zero. */
-    static com.legend.protocol.SourceInfo shiftIsland(
-            com.legend.protocol.SourceInfo sp, int lineOffset, int colOffset) {
-        if (lineOffset == 0 && colOffset == 0) {
-            return sp;
-        }
-        return new com.legend.protocol.SourceInfo("",
-                sp.startLine() + lineOffset,
-                sp.startLine() == 1 ? sp.startColumn() + colOffset
-                        : sp.startColumn(),
-                sp.endLine() + lineOffset,
-                sp.endLine() == 1 ? sp.endColumn() + colOffset
-                        : sp.endColumn());
-    }
-
     /** The {@code sourceId} stamped on spans — "" everywhere EXCEPT
      *  mapping test-suite query lambdas, which the engine reparses with
      *  the MAPPING's own path as the source id (probe test-suites). */

@@ -1352,7 +1352,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
 
         @Override
         public com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
-            return TokenStreamCursor.shiftIsland(
+            return com.legend.protocol.SpanOrigin.islandShift(
                     TokenStreamCursor.super.spanOf(fromTok, toTok),
                     lineOffset, colOffset);
         }
