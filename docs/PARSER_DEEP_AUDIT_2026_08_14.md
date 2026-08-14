@@ -1,3 +1,51 @@
+# Response — 2026-08-14 evening (same day, commits 341ac14c..99af226e)
+
+> Written by the session the audit addresses. Every status below names its
+> commit; the audit's text is left untouched below.
+
+**The three questions, answered:**
+
+1. *On what run did "census exclusions ZERO" go green?* On manual runs only —
+   the audit is right, `SurfaceCensusTest` had never been enrolled. It is in
+   gate 8 (both the `-Dtest` filter and the ran-check) as of `341ac14c`. The
+   claims it backed were true when I ran it by hand; nothing re-ran it. That
+   is an instrument failure and the finding stands.
+2. *What bounds the leniency catalog (1,470) and bothReject (2,132)?* Today:
+   nothing. Accepted as the top instrument gap alongside the circular
+   VERSION-SKEW arm; both are tracked and not yet fixed.
+3. *What was the basis for "done" on GQL?* Probe rows that were fixed points
+   of both bugs — the battery could not fail on escapes or malformed numbers
+   because no pinned row contained either. The basis was insufficient, both
+   CRITICALs were real, and both are fixed in `341ac14c` (escapes ride RAW
+   per the walker; numbers are .g4-enforced and normalized — the five
+   invalid-JSON emitters now refuse).
+
+**Finding status (fix commits on main):**
+
+| finding | status |
+|---|---|
+| 1a GQL escapes decoded | FIXED `341ac14c` |
+| 1a-bis GQL invalid-JSON numbers | FIXED `341ac14c` |
+| 1a-ter block strings / empty +rules / reserved names / spread directives | FIXED `341ac14c` (SDL kinds beyond `type` still refuse loudly — open surface, safe direction) |
+| 1b `^new` duplicate keys collapse | OPEN — Map→List refactor tracked |
+| 1c non-BMP column drift | FIXED `341ac14c` (`columnOf` counts code points) |
+| 1c-bis ES cardinality / fields-vs-properties / location validation / dup keys / semicolons / PSK | OPEN |
+| 1d dup Table columns; timezone digits | OPEN |
+| Persistence wrong-kind keys (sibling handoff protocol-check) | FIXED `99af226e` (`PERMITTED_FIELDS`) |
+| 2a census not gated | FIXED `341ac14c` |
+| 2b CI runs zero parser gates | OPEN — plan: checkout-free subset (batteries + fixture ratchet) in CI; the corpus sweep genuinely needs local checkouts |
+| 2c circular VERSION-SKEW arm | OPEN |
+| 2d catalog/bothReject unbounded | OPEN |
+| 2e slack ratchets | FIXED `341ac14c` (417/337/2093; duplicate floor deleted) |
+| 2f model-refuse-allowlist unverified | OPEN — needs a compile-stage probe per row |
+| 3 architecture (offset mechanisms, island seam, PAuthSpecValue consumers, Trino downcast, cosmetic split) | OPEN — the island registry and SpanOrigin consolidation are the right next structural legs |
+
+**Adopted from the audit's method:** mutation-differential fuzzing and the
+handoff's protocol-check are the two instruments this estate lacked; both are
+queued as standing gates.
+
+---
+
 # Deep parser audit #2 — legend-lite @ `bfef311b` (2026-08-14)
 
 Audit of the claim that the parser is "100% bulletproof and done". Measured at
