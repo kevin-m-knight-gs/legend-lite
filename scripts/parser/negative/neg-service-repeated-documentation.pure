@@ -1,0 +1,22 @@
+// REJECTS: Field 'documentation' should be specified only once
+//
+// Same `( ... )*` body, opposite failure: repetition. The grammar happily matches two
+// `documentation:` clauses; validateAndExtractRequiredField sees a list of size two and
+// refuses.
+//
+// Order is free here and repetition is not, which is a pair of properties no ANTLR rule
+// expresses -- a rewritten parser that stores fields into a map and lets the last write win
+// silently accepts this and drops the first value.
+###Service
+Service fixture::neg::TwoDocs
+{
+   pattern: '/fixture/neg/twodocs';
+   documentation: 'first';
+   documentation: 'second';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::Mapping;
+      runtime: fixture::neg::Runtime;
+   }
+}

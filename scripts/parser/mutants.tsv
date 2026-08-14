@@ -5,27 +5,39 @@
 connection-auth.pure	brace-body-to-paren	line at 1449	REJECTED	Unexpected token '('
 connection-auth.pure	brace-body-to-paren	line at 1805	REJECTED	Unexpected token '('
 connection-auth.pure	brace-body-to-paren	line at 2072	REJECTED	Unexpected token '('
+connection-auth.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 connection-auth.pure	delete-field	store: fixture::auth::Db;	ACCEPTED	
 connection-auth.pure	delete-field	type: SqlServer;	REJECTED	Field 'type' is required
 connection-auth.pure	delete-field	name: 'name';	REJECTED	Field 'name' is required
+connection-auth.pure	drop-final-delimiter	}	ACCEPTED	
 connection-auth.pure	drop-semicolon	type: SqlServer;	REJECTED	Unexpected token
 connection-auth.pure	drop-semicolon	name: 'name';	REJECTED	Unexpected token
 connection-auth.pure	drop-semicolon	store: fixture::auth::Db;	REJECTED	Unexpected token
 connection-auth.pure	duplicate-field	store: fixture::auth::Db;	REJECTED	Field 'store' should be specified only once
 connection-auth.pure	duplicate-field	type: SqlServer;	REJECTED	Field 'type' should be specified only once
 connection-auth.pure	duplicate-field	name: 'name';	REJECTED	Field 'name' should be specified only once
-connection-auth.pure	keyword-lowercase	ApiToken -> apiToken	ACCEPTED	
+connection-auth.pure	keyword-lowercase	ApiToken -> apiToken	REJECTED	Unsupported Authentication Strategy type 'apiToken'
 connection-auth.pure	keyword-lowercase	BigQuery -> bigQuery	REJECTED	Unknown database type 'bigQuery'
 connection-auth.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
+connection-auth.pure	package-dot	offset 1432	REJECTED	Unexpected token '.'
+connection-auth.pure	package-dot	offset 1438	REJECTED	Unexpected token '.'
+connection-auth.pure	package-dot	offset 1468	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+connection-auth.pure	string-unterminated	'name'	REJECTED	Unexpected token '''
+connection-auth.pure	string-unterminated	'host'	REJECTED	Unexpected token '''
+connection-auth.pure	string-unterminated	'vault/prefix/'	REJECTED	Unexpected token '''
 connection-auth.pure	swap-siblings	store: fixture::auth::Db;	ACCEPTED	
 connection-auth.pure	swap-siblings	name: 'name';	ACCEPTED	
 connection-auth.pure	swap-siblings	host: 'host';	ACCEPTED	
+connection-auth.pure	truncate	at 50%	REJECTED	Unexpected token
+connection-auth.pure	truncate	at 85%	ACCEPTED	
 connection-auth.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 connection-model.pure	brace-body-to-paren	line at 332	REJECTED	Unexpected token '('
 connection-model.pure	brace-body-to-paren	line at 447	REJECTED	Unexpected token '('
+connection-model.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 connection-model.pure	delete-field	import fixture::conn::*;	ACCEPTED	
 connection-model.pure	delete-field	class: fixture::conn::Person;	REJECTED	Field 'class' is required
 connection-model.pure	delete-field	url: 'model://fixture/person.json';	REJECTED	Field 'url' is required
+connection-model.pure	drop-final-delimiter	}	ACCEPTED	
 connection-model.pure	drop-semicolon	url: 'model://fixture/person.json';	REJECTED	Unexpected token
 connection-model.pure	drop-semicolon	import fixture::conn::*;	REJECTED	Unexpected token
 connection-model.pure	drop-semicolon	class: fixture::conn::Person;	REJECTED	Unexpected token
@@ -34,14 +46,23 @@ connection-model.pure	duplicate-field	class: fixture::conn::Person;	REJECTED	Fie
 connection-model.pure	duplicate-field	url: 'model://fixture/person.json';	REJECTED	Field 'url' should be specified only once
 connection-model.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
 connection-model.pure	keyword-lowercase	Json -> json	ACCEPTED	
-connection-model.pure	keyword-lowercase	JsonModelConnection -> jsonModelConnection	ACCEPTED	
+connection-model.pure	keyword-lowercase	JsonModelConnection -> jsonModelConnection	REJECTED	Unsupported connection value type: jsonModelConnection
+connection-model.pure	package-dot	offset 280	REJECTED	Unexpected token '.'
+connection-model.pure	package-dot	offset 319	REJECTED	Unexpected token '.'
+connection-model.pure	package-dot	offset 325	REJECTED	Unexpected token '.'
+connection-model.pure	string-unterminated	'model://fixture/person.json'	REJECTED	Unexpected token '''
+connection-model.pure	string-unterminated	'model://fixture/person.xml'	REJECTED	Unexpected token '''
 connection-model.pure	swap-siblings	class: fixture::conn::Person;	ACCEPTED	
 connection-model.pure	swap-siblings	class: fixture::conn::Person;	ACCEPTED	
+connection-model.pure	truncate	at 50%	REJECTED	'Connec' is not a known section parser
+connection-model.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['import']
 connection-model.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 connection-postprocessor.pure	brace-body-to-paren	line at 1515	REJECTED	Unexpected token '('
+connection-postprocessor.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 connection-postprocessor.pure	delete-field	import fixture::pp::*;	ACCEPTED	
 connection-postprocessor.pure	delete-field	store: fixture::pp::AccountDB;	ACCEPTED	
 connection-postprocessor.pure	delete-field	type: H2;	REJECTED	Field 'type' is required
+connection-postprocessor.pure	drop-final-delimiter	}	ACCEPTED	
 connection-postprocessor.pure	drop-semicolon	store: fixture::pp::AccountDB;	REJECTED	Unexpected token
 connection-postprocessor.pure	drop-semicolon	type: H2;	REJECTED	Unexpected token
 connection-postprocessor.pure	drop-semicolon	import fixture::pp::*;	REJECTED	Unexpected token
@@ -51,15 +72,25 @@ connection-postprocessor.pure	duplicate-field	type: H2;	REJECTED	Field 'type' sh
 connection-postprocessor.pure	keyword-lowercase	ACCOUNT -> aCCOUNT	ACCEPTED	
 connection-postprocessor.pure	keyword-lowercase	AccountDB -> accountDB	ACCEPTED	
 connection-postprocessor.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
+connection-postprocessor.pure	package-dot	offset 1034	REJECTED	Unexpected token '.'
+connection-postprocessor.pure	package-dot	offset 1068	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+connection-postprocessor.pure	package-dot	offset 1072	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
 connection-postprocessor.pure	paren-body-to-brace	line at 1081	REJECTED	Unexpected token '{'
+connection-postprocessor.pure	string-unterminated	'SnowflakeOrgDB'	REJECTED	Unexpected token '''
+connection-postprocessor.pure	string-unterminated	'SnowflakeOrgDBNew'	REJECTED	Unexpected token '''
+connection-postprocessor.pure	string-unterminated	'AlloySchema'	REJECTED	Unexpected token '''
 connection-postprocessor.pure	swap-siblings	store: fixture::pp::AccountDB;	ACCEPTED	
 connection-postprocessor.pure	swap-siblings	type: H2;	ACCEPTED	
 connection-postprocessor.pure	swap-siblings	timezone: 'UTC';	ACCEPTED	
+connection-postprocessor.pure	truncate	at 50%	REJECTED	Unexpected token
+connection-postprocessor.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
 connection-postprocessor.pure	wrong-section	QueryPostProcessor -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 connection-snowflake.pure	brace-body-to-paren	line at 630	REJECTED	Unexpected token '('
+connection-snowflake.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 connection-snowflake.pure	delete-field	store: fixture::sf::Db;	ACCEPTED	
 connection-snowflake.pure	delete-field	type: Snowflake;	REJECTED	Field 'type' is required
 connection-snowflake.pure	delete-field	name: 'warehouseDb';	REJECTED	Field 'name' is required
+connection-snowflake.pure	drop-final-delimiter	}	ACCEPTED	
 connection-snowflake.pure	drop-semicolon	type: Snowflake;	REJECTED	Unexpected token
 connection-snowflake.pure	drop-semicolon	name: 'warehouseDb';	REJECTED	Unexpected token
 connection-snowflake.pure	drop-semicolon	store: fixture::sf::Db;	REJECTED	Unexpected token
@@ -69,14 +100,24 @@ connection-snowflake.pure	duplicate-field	name: 'warehouseDb';	REJECTED	Field 'n
 connection-snowflake.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
 connection-snowflake.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
 connection-snowflake.pure	keyword-lowercase	RelationalDatabaseConnection -> relationalDatabaseConnection	REJECTED	Unsupported connection value type: relationalDatabaseConnection
+connection-snowflake.pure	package-dot	offset 619	REJECTED	Unexpected token '.'
+connection-snowflake.pure	package-dot	offset 623	REJECTED	Unexpected token '.'
+connection-snowflake.pure	package-dot	offset 649	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+connection-snowflake.pure	string-unterminated	'warehouseDb'	REJECTED	Unexpected token '''
+connection-snowflake.pure	string-unterminated	'acct1'	REJECTED	Unexpected token '''
+connection-snowflake.pure	string-unterminated	'COMPUTE_WH'	REJECTED	Unexpected token '''
 connection-snowflake.pure	swap-siblings	store: fixture::sf::Db;	ACCEPTED	
 connection-snowflake.pure	swap-siblings	name: 'warehouseDb';	ACCEPTED	
 connection-snowflake.pure	swap-siblings	account: 'acct1';	ACCEPTED	
+connection-snowflake.pure	truncate	at 50%	ACCEPTED	
+connection-snowflake.pure	truncate	at 85%	REJECTED	Unexpected token
 connection-snowflake.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 diagram-full.pure	brace-body-to-paren	line at 483	REJECTED	Unexpected token '('
+diagram-full.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 diagram-full.pure	delete-field	import fixture::dia::*;	ACCEPTED	
 diagram-full.pure	delete-field	class: fixture::dia::Person;	REJECTED	Field 'class' is required
 diagram-full.pure	delete-field	position: (123.123,23.23);	REJECTED	Field 'position' is required
+diagram-full.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 diagram-full.pure	drop-semicolon	class: fixture::dia::Person;	REJECTED	Unexpected token
 diagram-full.pure	drop-semicolon	position: (123.123,23.23);	REJECTED	Unexpected token
 diagram-full.pure	drop-semicolon	import fixture::dia::*;	REJECTED	Unexpected token
@@ -84,44 +125,73 @@ diagram-full.pure	duplicate-field	import fixture::dia::*;	ACCEPTED
 diagram-full.pure	duplicate-field	class: fixture::dia::Person;	REJECTED	Field 'class' should be specified only once
 diagram-full.pure	duplicate-field	position: (123.123,23.23);	REJECTED	Field 'position' should be specified only once
 diagram-full.pure	keyword-lowercase	Address -> address	ACCEPTED	
-diagram-full.pure	keyword-lowercase	Diagram -> diagram	ACCEPTED	
+diagram-full.pure	keyword-lowercase	Diagram -> diagram	REJECTED	'diagram' is not a known section parser
 diagram-full.pure	keyword-lowercase	Firm -> firm	ACCEPTED	
+diagram-full.pure	package-dot	offset 441	REJECTED	Unexpected token '.'
+diagram-full.pure	package-dot	offset 467	REJECTED	Unexpected token '.'
+diagram-full.pure	package-dot	offset 472	REJECTED	Unexpected token '.'
 diagram-full.pure	swap-siblings	class: fixture::dia::Person;	ACCEPTED	
 diagram-full.pure	swap-siblings	position: (123.123,23.23);	ACCEPTED	
 diagram-full.pure	swap-siblings	rectangle: (120.84765625,58.0);	ACCEPTED	
+diagram-full.pure	truncate	at 50%	REJECTED	Unexpected token '.'. Valid alternatives: [')']
+diagram-full.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [';']
 diagram-full.pure	wrong-section	Diagram -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 domain-aggregation.pure	brace-body-to-paren	line at 312	REJECTED	Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
 domain-aggregation.pure	brace-body-to-paren	line at 368	REJECTED	Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
 domain-aggregation.pure	brace-body-to-paren	line at 559	REJECTED	Unexpected token '('. Valid alternatives: ['projects']
+domain-aggregation.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 domain-aggregation.pure	delete-field	sku: String[1];	ACCEPTED	
 domain-aggregation.pure	delete-field	plain: String[1];	ACCEPTED	
+domain-aggregation.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 domain-aggregation.pure	drop-semicolon	sku: String[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 domain-aggregation.pure	drop-semicolon	plain: String[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 domain-aggregation.pure	duplicate-field	sku: String[1];	ACCEPTED	
 domain-aggregation.pure	duplicate-field	plain: String[1];	ACCEPTED	
 domain-aggregation.pure	keyword-lowercase	Assembly -> assembly	ACCEPTED	
 domain-aggregation.pure	keyword-lowercase	AssemblyPart -> assemblyPart	ACCEPTED	
-domain-aggregation.pure	keyword-lowercase	Association -> association	ACCEPTED	
+domain-aggregation.pure	keyword-lowercase	Association -> association	REJECTED	Unexpected token
+domain-aggregation.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-aggregation.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-aggregation.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-aggregation.pure	package-dot	offset 297	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-aggregation.pure	package-dot	offset 305	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-aggregation.pure	package-dot	offset 349	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-aggregation.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [']']
+domain-aggregation.pure	truncate	at 85%	REJECTED	Unexpected token
 domain-aggregation.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'Class'. Valid alternatives: ['Text']
 domain-constraints.pure	brace-body-to-paren	line at 1068	REJECTED	Unexpected token
 domain-constraints.pure	brace-body-to-paren	line at 1213	REJECTED	Unexpected token
+domain-constraints.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 domain-constraints.pure	delete-field	code: String[1];	ACCEPTED	
 domain-constraints.pure	delete-field	notional: Float[1];	ACCEPTED	
+domain-constraints.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 domain-constraints.pure	drop-semicolon	code: String[1];	REJECTED	Unexpected token 'notional'. Valid alternatives: ['=', ';']
 domain-constraints.pure	drop-semicolon	notional: Float[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 domain-constraints.pure	duplicate-field	code: String[1];	ACCEPTED	
 domain-constraints.pure	duplicate-field	notional: Float[1];	ACCEPTED	
 domain-constraints.pure	keyword-lowercase	Class -> class	REJECTED	Unexpected token 'class'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native
 domain-constraints.pure	keyword-lowercase	Constrained -> constrained	ACCEPTED	
-domain-constraints.pure	keyword-lowercase	Error -> error	ACCEPTED	
+domain-constraints.pure	keyword-lowercase	Error -> error	REJECTED	Unexpected token 'error'. Valid alternatives: ['Error', 'Warn']
+domain-constraints.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-constraints.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-constraints.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-constraints.pure	package-dot	offset 617	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-constraints.pure	package-dot	offset 625	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-constraints.pure	package-dot	offset 1132	REJECTED	Unexpected token '.'. Valid alternatives: ['(', '<']
+domain-constraints.pure	string-unterminated	'RISK-001'	REJECTED	Unexpected token '''
+domain-constraints.pure	string-unterminated	'notional must be positive, got '	REJECTED	Unexpected token
 domain-constraints.pure	swap-siblings	code: String[1];	ACCEPTED	
+domain-constraints.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-constraints.pure	truncate	at 85%	REJECTED	Unexpected token
 domain-constraints.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'Class'. Valid alternatives: ['Text']
 domain-enum-and-identifiers.pure	brace-body-to-paren	line at 587	REJECTED	Unexpected token '('
 domain-enum-and-identifiers.pure	brace-body-to-paren	line at 649	REJECTED	Unexpected token '('
 domain-enum-and-identifiers.pure	brace-body-to-paren	line at 699	REJECTED	Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
+domain-enum-and-identifiers.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 domain-enum-and-identifiers.pure	delete-field	as: String[1];	ACCEPTED	
 domain-enum-and-identifiers.pure	delete-field	region: fixture::domain::Region[1];	ACCEPTED	
 domain-enum-and-identifiers.pure	delete-field	side: fixture::domain::Side[1];	ACCEPTED	
+domain-enum-and-identifiers.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 domain-enum-and-identifiers.pure	drop-semicolon	side: fixture::domain::Side[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 domain-enum-and-identifiers.pure	drop-semicolon	as: String[1];	REJECTED	Unexpected token 'region'. Valid alternatives: ['=', ';']
 domain-enum-and-identifiers.pure	drop-semicolon	region: fixture::domain::Region[1];	REJECTED	Unexpected token 'side'. Valid alternatives: ['=', ';']
@@ -131,15 +201,25 @@ domain-enum-and-identifiers.pure	duplicate-field	side: fixture::domain::Side[1];
 domain-enum-and-identifiers.pure	keyword-lowercase	AMERICAS -> aMERICAS	ACCEPTED	
 domain-enum-and-identifiers.pure	keyword-lowercase	APAC -> aPAC	ACCEPTED	
 domain-enum-and-identifiers.pure	keyword-lowercase	Class -> class	REJECTED	Unexpected token
+domain-enum-and-identifiers.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-enum-and-identifiers.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-enum-and-identifiers.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+domain-enum-and-identifiers.pure	package-dot	offset 570	REJECTED	Unexpected token '.'
+domain-enum-and-identifiers.pure	package-dot	offset 578	REJECTED	Unexpected token '.'
+domain-enum-and-identifiers.pure	package-dot	offset 634	REJECTED	Unexpected token '.'
 domain-enum-and-identifiers.pure	swap-siblings	as: String[1];	ACCEPTED	
 domain-enum-and-identifiers.pure	swap-siblings	region: fixture::domain::Region[1];	ACCEPTED	
+domain-enum-and-identifiers.pure	truncate	at 50%	ACCEPTED	
+domain-enum-and-identifiers.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['import', 'Class', 'Association', 'Profile', 'Enum', 'Measure', 'function
 domain-enum-and-identifiers.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'Enum'. Valid alternatives: ['Text']
 externalformat-binding.pure	brace-body-to-paren	line at 1125	REJECTED	Unexpected token '('
 externalformat-binding.pure	brace-body-to-paren	line at 1791	REJECTED	Unexpected token '('
 externalformat-binding.pure	brace-body-to-paren	line at 2069	REJECTED	Unexpected token '('
+externalformat-binding.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 externalformat-binding.pure	delete-field	import fixture::ef::*;	ACCEPTED	
 externalformat-binding.pure	delete-field	format: FlatData;	REJECTED	Field 'format' is required
 externalformat-binding.pure	delete-field	id: primary;	ACCEPTED	
+externalformat-binding.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 externalformat-binding.pure	drop-semicolon	format: FlatData;	REJECTED	Unexpected token
 externalformat-binding.pure	drop-semicolon	id: primary;	REJECTED	Unexpected token
 externalformat-binding.pure	drop-semicolon	import fixture::ef::*;	REJECTED	Unexpected token
@@ -147,18 +227,28 @@ externalformat-binding.pure	duplicate-field	import fixture::ef::*;	ACCEPTED
 externalformat-binding.pure	duplicate-field	format: FlatData;	REJECTED	Field 'format' should be specified only once
 externalformat-binding.pure	duplicate-field	id: primary;	REJECTED	Field 'id' should be specified only once
 externalformat-binding.pure	keyword-lowercase	Address -> address	ACCEPTED	
-externalformat-binding.pure	keyword-lowercase	Binding -> binding	ACCEPTED	
-externalformat-binding.pure	keyword-lowercase	ExternalFormat -> externalFormat	ACCEPTED	
+externalformat-binding.pure	keyword-lowercase	Binding -> binding	REJECTED	Unexpected token
+externalformat-binding.pure	keyword-lowercase	ExternalFormat -> externalFormat	REJECTED	'externalFormat' is not a known section parser
+externalformat-binding.pure	package-dot	offset 1084	REJECTED	Unexpected token '.'
+externalformat-binding.pure	package-dot	offset 1111	REJECTED	Unexpected token '.'
+externalformat-binding.pure	package-dot	offset 1115	REJECTED	Unexpected token '.'
+externalformat-binding.pure	string-unterminated	'people.schema'	REJECTED	Unexpected token '''
+externalformat-binding.pure	string-unterminated	'application/x.flatdata'	REJECTED	Unexpected token '''
+externalformat-binding.pure	string-unterminated	'application/json'	REJECTED	Unexpected token '''
 externalformat-binding.pure	swap-siblings	id: primary;	ACCEPTED	
 externalformat-binding.pure	swap-siblings	location: 'people.schema';	ACCEPTED	
 externalformat-binding.pure	swap-siblings	schemaSet: fixture::ef::FlatSet;	ACCEPTED	
+externalformat-binding.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'
+externalformat-binding.pure	truncate	at 85%	REJECTED	Unexpected token
 externalformat-binding.pure	wrong-section	ExternalFormat -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 generation-spec.pure	brace-body-to-paren	line at 806	REJECTED	Unexpected token '('
 generation-spec.pure	brace-body-to-paren	line at 1024	REJECTED	Unexpected token '('
 generation-spec.pure	brace-body-to-paren	line at 1190	REJECTED	Unexpected token '('
+generation-spec.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 generation-spec.pure	delete-field	import fixture::gen::*;	ACCEPTED	
 generation-spec.pure	delete-field	scopeElements: [fixture::gen::Person, fixture::gen];	ACCEPTED	
 generation-spec.pure	delete-field	generationOutputPath: 'generated/avro';	ACCEPTED	
+generation-spec.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 generation-spec.pure	drop-semicolon	scopeElements: [fixture::gen::Person, fixture::gen];	REJECTED	Unexpected token
 generation-spec.pure	drop-semicolon	generationOutputPath: 'generated/avro';	REJECTED	no viable alternative at input 'generationOutputPath:'generated/avro'includeNamespace'
 generation-spec.pure	drop-semicolon	import fixture::gen::*;	REJECTED	Unexpected token
@@ -167,17 +257,27 @@ generation-spec.pure	duplicate-field	scopeElements: [fixture::gen::Person, fixtu
 generation-spec.pure	duplicate-field	generationOutputPath: 'generated/avro';	REJECTED	Field 'generationOutputPath' should be specified only once
 generation-spec.pure	keyword-lowercase	Avro -> avro	ACCEPTED	
 generation-spec.pure	keyword-lowercase	AvroConfig -> avroConfig	ACCEPTED	
-generation-spec.pure	keyword-lowercase	FileGeneration -> fileGeneration	ACCEPTED	
+generation-spec.pure	keyword-lowercase	FileGeneration -> fileGeneration	REJECTED	'fileGeneration' is not a known section parser
+generation-spec.pure	package-dot	offset 765	REJECTED	Unexpected token '.'
+generation-spec.pure	package-dot	offset 788	REJECTED	Unexpected token '.'
+generation-spec.pure	package-dot	offset 793	REJECTED	Unexpected token '.'
+generation-spec.pure	string-unterminated	'generated/avro'	REJECTED	no viable alternative at input 'generationOutputPath:''
+generation-spec.pure	string-unterminated	'fixture::gen::myProfile'	REJECTED	no viable alternative at input '[''
+generation-spec.pure	string-unterminated	'generated/protobuf'	REJECTED	no viable alternative at input 'generationOutputPath:''
 generation-spec.pure	swap-siblings	scopeElements: [fixture::gen::Person, fixture::gen];	ACCEPTED	
 generation-spec.pure	swap-siblings	generationOutputPath: 'generated/avro';	ACCEPTED	
 generation-spec.pure	swap-siblings	includeNamespace: true;	ACCEPTED	
+generation-spec.pure	truncate	at 50%	REJECTED	no viable alternative at input 'scopeElements:['
+generation-spec.pure	truncate	at 85%	REJECTED	Unexpected token 'generationEleme'. Valid alternatives: ['generationElement', 'id']
 generation-spec.pure	wrong-section	FileGeneration -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 graphfetch-subtype.pure	brace-body-to-paren	line at 553	REJECTED	Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
 graphfetch-subtype.pure	brace-body-to-paren	line at 636	REJECTED	Unexpected token 'street'. Valid alternatives: [')', '+', '-']
 graphfetch-subtype.pure	brace-body-to-paren	line at 688	REJECTED	Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
+graphfetch-subtype.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 graphfetch-subtype.pure	delete-field	zipCode: String[1];	ACCEPTED	
 graphfetch-subtype.pure	delete-field	street: String[1];	ACCEPTED	
 graphfetch-subtype.pure	delete-field	area: Float[1];	ACCEPTED	
+graphfetch-subtype.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 graphfetch-subtype.pure	drop-semicolon	zipCode: String[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 graphfetch-subtype.pure	drop-semicolon	street: String[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 graphfetch-subtype.pure	drop-semicolon	area: Float[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
@@ -191,17 +291,35 @@ graphfetch-subtype.pure	island-open-plain	offset 1236	REJECTED	Unexpected token 
 graphfetch-subtype.pure	keyword-lowercase	Address -> address	ACCEPTED	
 graphfetch-subtype.pure	keyword-lowercase	Catalog -> catalog	ACCEPTED	
 graphfetch-subtype.pure	keyword-lowercase	Circle -> circle	ACCEPTED	
+graphfetch-subtype.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+graphfetch-subtype.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+graphfetch-subtype.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+graphfetch-subtype.pure	package-dot	offset 539	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+graphfetch-subtype.pure	package-dot	offset 543	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+graphfetch-subtype.pure	package-dot	offset 594	REJECTED	Unexpected token '.'. Valid alternatives: ['extends', 'projects', '[', '<']
+graphfetch-subtype.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'
+graphfetch-subtype.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['(', '<']
 graphfetch-subtype.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'Class'. Valid alternatives: ['Text']
 graphql-embedded.pure	brace-body-to-paren	line at 1453	REJECTED	Unexpected token '('. Valid alternatives: ['[']
 graphql-embedded.pure	brace-body-to-paren	line at 2747	REJECTED	Unexpected token '('. Valid alternatives: ['[']
-graphql-embedded.pure	island-close-plain	offset 504	ACCEPTED	
+graphql-embedded.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
+graphql-embedded.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 graphql-embedded.pure	island-close-plain	offset 2660	REJECTED	Unexpected token
 graphql-embedded.pure	island-close-plain	offset 2907	REJECTED	Unexpected token
 graphql-embedded.pure	keyword-lowercase	AMERICAS -> aMERICAS	ACCEPTED	
 graphql-embedded.pure	keyword-lowercase	APAC -> aPAC	ACCEPTED	
 graphql-embedded.pure	keyword-lowercase	Boolean -> boolean	ACCEPTED	
+graphql-embedded.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+graphql-embedded.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+graphql-embedded.pure	package-dot	offset 1392	REJECTED	Unexpected token '.'. Valid alternatives: ['(', '<']
+graphql-embedded.pure	package-dot	offset 1397	REJECTED	Unexpected token '.'. Valid alternatives: ['(', '<']
+graphql-embedded.pure	package-dot	offset 1421	REJECTED	Unexpected token '.'. Valid alternatives: ['[', '(', '<']
+graphql-embedded.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['import', 'Class', 'Association', 'Profile', 'Enum', 'Measure', 'function
+graphql-embedded.pure	truncate	at 85%	REJECTED	Unexpected token
 graphql-embedded.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'function'. Valid alternatives: ['Text']
+keyword-as-identifier.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 keyword-as-identifier.pure	delete-field	function: |fixture::kw::Person.all()->project([col(p|$p.rela	REJECTED	Mapping Test Suite requires a query function
+keyword-as-identifier.pure	drop-final-delimiter	)	REJECTED	Unexpected token
 keyword-as-identifier.pure	drop-semicolon	function: |fixture::kw::Person.all()->project([col(p|$p.rela	REJECTED	no viable alternative at input '->project([col(p|$p.relation,'relation')])tests'
 keyword-as-identifier.pure	duplicate-field	function: |fixture::kw::Person.all()->project([col(p|$p.rela	REJECTED	Field 'function' should be specified only once
 keyword-as-identifier.pure	island-close-plain	offset 1627	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
@@ -213,14 +331,23 @@ keyword-as-identifier.pure	island-open-plain	offset 1791	REJECTED	Unexpected tok
 keyword-as-identifier.pure	keyword-lowercase	Mapping -> mapping	REJECTED	'mapping' is not a known section parser
 keyword-as-identifier.pure	keyword-lowercase	ModelStore -> modelStore	ACCEPTED	
 keyword-as-identifier.pure	keyword-lowercase	Person -> person	ACCEPTED	
+keyword-as-identifier.pure	package-dot	offset 965	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+keyword-as-identifier.pure	package-dot	offset 969	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+keyword-as-identifier.pure	package-dot	offset 1026	REJECTED	Unexpected token '::'. Valid alternatives: ['->']
 keyword-as-identifier.pure	paren-body-to-brace	line at 1121	REJECTED	Unexpected token '{'
 keyword-as-identifier.pure	paren-body-to-brace	line at 988	REJECTED	Unexpected token '{'
+keyword-as-identifier.pure	string-unterminated	'RenamedSchema'	REJECTED	Unexpected token '''
+keyword-as-identifier.pure	string-unterminated	'relation'	REJECTED	no viable alternative at input '->project([col(p|$p.relation,''
+keyword-as-identifier.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['(']
+keyword-as-identifier.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
 keyword-as-identifier.pure	wrong-section	QueryPostProcessor -> Text	REJECTED	Unexpected token 'RelationalMapper'. Valid alternatives: ['Text']
 m3-expressions.pure	brace-body-to-paren	line at 1202	REJECTED	Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
 m3-expressions.pure	brace-body-to-paren	line at 1309	REJECTED	Unexpected token '('. Valid alternatives: ['[']
 m3-expressions.pure	brace-body-to-paren	line at 1460	REJECTED	Unexpected token '('. Valid alternatives: ['[']
+m3-expressions.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 m3-expressions.pure	delete-field	name: String[1];	ACCEPTED	
 m3-expressions.pure	delete-field	size: Integer[1];	ACCEPTED	
+m3-expressions.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 m3-expressions.pure	drop-semicolon	name: String[1];	REJECTED	Unexpected token 'size'. Valid alternatives: ['=', ';']
 m3-expressions.pure	drop-semicolon	size: Integer[1];	REJECTED	Unexpected token '}'. Valid alternatives: ['=', ';']
 m3-expressions.pure	duplicate-field	name: String[1];	ACCEPTED	
@@ -228,17 +355,34 @@ m3-expressions.pure	duplicate-field	size: Integer[1];	ACCEPTED
 m3-expressions.pure	keyword-lowercase	Class -> class	REJECTED	Unexpected token 'class'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native
 m3-expressions.pure	keyword-lowercase	Integer -> integer	ACCEPTED	
 m3-expressions.pure	keyword-lowercase	Product -> product	ACCEPTED	
+m3-expressions.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+m3-expressions.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+m3-expressions.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+m3-expressions.pure	package-dot	offset 1135	REJECTED	Unexpected token '::'. Valid alternatives: [',', '>']
+m3-expressions.pure	package-dot	offset 1141	REJECTED	Unexpected token '::'. Valid alternatives: [',', '>']
+m3-expressions.pure	package-dot	offset 1151	REJECTED	Unexpected token '.'. Valid alternatives: [',', '>']
 m3-expressions.pure	swap-siblings	name: String[1];	ACCEPTED	
+m3-expressions.pure	truncate	at 50%	ACCEPTED	
+m3-expressions.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'
 m3-expressions.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'Class'. Valid alternatives: ['Text']
+mapping-extends.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
+mapping-extends.pure	drop-final-delimiter	)	REJECTED	Unexpected token
 mapping-extends.pure	keyword-lowercase	Database -> database	REJECTED	Unexpected token 'database'. Valid alternatives: ['Database']
 mapping-extends.pure	keyword-lowercase	Employee -> employee	ACCEPTED	
 mapping-extends.pure	keyword-lowercase	Mapping -> mapping	REJECTED	'mapping' is not a known section parser
+mapping-extends.pure	package-dot	offset 301	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+mapping-extends.pure	package-dot	offset 306	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+mapping-extends.pure	package-dot	offset 462	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
 mapping-extends.pure	paren-body-to-brace	line at 311	REJECTED	Unexpected token '{'
 mapping-extends.pure	paren-body-to-brace	line at 473	REJECTED	Unexpected token '{'
+mapping-extends.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ')']
+mapping-extends.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [']']
 mapping-extends.pure	wrong-section	Relational -> Text	REJECTED	Unexpected token 'Database'. Valid alternatives: ['Text']
+mapping-legacy-and-suites.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 mapping-legacy-and-suites.pure	delete-field	query: |fixture::map::Person.all()->project([p|$p.firstName]	REJECTED	Field 'query' is required
 mapping-legacy-and-suites.pure	delete-field	assert: '[{"values":["Ada"]}]';	REJECTED	Field 'assert' is required
 mapping-legacy-and-suites.pure	delete-field	doc: 'suite level documentation';	ACCEPTED	
+mapping-legacy-and-suites.pure	drop-final-delimiter	)	REJECTED	Unexpected token
 mapping-legacy-and-suites.pure	drop-semicolon	doc: 'suite level documentation';	REJECTED	Unexpected token
 mapping-legacy-and-suites.pure	drop-semicolon	query: |fixture::map::Person.all()->project([p|$p.firstName]	REJECTED	no viable alternative at input '->project([p|$p.firstName],['First Name'])data'
 mapping-legacy-and-suites.pure	drop-semicolon	assert: '[{"values":["Ada"]}]';	REJECTED	no viable alternative at input ''[{"values":["Ada"]}]')'
@@ -252,40 +396,77 @@ mapping-legacy-and-suites.pure	island-open-plain	offset 2525	REJECTED	no viable 
 mapping-legacy-and-suites.pure	island-open-plain	offset 2792	REJECTED	Unexpected token '{'
 mapping-legacy-and-suites.pure	island-open-plain	offset 2908	REJECTED	Unexpected token '}'. Valid alternatives: [',', ']']
 mapping-legacy-and-suites.pure	keyword-lowercase	Base -> base	ACCEPTED	
-mapping-legacy-and-suites.pure	keyword-lowercase	Database -> database	ACCEPTED	
+mapping-legacy-and-suites.pure	keyword-lowercase	Database -> database	REJECTED	Unexpected token 'database'. Valid alternatives: ['Database']
 mapping-legacy-and-suites.pure	keyword-lowercase	EqualToJson -> equalToJson	REJECTED	Unknown test assertion type: equalToJson
+mapping-legacy-and-suites.pure	package-dot	offset 1010	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+mapping-legacy-and-suites.pure	package-dot	offset 1015	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+mapping-legacy-and-suites.pure	package-dot	offset 1470	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
 mapping-legacy-and-suites.pure	paren-body-to-brace	line at 1020	REJECTED	Unexpected token '{'
 mapping-legacy-and-suites.pure	paren-body-to-brace	line at 1482	REJECTED	Unexpected token '{'
 mapping-legacy-and-suites.pure	paren-body-to-brace	line at 1519	REJECTED	Unexpected token '{'
+mapping-legacy-and-suites.pure	string-unterminated	'EMEA'	REJECTED	Unexpected token
+mapping-legacy-and-suites.pure	string-unterminated	'First Name'	REJECTED	no viable alternative at input '->project([p|$p.firstName],[''
+mapping-legacy-and-suites.pure	string-unterminated	'[{"values":["Ada"]}]'	REJECTED	Unexpected token
 mapping-legacy-and-suites.pure	swap-siblings	doc: 'suite level documentation';	ACCEPTED	
 mapping-legacy-and-suites.pure	swap-siblings	contentType: 'application/json';	ACCEPTED	
+mapping-legacy-and-suites.pure	truncate	at 50%	REJECTED	Unexpected token
+mapping-legacy-and-suites.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
 mapping-legacy-and-suites.pure	wrong-section	Relational -> Text	REJECTED	Unexpected token 'Database'. Valid alternatives: ['Text']
 relational-binding-transformer.pure	brace-body-to-paren	line at 691	REJECTED	Unexpected token '('
+relational-binding-transformer.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 relational-binding-transformer.pure	delete-field	contentType: 'application/json';	REJECTED	Field 'contentType' is required
+relational-binding-transformer.pure	drop-final-delimiter	)	REJECTED	Unexpected token
 relational-binding-transformer.pure	drop-semicolon	contentType: 'application/json';	REJECTED	Unexpected token
 relational-binding-transformer.pure	duplicate-field	contentType: 'application/json';	REJECTED	Field 'contentType' should be specified only once
-relational-binding-transformer.pure	keyword-lowercase	Binding -> binding	ACCEPTED	
+relational-binding-transformer.pure	keyword-lowercase	Binding -> binding	REJECTED	Unexpected token 'binding'. Valid alternatives: ['SchemaSet', 'Binding']
 relational-binding-transformer.pure	keyword-lowercase	Database -> database	REJECTED	Unexpected token 'database'. Valid alternatives: ['Database']
-relational-binding-transformer.pure	keyword-lowercase	ExternalFormat -> externalFormat	ACCEPTED	
+relational-binding-transformer.pure	keyword-lowercase	ExternalFormat -> externalFormat	REJECTED	'externalFormat' is not a known section parser
+relational-binding-transformer.pure	package-dot	offset 488	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+relational-binding-transformer.pure	package-dot	offset 494	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+relational-binding-transformer.pure	package-dot	offset 671	REJECTED	Unexpected token '.'
 relational-binding-transformer.pure	paren-body-to-brace	line at 499	REJECTED	Unexpected token '{'
 relational-binding-transformer.pure	paren-body-to-brace	line at 822	REJECTED	Unexpected token '{'
+relational-binding-transformer.pure	string-unterminated	'application/json'	REJECTED	Unexpected token '''
+relational-binding-transformer.pure	string-unterminated	'firm'	REJECTED	Unexpected token
+relational-binding-transformer.pure	string-unterminated	'VARCHAR'	REJECTED	Unexpected token
+relational-binding-transformer.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['Database', 'include', 'Table', 'Schema', 'View', 'TabularFunction', 'Fil
+relational-binding-transformer.pure	truncate	at 85%	REJECTED	Unexpected token
 relational-binding-transformer.pure	wrong-section	Relational -> Text	REJECTED	Unexpected token 'Database'. Valid alternatives: ['Text']
+relational-milestoning.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
+relational-milestoning.pure	date-impossible	%9999-12-31	ACCEPTED	
+relational-milestoning.pure	date-impossible	%9999-12-31	ACCEPTED	
+relational-milestoning.pure	drop-final-delimiter	)	REJECTED	Unexpected token
 relational-milestoning.pure	keyword-lowercase	DATE -> dATE	ACCEPTED	
 relational-milestoning.pure	keyword-lowercase	Database -> database	REJECTED	Unexpected token 'database'. Valid alternatives: ['Database']
 relational-milestoning.pure	keyword-lowercase	MilestonedDb -> milestonedDb	ACCEPTED	
+relational-milestoning.pure	package-dot	offset 532	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+relational-milestoning.pure	package-dot	offset 537	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
 relational-milestoning.pure	paren-body-to-brace	line at 552	REJECTED	Unexpected token '{'
+relational-milestoning.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ')']
+relational-milestoning.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['Database', 'include', 'Table', 'Schema', 'View', 'TabularFunction', 'Fil
 relational-milestoning.pure	wrong-section	Relational -> Text	REJECTED	Unexpected token 'Database'. Valid alternatives: ['Text']
+relational-schema.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
+relational-schema.pure	drop-final-delimiter	)	REJECTED	Unexpected token
 relational-schema.pure	keyword-lowercase	BOOK -> bOOK	ACCEPTED	
 relational-schema.pure	keyword-lowercase	BookGrain -> bookGrain	ACCEPTED	
 relational-schema.pure	keyword-lowercase	BookPosition -> bookPosition	ACCEPTED	
+relational-schema.pure	package-dot	offset 770	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+relational-schema.pure	package-dot	offset 775	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
 relational-schema.pure	paren-body-to-brace	line at 786	REJECTED	Unexpected token '{'
+relational-schema.pure	string-unterminated	'RATES'	REJECTED	Unexpected token 'CREDIT'. Valid alternatives: ['is null', 'is not null', 'and', 'or', '<>', '=', '!=', ')', '<', '<=', 
+relational-schema.pure	string-unterminated	'CREDIT'	REJECTED	Unexpected token
+relational-schema.pure	string-unterminated	'RATES'	REJECTED	Unexpected token
+relational-schema.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'
+relational-schema.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['Database', 'include', 'Table', 'Schema', 'View', 'TabularFunction', 'Fil
 relational-schema.pure	wrong-section	Relational -> Text	REJECTED	Unexpected token 'Database'. Valid alternatives: ['Text']
 runtime-forms.pure	brace-body-to-paren	line at 421	REJECTED	Unexpected token '('
 runtime-forms.pure	brace-body-to-paren	line at 548	REJECTED	Unexpected token '('
 runtime-forms.pure	brace-body-to-paren	line at 683	REJECTED	Unexpected token '('
+runtime-forms.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 runtime-forms.pure	delete-field	class: fixture::rt::Person;	REJECTED	Field 'class' is required
 runtime-forms.pure	delete-field	url: 'model://fixture/person';	REJECTED	Field 'url' is required
 runtime-forms.pure	delete-field	connection: fixture::rt::ModelConn;	REJECTED	Field 'connection' is required
+runtime-forms.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 runtime-forms.pure	drop-semicolon	class: fixture::rt::Person;	REJECTED	Unexpected token
 runtime-forms.pure	drop-semicolon	url: 'model://fixture/person';	REJECTED	Unexpected token
 runtime-forms.pure	drop-semicolon	connection: fixture::rt::ModelConn;	REJECTED	Unexpected token '}'
@@ -295,33 +476,48 @@ runtime-forms.pure	duplicate-field	connection: fixture::rt::ModelConn;	REJECTED	
 runtime-forms.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
 runtime-forms.pure	keyword-lowercase	JsonModelConnection -> jsonModelConnection	REJECTED	Unsupported connection value type: jsonModelConnection
 runtime-forms.pure	keyword-lowercase	ModelConn -> modelConn	ACCEPTED	
+runtime-forms.pure	package-dot	offset 405	REJECTED	Unexpected token '.'
+runtime-forms.pure	package-dot	offset 409	REJECTED	Unexpected token '.'
+runtime-forms.pure	package-dot	offset 440	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+runtime-forms.pure	string-unterminated	'model://fixture/person'	REJECTED	Unexpected token '''
 runtime-forms.pure	swap-siblings	class: fixture::rt::Person;	ACCEPTED	
+runtime-forms.pure	truncate	at 50%	REJECTED	Field 'class' is required
+runtime-forms.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'
 runtime-forms.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'JsonModelConnection'. Valid alternatives: ['Text']
 service-execenv.pure	brace-body-to-paren	line at 547	REJECTED	Unexpected token '('
 service-execenv.pure	brace-body-to-paren	line at 852	REJECTED	Unexpected token '('
 service-execenv.pure	brace-body-to-paren	line at 1180	REJECTED	Unexpected token '('
+service-execenv.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 service-execenv.pure	delete-field	mapping: fixture::env::Mapping1;	REJECTED	Unexpected token 'runtime'. Valid alternatives: ['mapping']
 service-execenv.pure	delete-field	runtime: fixture::env::Runtime1;	REJECTED	Unexpected token '}'. Valid alternatives: ['runtime', 'runtimeComponents']
 service-execenv.pure	delete-field	mapping: fixture::env::Mapping2;	REJECTED	Unexpected token 'runtime'. Valid alternatives: ['mapping']
+service-execenv.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 service-execenv.pure	drop-semicolon	runtime: fixture::env::Runtime1;	REJECTED	Unexpected token
 service-execenv.pure	drop-semicolon	mapping: fixture::env::Mapping2;	REJECTED	Unexpected token
 service-execenv.pure	drop-semicolon	mapping: fixture::env::Mapping1;	REJECTED	Unexpected token
 service-execenv.pure	duplicate-field	mapping: fixture::env::Mapping1;	REJECTED	Unexpected token 'mapping'. Valid alternatives: ['runtime', 'runtimeComponents']
 service-execenv.pure	duplicate-field	runtime: fixture::env::Runtime1;	REJECTED	Field 'runtime' should be specified only once
 service-execenv.pure	duplicate-field	mapping: fixture::env::Mapping2;	REJECTED	Unexpected token 'mapping'. Valid alternatives: ['runtime', 'runtimeComponents']
-service-execenv.pure	keyword-lowercase	ExecutionEnvironment -> executionEnvironment	ACCEPTED	
+service-execenv.pure	keyword-lowercase	ExecutionEnvironment -> executionEnvironment	REJECTED	Unexpected token 'executionEnvironment'. Valid alternatives: ['Service', 'ExecutionEnvironment']
 service-execenv.pure	keyword-lowercase	Nested -> nested	ACCEPTED	
 service-execenv.pure	keyword-lowercase	PROD -> pROD	ACCEPTED	
+service-execenv.pure	package-dot	offset 533	REJECTED	Unexpected token '.'
+service-execenv.pure	package-dot	offset 538	REJECTED	Unexpected token '.'
+service-execenv.pure	package-dot	offset 613	REJECTED	Unexpected token '.'. Valid alternatives: [';']
 service-execenv.pure	swap-siblings	mapping: fixture::env::Mapping1;	REJECTED	Unexpected token 'runtime'. Valid alternatives: ['mapping']
 service-execenv.pure	swap-siblings	mapping: fixture::env::Mapping2;	REJECTED	Unexpected token 'runtime'. Valid alternatives: ['mapping']
 service-execenv.pure	swap-siblings	class: fixture::env::Person;	ACCEPTED	
+service-execenv.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['runtime', 'runtimeComponents']
+service-execenv.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['stereotypes', 'tags', 'Service', 'import', 'Single', 'Multi', 'pattern',
 service-execenv.pure	wrong-section	Service -> Text	REJECTED	Unexpected token 'ExecutionEnvironment'. Valid alternatives: ['Text']
 service-full.pure	brace-body-to-paren	line at 853	REJECTED	Unexpected token '('
 service-full.pure	brace-body-to-paren	line at 1047	REJECTED	Unexpected token '('
 service-full.pure	brace-body-to-paren	line at 1899	REJECTED	Unexpected token '('
+service-full.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 service-full.pure	delete-field	stereotypes: [reviewed];	ACCEPTED	
 service-full.pure	delete-field	tags: [team];	ACCEPTED	
 service-full.pure	delete-field	import fixture::svc::*;	ACCEPTED	
+service-full.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 service-full.pure	drop-semicolon	tags: [team];	REJECTED	Unexpected token
 service-full.pure	drop-semicolon	import fixture::svc::*;	REJECTED	Unexpected token
 service-full.pure	drop-semicolon	stereotypes: [reviewed];	REJECTED	Unexpected token
@@ -333,92 +529,146 @@ service-full.pure	island-close-plain	offset 3524	REJECTED	Unexpected token '<EOF
 service-full.pure	island-open-plain	offset 3011	REJECTED	Unexpected token '{'
 service-full.pure	island-open-plain	offset 3446	REJECTED	Unexpected token '{'
 service-full.pure	keyword-lowercase	Byte -> byte	ACCEPTED	
-service-full.pure	keyword-lowercase	EqualTo -> equalTo	ACCEPTED	
+service-full.pure	keyword-lowercase	EqualTo -> equalTo	REJECTED	Unknown test assertion type: equalTo
 service-full.pure	keyword-lowercase	ExternalFormat -> externalFormat	REJECTED	Unknown embedded data type: externalFormat
+service-full.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+service-full.pure	package-dot	offset 835	REJECTED	Unexpected token '.'
+service-full.pure	package-dot	offset 840	REJECTED	Unexpected token '.'
+service-full.pure	package-dot	offset 928	REJECTED	Unexpected token '.'
+service-full.pure	string-unterminated	'rates'	REJECTED	Unexpected token '''
+service-full.pure	string-unterminated	'/fixture/owned'	REJECTED	Unexpected token '''
+service-full.pure	string-unterminated	'Owned service'	REJECTED	Unexpected token '''
 service-full.pure	swap-siblings	stereotypes: [reviewed];	ACCEPTED	
 service-full.pure	swap-siblings	pattern: '/fixture/owned';	ACCEPTED	
 service-full.pure	swap-siblings	ownership: DID { identifier: '12345' };	ACCEPTED	
+service-full.pure	truncate	at 50%	REJECTED	no viable alternative at input '->filter(row|$row.getString('name')->startsWith('X'))->meta::legend::service::validation
+service-full.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
 service-full.pure	wrong-section	Pure -> Text	REJECTED	Unexpected token 'Profile'. Valid alternatives: ['Text']
 t2-athena.pure	brace-body-to-paren	line at 622	REJECTED	Unexpected token '('
+t2-athena.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-athena.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-athena.pure	delete-field	type: Athena;	REJECTED	Field 'type' is required
 t2-athena.pure	delete-field	region: 'region';	REJECTED	Field 'region' is required
+t2-athena.pure	drop-final-delimiter	}	ACCEPTED	
 t2-athena.pure	drop-semicolon	type: Athena;	REJECTED	Unexpected token
 t2-athena.pure	drop-semicolon	region: 'region';	REJECTED	Unexpected token
 t2-athena.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
 t2-athena.pure	duplicate-field	store: fixture::t2::Db;	REJECTED	Field 'store' should be specified only once
 t2-athena.pure	duplicate-field	type: Athena;	REJECTED	Field 'type' should be specified only once
 t2-athena.pure	duplicate-field	region: 'region';	REJECTED	Field 'region' should be specified only once
-t2-athena.pure	keyword-lowercase	Athena -> athena	ACCEPTED	
+t2-athena.pure	keyword-lowercase	Athena -> athena	REJECTED	Unknown database type 'athena'
 t2-athena.pure	keyword-lowercase	AthenaFull -> athenaFull	ACCEPTED	
 t2-athena.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
+t2-athena.pure	package-dot	offset 605	REJECTED	Unexpected token '.'
+t2-athena.pure	package-dot	offset 609	REJECTED	Unexpected token '.'
+t2-athena.pure	package-dot	offset 640	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-athena.pure	string-unterminated	'region'	REJECTED	Unexpected token '''
+t2-athena.pure	string-unterminated	'dbname'	REJECTED	Unexpected token '''
+t2-athena.pure	string-unterminated	'workGroupX'	REJECTED	Unexpected token '''
 t2-athena.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
 t2-athena.pure	swap-siblings	region: 'region';	ACCEPTED	
 t2-athena.pure	swap-siblings	database: 'dbname';	ACCEPTED	
+t2-athena.pure	truncate	at 50%	ACCEPTED	
+t2-athena.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-athena.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-aurora.pure	brace-body-to-paren	line at 1065	REJECTED	Unexpected token '('
 t2-aurora.pure	brace-body-to-paren	line at 1466	REJECTED	Unexpected token '('
+t2-aurora.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-aurora.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-aurora.pure	delete-field	type: Aurora;	REJECTED	Field 'type' is required
 t2-aurora.pure	delete-field	host: 'mydb.cluster-xyz.us-east-1.rds.amazonaws.com';	REJECTED	Field 'host' is required
+t2-aurora.pure	drop-final-delimiter	}	ACCEPTED	
 t2-aurora.pure	drop-semicolon	type: Aurora;	REJECTED	Unexpected token
 t2-aurora.pure	drop-semicolon	host: 'mydb.cluster-xyz.us-east-1.rds.amazonaws.com';	REJECTED	Unexpected token
 t2-aurora.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
 t2-aurora.pure	duplicate-field	store: fixture::t2::Db;	REJECTED	Field 'store' should be specified only once
 t2-aurora.pure	duplicate-field	type: Aurora;	REJECTED	Field 'type' should be specified only once
 t2-aurora.pure	duplicate-field	host: 'mydb.cluster-xyz.us-east-1.rds.amazonaws.com';	REJECTED	Field 'host' should be specified only once
-t2-aurora.pure	keyword-lowercase	Aurora -> aurora	ACCEPTED	
+t2-aurora.pure	keyword-lowercase	Aurora -> aurora	REJECTED	Unknown database type 'aurora'
 t2-aurora.pure	keyword-lowercase	AuroraCluster -> auroraCluster	ACCEPTED	
 t2-aurora.pure	keyword-lowercase	AuroraGlobal -> auroraGlobal	ACCEPTED	
+t2-aurora.pure	package-dot	offset 1045	REJECTED	Unexpected token '.'
+t2-aurora.pure	package-dot	offset 1049	REJECTED	Unexpected token '.'
+t2-aurora.pure	package-dot	offset 1083	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-aurora.pure	string-unterminated	'mydb'	REJECTED	Unexpected token '''
+t2-aurora.pure	string-unterminated	'?.xyz.us-east-1.rds.amazonaws.com'	REJECTED	Unexpected token '''
+t2-aurora.pure	string-unterminated	'user'	REJECTED	Unexpected token '''
 t2-aurora.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
 t2-aurora.pure	swap-siblings	host: 'mydb.cluster-xyz.us-east-1.rds.amazonaws.com';	ACCEPTED	
 t2-aurora.pure	swap-siblings	port: 5432;	ACCEPTED	
+t2-aurora.pure	truncate	at 50%	ACCEPTED	
+t2-aurora.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-aurora.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-authentication.pure	brace-body-to-paren	line at 2950	REJECTED	Unexpected token '('
 t2-authentication.pure	brace-body-to-paren	line at 3229	REJECTED	Unexpected token '('
 t2-authentication.pure	brace-body-to-paren	line at 3522	REJECTED	Unexpected token '('
+t2-authentication.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-authentication.pure	delete-field	database: legend_db;	REJECTED	Field 'database' is required
 t2-authentication.pure	delete-field	store: fixture::mongo::Db;	ACCEPTED	
 t2-authentication.pure	delete-field	serverURLs: [localhost:27017];	REJECTED	Field 'serverURLs' is required
+t2-authentication.pure	drop-final-delimiter	}	ACCEPTED	
 t2-authentication.pure	drop-semicolon	store: fixture::mongo::Db;	REJECTED	Unexpected token
 t2-authentication.pure	drop-semicolon	serverURLs: [localhost:27017];	REJECTED	Unexpected token
 t2-authentication.pure	drop-semicolon	database: legend_db;	REJECTED	Unexpected token
 t2-authentication.pure	duplicate-field	database: legend_db;	REJECTED	Field 'database' should be specified only once
 t2-authentication.pure	duplicate-field	store: fixture::mongo::Db;	REJECTED	Field 'store' should be specified only once
 t2-authentication.pure	duplicate-field	serverURLs: [localhost:27017];	REJECTED	Field 'serverURLs' should be specified only once
-t2-authentication.pure	island-close-plain	offset 2500	ACCEPTED	
 t2-authentication.pure	island-close-plain	offset 3178	REJECTED	Unexpected token
 t2-authentication.pure	island-close-plain	offset 3465	REJECTED	Unexpected token
-t2-authentication.pure	keyword-lowercase	AWSIdP -> aWSIdP	ACCEPTED	
-t2-authentication.pure	keyword-lowercase	AWSSecretsManagerSecret -> aWSSecretsManagerSecret	ACCEPTED	
-t2-authentication.pure	keyword-lowercase	ApiKey -> apiKey	ACCEPTED	
+t2-authentication.pure	island-close-plain	offset 3965	REJECTED	Unexpected token
+t2-authentication.pure	keyword-lowercase	AWSIdP -> aWSIdP	REJECTED	Unexpected token 'aWSIdP'. Valid alternatives: ['AWSIdP']
+t2-authentication.pure	keyword-lowercase	AWSSecretsManagerSecret -> aWSSecretsManagerSecret	REJECTED	Unexpected token 'aWSSecretsManagerSecret'. Valid alternatives: ['PropertiesFileSecret', 'EnvironmentSecret', 'SystemPro
+t2-authentication.pure	keyword-lowercase	ApiKey -> apiKey	REJECTED	Unsupported Authentication type 'apiKey'
+t2-authentication.pure	package-dot	offset 2933	REJECTED	Unexpected token '.'
+t2-authentication.pure	package-dot	offset 2939	REJECTED	Unexpected token '.'
+t2-authentication.pure	package-dot	offset 2991	ACCEPTED	
+t2-authentication.pure	string-unterminated	'alice'	REJECTED	Unexpected token '''
+t2-authentication.pure	string-unterminated	'property1'	REJECTED	Unexpected token '''
+t2-authentication.pure	string-unterminated	'header'	REJECTED	Unexpected token '''
 t2-authentication.pure	swap-siblings	database: legend_db;	ACCEPTED	
 t2-authentication.pure	swap-siblings	store: fixture::mongo::Db;	ACCEPTED	
 t2-authentication.pure	swap-siblings	database: legend_db;	ACCEPTED	
+t2-authentication.pure	truncate	at 50%	ACCEPTED	
+t2-authentication.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-authentication.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'MongoDBConnection'. Valid alternatives: ['Text']
 t2-bigquery.pure	brace-body-to-paren	line at 1712	REJECTED	Unexpected token '('
 t2-bigquery.pure	brace-body-to-paren	line at 2071	REJECTED	Unexpected token '('
 t2-bigquery.pure	brace-body-to-paren	line at 2341	REJECTED	Unexpected token '('
+t2-bigquery.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-bigquery.pure	delete-field	store: fixture::bq::Db;	ACCEPTED	
 t2-bigquery.pure	delete-field	type: BigQuery;	REJECTED	Field 'type' is required
 t2-bigquery.pure	delete-field	projectId: 'proj1';	REJECTED	Field 'projectId' is required
+t2-bigquery.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-bigquery.pure	drop-semicolon	type: BigQuery;	REJECTED	Unexpected token
 t2-bigquery.pure	drop-semicolon	projectId: 'proj1';	REJECTED	Unexpected token
 t2-bigquery.pure	drop-semicolon	store: fixture::bq::Db;	REJECTED	Unexpected token
 t2-bigquery.pure	duplicate-field	store: fixture::bq::Db;	REJECTED	Field 'store' should be specified only once
 t2-bigquery.pure	duplicate-field	type: BigQuery;	REJECTED	Field 'type' should be specified only once
 t2-bigquery.pure	duplicate-field	projectId: 'proj1';	REJECTED	Field 'projectId' should be specified only once
-t2-bigquery.pure	keyword-lowercase	BigQuery -> bigQuery	ACCEPTED	
-t2-bigquery.pure	keyword-lowercase	BigQueryFunction -> bigQueryFunction	ACCEPTED	
-t2-bigquery.pure	keyword-lowercase	BigQueryFunctionDeploymentConfiguration -> bigQueryFunctionDeploymentConfiguration	ACCEPTED	
+t2-bigquery.pure	keyword-lowercase	BigQuery -> bigQuery	REJECTED	Unknown database type 'bigQuery'
+t2-bigquery.pure	keyword-lowercase	BigQueryFunction -> bigQueryFunction	REJECTED	Unexpected token 'bigQueryFunction'. Valid alternatives: ['BigQueryFunction', 'BigQueryFunctionDeploymentConfiguration']
+t2-bigquery.pure	keyword-lowercase	BigQueryFunctionDeploymentConfiguration -> bigQueryFunctionDeploymentConfiguration	REJECTED	Unexpected token
+t2-bigquery.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-bigquery.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-bigquery.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-bigquery.pure	package-dot	offset 1701	REJECTED	Unexpected token '.'
+t2-bigquery.pure	package-dot	offset 1705	REJECTED	Unexpected token '.'
+t2-bigquery.pure	package-dot	offset 1731	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-bigquery.pure	string-unterminated	'proj1'	REJECTED	Unexpected token '''
+t2-bigquery.pure	string-unterminated	'dataset1'	REJECTED	Unexpected token '''
+t2-bigquery.pure	string-unterminated	'proxyHost1'	REJECTED	Unexpected token '''
 t2-bigquery.pure	swap-siblings	store: fixture::bq::Db;	ACCEPTED	
 t2-bigquery.pure	swap-siblings	projectId: 'proj1';	ACCEPTED	
 t2-bigquery.pure	swap-siblings	defaultDataset: 'dataset1';	ACCEPTED	
+t2-bigquery.pure	truncate	at 50%	ACCEPTED	
+t2-bigquery.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-bigquery.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-databricks.pure	brace-body-to-paren	line at 858	REJECTED	Unexpected token '('
+t2-databricks.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-databricks.pure	delete-field	store: fixture::dbx::Db;	ACCEPTED	
 t2-databricks.pure	delete-field	type: Databricks;	REJECTED	Field 'type' is required
 t2-databricks.pure	delete-field	hostname: 'dbc-1234.cloud.databricks.com';	REJECTED	Field 'hostname' is required
+t2-databricks.pure	drop-final-delimiter	}	ACCEPTED	
 t2-databricks.pure	drop-semicolon	type: Databricks;	REJECTED	Unexpected token
 t2-databricks.pure	drop-semicolon	hostname: 'dbc-1234.cloud.databricks.com';	REJECTED	Unexpected token
 t2-databricks.pure	drop-semicolon	store: fixture::dbx::Db;	REJECTED	Unexpected token
@@ -428,16 +678,26 @@ t2-databricks.pure	duplicate-field	hostname: 'dbc-1234.cloud.databricks.com';	RE
 t2-databricks.pure	keyword-lowercase	ApiToken -> apiToken	REJECTED	Unsupported Authentication Strategy type 'apiToken'
 t2-databricks.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
 t2-databricks.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
+t2-databricks.pure	package-dot	offset 846	REJECTED	Unexpected token '.'
+t2-databricks.pure	package-dot	offset 851	REJECTED	Unexpected token '.'
+t2-databricks.pure	package-dot	offset 877	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-databricks.pure	string-unterminated	'dbc-1234.cloud.databricks.com'	REJECTED	Unexpected token '''
+t2-databricks.pure	string-unterminated	'443'	REJECTED	Unexpected token '''
+t2-databricks.pure	string-unterminated	'https'	REJECTED	Unexpected token '''
 t2-databricks.pure	swap-siblings	store: fixture::dbx::Db;	ACCEPTED	
 t2-databricks.pure	swap-siblings	hostname: 'dbc-1234.cloud.databricks.com';	ACCEPTED	
 t2-databricks.pure	swap-siblings	port: '443';	ACCEPTED	
+t2-databricks.pure	truncate	at 50%	ACCEPTED	
+t2-databricks.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-databricks.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-dataquality.pure	brace-body-to-paren	line at 1833	REJECTED	Unexpected token '('
 t2-dataquality.pure	brace-body-to-paren	line at 2324	REJECTED	Unexpected token '('
 t2-dataquality.pure	brace-body-to-paren	line at 2560	REJECTED	Unexpected token '('
+t2-dataquality.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-dataquality.pure	delete-field	context: fromDataSpace(fixture::dq::PersonDataSpace, 'Local_	REJECTED	Field 'context' is required
 t2-dataquality.pure	delete-field	filter: p: fixture::dq::Person[1]|$p.age >= 18;	ACCEPTED	
 t2-dataquality.pure	delete-field	context: fromMappingAndRuntime(fixture::dq::PersonMapping, f	REJECTED	Field 'context' is required
+t2-dataquality.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-dataquality.pure	drop-semicolon	filter: p: fixture::dq::Person[1]|$p.age >= 18;	REJECTED	no viable alternative at input '.age>=18}'
 t2-dataquality.pure	drop-semicolon	context: fromMappingAndRuntime(fixture::dq::PersonMapping, f	REJECTED	Unexpected token
 t2-dataquality.pure	drop-semicolon	context: fromDataSpace(fixture::dq::PersonDataSpace, 'Local_	REJECTED	Unexpected token
@@ -447,58 +707,86 @@ t2-dataquality.pure	duplicate-field	context: fromMappingAndRuntime(fixture::dq::
 t2-dataquality.pure	island-close-plain	offset 2602	REJECTED	Unexpected token
 t2-dataquality.pure	island-close-plain	offset 3109	REJECTED	Field 'target' is required
 t2-dataquality.pure	island-close-plain	offset 3190	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['&&', '||', '==', '!=', '->', '[', '.', ';', '+', '*', '-', '/', '<', '<=
-t2-dataquality.pure	keyword-lowercase	AGGREGATE -> aGGREGATE	ACCEPTED	
-t2-dataquality.pure	keyword-lowercase	DataQualityRelationComparison -> dataQualityRelationComparison	ACCEPTED	
-t2-dataquality.pure	keyword-lowercase	DataQualityRelationValidation -> dataQualityRelationValidation	ACCEPTED	
+t2-dataquality.pure	keyword-lowercase	AGGREGATE -> aGGREGATE	REJECTED	Unexpected token ':'. Valid alternatives: ['&&', '||', '==', '!=', '->', '[', '(', '.', ';', '+', '*', '-', '/', '<', '<
+t2-dataquality.pure	keyword-lowercase	DataQualityRelationComparison -> dataQualityRelationComparison	REJECTED	Unexpected token
+t2-dataquality.pure	keyword-lowercase	DataQualityRelationValidation -> dataQualityRelationValidation	REJECTED	Unexpected token
+t2-dataquality.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-dataquality.pure	package-dot	offset 1807	REJECTED	Unexpected token '.'
+t2-dataquality.pure	package-dot	offset 1811	REJECTED	Unexpected token '.'
+t2-dataquality.pure	package-dot	offset 1868	REJECTED	Unexpected token '.'. Valid alternatives: [',']
+t2-dataquality.pure	string-unterminated	'Local_Context'	REJECTED	Unexpected token '''
+t2-dataquality.pure	string-unterminated	'nameMust NotBeBlank'	REJECTED	Unexpected token
+t2-dataquality.pure	string-unterminated	'ok'	REJECTED	no viable alternative at input '->filter(c|$c.name==''
 t2-dataquality.pure	swap-siblings	name: 'nameIsNotError';	ACCEPTED	
 t2-dataquality.pure	swap-siblings	description: 'a row level validation';	ACCEPTED	
 t2-dataquality.pure	swap-siblings	assertion: row|$row.name != 'error';	ACCEPTED	
+t2-dataquality.pure	truncate	at 50%	ACCEPTED	
+t2-dataquality.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-dataquality.pure	wrong-section	DataQualityValidation -> Text	REJECTED	Unexpected token 'DataQualityValidation'. Valid alternatives: ['Text']
 t2-dataspace-email.pure	brace-body-to-paren	line at 926	REJECTED	Unexpected token '('
+t2-dataspace-email.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-dataspace-email.pure	delete-field	name: 'Context 1';	REJECTED	Field 'name' is required
 t2-dataspace-email.pure	delete-field	mapping: fixture::ds::Mapping;	REJECTED	Field 'mapping' is required
 t2-dataspace-email.pure	delete-field	defaultRuntime: fixture::ds::Runtime;	REJECTED	Field 'defaultRuntime' is required
+t2-dataspace-email.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-dataspace-email.pure	drop-semicolon	mapping: fixture::ds::Mapping;	REJECTED	Unexpected token
 t2-dataspace-email.pure	drop-semicolon	defaultRuntime: fixture::ds::Runtime;	REJECTED	Unexpected token
 t2-dataspace-email.pure	drop-semicolon	name: 'Context 1';	REJECTED	Unexpected token
 t2-dataspace-email.pure	duplicate-field	name: 'Context 1';	REJECTED	Field 'name' should be specified only once
 t2-dataspace-email.pure	duplicate-field	mapping: fixture::ds::Mapping;	REJECTED	Field 'mapping' should be specified only once
 t2-dataspace-email.pure	duplicate-field	defaultRuntime: fixture::ds::Runtime;	REJECTED	Field 'defaultRuntime' should be specified only once
-t2-dataspace-email.pure	keyword-lowercase	DataSpace -> dataSpace	ACCEPTED	
-t2-dataspace-email.pure	keyword-lowercase	Email -> email	ACCEPTED	
+t2-dataspace-email.pure	keyword-lowercase	DataSpace -> dataSpace	REJECTED	'dataSpace' is not a known section parser
+t2-dataspace-email.pure	keyword-lowercase	Email -> email	REJECTED	Unexpected token 'email'. Valid alternatives: ['Email', 'Combined']
 t2-dataspace-email.pure	keyword-lowercase	EmailSupported -> emailSupported	ACCEPTED	
+t2-dataspace-email.pure	package-dot	offset 905	REJECTED	Unexpected token '.'
+t2-dataspace-email.pure	package-dot	offset 909	REJECTED	Unexpected token '.'
+t2-dataspace-email.pure	package-dot	offset 1006	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-dataspace-email.pure	string-unterminated	'Context 1'	REJECTED	Unexpected token '''
+t2-dataspace-email.pure	string-unterminated	'Context 1'	REJECTED	Unexpected token '''
+t2-dataspace-email.pure	string-unterminated	'https://example.org/docs'	REJECTED	Unexpected token '''
 t2-dataspace-email.pure	swap-siblings	name: 'Context 1';	ACCEPTED	
 t2-dataspace-email.pure	swap-siblings	mapping: fixture::ds::Mapping;	ACCEPTED	
 t2-dataspace-email.pure	swap-siblings	documentationUrl: 'https://example.org/docs';	ACCEPTED	
+t2-dataspace-email.pure	truncate	at 50%	ACCEPTED	
+t2-dataspace-email.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [';']
 t2-dataspace-email.pure	wrong-section	DataSpace -> Text	REJECTED	Unexpected token 'DataSpace'. Valid alternatives: ['Text']
 t2-dataspace.pure	brace-body-to-paren	line at 2013	REJECTED	Unexpected token '('
+t2-dataspace.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-dataspace.pure	delete-field	groupId: 'org.fixture';	ACCEPTED	
 t2-dataspace.pure	delete-field	artifactId: 'fixture-data-space';	ACCEPTED	
 t2-dataspace.pure	delete-field	versionId: '1.0.0';	ACCEPTED	
+t2-dataspace.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-dataspace.pure	drop-semicolon	artifactId: 'fixture-data-space';	REJECTED	Unexpected token
 t2-dataspace.pure	drop-semicolon	versionId: '1.0.0';	REJECTED	Unexpected token
 t2-dataspace.pure	drop-semicolon	groupId: 'org.fixture';	REJECTED	Unexpected token
 t2-dataspace.pure	duplicate-field	groupId: 'org.fixture';	ACCEPTED	
 t2-dataspace.pure	duplicate-field	artifactId: 'fixture-data-space';	ACCEPTED	
 t2-dataspace.pure	duplicate-field	versionId: '1.0.0';	ACCEPTED	
-t2-dataspace.pure	island-close-plain	offset 1071	ACCEPTED	
-t2-dataspace.pure	island-close-plain	offset 1110	ACCEPTED	
 t2-dataspace.pure	island-close-plain	offset 2406	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [';', '#{', '}#', '#']
-t2-dataspace.pure	island-open-plain	offset 1067	ACCEPTED	
-t2-dataspace.pure	island-open-plain	offset 1106	ACCEPTED	
 t2-dataspace.pure	island-open-plain	offset 2363	REJECTED	Unexpected token '{'
-t2-dataspace.pure	keyword-lowercase	Combined -> combined	ACCEPTED	
-t2-dataspace.pure	keyword-lowercase	DataSpace -> dataSpace	ACCEPTED	
+t2-dataspace.pure	keyword-lowercase	Combined -> combined	REJECTED	Unexpected token 'combined'. Valid alternatives: ['Email', 'Combined']
+t2-dataspace.pure	keyword-lowercase	DataSpace -> dataSpace	REJECTED	'dataSpace' is not a known section parser
 t2-dataspace.pure	keyword-lowercase	Firm -> firm	ACCEPTED	
+t2-dataspace.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-dataspace.pure	package-dot	offset 1930	REJECTED	Unexpected token '::'. Valid alternatives: [',', '>']
+t2-dataspace.pure	package-dot	offset 1936	REJECTED	Unexpected token '::'. Valid alternatives: [',', '>']
+t2-dataspace.pure	package-dot	offset 1946	REJECTED	Unexpected token '.'. Valid alternatives: [',', '>']
+t2-dataspace.pure	string-unterminated	'fixture'	REJECTED	Unexpected token '''
+t2-dataspace.pure	string-unterminated	'org.fixture'	REJECTED	Unexpected token '''
+t2-dataspace.pure	string-unterminated	'fixture-data-space'	REJECTED	Unexpected token '''
 t2-dataspace.pure	swap-siblings	groupId: 'org.fixture';	ACCEPTED	
 t2-dataspace.pure	swap-siblings	artifactId: 'fixture-data-space';	ACCEPTED	
 t2-dataspace.pure	swap-siblings	name: 'Context 1';	ACCEPTED	
+t2-dataspace.pure	truncate	at 50%	REJECTED	Unexpected token '''
+t2-dataspace.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [';']
 t2-dataspace.pure	wrong-section	DataSpace -> Text	REJECTED	Unexpected token 'DataSpace'. Valid alternatives: ['Text']
 t2-deephaven.pure	brace-body-to-paren	line at 2810	REJECTED	Unexpected token '('
 t2-deephaven.pure	brace-body-to-paren	line at 3066	REJECTED	Unexpected token '('
+t2-deephaven.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-deephaven.pure	delete-field	import abc::abc::*;	ACCEPTED	
 t2-deephaven.pure	delete-field	applicationName: 'MyTestApp';	REJECTED	Field 'applicationName' is required
 t2-deephaven.pure	delete-field	function: fixture::deephaven::myFunc(String[1], Integer[*]):	REJECTED	Field 'function' is required
+t2-deephaven.pure	drop-final-delimiter	}	ACCEPTED	
 t2-deephaven.pure	drop-semicolon	applicationName: 'MyTestApp';	REJECTED	Unexpected token
 t2-deephaven.pure	drop-semicolon	function: fixture::deephaven::myFunc(String[1], Integer[*]):	REJECTED	Unexpected token
 t2-deephaven.pure	drop-semicolon	import abc::abc::*;	REJECTED	Unexpected token
@@ -506,18 +794,29 @@ t2-deephaven.pure	duplicate-field	import abc::abc::*;	ACCEPTED
 t2-deephaven.pure	duplicate-field	applicationName: 'MyTestApp';	REJECTED	Field 'applicationName' should be specified only once
 t2-deephaven.pure	duplicate-field	function: fixture::deephaven::myFunc(String[1], Integer[*]):	REJECTED	Field 'function' should be specified only once
 t2-deephaven.pure	island-close-plain	offset 3196	REJECTED	Unexpected token
-t2-deephaven.pure	keyword-lowercase	BOOLEAN -> bOOLEAN	ACCEPTED	
+t2-deephaven.pure	keyword-lowercase	BOOLEAN -> bOOLEAN	REJECTED	Unexpected token 'bOOLEAN'. Valid alternatives: ['BOOLEAN', 'INT', 'FLOAT', 'DOUBLE', 'DECIMAL', 'STRING', 'TIMESTAMP', 
 t2-deephaven.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
 t2-deephaven.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
+t2-deephaven.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-deephaven.pure	package-dot	offset 2395	REJECTED	Unexpected token '.'
+t2-deephaven.pure	package-dot	offset 2423	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+t2-deephaven.pure	package-dot	offset 2434	REJECTED	Unexpected token '.'
 t2-deephaven.pure	paren-body-to-brace	line at 2477	REJECTED	Unexpected token '{'. Valid alternatives: ['(']
+t2-deephaven.pure	string-unterminated	'quoted table'	REJECTED	Unexpected token
+t2-deephaven.pure	string-unterminated	'quoted col'	REJECTED	Unexpected token
+t2-deephaven.pure	string-unterminated	'MyTestApp'	REJECTED	Unexpected token '''
 t2-deephaven.pure	swap-siblings	applicationName: 'MyTestApp';	ACCEPTED	
 t2-deephaven.pure	swap-siblings	function: fixture::deephaven::myFunc(String[1], Integer[*]):	ACCEPTED	
 t2-deephaven.pure	swap-siblings	description: 'A test app';	ACCEPTED	
+t2-deephaven.pure	truncate	at 50%	ACCEPTED	
+t2-deephaven.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-deephaven.pure	wrong-section	Deephaven -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 t2-duckdb.pure	brace-body-to-paren	line at 518	REJECTED	Unexpected token '('
+t2-duckdb.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-duckdb.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-duckdb.pure	delete-field	type: DuckDB;	REJECTED	Field 'type' is required
 t2-duckdb.pure	delete-field	path: '/test';	ACCEPTED	
+t2-duckdb.pure	drop-final-delimiter	}	ACCEPTED	
 t2-duckdb.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
 t2-duckdb.pure	drop-semicolon	type: DuckDB;	REJECTED	Unexpected token
 t2-duckdb.pure	drop-semicolon	path: '/test';	REJECTED	Unexpected token
@@ -525,53 +824,82 @@ t2-duckdb.pure	duplicate-field	store: fixture::t2::Db;	REJECTED	Field 'store' sh
 t2-duckdb.pure	duplicate-field	type: DuckDB;	REJECTED	Field 'type' should be specified only once
 t2-duckdb.pure	duplicate-field	path: '/test';	REJECTED	Field 'path' should be specified only once
 t2-duckdb.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
-t2-duckdb.pure	keyword-lowercase	DuckDB -> duckDB	ACCEPTED	
+t2-duckdb.pure	keyword-lowercase	DuckDB -> duckDB	REJECTED	Unknown database type 'duckDB'
 t2-duckdb.pure	keyword-lowercase	DuckDBFull -> duckDBFull	ACCEPTED	
+t2-duckdb.pure	package-dot	offset 501	REJECTED	Unexpected token '.'
+t2-duckdb.pure	package-dot	offset 505	REJECTED	Unexpected token '.'
+t2-duckdb.pure	package-dot	offset 536	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-duckdb.pure	string-unterminated	'/test'	REJECTED	Unexpected token '''
 t2-duckdb.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
+t2-duckdb.pure	truncate	at 50%	ACCEPTED	
+t2-duckdb.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-duckdb.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-elasticsearch.pure	brace-body-to-paren	line at 1223	REJECTED	Unexpected token '('
 t2-elasticsearch.pure	brace-body-to-paren	line at 2197	REJECTED	Unexpected token '('
+t2-elasticsearch.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-elasticsearch.pure	delete-field	import abc::*;	ACCEPTED	
 t2-elasticsearch.pure	delete-field	store: fixture::es::Store;	REJECTED	Field ''store'' is required
 t2-elasticsearch.pure	delete-field	clusterDetails: # URL { http://dummyurl.com:1234/api }#;	REJECTED	Field ''clusterDetails'' is required
+t2-elasticsearch.pure	drop-final-delimiter	}	ACCEPTED	
 t2-elasticsearch.pure	drop-semicolon	import abc::*;	REJECTED	Unexpected token
 t2-elasticsearch.pure	drop-semicolon	store: fixture::es::Store;	REJECTED	Unexpected token
 t2-elasticsearch.pure	drop-semicolon	clusterDetails: # URL { http://dummyurl.com:1234/api }#;	REJECTED	Unexpected token
 t2-elasticsearch.pure	duplicate-field	import abc::*;	ACCEPTED	
 t2-elasticsearch.pure	duplicate-field	store: fixture::es::Store;	REJECTED	Field ''store'' should be specified only once
 t2-elasticsearch.pure	duplicate-field	clusterDetails: # URL { http://dummyurl.com:1234/api }#;	REJECTED	Field ''clusterDetails'' should be specified only once
-t2-elasticsearch.pure	island-close-plain	offset 911	ACCEPTED	
-t2-elasticsearch.pure	island-close-plain	offset 2283	REJECTED	URL is not valid
 t2-elasticsearch.pure	island-close-plain	offset 2445	REJECTED	Unexpected token
-t2-elasticsearch.pure	keyword-lowercase	Boolean -> boolean	ACCEPTED	
-t2-elasticsearch.pure	keyword-lowercase	Byte -> byte	ACCEPTED	
+t2-elasticsearch.pure	keyword-lowercase	Boolean -> boolean	REJECTED	Unexpected token 'boolean'. Valid alternatives: ['Keyword', 'Text', 'Date', 'Short', 'Byte', 'Integer', 'Long', 'Float',
+t2-elasticsearch.pure	keyword-lowercase	Byte -> byte	REJECTED	Unexpected token 'byte'. Valid alternatives: ['Keyword', 'Text', 'Date', 'Short', 'Byte', 'Integer', 'Long', 'Float', 'H
 t2-elasticsearch.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
+t2-elasticsearch.pure	package-dot	offset 1211	REJECTED	Unexpected token '.'
+t2-elasticsearch.pure	package-dot	offset 1215	REJECTED	Unexpected token '.'
+t2-elasticsearch.pure	package-dot	offset 2186	REJECTED	Unexpected token '.'
+t2-elasticsearch.pure	string-unterminated	'index-WrappedOnQuotes'	REJECTED	Unexpected token
+t2-elasticsearch.pure	string-unterminated	'prop1-wrapped'	REJECTED	Unexpected token
+t2-elasticsearch.pure	string-unterminated	'hello_user'	REJECTED	Unexpected token '''
 t2-elasticsearch.pure	swap-siblings	store: fixture::es::Store;	ACCEPTED	
+t2-elasticsearch.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['indices']
+t2-elasticsearch.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'
 t2-elasticsearch.pure	wrong-section	Elasticsearch -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 t2-functionjar.pure	brace-body-to-paren	line at 980	REJECTED	Unexpected token '('
 t2-functionjar.pure	brace-body-to-paren	line at 1312	REJECTED	Unexpected token '('
+t2-functionjar.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-functionjar.pure	delete-field	import fixture::fj::*;	ACCEPTED	
 t2-functionjar.pure	delete-field	ownership: Deployment { identifier: '17' };	REJECTED	Field 'ownership' is required
 t2-functionjar.pure	delete-field	function: fixture::fj::queryFunction(Integer[1]):String[1];	REJECTED	Field 'function' is required
+t2-functionjar.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-functionjar.pure	drop-semicolon	ownership: Deployment { identifier: '17' };	REJECTED	Unexpected token
 t2-functionjar.pure	drop-semicolon	function: fixture::fj::queryFunction(Integer[1]):String[1];	REJECTED	Unexpected token
 t2-functionjar.pure	drop-semicolon	import fixture::fj::*;	REJECTED	Unexpected token
 t2-functionjar.pure	duplicate-field	import fixture::fj::*;	ACCEPTED	
 t2-functionjar.pure	duplicate-field	ownership: Deployment { identifier: '17' };	REJECTED	Field 'ownership' should be specified only once
 t2-functionjar.pure	duplicate-field	function: fixture::fj::queryFunction(Integer[1]):String[1];	REJECTED	Field 'function' should be specified only once
-t2-functionjar.pure	keyword-lowercase	Deployment -> deployment	ACCEPTED	
-t2-functionjar.pure	keyword-lowercase	FunctionJar -> functionJar	ACCEPTED	
+t2-functionjar.pure	keyword-lowercase	Deployment -> deployment	REJECTED	Unexpected token 'deployment'. Valid alternatives: ['Deployment']
+t2-functionjar.pure	keyword-lowercase	FunctionJar -> functionJar	REJECTED	'functionJar' is not a known section parser
 t2-functionjar.pure	keyword-lowercase	Integer -> integer	ACCEPTED	
+t2-functionjar.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-functionjar.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-functionjar.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-functionjar.pure	package-dot	offset 933	REJECTED	Unexpected token '.'
+t2-functionjar.pure	package-dot	offset 962	REJECTED	Unexpected token '.'
+t2-functionjar.pure	package-dot	offset 966	REJECTED	Unexpected token '.'
+t2-functionjar.pure	string-unterminated	'17'	REJECTED	Unexpected token '''
+t2-functionjar.pure	string-unterminated	'rates'	REJECTED	Unexpected token '''
+t2-functionjar.pure	string-unterminated	'18'	REJECTED	Unexpected token '''
 t2-functionjar.pure	swap-siblings	ownership: Deployment { identifier: '17' };	ACCEPTED	
 t2-functionjar.pure	swap-siblings	function: fixture::fj::queryFunction(Integer[1]):String[1];	ACCEPTED	
 t2-functionjar.pure	swap-siblings	documentation: 'a function jar named with a reserved word';	ACCEPTED	
+t2-functionjar.pure	truncate	at 50%	ACCEPTED	
+t2-functionjar.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['.']
 t2-functionjar.pure	wrong-section	FunctionJar -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 t2-hostedservice.pure	brace-body-to-paren	line at 2313	REJECTED	Unexpected token '('
 t2-hostedservice.pure	brace-body-to-paren	line at 3914	REJECTED	Unexpected token '('
 t2-hostedservice.pure	brace-body-to-paren	line at 4205	REJECTED	Unexpected token '('
+t2-hostedservice.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-hostedservice.pure	delete-field	import fixture::hs::*;	ACCEPTED	
 t2-hostedservice.pure	delete-field	pattern: '/fixture/hosted/{key}';	REJECTED	Field 'pattern' is required
 t2-hostedservice.pure	delete-field	ownership: UserList { users: ['user1', 'user2'] };	REJECTED	Field 'ownership' is required
+t2-hostedservice.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-hostedservice.pure	drop-semicolon	pattern: '/fixture/hosted/{key}';	REJECTED	Unexpected token
 t2-hostedservice.pure	drop-semicolon	ownership: UserList { users: ['user1', 'user2'] };	REJECTED	Unexpected token
 t2-hostedservice.pure	drop-semicolon	import fixture::hs::*;	REJECTED	Unexpected token
@@ -585,16 +913,29 @@ t2-hostedservice.pure	island-open-plain	offset 3732	REJECTED	Unexpected token '{
 t2-hostedservice.pure	keyword-lowercase	Binding -> binding	ACCEPTED	
 t2-hostedservice.pure	keyword-lowercase	Config -> config	ACCEPTED	
 t2-hostedservice.pure	keyword-lowercase	DeployConfig -> deployConfig	ACCEPTED	
+t2-hostedservice.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-hostedservice.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-hostedservice.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-hostedservice.pure	package-dot	offset 2194	REJECTED	Unexpected token '.'
+t2-hostedservice.pure	package-dot	offset 2227	REJECTED	Unexpected token '::'. Valid alternatives: [',', '>']
+t2-hostedservice.pure	package-dot	offset 2231	REJECTED	Unexpected token '.'. Valid alternatives: [',', '>']
+t2-hostedservice.pure	string-unterminated	'rates'	REJECTED	Unexpected token '''
+t2-hostedservice.pure	string-unterminated	'/fixture/hosted/{key}'	REJECTED	Unexpected token '''
+t2-hostedservice.pure	string-unterminated	'user1'	REJECTED	Unexpected token 'user2'. Valid alternatives: [',', ']']
 t2-hostedservice.pure	swap-siblings	pattern: '/fixture/hosted/{key}';	ACCEPTED	
 t2-hostedservice.pure	swap-siblings	ownership: UserList { users: ['user1', 'user2'] };	ACCEPTED	
 t2-hostedservice.pure	swap-siblings	function: fixture::hs::queryFunction(Integer[1]):String[1];	ACCEPTED	
+t2-hostedservice.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'
+t2-hostedservice.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
 t2-hostedservice.pure	wrong-section	HostedService -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 t2-memsql.pure	brace-body-to-paren	line at 1860	REJECTED	Unexpected token '('
 t2-memsql.pure	brace-body-to-paren	line at 2296	REJECTED	Unexpected token '('
 t2-memsql.pure	brace-body-to-paren	line at 2567	REJECTED	Unexpected token '('
+t2-memsql.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-memsql.pure	delete-field	store: fixture::ms::Db;	ACCEPTED	
 t2-memsql.pure	delete-field	type: MemSQL;	REJECTED	Field 'type' is required
 t2-memsql.pure	delete-field	host: 'localhost';	REJECTED	Field 'host' is required
+t2-memsql.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-memsql.pure	drop-semicolon	type: MemSQL;	REJECTED	Unexpected token
 t2-memsql.pure	drop-semicolon	host: 'localhost';	REJECTED	Unexpected token
 t2-memsql.pure	drop-semicolon	store: fixture::ms::Db;	REJECTED	Unexpected token
@@ -603,16 +944,29 @@ t2-memsql.pure	duplicate-field	type: MemSQL;	REJECTED	Field 'type' should be spe
 t2-memsql.pure	duplicate-field	host: 'localhost';	REJECTED	Field 'host' should be specified only once
 t2-memsql.pure	keyword-lowercase	Config -> config	ACCEPTED	
 t2-memsql.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
-t2-memsql.pure	keyword-lowercase	Connection -> connection	ACCEPTED	
+t2-memsql.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
+t2-memsql.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-memsql.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-memsql.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-memsql.pure	package-dot	offset 1849	REJECTED	Unexpected token '.'
+t2-memsql.pure	package-dot	offset 1853	REJECTED	Unexpected token '.'
+t2-memsql.pure	package-dot	offset 1879	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-memsql.pure	string-unterminated	'localhost'	REJECTED	Unexpected token '''
+t2-memsql.pure	string-unterminated	'3306'	REJECTED	Unexpected token '''
+t2-memsql.pure	string-unterminated	'mydb'	REJECTED	Unexpected token '''
 t2-memsql.pure	swap-siblings	store: fixture::ms::Db;	ACCEPTED	
 t2-memsql.pure	swap-siblings	host: 'localhost';	ACCEPTED	
 t2-memsql.pure	swap-siblings	port: '3306';	ACCEPTED	
+t2-memsql.pure	truncate	at 50%	ACCEPTED	
+t2-memsql.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'
 t2-memsql.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-mongodb.pure	brace-body-to-paren	line at 3612	REJECTED	Unexpected token '('
 t2-mongodb.pure	brace-body-to-paren	line at 3937	REJECTED	Unexpected token '('
+t2-mongodb.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-mongodb.pure	delete-field	validationLevel: strict;	ACCEPTED	
 t2-mongodb.pure	delete-field	validationAction: error;	ACCEPTED	
 t2-mongodb.pure	delete-field	validationLevel: moderate;	ACCEPTED	
+t2-mongodb.pure	drop-final-delimiter	}	ACCEPTED	
 t2-mongodb.pure	drop-semicolon	validationAction: error;	REJECTED	no viable alternative at input 'CollectionPerson(validationLevel:strict;validationAction:errorjsonSchema'
 t2-mongodb.pure	drop-semicolon	validationLevel: moderate;	REJECTED	no viable alternative at input 'Collection"firm-data"(validationLevel:moderatevalidationAction'
 t2-mongodb.pure	drop-semicolon	validationLevel: strict;	REJECTED	no viable alternative at input 'CollectionPerson(validationLevel:strictvalidationAction'
@@ -622,18 +976,27 @@ t2-mongodb.pure	duplicate-field	validationLevel: moderate;	REJECTED	no viable al
 t2-mongodb.pure	island-close-plain	offset 3886	REJECTED	Unexpected token
 t2-mongodb.pure	island-close-plain	offset 4068	REJECTED	Unexpected token
 t2-mongodb.pure	keyword-lowercase	BaseDb -> baseDb	ACCEPTED	
-t2-mongodb.pure	keyword-lowercase	Collection -> collection	ACCEPTED	
+t2-mongodb.pure	keyword-lowercase	Collection -> collection	REJECTED	Unexpected token
 t2-mongodb.pure	keyword-lowercase	Conn -> conn	ACCEPTED	
+t2-mongodb.pure	package-dot	offset 2220	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+t2-mongodb.pure	package-dot	offset 2227	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+t2-mongodb.pure	package-dot	offset 2257	REJECTED	Unexpected token
 t2-mongodb.pure	paren-body-to-brace	line at 2238	REJECTED	Unexpected token '{'
 t2-mongodb.pure	paren-body-to-brace	line at 3152	REJECTED	Unexpected token '{'
+t2-mongodb.pure	string-unterminated	'mongo_ro'	REJECTED	Unexpected token '''
+t2-mongodb.pure	string-unterminated	'sys.prop.name'	REJECTED	Unexpected token '''
 t2-mongodb.pure	swap-siblings	validationLevel: strict;	REJECTED	no viable alternative at input 'CollectionPerson(validationAction:error;validationLevel'
 t2-mongodb.pure	swap-siblings	validationLevel: moderate;	REJECTED	no viable alternative at input 'Collection"firm-data"(validationAction:warn;validationLevel'
 t2-mongodb.pure	swap-siblings	database: legend_db;	ACCEPTED	
+t2-mongodb.pure	truncate	at 50%	ACCEPTED	
+t2-mongodb.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-mongodb.pure	wrong-section	MongoDB -> Text	REJECTED	Unexpected token 'Database'. Valid alternatives: ['Text']
 t2-oracle.pure	brace-body-to-paren	line at 484	REJECTED	Unexpected token '('
+t2-oracle.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-oracle.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-oracle.pure	delete-field	type: Oracle;	REJECTED	Field 'type' is required
 t2-oracle.pure	delete-field	host: 'host';	REJECTED	Field 'host' is required
+t2-oracle.pure	drop-final-delimiter	}	ACCEPTED	
 t2-oracle.pure	drop-semicolon	type: Oracle;	REJECTED	Unexpected token
 t2-oracle.pure	drop-semicolon	host: 'host';	REJECTED	Unexpected token
 t2-oracle.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
@@ -641,80 +1004,117 @@ t2-oracle.pure	duplicate-field	store: fixture::t2::Db;	REJECTED	Field 'store' sh
 t2-oracle.pure	duplicate-field	type: Oracle;	REJECTED	Field 'type' should be specified only once
 t2-oracle.pure	duplicate-field	host: 'host';	REJECTED	Field 'host' should be specified only once
 t2-oracle.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
-t2-oracle.pure	keyword-lowercase	Oracle -> oracle	ACCEPTED	
+t2-oracle.pure	keyword-lowercase	Oracle -> oracle	REJECTED	Unknown database type 'oracle'
 t2-oracle.pure	keyword-lowercase	OracleFull -> oracleFull	ACCEPTED	
+t2-oracle.pure	package-dot	offset 467	REJECTED	Unexpected token '.'
+t2-oracle.pure	package-dot	offset 471	REJECTED	Unexpected token '.'
+t2-oracle.pure	package-dot	offset 502	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-oracle.pure	string-unterminated	'host'	REJECTED	Unexpected token '''
+t2-oracle.pure	string-unterminated	'name'	REJECTED	Unexpected token '''
 t2-oracle.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
 t2-oracle.pure	swap-siblings	host: 'host';	ACCEPTED	
 t2-oracle.pure	swap-siblings	port: 1234;	ACCEPTED	
+t2-oracle.pure	truncate	at 50%	ACCEPTED	
+t2-oracle.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-oracle.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-persistence-batch.pure	brace-body-to-paren	line at 1934	REJECTED	Unexpected token '('
 t2-persistence-batch.pure	brace-body-to-paren	line at 2532	REJECTED	Unexpected token '('
 t2-persistence-batch.pure	brace-body-to-paren	line at 3795	REJECTED	Unexpected token '('
+t2-persistence-batch.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-batch.pure	delete-field	doc: 'batch persister, relational sink, flat target shape';	REJECTED	Field 'doc' is required
 t2-persistence-batch.pure	delete-field	trigger: Manual;	REJECTED	Field 'trigger' is required
 t2-persistence-batch.pure	delete-field	service: test::persistence::Service;	REJECTED	Field 'service' is required
+t2-persistence-batch.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-batch.pure	drop-semicolon	trigger: Manual;	REJECTED	Unexpected token
 t2-persistence-batch.pure	drop-semicolon	service: test::persistence::Service;	REJECTED	Unexpected token
 t2-persistence-batch.pure	drop-semicolon	doc: 'batch persister, relational sink, flat target shape';	REJECTED	Unexpected token
 t2-persistence-batch.pure	duplicate-field	doc: 'batch persister, relational sink, flat target shape';	REJECTED	Field 'doc' should be specified only once
 t2-persistence-batch.pure	duplicate-field	trigger: Manual;	REJECTED	Field 'trigger' should be specified only once
 t2-persistence-batch.pure	duplicate-field	service: test::persistence::Service;	REJECTED	Field 'service' should be specified only once
-t2-persistence-batch.pure	keyword-lowercase	AnyVersion -> anyVersion	ACCEPTED	
-t2-persistence-batch.pure	keyword-lowercase	Batch -> batch	ACCEPTED	
+t2-persistence-batch.pure	keyword-lowercase	AnyVersion -> anyVersion	REJECTED	Unexpected token 'anyVersion'. Valid alternatives: ['None', 'AnyVersion', 'MaxVersion', 'DuplicateCount']
+t2-persistence-batch.pure	keyword-lowercase	Batch -> batch	REJECTED	Unexpected token 'batch'. Valid alternatives: ['Streaming', 'Batch']
 t2-persistence-batch.pure	keyword-lowercase	Binding -> binding	ACCEPTED	
+t2-persistence-batch.pure	package-dot	offset 1909	REJECTED	Unexpected token '.'
+t2-persistence-batch.pure	package-dot	offset 1922	REJECTED	Unexpected token '.'
+t2-persistence-batch.pure	package-dot	offset 2032	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-persistence-batch.pure	string-unterminated	'AUDIT_TS'	REJECTED	Unexpected token '''
+t2-persistence-batch.pure	string-unterminated	'TestDataset1'	REJECTED	Unexpected token '''
+t2-persistence-batch.pure	string-unterminated	'TestDataset1'	REJECTED	Unexpected token '''
 t2-persistence-batch.pure	swap-siblings	doc: 'batch persister, relational sink, flat target shape';	ACCEPTED	
 t2-persistence-batch.pure	swap-siblings	trigger: Manual;	ACCEPTED	
 t2-persistence-batch.pure	swap-siblings	modelClass: test::persistence::ModelClass;	ACCEPTED	
+t2-persistence-batch.pure	truncate	at 50%	REJECTED	Unexpected token
+t2-persistence-batch.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-persistence-batch.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'Persistence'. Valid alternatives: ['Text']
 t2-persistence-context.pure	brace-body-to-paren	line at 1662	REJECTED	Unexpected token '('
 t2-persistence-context.pure	brace-body-to-paren	line at 2354	REJECTED	Unexpected token '('
+t2-persistence-context.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-context.pure	delete-field	import test::persistence::model::*;	ACCEPTED	
 t2-persistence-context.pure	delete-field	persistence: test::persistence::TestPersistence;	REJECTED	Field 'persistence' is required
 t2-persistence-context.pure	delete-field	dataProcessingUnits: 10;	REJECTED	Field 'dataProcessingUnits' is required
+t2-persistence-context.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-context.pure	drop-semicolon	persistence: test::persistence::TestPersistence;	REJECTED	Unexpected token
 t2-persistence-context.pure	drop-semicolon	dataProcessingUnits: 10;	REJECTED	Unexpected token
 t2-persistence-context.pure	drop-semicolon	import test::persistence::model::*;	REJECTED	Unexpected token
 t2-persistence-context.pure	duplicate-field	import test::persistence::model::*;	ACCEPTED	
 t2-persistence-context.pure	duplicate-field	persistence: test::persistence::TestPersistence;	REJECTED	Field 'persistence' should be specified only once
 t2-persistence-context.pure	duplicate-field	dataProcessingUnits: 10;	REJECTED	Field 'dataProcessingUnits' should be specified only once
-t2-persistence-context.pure	island-close-plain	offset 607	ACCEPTED	
-t2-persistence-context.pure	island-close-plain	offset 1171	ACCEPTED	
 t2-persistence-context.pure	island-close-plain	offset 1771	REJECTED	Unexpected token
-t2-persistence-context.pure	island-open-plain	offset 600	ACCEPTED	
-t2-persistence-context.pure	island-open-plain	offset 1164	ACCEPTED	
+t2-persistence-context.pure	island-close-plain	offset 2082	REJECTED	Unexpected token
+t2-persistence-context.pure	island-close-plain	offset 2286	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [';', '#{', '}#', '#']
 t2-persistence-context.pure	island-open-plain	offset 1737	REJECTED	Unexpected token '{'. Valid alternatives: [';']
-t2-persistence-context.pure	keyword-lowercase	AwsGlue -> awsGlue	ACCEPTED	
+t2-persistence-context.pure	island-open-plain	offset 1886	REJECTED	Unexpected token
+t2-persistence-context.pure	island-open-plain	offset 2110	REJECTED	Unexpected token
+t2-persistence-context.pure	keyword-lowercase	AwsGlue -> awsGlue	REJECTED	Unsupported persistence platform type 'awsGlue'
 t2-persistence-context.pure	keyword-lowercase	ContextDefaultPlatform -> contextDefaultPlatform	ACCEPTED	
 t2-persistence-context.pure	keyword-lowercase	ContextWithPlatform -> contextWithPlatform	ACCEPTED	
+t2-persistence-context.pure	package-dot	offset 1578	REJECTED	Unexpected token '.'
+t2-persistence-context.pure	package-dot	offset 1591	REJECTED	Unexpected token 'persistence'. Valid alternatives: ['*']
+t2-persistence-context.pure	package-dot	offset 1627	REJECTED	Unexpected token '.'
+t2-persistence-context.pure	string-unterminated	'hello'	REJECTED	Unexpected token
 t2-persistence-context.pure	swap-siblings	store: test::persistence::TestDatabase;	ACCEPTED	
 t2-persistence-context.pure	swap-siblings	store: test::persistence::TestDatabase;	ACCEPTED	
 t2-persistence-context.pure	swap-siblings	persistence: test::persistence::TestPersistence;	ACCEPTED	
+t2-persistence-context.pure	truncate	at 50%	ACCEPTED	
+t2-persistence-context.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-persistence-context.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'import'. Valid alternatives: ['Text']
 t2-persistence-ingestmodes.pure	brace-body-to-paren	line at 2204	REJECTED	Unexpected token '('
 t2-persistence-ingestmodes.pure	brace-body-to-paren	line at 2736	REJECTED	Unexpected token '('
 t2-persistence-ingestmodes.pure	brace-body-to-paren	line at 3551	REJECTED	Unexpected token '('
+t2-persistence-ingestmodes.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-ingestmodes.pure	delete-field	doc: 'unitemporal snapshot';	REJECTED	Field 'doc' is required
 t2-persistence-ingestmodes.pure	delete-field	trigger: Manual;	REJECTED	Field 'trigger' is required
 t2-persistence-ingestmodes.pure	delete-field	service: test::persistence::Service;	REJECTED	Field 'service' is required
+t2-persistence-ingestmodes.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-ingestmodes.pure	drop-semicolon	trigger: Manual;	REJECTED	Unexpected token
 t2-persistence-ingestmodes.pure	drop-semicolon	service: test::persistence::Service;	REJECTED	Unexpected token
 t2-persistence-ingestmodes.pure	drop-semicolon	doc: 'unitemporal snapshot';	REJECTED	Unexpected token
 t2-persistence-ingestmodes.pure	duplicate-field	doc: 'unitemporal snapshot';	REJECTED	Field 'doc' should be specified only once
 t2-persistence-ingestmodes.pure	duplicate-field	trigger: Manual;	REJECTED	Field 'trigger' should be specified only once
 t2-persistence-ingestmodes.pure	duplicate-field	service: test::persistence::Service;	REJECTED	Field 'service' should be specified only once
-t2-persistence-ingestmodes.pure	keyword-lowercase	AppendOnly -> appendOnly	ACCEPTED	
+t2-persistence-ingestmodes.pure	keyword-lowercase	AppendOnly -> appendOnly	REJECTED	Unexpected token 'appendOnly'. Valid alternatives: ['NontemporalSnapshot', 'UnitemporalSnapshot', 'BitemporalSnapshot', 
 t2-persistence-ingestmodes.pure	keyword-lowercase	AppendOnlyFiltered -> appendOnlyFiltered	ACCEPTED	
 t2-persistence-ingestmodes.pure	keyword-lowercase	AppendOnlyUnfiltered -> appendOnlyUnfiltered	ACCEPTED	
+t2-persistence-ingestmodes.pure	package-dot	offset 2177	REJECTED	Unexpected token '.'
+t2-persistence-ingestmodes.pure	package-dot	offset 2190	REJECTED	Unexpected token '.'
+t2-persistence-ingestmodes.pure	package-dot	offset 2271	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-persistence-ingestmodes.pure	string-unterminated	'unitemporal snapshot'	REJECTED	Unexpected token '''
+t2-persistence-ingestmodes.pure	string-unterminated	'BATCH_IN'	REJECTED	Unexpected token '''
+t2-persistence-ingestmodes.pure	string-unterminated	'BATCH_OUT'	REJECTED	Unexpected token '''
 t2-persistence-ingestmodes.pure	swap-siblings	doc: 'unitemporal snapshot';	ACCEPTED	
 t2-persistence-ingestmodes.pure	swap-siblings	trigger: Manual;	ACCEPTED	
 t2-persistence-ingestmodes.pure	swap-siblings	batchIdInName: 'BATCH_IN';	ACCEPTED	
+t2-persistence-ingestmodes.pure	truncate	at 50%	REJECTED	Unexpected token 'so'. Valid alternatives: ['sourceDateTimeFromField']
+t2-persistence-ingestmodes.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'
 t2-persistence-ingestmodes.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'Persistence'. Valid alternatives: ['Text']
 t2-persistence-milestoning.pure	brace-body-to-paren	line at 2211	REJECTED	Unexpected token '('
 t2-persistence-milestoning.pure	brace-body-to-paren	line at 3147	REJECTED	Unexpected token '('
 t2-persistence-milestoning.pure	brace-body-to-paren	line at 4212	REJECTED	Unexpected token '('
+t2-persistence-milestoning.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-milestoning.pure	delete-field	doc: 'DateTime transaction milestoning, source specifies the	REJECTED	Field 'doc' is required
 t2-persistence-milestoning.pure	delete-field	trigger: Manual;	REJECTED	Field 'trigger' is required
 t2-persistence-milestoning.pure	delete-field	service: test::persistence::Service;	REJECTED	Field 'service' is required
+t2-persistence-milestoning.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-milestoning.pure	drop-semicolon	trigger: Manual;	REJECTED	Unexpected token
 t2-persistence-milestoning.pure	drop-semicolon	service: test::persistence::Service;	REJECTED	Unexpected token
 t2-persistence-milestoning.pure	drop-semicolon	doc: 'DateTime transaction milestoning, source specifies the	REJECTED	Unexpected token
@@ -722,81 +1122,117 @@ t2-persistence-milestoning.pure	duplicate-field	doc: 'DateTime transaction miles
 t2-persistence-milestoning.pure	duplicate-field	trigger: Manual;	REJECTED	Field 'trigger' should be specified only once
 t2-persistence-milestoning.pure	duplicate-field	service: test::persistence::Service;	REJECTED	Field 'service' should be specified only once
 t2-persistence-milestoning.pure	keyword-lowercase	Batch -> batch	REJECTED	Unexpected token 'batch'. Valid alternatives: ['Streaming', 'Batch']
-t2-persistence-milestoning.pure	keyword-lowercase	BatchId -> batchId	ACCEPTED	
-t2-persistence-milestoning.pure	keyword-lowercase	BatchIdAndDateTime -> batchIdAndDateTime	ACCEPTED	
+t2-persistence-milestoning.pure	keyword-lowercase	BatchId -> batchId	REJECTED	Unexpected token 'batchId'. Valid alternatives: ['DateTime', 'BatchId', 'BatchIdAndDateTime']
+t2-persistence-milestoning.pure	keyword-lowercase	BatchIdAndDateTime -> batchIdAndDateTime	REJECTED	Unexpected token 'batchIdAndDateTime'. Valid alternatives: ['DateTime', 'BatchId', 'BatchIdAndDateTime']
+t2-persistence-milestoning.pure	package-dot	offset 2176	REJECTED	Unexpected token '.'
+t2-persistence-milestoning.pure	package-dot	offset 2189	REJECTED	Unexpected token '.'
+t2-persistence-milestoning.pure	package-dot	offset 2325	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-persistence-milestoning.pure	string-unterminated	'IN_Z'	REJECTED	Unexpected token '''
+t2-persistence-milestoning.pure	string-unterminated	'OUT_Z'	REJECTED	Unexpected token '''
+t2-persistence-milestoning.pure	string-unterminated	'FROM_Z'	REJECTED	Unexpected token '''
 t2-persistence-milestoning.pure	swap-siblings	doc: 'DateTime transaction milestoning, source specifies the	ACCEPTED	
 t2-persistence-milestoning.pure	swap-siblings	trigger: Manual;	ACCEPTED	
 t2-persistence-milestoning.pure	swap-siblings	dateTimeInName: 'IN_Z';	ACCEPTED	
+t2-persistence-milestoning.pure	truncate	at 50%	REJECTED	Unexpected token
+t2-persistence-milestoning.pure	truncate	at 85%	REJECTED	Unexpected token 'SourceSpecifiesFromAndThruDat'. Valid alternatives: ['SourceSpecifiesFromDateTime', 'SourceSpecifiesFr
 t2-persistence-milestoning.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'Persistence'. Valid alternatives: ['Text']
 t2-persistence-relational-target.pure	brace-body-to-paren	line at 2469	REJECTED	Unexpected token '('
+t2-persistence-relational-target.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-relational-target.pure	delete-field	doc: 'relational persistence targets across every temporalit	REJECTED	Field 'doc' is required
 t2-persistence-relational-target.pure	delete-field	trigger: Manual;	REJECTED	Field 'trigger' is required
 t2-persistence-relational-target.pure	delete-field	service: test::persistence::Service;	REJECTED	Field 'service' is required
+t2-persistence-relational-target.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	drop-semicolon	trigger: Manual;	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	drop-semicolon	service: test::persistence::Service;	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	drop-semicolon	doc: 'relational persistence targets across every temporalit	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	duplicate-field	doc: 'relational persistence targets across every temporalit	REJECTED	Field 'doc' should be specified only once
 t2-persistence-relational-target.pure	duplicate-field	trigger: Manual;	REJECTED	Field 'trigger' should be specified only once
 t2-persistence-relational-target.pure	duplicate-field	service: test::persistence::Service;	REJECTED	Field 'service' should be specified only once
-t2-persistence-relational-target.pure	island-close-plain	offset 610	ACCEPTED	
 t2-persistence-relational-target.pure	island-close-plain	offset 3085	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	island-close-plain	offset 3428	REJECTED	Unexpected token
-t2-persistence-relational-target.pure	island-open-plain	offset 603	ACCEPTED	
+t2-persistence-relational-target.pure	island-close-plain	offset 3827	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	island-open-plain	offset 2785	REJECTED	Unexpected token '{'. Valid alternatives: [',', ']']
 t2-persistence-relational-target.pure	island-open-plain	offset 3247	REJECTED	Unexpected token
-t2-persistence-relational-target.pure	keyword-lowercase	AllowDuplicates -> allowDuplicates	ACCEPTED	
-t2-persistence-relational-target.pure	keyword-lowercase	AppendOnly -> appendOnly	ACCEPTED	
-t2-persistence-relational-target.pure	keyword-lowercase	BatchId -> batchId	ACCEPTED	
+t2-persistence-relational-target.pure	island-open-plain	offset 3590	REJECTED	Unexpected token
+t2-persistence-relational-target.pure	keyword-lowercase	AllowDuplicates -> allowDuplicates	REJECTED	Unexpected token 'allowDuplicates'. Valid alternatives: ['AllowDuplicates', 'FailOnDuplicates', 'FilterDuplicates']
+t2-persistence-relational-target.pure	keyword-lowercase	AppendOnly -> appendOnly	REJECTED	Unexpected token 'appendOnly'. Valid alternatives: ['AppendOnly', 'Overwrite']
+t2-persistence-relational-target.pure	keyword-lowercase	BatchId -> batchId	REJECTED	Unexpected token 'batchId'. Valid alternatives: ['DateTime', 'BatchId', 'BatchIdAndDateTime']
+t2-persistence-relational-target.pure	package-dot	offset 2436	REJECTED	Unexpected token '.'
+t2-persistence-relational-target.pure	package-dot	offset 2449	REJECTED	Unexpected token '.'
+t2-persistence-relational-target.pure	package-dot	offset 2575	REJECTED	Unexpected token '.'. Valid alternatives: [';']
 t2-persistence-relational-target.pure	swap-siblings	doc: 'relational persistence targets across every temporalit	ACCEPTED	
 t2-persistence-relational-target.pure	swap-siblings	trigger: Manual;	ACCEPTED	
 t2-persistence-relational-target.pure	swap-siblings	table: TableA;	ACCEPTED	
+t2-persistence-relational-target.pure	truncate	at 50%	REJECTED	Unexpected token 'a'. Valid alternatives: ['actionIndicator']
+t2-persistence-relational-target.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-persistence-relational-target.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'Persistence'. Valid alternatives: ['Text']
 t2-persistence-serviceoutput.pure	brace-body-to-paren	line at 2191	REJECTED	Unexpected token '('
 t2-persistence-serviceoutput.pure	brace-body-to-paren	line at 3681	REJECTED	Unexpected token '('
+t2-persistence-serviceoutput.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-serviceoutput.pure	delete-field	doc: 'TDS service outputs across every dataset-type and dedu	REJECTED	Field 'doc' is required
 t2-persistence-serviceoutput.pure	delete-field	trigger: Manual;	REJECTED	Field 'trigger' is required
 t2-persistence-serviceoutput.pure	delete-field	service: test::persistence::Service;	REJECTED	Field 'service' is required
+t2-persistence-serviceoutput.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-serviceoutput.pure	drop-semicolon	trigger: Manual;	REJECTED	Unexpected token
 t2-persistence-serviceoutput.pure	drop-semicolon	service: test::persistence::Service;	REJECTED	Unexpected token
 t2-persistence-serviceoutput.pure	drop-semicolon	doc: 'TDS service outputs across every dataset-type and dedu	REJECTED	Unexpected token
 t2-persistence-serviceoutput.pure	duplicate-field	doc: 'TDS service outputs across every dataset-type and dedu	REJECTED	Field 'doc' should be specified only once
 t2-persistence-serviceoutput.pure	duplicate-field	trigger: Manual;	REJECTED	Field 'trigger' should be specified only once
 t2-persistence-serviceoutput.pure	duplicate-field	service: test::persistence::Service;	REJECTED	Field 'service' should be specified only once
-t2-persistence-serviceoutput.pure	keyword-lowercase	AnyVersion -> anyVersion	ACCEPTED	
-t2-persistence-serviceoutput.pure	keyword-lowercase	DeleteIndicator -> deleteIndicator	ACCEPTED	
-t2-persistence-serviceoutput.pure	keyword-lowercase	DeleteTargetData -> deleteTargetData	ACCEPTED	
+t2-persistence-serviceoutput.pure	keyword-lowercase	AnyVersion -> anyVersion	REJECTED	Unexpected token 'anyVersion'. Valid alternatives: ['None', 'AnyVersion', 'MaxVersion']
+t2-persistence-serviceoutput.pure	keyword-lowercase	DeleteIndicator -> deleteIndicator	REJECTED	Unexpected token 'deleteIndicator'. Valid alternatives: ['None', 'DeleteIndicator']
+t2-persistence-serviceoutput.pure	keyword-lowercase	DeleteTargetData -> deleteTargetData	REJECTED	Unexpected token 'deleteTargetData'. Valid alternatives: ['NoOp', 'DeleteTargetData']
+t2-persistence-serviceoutput.pure	package-dot	offset 2165	REJECTED	Unexpected token '.'
+t2-persistence-serviceoutput.pure	package-dot	offset 2178	REJECTED	Unexpected token '.'
+t2-persistence-serviceoutput.pure	package-dot	offset 2305	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-persistence-serviceoutput.pure	string-unterminated	'Yes'	REJECTED	Unexpected token 'no'. Valid alternatives: [',', ']']
+t2-persistence-serviceoutput.pure	string-unterminated	'no'	REJECTED	Unexpected token
 t2-persistence-serviceoutput.pure	swap-siblings	doc: 'TDS service outputs across every dataset-type and dedu	ACCEPTED	
 t2-persistence-serviceoutput.pure	swap-siblings	trigger: Manual;	ACCEPTED	
 t2-persistence-serviceoutput.pure	swap-siblings	deleteField: isDeleted;	ACCEPTED	
+t2-persistence-serviceoutput.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['[']
+t2-persistence-serviceoutput.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-persistence-serviceoutput.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'Persistence'. Valid alternatives: ['Text']
 t2-persistence-tests.pure	brace-body-to-paren	line at 1356	REJECTED	Unexpected token '('
 t2-persistence-tests.pure	brace-body-to-paren	line at 3155	REJECTED	Unexpected token '('
+t2-persistence-tests.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-persistence-tests.pure	delete-field	doc: 'a persistence with a populated test batch';	REJECTED	Field 'doc' is required
 t2-persistence-tests.pure	delete-field	trigger: Manual;	REJECTED	Field 'trigger' is required
 t2-persistence-tests.pure	delete-field	service: test::persistence::Service;	REJECTED	Field 'service' is required
+t2-persistence-tests.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-persistence-tests.pure	drop-semicolon	trigger: Manual;	REJECTED	Unexpected token
 t2-persistence-tests.pure	drop-semicolon	service: test::persistence::Service;	REJECTED	Unexpected token
 t2-persistence-tests.pure	drop-semicolon	doc: 'a persistence with a populated test batch';	REJECTED	Unexpected token
 t2-persistence-tests.pure	duplicate-field	doc: 'a persistence with a populated test batch';	REJECTED	Field 'doc' should be specified only once
 t2-persistence-tests.pure	duplicate-field	trigger: Manual;	REJECTED	Field 'trigger' should be specified only once
 t2-persistence-tests.pure	duplicate-field	service: test::persistence::Service;	REJECTED	Field 'service' should be specified only once
-t2-persistence-tests.pure	island-close-plain	offset 1119	ACCEPTED	
 t2-persistence-tests.pure	island-close-plain	offset 2021	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['#{', '}#', '#']
 t2-persistence-tests.pure	island-close-plain	offset 2352	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
-t2-persistence-tests.pure	island-open-plain	offset 1116	ACCEPTED	
+t2-persistence-tests.pure	island-close-plain	offset 2370	REJECTED	Unexpected token '<EOF>'. Valid alternatives: [',', ']']
 t2-persistence-tests.pure	island-open-plain	offset 1880	REJECTED	Unexpected token '{'
 t2-persistence-tests.pure	island-open-plain	offset 2142	REJECTED	Unexpected token '{'
+t2-persistence-tests.pure	island-open-plain	offset 2222	REJECTED	Unexpected token ';'. Valid alternatives: [',', ']']
 t2-persistence-tests.pure	keyword-lowercase	Delta -> delta	REJECTED	Unexpected token 'delta'. Valid alternatives: ['Snapshot', 'Delta']
 t2-persistence-tests.pure	keyword-lowercase	EqualToJson -> equalToJson	REJECTED	Unknown test assertion type: equalToJson
-t2-persistence-tests.pure	keyword-lowercase	ExternalFormat -> externalFormat	ACCEPTED	
+t2-persistence-tests.pure	keyword-lowercase	ExternalFormat -> externalFormat	REJECTED	Unknown embedded data type: externalFormat
+t2-persistence-tests.pure	package-dot	offset 1325	REJECTED	Unexpected token '.'
+t2-persistence-tests.pure	package-dot	offset 1338	REJECTED	Unexpected token '.'
+t2-persistence-tests.pure	package-dot	offset 1444	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-persistence-tests.pure	string-unterminated	'application/x.flatdata'	REJECTED	Unexpected token '''
+t2-persistence-tests.pure	string-unterminated	'application/json'	REJECTED	Unexpected token '''
+t2-persistence-tests.pure	string-unterminated	'{"Age":12, "Name":"dummy"}'	REJECTED	Unexpected token '''
 t2-persistence-tests.pure	swap-siblings	doc: 'a persistence with a populated test batch';	ACCEPTED	
 t2-persistence-tests.pure	swap-siblings	trigger: Manual;	ACCEPTED	
 t2-persistence-tests.pure	swap-siblings	contentType: 'application/x.flatdata';	ACCEPTED	
+t2-persistence-tests.pure	truncate	at 50%	REJECTED	Unexpected token '<EOF>'
+t2-persistence-tests.pure	truncate	at 85%	REJECTED	Unexpected token '''
 t2-persistence-tests.pure	wrong-section	Persistence -> Text	REJECTED	Unexpected token 'Persistence'. Valid alternatives: ['Text']
 t2-redshift.pure	brace-body-to-paren	line at 585	REJECTED	Unexpected token '('
+t2-redshift.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-redshift.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-redshift.pure	delete-field	type: Redshift;	REJECTED	Field 'type' is required
 t2-redshift.pure	delete-field	host: 'myDBHost';	REJECTED	Field 'dbHost' is required
+t2-redshift.pure	drop-final-delimiter	}	ACCEPTED	
 t2-redshift.pure	drop-semicolon	type: Redshift;	REJECTED	Unexpected token
 t2-redshift.pure	drop-semicolon	host: 'myDBHost';	REJECTED	Unexpected token
 t2-redshift.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
@@ -804,17 +1240,27 @@ t2-redshift.pure	duplicate-field	store: fixture::t2::Db;	REJECTED	Field 'store' 
 t2-redshift.pure	duplicate-field	type: Redshift;	REJECTED	Field 'type' should be specified only once
 t2-redshift.pure	duplicate-field	host: 'myDBHost';	REJECTED	Field 'dbHost' should be specified only once
 t2-redshift.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
-t2-redshift.pure	keyword-lowercase	Redshift -> redshift	ACCEPTED	
+t2-redshift.pure	keyword-lowercase	Redshift -> redshift	REJECTED	Unknown database type 'redshift'
 t2-redshift.pure	keyword-lowercase	RedshiftFull -> redshiftFull	ACCEPTED	
+t2-redshift.pure	package-dot	offset 566	REJECTED	Unexpected token '.'
+t2-redshift.pure	package-dot	offset 570	REJECTED	Unexpected token '.'
+t2-redshift.pure	package-dot	offset 603	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-redshift.pure	string-unterminated	'myDBHost'	REJECTED	Unexpected token '''
+t2-redshift.pure	string-unterminated	'database1'	REJECTED	Unexpected token '''
+t2-redshift.pure	string-unterminated	'east'	REJECTED	Unexpected token '''
 t2-redshift.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
 t2-redshift.pure	swap-siblings	host: 'myDBHost';	ACCEPTED	
 t2-redshift.pure	swap-siblings	port: 1234;	ACCEPTED	
+t2-redshift.pure	truncate	at 50%	ACCEPTED	
+t2-redshift.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-redshift.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-servicestore.pure	brace-body-to-paren	line at 3906	REJECTED	Unexpected token '('
 t2-servicestore.pure	brace-body-to-paren	line at 4008	REJECTED	Unexpected token '('
+t2-servicestore.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-servicestore.pure	delete-field	description: 'a fixture service store';	ACCEPTED	
 t2-servicestore.pure	delete-field	path: '/employees/{employeeId}';	REJECTED	Field 'path' is required
 t2-servicestore.pure	delete-field	method: GET;	REJECTED	Field 'method' is required
+t2-servicestore.pure	drop-final-delimiter	}	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['Data']
 t2-servicestore.pure	drop-semicolon	path: '/employees/{employeeId}';	REJECTED	Unexpected token
 t2-servicestore.pure	drop-semicolon	method: GET;	REJECTED	Unexpected token
 t2-servicestore.pure	drop-semicolon	description: 'a fixture service store';	REJECTED	Unexpected token
@@ -828,20 +1274,31 @@ t2-servicestore.pure	island-open-plain	offset 4027	REJECTED	no viable alternativ
 t2-servicestore.pure	island-open-plain	offset 4252	REJECTED	Unexpected token
 t2-servicestore.pure	island-open-plain	offset 4418	REJECTED	Unexpected token
 t2-servicestore.pure	keyword-lowercase	Binding -> binding	ACCEPTED	
-t2-servicestore.pure	keyword-lowercase	Connection -> connection	ACCEPTED	
+t2-servicestore.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
 t2-servicestore.pure	keyword-lowercase	CreateEmployee -> createEmployee	ACCEPTED	
+t2-servicestore.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-servicestore.pure	package-dot	offset 2370	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+t2-servicestore.pure	package-dot	offset 2374	REJECTED	Unexpected token '.'. Valid alternatives: ['(']
+t2-servicestore.pure	package-dot	offset 2692	REJECTED	Unexpected token
 t2-servicestore.pure	paren-body-to-brace	line at 2382	REJECTED	Unexpected token '{'
 t2-servicestore.pure	paren-body-to-brace	line at 3252	REJECTED	Unexpected token '{'
+t2-servicestore.pure	string-unterminated	'a fixture service store'	REJECTED	Unexpected token
+t2-servicestore.pure	string-unterminated	'/employees/{employeeId}'	REJECTED	Unexpected token '''. Valid alternatives: ['ServiceStore', 'description', 'ServiceGroup', 'Service', 'path', 'requestBod
+t2-servicestore.pure	string-unterminated	'/emp'	REJECTED	Unexpected token '''. Valid alternatives: ['ServiceStore', 'description', 'ServiceGroup', 'Service', 'path', 'requestBod
 t2-servicestore.pure	swap-siblings	path: '/employees/{employeeId}';	ACCEPTED	
 t2-servicestore.pure	swap-siblings	response: fixture::ss::Employee <- fixture::ss::Binding;	ACCEPTED	
 t2-servicestore.pure	swap-siblings	path: '/create';	ACCEPTED	
+t2-servicestore.pure	truncate	at 50%	REJECTED	Unexpected token 'require'. Valid alternatives: ['allowReserved', 'required', 'location', 'style', 'explode', 'enum']
+t2-servicestore.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['Data']
 t2-servicestore.pure	wrong-section	ServiceStore -> Text	REJECTED	Unexpected token 'ServiceStore'. Valid alternatives: ['Text']
 t2-snowflake.pure	brace-body-to-paren	line at 2419	REJECTED	Unexpected token '('
 t2-snowflake.pure	brace-body-to-paren	line at 3237	REJECTED	Unexpected token '('
 t2-snowflake.pure	brace-body-to-paren	line at 3594	REJECTED	Unexpected token '('
+t2-snowflake.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-snowflake.pure	delete-field	store: fixture::sf::Db;	ACCEPTED	
 t2-snowflake.pure	delete-field	type: Snowflake;	REJECTED	Field 'type' is required
 t2-snowflake.pure	delete-field	name: 'test';	REJECTED	Field 'name' is required
+t2-snowflake.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 t2-snowflake.pure	drop-semicolon	type: Snowflake;	REJECTED	Unexpected token
 t2-snowflake.pure	drop-semicolon	name: 'test';	REJECTED	Unexpected token
 t2-snowflake.pure	drop-semicolon	store: fixture::sf::Db;	REJECTED	Unexpected token
@@ -849,16 +1306,29 @@ t2-snowflake.pure	duplicate-field	store: fixture::sf::Db;	REJECTED	Field 'store'
 t2-snowflake.pure	duplicate-field	type: Snowflake;	REJECTED	Field 'type' should be specified only once
 t2-snowflake.pure	duplicate-field	name: 'test';	REJECTED	Field 'name' should be specified only once
 t2-snowflake.pure	keyword-lowercase	AppConfig -> appConfig	ACCEPTED	
-t2-snowflake.pure	keyword-lowercase	Connection -> connection	ACCEPTED	
-t2-snowflake.pure	keyword-lowercase	Deployment -> deployment	ACCEPTED	
+t2-snowflake.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
+t2-snowflake.pure	keyword-lowercase	Deployment -> deployment	REJECTED	Unexpected token 'deployment'. Valid alternatives: ['Deployment']
+t2-snowflake.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-snowflake.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-snowflake.pure	multiplicity-open	[1]	REJECTED	Unexpected token
+t2-snowflake.pure	package-dot	offset 2408	REJECTED	Unexpected token '.'
+t2-snowflake.pure	package-dot	offset 2412	REJECTED	Unexpected token '.'
+t2-snowflake.pure	package-dot	offset 2438	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-snowflake.pure	string-unterminated	'test'	REJECTED	Unexpected token '''
+t2-snowflake.pure	string-unterminated	'account'	REJECTED	Unexpected token '''
+t2-snowflake.pure	string-unterminated	'warehousename'	REJECTED	Unexpected token '''
 t2-snowflake.pure	swap-siblings	store: fixture::sf::Db;	ACCEPTED	
 t2-snowflake.pure	swap-siblings	name: 'test';	ACCEPTED	
 t2-snowflake.pure	swap-siblings	account: 'account';	ACCEPTED	
+t2-snowflake.pure	truncate	at 50%	ACCEPTED	
+t2-snowflake.pure	truncate	at 85%	REJECTED	Unexpected token '<EOF>'. Valid alternatives: ['(']
 t2-snowflake.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-spanner.pure	brace-body-to-paren	line at 589	REJECTED	Unexpected token '('
+t2-spanner.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-spanner.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-spanner.pure	delete-field	type: Spanner;	REJECTED	Field 'type' is required
 t2-spanner.pure	delete-field	projectId: 'spanner-emulator-test-1';	REJECTED	Field 'projectId' is required
+t2-spanner.pure	drop-final-delimiter	}	ACCEPTED	
 t2-spanner.pure	drop-semicolon	type: Spanner;	REJECTED	Unexpected token
 t2-spanner.pure	drop-semicolon	projectId: 'spanner-emulator-test-1';	REJECTED	Unexpected token
 t2-spanner.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
@@ -868,14 +1338,24 @@ t2-spanner.pure	duplicate-field	projectId: 'spanner-emulator-test-1';	REJECTED	F
 t2-spanner.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
 t2-spanner.pure	keyword-lowercase	GCPApplicationDefaultCredentials -> gCPApplicationDefaultCredentials	REJECTED	Unsupported Authentication Strategy type 'gCPApplicationDefaultCredentials'
 t2-spanner.pure	keyword-lowercase	RelationalDatabaseConnection -> relationalDatabaseConnection	REJECTED	Unsupported connection value type: relationalDatabaseConnection
+t2-spanner.pure	package-dot	offset 571	REJECTED	Unexpected token '.'
+t2-spanner.pure	package-dot	offset 575	REJECTED	Unexpected token '.'
+t2-spanner.pure	package-dot	offset 607	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-spanner.pure	string-unterminated	'spanner-emulator-test-1'	REJECTED	Unexpected token '''
+t2-spanner.pure	string-unterminated	'test-instance-1'	REJECTED	Unexpected token '''
+t2-spanner.pure	string-unterminated	'test-db'	REJECTED	Unexpected token '''
 t2-spanner.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
 t2-spanner.pure	swap-siblings	projectId: 'spanner-emulator-test-1';	ACCEPTED	
 t2-spanner.pure	swap-siblings	instanceId: 'test-instance-1';	ACCEPTED	
+t2-spanner.pure	truncate	at 50%	ACCEPTED	
+t2-spanner.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-spanner.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 t2-trino.pure	brace-body-to-paren	line at 1363	REJECTED	Unexpected token '('
+t2-trino.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 t2-trino.pure	delete-field	store: fixture::t2::Db;	ACCEPTED	
 t2-trino.pure	delete-field	type: Trino;	REJECTED	Field 'type' is required
 t2-trino.pure	delete-field	host: 'trino.example.com';	REJECTED	Field 'host' is required
+t2-trino.pure	drop-final-delimiter	}	ACCEPTED	
 t2-trino.pure	drop-semicolon	type: Trino;	REJECTED	Unexpected token
 t2-trino.pure	drop-semicolon	host: 'trino.example.com';	REJECTED	Unexpected token
 t2-trino.pure	drop-semicolon	store: fixture::t2::Db;	REJECTED	Unexpected token
@@ -884,19 +1364,34 @@ t2-trino.pure	duplicate-field	type: Trino;	REJECTED	Field 'type' should be speci
 t2-trino.pure	duplicate-field	host: 'trino.example.com';	REJECTED	Field 'host' should be specified only once
 t2-trino.pure	keyword-lowercase	Connection -> connection	REJECTED	'connection' is not a known section parser
 t2-trino.pure	keyword-lowercase	RelationalDatabaseConnection -> relationalDatabaseConnection	REJECTED	Unsupported connection value type: relationalDatabaseConnection
-t2-trino.pure	keyword-lowercase	Trino -> trino	ACCEPTED	
+t2-trino.pure	keyword-lowercase	Trino -> trino	REJECTED	Unknown database type 'trino'
+t2-trino.pure	package-dot	offset 1347	REJECTED	Unexpected token '.'
+t2-trino.pure	package-dot	offset 1351	REJECTED	Unexpected token '.'
+t2-trino.pure	package-dot	offset 1381	REJECTED	Unexpected token '.'. Valid alternatives: [';']
+t2-trino.pure	string-unterminated	'trino.example.com'	REJECTED	Unexpected token '''
+t2-trino.pure	string-unterminated	'tpch'	REJECTED	Unexpected token '''
+t2-trino.pure	string-unterminated	'tiny'	REJECTED	Unexpected token '''
 t2-trino.pure	swap-siblings	store: fixture::t2::Db;	ACCEPTED	
 t2-trino.pure	swap-siblings	host: 'trino.example.com';	ACCEPTED	
 t2-trino.pure	swap-siblings	port: 1234;	ACCEPTED	
+t2-trino.pure	truncate	at 50%	ACCEPTED	
+t2-trino.pure	truncate	at 85%	REJECTED	Unexpected token
 t2-trino.pure	wrong-section	Connection -> Text	REJECTED	Unexpected token 'RelationalDatabaseConnection'. Valid alternatives: ['Text']
 text-section.pure	brace-body-to-paren	line at 169	REJECTED	Unexpected token '('
+text-section.pure	comment-unterminated	before first section	REJECTED	Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '
 text-section.pure	delete-field	type: 'plainText';	ACCEPTED	
 text-section.pure	delete-field	content: 'A free-text element. Its body is an opaque string 	REJECTED	Field 'content' is required
+text-section.pure	drop-final-delimiter	}	REJECTED	Unexpected token
 text-section.pure	drop-semicolon	type: 'plainText';	REJECTED	Unexpected token
 text-section.pure	drop-semicolon	content: 'A free-text element. Its body is an opaque string 	REJECTED	Unexpected token
 text-section.pure	duplicate-field	type: 'plainText';	REJECTED	Field 'type' should be specified only once
 text-section.pure	duplicate-field	content: 'A free-text element. Its body is an opaque string 	REJECTED	Field 'content' should be specified only once
-text-section.pure	keyword-lowercase	Text -> text	ACCEPTED	
 text-section.pure	keyword-lowercase	Note -> note	ACCEPTED	
+text-section.pure	keyword-lowercase	Text -> text	REJECTED	'text' is not a known section parser
+text-section.pure	package-dot	offset 156	REJECTED	Unexpected token '.'
+text-section.pure	package-dot	offset 162	REJECTED	Unexpected token '.'
+text-section.pure	string-unterminated	'plainText'	REJECTED	Unexpected token
 text-section.pure	swap-siblings	type: 'plainText';	ACCEPTED	
+text-section.pure	truncate	at 85%	REJECTED	Unexpected token '''
+text-section.pure	truncate	at 50%	REJECTED	Unexpected token
 text-section.pure	wrong-section	Text -> Pure	REJECTED	Unexpected token 'Text'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native'

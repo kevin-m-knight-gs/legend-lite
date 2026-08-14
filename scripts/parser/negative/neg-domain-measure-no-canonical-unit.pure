@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token
+//
+// A Measure's FIRST unit must be the canonical one, marked with a leading '*'. This file
+// declares two perfectly well-formed units and no canonical marker.
+//
+// Measure is the least-written element in the language and therefore the one whose rules a
+// rewrite is most likely to reconstruct from a single example. The '*' looks like emphasis
+// on one arbitrary member of a list -- it is in fact structural: the canonical unit is a
+// separate grammar slot, mandatory and singular, and everything else is the repeated tail.
+###Pure
+Measure fixture::neg::NoCanonical
+{
+   Gram: x -> $x;
+   Kilogram: x -> $x * 1000;
+}

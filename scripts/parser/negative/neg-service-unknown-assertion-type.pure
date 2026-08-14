@@ -1,0 +1,40 @@
+// REJECTS: Unknown test assertion type: Approximately
+//
+// A test assertion is `identifier #{ ... }#` -- ANY identifier. The grammar cannot know
+// which assertion types exist; the set is an extension point, resolved by
+// HelperTestAssertionGrammarParser against the registered parsers at walk time.
+//
+// So a rewritten parser has to carry a registry, not a keyword list, and one that simply
+// accepts any island type will load a service asserting something no engine implements.
+###Service
+Service fixture::neg::UnknownAssertionType
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         tests:
+         [
+            t1:
+            {
+               asserts:
+               [
+                  a1:
+                     Approximately
+                     #{
+                        expected: '1';
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

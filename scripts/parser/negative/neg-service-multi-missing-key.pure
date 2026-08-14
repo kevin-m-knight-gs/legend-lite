@@ -1,0 +1,20 @@
+// REJECTS: Field 'key' is required
+//
+// A Multi execution requires `key:` -- the name of the parameter whose value selects the
+// execution -- in addition to query. Dropping it leaves a perfectly well-formed tree with
+// one keyed execution and no way to choose it.
+###Service
+Service fixture::neg::MultiNoKey
+{
+   pattern: '/fixture/neg/multinokey';
+   documentation: 'a multi execution with no key';
+   execution: Multi
+   {
+      query: |fixture::neg::Person.all();
+      executions['UAT']:
+      {
+         mapping: fixture::neg::Mapping;
+         runtime: fixture::neg::Runtime;
+      }
+   }
+}

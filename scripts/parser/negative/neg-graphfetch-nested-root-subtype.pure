@@ -1,0 +1,25 @@
+// REJECTS: ->subType() is supported only at root level
+//
+// The bare `->subType(@T){...}` form -- with no property in front of it -- is legal ONLY as
+// the immediate child of the tree root. This nests a second one inside the first.
+//
+// The grammar permits it; the restriction is a walker check, and the message is the whole
+// value of this fixture: it is prose, not a token diagnostic, so nothing about it can be
+// derived from the .g4. graphfetch-subtype.pure proves both legal placements parse, which
+// makes the recursive case look like an obvious generalisation. A generated parser accepts
+// it and produces a nested root-level cast the protocol has no representation for.
+###Pure
+function fixture::neg::nestedRootCast(): meta::pure::metamodel::type::Any[*]
+{
+   #{
+      fixture::neg::Shape {
+         area,
+         ->subType(@fixture::neg::Circle) {
+            radius,
+            ->subType(@fixture::neg::Unit) {
+               scale
+            }
+         }
+      }
+   }#
+}

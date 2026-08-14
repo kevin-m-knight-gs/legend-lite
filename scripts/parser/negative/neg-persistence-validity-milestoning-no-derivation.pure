@@ -1,0 +1,48 @@
+// REJECTS: Field 'derivation' is required
+//
+// The asymmetry that upstream's own roundtrip tests cannot see, because they always write
+// `derivation` under both milestonings:
+//
+//   transactionMilestoning > DateTime      derivation is OPTIONAL (validateAndExtractOptionalField)
+//   validityMilestoning    > DateTime      derivation is REQUIRED (validateAndExtractRequiredField)
+//
+// The two `derivation:` blocks are spelled with the SAME token (DERIVATION) and sit in
+// structurally identical `(dateTimeFromName | dateTimeThruName | validityDerivation)*` and
+// `(dateTimeInName | dateTimeOutName | transactionDerivation)*` rules. Nothing in the .g4
+// distinguishes them. A parser that mirrors the grammar accepts this file; legend-engine
+// does not.
+//
+// Its mirror image -- a transaction DateTime milestoning with no derivation -- is a POSITIVE
+// fixture and must keep parsing.
+###Persistence
+Persistence test::persistence::neg::ValidityNoDerivation
+{
+  doc: 'validity milestoning without a derivation';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalSnapshot
+    {
+      transactionMilestoning: DateTime
+      {
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+      }
+      validityMilestoning: DateTime
+      {
+        dateTimeFromName: 'FROM_Z';
+        dateTimeThruName: 'THRU_Z';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

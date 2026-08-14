@@ -1,0 +1,27 @@
+// REJECTS: Field 'auditing' is required
+//
+// The other half of AppendOnly's pair: filterDuplicates present, auditing absent. auditing
+// is checked first in visitAppendOnly, so this is the file that reaches it.
+###Persistence
+Persistence test::persistence::neg::AppendOnlyNoAuditing
+{
+  doc: 'append only without auditing';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: AppendOnly
+    {
+      filterDuplicates: true;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token '{'. Valid alternatives: [',', ']']
+//
+// The complex constraint body is delimited by PARENS, inside a bracketed constraint list,
+// on a class whose own body is BRACES. Three delimiter kinds within four lines, and the
+// choice is not free at any of them.
+//
+// Note what the parser offers instead: ',' or ']' -- i.e. having read the constraint NAME
+// it is willing to end the constraint there (the short `id: expr` form needs a ':' too,
+// so the alternatives are the list separators). A hand-written parser that accepts either
+// bracket style "because the intent is obvious" diverges silently; there is no ambiguity
+// for it to trip over, so nothing ever fails to tell it.
+###Pure
+Class fixture::neg::BraceConstraint
+[
+   c1
+   {
+      ~function: $this.code->length() > 2
+   }
+]
+{
+   code: String[1];
+}

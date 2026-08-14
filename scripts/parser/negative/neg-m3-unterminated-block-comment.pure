@@ -1,0 +1,17 @@
+// REJECTS: Unexpected token '/'. Valid alternatives: ['Class', 'Association', 'Profile'
+//
+// A `/*` never closed. The lexer does not run the comment to end-of-input and quietly
+// swallow the file: the unterminated comment fails to match the comment rule at all, so
+// '/' arrives at the parser as a token in element position.
+//
+// This is a documented past defect of this very harness, in the other direction -- a '//'
+// inside a string literal was once stripped as a comment and ate the rest of the file. The
+// failure mode a rewrite risks here is the mirror: treating an unterminated /* as
+// "comment to EOF" makes this file parse as EMPTY, which is not an error, produces no
+// elements, and reports success on a file whose entire content was discarded.
+###Pure
+/* this comment is never closed
+Class fixture::neg::AfterComment
+{
+   code: String[1];
+}

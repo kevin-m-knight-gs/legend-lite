@@ -1,0 +1,23 @@
+// REJECTS: PLACEHOLDER
+//
+// The first of the batch persister's three required fields. A persister with no sink has
+// nowhere to write, and the grammar does not mind.
+###Persistence
+Persistence test::persistence::neg::BatchNoSink
+{
+  doc: 'batch persister with no sink';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

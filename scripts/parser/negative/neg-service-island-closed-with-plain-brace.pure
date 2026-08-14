@@ -1,0 +1,42 @@
+// REJECTS: Unexpected token '<EOF>'. Valid alternatives: [',', ']']
+//
+// An `EqualTo #{ ... }` island closed with a plain `}` instead of `}#`. Unlike
+// unterminated-embedded-data.pure the delimiter is NOT missing -- there is a closing brace,
+// in the right place, and it is the wrong one.
+//
+// This is the case a scan-to-matching-brace implementation gets wrong in the most damaging
+// direction: it reads the island as complete, consumes the rest of the enclosing element as
+// if it were service body, and either succeeds with truncated content or fails somewhere
+// unrelated. legend-engine's island lexer stays in island mode and runs to end of input.
+###Service
+Service fixture::neg::IslandClosedWithBrace
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         tests:
+         [
+            t1:
+            {
+               asserts:
+               [
+                  a1:
+                     EqualTo
+                     #{
+                        expected: '1';
+                     }
+               ]
+            }
+         ]
+      }
+   ]
+}

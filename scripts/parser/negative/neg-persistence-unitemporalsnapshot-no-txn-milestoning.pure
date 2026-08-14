@@ -1,0 +1,26 @@
+// REJECTS: Field 'transactionMilestoning' is required
+//
+// UnitemporalSnapshot's only sub-block is `(transactionMilestoning)*` in the .g4, so an empty
+// body parses. visitUnitemporalSnapshot requires it.
+###Persistence
+Persistence test::persistence::neg::UniSnapshotNoMilestoning
+{
+  doc: 'unitemporal snapshot with no milestoning scheme';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalSnapshot
+    {
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

@@ -1,0 +1,14 @@
+// REJECTS: Unknown embedded data type: Unknown
+//
+// The same extension-point resolution on the embedded-data side of the ###Data section.
+// `Data x { Unknown #{ ... }# }` is a structurally perfect parse: DataParserGrammar's
+// `embeddedData` rule is `identifier ISLAND_OPEN (content)*` and imposes no vocabulary at
+// all. Only the registry lookup refuses it.
+###Data
+Data fixture::neg::UnknownEmbeddedType
+{
+   Unknown
+   #{
+      contentType: 'application/json';
+   }#
+}

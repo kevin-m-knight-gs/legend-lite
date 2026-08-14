@@ -65,9 +65,21 @@ def _sibling_pairs(lines: list[str]) -> list[int]:
     return out
 
 
+def _in_code(spans, pos: int) -> bool:
+    return any(a <= pos < b for a, b in spans)
+
+
 def mutate(text: str):
-    """Yield (operator, description, mutated_text). Text-level and deterministic."""
+    """Yield (operator, description, mutated_text). Text-level and deterministic.
+
+    Offset-based operators are restricted to CODE positions. Without that the harness
+    happily unterminates a string inside a comment, records "accepted", and reports the
+    parser as permissive somewhere it was never asked anything.
+    """
     lines = text.split("\n")
+    spans = K.code_spans(text)
+    sites = lambda pattern, flags=0: [m for m in re.finditer(pattern, text, flags)
+                                      if _in_code(spans, m.start())]
 
     for n, i in enumerate(_field_lines(lines)[:MAX_SITES]):
         out = lines[:i] + lines[i + 1:]
@@ -88,18 +100,18 @@ def mutate(text: str):
 
     # Island delimiters. `}#` closed as a plain `}` is the mutation a hand-written parser
     # makes naturally when it scans forward for the next brace.
-    for n, m in enumerate(list(re.finditer(r"\}#", text))[:MAX_SITES]):
+    for n, m in enumerate(sites(r"\}#")[:MAX_SITES]):
         yield "island-close-plain", f"offset {m.start()}", text[:m.start()] + "}" + text[m.end():]
 
-    for n, m in enumerate(list(re.finditer(r"#\{", text))[:MAX_SITES]):
+    for n, m in enumerate(sites(r"#\{")[:MAX_SITES]):
         yield "island-open-plain", f"offset {m.start()}", text[:m.start()] + "{" + text[m.end():]
 
     # Body delimiters. Mapping uses parentheses and every other element uses braces; a
     # rewrite that normalises them would accept both everywhere.
-    for n, m in enumerate(list(re.finditer(r"^\(\s*$", text, re.M))[:MAX_SITES]):
+    for n, m in enumerate(sites(r"^\(\s*$", re.M)[:MAX_SITES]):
         yield "paren-body-to-brace", f"line at {m.start()}", text[:m.start()] + "{" + text[m.end():]
 
-    for n, m in enumerate(list(re.finditer(r"^\{\s*$", text, re.M))[:MAX_SITES]):
+    for n, m in enumerate(sites(r"^\{\s*$", re.M)[:MAX_SITES]):
         yield "brace-body-to-paren", f"line at {m.start()}", text[:m.start()] + "(" + text[m.end():]
 
     # Section header. Every element in the file is then routed to the wrong grammar.
@@ -107,12 +119,54 @@ def mutate(text: str):
         other = "Text" if m.group(1) != "Text" else "Pure"
         yield "wrong-section", f"{m.group(1)} -> {other}", text[:m.start()] + f"###{other}" + text[m.end():]
 
+    # Truncation. Every open construct is left unterminated at once, which is what a parser
+    # sees when a file is cut short -- it must reach EOF and fail there, not recover.
+    for frac in (0.5, 0.85):
+        cut = int(len(text) * frac)
+        yield "truncate", f"at {int(frac * 100)}%", text[:cut]
+
+    # The final closing delimiter. A parser that stops at the last element it understood
+    # rather than requiring balance accepts this.
+    for m in list(re.finditer(r"[)}]\s*$", text.rstrip() + "\n", re.M))[-1:]:
+        yield "drop-final-delimiter", m.group().strip(), text.rstrip()[:m.start()]
+
+    # Open-ended multiplicity. `[1..]` is malformed; `[1..*]` and `[1]` are not.
+    for m in sites(r"\[(\d+)\]")[:MAX_SITES]:
+        yield "multiplicity-open", m.group(), text[:m.start()] + f"[{m.group(1)}..]" + text[m.end():]
+
+    # Package separator. `::` is the only one; a rewrite reusing a generic dotted-path
+    # routine would take `a.b` as well.
+    for m in sites(r"(?<=[A-Za-z0-9_])::(?=[A-Za-z_])")[:MAX_SITES]:
+        yield "package-dot", f"offset {m.start()}", text[:m.start()] + "." + text[m.end():]
+
+    # An unterminated string literal must run to EOF, not resynchronise at the next quote.
+    # A string literal's opening quote sits exactly ON the code/non-code boundary --
+    # code_spans ends the code region AT the quote -- so test the character BEFORE it.
+    # Without this the operator silently produced nothing at all, which reads in the
+    # summary as "no such mutation exists" rather than "the site filter excluded them".
+    string_sites = [m for m in re.finditer(r"'([^'\n]{2,40})'", text)
+                    if _in_code(spans, max(0, m.start() - 1))]
+    for m in string_sites[:MAX_SITES]:
+        yield "string-unterminated", m.group()[:40], text[:m.end() - 1] + text[m.end():]
+
+    # An unterminated block comment likewise swallows the rest of the file.
+    for m in list(re.finditer(r"^###", text, re.M))[:1]:
+        yield "comment-unterminated", "before first section", text[:m.start()] + "/* unclosed\n" + text[m.start():]
+
+    # A date literal that is syntactically shaped but semantically impossible.
+    for m in sites(r"%(\d{4})-\d{2}-\d{2}")[:MAX_SITES]:
+        yield "date-impossible", m.group(), text[:m.start()] + f"%{m.group(1)}-13-45" + text[m.end():]
+
     # Keyword case. Legend is case-sensitive; a case-insensitive lexer is a classic rewrite
     # shortcut, and this is the cheapest way to prove the reference implementation is not.
     code = K.strip_noncode(text)
     for n, word in enumerate(sorted({w for w in re.findall(r"\b[A-Z][A-Za-z]{3,}\b", code)})[:MAX_SITES]):
         swapped = word[0].lower() + word[1:]
-        yield "keyword-lowercase", f"{word} -> {swapped}", re.sub(rf"\b{re.escape(word)}\b", swapped, text, count=1)
+        hit = next((m for m in sites(rf"\b{re.escape(word)}\b")), None)
+        if hit is None:
+            continue
+        yield ("keyword-lowercase", f"{word} -> {swapped}",
+               text[:hit.start()] + swapped + text[hit.end():])
 
 
 def run(paths: list[Path]) -> dict[str, str]:

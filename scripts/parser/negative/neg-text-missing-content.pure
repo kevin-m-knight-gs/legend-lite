@@ -1,0 +1,14 @@
+// REJECTS: Field 'content' is required
+//
+// The ###Text section has three keywords and one required field. `content` is mandatory;
+// `type` is not -- neg-text-* has no companion for a missing type because legend-engine
+// ACCEPTS a Text element with only content, which is a finding rather than a fixture.
+//
+// So the asymmetry is the thing being pinned. A rewrite that treats the two fields the
+// same way -- both required, or both optional -- is wrong in one direction or the other,
+// and a section this small is exactly where "obviously they behave alike" goes unchecked.
+###Text
+Text fixture::neg::NoContent
+{
+   type: 'plainText';
+}

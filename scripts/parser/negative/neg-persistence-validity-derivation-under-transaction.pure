@@ -1,0 +1,40 @@
+// REJECTS: Unexpected token 'SourceSpecifiesFromDateTime'. Valid alternatives: ['SourceSpecifiesInDateTime', 'SourceSpecifiesInAndOutDateTime']
+//
+// `derivation:` under transactionMilestoning admits SourceSpecifiesInDateTime and
+// SourceSpecifiesInAndOutDateTime; under validityMilestoning it admits
+// SourceSpecifiesFromDateTime and SourceSpecifiesFromAndThruDateTime. Two disjoint pairs,
+// one keyword, and the discriminator is which milestoning you are inside.
+//
+// Here the validity-flavoured derivation is written under a transaction milestoning. It is
+// the from/thru vocabulary in the in/out position.
+###Persistence
+Persistence test::persistence::neg::ValidityDerivationInTransaction
+{
+  doc: 'a from-date derivation under transaction milestoning';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalSnapshot
+    {
+      transactionMilestoning: DateTime
+      {
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+        derivation: SourceSpecifiesFromDateTime
+        {
+          sourceDateTimeFromField: sourceFrom;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

@@ -1,0 +1,16 @@
+// REJECTS: Field 'content' should be specified only once
+//
+// Text fields are an unordered repetition in the grammar; "only once" is a walker check,
+// reported by name.
+//
+// Text is the smallest section in the language -- one element, three keywords -- and that
+// is precisely why it is worth a negative. It is the section a rewrite implements in an
+// afternoon as "read fields until '}'", and that implementation silently accepts a second
+// content, keeps the last one, and loses the first without a word.
+###Text
+Text fixture::neg::TwoBodies
+{
+   type: 'plainText';
+   content: 'first';
+   content: 'second';
+}

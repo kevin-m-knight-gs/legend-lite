@@ -206,6 +206,43 @@ def dead_tokens() -> dict[str, set[str]]:
 _OPENERS = re.compile(r"/\*|//|'")
 
 
+def code_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) ranges of `text` that are CODE -- outside comments and string literals.
+
+    Same single-pass scan as strip_noncode, reporting positions instead of substituting. It
+    exists for the mutation harness, which was editing text inside comments and recording
+    the result as "legend-engine accepted this mutation" -- a mutant that changes only a
+    comment changes nothing, and counting it as accepted makes the parser look more
+    permissive than it is.
+    """
+    spans, i, start = [], 0, 0
+    while True:
+        m = _OPENERS.search(text, i)
+        if not m:
+            spans.append((start, len(text)))
+            return [(a, b) for a, b in spans if b > a]
+        tok = m.group()
+        spans.append((start, m.start()))
+        if tok == "/*":
+            end = text.find("*/", m.end())
+            i = len(text) if end < 0 else end + 2
+        elif tok == "//":
+            end = text.find("\n", m.end())
+            i = len(text) if end < 0 else end
+        else:
+            j = m.end()
+            while j < len(text):
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == "'":
+                    j += 1
+                    break
+                j += 1
+            i = j
+        start = i
+
+
 def strip_noncode(text: str) -> str:
     out, i = [], 0
     while True:

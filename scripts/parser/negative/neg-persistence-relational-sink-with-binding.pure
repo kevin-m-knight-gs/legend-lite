@@ -1,0 +1,30 @@
+// REJECTS: PLACEHOLDER
+//
+// `sink:` is Relational{database} XOR ObjectStorage{binding}. The two sub-rules are
+// `(sinkDatabase)*` and `(sinkBinding)*` -- each accepts an EMPTY body, so a sink with
+// neither field parses and is caught by the walker, but a sink with the OTHER field is
+// caught by the grammar. This file is the second case: an object-storage binding under a
+// relational sink.
+###Persistence
+Persistence test::persistence::neg::RelationalSinkWithBinding
+{
+  doc: 'relational sink given an object storage binding';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      binding: test::persistence::Binding;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

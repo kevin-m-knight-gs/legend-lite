@@ -1,0 +1,28 @@
+// REJECTS: Field 'auditing' is required
+//
+// The other half of NontemporalDelta's requirement pair. mergeStrategy is present, auditing
+// is not. Both are required and the walker checks mergeStrategy first, so this file is the
+// only way to reach the auditing check on this ingest mode.
+###Persistence
+Persistence test::persistence::neg::NonTemporalDeltaNoAuditing
+{
+  doc: 'nontemporal delta without auditing';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalDelta
+    {
+      mergeStrategy: NoDeletes;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

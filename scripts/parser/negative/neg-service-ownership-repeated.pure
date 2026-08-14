@@ -1,0 +1,22 @@
+// REJECTS: Field 'ownership' should be specified only once
+//
+// DID and UserList are mutually exclusive, but the grammar expresses only "one of the two"
+// per `ownership:` clause -- it says nothing about how many clauses a service may have.
+// Writing both is refused by the walker's optional-field check, not by the parser.
+//
+// So the exclusion is enforced in two different places for two different spellings, and a
+// rewrite that implements only the grammar half accepts a service with two owners.
+###Service
+Service fixture::neg::TwoOwnerships
+{
+   pattern: '/fixture/neg/twoownerships';
+   documentation: 'both ownership forms on one service';
+   ownership: DID { identifier: '12345' };
+   ownership: UserList { users: ['abc'] };
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::Mapping;
+      runtime: fixture::neg::Runtime;
+   }
+}

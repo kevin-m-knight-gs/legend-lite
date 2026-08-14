@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token
+//
+// The mirror of neg-domain-measure-no-canonical-unit.pure: a Measure has EXACTLY one
+// canonical unit, so marking a second with '*' is as wrong as marking none.
+//
+// The pair is deliberate. A rewrite that treats '*' as a per-unit boolean flag -- the
+// obvious reading, since it is written on the unit -- gets both of these wrong in opposite
+// directions: zero canonical units becomes a measure with no base, two becomes a measure
+// whose conversion functions disagree about what they convert to. Neither is a parse error
+// for that implementation, and neither ever fails loudly.
+###Pure
+Measure fixture::neg::TwoCanonical
+{
+   *Gram: x -> $x;
+   *Kilogram: x -> $x * 1000;
+}

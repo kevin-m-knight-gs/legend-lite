@@ -1,0 +1,42 @@
+// REJECTS: Unexpected token 'derivation'. Valid alternatives: ['batchIdInName', 'batchIdOutName']
+//
+// `derivation` is a slot on the DateTime and BatchIdAndDateTime transaction milestoning
+// schemes only. The BatchId scheme has none -- there is no source date-time to derive from --
+// so `batchIdTransactionMilestoning: ... (batchIdInName | batchIdOutName)* ...` gives the
+// derivation nowhere to attach.
+//
+// Guards against a parser that hoists the shared sub-fields to the milestoning level and
+// then accepts any of them under any scheme. The derivation is written FIRST in the block
+// deliberately: at that position ANTLR can name the expected set, and the message is a
+// claim worth pinning; after the two names it degrades to a bare "Unexpected token".
+###Persistence
+Persistence test::persistence::neg::BatchIdWithDerivation
+{
+  doc: 'derivation under a batch-id scheme that has no derivation slot';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalSnapshot
+    {
+      transactionMilestoning: BatchId
+      {
+        derivation: SourceSpecifiesInDateTime
+        {
+          sourceDateTimeInField: sourceIn;
+        }
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

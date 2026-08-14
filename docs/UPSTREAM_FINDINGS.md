@@ -793,4 +793,17 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   while `AuthenticationLexerGrammar`'s other 43 keywords remain reachable through
   `authentication:` islands. A grammar can therefore be half-live, and nothing in the
   grammar says which half.
+- **The `###Connection` section accepts an element with no closing brace.** A complete
+  `RelationalDatabaseConnection` whose final `}` is deleted parses without complaint, and so
+  does one followed by a further `###Pure` section — the protocol document then contains both
+  elements, so nothing is lost; the parser simply does not require balance. The same mutation
+  is rejected in `###Pure`, `###Relational`, `###Service` and `###Diagram`, so this is not a
+  general end-of-input leniency but the Connection grammar alone. It means a malformed model
+  round-trips as if well-formed, and any tool that re-emits it will silently repair a file
+  the author never balanced. (`scripts/corpus/repro/unterminated-connection/`)
+- **Date literals are not validated at parse time.** `%2024-13-45` and
+  `%9999-13-45T99:99:99.0000` both parse; the compiler is what rejects them, with
+  `Invalid month: 13`. Worth recording because the obvious assumption runs the other way: a
+  rewrite that validates dates in its lexer would be *wrongly strict* and would reject models
+  legend-engine accepts. Being stricter is still a divergence.
 

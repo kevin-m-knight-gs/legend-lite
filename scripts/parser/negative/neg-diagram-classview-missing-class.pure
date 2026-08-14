@@ -1,0 +1,19 @@
+// REJECTS: Field 'class' is required
+//
+// A classView requires class, position AND rectangle. missing-required-classview-rectangle
+// .pure omits the geometry; this omits the REFERENCE, which is the field that decides what
+// the view is a view of.
+//
+// Both are worth having because they prove the check is per-field rather than a count. The
+// message names 'class' specifically, and it comes from the walker after the tree is built
+// -- the grammar itself is happy with any subset of the three, in any order. A generated
+// parser reproduces the grammar exactly and enforces none of this.
+###Diagram
+Diagram fixture::neg::NoClass
+{
+   classView v1
+   {
+      position: (1.0,2.0);
+      rectangle: (10.0,20.0);
+   }
+}

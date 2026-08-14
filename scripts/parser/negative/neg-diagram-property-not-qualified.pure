@@ -1,0 +1,21 @@
+// REJECTS: Unexpected token ';'. Valid alternatives: ['.']
+//
+// A propertyView's `property` is always `<ownerClassPath>.<propertyName>` -- the owning
+// class is part of the reference, not inferred from the view's source classView.
+//
+// Inferring it is the obvious optimisation, and it is wrong: the source classView is a
+// diagram-level name, the property reference is a model-level one, and a diagram may draw
+// the same class twice. A rewrite that accepts a bare property name and resolves it
+// against `source` produces a reference that is right in the common case and silently
+// wrong whenever a class appears in two views.
+###Diagram
+Diagram fixture::neg::BareProperty
+{
+   propertyView
+   {
+      property: firm;
+      source: a;
+      target: b;
+      points: [];
+   }
+}

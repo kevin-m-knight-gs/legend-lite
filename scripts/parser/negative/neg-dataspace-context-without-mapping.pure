@@ -1,0 +1,24 @@
+// REJECTS: Field 'mapping' is required
+//
+// An execution context that names a `defaultRuntime` but no `mapping`. The .g4 gives no hint
+// of this: dataSpaceExecutionContext is a `( ... )*` alternation in which every field is
+// optional and order-free, so the tree builds cleanly. DataSpaceParseTreeWalker enforces the
+// real rule afterwards -- a context must define EXACTLY ONE of `mapping` / `mappingProvider`,
+// throwing at :206 when neither is present and at :210 when both are.
+//
+// This is the shape of divergence a rewrite falls into by default: transcribe the grammar,
+// get a permissive parser, and discover the constraint only when a downstream compiler
+// dereferences a null mapping. `name` and `defaultRuntime` are supplied so the failure can
+// only be about the mapping.
+###DataSpace
+DataSpace fixture::neg::ContextWithoutMapping
+{
+  executionContexts:
+  [
+    {
+      name: 'Context 1';
+      defaultRuntime: fixture::neg::Runtime;
+    }
+  ];
+  defaultExecutionContext: 'Context 1';
+}

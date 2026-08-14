@@ -1,0 +1,30 @@
+// REJECTS: PLACEHOLDER
+//
+// `flatTargetShape: ... (targetName | targetModelClass | partitionFields |
+// deduplicationStrategy)* ...` -- four optional-looking blocks of which visitFlatTarget
+// requires exactly the first two. partitionFields and deduplicationStrategy really are
+// optional, and this file keeps both so that what is missing is unambiguous.
+###Persistence
+Persistence test::persistence::neg::FlatNoTargetName
+{
+  doc: 'flat target shape with no target name';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      partitionFields: [propertyA];
+      deduplicationStrategy: None;
+    }
+  }
+}

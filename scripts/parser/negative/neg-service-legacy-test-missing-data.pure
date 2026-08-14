@@ -1,0 +1,27 @@
+// REJECTS: Field 'data' is required
+//
+// The LEGACY `test: Single { ... }` block requires `data:` -- a bare string of test data --
+// as well as `asserts:`. Both arms are optional in the grammar.
+//
+// Worth pinning separately from the modern testSuites form: the two blocks share the words
+// `data` and `asserts` but mean different things by them (here `data` is a STRING, there it
+// is a list of connection islands), and only one of the two makes `data` mandatory.
+###Service
+Service fixture::neg::LegacyTestWithoutData
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   test: Single
+   {
+      asserts:
+      [
+         { [], |'x' }
+      ];
+   }
+}
