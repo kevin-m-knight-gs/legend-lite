@@ -1,0 +1,27 @@
+// REJECTS: Field 'datasetType' is required
+//
+// The other required half of a service output. `datasetType:` is what makes the output a
+// Snapshot or a Delta, and with it gone the remaining `TDS { keys: [...] }` is the shape
+// most upstream examples abbreviate to -- which is exactly why a parser written from those
+// examples would accept it.
+###Persistence
+Persistence test::persistence::neg::TdsNoDatasetType
+{
+  doc: 'a TDS service output with no dataset type';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo, bar
+      ]
+      deduplication: AnyVersion;
+    }
+    ->
+    {
+    }
+  ];
+}

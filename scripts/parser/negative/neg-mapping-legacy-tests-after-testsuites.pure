@@ -1,0 +1,59 @@
+// REJECTS: Unexpected token 'MappingTests'. Valid alternatives: [')']
+//
+// Both test eras may appear on one Mapping, but in a fixed order: the legacy `MappingTests`
+// block, then the modern `testSuites`. This file has them the other way round.
+//
+// mapping-legacy-and-suites.pure covers both blocks and cannot see this, because it puts
+// them on two different Mappings. Nothing about a Mapping body suggests its trailing
+// sections are sequenced -- a rewrite that loops "read the next section" accepts either
+// order, and the resulting model loads in one engine and not the other. Both blocks here
+// are complete and legal; only their order is wrong.
+###Mapping
+Mapping fixture::neg::SuitesBeforeLegacyTests
+(
+   fixture::neg::Person: Pure
+   {
+      ~src fixture::neg::SrcPerson
+      firstName: $src.first
+   }
+
+   testSuites:
+   [
+      suite1:
+      {
+         function: |fixture::neg::Person.all();
+         tests:
+         [
+            test1:
+            {
+               asserts:
+               [
+                  assert1:
+                     EqualToJson
+                     #{
+                        expected:
+                           ExternalFormat
+                           #{
+                              contentType: 'application/json';
+                              data: '{}';
+                           }#;
+                     }#
+               ];
+            }
+         ];
+      }
+   ]
+
+   MappingTests
+   [
+      t1
+      (
+         query: |fixture::neg::Person.all();
+         data:
+         [
+            <Object, JSON, fixture::neg::SrcPerson, '{}'>
+         ];
+         assert: '[]';
+      )
+   ]
+)

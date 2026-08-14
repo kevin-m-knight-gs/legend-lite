@@ -1,15 +1,23 @@
 // REJECTS: Unexpected token
 //
-// A MongoDB class mapping with `~mainCollection` written BEFORE `~filter`. The three commands
-// are a fixed SEQUENCE in the rule, not a set: filter, then mainCollection, then binding, in
-// that order and no other. The body below contains exactly the same three clauses as the one
-// in ../fixtures/t2-mongodb.pure with the first two transposed.
+// A MongoDB class mapping with `~mainCollection` written BEFORE `~filter`. The body below
+// contains exactly the same three clauses as the one in ../fixtures/t2-mongodb.pure with the
+// first two transposed.
+//
+// The ordering rule is PARTIAL, which is what makes it easy to get wrong: `~filter` is
+// optional but must come FIRST if present, while `~mainCollection` and `~binding` are
+// order-free relative to each other. Verified against this runner --
+//     ~filter, ~binding, ~mainCollection   parses
+//     ~mainCollection, ~binding            parses (filter omitted)
+//     ~binding, ~filter, ~mainCollection   rejected
+//     ~mainCollection, ~filter, ~binding   rejected (this fixture)
+// -- so a rewrite cannot satisfy it either by fixing a total order or by accepting any order.
 //
 // Ordering constraints are the cheapest thing for a rewrite to lose: a loop over "whichever
-// clause comes next" is simpler to write than a sequence, handles the legal corpus perfectly,
-// and is silently more permissive. Nothing downstream cares -- the protocol object has three
-// independent slots -- so the divergence is invisible until two parsers disagree about whether
-// a file is legal.
+// clause comes next" is simpler to write than a prefixed sequence, handles the legal corpus
+// perfectly, and is silently more permissive. Nothing downstream cares -- the protocol object
+// has three independent slots -- so the divergence is invisible until two parsers disagree
+// about whether a file is legal.
 //
 // legend-engine has this same shape in several grammars; ./ordering-constraint-clauses.pure
 // and ./ordering-view-modifiers.pure pin two others. This is the MongoDB one.

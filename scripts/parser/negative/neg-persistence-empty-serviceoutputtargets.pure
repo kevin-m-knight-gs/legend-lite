@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token ']'. Valid alternatives: ['TDS']
+//
+// `serviceOutputTargets: ... BRACKET_OPEN serviceOutputTarget (COMMA serviceOutputTarget)*
+// BRACKET_CLOSE ...` -- no `?` around the group, so the list must have at least one entry.
+//
+// This is the odd one out among the bracketed lists in this grammar: `keys: []`,
+// `partitionFields: []`, `deleteValues: []` (v2), `tests: []` and `testBatches: []` are all
+// wrapped in `( ... )?` and may be empty. Only this one may not, and nothing marks it as
+// special except the missing question mark.
+###Persistence
+Persistence test::persistence::neg::EmptyServiceOutputTargets
+{
+  doc: 'an empty service output target list';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+  ];
+}

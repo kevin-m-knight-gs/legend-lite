@@ -107,6 +107,43 @@ def check_declarations(grammars: dict[str, set[str]]) -> list[str]:
 _REJECTS = re.compile(r"^//\s*REJECTS:\s*(.+?)\s*$", re.M)
 
 
+# Rejection messages that mean "your environment is wrong", not "your input is wrong".
+# A negative fixture failing for one of these is not testing the grammar at all -- it would
+# pass identically against a parser that simply had not loaded the extension, and it would
+# keep passing after the construct it guards started working. Four grammar extensions really
+# were missing from this runner's classpath, so this is not hypothetical.
+_ENVIRONMENTAL = (
+    "is not a known section parser",
+    "Unsupported Data Source Specification type",
+    "NoClassDefFound",
+    "ClassNotFound",
+)
+
+
+def check_environmental(out: str) -> list[str]:
+    """Negatives rejected for an environmental reason must say so in the fixture.
+
+    Acknowledged by writing ENVIRONMENTAL in the fixture's comment -- there are legitimate
+    cases (the unshipped-section fixture is exactly this, deliberately), so the rule is
+    "declare it", not "never".
+    """
+    problems = []
+    for line in out.splitlines():
+        if "  REJECTED: " not in line:
+            continue
+        head, _, msg = line.partition("  REJECTED: ")
+        name = head.split()[-1]
+        if not any(e in msg for e in _ENVIRONMENTAL):
+            continue
+        f = NEGATIVE / name
+        if f.is_file() and "ENVIRONMENTAL" not in f.read_text():
+            problems.append(f"{name}: rejected for an ENVIRONMENTAL reason ({msg[:70]!r}). "
+                            f"This would pass against a parser that never loaded the "
+                            f"extension. Confirm it is intended and say ENVIRONMENTAL in "
+                            f"the fixture, or rewrite it.")
+    return problems
+
+
 def check_rejections(out: str) -> list[str]:
     """Every negative fixture declares the message it expects, and gets it."""
     actual = {}
@@ -205,7 +242,7 @@ def main() -> None:
         if rc_neg:
             print(out_neg)
             print()
-        mismatched = check_rejections(out_neg)
+        mismatched = check_rejections(out_neg) + check_environmental(out_neg)
         for m in mismatched:
             print("REJECTION:", m)
         if mismatched:

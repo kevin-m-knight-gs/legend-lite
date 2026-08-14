@@ -1,0 +1,21 @@
+// REJECTS: Unexpected token 'fixture'. Valid alternatives: ['extends', '[', ':']
+//
+// A Mapping body is `(includeMapping)* (mappingElement)* (tests)? (testSuites)?`. Includes
+// are a prefix, not a statement that may appear anywhere among the elements.
+//
+// The diagnostic is worth reading: by the time the parser reaches the misplaced `include`
+// it has already left the include arm, so `include` is consumed as the head of a mapping
+// ELEMENT (INCLUDE is one of the tokens `identifier` admits) and the complaint lands on the
+// qualified name that follows. A rewrite that dispatches on the leading keyword never
+// reaches that state and accepts the file.
+###Mapping
+Mapping fixture::neg::IncludeLate
+(
+   fixture::neg::Person: Relational
+   {
+      ~mainTable [fixture::neg::Db]T
+      id: [fixture::neg::Db]T.ID
+   }
+
+   include fixture::neg::Base
+)

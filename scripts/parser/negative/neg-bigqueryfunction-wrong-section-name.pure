@@ -1,5 +1,11 @@
 // REJECTS: 'BigQueryFunction' is not a known section parser
 //
+// ENVIRONMENTAL-LOOKING, AND DELIBERATELY SO. "is not a known section parser" is the
+// same message a MISSING GRAMMAR EXTENSION produces -- four really were absent from this
+// runner's classpath until recently. What distinguishes this case: ../fixtures/t2-bigquery.pure
+// parses, using `###BigQuery`, which proves the extension IS loaded. So the rejection here
+// is about the NAME, not the environment.
+//
 // `###BigQueryFunction`. The element is spelled BigQueryFunction, the grammar file is
 // BigQueryFunctionLexerGrammar.g4, the parser extension class is
 // BigQueryFunctionGrammarParserExtension -- and the section it registers is `###BigQuery`

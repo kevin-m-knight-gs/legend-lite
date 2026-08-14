@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token
+//
+// An inline embedded property mapping is spelled `prop() Inline [id]` -- with an EMPTY pair
+// of parentheses that carries no content and is not optional. The rule is literally
+// `PAREN_OPEN PAREN_CLOSE INLINE BRACKET_OPEN identifier BRACKET_CLOSE`.
+//
+// The parens exist only to make this arm distinguishable from an ordinary embedded mapping,
+// so they look like noise and are the obvious thing for a rewrite to make optional. Note
+// also that the id in brackets is a plain identifier, not a qualified name.
+###Mapping
+Mapping fixture::neg::InlineNoParens
+(
+   fixture::neg::Firm: Relational
+   {
+      ~mainTable [fixture::neg::Db]FIRM
+      legalName: [fixture::neg::Db]FIRM.LEGAL_NAME,
+      employees Inline [personMapping]
+   }
+)

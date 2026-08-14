@@ -1,5 +1,9 @@
 // REJECTS: 'DataQuality' is not a known section parser
 //
+// ENVIRONMENTAL-LOOKING, AND DELIBERATELY SO. The same message a missing extension gives.
+// ../fixtures/t2-dataquality.pure parses using `###DataQualityValidation`, which proves the
+// extension is loaded and the rejection here is about the NAME.
+//
 // The section is `###DataQualityValidation`, not `###DataQuality` -- the name registered by
 // DataQualityGrammarParserExtension is the ELEMENT's name, not the vendor's. Every other
 // grammar in this batch splits the two differently and none of the splits is guessable:

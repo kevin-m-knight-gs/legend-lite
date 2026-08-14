@@ -1,0 +1,30 @@
+// REJECTS: Field 'keys' is required
+//
+// `tdsServiceOutput: SERVICE_OUTPUT_TDS BRACE_OPEN (datasetKeys | deduplication |
+// datasetType)* BRACE_CLOSE` -- three stars, of which visitTdsServiceOutput requires two
+// (keys and datasetType) and treats deduplication as genuinely optional. An entirely empty
+// `TDS { }` is a legal parse tree.
+//
+// This file omits only `keys`, keeping the optional deduplication present, so the message
+// names the missing one.
+###Persistence
+Persistence test::persistence::neg::TdsNoKeys
+{
+  doc: 'a TDS service output with no keys';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      deduplication: None;
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+}

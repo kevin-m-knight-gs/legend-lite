@@ -4,6 +4,11 @@
 // tokens and walker-rejection. The tokens ARE referenced by rules in
 // AuthenticationParserGrammar, and those rules parse -- what is missing is the SectionParser
 // that would route text to the grammar at all. AuthenticationDemoParserExtension registers
+// ENVIRONMENTAL BY NATURE -- that is the finding, not a flaw in the fixture. The section
+// parser genuinely is absent from the shipped jar because it lives in src/test/java. Unlike
+// the two wrong-section fixtures beside it, no positive fixture can prove otherwise: there
+// is no shipped ###AuthenticationDemo to prove loads.
+//
 // ###AuthenticationDemo and lives in src/test/java, so it is absent from the shipped jar.
 //
 // This is exactly the shape of the classpath trap that makes the REJECTS line necessary: a

@@ -1,0 +1,28 @@
+// REJECTS: Unexpected token 'databaseName'. Valid alternatives: ['clusterID', 'endpointURL', 'region', 'name', 'host', 'port']
+//
+// `databaseName:` on a Redshift specification, which spells the database `name`. The word
+// `databaseName` is not invented -- it is MemSql's spelling for the same concept, in the same
+// `###Connection` section, three lines of grammar away.
+//
+// Across this batch the database is called `name` (Redshift, Aurora, Static), `databaseName`
+// (MemSql), `database` (Athena), `databaseId` (Spanner), `defaultDataset` (BigQuery),
+// `serviceName` (Oracle), `path` (DuckDB) and `catalog`+`schema` (Trino). Nine grammars, nine
+// answers, and each lexer declares its own token rather than importing a shared one -- so the
+// name is not a synonym a parser may resolve, it is the only key that exists.
+//
+// The alternative list is Redshift's complete surface; the sibling fixtures
+// ./neg-oracle-name-not-servicename.pure, ./neg-duckdb-name-not-path.pure and
+// ./neg-databricks-host-not-hostname.pure pin three more points of the same map.
+###Connection
+RelationalDatabaseConnection fixture::neg::RedshiftDatabaseName
+{
+  store: fixture::neg::Db;
+  type: Redshift;
+  specification: Redshift
+  {
+    databaseName: 'db';
+    host: 'h';
+    port: 1234;
+  };
+  auth: Test;
+}
