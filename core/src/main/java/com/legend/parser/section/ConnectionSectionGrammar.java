@@ -377,9 +377,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         // overshoot family as the ES connection)
         var sp = c.spanOf(bodyStart, closeTok);
         com.legend.protocol.SourceInfo vSpan =
-                new com.legend.protocol.SourceInfo("", sp.startLine(),
-                        sp.startColumn(), sp.endLine(),
-                        c.tokens().startColumn(closeTok) + 4);
+                com.legend.protocol.SpanOrigin.anchoredOvershoot(sp,
+                        new com.legend.protocol.SourceInfo("",
+                                sp.startLine(), sp.startColumn(),
+                                sp.endLine(),
+                                c.tokens().startColumn(closeTok)), 4);
         return new Protocol.PDeephavenConnection(serverUrl, psk, element,
                 elementSpan, vSpan);
     }
@@ -1733,9 +1735,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         // that leaks into the ctx END (C12 byte pin: '}' col 1 -> wire 5)
         var vs = c.spanOf(firstKeyTok, closeTok);
         return new Protocol.PElasticsearchConnection(element, elementSpan,
-                url, auth, new com.legend.protocol.SourceInfo(vs.sourceId(),
-                        vs.startLine(), vs.startColumn(), vs.endLine(),
-                        vs.endColumn() + 4));
+                url, auth,
+                com.legend.protocol.SpanOrigin.overshootEnd(vs, 4));
     }
 
     /** One vault secret: the single-field kinds or the AWS secrets
@@ -1933,14 +1934,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             TokenStreamCursor c, int keyTok, IslandParse ip) {
         var aSp = c.spanOf(keyTok, ip.endTok());
         if (ip.cursor().tokens().count() == 0) {
-            return new com.legend.protocol.SourceInfo("",
-                    c.tokens().startLine(ip.endTok()),
-                    c.tokens().startColumn(ip.endTok()),
-                    aSp.endLine(), aSp.endColumn() + 3);
+            return com.legend.protocol.SpanOrigin.anchoredOvershoot(
+                    new com.legend.protocol.SourceInfo("",
+                            c.tokens().startLine(ip.endTok()),
+                            c.tokens().startColumn(ip.endTok()),
+                            aSp.endLine(), aSp.endColumn()),
+                    aSp, 3);
         }
         var firstTok = ip.cursor().spanOf(0, 0);
-        return new com.legend.protocol.SourceInfo("", firstTok.startLine(),
-                firstTok.startColumn(), aSp.endLine(), aSp.endColumn() + 3);
+        return com.legend.protocol.SpanOrigin.anchoredOvershoot(firstTok,
+                aSp, 3);
     }
 
     /** The GENERAL authentication island for stores whose walker accepts
