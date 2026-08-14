@@ -220,13 +220,124 @@ def check(c: model.Corpus, generated: dict[str, list[dict]],
     return bad
 
 
-def build_rings(c: model.Corpus, tables: dict[str, list[dict]], rings: int = 6):
+def _components(c: model.Corpus, unseeded: list[str]) -> list[list[str]]:
+    """Connected components of the join graph, restricted to tables with no rows."""
+    adj = {n: set() for n in unseeded}
+    for j in c.joins.values():
+        a, b = j.left_table, j.right_table
+        if a in adj and b in adj:
+            adj[a].add(b)
+            adj[b].add(a)
+    seen, comps = set(), []
+    for n in unseeded:
+        if n in seen:
+            continue
+        stack, comp = [n], []
+        while stack:
+            x = stack.pop()
+            if x in seen:
+                continue
+            seen.add(x)
+            comp.append(x)
+            stack.extend(adj[x] - seen)
+        comps.append(sorted(comp))
+    return sorted(comps, key=len, reverse=True)
+
+
+def _reserved() -> set[str]:
+    """Tables a DERIVATION owns, which expansion must never seed.
+
+    Emptiness is not always absence. `partition.EMPTY` (TRADE_FX) is declared, mapped
+    exactly like its siblings, and left empty ON PURPOSE -- it is the empty-union-leg case,
+    and a union that silently gained a fifth leg would stop testing the thing it exists to
+    test. Bootstrapping cannot tell "empty by design" from "not reached yet" by looking at
+    rows, so the derivations say so explicitly.
+
+    Caught by seed.check(), which is the reason that check runs before anything else: the
+    first symptom was "partitions hold 25 rows, TRADE holds 20", five rows of nonsense in a
+    table whose whole job was to have none.
+    """
+    import partition
+    return {partition.EMPTY, *partition.BY_ASSET_CLASS.values()}
+
+
+def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Seed one ROOT per disconnected component, so expansion can continue into it.
+
+    Ring expansion can only reach a table joined to one that already has rows, so it stops
+    at the edge of the hand-written core's component. 62 of 210 tables sat unseeded for that
+    reason alone -- not because they were hard, but because nothing pointed at them. They are
+    38 separate components, mostly two to five tables, and hand-writing 38 seeds would be 38
+    chances to get a column name wrong.
+
+    So each component's most-connected table is seeded from its SCHEMA instead: primary key
+    from the table name, every other column from its declared kind, foreign keys left NULL
+    because by definition they point at tables that have no rows yet. The next ring then
+    reaches the rest of the component normally.
+
+    A bootstrapped table is deliberately the LEAST interesting row-set in the corpus -- no
+    dangling keys, no childless parents -- because those shapes need a parent to be adversarial
+    ABOUT. The ring that follows adds them.
+    """
+    seeded = {t for t, rows in tables.items() if rows}
+    reserved = _reserved()
+    unseeded = [n for n in sorted(c.tables)
+                if n not in seeded and n not in c.views and n not in reserved
+                and len(c.tables[n].pk) == 1]
+    out: dict[str, list[dict]] = {}
+    for offset, comp in enumerate(_components(c, unseeded)):
+        # Most-connected first: seeding a hub reaches more of the component per ring than
+        # seeding a leaf, and ties break by name so the choice is reproducible.
+        degree = {n: sum(1 for j in c.joins.values()
+                         if j.left_table == n or j.right_table == n) for n in comp}
+        root = max(comp, key=lambda n: (degree[n], n))
+        table = c.tables[root]
+        pk = table.pk[0]
+        # A bootstrapped root may still reference tables that DO have rows -- being in an
+        # unreached component is about what points AT it, not what it points at. Those keys
+        # get the full adversarial treatment; only keys into the still-empty part are NULLed,
+        # because there is nothing yet to point at.
+        live = _fk_targets(c, root, {t for t, rows in tables.items() if rows})
+        live_cols = {local for local, _, _ in live}
+        dead_cols = {local for local, _, _ in _fk_targets(c, root, set(c.tables))} - live_cols
+        prefix = "".join(w[0] for w in root.split("_"))[:4]
+        rows = []
+        for i in range(ROWS_PER_TABLE):
+            row = {}
+            for col in table.columns.values():
+                if col.name == pk:
+                    row[col.name] = f"{prefix}-{i + 1:04d}"
+                elif col.name in live_cols or col.name in dead_cols:
+                    row[col.name] = None
+                else:
+                    row[col.name] = _value(col, i, offset)
+            rows.append(row)
+        for local, parent, pcol in live:
+            parents = [p[pcol] for p in tables[parent] if p.get(pcol) is not None]
+            if not parents or local == pk:
+                continue
+            for i, row in enumerate(rows):
+                if i == 0:
+                    row[local] = None                      # A2 absent key
+                elif i == 1:
+                    row[local] = f"{parents[0]}-GONE"       # A1 dangling key
+                else:
+                    usable = parents[:-1] or parents       # A3 leaves one parent childless
+                    row[local] = usable[(i - 2) % len(usable)]
+        out[root] = rows
+    return out
+
+
+def build_rings(c: model.Corpus, tables: dict[str, list[dict]], rings: int = 24):
     """Expand outward repeatedly, each ring seeded from everything the previous ones
     produced.
 
-    The default of six is a safety bound, not a target: the loop stops as soon as a ring
-    produces nothing, and in practice it converges well before that. A bound exists at all
-    so a cycle in the join graph cannot spin.
+    The bound is a safety net so a cycle in the join graph cannot spin, NOT a target: the
+    loop stops as soon as a round produces nothing new. It was 6, which silently capped the
+    corpus at 148 of 210 tables -- normal ring expansion consumed the whole budget from a
+    cold start, so the bootstrap branch below was never reached and 38 components stayed
+    empty. Raised to 24, well clear of the ~8 rounds this model actually needs; if a future
+    model needs more the symptom is tables staying unseeded, which the build reports.
 
     One ring reaches only the immediate neighbours of the hand-written core. Iterating
     walks the join graph outward until it stops finding tables it can satisfy — which is
@@ -240,11 +351,17 @@ def build_rings(c: model.Corpus, tables: dict[str, list[dict]], rings: int = 6):
     merged: dict[str, list[dict]] = {}
     layers: list[tuple[dict, dict]] = []
     current = dict(tables)
+    # Two phases, repeated: expand until a ring produces nothing, then bootstrap the roots of
+    # whatever components remain unreached and expand again. Bounded by `rings` overall so a
+    # cycle in the join graph cannot spin, and by "bootstrap produced nothing" for the outer
+    # loop -- once every component has a seeded root there is nothing left to bootstrap.
     for _ in range(rings):
         base = {k: list(v) for k, v in current.items()}
         produced = build(c, current)
         if not produced:
-            break
+            produced = bootstrap(c, current)
+            if not produced:
+                break
         layers.append((produced, base))
         merged.update(produced)
         current.update(produced)

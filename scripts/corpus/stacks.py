@@ -33,7 +33,12 @@ MIN_FEATURES = 5
 # seed automatically widens the corpus instead of needing a new entry here.
 # Bounded, not because more would be wrong, but because every root costs a service and
 # the suite is run per commit. Raised as the seed widens; the ranking decides which.
-MAX_ROOTS = 45
+# 45 -> 120 when the expansion reached all 210 tables: 86 roots now qualify, and the cap
+# was silently discarding the bottom 41. Output SATURATES at 45 services well before the
+# cap binds -- the signature dedupe and MIN_FEATURES do the real limiting -- so the number
+# here is headroom rather than a target, and raising it further changes nothing until the
+# model grows again.
+MAX_ROOTS = 120
 
 
 def _identifier(c: model.Corpus, root: str) -> str | None:

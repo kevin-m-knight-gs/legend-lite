@@ -2819,8 +2819,8 @@ Service stress::D0_SalesCreditDense
         ->project(~[
             creditId:x|$x.creditId,
             salesPersonDeskBusinessUnitName:x|$x.salesPerson.desk.businessUnit.name,
+            tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
             tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
-            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -2859,7 +2859,7 @@ Service stress::D0_SalesCreditDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"creditId":"SC-0001","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":190500.0},{"creditId":"SC-0002","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":477500.0},{"creditId":"SC-0003","salesPersonDeskBusinessUnitName":"Northbridge","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0004","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"SELL","tradeGrossAmount":250000.0},{"creditId":"SC-0005","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0006","salesPersonDeskBusinessUnitName":"Northbridge","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0007","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":282000.0},{"creditId":"SC-0008","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":18975.0},{"creditId":"SC-0009","salesPersonDeskBusinessUnitName":"Northbridge","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":576750.0},{"creditId":"SC-0010","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":498000.0},{"creditId":"SC-0011","salesPersonDeskBusinessUnitName":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":167300.0},{"creditId":"SC-0012","salesPersonDeskBusinessUnitName":"Northbridge","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":null,"tradeGrossAmount":369000.0}]';
+                    data: '[{"creditId":"SC-0001","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0},{"creditId":"SC-0002","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0},{"creditId":"SC-0003","salesPersonDeskBusinessUnitName":"Northbridge","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0004","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0},{"creditId":"SC-0005","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0006","salesPersonDeskBusinessUnitName":"Northbridge","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0007","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0},{"creditId":"SC-0008","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":18975.0},{"creditId":"SC-0009","salesPersonDeskBusinessUnitName":"Northbridge","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":576750.0},{"creditId":"SC-0010","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0},{"creditId":"SC-0011","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0},{"creditId":"SC-0012","salesPersonDeskBusinessUnitName":"Northbridge","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":null,"tradeGrossAmount":369000.0}]';
                   }#;
               }#
           ]
@@ -2879,9 +2879,9 @@ Service stress::D1_ClearedTradeDense
         ->filter({x|($x.currency != ' none')})
         ->project(~[
             clearedTradeId:x|$x.clearedTradeId,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
             tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
             tradeBookDeskName:x|$x.trade.book.desk.name,
-            tradeTraderManagerBadge:x|$x.trade.trader.manager.badge,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -2920,7 +2920,7 @@ Service stress::D1_ClearedTradeDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentExchangeName":null,"tradeBookDeskName":null,"tradeTraderManagerBadge":null,"tradeSide":null,"tradeGrossAmount":null},{"clearedTradeId":"CT-0002","tradeInstrumentExchangeName":null,"tradeBookDeskName":null,"tradeTraderManagerBadge":null,"tradeSide":null,"tradeGrossAmount":null},{"clearedTradeId":"CT-0003","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeSide":"BUY","tradeGrossAmount":190500.0},{"clearedTradeId":"CT-0004","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeSide":"BUY","tradeGrossAmount":477500.0},{"clearedTradeId":"CT-0005","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
+                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookDeskName":null,"tradeSide":null,"tradeGrossAmount":null},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookDeskName":null,"tradeSide":null,"tradeGrossAmount":null},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookDeskName":"Cash Equities","tradeSide":"BUY","tradeGrossAmount":190500.0},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookDeskName":"Cash Equities","tradeSide":"BUY","tradeGrossAmount":477500.0},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookDeskName":"Cash Equities","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
                   }#;
               }#
           ]
@@ -2941,8 +2941,8 @@ Service stress::D2_AllocationDense
         ->project(~[
             allocationId:x|$x.allocationId,
             tradeTraderDeskName:x|$x.trade.trader.desk.name,
+            tradeTraderManagerBadge:x|$x.trade.trader.manager.badge,
             tradeCounterpartyCountryName:x|$x.trade.counterparty.country.name,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -2981,7 +2981,7 @@ Service stress::D2_AllocationDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"allocationId":"A-0001","tradeTraderDeskName":null,"tradeCounterpartyCountryName":null,"bookDeskBusinessUnitName":null,"tradeSide":null,"tradeGrossAmount":null},{"allocationId":"A-0002","tradeTraderDeskName":null,"tradeCounterpartyCountryName":null,"bookDeskBusinessUnitName":null,"tradeSide":null,"tradeGrossAmount":null},{"allocationId":"A-0003","tradeTraderDeskName":"Cash Equities","tradeCounterpartyCountryName":"United States","bookDeskBusinessUnitName":"Northbridge","tradeSide":"BUY","tradeGrossAmount":190500.0},{"allocationId":"A-0004","tradeTraderDeskName":"Cash Equities","tradeCounterpartyCountryName":"United States","bookDeskBusinessUnitName":"Northbridge","tradeSide":"BUY","tradeGrossAmount":477500.0},{"allocationId":"A-0005","tradeTraderDeskName":"Cash Equities","tradeCounterpartyCountryName":"United Kingdom","bookDeskBusinessUnitName":"Northbridge","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
+                    data: '[{"allocationId":"A-0001","tradeTraderDeskName":null,"tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":null,"tradeGrossAmount":null},{"allocationId":"A-0002","tradeTraderDeskName":null,"tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":null,"tradeGrossAmount":null},{"allocationId":"A-0003","tradeTraderDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":190500.0},{"allocationId":"A-0004","tradeTraderDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":477500.0},{"allocationId":"A-0005","tradeTraderDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
                   }#;
               }#
           ]
@@ -3001,9 +3001,9 @@ Service stress::D3_TradeExceptionDense
         ->filter({x|($x.status != ' none')})
         ->project(~[
             exceptionId:x|$x.exceptionId,
-            tradeInstrumentCurrency:x|$x.trade.instrument.currency,
-            tradeBookCurrency:x|$x.trade.book.currency,
-            tradeTraderBadge:x|$x.trade.trader.badge,
+            tradeOrderStatus:x|$x.trade.order.status,
+            tradeBlockCurrency:x|$x.trade.block.currency,
+            tradeAvgPriceTradeCurrency:x|$x.trade.avgPriceTrade.currency,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -3042,7 +3042,7 @@ Service stress::D3_TradeExceptionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"exceptionId":"TE-0001","tradeInstrumentCurrency":null,"tradeBookCurrency":null,"tradeTraderBadge":null,"tradeSide":null,"tradeGrossAmount":null},{"exceptionId":"TE-0002","tradeInstrumentCurrency":null,"tradeBookCurrency":null,"tradeTraderBadge":null,"tradeSide":null,"tradeGrossAmount":null},{"exceptionId":"TE-0003","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeSide":"BUY","tradeGrossAmount":190500.0},{"exceptionId":"TE-0004","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeSide":"BUY","tradeGrossAmount":477500.0},{"exceptionId":"TE-0005","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
+                    data: '[{"exceptionId":"TE-0001","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeAvgPriceTradeCurrency":null,"tradeSide":null,"tradeGrossAmount":null},{"exceptionId":"TE-0002","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeAvgPriceTradeCurrency":null,"tradeSide":null,"tradeGrossAmount":null},{"exceptionId":"TE-0003","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeAvgPriceTradeCurrency":null,"tradeSide":"BUY","tradeGrossAmount":190500.0},{"exceptionId":"TE-0004","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeAvgPriceTradeCurrency":null,"tradeSide":"BUY","tradeGrossAmount":477500.0},{"exceptionId":"TE-0005","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeAvgPriceTradeCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0}]';
                   }#;
               }#
           ]
@@ -3052,9 +3052,69 @@ Service stress::D3_TradeExceptionDense
   ]
 }
 
-Service stress::D4_ConfirmationDense
+Service stress::D4_TradeDense
 {
     pattern: '/stress/d4';
+    documentation: 'Dense stack on trading::Trade: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            orderInstrumentSectorName:x|$x.order.instrument.sector.name,
+            orderInstrumentInstrumentCurrencyName:x|$x.order.instrument.instrumentCurrency.name,
+            orderInstrumentExchangeName:x|$x.order.instrument.exchange.name,
+            grossAmount:x|$x.grossAmount
+        ])
+        ->sort(~tradeId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D4_TradeDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":190500.0},{"tradeId":"TRD-0002","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":477500.0},{"tradeId":"TRD-0003","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0004","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0005","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0006","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0007","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":282000.0},{"tradeId":"TRD-0008","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":18975.0},{"tradeId":"TRD-0009","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":576750.0},{"tradeId":"TRD-0010","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":498000.0},{"tradeId":"TRD-0011","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":167300.0},{"tradeId":"TRD-0012","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":369000.0},{"tradeId":"TRD-0013","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":171250.0},{"tradeId":"TRD-0014","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":69000.0},{"tradeId":"TRD-0015","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":35000.0},{"tradeId":"TRD-0016","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":264600.0},{"tradeId":"TRD-0017","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":385000.0},{"tradeId":"TRD-0018","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":4912500.0},{"tradeId":"TRD-0019","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":1960000.0},{"tradeId":"TRD-0020","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D5_ConfirmationDense
+{
+    pattern: '/stress/d5';
     documentation: 'Dense stack on ops::Confirmation: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3062,9 +3122,9 @@ Service stress::D4_ConfirmationDense
         ->filter({x|($x.status != ' none')})
         ->project(~[
             confirmId:x|$x.confirmId,
-            tradeCounterpartyLegalName:x|$x.trade.counterparty.legalName,
-            tradeCurrency:x|$x.trade.currency,
-            tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
+            tradeInstrumentCurrency:x|$x.trade.instrument.currency,
+            tradeBookCurrency:x|$x.trade.book.currency,
+            tradeTraderBadge:x|$x.trade.trader.badge,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -3075,7 +3135,7 @@ Service stress::D4_ConfirmationDense
     }
   testSuites:
   [
-    D4_ConfirmationDense_suite:
+    D5_ConfirmationDense_suite:
     {
       data:
       [
@@ -3103,7 +3163,7 @@ Service stress::D4_ConfirmationDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"confirmId":"CNF-0001","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0},{"confirmId":"CNF-0002","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0},{"confirmId":"CNF-0003","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0004","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0},{"confirmId":"CNF-0005","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0006","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0007","tradeCounterpartyLegalName":null,"tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0},{"confirmId":"CNF-0008","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0},{"confirmId":"CNF-0009","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0},{"confirmId":"CNF-0010","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeInstrumentSectorName":"Financials","tradeSide":"SELL","tradeGrossAmount":171250.0},{"confirmId":"CNF-0011","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeInstrumentSectorName":"Financials","tradeSide":"BUY","tradeGrossAmount":69000.0},{"confirmId":"CNF-0012","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeInstrumentSectorName":"Health Care","tradeSide":"BUY","tradeGrossAmount":264600.0},{"confirmId":"CNF-0013","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeInstrumentSectorName":"Health Care","tradeSide":"SELL","tradeGrossAmount":385000.0},{"confirmId":"CNF-0014","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeInstrumentSectorName":null,"tradeSide":"BUY","tradeGrossAmount":4912500.0},{"confirmId":"CNF-0015","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeInstrumentSectorName":null,"tradeSide":"BUY","tradeGrossAmount":1960000.0}]';
+                    data: '[{"confirmId":"CNF-0001","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeSide":"BUY","tradeGrossAmount":190500.0},{"confirmId":"CNF-0002","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeSide":"BUY","tradeGrossAmount":477500.0},{"confirmId":"CNF-0003","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0004","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeSide":"SELL","tradeGrossAmount":250000.0},{"confirmId":"CNF-0005","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10102","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0006","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0007","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeSide":"BUY","tradeGrossAmount":282000.0},{"confirmId":"CNF-0008","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeSide":"BUY","tradeGrossAmount":498000.0},{"confirmId":"CNF-0009","tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeTraderBadge":null,"tradeSide":"BUY","tradeGrossAmount":167300.0},{"confirmId":"CNF-0010","tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeTraderBadge":"B10102","tradeSide":"SELL","tradeGrossAmount":171250.0},{"confirmId":"CNF-0011","tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeTraderBadge":"B10188","tradeSide":"BUY","tradeGrossAmount":69000.0},{"confirmId":"CNF-0012","tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeTraderBadge":"B10188","tradeSide":"BUY","tradeGrossAmount":264600.0},{"confirmId":"CNF-0013","tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeTraderBadge":"B10102","tradeSide":"SELL","tradeGrossAmount":385000.0},{"confirmId":"CNF-0014","tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeTraderBadge":"B10102","tradeSide":"BUY","tradeGrossAmount":4912500.0},{"confirmId":"CNF-0015","tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeTraderBadge":"B10188","tradeSide":"BUY","tradeGrossAmount":1960000.0}]';
                   }#;
               }#
           ]
@@ -3113,9 +3173,9 @@ Service stress::D4_ConfirmationDense
   ]
 }
 
-Service stress::D5_TradeReportDense
+Service stress::D6_TradeReportDense
 {
-    pattern: '/stress/d5';
+    pattern: '/stress/d6';
     documentation: 'Dense stack on regulatory::TradeReport: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3123,9 +3183,9 @@ Service stress::D5_TradeReportDense
         ->filter({x|($x.status != ' none')})
         ->project(~[
             reportId:x|$x.reportId,
-            tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
-            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
-            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
+            tradeCounterpartyLegalName:x|$x.trade.counterparty.legalName,
+            tradeCurrency:x|$x.trade.currency,
+            tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -3136,7 +3196,7 @@ Service stress::D5_TradeReportDense
     }
   testSuites:
   [
-    D5_TradeReportDense_suite:
+    D6_TradeReportDense_suite:
     {
       data:
       [
@@ -3164,66 +3224,7 @@ Service stress::D5_TradeReportDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reportId":"RPT-0001","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":190500.0},{"reportId":"RPT-0002","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":477500.0},{"reportId":"RPT-0003","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0004","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"SELL","tradeGrossAmount":250000.0},{"reportId":"RPT-0005","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0006","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0007","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":282000.0},{"reportId":"RPT-0008","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":18975.0},{"reportId":"RPT-0009","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":576750.0},{"reportId":"RPT-0010","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":498000.0},{"reportId":"RPT-0011","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":"BUY","tradeGrossAmount":167300.0},{"reportId":"RPT-0012","tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeSide":null,"tradeGrossAmount":369000.0},{"reportId":"RPT-0013","tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"SELL","tradeGrossAmount":171250.0},{"reportId":"RPT-0014","tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeInstrumentExchangeName":"London Stock Exchange","tradeSide":"BUY","tradeGrossAmount":69000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D6_GreeksDense
-{
-    pattern: '/stress/d6';
-    documentation: 'Dense stack on risk::Greeks: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |risk::Greeks.all()
-        ->filter({x|($x.currency != ' none')})
-        ->project(~[
-            greeksId:x|$x.greeksId,
-            positionBookDeskName:x|$x.position.book.desk.name,
-            positionPortfolioManagerBenchmark:x|$x.position.portfolio.manager.benchmark,
-            positionInstrumentSectorName:x|$x.position.instrument.sector.name
-        ])
-        ->sort(~greeksId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D6_GreeksDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"greeksId":"GRK-0001","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":"Information Technology"},{"greeksId":"GRK-0002","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":"Information Technology"},{"greeksId":"GRK-0003","positionBookDeskName":"Equity Derivatives","positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":null},{"greeksId":"GRK-0004","positionBookDeskName":null,"positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":null}]';
+                    data: '[{"reportId":"RPT-0001","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":190500.0},{"reportId":"RPT-0002","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":477500.0},{"reportId":"RPT-0003","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0004","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"SELL","tradeGrossAmount":250000.0},{"reportId":"RPT-0005","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0006","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0007","tradeCounterpartyLegalName":null,"tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":282000.0},{"reportId":"RPT-0008","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":18975.0},{"reportId":"RPT-0009","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":576750.0},{"reportId":"RPT-0010","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":498000.0},{"reportId":"RPT-0011","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":167300.0},{"reportId":"RPT-0012","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":null,"tradeGrossAmount":369000.0},{"reportId":"RPT-0013","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"SELL","tradeGrossAmount":171250.0},{"reportId":"RPT-0014","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":69000.0}]';
                   }#;
               }#
           ]
@@ -3245,7 +3246,7 @@ Service stress::D7_SettlementDense
             settlementId:x|$x.settlementId,
             counterpartyCountryName:x|$x.counterparty.country.name,
             counterpartyLegalName:x|$x.counterparty.legalName,
-            tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
+            tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount
         ])
@@ -3284,7 +3285,7 @@ Service stress::D7_SettlementDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"settlementId":"STL-0001","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0},{"settlementId":"STL-0002","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0},{"settlementId":"STL-0003","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0004","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0},{"settlementId":"STL-0005","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0006","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0007","counterpartyCountryName":null,"counterpartyLegalName":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0},{"settlementId":"STL-0008","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":576750.0},{"settlementId":"STL-0009","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0},{"settlementId":"STL-0010","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0},{"settlementId":"STL-0011","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":"Financials","tradeSide":"SELL","tradeGrossAmount":171250.0},{"settlementId":"STL-0012","counterpartyCountryName":"Japan","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":"Financials","tradeSide":"BUY","tradeGrossAmount":69000.0},{"settlementId":"STL-0013","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeInstrumentSectorName":"Financials","tradeSide":"BUY","tradeGrossAmount":35000.0},{"settlementId":"STL-0014","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeInstrumentSectorName":"Health Care","tradeSide":"BUY","tradeGrossAmount":264600.0},{"settlementId":"STL-0015","counterpartyCountryName":"Japan","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":"Health Care","tradeSide":"SELL","tradeGrossAmount":385000.0},{"settlementId":"STL-0016","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeInstrumentSectorName":null,"tradeSide":"BUY","tradeGrossAmount":4912500.0},{"settlementId":"STL-0017","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeInstrumentSectorName":null,"tradeSide":"BUY","tradeGrossAmount":1960000.0},{"settlementId":"STL-9999","counterpartyCountryName":null,"counterpartyLegalName":null,"tradeInstrumentSectorName":null,"tradeSide":null,"tradeGrossAmount":null}]';
+                    data: '[{"settlementId":"STL-0001","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":190500.0},{"settlementId":"STL-0002","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":477500.0},{"settlementId":"STL-0003","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0004","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"SELL","tradeGrossAmount":250000.0},{"settlementId":"STL-0005","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0006","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0007","counterpartyCountryName":null,"counterpartyLegalName":null,"tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":282000.0},{"settlementId":"STL-0008","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":576750.0},{"settlementId":"STL-0009","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":498000.0},{"settlementId":"STL-0010","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":167300.0},{"settlementId":"STL-0011","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"SELL","tradeGrossAmount":171250.0},{"settlementId":"STL-0012","counterpartyCountryName":"Japan","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":69000.0},{"settlementId":"STL-0013","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":35000.0},{"settlementId":"STL-0014","counterpartyCountryName":"Germany","counterpartyLegalName":"O\'Neill Capital Partners","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":264600.0},{"settlementId":"STL-0015","counterpartyCountryName":"Japan","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"SELL","tradeGrossAmount":385000.0},{"settlementId":"STL-0016","counterpartyCountryName":"United Kingdom","counterpartyLegalName":"Halberd Securities","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":4912500.0},{"settlementId":"STL-0017","counterpartyCountryName":"United States","counterpartyLegalName":"Meridian Asset Management","tradeOrderInstrumentCurrency":null,"tradeSide":"BUY","tradeGrossAmount":1960000.0},{"settlementId":"STL-9999","counterpartyCountryName":null,"counterpartyLegalName":null,"tradeOrderInstrumentCurrency":null,"tradeSide":null,"tradeGrossAmount":null}]';
                   }#;
               }#
           ]
@@ -3294,29 +3295,30 @@ Service stress::D7_SettlementDense
   ]
 }
 
-Service stress::D9_TradeDense
+Service stress::D8_TradeCorrectionDense
 {
-    pattern: '/stress/d9';
-    documentation: 'Dense stack on trading::Trade: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    pattern: '/stress/d8';
+    documentation: 'Dense stack on trading::TradeCorrection: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |trading::Trade.all()
-        ->filter({x|($x.currency != ' none')})
+    query: |trading::TradeCorrection.all()
+        ->filter({x|($x.status != ' none')})
         ->project(~[
-            tradeId:x|$x.tradeId,
-            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
-            traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
-            traderManagerDeskName:x|$x.trader.manager.desk.name,
-            grossAmount:x|$x.grossAmount
+            correctionId:x|$x.correctionId,
+            tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
+            tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount
         ])
-        ->sort(~tradeId->ascending())
+        ->sort(~correctionId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D9_TradeDense_suite:
+    D8_TradeCorrectionDense_suite:
     {
       data:
       [
@@ -3331,7 +3333,7 @@ Service stress::D9_TradeDense
       ]
       tests:
       [
-        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -3344,7 +3346,7 @@ Service stress::D9_TradeDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":190500.0},{"tradeId":"TRD-0002","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":477500.0},{"tradeId":"TRD-0003","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":250000.0},{"tradeId":"TRD-0004","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":250000.0},{"tradeId":"TRD-0005","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":250000.0},{"tradeId":"TRD-0006","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"grossAmount":250000.0},{"tradeId":"TRD-0007","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":282000.0},{"tradeId":"TRD-0008","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":18975.0},{"tradeId":"TRD-0009","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":576750.0},{"tradeId":"TRD-0010","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":498000.0},{"tradeId":"TRD-0011","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"grossAmount":167300.0},{"tradeId":"TRD-0012","instrumentInstrumentCurrencyCountryName":"United States","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":369000.0},{"tradeId":"TRD-0013","instrumentInstrumentCurrencyCountryName":"United Kingdom","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":171250.0},{"tradeId":"TRD-0014","instrumentInstrumentCurrencyCountryName":"United Kingdom","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":69000.0},{"tradeId":"TRD-0015","instrumentInstrumentCurrencyCountryName":"United Kingdom","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":35000.0},{"tradeId":"TRD-0016","instrumentInstrumentCurrencyCountryName":"Germany","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":264600.0},{"tradeId":"TRD-0017","instrumentInstrumentCurrencyCountryName":"Germany","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":385000.0},{"tradeId":"TRD-0018","instrumentInstrumentCurrencyCountryName":"United Kingdom","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":4912500.0},{"tradeId":"TRD-0019","instrumentInstrumentCurrencyCountryName":"United Kingdom","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"grossAmount":1960000.0},{"tradeId":"TRD-0020","instrumentInstrumentCurrencyCountryName":"United Kingdom","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","grossAmount":975000.0}]';
+                    data: '[{"correctionId":"TC-0001","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":null,"tradeInstrumentInstrumentCurrencyName":null,"tradeSide":null,"tradeGrossAmount":null},{"correctionId":"TC-0002","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":null,"tradeInstrumentInstrumentCurrencyName":null,"tradeSide":null,"tradeGrossAmount":null},{"correctionId":"TC-0003","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":190500.0},{"correctionId":"TC-0004","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":477500.0},{"correctionId":"TC-0005","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
                   }#;
               }#
           ]
@@ -3354,9 +3356,373 @@ Service stress::D9_TradeDense
   ]
 }
 
-Service stress::D10_PositionDense
+Service stress::D9_NovationRequestDense
+{
+    pattern: '/stress/d9';
+    documentation: 'Dense stack on clearing::NovationRequest: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |clearing::NovationRequest.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            novationId:x|$x.novationId,
+            clearedTradeClearingMemberClearingHouseCurrency:x|$x.clearedTrade.clearingMember.clearingHouse.currency,
+            clearedTradeTradeOrderStatus:x|$x.clearedTrade.trade.order.status,
+            clearedTradeTradeBlockCurrency:x|$x.clearedTrade.trade.block.currency,
+            clearedTradeTradeSide:x|$x.clearedTrade.trade.side,
+            clearedTradeTradeGrossAmount:x|$x.clearedTrade.trade.grossAmount
+        ])
+        ->sort(~novationId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D9_NovationRequestDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"novationId":"NR-0001","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0002","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0003","clearedTradeClearingMemberClearingHouseCurrency":"USD","clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0004","clearedTradeClearingMemberClearingHouseCurrency":"GBP","clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0005","clearedTradeClearingMemberClearingHouseCurrency":"EUR","clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":"BUY","clearedTradeTradeGrossAmount":190500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D10_CashSettlementDense
 {
     pattern: '/stress/d10';
+    documentation: 'Dense stack on settlement::CashSettlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::CashSettlement.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            cashSettlementId:x|$x.cashSettlementId,
+            settlementTradeOrderStatus:x|$x.settlement.trade.order.status,
+            settlementTradeBlockCurrency:x|$x.settlement.trade.block.currency,
+            settlementTradeAvgPriceTradeCurrency:x|$x.settlement.trade.avgPriceTrade.currency,
+            settlementTradeSide:x|$x.settlement.trade.side,
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+        ])
+        ->sort(~cashSettlementId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D10_CashSettlementDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"cashSettlementId":"CS-0001","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"cashSettlementId":"CS-0002","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"cashSettlementId":"CS-0003","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"cashSettlementId":"CS-0004","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"cashSettlementId":"CS-0005","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D11_SecuritiesSettlementDense
+{
+    pattern: '/stress/d11';
+    documentation: 'Dense stack on settlement::SecuritiesSettlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::SecuritiesSettlement.all()
+        ->filter({x|($x.status != ' none')})
+        ->project(~[
+            secSettlementId:x|$x.secSettlementId,
+            settlementTradeInstrumentCurrency:x|$x.settlement.trade.instrument.currency,
+            settlementTradeBookCurrency:x|$x.settlement.trade.book.currency,
+            settlementTradeTraderBadge:x|$x.settlement.trade.trader.badge,
+            settlementTradeSide:x|$x.settlement.trade.side,
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+        ])
+        ->sort(~secSettlementId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D11_SecuritiesSettlementDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"secSettlementId":"SS-0001","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"secSettlementId":"SS-0002","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"secSettlementId":"SS-0003","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"secSettlementId":"SS-0004","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"secSettlementId":"SS-0005","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10077","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D12_SettlementFailDense
+{
+    pattern: '/stress/d12';
+    documentation: 'Dense stack on settlement::SettlementFail: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::SettlementFail.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            failId:x|$x.failId,
+            settlementTradeCounterpartyLegalName:x|$x.settlement.trade.counterparty.legalName,
+            settlementCounterpartyCountryName:x|$x.settlement.counterparty.country.name,
+            settlementTradeCurrency:x|$x.settlement.trade.currency,
+            settlementTradeSide:x|$x.settlement.trade.side,
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+        ])
+        ->sort(~failId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D12_SettlementFailDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"failId":"SF-0001","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"failId":"SF-0002","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"failId":"SF-0003","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementTradeCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"failId":"SF-0004","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementTradeCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"failId":"SF-0005","settlementTradeCounterpartyLegalName":"Halberd Securities","settlementCounterpartyCountryName":"United Kingdom","settlementTradeCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D13_BreakResolutionDense
+{
+    pattern: '/stress/d13';
+    documentation: 'Dense stack on ops::BreakResolution: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |ops::BreakResolution.all()
+        ->filter({x|($x.status != ' none')})
+        ->project(~[
+            resolutionId:x|$x.resolutionId,
+            tradeExceptionTradeOrderStatus:x|$x.tradeException.trade.order.status,
+            tradeExceptionTradeBlockCurrency:x|$x.tradeException.trade.block.currency,
+            tradeExceptionTradeAvgPriceTradeCurrency:x|$x.tradeException.trade.avgPriceTrade.currency,
+            tradeExceptionTradeSide:x|$x.tradeException.trade.side,
+            tradeExceptionTradeGrossAmount:x|$x.tradeException.trade.grossAmount
+        ])
+        ->sort(~resolutionId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D13_BreakResolutionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"resolutionId":"BR-0001","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0002","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0003","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0004","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0005","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":"BUY","tradeExceptionTradeGrossAmount":190500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D14_GreeksDense
+{
+    pattern: '/stress/d14';
+    documentation: 'Dense stack on risk::Greeks: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::Greeks.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            greeksId:x|$x.greeksId,
+            positionBookDeskName:x|$x.position.book.desk.name,
+            positionPortfolioManagerBenchmark:x|$x.position.portfolio.manager.benchmark,
+            positionInstrumentSectorName:x|$x.position.instrument.sector.name
+        ])
+        ->sort(~greeksId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D14_GreeksDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"greeksId":"GRK-0001","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":"Information Technology"},{"greeksId":"GRK-0002","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":"Information Technology"},{"greeksId":"GRK-0003","positionBookDeskName":"Equity Derivatives","positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":null},{"greeksId":"GRK-0004","positionBookDeskName":null,"positionPortfolioManagerBenchmark":null,"positionInstrumentSectorName":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D15_PositionDense
+{
+    pattern: '/stress/d15';
     documentation: 'Dense stack on positions::Position: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3364,9 +3730,9 @@ Service stress::D10_PositionDense
         ->filter({x|($x.currency != ' none')})
         ->project(~[
             positionId:x|$x.positionId,
+            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
             portfolioManagerDeskName:x|$x.portfolio.manager.desk.name,
-            instrumentExchangeCountryName:x|$x.instrument.exchange.country.name,
-            portfolioManagerBenchmark:x|$x.portfolio.manager.benchmark
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name
         ])
         ->sort(~positionId->ascending())
         ->limit(25);
@@ -3375,7 +3741,7 @@ Service stress::D10_PositionDense
     }
   testSuites:
   [
-    D10_PositionDense_suite:
+    D15_PositionDense_suite:
     {
       data:
       [
@@ -3403,7 +3769,7 @@ Service stress::D10_PositionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"positionId":"POS-0001","portfolioManagerDeskName":null,"instrumentExchangeCountryName":"United States","portfolioManagerBenchmark":null},{"positionId":"POS-0002","portfolioManagerDeskName":null,"instrumentExchangeCountryName":"United States","portfolioManagerBenchmark":null},{"positionId":"POS-0003","portfolioManagerDeskName":null,"instrumentExchangeCountryName":"United Kingdom","portfolioManagerBenchmark":null},{"positionId":"POS-0004","portfolioManagerDeskName":null,"instrumentExchangeCountryName":"Germany","portfolioManagerBenchmark":null},{"positionId":"POS-0005","portfolioManagerDeskName":null,"instrumentExchangeCountryName":"United Kingdom","portfolioManagerBenchmark":null},{"positionId":"POS-0006","portfolioManagerDeskName":null,"instrumentExchangeCountryName":"Germany","portfolioManagerBenchmark":null}]';
+                    data: '[{"positionId":"POS-0001","bookDeskBusinessUnitName":"Northbridge","portfolioManagerDeskName":null,"instrumentInstrumentCurrencyCountryName":"United States"},{"positionId":"POS-0002","bookDeskBusinessUnitName":"Northbridge","portfolioManagerDeskName":null,"instrumentInstrumentCurrencyCountryName":"United States"},{"positionId":"POS-0003","bookDeskBusinessUnitName":"Northbridge","portfolioManagerDeskName":null,"instrumentInstrumentCurrencyCountryName":"United Kingdom"},{"positionId":"POS-0004","bookDeskBusinessUnitName":"Northbridge","portfolioManagerDeskName":null,"instrumentInstrumentCurrencyCountryName":"Germany"},{"positionId":"POS-0005","bookDeskBusinessUnitName":"Northbridge","portfolioManagerDeskName":null,"instrumentInstrumentCurrencyCountryName":"United Kingdom"},{"positionId":"POS-0006","bookDeskBusinessUnitName":"Northbridge","portfolioManagerDeskName":null,"instrumentInstrumentCurrencyCountryName":"Germany"}]';
                   }#;
               }#
           ]
@@ -3413,9 +3779,70 @@ Service stress::D10_PositionDense
   ]
 }
 
-Service stress::D11_LotPositionDense
+Service stress::D16_TradeReportStatusDense
 {
-    pattern: '/stress/d11';
+    pattern: '/stress/d16';
+    documentation: 'Dense stack on regulatory::TradeReportStatus: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |regulatory::TradeReportStatus.all()
+        ->filter({x|($x.newStatus != ' none')})
+        ->project(~[
+            statusId:x|$x.statusId,
+            tradeReportTradeOrderStatus:x|$x.tradeReport.trade.order.status,
+            tradeReportTradeBlockCurrency:x|$x.tradeReport.trade.block.currency,
+            tradeReportTradeAvgPriceTradeCurrency:x|$x.tradeReport.trade.avgPriceTrade.currency,
+            tradeReportTradeSide:x|$x.tradeReport.trade.side,
+            tradeReportTradeGrossAmount:x|$x.tradeReport.trade.grossAmount
+        ])
+        ->sort(~statusId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D16_TradeReportStatusDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"statusId":"TRS-0001","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null},{"statusId":"TRS-0002","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null},{"statusId":"TRS-0003","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":190500.0},{"statusId":"TRS-0004","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":477500.0},{"statusId":"TRS-0005","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D17_LotPositionDense
+{
+    pattern: '/stress/d17';
     documentation: 'Dense stack on positions::LotPosition: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3434,7 +3861,7 @@ Service stress::D11_LotPositionDense
     }
   testSuites:
   [
-    D11_LotPositionDense_suite:
+    D17_LotPositionDense_suite:
     {
       data:
       [
@@ -3472,131 +3899,9 @@ Service stress::D11_LotPositionDense
   ]
 }
 
-Service stress::D16_NovationRequestDense
+Service stress::D22_AccrualEntryDense
 {
-    pattern: '/stress/d16';
-    documentation: 'Dense stack on clearing::NovationRequest: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |clearing::NovationRequest.all()
-        ->filter({x|($x.currency != ' none')})
-        ->project(~[
-            novationId:x|$x.novationId,
-            clearedTradeClearingMemberClearingHouseCurrency:x|$x.clearedTrade.clearingMember.clearingHouse.currency,
-            clearedTradeTradeInstrumentCurrency:x|$x.clearedTrade.trade.instrument.currency,
-            clearedTradeTradeBookCurrency:x|$x.clearedTrade.trade.book.currency,
-            clearedTradeTradeSide:x|$x.clearedTrade.trade.side,
-            clearedTradeTradeGrossAmount:x|$x.clearedTrade.trade.grossAmount
-        ])
-        ->sort(~novationId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D16_NovationRequestDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"novationId":"NR-0001","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeInstrumentCurrency":null,"clearedTradeTradeBookCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0002","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeInstrumentCurrency":null,"clearedTradeTradeBookCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0003","clearedTradeClearingMemberClearingHouseCurrency":"USD","clearedTradeTradeInstrumentCurrency":null,"clearedTradeTradeBookCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0004","clearedTradeClearingMemberClearingHouseCurrency":"GBP","clearedTradeTradeInstrumentCurrency":null,"clearedTradeTradeBookCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0005","clearedTradeClearingMemberClearingHouseCurrency":"EUR","clearedTradeTradeInstrumentCurrency":"USD","clearedTradeTradeBookCurrency":"USD","clearedTradeTradeSide":"BUY","clearedTradeTradeGrossAmount":190500.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D17_CashSettlementDense
-{
-    pattern: '/stress/d17';
-    documentation: 'Dense stack on settlement::CashSettlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |settlement::CashSettlement.all()
-        ->filter({x|($x.currency != ' none')})
-        ->project(~[
-            cashSettlementId:x|$x.cashSettlementId,
-            settlementTradeInstrumentCurrency:x|$x.settlement.trade.instrument.currency,
-            settlementTradeBookCurrency:x|$x.settlement.trade.book.currency,
-            settlementTradeTraderBadge:x|$x.settlement.trade.trader.badge,
-            settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
-        ])
-        ->sort(~cashSettlementId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D17_CashSettlementDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"cashSettlementId":"CS-0001","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"cashSettlementId":"CS-0002","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"cashSettlementId":"CS-0003","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"cashSettlementId":"CS-0004","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"cashSettlementId":"CS-0005","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10077","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D18_AccrualEntryDense
-{
-    pattern: '/stress/d18';
+    pattern: '/stress/d22';
     documentation: 'Dense stack on pnl::AccrualEntry: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3615,7 +3920,7 @@ Service stress::D18_AccrualEntryDense
     }
   testSuites:
   [
-    D18_AccrualEntryDense_suite:
+    D22_AccrualEntryDense_suite:
     {
       data:
       [
@@ -3653,9 +3958,9 @@ Service stress::D18_AccrualEntryDense
   ]
 }
 
-Service stress::D19_DailyPnLDense
+Service stress::D23_DailyPnLDense
 {
-    pattern: '/stress/d19';
+    pattern: '/stress/d23';
     documentation: 'Dense stack on pnl::DailyPnL: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3663,9 +3968,9 @@ Service stress::D19_DailyPnLDense
         ->filter({x|($x.currency != ' none')})
         ->project(~[
             pnlId:x|$x.pnlId,
-            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
-            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
-            mtdPnLYtdPnLCurrency:x|$x.mtdPnL.ytdPnL.currency
+            traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
+            traderManagerDeskName:x|$x.trader.manager.desk.name,
+            traderManagerManagerBadge:x|$x.trader.manager.manager.badge
         ])
         ->sort(~pnlId->ascending())
         ->limit(25);
@@ -3674,7 +3979,7 @@ Service stress::D19_DailyPnLDense
     }
   testSuites:
   [
-    D19_DailyPnLDense_suite:
+    D23_DailyPnLDense_suite:
     {
       data:
       [
@@ -3702,7 +4007,7 @@ Service stress::D19_DailyPnLDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"pnlId":"PNL-0001","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":"USD"},{"pnlId":"PNL-0002","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":"GBP"},{"pnlId":"PNL-0003","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":"EUR"},{"pnlId":"PNL-0004","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":"USD"},{"pnlId":"PNL-0005","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":"JPY"},{"pnlId":"PNL-0006","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":null},{"pnlId":"PNL-0007","traderManagerManagerBadge":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","mtdPnLYtdPnLCurrency":null}]';
+                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"traderManagerManagerBadge":null},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":null,"traderManagerManagerBadge":null},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":"Northbridge","traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null}]';
                   }#;
               }#
           ]
@@ -3712,9 +4017,9 @@ Service stress::D19_DailyPnLDense
   ]
 }
 
-Service stress::D20_HypotheticalPnLDense
+Service stress::D24_HypotheticalPnLDense
 {
-    pattern: '/stress/d20';
+    pattern: '/stress/d24';
     documentation: 'Dense stack on pnl::HypotheticalPnL: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3733,7 +4038,7 @@ Service stress::D20_HypotheticalPnLDense
     }
   testSuites:
   [
-    D20_HypotheticalPnLDense_suite:
+    D24_HypotheticalPnLDense_suite:
     {
       data:
       [
@@ -3771,9 +4076,9 @@ Service stress::D20_HypotheticalPnLDense
   ]
 }
 
-Service stress::D22_PnLAttributionDense
+Service stress::D26_PnLAttributionDense
 {
-    pattern: '/stress/d22';
+    pattern: '/stress/d26';
     documentation: 'Dense stack on pnl::PnLAttribution: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -3792,7 +4097,7 @@ Service stress::D22_PnLAttributionDense
     }
   testSuites:
   [
-    D22_PnLAttributionDense_suite:
+    D26_PnLAttributionDense_suite:
     {
       data:
       [
@@ -3830,213 +4135,28 @@ Service stress::D22_PnLAttributionDense
   ]
 }
 
-Service stress::D26_SecuritiesSettlementDense
-{
-    pattern: '/stress/d26';
-    documentation: 'Dense stack on settlement::SecuritiesSettlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |settlement::SecuritiesSettlement.all()
-        ->filter({x|($x.status != ' none')})
-        ->project(~[
-            secSettlementId:x|$x.secSettlementId,
-            settlementTradeCounterpartyLegalName:x|$x.settlement.trade.counterparty.legalName,
-            settlementCounterpartyCountryName:x|$x.settlement.counterparty.country.name,
-            settlementTradeCurrency:x|$x.settlement.trade.currency,
-            settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
-        ])
-        ->sort(~secSettlementId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D26_SecuritiesSettlementDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"secSettlementId":"SS-0001","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"secSettlementId":"SS-0002","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"secSettlementId":"SS-0003","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementTradeCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"secSettlementId":"SS-0004","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementTradeCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"secSettlementId":"SS-0005","settlementTradeCounterpartyLegalName":"Halberd Securities","settlementCounterpartyCountryName":"United Kingdom","settlementTradeCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D27_SettlementFailDense
-{
-    pattern: '/stress/d27';
-    documentation: 'Dense stack on settlement::SettlementFail: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |settlement::SettlementFail.all()
-        ->filter({x|($x.currency != ' none')})
-        ->project(~[
-            failId:x|$x.failId,
-            settlementCounterpartyLegalName:x|$x.settlement.counterparty.legalName,
-            settlementCurrency:x|$x.settlement.currency,
-            settlementTradeInstrumentCurrency:x|$x.settlement.trade.instrument.currency,
-            settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
-        ])
-        ->sort(~failId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D27_SettlementFailDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"failId":"SF-0001","settlementCounterpartyLegalName":null,"settlementCurrency":null,"settlementTradeInstrumentCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"failId":"SF-0002","settlementCounterpartyLegalName":null,"settlementCurrency":null,"settlementTradeInstrumentCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"failId":"SF-0003","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeInstrumentCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"failId":"SF-0004","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeInstrumentCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"failId":"SF-0005","settlementCounterpartyLegalName":"Halberd Securities","settlementCurrency":"USD","settlementTradeInstrumentCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D28_BreakResolutionDense
-{
-    pattern: '/stress/d28';
-    documentation: 'Dense stack on ops::BreakResolution: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |ops::BreakResolution.all()
-        ->filter({x|($x.status != ' none')})
-        ->project(~[
-            resolutionId:x|$x.resolutionId,
-            tradeExceptionTradeInstrumentCurrency:x|$x.tradeException.trade.instrument.currency,
-            tradeExceptionTradeBookCurrency:x|$x.tradeException.trade.book.currency,
-            tradeExceptionTradeTraderBadge:x|$x.tradeException.trade.trader.badge,
-            tradeExceptionTradeSide:x|$x.tradeException.trade.side,
-            tradeExceptionTradeGrossAmount:x|$x.tradeException.trade.grossAmount
-        ])
-        ->sort(~resolutionId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D28_BreakResolutionDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"resolutionId":"BR-0001","tradeExceptionTradeInstrumentCurrency":null,"tradeExceptionTradeBookCurrency":null,"tradeExceptionTradeTraderBadge":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0002","tradeExceptionTradeInstrumentCurrency":null,"tradeExceptionTradeBookCurrency":null,"tradeExceptionTradeTraderBadge":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0003","tradeExceptionTradeInstrumentCurrency":null,"tradeExceptionTradeBookCurrency":null,"tradeExceptionTradeTraderBadge":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0004","tradeExceptionTradeInstrumentCurrency":null,"tradeExceptionTradeBookCurrency":null,"tradeExceptionTradeTraderBadge":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0005","tradeExceptionTradeInstrumentCurrency":"USD","tradeExceptionTradeBookCurrency":"USD","tradeExceptionTradeTraderBadge":"B10041","tradeExceptionTradeSide":"BUY","tradeExceptionTradeGrossAmount":190500.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D30_TradeReportStatusDense
+Service stress::D30_AnalystRecommendationDense
 {
     pattern: '/stress/d30';
-    documentation: 'Dense stack on regulatory::TradeReportStatus: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    documentation: 'Dense stack on research::AnalystRecommendation: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |regulatory::TradeReportStatus.all()
-        ->filter({x|($x.newStatus != ' none')})
+    query: |research::AnalystRecommendation.all()
+        ->filter({x|($x.currency != ' none')})
         ->project(~[
-            statusId:x|$x.statusId,
-            tradeReportTradeInstrumentCurrency:x|$x.tradeReport.trade.instrument.currency,
-            tradeReportTradeBookCurrency:x|$x.tradeReport.trade.book.currency,
-            tradeReportTradeTraderBadge:x|$x.tradeReport.trade.trader.badge,
-            tradeReportTradeSide:x|$x.tradeReport.trade.side,
-            tradeReportTradeGrossAmount:x|$x.tradeReport.trade.grossAmount
+            recommendationId:x|$x.recommendationId,
+            instrumentExchangeCountryName:x|$x.instrument.exchange.country.name,
+            companySectorOutlookRegion:x|$x.company.sectorOutlook.region,
+            instrumentSectorName:x|$x.instrument.sector.name
         ])
-        ->sort(~statusId->ascending())
+        ->sort(~recommendationId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D30_TradeReportStatusDense_suite:
+    D30_AnalystRecommendationDense_suite:
     {
       data:
       [
@@ -4064,7 +4184,7 @@ Service stress::D30_TradeReportStatusDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"statusId":"TRS-0001","tradeReportTradeInstrumentCurrency":null,"tradeReportTradeBookCurrency":null,"tradeReportTradeTraderBadge":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null},{"statusId":"TRS-0002","tradeReportTradeInstrumentCurrency":null,"tradeReportTradeBookCurrency":null,"tradeReportTradeTraderBadge":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null},{"statusId":"TRS-0003","tradeReportTradeInstrumentCurrency":"USD","tradeReportTradeBookCurrency":"USD","tradeReportTradeTraderBadge":"B10041","tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":190500.0},{"statusId":"TRS-0004","tradeReportTradeInstrumentCurrency":"USD","tradeReportTradeBookCurrency":"USD","tradeReportTradeTraderBadge":"B10041","tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":477500.0},{"statusId":"TRS-0005","tradeReportTradeInstrumentCurrency":"USD","tradeReportTradeBookCurrency":"USD","tradeReportTradeTraderBadge":"B10077","tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":250000.0}]';
+                    data: '[{"recommendationId":"AR-0001","instrumentExchangeCountryName":null,"companySectorOutlookRegion":"Americas","instrumentSectorName":null},{"recommendationId":"AR-0002","instrumentExchangeCountryName":null,"companySectorOutlookRegion":"EMEA","instrumentSectorName":null},{"recommendationId":"AR-0003","instrumentExchangeCountryName":"United States","companySectorOutlookRegion":"APAC","instrumentSectorName":"Information Technology"},{"recommendationId":"AR-0004","instrumentExchangeCountryName":"United States","companySectorOutlookRegion":"Americas","instrumentSectorName":"Information Technology"},{"recommendationId":"AR-0005","instrumentExchangeCountryName":"United Kingdom","companySectorOutlookRegion":"EMEA","instrumentSectorName":"Financials"}]';
                   }#;
               }#
           ]
@@ -4192,28 +4312,28 @@ Service stress::D33_CapitalGainDense
   ]
 }
 
-Service stress::D34_SyntheticPositionDense
+Service stress::D34_ExecutionDense
 {
     pattern: '/stress/d34';
-    documentation: 'Dense stack on prime::SyntheticPosition: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    documentation: 'Dense stack on trading::Execution: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |prime::SyntheticPosition.all()
-        ->filter({x|($x.currency != ' none')})
+    query: |trading::Execution.all()
+        ->filter({x|($x.broker != ' none')})
         ->project(~[
-            syntheticId:x|$x.syntheticId,
-            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
-            instrumentSectorName:x|$x.instrument.sector.name,
-            instrumentInstrumentCurrencyName:x|$x.instrument.instrumentCurrency.name
+            executionId:x|$x.executionId,
+            orderInstrumentCurrency:x|$x.order.instrument.currency,
+            orderStatus:x|$x.order.status,
+            orderInstrumentSectorName:x|$x.order.instrument.sector.name
         ])
-        ->sort(~syntheticId->ascending())
+        ->sort(~executionId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D34_SyntheticPositionDense_suite:
+    D34_ExecutionDense_suite:
     {
       data:
       [
@@ -4241,7 +4361,7 @@ Service stress::D34_SyntheticPositionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"syntheticId":"SP-0001","instrumentInstrumentCurrencyCountryName":null,"instrumentSectorName":null,"instrumentInstrumentCurrencyName":null},{"syntheticId":"SP-0002","instrumentInstrumentCurrencyCountryName":null,"instrumentSectorName":null,"instrumentInstrumentCurrencyName":null},{"syntheticId":"SP-0003","instrumentInstrumentCurrencyCountryName":"United States","instrumentSectorName":"Information Technology","instrumentInstrumentCurrencyName":"US Dollar"},{"syntheticId":"SP-0004","instrumentInstrumentCurrencyCountryName":"United States","instrumentSectorName":"Information Technology","instrumentInstrumentCurrencyName":"US Dollar"},{"syntheticId":"SP-0005","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentSectorName":"Financials","instrumentInstrumentCurrencyName":"Pound Sterling"}]';
+                    data: '[{"executionId":"E-0001","orderInstrumentCurrency":null,"orderStatus":null,"orderInstrumentSectorName":null},{"executionId":"E-0002","orderInstrumentCurrency":null,"orderStatus":null,"orderInstrumentSectorName":null},{"executionId":"E-0003","orderInstrumentCurrency":null,"orderStatus":"ACTIVE","orderInstrumentSectorName":null},{"executionId":"E-0004","orderInstrumentCurrency":null,"orderStatus":"PENDING","orderInstrumentSectorName":null},{"executionId":"E-0005","orderInstrumentCurrency":"USD","orderStatus":"CLOSED","orderInstrumentSectorName":"Information Technology"}]';
                   }#;
               }#
           ]
@@ -4251,9 +4371,127 @@ Service stress::D34_SyntheticPositionDense
   ]
 }
 
-Service stress::D35_ClientActivityDense
+Service stress::D35_OrderRouteDense
 {
     pattern: '/stress/d35';
+    documentation: 'Dense stack on trading::OrderRoute: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |trading::OrderRoute.all()
+        ->filter({x|($x.status != ' none')})
+        ->project(~[
+            routeId:x|$x.routeId,
+            orderInstrumentSectorName:x|$x.order.instrument.sector.name,
+            orderInstrumentInstrumentCurrencyName:x|$x.order.instrument.instrumentCurrency.name,
+            orderInstrumentExchangeName:x|$x.order.instrument.exchange.name
+        ])
+        ->sort(~routeId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D35_OrderRouteDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"routeId":"OR-0001","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0002","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0003","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0004","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0005","orderInstrumentSectorName":"Information Technology","orderInstrumentInstrumentCurrencyName":"US Dollar","orderInstrumentExchangeName":"Nasdaq Stock Market"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D36_SyntheticPositionDense
+{
+    pattern: '/stress/d36';
+    documentation: 'Dense stack on prime::SyntheticPosition: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |prime::SyntheticPosition.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            syntheticId:x|$x.syntheticId,
+            instrumentCurrency:x|$x.instrument.currency,
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
+            instrumentSectorName:x|$x.instrument.sector.name
+        ])
+        ->sort(~syntheticId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D36_SyntheticPositionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"syntheticId":"SP-0001","instrumentCurrency":null,"instrumentInstrumentCurrencyCountryName":null,"instrumentSectorName":null},{"syntheticId":"SP-0002","instrumentCurrency":null,"instrumentInstrumentCurrencyCountryName":null,"instrumentSectorName":null},{"syntheticId":"SP-0003","instrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States","instrumentSectorName":"Information Technology"},{"syntheticId":"SP-0004","instrumentCurrency":"USD","instrumentInstrumentCurrencyCountryName":"United States","instrumentSectorName":"Information Technology"},{"syntheticId":"SP-0005","instrumentCurrency":"GBP","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentSectorName":"Financials"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D37_ClientActivityDense
+{
+    pattern: '/stress/d37';
     documentation: 'Dense stack on sales::ClientActivity: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4272,7 +4510,7 @@ Service stress::D35_ClientActivityDense
     }
   testSuites:
   [
-    D35_ClientActivityDense_suite:
+    D37_ClientActivityDense_suite:
     {
       data:
       [
@@ -4310,9 +4548,68 @@ Service stress::D35_ClientActivityDense
   ]
 }
 
-Service stress::D37_ClientCoverageDense
+Service stress::D38_CorporateActionDense
 {
-    pattern: '/stress/d37';
+    pattern: '/stress/d38';
+    documentation: 'Dense stack on settlement::CorporateAction: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::CorporateAction.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            corpActionId:x|$x.corpActionId,
+            instrumentInstrumentCurrencyCountryName:x|$x.instrument.instrumentCurrency.country.name,
+            instrumentSectorName:x|$x.instrument.sector.name,
+            instrumentInstrumentCurrencyName:x|$x.instrument.instrumentCurrency.name
+        ])
+        ->sort(~corpActionId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D38_CorporateActionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"corpActionId":"CA-0001","instrumentInstrumentCurrencyCountryName":null,"instrumentSectorName":null,"instrumentInstrumentCurrencyName":null},{"corpActionId":"CA-0002","instrumentInstrumentCurrencyCountryName":null,"instrumentSectorName":null,"instrumentInstrumentCurrencyName":null},{"corpActionId":"CA-0003","instrumentInstrumentCurrencyCountryName":"United States","instrumentSectorName":"Information Technology","instrumentInstrumentCurrencyName":"US Dollar"},{"corpActionId":"CA-0004","instrumentInstrumentCurrencyCountryName":"United States","instrumentSectorName":"Information Technology","instrumentInstrumentCurrencyName":"US Dollar"},{"corpActionId":"CA-0005","instrumentInstrumentCurrencyCountryName":"United Kingdom","instrumentSectorName":"Financials","instrumentInstrumentCurrencyName":"Pound Sterling"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D40_ClientCoverageDense
+{
+    pattern: '/stress/d40';
     documentation: 'Dense stack on sales::ClientCoverage: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4331,7 +4628,7 @@ Service stress::D37_ClientCoverageDense
     }
   testSuites:
   [
-    D37_ClientCoverageDense_suite:
+    D40_ClientCoverageDense_suite:
     {
       data:
       [
@@ -4369,9 +4666,9 @@ Service stress::D37_ClientCoverageDense
   ]
 }
 
-Service stress::D38_TraderDense
+Service stress::D41_TraderDense
 {
-    pattern: '/stress/d38';
+    pattern: '/stress/d41';
     documentation: 'Dense stack on org::Trader: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4379,9 +4676,9 @@ Service stress::D38_TraderDense
         ->filter({x|($x.badge != ' none')})
         ->project(~[
             traderId:x|$x.traderId,
+            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
             managerDeskBusinessUnitName:x|$x.manager.desk.businessUnit.name,
-            managerManagerDeskName:x|$x.manager.manager.desk.name,
-            managerManagerManagerBadge:x|$x.manager.manager.manager.badge
+            managerManagerDeskName:x|$x.manager.manager.desk.name
         ])
         ->sort(~traderId->ascending())
         ->limit(25);
@@ -4390,7 +4687,7 @@ Service stress::D38_TraderDense
     }
   testSuites:
   [
-    D38_TraderDense_suite:
+    D41_TraderDense_suite:
     {
       data:
       [
@@ -4418,7 +4715,7 @@ Service stress::D38_TraderDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"traderId":"TRD-001","managerDeskBusinessUnitName":null,"managerManagerDeskName":null,"managerManagerManagerBadge":null},{"traderId":"TRD-002","managerDeskBusinessUnitName":"Northbridge","managerManagerDeskName":null,"managerManagerManagerBadge":null},{"traderId":"TRD-003","managerDeskBusinessUnitName":"Northbridge","managerManagerDeskName":null,"managerManagerManagerBadge":null},{"traderId":"TRD-004","managerDeskBusinessUnitName":null,"managerManagerDeskName":null,"managerManagerManagerBadge":null}]';
+                    data: '[{"traderId":"TRD-001","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","managerDeskBusinessUnitName":null,"managerManagerDeskName":null},{"traderId":"TRD-002","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","managerDeskBusinessUnitName":"Northbridge","managerManagerDeskName":null},{"traderId":"TRD-003","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","managerDeskBusinessUnitName":"Northbridge","managerManagerDeskName":null},{"traderId":"TRD-004","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","managerDeskBusinessUnitName":null,"managerManagerDeskName":null}]';
                   }#;
               }#
           ]
@@ -4428,9 +4725,9 @@ Service stress::D38_TraderDense
   ]
 }
 
-Service stress::D39_ApproverDense
+Service stress::D42_ApproverDense
 {
-    pattern: '/stress/d39';
+    pattern: '/stress/d42';
     documentation: 'Dense stack on org::Approver: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4449,7 +4746,7 @@ Service stress::D39_ApproverDense
     }
   testSuites:
   [
-    D39_ApproverDense_suite:
+    D42_ApproverDense_suite:
     {
       data:
       [
@@ -4487,9 +4784,9 @@ Service stress::D39_ApproverDense
   ]
 }
 
-Service stress::D40_DepartmentDense
+Service stress::D43_DepartmentDense
 {
-    pattern: '/stress/d40';
+    pattern: '/stress/d43';
     documentation: 'Dense stack on org::Department: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4508,7 +4805,7 @@ Service stress::D40_DepartmentDense
     }
   testSuites:
   [
-    D40_DepartmentDense_suite:
+    D43_DepartmentDense_suite:
     {
       data:
       [
@@ -4546,9 +4843,9 @@ Service stress::D40_DepartmentDense
   ]
 }
 
-Service stress::D41_TeamDense
+Service stress::D44_TeamDense
 {
-    pattern: '/stress/d41';
+    pattern: '/stress/d44';
     documentation: 'Dense stack on org::Team: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4567,7 +4864,7 @@ Service stress::D41_TeamDense
     }
   testSuites:
   [
-    D41_TeamDense_suite:
+    D44_TeamDense_suite:
     {
       data:
       [
@@ -4605,9 +4902,9 @@ Service stress::D41_TeamDense
   ]
 }
 
-Service stress::D43_CashFlowDense
+Service stress::D46_CashFlowDense
 {
-    pattern: '/stress/d43';
+    pattern: '/stress/d46';
     documentation: 'Dense stack on funding::CashFlow: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4626,7 +4923,7 @@ Service stress::D43_CashFlowDense
     }
   testSuites:
   [
-    D43_CashFlowDense_suite:
+    D46_CashFlowDense_suite:
     {
       data:
       [
@@ -4664,9 +4961,9 @@ Service stress::D43_CashFlowDense
   ]
 }
 
-Service stress::D44_FundingCostDense
+Service stress::D47_FundingCostDense
 {
-    pattern: '/stress/d44';
+    pattern: '/stress/d47';
     documentation: 'Dense stack on funding::FundingCost: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4685,7 +4982,7 @@ Service stress::D44_FundingCostDense
     }
   testSuites:
   [
-    D44_FundingCostDense_suite:
+    D47_FundingCostDense_suite:
     {
       data:
       [
@@ -4714,6 +5011,478 @@ Service stress::D44_FundingCostDense
                   #{
                     contentType: 'application/json';
                     data: '[{"costId":"FC-0001","cashFlowBookDeskName":null,"cashFlowBookCurrency":null,"cashFlowCurrency":null},{"costId":"FC-0002","cashFlowBookDeskName":null,"cashFlowBookCurrency":null,"cashFlowCurrency":null},{"costId":"FC-0003","cashFlowBookDeskName":null,"cashFlowBookCurrency":null,"cashFlowCurrency":"USD"},{"costId":"FC-0004","cashFlowBookDeskName":null,"cashFlowBookCurrency":null,"cashFlowCurrency":"GBP"},{"costId":"FC-0005","cashFlowBookDeskName":"Cash Equities","cashFlowBookCurrency":"USD","cashFlowCurrency":"EUR"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D48_DeskDense
+{
+    pattern: '/stress/d48';
+    documentation: 'Dense stack on org::Desk: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |org::Desk.all()
+        ->filter({x|($x.name != ' none')})
+        ->project(~[
+            deskId:x|$x.deskId,
+            businessUnitName:x|$x.businessUnit.name,
+            businessUnitLegalEntityRegionName:x|$x.businessUnit.legalEntity.region.name,
+            businessUnitLegalEntityJurisdiction:x|$x.businessUnit.legalEntity.jurisdiction
+        ])
+        ->sort(~deskId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D48_DeskDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"deskId":"DSK-CASH","businessUnitName":"Northbridge","businessUnitLegalEntityRegionName":"Northbridge","businessUnitLegalEntityJurisdiction":"JURISDICTION-001"},{"deskId":"DSK-CREDIT","businessUnitName":"Kestrel","businessUnitLegalEntityRegionName":"Kestrel","businessUnitLegalEntityJurisdiction":"JURISDICTION-002"},{"deskId":"DSK-DERIV","businessUnitName":"Northbridge","businessUnitLegalEntityRegionName":"Northbridge","businessUnitLegalEntityJurisdiction":"JURISDICTION-001"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D49_PortfolioManagerDense
+{
+    pattern: '/stress/d49';
+    documentation: 'Dense stack on org::PortfolioManager: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |org::PortfolioManager.all()
+        ->filter({x|($x.benchmark != ' none')})
+        ->project(~[
+            pmId:x|$x.pmId,
+            deskBusinessUnitName:x|$x.desk.businessUnit.name,
+            deskName:x|$x.desk.name,
+            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction
+        ])
+        ->sort(~pmId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D49_PortfolioManagerDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"pmId":"PM-0001","deskBusinessUnitName":null,"deskName":null,"deskBusinessUnitLegalEntityJurisdiction":null},{"pmId":"PM-0002","deskBusinessUnitName":null,"deskName":null,"deskBusinessUnitLegalEntityJurisdiction":null},{"pmId":"PM-0003","deskBusinessUnitName":"Northbridge","deskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001"},{"pmId":"PM-0004","deskBusinessUnitName":"Northbridge","deskName":"Equity Derivatives","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001"},{"pmId":"PM-0005","deskBusinessUnitName":"Northbridge","deskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D51_BookTransferDense
+{
+    pattern: '/stress/d51';
+    documentation: 'Dense stack on positions::BookTransfer: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |positions::BookTransfer.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            transferId:x|$x.transferId,
+            sourceBookDeskBusinessUnitName:x|$x.sourceBook.desk.businessUnit.name,
+            sourceBookDeskName:x|$x.sourceBook.desk.name,
+            sourceBookCurrency:x|$x.sourceBook.currency
+        ])
+        ->sort(~transferId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D51_BookTransferDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"transferId":"BT-0001","sourceBookDeskBusinessUnitName":null,"sourceBookDeskName":null,"sourceBookCurrency":null},{"transferId":"BT-0002","sourceBookDeskBusinessUnitName":null,"sourceBookDeskName":null,"sourceBookCurrency":null},{"transferId":"BT-0003","sourceBookDeskBusinessUnitName":"Northbridge","sourceBookDeskName":"Cash Equities","sourceBookCurrency":"USD"},{"transferId":"BT-0004","sourceBookDeskBusinessUnitName":"Northbridge","sourceBookDeskName":"Cash Equities","sourceBookCurrency":"EUR"},{"transferId":"BT-0005","sourceBookDeskBusinessUnitName":"Northbridge","sourceBookDeskName":"Equity Derivatives","sourceBookCurrency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D54_PortfolioDense
+{
+    pattern: '/stress/d54';
+    documentation: 'Dense stack on positions::Portfolio: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |positions::Portfolio.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            portfolioId:x|$x.portfolioId,
+            managerDeskName:x|$x.manager.desk.name,
+            managerBenchmark:x|$x.manager.benchmark,
+            managerDeskBusinessUnitName:x|$x.manager.desk.businessUnit.name
+        ])
+        ->sort(~portfolioId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D54_PortfolioDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"portfolioId":"PF-MAIN","managerDeskName":null,"managerBenchmark":null,"managerDeskBusinessUnitName":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D55_TransactionCostDense
+{
+    pattern: '/stress/d55';
+    documentation: 'Dense stack on regulatory::TransactionCost: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |regulatory::TransactionCost.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            tcaId:x|$x.tcaId,
+            executionOrderInstrumentCurrency:x|$x.execution.order.instrument.currency,
+            executionOrderStatus:x|$x.execution.order.status,
+            executionBroker:x|$x.execution.broker
+        ])
+        ->sort(~tcaId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D55_TransactionCostDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tcaId":"TC-0001","executionOrderInstrumentCurrency":null,"executionOrderStatus":null,"executionBroker":null},{"tcaId":"TC-0002","executionOrderInstrumentCurrency":null,"executionOrderStatus":null,"executionBroker":null},{"tcaId":"TC-0003","executionOrderInstrumentCurrency":null,"executionOrderStatus":null,"executionBroker":"BROKER-001"},{"tcaId":"TC-0004","executionOrderInstrumentCurrency":null,"executionOrderStatus":null,"executionBroker":"BROKER-002"},{"tcaId":"TC-0005","executionOrderInstrumentCurrency":null,"executionOrderStatus":"ACTIVE","executionBroker":"BROKER-003"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D56_ConcentrationRiskDense
+{
+    pattern: '/stress/d56';
+    documentation: 'Dense stack on risk::ConcentrationRisk: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::ConcentrationRisk.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            concentrationId:x|$x.concentrationId,
+            varResultPortfolioManagerBenchmark:x|$x.varResult.portfolio.manager.benchmark,
+            varResultPortfolioCurrency:x|$x.varResult.portfolio.currency,
+            varResultCurrency:x|$x.varResult.currency
+        ])
+        ->sort(~concentrationId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D56_ConcentrationRiskDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"concentrationId":"CR-0001","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":null},{"concentrationId":"CR-0002","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":null},{"concentrationId":"CR-0003","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":"USD"},{"concentrationId":"CR-0004","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":"GBP"},{"concentrationId":"CR-0005","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":"USD","varResultCurrency":"EUR"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D58_LimitBreachDense
+{
+    pattern: '/stress/d58';
+    documentation: 'Dense stack on risk::LimitBreach: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::LimitBreach.all()
+        ->filter({x|($x.status != ' none')})
+        ->project(~[
+            breachId:x|$x.breachId,
+            riskLimitDeskBusinessUnitName:x|$x.riskLimit.desk.businessUnit.name,
+            riskLimitDeskName:x|$x.riskLimit.desk.name,
+            riskLimitCurrency:x|$x.riskLimit.currency
+        ])
+        ->sort(~breachId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D58_LimitBreachDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"breachId":"LB-0001","riskLimitDeskBusinessUnitName":null,"riskLimitDeskName":null,"riskLimitCurrency":null},{"breachId":"LB-0002","riskLimitDeskBusinessUnitName":null,"riskLimitDeskName":null,"riskLimitCurrency":null},{"breachId":"LB-0003","riskLimitDeskBusinessUnitName":null,"riskLimitDeskName":null,"riskLimitCurrency":"USD"},{"breachId":"LB-0004","riskLimitDeskBusinessUnitName":null,"riskLimitDeskName":null,"riskLimitCurrency":"GBP"},{"breachId":"LB-0005","riskLimitDeskBusinessUnitName":"Northbridge","riskLimitDeskName":"Cash Equities","riskLimitCurrency":"EUR"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D60_VaRResultDense
+{
+    pattern: '/stress/d60';
+    documentation: 'Dense stack on risk::VaRResult: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::VaRResult.all()
+        ->filter({x|($x.currency != ' none')})
+        ->project(~[
+            varId:x|$x.varId,
+            portfolioManagerBenchmark:x|$x.portfolio.manager.benchmark,
+            portfolioCurrency:x|$x.portfolio.currency,
+            portfolioManagerDeskName:x|$x.portfolio.manager.desk.name
+        ])
+        ->sort(~varId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D60_VaRResultDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"varId":"VR-0001","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null},{"varId":"VR-0002","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null},{"varId":"VR-0003","portfolioManagerBenchmark":null,"portfolioCurrency":"USD","portfolioManagerDeskName":null},{"varId":"VR-0004","portfolioManagerBenchmark":null,"portfolioCurrency":"USD","portfolioManagerDeskName":null},{"varId":"VR-0005","portfolioManagerBenchmark":null,"portfolioCurrency":"USD","portfolioManagerDeskName":null}]';
                   }#;
               }#
           ]
