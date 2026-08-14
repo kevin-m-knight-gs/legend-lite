@@ -462,6 +462,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         Long queryTimeOut = null;
         List<Protocol.PGenerationFeaturesConfig> queryGenConfigs = null;
         String timeZone = null;
+        boolean localMode = false;
         java.util.Set<String> seenKeys = new java.util.HashSet<>();
         java.util.Set<String> seenKeys5 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
@@ -569,11 +570,37 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     }
                     c.expect(TokenType.SEMI_COLON);
                 }
+                case "mode" -> {
+                    String m = c.parseIdentifier();
+                    if (!"local".equals(m)) {
+                        throw c.error("unknown connection mode: " + m);
+                    }
+                    localMode = true;
+                    c.expect(TokenType.SEMI_COLON);
+                }
                 default -> throw c.error(
                         "unknown RelationalDatabaseConnection key: " + key);
             }
         }
         c.expect(TokenType.BRACE_CLOSE);
+        if (localMode && "Snowflake".equals(dbType) && element != null) {
+            // mode:local — the snowflake extension SYNTHESIZES spec+auth
+            // from the store path (probed live; note the 'publicuserName'
+            // spelling inside the VALUE)
+            String tail = element.replace("::", "-");
+            spec = new Protocol.PSnowflakeSpec(
+                    "legend-local-snowflake-accountName-" + tail,
+                    null, "legend-local-snowflake-cloudType-" + tail,
+                    "legend-local-snowflake-databaseName-" + tail,
+                    null, null, null, null, null, null,
+                    "legend-local-snowflake-region-" + tail,
+                    "legend-local-snowflake-role-" + tail, null, null,
+                    "legend-local-snowflake-warehouseName-" + tail, null);
+            auth = new Protocol.PSnowflakePublic(
+                    "legend-local-snowflake-passphraseVaultReference-" + tail,
+                    "legend-local-snowflake-privateKeyVaultReference-" + tail,
+                    "legend-local-snowflake-publicuserName-" + tail, null);
+        }
         if (dbType == null || spec == null) {
             // store: is OPTIONAL (probe test-auth-empty-body-no-store —
             // element+span omitted from the wire entirely)
@@ -588,7 +615,8 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                     c.tokens(), declStart, "RelationalDatabaseConnection needs auth");
         }
         return new Protocol.PRelationalDatabaseConnection(
-                auth, dbType, spec, element, elementSpan, posts,
+                auth, dbType, spec, element, elementSpan,
+                localMode ? Boolean.TRUE : null, posts,
                 queryGenConfigs, queryTimeOut,
                 quoteIdentifiers, timeZone, c.spanOf(declStart, c.pos() - 1));
     }

@@ -68,8 +68,11 @@ final class ConnectionEmitters {
                 str(b, s.privateKeyVaultReference());
                 b.append(",\"publicUserName\":");
                 str(b, s.publicUserName());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, s.sourceInformation());
+                if (s.sourceInformation() != null) {
+                    // a mode:local SYNTHESIZED auth is spanless (probed)
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, s.sourceInformation());
+                }
                 b.append('}');
             }
             case Protocol.PGCPApplicationDefaultCredentials g -> {
@@ -245,8 +248,11 @@ final class ConnectionEmitters {
                     b.append(",\"role\":");
                     str(b, s.role());
                 }
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, s.sourceInformation());
+                if (s.sourceInformation() != null) {
+                    // mode:local SYNTHESIZED specs are spanless (probed)
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, s.sourceInformation());
+                }
                 if (s.tempTableDb() != null) {
                     b.append(",\"tempTableDb\":");
                     str(b, s.tempTableDb());

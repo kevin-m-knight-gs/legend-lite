@@ -1685,7 +1685,10 @@ public final class Protocol {
         }
 
         /** {@code typeKey} is the lowercase wire key ({@code keyword}). */
-        public record PEsProperty(String propertyName, String typeKey) {
+        public record PEsProperty(String propertyName, String wireKey,
+                String protocolType, String esType,
+                @com.legend.Nullable List<PEsProperty> fields,
+                @com.legend.Nullable List<PEsProperty> childProperties) {
         }
 
         public String qualifiedName() {
@@ -2069,6 +2072,7 @@ public final class Protocol {
             PDatasourceSpec datasourceSpecification,
             @com.legend.Nullable String element,
             @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+            @com.legend.Nullable Boolean localMode,
             List<PPostProcessor> postProcessors,
             @com.legend.Nullable List<PGenerationFeaturesConfig> queryGenerationConfigs,
             @com.legend.Nullable Long queryTimeOutInSeconds,
@@ -2171,7 +2175,7 @@ public final class Protocol {
                                  @com.legend.Nullable String tempTableDb,
                                  @com.legend.Nullable String tempTableSchema,
                                  String warehouseName,
-                                 com.legend.protocol.SourceInfo sourceInformation)
+                                 @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 
@@ -2280,7 +2284,7 @@ public final class Protocol {
     public record PSnowflakePublic(String passPhraseVaultReference,
                                    String privateKeyVaultReference,
                                    String publicUserName,
-                                   com.legend.protocol.SourceInfo sourceInformation)
+                                   @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthStrategy {
     }
 

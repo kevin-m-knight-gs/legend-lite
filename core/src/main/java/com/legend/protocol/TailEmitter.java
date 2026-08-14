@@ -186,6 +186,41 @@ final class TailEmitter {
         b.append("]}");
     }
 
+    /** One typed property value ({@code "<key>":{...}}) — the engine
+     *  serializer DOUBLES _pure_protocol_type (probed quirk); nested
+     *  {@code fields} entries are keyed maps of the same shape. */
+    private static void esPropertyBody(StringBuilder b,
+            Protocol.PElasticsearch7Cluster.PEsProperty prop) {
+        b.append('"').append(prop.wireKey())
+                .append("\":{\"_pure_protocol_type\":\"")
+                .append(prop.protocolType())
+                .append("\",\"_pure_protocol_type\":\"")
+                .append(prop.protocolType()).append('"');
+        esChildMap(b, "fields", prop.fields());
+        esChildMap(b, "properties", prop.childProperties());
+        b.append(",\"type\":\"").append(prop.esType()).append("\"}");
+    }
+
+    private static void esChildMap(StringBuilder b, String label,
+            @com.legend.Nullable java.util.List<
+                    Protocol.PElasticsearch7Cluster.PEsProperty> children) {
+        if (children == null) {
+            return;
+        }
+        b.append(",\"").append(label).append("\":{");
+        for (int i = 0; i < children.size(); i++) {
+            var f = children.get(i);
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, f.propertyName());
+            b.append(":{");
+            esPropertyBody(b, f);
+            b.append('}');
+        }
+        b.append('}');
+    }
+
     static void elasticsearchStore(StringBuilder b,
             Protocol.PElasticsearch7Cluster s) {
         b.append("{\"_type\":\"elasticsearch7Store\",\"includedStores\":[],"
@@ -203,12 +238,9 @@ final class TailEmitter {
                 if (p > 0) {
                     b.append(',');
                 }
-                String k = prop.typeKey();
-                b.append("{\"property\":{\"").append(k)
-                        .append("\":{\"_pure_protocol_type\":\"").append(k)
-                        .append("Property\",\"_pure_protocol_type\":\"")
-                        .append(k).append("Property\",\"type\":\"").append(k)
-                        .append("\"}},\"propertyName\":");
+                b.append("{\"property\":{");
+                esPropertyBody(b, prop);
+                b.append("},\"propertyName\":");
                 ProtocolEmitter.str(b, prop.propertyName());
                 b.append('}');
             }
