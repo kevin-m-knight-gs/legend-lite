@@ -75,6 +75,9 @@ class CodeShapeGuardrailTest {
             "ElementParser.pos", 
             // DatabaseProtocolParser: the same parser-cursor shape
             "DatabaseProtocolParser.pos",
+            // GqlParser: the raw-text scanner cursor, same family as the
+            // other parser cursors above
+            "GqlParser.pos",
             "MappingProtocolParser.pos",
             // ConnectionSectionGrammar.Cursor / RuntimeSectionGrammar
             // .SliceCursor: the re-lex feeds' parser cursors — same shape,

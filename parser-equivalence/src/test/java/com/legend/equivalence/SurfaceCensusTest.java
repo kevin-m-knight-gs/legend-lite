@@ -107,7 +107,7 @@ class SurfaceCensusTest {
     private static final java.util.Set<String> OUR_TEST_INPUT_DATA =
             java.util.Set.of("Object", "Relational", "RelationalCSV");
     private static final java.util.Set<String> OUR_EMBEDDED_PURE =
-            java.util.Set.of("SQL", ">", "TDS");
+            java.util.Set.of("SQL", ">", "TDS", "GQL");
     private static final java.util.Set<String> OUR_TEST_ASSERTIONS =
             java.util.Set.of("EqualTo", "EqualToJson", "EqualToTDS");
     private static final java.util.Set<String> OUR_MAPPING_INCLUDES =

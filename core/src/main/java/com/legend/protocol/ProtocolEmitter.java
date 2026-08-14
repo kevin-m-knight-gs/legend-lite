@@ -1168,6 +1168,18 @@ public final class ProtocolEmitter {
 
     /** {@code #SQL{ ... }#} — a classInstance of type SQL whose value is
      *  {@code {"sql": content}} (ZTailProbe "sql-island"). */
+    /** {@code classInstance} of type GQL — value is the PRE-RENDERED
+     *  GraphQL AST wire (GqlParser; probe gql-wire 2026-08-14). */
+    private static void gqlIsland(StringBuilder b,
+            com.legend.protocol.spec.GqlIsland gi,
+            @com.legend.Nullable com.legend.protocol.SourceInfo spanOverride) {
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, requirePos(spanOverride != null ? spanOverride : gi.pos(),
+                "GQL island"));
+        b.append(",\"type\":\"GQL\",\"value\":").append(gi.valueJson())
+                .append('}');
+    }
+
     private static void sqlIsland(StringBuilder b,
             com.legend.protocol.spec.SqlIsland si,
             @com.legend.Nullable SourceInfo span) {
@@ -2137,6 +2149,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
             case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, null);
+            case com.legend.protocol.spec.GqlIsland gi -> gqlIsland(b, gi, null);
             case com.legend.protocol.spec.TdsLiteral tl -> tdsLiteral(b, tl, null);
             // %10:10:10 -> strictTime, value VERBATIM without the '%' (probe "time literal")
             case com.legend.protocol.spec.CTime t -> literal(b, "strictTime",
@@ -2282,6 +2295,7 @@ public final class ProtocolEmitter {
                     appliedFunction(b, q.original(), span);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl, span);
             case com.legend.protocol.spec.SqlIsland si -> sqlIsland(b, si, span);
+            case com.legend.protocol.spec.GqlIsland gi -> gqlIsland(b, gi, span);
             case com.legend.protocol.spec.TdsLiteral tl -> tdsLiteral(b, tl, span);
             case com.legend.protocol.spec.LambdaFunction lam ->
                     valueSpec(b, new com.legend.protocol.spec.LambdaFunction(

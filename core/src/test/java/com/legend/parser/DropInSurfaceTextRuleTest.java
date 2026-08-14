@@ -82,7 +82,11 @@ class DropInSurfaceTextRuleTest {
             // com.legend.parser can extract island chunks; the one source
             // read is the same coarse-chunk necessity it always was
             "parser/TokenStreamCursor.java", 1,
-            "parser/SpecParser.java", 1,
+            // 2: the graph-fetch island + the GQL island — GraphQL is a
+            // FOREIGN language (commas-as-whitespace, $, @, ...), so its
+            // content parses from the raw slice by design, like the URL
+            // fix in the ES connection
+            "parser/SpecParser.java", 2,
             // ISLAND-CONTENT re-lex: mapping test-suite #{ }# data blocks
             // arrive as RAW island chunks — the content is re-lexed with
             // position padding (the engine reparses the same text via its

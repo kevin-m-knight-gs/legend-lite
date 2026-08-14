@@ -3043,6 +3043,18 @@ public final class SpecParser implements TokenStreamCursor {
             // trim on 2026-08-09)
             case "SQL" -> new com.legend.protocol.spec.SqlIsland(
                     content.toString(), spanOf(islandStart, pos - 1));
+            // #GQL{ query {...} }# — the graphQL extension: the island
+            // content parses from the RAW SOURCE SLICE (the token
+            // reconstruction drops the spacing GraphQL names need) into
+            // the engine's canonical AST wire (probe gql-wire 2026-08-14)
+            case "GQL" -> new com.legend.protocol.spec.GqlIsland(
+                    com.legend.parser.GqlParser.parseDocument(
+                            tokens.source().substring(
+                                    tokens.end(islandStart),
+                                    tokens.start(pos - 1)),
+                            tokens.endLine(islandStart),
+                            tokens.endColumn(islandStart) + 1),
+                    spanOf(islandStart, pos - 1));
             default -> throw error(
                     "unknown DSL island type: '#" + dslType + "{'");
         };

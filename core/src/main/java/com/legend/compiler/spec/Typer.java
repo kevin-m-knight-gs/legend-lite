@@ -144,6 +144,11 @@ final class Typer {
                             "#SQL{...}# expression islands are not compilable —"
                                     + " an inline SQL string bypasses the typed"
                                     + " lowering pipeline");
+            case com.legend.protocol.spec.GqlIsland gi ->
+                    throw new com.legend.error.NotImplementedException(
+                            "#GQL{...}# expression islands are not compilable"
+                                    + " — the graphQL extension is parse-only"
+                                    + " surface (like #SQL{...}#)");
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));

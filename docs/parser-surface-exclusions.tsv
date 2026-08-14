@@ -1,2 +1,1 @@
 kind	name	reason
-embeddedPure	GQL	REAL GAP (verified 2026-08-14): the wire is a FULL GraphQL AST (classInstance type GQL, executableDocument/operationDefinition/field nodes) — supporting it means a GraphQL grammar; probe saved in scratchpad four-rows-wire.txt

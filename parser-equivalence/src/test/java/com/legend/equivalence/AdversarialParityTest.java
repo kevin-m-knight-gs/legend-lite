@@ -137,6 +137,28 @@ class AdversarialParityTest {
     }
 
     @Test
+    void gqlIslands() {
+        // #GQL{...}# — the graphQL embedded-Pure extension (census row
+        // retired 2026-08-14). Every accepted form byte-pinned against
+        // the live oracle on first implementation; inline fragments are
+        // refused by BOTH grammars.
+        String h = "function f::q(): Any[*]\n{\n  ";
+        String t = "\n}\n";
+        runFamily("gql-islands", List.of(
+                new Row("basic query", h + "#GQL{ query { hero { name } } }#" + t),
+                new Row("named query", h + "#GQL{ query Hero { hero } }#" + t),
+                new Row("all value kinds", h + "#GQL{ query { hero(id: 5, name: \"luke\", f: 1.5, b: true, n: null, e: JEDI, l: [1, 2], o: {a: 1}) { name } } }#" + t),
+                new Row("alias + fragment", h + "#GQL{ query { h: hero { ...heroFields } } fragment heroFields on Hero { name } }#" + t),
+                new Row("variables + directives", h + "#GQL{ query Q($id: Int!, $s: [String] = [\"x\"]) { hero(id: $id) @include(if: true) { name } } }#" + t),
+                new Row("mutation", h + "#GQL{ mutation { add(x: 1) { ok } } }#" + t),
+                new Row("sdl object type", h + "#GQL{ type Foo { id: ID! names: [String] } }#" + t),
+                new Row("bare selection", h + "#GQL{ { hero { name } } }#" + t),
+                new Row("inline fragment refused", h + "#GQL{ query { hero { ...on Droid { fn } } } }#" + t),
+                new Row("inline fragment refused 2", h + "#GQL{ query { hero { name ... on Droid { fn } } } }#" + t)),
+                0);
+    }
+
+    @Test
     void sectionBoundaryShapes() {
         runFamily("section-boundaries", List.of(
                 new Row("mid-line ###",
