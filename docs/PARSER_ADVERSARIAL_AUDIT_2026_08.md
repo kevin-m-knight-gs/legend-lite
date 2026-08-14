@@ -1,5 +1,22 @@
 # Adversarial Parser Audit — 2026-08-12
 
+> **RE-AUDIT VERDICT 2026-08-14 (closing pass).** Every instrument at its
+> ceiling: byte parity **6489/6489 (100%)**, walls **0**, diffs **0**,
+> sentinel drop-in defects **0**, census exclusions **0**, positions
+> **417/423** (6 parks: 2 engine coordinate bugs, ANTLR key-order/
+> structural family), strict-lenient **181 all oracle-side** (161 NPE,
+> 16 skew, 4 pure-dialect). g4 keyword snapshot: 494 present / 11
+> parsed-generic / 29 oracle-unreachable (probed) / 3 dead-grammar.
+> Closing-pass finds, all fixed same-day: BOOLEAN column leniency
+> (test-corpus F3, dialect-gated), ES auth island generalized
+> (apiKey/kerberos/encryptedPrivateKey/EnvironmentSecret — all
+> oracle-accepted, we refused), GQL islands (typed AST, byte-exact).
+> Independent confirmation: the sibling test-corpus branch's 68-doc
+> whole-feature corpus is 68/68 byte-exact, and their gap audit states
+> in writing that NO gap they found is a parse failure. Remaining
+> standing lane: fuzz growth; everything else is ledgered with a reason.
+
+
 > **BURN-DOWN STATUS (same day, evening):** every oracle-verified
 > divergence in this document is FIXED — the 279-case generative corpus
 > runs 279/279 agree, 0 divergent buckets, and the hand probes all

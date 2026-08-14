@@ -1,8 +1,8 @@
 keyword	grammars	status
 AGGREGATE	DataQuality	present
 ALL_TARGETS	Persistence	parsed-generic
-AWSIdP	Authentication	queued-auth-module
-AWSSecretsManagerSecret	Authentication	queued-auth-module
+AWSIdP	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+AWSSecretsManagerSecret	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 AllowDuplicates	PersistenceRelational	present
 AnyVersion	Persistence	present
 ApiKey	Authentication	present
@@ -12,7 +12,7 @@ Association	Domain	present
 AssociationMapping	Relational	present
 Athena	Athena	present
 Aurora	Aurora	present
-AuthenticationDemo	Authentication	queued-auth-module
+AuthenticationDemo	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 BOOLEAN	Deephaven	present
 BUS_FROM	Relational	present
 BUS_SNAPSHOT_DATE	Relational	present
@@ -22,7 +22,7 @@ BatchId	Persistence,PersistenceRelational	present
 BatchIdAndDateTime	Persistence,PersistenceRelational	present
 BigQuery	BigQuery	present
 BigQueryFunction	BigQueryFunction	present
-BigQueryFunctionDeploymentConfiguration	BigQueryFunction	queued-deployment-configs
+BigQueryFunctionDeploymentConfiguration	BigQueryFunction	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 Binding	ExternalFormat,RelationFunctionMapping,Relational	present
 Bitemporal	PersistenceRelational	present
 BitemporalDelta	Persistence	present
@@ -61,11 +61,11 @@ DuckDB	DuckDB	present
 DuplicateCount	Persistence	present
 Elasticsearch7Cluster	Elasticsearch	present
 Email	DataSpace,Persistence	present
-EmbeddedH2	DataSourceSpecification	queued-relational-flavors
+EmbeddedH2	DataSourceSpecification	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 EncryptedPrivateKey	Authentication	present
 Enum	Domain	present
 EnumerationMapping	PureInstanceClassMapping,RelationFunctionMapping,Relational	present
-EnvironmentSecret	Authentication	queued-auth-module
+EnvironmentSecret	Authentication	present
 Error	Domain	present
 ExecutionEnvironment	HostedService,Service	present
 FLOAT	Deephaven	present
@@ -78,15 +78,15 @@ Flat	Persistence	present
 Float	Elasticsearch	present
 FunctionJar	FunctionJar	present
 GCPApplicationDefaultCredentials	AuthenticationStrategy	present
-GCPWIFWithAWSIdP	Authentication	queued-auth-module
+GCPWIFWithAWSIdP	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 GCPWorkload	Authentication	present
 GCPWorkloadIdentityFederation	AuthenticationStrategy	present
 GenerationFeaturesConfig	QueryGenerationConfigs	present
 GenerationSpecification	GenerationSpecification	present
-GlobalAurora	Aurora	queued-relational-flavors
+GlobalAurora	Aurora	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 HalfFloat	Elasticsearch	present
 HostedService	HostedService	present
-HostedServiceDeploymentConfiguration	HostedService	queued-deployment-configs
+HostedServiceDeploymentConfiguration	HostedService	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 INFINITY_DATE	Relational	present
 INT	Deephaven	present
 Inline	RelationFunctionMapping,Relational	present
@@ -103,7 +103,7 @@ MaxVersion	Persistence	present
 Measure	Domain	present
 MemSql	MemSql	present
 MemSqlFunction	MemSqlFunction	present
-MemSqlFunctionDeploymentConfiguration	MemSqlFunction	queued-deployment-configs
+MemSqlFunctionDeploymentConfiguration	MemSqlFunction	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 MiddleTierUserNamePassword	AuthenticationStrategy	present
 Multi	Service	present
 MultiFlat	Persistence	present
@@ -138,7 +138,7 @@ RelationalMapper	RelationalMapper	present
 Runtime	Runtime	present
 SINGLE_TARGET	Persistence	parsed-generic
 STRING	Deephaven	present
-STSAssumeRole	Authentication	queued-auth-module
+STSAssumeRole	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 Schema	Relational	present
 SchemaMappers	RelationalMapper	present
 SchemaSet	ExternalFormat	present
@@ -184,9 +184,9 @@ UserPassword	Authentication	present
 View	Relational	present
 Views	AggregationAware	present
 Warn	Domain	present
-accessKeyId	Authentication	queued-auth-module
+accessKeyId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 account	AuthenticationStrategy,Snowflake	present
-accountId	Authentication	queued-auth-module
+accountId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 accountType	Snowflake	present
 actionIndicator	Persistence	present
 actions	HostedService	present
@@ -209,13 +209,13 @@ assert	Mapping	present
 assertion	DataQuality	present
 assertions	HostedService,Service	present
 asserts	DataQuality,HostedService,Mapping,Persistence,Service	present
-athenaEndpoint	Athena	queued-relational-flavors
+athenaEndpoint	Athena	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 auditing	Persistence,PersistenceRelational	present
 auth	RelationalDatabaseConnection	present
 authentication	Authentication,DeephavenConnection,ElasticsearchConnection,MongoDBConnection	present
 autoActivateUpdates	HostedService,Service	present
-autoServerMode	DataSourceSpecification	queued-relational-flavors
-awsCredentials	Authentication	queued-auth-module
+autoServerMode	DataSourceSpecification	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+awsCredentials	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 baseUrl	ServiceStoreConnection	present
 baseVaultReference	AuthenticationStrategy	present
 batchIdIn	PersistenceRelational	present
@@ -233,8 +233,8 @@ clientTags	Trino	present
 cloudType	Snowflake	present
 clusterDetails	ElasticsearchConnection	present
 clusterID	Redshift	present
-clusterInstanceHostPattern	Aurora	queued-relational-flavors
-columnDefinition	Deephaven	verify-by-probe
+clusterInstanceHostPattern	Aurora	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+columnDefinition	Deephaven	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 columns	Deephaven	present
 columnsToCompare	DataQuality	present
 composite	Domain	present
@@ -273,7 +273,7 @@ derivation	Persistence	present
 description	BigQueryFunction,DataQuality,DataSpace,Deephaven,HostedService,MemSqlFunction,Service,ServiceStore,Snowflake	present
 diagram	DataSpace	present
 diagrams	DataSpace	present
-directory	AuthenticationStrategy,DataSourceSpecification	queued-auth-module
+directory	AuthenticationStrategy,DataSourceSpecification	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 disabled	QueryGenerationConfigs	present
 doc	Mapping,Persistence	present
 documentation	FunctionJar,HostedService,Service	present
@@ -284,10 +284,10 @@ emails	DataSpace	present
 emptyDatasetHandling	Persistence	present
 enableQueryTags	Snowflake	present
 enabled	QueryGenerationConfigs	present
-endField	PersistenceRelational	verify-by-probe
+endField	PersistenceRelational	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 endpointURL	Redshift	present
 enum	ServiceStore	present
-envVariableName	Authentication	queued-auth-module
+envVariableName	Authentication	present
 error	MongoDBSchema	present
 executable	DataSpace	present
 executables	DataSpace	present
@@ -318,7 +318,7 @@ generateLineage	HostedService	present
 generationElement	GenerationSpecification	present
 generationNodes	GenerationSpecification	present
 generationOutputPath	FileGeneration	present
-globalClusterInstanceHostPatterns	Aurora	queued-relational-flavors
+globalClusterInstanceHostPatterns	Aurora	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 graphFetchPath	Persistence	present
 groupId	DataSpace	present
 headerParameters	ServiceStoreEmbeddedData	present
@@ -348,7 +348,7 @@ list	HostedService,Service	present
 location	Authentication,ExternalFormat,ServiceStore	present
 mappers	PostProcessor	present
 mapping	DataSpace,HostedService,Service	present
-mappingProvider	DataSpace	queued-dataspace-fields
+mappingProvider	DataSpace	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 mappings	ModelConnection,Runtime	present
 mcpServer	Service	present
 mergeStrategy	Persistence	present
@@ -359,7 +359,7 @@ modelClass	Persistence	present
 modelExcludes	ExternalFormat	present
 modelIncludes	ExternalFormat	present
 modelProperty	Persistence	present
-moderate	MongoDBSchema	verify-by-probe
+moderate	MongoDBSchema	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 name	Aurora,AuthenticationStrategy,DataQuality,DataSourceSpecification,DataSpace,Redshift,Snowflake	present
 native	Domain	present
 nonProxyHosts	Snowflake	present
@@ -371,7 +371,7 @@ oauthKey	AuthenticationStrategy	present
 optional	FlatData	present
 or	Relational	present
 organization	Snowflake	present
-outputLocation	Athena	queued-relational-flavors
+outputLocation	Athena	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 owners	Service	present
 ownership	BigQueryFunction,Deephaven,FunctionJar,HostedService,MemSqlFunction,Service,Snowflake	present
 parameters	HostedService,Service,ServiceStore	present
@@ -387,11 +387,11 @@ path	DuckDB,ServiceStore	present
 pattern	HostedService,Service	present
 permissionScheme	Snowflake	present
 persistence	Persistence	present
-persistenceStrategy	DataQuality	queued-dataquality
+persistenceStrategy	DataQuality	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 persister	Persistence	present
 platform	Persistence	present
 points	Diagram	present
-poolId	Authentication	queued-auth-module
+poolId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 port	Aurora,AuthenticationStrategy,DataSourceSpecification,Databricks,MemSql,Oracle,Redshift,Trino	present
 position	Diagram	present
 postProcessors	RelationalDatabaseConnection	present
@@ -401,14 +401,14 @@ privateKeyVaultReference	Snowflake	present
 processing	Relational	present
 processingDimension	PersistenceRelational	present
 projectId	AuthenticationStrategy,BigQuery,Spanner	present
-projectNumber	Authentication	queued-auth-module
+projectNumber	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 projects	Domain	present
 properties	Elasticsearch	present
 property	Diagram	present
 propertyName	Authentication	present
 propertyView	Diagram	present
 protocol	Databricks	present
-providerId	Authentication	queued-auth-module
+providerId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 proxyHost	BigQuery,Snowflake,Spanner	present
 proxyPort	BigQuery,Snowflake,Spanner	present
 psk	Authentication	present
@@ -428,8 +428,8 @@ requestBody	ServiceStore	present
 required	ServiceStore	present
 response	ServiceStore,ServiceStoreEmbeddedData	present
 role	Authentication,Snowflake	present
-roleArn	Authentication	queued-auth-module
-roleSessionName	Authentication	queued-auth-module
+roleArn	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+roleSessionName	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 runtime	HostedService,Service	present
 runtimeComponents	Service	present
 schema	PostProcessor,Trino	present
@@ -441,8 +441,8 @@ schemas	ExternalFormat	present
 scope	Relational	present
 scopeElements	FileGeneration	present
 scopeName	AuthenticationStrategy	present
-secretAccessKey	Authentication	queued-auth-module
-secretId	Authentication	queued-auth-module
+secretAccessKey	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
+secretId	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 section	FlatData	present
 security	ServiceStore	present
 serializationFormat	HostedService,Service	present
@@ -452,7 +452,7 @@ serverUrl	DeephavenConnection	present
 serverUrlDefinition	DeephavenConnection	dead-grammar-0-tests
 service	Persistence	present
 serviceAccountEmail	Authentication,AuthenticationStrategy	present
-serviceName	Oracle	queued-relational-flavors
+serviceName	Oracle	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 serviceOutput	Persistence	present
 serviceOutputTargets	Persistence	present
 serviceParameters	Persistence	present
@@ -471,7 +471,7 @@ specification	RelationalDatabaseConnection	present
 ssl	Trino	present
 sslSpecification	Trino	present
 stage	BigQueryFunction,HostedService,MemSqlFunction	present
-startField	PersistenceRelational	verify-by-probe
+startField	PersistenceRelational	parsed-generic (audit-verified 2026-08-14: identifier/value usage, corpus byte-matched)
 stereotypes	DataSpace,Domain,FunctionJar,HostedService,Service	present
 store	DeephavenConnection,ElasticsearchConnection,MongoDBConnection,RelationalDatabaseConnection,ServiceStoreConnection	present
 storeModel	HostedService	present
@@ -516,7 +516,7 @@ updatesHandling	PersistenceRelational	present
 url	ModelConnection,Persistence,ServiceStoreEmbeddedData	present
 urlPath	ServiceStoreEmbeddedData	present
 usageRole	Snowflake	present
-useSsl	MemSql	queued-relational-flavors
+useSsl	MemSql	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 userName	Authentication	present
 userNameVaultReference	AuthenticationStrategy	present
 username	Authentication	present
@@ -530,9 +530,9 @@ value	Authentication	present
 vaultReference	AuthenticationStrategy	present
 versionField	Persistence	present
 versionId	Authentication,DataSpace	present
-versionStage	Authentication	queued-auth-module
+versionStage	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 warehouse	AuthenticationStrategy,Snowflake	present
 warn	MongoDBSchema	present
 website	DataSpace	present
-workGroup	Athena	queued-relational-flavors
+workGroup	Athena	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 workload	Authentication	present

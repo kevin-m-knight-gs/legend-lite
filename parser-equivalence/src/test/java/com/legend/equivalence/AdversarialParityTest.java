@@ -147,6 +147,7 @@ class AdversarialParityTest {
         runFamily("es-auth-kinds", List.of(
                 new Row("apiKey", h + "# ApiKey {\n    location: 'header';\n    keyName: 'key1';\n    value: SystemPropertiesSecret\n    {\n      systemPropertyName: 's';\n    };\n  }#;\n}\n"),
                 new Row("kerberos empty", h + "# Kerberos {\n  }#;\n}\n"),
+                new Row("environment secret", h + "# UserPassword {\n    username: 'u';\n    password: EnvironmentSecret\n    {\n      envVariableName: 'E';\n    };\n  }#;\n}\n"),
                 new Row("encryptedPrivateKey", h + "# EncryptedPrivateKey {\n    userName: 'alice';\n    privateKey: PropertiesFileSecret\n    {\n      propertyName: 'p1';\n    };\n    passphrase: PropertiesFileSecret\n    {\n      propertyName: 'p2';\n    };\n  }#;\n}\n")),
                 0);
     }

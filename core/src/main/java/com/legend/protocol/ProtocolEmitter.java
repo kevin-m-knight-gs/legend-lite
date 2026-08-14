@@ -3371,7 +3371,10 @@ public final class ProtocolEmitter {
             Protocol.PMongoSecret sec) {
         b.append("{\"_type\":");
         str(b, sec.kind());
-        if ("properties".equals(sec.kind())) {
+        // fields sit ALPHABETICALLY around sourceInformation (Jackson):
+        // propertyName/envVariableName sort before it, systemPropertyName
+        // after
+        if (sec.fieldKey().compareTo("sourceInformation") < 0) {
             b.append(",\"").append(sec.fieldKey()).append("\":");
             str(b, sec.value());
             b.append(",\"sourceInformation\":");

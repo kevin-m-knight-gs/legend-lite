@@ -1645,6 +1645,12 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 wireKind = "systemproperties";
                 wireField = "systemPropertyName";
             }
+            case "EnvironmentSecret" -> {
+                // wire "environment" (AuthenticationProtocolExtension;
+                // oracle-accepted, audit probe 2026-08-14)
+                wireKind = "environment";
+                wireField = "envVariableName";
+            }
             default -> throw ic.error("unsupported secret kind: " + sk);
         }
         ic.expect(TokenType.BRACE_OPEN);
