@@ -1,0 +1,74 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+  lastName: String[1];
+}
+
+Class test::Firm
+{
+  legalName: String[1];
+  employees: test::Person[*];
+}
+
+###Relational
+Database test::db
+(
+  Table PERSON_A
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    FIRM_ID INTEGER
+  )
+  Table PERSON_B
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    FIRM_ID INTEGER
+  )
+  Table FIRM_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGAL_NAME VARCHAR(200)
+  )
+
+  Join FirmA_Person(FIRM_TBL.ID = PERSON_A.FIRM_ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  // '*' marks the ROOT set for the class; '[id]' names the set.
+  // A class may have several sets, but only one root.
+  *test::Person[person_a]: Relational
+  {
+    ~mainTable [test::db]PERSON_A
+    firstName: [test::db]PERSON_A.FIRSTNAME,
+    lastName: [test::db]PERSON_A.LASTNAME
+  }
+
+  // non-root set for the same class, different table, no leading '*'
+  test::Person[person_b]: Relational
+  {
+    ~mainTable [test::db]PERSON_B
+    firstName: [test::db]PERSON_B.FIRSTNAME,
+    lastName: [test::db]PERSON_B.LASTNAME
+  }
+
+  // 'extends [parentId]' inherits the parent set's property mappings
+  test::Person[person_b_ext] extends [person_b]: Relational
+  {
+    ~mainTable [test::db]PERSON_B
+    firstName: [test::db]PERSON_B.FIRSTNAME
+  }
+
+  *test::Firm[firm_root]: Relational
+  {
+    ~mainTable [test::db]FIRM_TBL
+    legalName: [test::db]FIRM_TBL.LEGAL_NAME,
+    // target the specific Person set to use for this association
+    employees[person_a]: [test::db]@FirmA_Person
+  }
+)

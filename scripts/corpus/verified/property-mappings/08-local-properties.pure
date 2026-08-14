@@ -1,0 +1,59 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+}
+
+Class test::Firm
+{
+  legalName: String[1];
+}
+
+###Relational
+Database test::db
+(
+  Table PERSON_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    AGE INTEGER,
+    SALARY FLOAT,
+    NICKNAME VARCHAR(200),
+    FIRM_ID INTEGER
+  )
+  Table FIRM_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGAL_NAME VARCHAR(200)
+  )
+
+  Join Person_Firm(PERSON_TBL.FIRM_ID = FIRM_TBL.ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  *test::Person: Relational
+  {
+    ~mainTable [test::db]PERSON_TBL
+    firstName: [test::db]PERSON_TBL.FIRSTNAME,
+
+    // local (mapping-only) properties: '+' name ':' Type '[' multiplicity ']' ':' operation
+    +lastName: String[1]: [test::db]PERSON_TBL.LASTNAME,
+    +age: Integer[0..1]: [test::db]PERSON_TBL.AGE,
+    +salary: Float[1]: [test::db]PERSON_TBL.SALARY,
+    +aliases: String[*]: [test::db]PERSON_TBL.NICKNAME,
+    +exactlySeven: Integer[7]: [test::db]PERSON_TBL.AGE,
+
+    // a local property may hold a dyna function or a join navigation too
+    +displayName: String[1]: concat([test::db]PERSON_TBL.FIRSTNAME, ' ', [test::db]PERSON_TBL.LASTNAME),
+    +employerName: String[1]: [test::db]@Person_Firm | FIRM_TBL.LEGAL_NAME
+  }
+
+  *test::Firm: Relational
+  {
+    ~mainTable [test::db]FIRM_TBL
+    legalName: [test::db]FIRM_TBL.LEGAL_NAME
+  }
+)

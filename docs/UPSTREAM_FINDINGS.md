@@ -874,4 +874,12 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   like, and the services all pass individually and in small groups. `scripts/corpus/run.py`
   now batches 40 testables per JVM. Whether the non-release is by design (connections closed
   at shutdown) or a leak has NOT been established; only the exhaustion is observed.
+- **An Association mapped without the `AssociationMapping ( ... )` wrapper parses, then fails
+  with a diagnostic that names the wrong problem.** Writing
+  `demo::Employment: Relational { employees: [db]@PF, firm: [db]@PF }` -- the shape a user
+  would reach for by analogy with a class mapping -- is accepted by the grammar as a CLASS
+  mapping, and the compiler then reports `Can't find class 'demo::Employment'`. The class is
+  right there; what is missing is the wrapper. A user is sent looking for a missing or
+  misspelled class instead of a missing keyword. Verified independently of the report that
+  surfaced it.
 

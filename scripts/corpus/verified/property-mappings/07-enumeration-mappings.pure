@@ -1,0 +1,93 @@
+###Pure
+Enum test::EmployeeType
+{
+  CONTRACT,
+  FULL_TIME
+}
+
+Enum test::YesNo
+{
+  YES,
+  NO
+}
+
+Enum test::TradeStatus
+{
+  PENDING,
+  CONFIRMED,
+  SETTLED,
+  CANCELLED
+}
+
+Class test::Employee
+{
+  name: String[1];
+  type: test::EmployeeType[1];
+  active: test::YesNo[1];
+  status: test::TradeStatus[1];
+  joinedType: test::EmployeeType[1];
+}
+
+###Relational
+Database test::db
+(
+  Table EMP_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(200),
+    TYPE_CODE VARCHAR(10),
+    ACTIVE INTEGER,
+    STATUS_CODE VARCHAR(10),
+    FIRM_ID INTEGER
+  )
+  Table FIRM_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    TYPE_CODE VARCHAR(10)
+  )
+
+  Join Emp_Firm(EMP_TBL.FIRM_ID = FIRM_TBL.ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  // standalone EnumerationMapping, default id (the id is the enum's own name)
+  test::EmployeeType: EnumerationMapping
+  {
+    CONTRACT: ['FTC', 'CTR'],
+    FULL_TIME: ['FTE']
+  }
+
+  // standalone EnumerationMapping with an explicit id, integer source values
+  test::YesNo: EnumerationMapping YesNoMapping
+  {
+    YES: [1],
+    NO: [0]
+  }
+
+  // multi-value collapse; a single source value needs no brackets
+  test::TradeStatus: EnumerationMapping TradeStatusMapping
+  {
+    PENDING: ['P', 'PEND', 'PENDING'],
+    CONFIRMED: ['C', 'CONF'],
+    SETTLED: 'S',
+    CANCELLED: ['X', 'CANC', 'CANCEL']
+  }
+
+  *test::Employee: Relational
+  {
+    ~mainTable [test::db]EMP_TBL
+    name: [test::db]EMP_TBL.NAME,
+
+    // transformer referencing the default-id enumeration mapping (id = enum path with :: -> _)
+    type: EnumerationMapping test_EmployeeType: [test::db]EMP_TBL.TYPE_CODE,
+
+    // transformer referencing an explicitly-named enumeration mapping
+    active: EnumerationMapping YesNoMapping: [test::db]EMP_TBL.ACTIVE,
+    status: EnumerationMapping TradeStatusMapping: [test::db]EMP_TBL.STATUS_CODE,
+
+    // transformer over a join navigation
+    joinedType: EnumerationMapping test_EmployeeType: [test::db]@Emp_Firm | FIRM_TBL.TYPE_CODE
+  }
+)

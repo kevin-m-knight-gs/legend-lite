@@ -1,0 +1,47 @@
+// Feature 4: Inline embedded property mapping -- reuse another class mapping by id.
+// Source: legend-engine core_relational .../tests/mapping/association/testAssociationEmbedded.pure
+//         ("firm() Inline[f1]") and TestRelationalGrammarRoundtrip#testEmbeddedRelationalMapping.
+// Exact spelling: `prop() Inline[setId]` -- EMPTY parens, no space before them.
+###Pure
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Class demo::Person
+{
+  firstName: String[1];
+  firm: demo::Firm[1];
+}
+
+###Relational
+Database demo::db
+(
+  Table PERSON_FIRM_DENORM
+  (
+    ID INTEGER PRIMARY KEY,
+    PERSON_FIRSTNAME VARCHAR(200),
+    FIRM_LEGALNAME VARCHAR(200)
+  )
+)
+
+###Mapping
+Mapping demo::EmbeddedInline
+(
+  demo::Person[p]: Relational
+  {
+    scope([demo::db]PERSON_FIRM_DENORM)
+    (
+      firstName: PERSON_FIRSTNAME,
+      firm() Inline[f1]
+    )
+  }
+
+  demo::Firm[f1]: Relational
+  {
+    scope([demo::db]PERSON_FIRM_DENORM)
+    (
+      legalName: FIRM_LEGALNAME
+    )
+  }
+)

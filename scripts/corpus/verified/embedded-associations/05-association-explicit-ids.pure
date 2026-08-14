@@ -1,0 +1,63 @@
+// Feature 5: association mapping with EXPLICIT source/target set ids on both ends.
+// Source: legend-engine core_relational .../tests/mapping/association/testAssociationMapping.pure
+//         (associationMappingWithIds) and relational-emit-models/.../associationMapping.pure.
+// Exact spelling: the association's own body is `Relational { AssociationMapping ( ... ) }`.
+// There is NO bare `Assoc: Relational { end: @J }` form -- the AssociationMapping(...)
+// wrapper is mandatory. Each end is `prop[sourceSetId, targetSetId]: [store]@Join`.
+###Pure
+Class demo::Person
+{
+  firstName: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Association demo::Employment
+{
+  employees: demo::Person[*];
+  firm: demo::Firm[0..1];
+}
+
+###Relational
+Database demo::db
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    FIRMID INTEGER
+  )
+  Table firmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(200)
+  )
+
+  Join Firm_Person(personTable.FIRMID = firmTable.ID)
+)
+
+###Mapping
+Mapping demo::AssociationExplicitIds
+(
+  demo::Person[per1]: Relational
+  {
+    firstName: [demo::db]personTable.FIRSTNAME
+  }
+
+  demo::Firm[fir1]: Relational
+  {
+    legalName: [demo::db]firmTable.LEGALNAME
+  }
+
+  demo::Employment: Relational
+  {
+    AssociationMapping
+    (
+      employees[fir1, per1]: [demo::db]@Firm_Person,
+      firm[per1, fir1]: [demo::db]@Firm_Person
+    )
+  }
+)

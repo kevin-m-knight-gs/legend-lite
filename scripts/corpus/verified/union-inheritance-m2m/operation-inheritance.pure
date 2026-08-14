@@ -1,0 +1,47 @@
+###Pure
+Class demo::vehicle::Vehicle
+{
+  registration: String[1];
+}
+
+Class demo::vehicle::Car extends demo::vehicle::Vehicle
+{
+  doors: Integer[1];
+}
+
+Class demo::vehicle::Truck extends demo::vehicle::Vehicle
+{
+  payloadTonnes: Integer[1];
+}
+
+###Relational
+Database demo::store::VehicleDB
+(
+  Table CarTable (id INTEGER PRIMARY KEY, registration VARCHAR(20), doors INTEGER)
+  Table TruckTable (id INTEGER PRIMARY KEY, registration VARCHAR(20), payloadTonnes INTEGER)
+)
+
+###Mapping
+Mapping demo::VehicleOperationMapping
+(
+  *demo::vehicle::Car[car]: Relational
+  {
+    ~primaryKey ([demo::store::VehicleDB]CarTable.id)
+    ~mainTable [demo::store::VehicleDB]CarTable
+    registration: [demo::store::VehicleDB]CarTable.registration,
+    doors: [demo::store::VehicleDB]CarTable.doors
+  }
+
+  *demo::vehicle::Truck[truck]: Relational
+  {
+    ~primaryKey ([demo::store::VehicleDB]TruckTable.id)
+    ~mainTable [demo::store::VehicleDB]TruckTable
+    registration: [demo::store::VehicleDB]TruckTable.registration,
+    payloadTonnes: [demo::store::VehicleDB]TruckTable.payloadTonnes
+  }
+
+  *demo::vehicle::Vehicle: Operation
+  {
+    meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_()
+  }
+)

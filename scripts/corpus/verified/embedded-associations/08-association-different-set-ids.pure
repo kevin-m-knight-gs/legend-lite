@@ -1,0 +1,79 @@
+// Feature 8: association whose two ends resolve to DIFFERENT class mappings.
+// Person has two class mappings (per_main from personTable, per_archive from
+// archivedPersonTable). Navigating Person -> Firm starts from per_main; navigating
+// Firm -> employees lands on per_archive. The pair of set ids on each end is what
+// makes the association asymmetric.
+// Source: legend-engine core_relational .../tests/mapping/association/testAssociationEmbedded.pure
+//         (organizations[p_firm, org1] / organizations[f1, org1] -- same property,
+//         different source sets) and .../testAssociationMapping.pure
+//         (associationMappingWithDifferentRoot: ceo[rf, o]).
+###Pure
+Class demo::Person
+{
+  firstName: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Association demo::Employment
+{
+  employees: demo::Person[*];
+  firm: demo::Firm[0..1];
+}
+
+###Relational
+Database demo::db
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    FIRMID INTEGER
+  )
+  Table archivedPersonTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    FIRMID INTEGER
+  )
+  Table firmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(200)
+  )
+
+  Join Firm_Person(personTable.FIRMID = firmTable.ID)
+  Join Firm_ArchivedPerson(archivedPersonTable.FIRMID = firmTable.ID)
+)
+
+###Mapping
+Mapping demo::AssociationDifferentSetIds
+(
+  // two set implementations for one class => exactly one must be marked root with '*'
+  *demo::Person[per_main]: Relational
+  {
+    firstName: [demo::db]personTable.FIRSTNAME
+  }
+
+  demo::Person[per_archive]: Relational
+  {
+    firstName: [demo::db]archivedPersonTable.FIRSTNAME
+  }
+
+  *demo::Firm[fir1]: Relational
+  {
+    legalName: [demo::db]firmTable.LEGALNAME
+  }
+
+  demo::Employment: Relational
+  {
+    AssociationMapping
+    (
+      firm[per_main, fir1]: [demo::db]@Firm_Person,
+      employees[fir1, per_archive]: [demo::db]@Firm_ArchivedPerson
+    )
+  }
+)

@@ -1,0 +1,105 @@
+###Pure
+Class demo::agg::Sale
+{
+  salesPerson: String[1];
+  region: String[1];
+  revenue: Integer[1];
+  discount: Integer[1];
+}
+
+###Relational
+Database demo::store::AggDB
+(
+  Table SalesTable
+  (
+    id INTEGER PRIMARY KEY,
+    salesPerson VARCHAR(200),
+    region VARCHAR(20),
+    revenue INTEGER,
+    discount INTEGER
+  )
+  Table SalesByPersonTable
+  (
+    salesPerson VARCHAR(200) PRIMARY KEY,
+    revenue INTEGER,
+    discount INTEGER
+  )
+  Table SalesByRegionTable
+  (
+    region VARCHAR(20) PRIMARY KEY,
+    revenue INTEGER
+  )
+)
+
+###Mapping
+Mapping demo::SaleAggregationAwareMapping
+(
+  *demo::agg::Sale: AggregationAware
+  {
+    Views:
+    [
+      (
+        ~modelOperation:
+        {
+          ~canAggregate true,
+          ~groupByFunctions
+          (
+            $this.salesPerson
+          ),
+          ~aggregateValues
+          (
+            ( ~mapFn: $this.revenue, ~aggregateFn: $mapped->sum() ),
+            ( ~mapFn: $this.discount, ~aggregateFn: $mapped->sum() )
+          )
+        },
+        ~aggregateMapping: Relational
+        {
+          ~primaryKey
+          (
+            [demo::store::AggDB]SalesByPersonTable.salesPerson
+          )
+          ~mainTable [demo::store::AggDB]SalesByPersonTable
+          salesPerson: [demo::store::AggDB]SalesByPersonTable.salesPerson,
+          revenue: [demo::store::AggDB]SalesByPersonTable.revenue,
+          discount: [demo::store::AggDB]SalesByPersonTable.discount
+        }
+      ),
+      (
+        ~modelOperation:
+        {
+          ~canAggregate false,
+          ~groupByFunctions
+          (
+            $this.region
+          ),
+          ~aggregateValues
+          (
+            ( ~mapFn: $this.revenue, ~aggregateFn: $mapped->sum() )
+          )
+        },
+        ~aggregateMapping: Relational
+        {
+          ~primaryKey
+          (
+            [demo::store::AggDB]SalesByRegionTable.region
+          )
+          ~mainTable [demo::store::AggDB]SalesByRegionTable
+          region: [demo::store::AggDB]SalesByRegionTable.region,
+          revenue: [demo::store::AggDB]SalesByRegionTable.revenue
+        }
+      )
+    ],
+    ~mainMapping: Relational
+    {
+      ~primaryKey
+      (
+        [demo::store::AggDB]SalesTable.id
+      )
+      ~mainTable [demo::store::AggDB]SalesTable
+      salesPerson: [demo::store::AggDB]SalesTable.salesPerson,
+      region: [demo::store::AggDB]SalesTable.region,
+      revenue: [demo::store::AggDB]SalesTable.revenue,
+      discount: [demo::store::AggDB]SalesTable.discount
+    }
+  }
+)

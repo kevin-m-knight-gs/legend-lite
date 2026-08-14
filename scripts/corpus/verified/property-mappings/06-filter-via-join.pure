@@ -1,0 +1,90 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+}
+
+Class test::USPerson
+{
+  firstName: String[1];
+}
+
+Class test::USCityPerson
+{
+  firstName: String[1];
+}
+
+Class test::ActivePerson
+{
+  firstName: String[1];
+}
+
+###Relational
+Database test::db
+(
+  Schema sales
+  (
+    Table PERSON_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      FIRSTNAME VARCHAR(200),
+      FIRM_ID INTEGER,
+      ACTIVE INTEGER
+    )
+    Table FIRM_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200),
+      REGION VARCHAR(10),
+      ADDR_ID INTEGER
+    )
+    Table ADDR_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      CITY VARCHAR(200)
+    )
+  )
+
+  Join Person_Firm(sales.PERSON_TBL.FIRM_ID = sales.FIRM_TBL.ID)
+  Join Firm_Addr(sales.FIRM_TBL.ADDR_ID = sales.ADDR_TBL.ID)
+
+  Filter ActiveFilter(sales.PERSON_TBL.ACTIVE = 1)
+  Filter USFirmFilter(sales.FIRM_TBL.REGION = 'US')
+  Filter NycFilter(sales.ADDR_TBL.CITY = 'NEW YORK')
+)
+
+###Mapping
+Mapping test::M
+(
+  // plain named filter on the main table
+  *test::ActivePerson: Relational
+  {
+    ~filter [test::db]ActiveFilter
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME
+  }
+
+  // filter reached through a join: [db] joinSeq | [db] FilterName
+  // NOTE: the pipe is mandatory, and the filter needs its own database pointer.
+  *test::USPerson: Relational
+  {
+    ~filter [test::db]@Person_Firm | [test::db]USFirmFilter
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME
+  }
+
+  // multi-hop filter join, with an explicit join type on the FIRST hop
+  // (allowed in ~filter, unlike in a property mapping)
+  *test::USCityPerson: Relational
+  {
+    ~filter [test::db] (INNER) @Person_Firm > (INNER) @Firm_Addr | [test::db]NycFilter
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME
+  }
+
+  *test::Person: Relational
+  {
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME
+  }
+)

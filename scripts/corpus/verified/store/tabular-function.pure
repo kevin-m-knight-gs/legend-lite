@@ -1,0 +1,67 @@
+###Relational
+Database store::tabfunc::TabFuncDB
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    AGE INTEGER
+  )
+
+  // TabularFunction: declared at database level. The body is a column list with
+  // exactly the same syntax as Table columns (PRIMARY KEY / NOT NULL allowed),
+  // but there is no argument list in the grammar -- it only names an existing
+  // table-valued function in the physical database.
+  TabularFunction personFunction
+  (
+    ID INTEGER,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    AGE INTEGER
+  )
+
+  // TabularFunction also nests inside a Schema
+  Schema fnSchema
+  (
+    TabularFunction firmFunction
+    (
+      ID INTEGER PRIMARY KEY,
+      LEGALNAME VARCHAR(200) NOT NULL
+    )
+  )
+)
+
+###Pure
+Class store::tabfunc::PersonFromFn
+{
+  firstName: String[1];
+  lastName: String[1];
+}
+
+Class store::tabfunc::FirmFromFn
+{
+  legalName: String[1];
+}
+
+###Mapping
+Mapping store::tabfunc::TabFuncMapping
+(
+  *store::tabfunc::PersonFromFn: Relational
+  {
+    ~primaryKey
+    (
+      [store::tabfunc::TabFuncDB]personFunction.ID
+    )
+    ~mainTable [store::tabfunc::TabFuncDB]personFunction
+    firstName: [store::tabfunc::TabFuncDB]personFunction.FIRSTNAME,
+    lastName: [store::tabfunc::TabFuncDB]personFunction.LASTNAME
+  }
+
+  // schema-qualified TabularFunction
+  *store::tabfunc::FirmFromFn: Relational
+  {
+    ~mainTable [store::tabfunc::TabFuncDB]fnSchema.firmFunction
+    legalName: [store::tabfunc::TabFuncDB]fnSchema.firmFunction.LEGALNAME
+  }
+)

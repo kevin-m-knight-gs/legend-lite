@@ -1,0 +1,33 @@
+// Feature 4 variant: Inline embedded INSIDE a nested embedded block.
+// Source shape: legend-engine TestRelationalGrammarRoundtrip#testEmbeddedRelationalMapping,
+//   which nests `contractId() Inline[TEST_Id]` inside `prop1WithEmbedded ( ... )`.
+// Verified here as parses AND compiles.
+###Pure
+Class demo::Address { name: String[1]; }
+Class demo::Firm { legalName: String[1]; address: demo::Address[1]; }
+Class demo::Person { firstName: String[1]; firm: demo::Firm[1]; }
+###Relational
+Database demo::db
+(
+  Table T (ID INTEGER PRIMARY KEY, FN VARCHAR(200), LN VARCHAR(200), AN VARCHAR(200))
+)
+###Mapping
+Mapping demo::M
+(
+  demo::Person[p]: Relational
+  {
+    scope([demo::db]T)
+    (
+      firstName: FN,
+      firm
+      (
+        legalName: LN,
+        address() Inline[addr1]
+      )
+    )
+  }
+  demo::Address[addr1]: Relational
+  {
+    name: [demo::db]T.AN
+  }
+)

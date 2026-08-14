@@ -1,0 +1,69 @@
+// Feature 2: embedded property mapping nested THREE levels
+// (person -> firm -> address -> geo), all columns from one denormalized table.
+// Source: legend-engine TestEmbeddedRelationalCompilationFromGrammar#testEmbeddedMapping
+//         (2 levels) extended by TestRelationalGrammarRoundtrip#testEmbeddedRelationalMapping
+//         (arbitrary nesting depth).
+###Pure
+Class demo::Geo
+{
+  country: String[1];
+}
+
+Class demo::Address
+{
+  line1: String[1];
+  geo: demo::Geo[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+  address: demo::Address[1];
+}
+
+Class demo::Person
+{
+  name: String[1];
+  firm: demo::Firm[1];
+}
+
+###Relational
+Database demo::db
+(
+  Table employeeFirmDenormTable
+  (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(200),
+    legalName VARCHAR(200),
+    address VARCHAR(200),
+    country VARCHAR(200)
+  )
+)
+
+###Mapping
+Mapping demo::EmbeddedNested
+(
+  *demo::Person[person]: Relational
+  {
+    ~primaryKey
+    (
+      [demo::db]employeeFirmDenormTable.id
+    )
+    ~mainTable [demo::db]employeeFirmDenormTable
+    name: [demo::db]employeeFirmDenormTable.name,
+    firm
+    (
+      ~primaryKey ([demo::db]employeeFirmDenormTable.legalName)
+      legalName: [demo::db]employeeFirmDenormTable.legalName,
+      address
+      (
+        ~primaryKey ([demo::db]employeeFirmDenormTable.address)
+        line1: [demo::db]employeeFirmDenormTable.address,
+        geo
+        (
+          country: [demo::db]employeeFirmDenormTable.country
+        )
+      )
+    )
+  }
+)

@@ -1,0 +1,68 @@
+###Relational
+Database store::schema::SchemaDB
+(
+  Schema trading
+  (
+    Table TradeTable
+    (
+      ID INTEGER PRIMARY KEY,
+      PRODUCT VARCHAR(200),
+      QTY INTEGER,
+      PRICE DECIMAL(18, 4),
+      TRADER_ID INTEGER,
+      STATUS VARCHAR(10)
+    )
+
+    View TradeView
+    (
+      ~filter ActiveTradesFilter
+      tradeId: trading.TradeTable.ID PRIMARY KEY,
+      product: trading.TradeTable.PRODUCT,
+      totalValue: multiply(trading.TradeTable.QTY, trading.TradeTable.PRICE)
+    )
+  )
+
+  Schema reference
+  (
+    Table TraderTable
+    (
+      ID INTEGER PRIMARY KEY,
+      NAME VARCHAR(200)
+    )
+  )
+
+  Join Trade_Trader(trading.TradeTable.TRADER_ID = reference.TraderTable.ID)
+
+  Filter ActiveTradesFilter(trading.TradeTable.STATUS = 'ACTIVE')
+)
+
+###Pure
+Class store::schema::Trade
+{
+  product: String[1];
+  traderName: String[0..1];
+}
+
+Class store::schema::TradeSummary
+{
+  product: String[1];
+  totalValue: Float[1];
+}
+
+###Mapping
+Mapping store::schema::SchemaMapping
+(
+  *store::schema::Trade: Relational
+  {
+    ~mainTable [store::schema::SchemaDB]trading.TradeTable
+    product: [store::schema::SchemaDB]trading.TradeTable.PRODUCT,
+    traderName: [store::schema::SchemaDB]@Trade_Trader | reference.TraderTable.NAME
+  }
+
+  *store::schema::TradeSummary: Relational
+  {
+    ~mainTable [store::schema::SchemaDB]trading.TradeView
+    product: [store::schema::SchemaDB]trading.TradeView.product,
+    totalValue: [store::schema::SchemaDB]trading.TradeView.totalValue
+  }
+)
