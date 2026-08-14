@@ -419,6 +419,11 @@ public final class FromProtocol {
                             "MongoDBConnection", c.qualifiedName(),
                             java.util.Map.of("database", mgc.databaseName()),
                             null);
+            case Protocol.PElasticsearchConnection esc ->
+                    new GenericSectionElementDefinition("Connection",
+                            "Elasticsearch7ClusterConnection",
+                            c.qualifiedName(),
+                            java.util.Map.of("url", esc.url()), null);
             case Protocol.PConnectionPointer p -> throw new IllegalStateException(
                     "a connection pointer cannot be a standalone element: "
                             + c.qualifiedName());
@@ -509,6 +514,15 @@ public final class FromProtocol {
                                 "Connection", "MongoDBConnection", synth,
                                 java.util.Map.of("database",
                                         mcv.databaseName()), null));
+                        bindings.computeIfAbsent(store, k -> new ArrayList<>())
+                                .add(synth);
+                    }
+                    case Protocol.PElasticsearchConnection ecv -> {
+                        String synth = qn + "$" + store + "$" + ic.id();
+                        inline.add(new GenericSectionElementDefinition(
+                                "Connection",
+                                "Elasticsearch7ClusterConnection", synth,
+                                java.util.Map.of("url", ecv.url()), null));
                         bindings.computeIfAbsent(store, k -> new ArrayList<>())
                                 .add(synth);
                     }

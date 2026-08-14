@@ -658,7 +658,7 @@ public final class PmcdParser {
             "JsonModelConnection", "XmlModelConnection",
             "ModelChainConnection", "RelationalDatabaseConnection",
             "ServiceStoreConnection", "DeephavenConnection",
-            "MongoDBConnection");
+            "MongoDBConnection", "Elasticsearch7ClusterConnection");
 
     private static int skipTo(TokenStream ts, long offset) {
         // token starts are sorted — binary search, not a linear rescan

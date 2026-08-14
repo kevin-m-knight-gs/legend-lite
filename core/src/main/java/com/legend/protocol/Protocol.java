@@ -1952,7 +1952,19 @@ public final class Protocol {
             permits PConnectionPointer, PJsonModelConnection,
             PXmlModelConnection, PModelChainConnection,
             PRelationalDatabaseConnection, PServiceStoreConnection,
-            PDeephavenConnection, PMongoDbConnection {
+            PDeephavenConnection, PMongoDbConnection,
+            PElasticsearchConnection {
+    }
+
+    /** {@code _type:"elasticsearch7StoreConnection"} — store element,
+     *  {@code clusterDetails: # URL {...}#} (wire {@code sourceSpec.url}
+     *  only) and a UserPassword auth island sharing the Mongo secret
+     *  wire (C12 ES leg; wire probed live). */
+    public record PElasticsearchConnection(String element,
+                               com.legend.protocol.SourceInfo elementSourceInformation,
+                               String url, PMongoAuth auth,
+                               com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
     }
 
     /** {@code ServiceStoreConnection { store; baseUrl; }} —

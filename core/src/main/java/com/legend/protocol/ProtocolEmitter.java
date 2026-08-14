@@ -884,6 +884,37 @@ public final class ProtocolEmitter {
                 str(b, dc.serverUrl());
                 b.append("}}");
             }
+            case Protocol.PElasticsearchConnection ec -> {
+                b.append("{\"_type\":\"elasticsearch7StoreConnection\","
+                        + "\"authSpec\":{\"_type\":\"userPassword\","
+                        + "\"password\":{\"_type\":");
+                Protocol.PMongoSecret sec = ec.auth().password();
+                str(b, sec.kind());
+                if ("properties".equals(sec.kind())) {
+                    b.append(",\"").append(sec.fieldKey()).append("\":");
+                    str(b, sec.value());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sec.sourceInformation());
+                } else {
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sec.sourceInformation());
+                    b.append(",\"").append(sec.fieldKey()).append("\":");
+                    str(b, sec.value());
+                }
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, ec.auth().sourceInformation());
+                b.append(",\"username\":");
+                str(b, ec.auth().username());
+                b.append("},\"element\":");
+                str(b, ec.element());
+                b.append(",\"elementSourceInformation\":");
+                srcInfo(b, ec.elementSourceInformation());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ec.sourceInformation());
+                b.append(",\"sourceSpec\":{\"url\":");
+                str(b, ec.url());
+                b.append("}}");
+            }
             case Protocol.PMongoDbConnection mc2 -> {
                 b.append("{\"_type\":\"MongoDBConnection\","
                         + "\"authenticationSpecification\":"
