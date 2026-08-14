@@ -156,6 +156,13 @@ git commit (document deltas per-commit) && push origin main
 
 ## Active queue (weight = current error census)
 
+> **2026-08-14 — a deep four-dimension audit is chartered and NOT started:**
+> `docs/DEEP_AUDIT_CHARTER_2026_08.md` (architecture · correctness ·
+> performance · adversarial merge-review). It needs a parallel fan-out and a
+> raised subagent cap; the brief carries the setup. It also records the one open
+> question on the byte-parity claim (is `sourceInformation` inside the compared
+> bytes?) and the single named corpus exclusion (`m3.pure`).
+
 > **2026-08-14 — read `docs/E2E_BURNDOWN_2026_08_14.md` before picking from this
 > list.** It supersedes the counts below: a fresh 8-gate run put the corpus at
 > **2299/2575**, root-caused all 276 non-passing tests, and censused the whole
