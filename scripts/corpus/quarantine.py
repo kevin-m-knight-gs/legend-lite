@@ -33,6 +33,29 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
     )
 }
 
+# F24 -- a DateTime serializes WITH a UTC offset through TDS projection and WITHOUT one
+# through graph fetch. Same column, same mapping, same row, two execution paths.
+#
+# Listed by name rather than derived, even though the rule ("every generated tree containing
+# a DateTime") is mechanical, because a derived quarantine would silently absorb the next
+# timestamp defect too. When F24 is fixed these ten come back together, and if only nine do
+# the tenth is telling us something.
+ENGINE_QUARANTINE.update({
+    f"stress::{name}": ("F24", "graph fetch omits the UTC offset TDS projection includes")
+    for name in (
+        "GG0_TradeTree",
+        "GG4_ClearedTradeTree",
+        "GG7_TradeExceptionTree",
+        "GG14_SalesCreditTree",
+        "GG15_CashSettlementTree",
+        "GG16_SettlementTree",
+        "GG17_AllocationTree",
+        "GG36_SanctionsCheckTree",
+        "GG46_ConfirmationTree",
+        "GG47_DataQualityIssueTree",
+    )
+})
+
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
 

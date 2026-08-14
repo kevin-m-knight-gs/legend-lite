@@ -28,6 +28,7 @@ import model
 import oracle
 import query
 import seed
+import graphs
 import stacks
 from model import STRESS
 
@@ -162,7 +163,14 @@ def generate() -> dict[Path, str]:
 
     # Dense services generated FROM the model — they deepen as the model does, rather
     # than needing a new hand-written service per domain.
-    generated = stacks.build(c, {k for k, v in TABLES.items() if v})
+    seeded_now = {k for k, v in TABLES.items() if v}
+    generated = stacks.build(c, seeded_now)
+    # Graph-fetch INSTANCES over the same model. battery.py's G0-G3 remain the properties
+    # -- nested to-one navigation, a union with an empty leg, the enum that raises on one
+    # execution path, %latest -- and these are the shapes those properties should hold
+    # over. Four hand-picked roots became sixty ranked ones without a new property being
+    # invented, which is the whole point of the split.
+    generated += graphs.build(c, seeded_now, TABLES)
     fan = []
     for spec in list(battery.SPECS) + generated:
         expected = _expect(c, spec, TABLES)

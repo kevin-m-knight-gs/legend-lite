@@ -848,4 +848,22 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   reachable by typing into a `.pure` file and every one surfaces as a stack trace with no
   line, no column and no construct named. The grammar says "optional"; the walker assumes
   "present".
+- **A `DateTime` serializes differently through TDS projection and through graph fetch.**
+  A projection returns `2024-06-03T09:07:00.000000000+0000`; a graph fetch of the same column,
+  same mapping, same row returns `2024-06-03T09:07:00.000000000` — no UTC offset. This is the
+  same family as F10, F12, F13, F15 and F16: a construct is interpreted per execution path and
+  the paths disagree. (`scripts/corpus/repro/timestamp-graphfetch/`)
+
+  Worth recording how it surfaced, because it is the clearest evidence so far for generating
+  instances over hand-written properties. The four hand-written graph-fetch probes never
+  projected a timestamp, so nobody had looked. Sixty *generated* trees ran, ten failed, and
+  the ten were **exactly** the ten containing a `DateTime` anywhere in the tree — an exact
+  correspondence between failure set and cause, which is what turned a batch of red into a
+  finding rather than a flake.
+- **Graph fetch enforces declared multiplicity; TDS projection does not.** A property declared
+  `[1]` whose column holds NULL fails a graph fetch with `Error reading in property 'email'.
+  Property of multiplicity [1] can not be null`, while a projection of the same column returns
+  the null. Not filed as a defect — the engine is right and the model and data genuinely
+  disagree — but it is another instance of the two paths differing, and any corpus with
+  deliberate nulls has to know about it.
 

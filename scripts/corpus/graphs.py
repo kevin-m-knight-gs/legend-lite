@@ -1,0 +1,181 @@
+"""
+Generates graph-fetch instances across the whole model.
+
+The four hand-written GRAPH specs in battery.py each pin a PROPERTY -- nested to-one
+navigation, an Operation union with an empty leg, an enum that raises on one execution path
+and returns NULL on another, a milestoned class at %latest. Those stay hand-written: each
+encodes a piece of knowledge about what graph fetch is supposed to do, and no generator
+knows any of it.
+
+What they do not do is scale. They cover four roots out of 209 seeded, because a human
+picked four. This generates the INSTANCES those properties should hold over -- tree-shaped
+reads across every root the model offers -- while battery.py keeps the properties.
+
+The division is deliberate and is the same one stacks.py makes for projections: hand-write
+the judgement, generate the volume. A generated tree asserts only that graph fetch agrees
+with the oracle for that shape; it cannot tell you WHY a disagreement matters. When one
+fails, the hand-written probe next to it is what explains it.
+
+Two exclusions, both because generating a test that is known to fail buys nothing:
+
+  * ENUM-MAPPED properties. F10: graph fetch RAISES on a source code with no
+    EnumerationMapping entry where a TDS projection returns NULL. Every expanded table
+    carries such a row by construction, so including enums would generate a corpus of
+    uniform, already-understood failures. G3 pins that deliberately, once.
+
+  * TO-MANY navigation. F6: count() over an empty to-many returns 1 rather than 0, and A3
+    guarantees a childless parent in every expanded table. Trees stay to-one until F6 is
+    fixed; the moment it is, lifting this restriction is a one-line change and the fan-out
+    is large.
+"""
+from __future__ import annotations
+
+import model
+from query import Spec
+
+# Bounded like stacks.MAX_ROOTS: every root costs a service and the suite runs per commit.
+# The ranking decides which roots, so widening the seed widens the corpus rather than
+# needing a new entry here.
+MAX_ROOTS = 60
+
+# A tree with one scalar is a projection wearing a tree's clothes -- it exercises none of
+# the sub-object assembly that makes graph fetch different from a flat read.
+MIN_SCALARS = 2
+MAX_SCALARS = 4
+MAX_BRANCHES = 2
+
+
+def _scalars(c: model.Corpus, cls: str, limit: int,
+             tables: dict[str, list[dict]] | None = None) -> list[str]:
+    """Scalar properties of `cls`, identifier first, enum-mapped ones excluded.
+
+    Identifier first so a failure diff names the row a human can find, and so the tree reads
+    like one somebody would write.
+
+    Also excluded: a property declared `[1]` whose column actually holds a NULL in the
+    seeded rows. Graph fetch ENFORCES multiplicity -- "Property of multiplicity [1] can not
+    be null" -- where a TDS projection of the same column returns the null happily. The
+    engine is right to complain; the model and the data disagree, and generating a tree over
+    that combination tests the disagreement rather than graph fetch. The adversarial nulls
+    are deliberate, so the generator avoids the required properties instead of the seed
+    avoiding the nulls.
+    """
+    cols = c.columns.get(cls, {})
+    table = c.tables.get(c.main_table.get(cls, ""))
+    if table is None:
+        return []
+    enum_props = {p for (owner, p) in c.enum_props if owner == cls}
+    declared = c.classes[cls].props if cls in c.classes else {}
+
+    def nullable_conflict(prop: str, col: str) -> bool:
+        d = declared.get(prop)
+        if d is None or d.lower < 1 or tables is None:
+            return False
+        return any(r.get(col) is None for r in tables.get(table.name, []))
+
+    pk = table.pk[0] if table.pk else None
+    ident = next((p for p, col in cols.items() if col == pk), None)
+    rest = sorted(p for p, col in cols.items()
+                  if p != ident and p not in enum_props and col in table.columns
+                  and not nullable_conflict(p, col))
+    out = ([ident] if ident else []) + rest
+    return out[:limit]
+
+
+def _branches(c: model.Corpus, root: str, seeded: set[str]) -> list[tuple[str, str]]:
+    """(property, target class) for each to-one navigation from `root` onto a seeded table.
+
+    to-one only -- see the module docstring on F6.
+    """
+    out = []
+    for (owner, name), end in sorted(c.ends.items()):
+        if owner != root or end.to_many or not end.join:
+            continue
+        if c.main_table.get(end.target) not in seeded:
+            continue
+        out.append((name, end.target))
+    return out
+
+
+def roots(c: model.Corpus, seeded: set[str],
+          tables: dict[str, list[dict]] | None = None) -> list[str]:
+    """Every class worth fetching, richest first.
+
+    Ranked by how much TREE the class can produce -- branches first, then scalars -- so the
+    generated corpus leads with the deepest object graphs rather than with whatever sorts
+    first alphabetically.
+    """
+    scored = []
+    for cls, table in c.main_table.items():
+        if table not in seeded or cls in c.views:
+            continue
+        scalars = _scalars(c, cls, MAX_SCALARS, tables)
+        if len(scalars) < MIN_SCALARS:
+            continue
+        branches = _branches(c, cls, seeded)
+        scored.append(((len(branches), len(scalars)), cls))
+    scored.sort(key=lambda s: (-s[0][0], -s[0][1], s[1]))
+    return [cls for _, cls in scored[:MAX_ROOTS]]
+
+
+def build(c: model.Corpus, seeded: set[str],
+          tables: dict[str, list[dict]] | None = None) -> list[Spec]:
+    """One graph-fetch spec per root, deduplicated by tree SHAPE.
+
+    Two roots that reach the same targets by the same property names produce the same test
+    twice, which is the failure mode stacks.py had to fix after emitting four
+    interchangeable services. The signature here is the full nested key structure, so a tree
+    counts as new when it reads something new -- not merely when it starts somewhere new.
+    """
+    specs, seen = [], set()
+    for n, root in enumerate(roots(c, seeded, tables)):
+        tree: dict = {p: None for p in _scalars(c, root, MAX_SCALARS, tables)}
+        if len(tree) < MIN_SCALARS:
+            continue
+        for prop, target in _branches(c, root, seeded)[:MAX_BRANCHES]:
+            sub = _scalars(c, target, 3, tables)
+            if len(sub) >= 2:
+                tree[prop] = {p: None for p in sub}
+        if not any(isinstance(v, dict) for v in tree.values()):
+            # No sub-object: a flat read, already covered far better by the projection
+            # corpus. Graph fetch earns its place only where a tree exists.
+            continue
+
+        signature = _signature(tree)
+        if signature in seen:
+            continue
+        seen.add(signature)
+
+        short = root.split("::")[-1]
+        spec = Spec(f"stress::GG{n}_{short}Tree", f"/stress/gg{n}",
+                    f"Generated graph fetch on {root}: {len(tree)} keys, "
+                    f"{sum(1 for v in tree.values() if isinstance(v, dict))} sub-object(s). "
+                    f"Tree-shaped read of the same rows the projection corpus reads flat -- "
+                    f"the two must agree with the oracle independently, because a sub-object "
+                    f"that is wholly absent and one whose every field is null are the same "
+                    f"row in a projection and different objects in a tree. Generated by "
+                    f"scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the "
+                    f"hand-written G0-G3 in battery.py.", root)
+        spec.graph = tree
+        specs.append(spec)
+    return specs
+
+
+def _signature(tree: dict) -> tuple:
+    return tuple(sorted((k, _signature(v) if isinstance(v, dict) else None)
+                        for k, v in tree.items()))
+
+
+if __name__ == "__main__":
+    import flat
+
+    c = model.load()
+    tables = flat.all_tables(c)
+    seeded = {t for t, rows in tables.items() if rows}
+    all_roots = roots(c, seeded, tables)
+    specs = build(c, seeded, tables)
+    print(f"roots ranked: {len(all_roots)} (cap {MAX_ROOTS})")
+    print(f"specs after shape dedupe: {len(specs)}")
+    for s in specs[:5]:
+        branches = sum(1 for v in s.graph.values() if isinstance(v, dict))
+        print(f"  {s.name.split('::')[-1]:<34}{len(s.graph)} keys, {branches} sub-object(s)")
