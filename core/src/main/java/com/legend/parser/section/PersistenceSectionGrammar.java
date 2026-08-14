@@ -236,6 +236,19 @@ public final class PersistenceSectionGrammar
     /** Recursive engine-walker cardinality over the generic node tree:
      *  every key at most once; the {@link #REQUIRED_FIELDS} set for the
      *  node's {@code slot/kind} present. */
+    /** Keys the engine grammar PERMITS per node kind — entries only for
+     *  the kinds the sibling handoff's protocol-check proved corrupting
+     *  (a wrong-kind key emits JSON the engine's Jackson cannot
+     *  deserialize); sets grounded in the g4 rules. Grows down-only. */
+    private static final java.util.Map<String, List<String>> PERMITTED_FIELDS =
+            java.util.Map.of(
+                    "persister/Streaming", List.of("sink"),
+                    "targetShape/Flat", List.of("modelClass", "targetName",
+                            "partitionFields", "deduplicationStrategy"),
+                    "transactionMilestoning/BatchId",
+                    List.of("batchIdInName", "batchIdOutName"),
+                    "datasetType/Snapshot", List.of("partitioning"));
+
     private static void validateNode(TokenStreamCursor c, String slot,
             Protocol.PPersistenceNode node) {
         // ANCHORED at the NODE's own span start — the engine walker passes
@@ -249,6 +262,15 @@ public final class PersistenceSectionGrammar
         // check, then an immediate visit that recurses) — so a nested
         // error in an EARLIER field outranks a missing LATER field
         // (probed pin #72: MultiFlat 'parts' beats Batch 'ingestMode')
+        List<String> permitted = PERMITTED_FIELDS.get(slot + "/" + node.kind());
+        if (permitted != null) {
+            for (Protocol.PPersistenceEntry e : node.entries()) {
+                if (!permitted.contains(e.key())) {
+                    throw new com.legend.parser.ParseException(
+                            "Unexpected token", line, col);
+                }
+            }
+        }
         List<String> ordered = REQUIRED_FIELDS.get(slot + "/" + node.kind());
         java.util.Set<String> walked = new java.util.HashSet<>();
         if (ordered != null) {
