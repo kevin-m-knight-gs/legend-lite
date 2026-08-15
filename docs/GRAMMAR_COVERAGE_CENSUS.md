@@ -111,3 +111,26 @@ oracle-vs-lite, verdict parity pinned at ZERO divergences (first run:
 improvement list: uniform walk yields no both-accepts (bias toward
 exit transitions / template seeding would fix); Domain grammar only
 (extend per-grammar using the census's uncovered lists as weights).
+
+## A5 platform-gap burn (2026-08-15) — the cheap families
+
+Burned: **doc-strings** (m3 triple-quote literals as PLATFORM trivia,
+-47 rows, gap 273 -> 226) and **legacy island spelling layer 1**
+(#Class{...}# canonicalized onto the modern graph-fetch path;
+unknown-island first-errors 31 -> 13). The remaining 226 rows are all
+REAL m3 grammar legs, first-error family map (files fail on multiple
+constructs — burns compound):
+
+| family | rows | shape |
+|---|---|---|
+| islands in TYPE position | 35 | `expected type name, got ISLAND_OPEN` |
+| m3 class forms | 35 | paren-after-name (`expected EXTENDS/BRACE_OPEN, found PAREN_OPEN`) |
+| multiplicity parameters | 25+ | `<T\|m>` (`expected GREATER_THAN but found PIPE`) |
+| trailing tokens after code block | 19 | m3 file-level trailing content |
+| m3 graph-fetch INNER tree | 16 | layer 2 of the island family |
+| top-level ^Instance forms | 16 | beyond the `(...)` form |
+| expression/lexer tail | ~40 | subType placement, unicode escape, misc |
+
+These are the platform-headroom backlog: each closed family makes more
+legend-pure files parseable (eventually executable). The A5 ceiling
+(226, down-only) holds the line.
