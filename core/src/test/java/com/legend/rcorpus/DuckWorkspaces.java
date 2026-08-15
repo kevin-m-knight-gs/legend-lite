@@ -29,10 +29,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * idiom (<code>CREATE DATABASE w CLONE fam</code>); H2 keeps
  * instance-per-session (its instances ARE cheap catalogs).
  *
- * <p>Honest numbers (interleaved A/B, 2026-08-14): old topology 93/94s,
- * workspaces 88/88s per full DuckDB corpus run — ~6%. The cold-process
- * microbenchmark (19.4ms/boot) had suggested ~18s; warm in-run boots
- * are far cheaper, so the speed win is a small bonus, not the reason.
+ * <p>Honest numbers (interleaved A/B, re-measured 2026-08-15 after the
+ * literal fold): per-session topology 75/78s, workspaces 69/69s per
+ * full DuckDB corpus run — ~10%, and consistent. (The 2026-08-14
+ * pre-fold measurement said ~6%; with the literal round trips gone the
+ * boot+cold-catalog share GREW. The original cold-process
+ * microbenchmark's ~18s forecast remains wrong — warm in-run boots are
+ * far cheaper.) The architecture seam stays the primary justification.
  *
  * <p>(Direct {@code org.duckdb} import is fine HERE: ArchitectureTest's
  * driver ban covers {@code src/main} only — production stays

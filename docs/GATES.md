@@ -143,7 +143,13 @@ manifest change, oracle-pin bump (it is a step of the bump procedure),
 or edits to the census itself:
   mvn -pl parser-equivalence -am test -Dtest=GrammarCoverageCensusTest \
       -Dlegend.engine.root=... -Dlegend.pure.root=...
-The chain ceiling stays 6m. Per-mutant oracle instances were
+The chain ceiling stays 6m.
+
+2026-08-15 re-pin (post literal-fold, 0e527998): measured chain
+5m03-5m06s — G1 28-29, G2 8-9, G4 72-73, G5 35-37, G6 76, G7 24,
+G8 59 — back under the 2026-08-08 5m22s best. The fold took G4
+89->72 and G5 44->35; ceiling stays 6m as headroom against this
+machine's +/-20-30% wobble. Per-mutant oracle instances were
 already hoisted (FixtureCorpusParityTest 2.4s -> 0.5s); the next real
 lever, if the budget ever binds, is sharing one surefire JVM across
 gates 4/5 (the family-sharding speed leg), not thinning coverage.
