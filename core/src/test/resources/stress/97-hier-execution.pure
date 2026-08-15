@@ -83,11 +83,11 @@ Data hier::IssuerData
       'HC-0005,Thameside\n';
     default.HIER_ISSUER:
       'ISSUER_ID,LEGAL_NAME,CONTACT_EMAIL,CONTACT_PHONE,PROFILE_JSON,COUNTRY_CODE\n' +
-      'HI-0001,Northbridge,CONTACT-EMAIL-001,CONTACT-PHONE-001,PROFILE-JSON-001,\n' +
-      'HI-0002,Kestrel,CONTACT-EMAIL-002,CONTACT-PHONE-002,PROFILE-JSON-002,HC-0001-GONE\n' +
-      'HI-0003,Aldgate,,CONTACT-PHONE-003,PROFILE-JSON-003,HC-0001\n' +
-      'HI-0004,Fenwick,CONTACT-EMAIL-004,CONTACT-PHONE-004,PROFILE-JSON-004,HC-0002\n' +
-      'HI-0005,Thameside,CONTACT-EMAIL-005,CONTACT-PHONE-005,PROFILE-JSON-005,HC-0003\n';
+      'HI-0001,Northbridge,CONTACT-EMAIL-001,CONTACT-PHONE-001,"{""headquarters"": ""headquarters-001"", ""sector"": ""sector-001""}",\n' +
+      'HI-0002,Kestrel,CONTACT-EMAIL-002,CONTACT-PHONE-002,"{""headquarters"": ""headquarters-002"", ""sector"": ""sector-002""}",HC-0001-GONE\n' +
+      'HI-0003,Aldgate,,CONTACT-PHONE-003,"{""headquarters"": ""headquarters-003"", ""sector"": ""sector-003""}",HC-0001\n' +
+      'HI-0004,Fenwick,CONTACT-EMAIL-004,CONTACT-PHONE-004,"{""headquarters"": ""headquarters-004"", ""sector"": ""sector-004""}",HC-0002\n' +
+      'HI-0005,Thameside,CONTACT-EMAIL-005,CONTACT-PHONE-005,"{""headquarters"": ""headquarters-005"", ""sector"": ""sector-005""}",HC-0003\n';
   }#
 }
 
@@ -329,6 +329,67 @@ Service stress::H_Issuer
                   #{
                     contentType: 'application/json';
                     data: '[{"issuerId":"HI-0001","contact_email":"CONTACT-EMAIL-001","contact_phone":"CONTACT-PHONE-001","legalName":"Northbridge"},{"issuerId":"HI-0002","contact_email":"CONTACT-EMAIL-002","contact_phone":"CONTACT-PHONE-002","legalName":"Kestrel"},{"issuerId":"HI-0003","contact_email":null,"contact_phone":"CONTACT-PHONE-003","legalName":"Aldgate"},{"issuerId":"HI-0004","contact_email":"CONTACT-EMAIL-004","contact_phone":"CONTACT-PHONE-004","legalName":"Fenwick"},{"issuerId":"HI-0005","contact_email":"CONTACT-EMAIL-005","contact_phone":"CONTACT-PHONE-005","legalName":"Thameside"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::H_IssuerBinding
+{
+    pattern: '/stress/h_issuer_binding';
+    documentation: 'Binding transformer over a JSON column on hier::Issuer. Separate from the main service so the divergence recorded as F27 -- the engine returns the JSON-ENCODED value where the oracle returns the decoded one -- does not take that service\'s embedded and dynafunction coverage with it.';
+    execution: Single
+    {
+    query: |hier::Issuer.all()
+        ->project(~[
+            issuerId:x|$x.issuerId,
+            profile_headquarters:x|$x.profile.headquarters,
+            profile_sector:x|$x.profile.sector
+        ])
+        ->sort(~issuerId->ascending());
+        mapping: hier::IssuerMapping;
+        runtime: hier::IssuerRT;
+    }
+  testSuites:
+  [
+    H_IssuerBinding_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          issuerEnv:
+            Reference
+            #{
+              hier::IssuerData
+            }#,
+          hierEnv:
+            Reference
+            #{
+              hier::InstrumentData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 columns over the hier:: feature mapping.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"issuerId":"HI-0001","profile_headquarters":"headquarters-001","profile_sector":"sector-001"},{"issuerId":"HI-0002","profile_headquarters":"headquarters-002","profile_sector":"sector-002"},{"issuerId":"HI-0003","profile_headquarters":"headquarters-003","profile_sector":"sector-003"},{"issuerId":"HI-0004","profile_headquarters":"headquarters-004","profile_sector":"sector-004"},{"issuerId":"HI-0005","profile_headquarters":"headquarters-005","profile_sector":"sector-005"}]';
                   }#;
               }#
           ]

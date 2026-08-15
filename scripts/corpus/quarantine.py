@@ -71,6 +71,13 @@ ENGINE_QUARANTINE.update({
 # compile time, and F26 records why it cannot be executed. Coverage of a construct and
 # coverage of its semantics are different claims, and this corpus can now make both.
 
+# F27 -- a Binding transformer returns the JSON-ENCODED value, not the decoded one. A
+# String property read out of a JSON payload comes back as "\"sector-001\"" -- quotes and
+# all -- where the value of the key is sector-001. The oracle asserts the decoded string
+# because that is what a String[0..1] property means; the engine disagrees.
+ENGINE_QUARANTINE["stress::H_IssuerBinding"] = (
+    "F27", "Binding transformer yields the JSON-encoded value, quotes included")
+
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
 

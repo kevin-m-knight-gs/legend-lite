@@ -231,6 +231,10 @@ class Corpus:
     # change meaning silently everywhere.
     dyna: dict[tuple[str, str], tuple[str, list[str]]] = field(default_factory=dict)
 
+    # class -> (table, column) whose JSON payload backs it, via a Binding transformer. Its
+    # properties are keys in that JSON, not columns.
+    json_backed: dict[str, tuple[str, str]] = field(default_factory=dict)
+
     # mapping set id -> the class it maps. Needed to resolve `extends [setId]`, which names
     # a SET rather than a class.
     setid_class: dict[str, str] = field(default_factory=dict)
@@ -306,6 +310,14 @@ class Corpus:
                     raise KeyError(f"path ends on embedded property {cls}.{step}")
                 cls = child
                 continue
+            src = self.json_backed.get(cls)
+            if src is not None and step in self.classes.get(cls, Klass(cls)).props:
+                # A Binding-backed class's properties are JSON KEYS. There is no column per
+                # key -- they all come out of the one serialized column -- so that column is
+                # what resolves, and the VALUE is deserialized by the oracle. Reported this
+                # way so callers that only need the table and kind (rendering, for one) work
+                # without knowing about bindings at all.
+                return src[0], src[1], hops
             col = self.columns.get(cls, {}).get(step)
             if col is None:
                 raise KeyError(f"{cls}.{step} is neither a mapped property nor an association")
@@ -964,6 +976,17 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             # a binding path, so _COLMAP would fabricate a property from the binding's name.
             for prop, binding, btbl, bcol in _BINDINGMAP.findall(line):
                 c.bindings[(cur, prop)] = (binding, btbl, bcol)
+                # A Binding transformer reads a COMPLEX property out of ONE column holding
+                # serialized JSON. So the hop behaves like an embedded one -- it stays on
+                # the same row -- but the sub-properties are JSON KEYS rather than columns,
+                # which is recorded separately so the oracle knows to deserialize instead of
+                # looking for columns that do not exist.
+                kl = c.classes.get(cur)
+                child = kl.props[prop].type if kl and prop in kl.props else None
+                if child:
+                    c.embedded[(cur, prop)] = child
+                    c.json_backed[child] = (btbl, bcol)
+                    c.main_table.setdefault(child, btbl)
             line = _BINDINGMAP.sub("", line)
             # A dynafunction OVER a chain, before either of the simpler forms.
             for prop, fn, chaintext, ctbl, ccol in _DYNACHAIN.findall(line):

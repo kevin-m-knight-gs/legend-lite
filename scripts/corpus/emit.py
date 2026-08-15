@@ -64,7 +64,14 @@ def _csv_cell(v) -> str:
         return "true" if v else "false"
     if isinstance(v, float):
         return repr(v)
-    return str(v)
+    s = str(v)
+    # RFC4180 quoting. Verified against the engine before relying on it: a field wrapped in
+    # double quotes carries an embedded comma correctly. Without this a JSON payload -- which
+    # a Binding transformer needs -- could not travel in a ###Data element at all, and the
+    # corpus guard rejected such values outright rather than emitting a broken row.
+    if any(ch in s for ch in (",", '"', "\n")):
+        return '"' + s.replace('"', '""') + '"'
+    return s
 
 
 def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:

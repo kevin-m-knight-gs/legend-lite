@@ -75,7 +75,14 @@ def resolvable(c: model.Corpus, cls: str) -> list[str]:
     props = set(c.columns.get(cls, {})) | {p for k, p in c.chains if k == cls}
     for (owner, prop), child in c.embedded.items():
         if owner == cls:
-            props |= {f"{prop}.{sub}" for sub in c.columns.get(child, {})}
+            # An embedded child's leaves are COLUMNS; a Binding-backed child's are JSON
+            # KEYS, which live on the class rather than in the mapping.
+            # Binding-backed leaves are deliberately NOT folded in here. They diverge from
+            # the oracle (F27) and mixing them into a general service would take the
+            # embedded and dynafunction coverage down with them, so they get a service of
+            # their own via binding_paths().
+            if child not in c.json_backed:
+                props |= {f"{prop}.{sub}" for sub in c.columns.get(child, {})}
     return sorted(props - blocked)
 
 
@@ -109,6 +116,16 @@ RelationalDatabaseConnection {CONN}
 ###Runtime
 {runtimes}
 """
+
+
+def binding_paths(c: model.Corpus, cls: str) -> list[str]:
+    """Dotted paths reached through a BINDING transformer -- JSON keys, not columns."""
+    out = []
+    for (owner, prop), child in c.embedded.items():
+        if owner == cls and child in c.json_backed:
+            kl = c.classes.get(child)
+            out += [f"{prop}.{sub}" for sub in sorted(kl.props)] if kl else []
+    return sorted(out)
 
 
 def specs(c: model.Corpus) -> list[Spec]:
@@ -166,6 +183,23 @@ def specs(c: model.Corpus) -> list[Spec]:
         spec.extra_data = [(cid, dt) for _db, (_m, _r, cid, dt) in sorted(BINDINGS.items())
                            if cid != conn]
         out.append(spec)
+
+        # A separate service per class for the Binding-backed leaves, so F27 isolates to it.
+        bpaths = binding_paths(c, cls)
+        if bpaths:
+            b = Spec(f"stress::H_{short}Binding", f"/stress/h_{short.lower()}_binding",
+                     f"Binding transformer over a JSON column on {cls}. Separate from the "
+                     f"main service so the divergence recorded as F27 -- the engine returns "
+                     f"the JSON-ENCODED value where the oracle returns the decoded one -- "
+                     f"does not take that service's embedded and dynafunction coverage with "
+                     f"it.", cls)
+            b.projections = ([Proj(ident, [ident])]
+                             + [Proj(p.replace(".", "_"), p.split(".")) for p in bpaths])
+            b.sort = (ident, False)
+            b.mapping, b.runtime = spec.mapping, spec.runtime
+            b.connection, b.data_element = spec.connection, spec.data_element
+            b.extra_data = spec.extra_data
+            out.append(b)
     return out
 
 

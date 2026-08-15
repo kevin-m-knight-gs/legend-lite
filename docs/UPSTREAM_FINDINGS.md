@@ -937,4 +937,15 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   that is what XStore exists for. So the construct is reachable, compiles clean, and fails
   only at execution, with an error that names a missing table rather than an impossible
   join. Pinned by `stress::H1_InstrumentReach`.
+- **A Binding transformer returns the JSON-ENCODED value rather than the decoded one.** A
+  property declared `String[0..1]` and read out of a JSON payload through
+  `prop: Binding path::B : [db]T.JSON_COL` comes back as `"\"sector-001\""` -- the JSON
+  token including its quotes -- where the value of that key is `sector-001`. Every string
+  read this way carries two extra characters, and a consumer comparing it to anything else
+  in the model will not match.
+
+  The oracle asserts the decoded string, because that is what a `String[0..1]` property
+  means; recording the engine's answer instead would have made the test agree with the
+  behaviour rather than check it. Pinned by `stress::H_IssuerBinding`, kept separate from
+  `stress::H_Issuer` so the embedded-property coverage on the same class stays green.
 

@@ -151,6 +151,9 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     if hit is not None:
         return _derived(c, data, row, root, path, hit, args)
     owner = c.owner_of(root, path)
+    src = c.json_backed.get(owner)
+    if src is not None:
+        return _json_property(c, data, row, root, path, src)
     chain = c.chains.get((owner, path[-1]))
     if chain is not None:
         v = _chain_value(c, data, row, root, path, chain)
@@ -177,6 +180,34 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     # Worth noting that the property is declared [1] and still comes back null, so the
     # multiplicity is not enforced on this path.
     return c.enum_maps[mapping].get(raw)
+
+
+# ------------------------------------------------------- Binding-payload evaluation
+#
+# A Binding transformer reads a complex property out of one column of serialized JSON, so a
+# sub-property is a KEY in that payload rather than a column. Deserialized here independently
+# -- the same discipline as the dynafunctions: the expected value comes from what the payload
+# MEANS, not from what the engine returned for it.
+def _json_property(c: Corpus, data, row, root: str, path: list[str], src):
+    import json
+
+    table, col = src
+    # Everything before the binding hop is ordinary navigation; the payload hangs off
+    # whatever row that lands on.
+    if len(path) > 2:
+        _t, _c, prefix = c.resolve(root, path[:-2])
+        row = walk(c, data, row, prefix)
+        if row is None:
+            return None
+    raw = row.get(col) if row else None
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw).get(path[-1])
+    except (ValueError, AttributeError):
+        # A payload that is not valid JSON is a SEED defect, not a value. Refusing beats
+        # returning None, which would look like an absent key.
+        raise Unsupported(f"{table}.{col} does not hold valid JSON: {raw!r:.60}")
 
 
 # --------------------------------------------------------- join-chain evaluation

@@ -55,6 +55,25 @@ def _string_value(col: str, i: int) -> str:
     return f"{upper.replace('_', '-')[:14]}-{i + 1:03d}"
 
 
+def _json_value(c: model.Corpus, table: str, col: str, i: int) -> str | None:
+    """A JSON payload for a column a Binding transformer reads through.
+
+    Generated from the BOUND CLASS's own property names, so the payload and the model agree
+    by construction. Filling it with an ordinary generated string instead would leave the
+    column syntactically wrong for its binding -- the mapping would compile and the query
+    would fail or return nothing, which is a green-looking way to test nothing.
+    """
+    for child, (tbl, cl) in c.json_backed.items():
+        if tbl != table or cl != col:
+            continue
+        kl = c.classes.get(child)
+        if kl is None:
+            return None
+        import json
+        return json.dumps({p: f"{p}-{i + 1:03d}" for p in sorted(kl.props)})
+    return None
+
+
 def _value(col: model.Column, i: int, seed_offset: int):
     n = i + seed_offset
     if col.kind == "string":
@@ -157,7 +176,8 @@ def build(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[dict
                 elif any(col.name == local for local, _, _ in fks):
                     row[col.name] = None          # filled below, per FK
                 else:
-                    row[col.name] = _value(col, i, offset)
+                    js = _json_value(c, name, col.name, i)
+                    row[col.name] = js if js is not None else _value(col, i, offset)
 
             for local, parent, pcol in fks:
                 parents = [p[pcol] for p in tables[parent] if p.get(pcol) is not None]
@@ -198,8 +218,12 @@ def check(c: model.Corpus, generated: dict[str, list[dict]],
             if unknown:
                 bad.append(f"{name}: columns not in schema: {sorted(unknown)}")
             for k, v in r.items():
-                if isinstance(v, str) and ("," in v or "'" in v or "\n" in v):
-                    bad.append(f"{name}.{k}: value needs CSV quoting: {v!r}")
+                # Commas and double quotes are now EMITTED with RFC4180 quoting, so they
+                # are no longer disqualifying. A single quote still is: the CSV travels
+                # inside a Pure string literal delimited by single quotes, and a newline
+                # would break the row structure the quoting cannot rescue.
+                if isinstance(v, str) and ("'" in v or "\n" in v):
+                    bad.append(f"{name}.{k}: value cannot travel in a ###Data CSV: {v!r}")
 
         fks = _fk_targets(c, name, {t for t, rr in tables.items() if rr})
         for local, parent, pcol in fks:
@@ -319,7 +343,8 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
                 elif col.name == nullable and i == 2:
                     row[col.name] = None
                 else:
-                    row[col.name] = _value(col, i, offset)
+                    js = _json_value(c, root, col.name, i)
+                    row[col.name] = js if js is not None else _value(col, i, offset)
             rows.append(row)
         for local, parent, pcol in live:
             parents = [p[pcol] for p in tables[parent] if p.get(pcol) is not None]
