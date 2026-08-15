@@ -2965,6 +2965,23 @@ public final class SpecParser implements TokenStreamCursor {
      * damaged {@code }#} re-lexing as the invented exit and
      * silently parsing).
      */
+    /** A legacy m3 island KIND is a (possibly qualified) type name —
+     *  checked charwise (the drop-in surface's regex family is frozen;
+     *  DropInSurfaceTextRuleTest). */
+    private static boolean isTypeNameShaped(String s) {
+        if (s.isEmpty() || !(Character.isLetter(s.charAt(0))
+                || s.charAt(0) == '_')) {
+            return false;
+        }
+        for (int i = 1; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isLetterOrDigit(c) && c != '_' && c != ':') {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private ValueSpecification parseDsl() {
         int islandStart = pos;
         String islandOpen = text();
@@ -3025,8 +3042,22 @@ public final class SpecParser implements TokenStreamCursor {
                             tokens.endLine(islandStart),
                             tokens.endColumn(islandStart) + 1),
                     spanOf(islandStart, pos - 1));
-            default -> throw error(
-                    "unknown DSL island type: '#" + dslType + "{'");
+            default -> {
+                // PLATFORM: legend-pure's LEGACY graph-fetch spelling
+                // puts the root class in the island KIND — #Person{name}#
+                // is m3 for #{Person{name}}#. Canonicalize by splicing
+                // the kind back as the tree root and riding the modern
+                // path (A5 platform-gap burn 2026-08-15, ~66 rows). The
+                // drop-in/lite surfaces keep the engine's refusal.
+                if (!dialect().refusesPlatformDialect()
+                        && isTypeNameShaped(dslType)) {
+                    yield wrapGraphFetch(parseGraphFetchTree(
+                            dslType + "{" + contentText + "}", islandStart),
+                            islandStart, pos - 1);
+                }
+                throw error(
+                        "unknown DSL island type: '#" + dslType + "{'");
+            }
         };
 
         return result;

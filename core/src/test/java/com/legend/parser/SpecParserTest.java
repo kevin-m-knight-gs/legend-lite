@@ -2848,12 +2848,18 @@ final class SpecParserTest {
 
     @Test
     void graphFetchRejectsUnknownDslType() {
-        // '#x{content}#' \u2014 unknown DSL discriminator 'x'.
-        // Engine-lite throws; we match.
+        // PLATFORM: an identifier kind is m3's LEGACY graph-fetch
+        // spelling (#x{content}# == #{x{content}}#) \u2014 it parses (A5
+        // burn 2026-08-15); a NON-identifier kind still refuses.
         ParseException ex = assertThrows(ParseException.class,
-                () -> com.legend.testing.Platform.spec("#x{content}#"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("DSL"),
+                () -> com.legend.testing.Platform.spec("#9x{content}#"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("DSL")
+                        || String.valueOf(ex.getMessage()).contains("unlexable"),
                 () -> "want unknown-DSL error, got: " + ex.getMessage());
+        // (engine/lite refusal of the legacy spelling is pinned by the
+        // corpus sweep's both-reject rows and RejectionParity — an
+        // inline negative snippet here would be harvested by the
+        // own-dialect census and misread as misplaced machinery)
     }
 
     // ----- C.7b: engine-lite parity (copy-with-update + dotted keys) ---
