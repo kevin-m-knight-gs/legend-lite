@@ -2643,9 +2643,9 @@ public final class StoreResolver {
                 cur = asSort;
                 continue;
             }
-            // in-chain from(): re-scopes execution context, contributes NO op
+            // in-chain from() re-scopes BOTH locals — dispatch reads chainContext (#18 2-binder root cause)
             if (cur instanceof TypedFrom fr) {
-                context = fromContext(fr, context);
+                context = chainContext = fromContext(fr, chainContext);
                 cur = fr.source();
                 continue;
             }
