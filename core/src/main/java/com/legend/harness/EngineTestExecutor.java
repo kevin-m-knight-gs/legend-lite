@@ -2507,6 +2507,16 @@ public final class EngineTestExecutor {
                 case com.legend.exec.ExecutionResult.Tabular t -> {
                     List<Object> out = new ArrayList<>();
                     t.rows().forEach(r -> out.addAll(r.values()));
+                    // pure collections hold NO empties: a null cell from a
+                    // PROPERTY-READ tabular is pure empty (engine: expected
+                    // []). Scope = the map-binder property channel ONLY
+                    // (single u_map__* column) — TDS cell reads carry
+                    // TDSNulls (first scoping by !flatCells regressed
+                    // tds/tests -13, tree -3; the referee spoke).
+                    if (t.columns().size() == 1 && t.columns().get(0).name()
+                            .startsWith("u_map__")) {
+                        out.removeIf(java.util.Objects::isNull);
+                    }
                     yield out;
                 }
                 case com.legend.exec.ExecutionResult.Graph g -> {

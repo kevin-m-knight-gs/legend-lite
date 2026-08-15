@@ -55,7 +55,7 @@ shared source registered by several families cannot double-count. Run with
 | testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
 | tests | 39 | 30 | 3 | 0 | 6 | 0 |
 | tests/advanced | 68 | 60 | 3 | 5 | 0 | 21 |
-| tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
+| tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 |
@@ -63,7 +63,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
 | tests/mapping/embedded | 63 | 59 | 1 | 3 | 0 | 0 |
-| tests/mapping/enumeration | 26 | 18 | 4 | 1 | 3 | 0 |
+| tests/mapping/enumeration | 26 | 19 | 3 | 1 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
 | tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 |
@@ -72,7 +72,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 |
 | tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
-| tests/mapping/join | 28 | 24 | 2 | 2 | 0 | 8 |
+| tests/mapping/join | 28 | 25 | 1 | 2 | 0 | 8 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 48 | 43 | 1 | 4 | 0 | 11 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
@@ -89,7 +89,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2296** | 92 | 94 | 93 | 244 |
+| **total** | 2575 | **2299** | 89 | 94 | 93 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1338,7 +1338,6 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testForcedIsolationFilterOnTop [tests/advanced]: sql-text: expected select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) left outer join locationTable as "locationtable_0" on ("persontable_0".ID = "locationtable_0".PERSONID) where "locationtable_0".PLACE = 'lala', got select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select t1.*, "locationtable_0".PLACE as "locations_PLACE" from personTable as "root" left outer join locationTable as "locationtable_0" on ("root".ID = "locationtable_0".PERSONID)) as "persontable_0" on ("root".ID = "persontable_0".FIRMID) where "persontable_0"."locations_PLACE" = 'lala'
 - ERROR testQualifierWithIsolation [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
-- FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
@@ -1352,7 +1351,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testEnumMappings [tests/mapping/enumeration]: no execute(|...) call — wall: unknown function 'enumerationMappingByName' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testEnumMappingsWithInclude [tests/mapping/enumeration]: no execute(|...) call — wall: unknown function 'enumerationMappingByName' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call — wall: unknown enumeration 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMapping'
-- FAIL testMapping [tests/mapping/enumeration]: assertEquals: expected [], got null
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true]
@@ -1362,7 +1360,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types (ExprType[
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
-- FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - FAIL testChainedTwoHops [tests/mapping/modelJoin]: assertEquals: expected [Apple, null, Apple, ProjectY, Apple, ProjectX, Google, ProjectZ], got [Apple, ProjectY, Apple, ProjectX, Apple, null, Google, ProjectZ]
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
