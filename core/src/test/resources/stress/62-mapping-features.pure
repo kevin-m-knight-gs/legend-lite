@@ -174,11 +174,13 @@ Mapping hier::IssuerMapping
    //   * the store qualifier is required on the first hop and optional afterwards.
    hier::InstrumentReach[reach]: Relational
    {
-      ~filter [hier::IssuerDB]@HierInstrument_Issuer > @HierIssuer_Country | [hier::IssuerDB]NamedCountry
+      ~filter [hier::HierDB]@HierInstrument_Venue > @HierVenue_Region | [hier::HierDB]NamedRegion
       ~mainTable [hier::HierDB]HIER_INSTRUMENT
       instrumentId: [hier::HierDB]HIER_INSTRUMENT.INSTRUMENT_ID,
-      countryName: [hier::IssuerDB]@HierInstrument_Issuer > @HierIssuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME,
-      upperCountry: toUpper([hier::IssuerDB]@HierInstrument_Issuer > @HierIssuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME)
+      // Two hops, both inside hier::HierDB, so this EXECUTES. The cross-database variant
+      // is declared in the store above and covered by F26 as compile-only.
+      countryName: [hier::HierDB]@HierInstrument_Venue > @HierVenue_Region | [hier::HierDB]HIER_REGION.REGION_NAME,
+      upperCountry: toUpper([hier::HierDB]@HierInstrument_Venue > @HierVenue_Region | [hier::HierDB]HIER_REGION.REGION_NAME)
    }
 
    // ASSOCIATION MAPPING with explicit SOURCE and TARGET set ids on each end. The ids

@@ -44,13 +44,33 @@ Database hier::HierDB
       SUB_KIND VARCHAR(16),
       SUB_COUPON DOUBLE,
       SUB_STRIKE DOUBLE,
-      ISSUER_ID VARCHAR(64)
+      ISSUER_ID VARCHAR(64),
+      VENUE_CODE VARCHAR(16)
    )
+
+   // A two-hop chain entirely INSIDE this database. The cross-database chain in
+   // 62-mapping-features.pure exercises the same grammar but cannot execute (F26): one SQL
+   // statement cannot span two connections. Keeping both means the CONSTRUCT is covered by
+   // a compile-only case and the SEMANTICS are covered by an executing one.
+   Table HIER_VENUE
+   (
+      VENUE_CODE VARCHAR(16) PRIMARY KEY,
+      VENUE_NAME VARCHAR(120),
+      REGION_CODE VARCHAR(16)
+   )
+   Table HIER_REGION
+   (
+      REGION_CODE VARCHAR(16) PRIMARY KEY,
+      REGION_NAME VARCHAR(120)
+   )
+   Join HierInstrument_Venue(HIER_INSTRUMENT.VENUE_CODE = HIER_VENUE.VENUE_CODE)
+   Join HierVenue_Region(HIER_VENUE.REGION_CODE = HIER_REGION.REGION_CODE)
 
    // The discriminator, used as a class-mapping ~filter so each subclass set sees only its
    // own rows. Without it both subclass sets would return every row of the table.
    Filter BondRows(HIER_INSTRUMENT.SUB_KIND = 'BOND')
    Filter OptionRows(HIER_INSTRUMENT.SUB_KIND = 'OPTION')
+   Filter NamedRegion(HIER_REGION.REGION_NAME is not null)
 )
 
 ###Mapping

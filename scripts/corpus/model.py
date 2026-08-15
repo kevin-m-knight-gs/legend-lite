@@ -231,6 +231,10 @@ class Corpus:
     # change meaning silently everywhere.
     dyna: dict[tuple[str, str], tuple[str, list[str]]] = field(default_factory=dict)
 
+    # (parent class, property) -> embedded class. The hop stays on the SAME row: an
+    # embedded property has no join and no association, so navigation must not look for one.
+    embedded: dict[tuple[str, str], str] = field(default_factory=dict)
+
     # class fqn -> the Mapping that declared its class mapping (first one wins).
     declared_in: dict[str, str] = field(default_factory=dict)
 
@@ -289,6 +293,15 @@ class Corpus:
                 if last:
                     raise KeyError(f"path ends on association {cls}.{step}")
                 continue
+            child = self.embedded.get((cls, step))
+            if child is not None:
+                # An EMBEDDED hop stays on the same row: no join, no association, the
+                # sub-object's columns live on the parent's table. So the class advances and
+                # `table` and `hops` deliberately do not.
+                if last:
+                    raise KeyError(f"path ends on embedded property {cls}.{step}")
+                cls = child
+                continue
             col = self.columns.get(cls, {}).get(step)
             if col is None:
                 raise KeyError(f"{cls}.{step} is neither a mapped property nor an association")
@@ -338,14 +351,25 @@ class Corpus:
         that property carries an EnumerationMapping."""
         cls = root
         for step in path[:-1]:
-            cls = self.ends[(cls, step)].target
+            end = self.ends.get((cls, step))
+            # An embedded hop advances the class without an association, so it has to be
+            # consulted here too -- otherwise this raises on the very paths resolve() can
+            # walk, and the two disagree about what the model contains.
+            cls = end.target if end is not None else self.embedded[(cls, step)]
         return cls
 
     def to_many_on(self, root: str, path: list[str]) -> bool:
         """True if any hop along the path is to-many — i.e. the projection fans out."""
         cls = root
         for step in path[:-1]:
-            end = self.ends[(cls, step)]
+            end = self.ends.get((cls, step))
+            if end is None:
+                # An EMBEDDED hop cannot fan out: the sub-object lives on the same row, so
+                # it contributes exactly one. Third navigation helper to need this -- resolve,
+                # owner_of and now to_many_on -- which is the cost of adding a hop KIND
+                # rather than a new association.
+                cls = self.embedded[(cls, step)]
+                continue
             if end.to_many:
                 return True
             cls = end.target
@@ -439,6 +463,14 @@ _CHAINJOIN = re.compile(r"@(\w+)")
 # one-liner and a bare identifier whose next non-blank line is `(`.
 _EMBED_OPEN = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*\($")
 _EMBED_NAME = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*,?\s*$")
+
+# `prop: toUpper([db]@J1 > @J2 | [db]T.COL)` -- a dynafunction wrapped round a JOIN CHAIN.
+# Neither _DYNAMAP (whose arguments are plain columns) nor _CHAINMAP (which needs `prop:`
+# followed directly by the chain) matches it, so it fell through both and was the last
+# entry left in c.unparsed.
+_DYNACHAIN = re.compile(
+    r"(\w+)\s*:\s*(\w+)\s*\(\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.]*?)\|\s*"
+    r"(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*\)")
 
 _BINDINGMAP = re.compile(
     r"(\w+)\s*:\s*Binding\s+([\w:]+)\s*:\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
@@ -856,7 +888,23 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 if line.strip().startswith(")"):
                     embedded, pending_embed = None, None
                     continue
-                for sub in _LEFTOVER_PROP.findall(line):
+                # An embedded property's sub-mappings read columns of the SAME row -- no
+                # join, no association. So the embedded CLASS is given the parent's table
+                # and its own columns, and the hop from parent to child is recorded as
+                # embedded so navigation knows to stay on the row rather than look for an
+                # association that does not exist.
+                child = None
+                kl = c.classes.get(cur)
+                if kl is not None and embedded in kl.props:
+                    child = kl.props[embedded].type
+                for sub, sc_tbl, sc_col in _COLMAP.findall(line):
+                    if child:
+                        c.columns.setdefault(child, {})[sub] = sc_col
+                        c.main_table.setdefault(child, sc_tbl)
+                        c.embedded[(cur, embedded)] = child
+                    else:
+                        c.unparsed.append((cur, f"{embedded}.{sub}"))
+                for sub in _LEFTOVER_PROP.findall(_COLMAP.sub("", line)):
                     c.unparsed.append((cur, f"{embedded}.{sub}"))
                 continue
             for prop, mapping, t, col in _ENUMCOLMAP.findall(line):
@@ -870,6 +918,13 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             for prop, binding, btbl, bcol in _BINDINGMAP.findall(line):
                 c.bindings[(cur, prop)] = (binding, btbl, bcol)
             line = _BINDINGMAP.sub("", line)
+            # A dynafunction OVER a chain, before either of the simpler forms.
+            for prop, fn, chaintext, ctbl, ccol in _DYNACHAIN.findall(line):
+                joins = _CHAINJOIN.findall(chaintext)
+                if joins:
+                    c.chains[(cur, prop)] = (joins, ctbl, ccol)
+                    c.dyna[(cur, prop)] = (fn, [ccol])
+            line = _DYNACHAIN.sub("", line)
             # Join chains BEFORE dynafunctions and plain columns: the chain's tail looks
             # exactly like a plain column mapping.
             for prop, chaintext, ctbl, ccol in _CHAINMAP.findall(line):

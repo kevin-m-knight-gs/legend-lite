@@ -153,7 +153,13 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     owner = c.owner_of(root, path)
     chain = c.chains.get((owner, path[-1]))
     if chain is not None:
-        return _chain_value(c, data, row, root, path, chain)
+        v = _chain_value(c, data, row, root, path, chain)
+        # A dynafunction wrapped round the chain applies to what the chain LANDED on, so
+        # the chain is followed first and the function applied to its single result.
+        dyn = c.dyna.get((owner, path[-1]))
+        if dyn is not None:
+            return _dynafunction((dyn[0], ["_"]), {"_": v})
+        return v
     table, col, hops = c.resolve(root, path)
     landed = walk(c, data, row, hops)
     dyn = c.dyna.get((owner, path[-1]))

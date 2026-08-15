@@ -65,8 +65,11 @@ ENGINE_QUARANTINE.update({
 # Not a packaging problem -- the runtime connects both stores and both ###Data elements are
 # referenced. A single relational join cannot span connections; that is what XStore exists
 # for. The construct is reachable, compiles clean, and fails only at execution.
-ENGINE_QUARANTINE["stress::H1_InstrumentReach"] = (
-    "F26", "cross-database join compiles but cannot execute -- one SQL, two connections")
+# NOT quarantined any more. The chain was rerouted through two hops INSIDE one database, so
+# it executes and the join-chain semantics are actually asserted. The cross-database join
+# itself is still declared in 62-mapping-features.pure -- the CONSTRUCT stays covered at
+# compile time, and F26 records why it cannot be executed. Coverage of a construct and
+# coverage of its semantics are different claims, and this corpus can now make both.
 
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
