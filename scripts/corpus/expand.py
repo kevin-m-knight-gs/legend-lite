@@ -337,6 +337,40 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
     return out
 
 
+def relink(c: model.Corpus, produced: dict[str, list[dict]],
+           tables: dict[str, list[dict]]) -> None:
+    """Fill foreign keys that were NULL only because their parent had no rows YET.
+
+    bootstrap() seeds a component's root before the rest of the component exists, so an FK
+    pointing INSIDE the same component is nulled and never revisited -- the table is seeded,
+    so no later ring treats it as a candidate. The symptom is a join that resolves correctly
+    and returns NULL for every row: a green test proving nothing.
+
+    Run after every ring, so by then the parents exist. The adversarial shapes are re-applied
+    rather than merely filled: row 0 keeps its absent key (A2), row 1 gets a dangling one
+    (A1), and the last parent is left childless (A3). Without that this pass would quietly
+    undo the properties the corpus is built on.
+    """
+    for name, rows in produced.items():
+        if name not in c.tables:
+            continue
+        pk = c.tables[name].pk[0] if c.tables[name].pk else None
+        for local, parent, pcol in _fk_targets(c, name, {t for t, r in tables.items() if r}):
+            if local == pk or not all(r.get(local) is None for r in rows):
+                continue                      # not blank, or an identity FK -- leave alone
+            parents = [p[pcol] for p in tables.get(parent, []) if p.get(pcol) is not None]
+            if not parents:
+                continue
+            for i, row in enumerate(rows):
+                if i == 0:
+                    row[local] = None
+                elif i == 1:
+                    row[local] = f"{parents[0]}-GONE"
+                else:
+                    usable = parents[:-1] or parents
+                    row[local] = usable[(i - 2) % len(usable)]
+
+
 def build_rings(c: model.Corpus, tables: dict[str, list[dict]], rings: int = 24):
     """Expand outward repeatedly, each ring seeded from everything the previous ones
     produced.
@@ -374,6 +408,11 @@ def build_rings(c: model.Corpus, tables: dict[str, list[dict]], rings: int = 24)
         layers.append((produced, base))
         merged.update(produced)
         current.update(produced)
+        # EVERYTHING produced so far, not just this ring's output. A table bootstrapped in
+        # an early round may only gain a linkable parent several rounds later, and passing
+        # just `produced` meant it was never revisited -- which is exactly how COUNTRY_CODE
+        # stayed NULL through every ring.
+        relink(c, merged, current)
     return merged, layers
 
 

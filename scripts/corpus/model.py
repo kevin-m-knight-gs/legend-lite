@@ -231,6 +231,18 @@ class Corpus:
     # change meaning silently everywhere.
     dyna: dict[tuple[str, str], tuple[str, list[str]]] = field(default_factory=dict)
 
+    # class fqn -> the Mapping that declared its class mapping (first one wins).
+    declared_in: dict[str, str] = field(default_factory=dict)
+
+    # (class, property) -> (binding path, table, column) for a Binding transformer. Recorded
+    # so the property is not silently fabricated from the binding's NAME, and so a generator
+    # can see it exists without the oracle having to deserialize the payload.
+    bindings: dict[tuple[str, str], tuple[str, str, str]] = field(default_factory=dict)
+
+    # (class, property) -> ([join names in order], target table, target column) for a
+    # property mapped through a JOIN CHAIN rather than a column of the main table.
+    chains: dict[tuple[str, str], tuple[list[str], str, str]] = field(default_factory=dict)
+
     # (class, property) the reader saw but cannot model -- join chains, Binding transformers.
     # Visible so a service using one fails with a reason rather than a mystery.
     unparsed: list[tuple[str, str]] = field(default_factory=list)
@@ -345,8 +357,13 @@ class Corpus:
 _TABLE = re.compile(r"^\s*Table\s+(\w+)\s*\((.*)\)\s*$")
 # `{target}` names the far side of a SELF-join, where both ends are the same table.
 # Writing the table name twice would be a tautology matching every row against itself.
+# `[db]` qualifiers on either side, for a CROSS-DATABASE join. Without admitting them the
+# join was not captured at all -- and a chain referencing it failed with "join is not
+# declared", which reads as a typo in the chain rather than as a join the reader could not
+# see. Optional, so single-database joins are unaffected.
 _JOIN = re.compile(
-    r"^\s*Join\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*=\s*(\{target\}|\w+)\.(\w+)\s*\)\s*$")
+    r"^\s*Join\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*=\s*"
+    r"(?:\[[\w:]+\]\s*)?(\{target\}|\w+)\.(\w+)\s*\)\s*$")
 _FILTER_DECL = re.compile(
     r"^\s*Filter\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*(=|<>|<=|>=|<|>)\s*(.+?)\s*\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
@@ -393,7 +410,40 @@ _DYNAMAP = re.compile(
 _DYNAARG = re.compile(r"\[[\w:]+\]\s*(\w+)\.(\w+)")
 # A property mapping whose right-hand side this reader has no rule for: a join chain
 # (`prop: @A > @B | T.col`), a Binding transformer, an embedded block opener.
-_LEFTOVER_PROP = re.compile(r"^\s*(\w+)\s*:\s*(?:\[[\w:]+\]\s*)?(?:@|Binding\s)", re.M)
+# `prop: [db]@J1 > @J2 | [db]T.COL` -- a JOIN CHAIN property mapping. The value comes from a
+# table reached by following joins, with no association involved, so `resolve` (which walks
+# associations) cannot find it. Must run BEFORE _COLMAP, which would otherwise match the
+# trailing `T.COL` and record the property as a plain column of the MAIN table -- turning a
+# navigation into a copy, silently and wrongly.
+_CHAINMAP = re.compile(
+    r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.]*?)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
+_CHAINJOIN = re.compile(r"@(\w+)")
+
+# `prop: Binding path::B : [db]T.COL` -- a BINDING TRANSFORMER, reading a complex-typed
+# property out of one column through an external-format binding.
+#
+# Must run BEFORE _COLMAP, and the consequence of not doing so was not a missed property but
+# a FABRICATED one: _COLMAP matched the tail `ProfileBinding : [db]T.COL` and recorded a
+# property called `ProfileBinding` on the class. A generated service then projected it and
+# the engine answered "Can't find property 'ProfileBinding' in class 'hier::Issuer'" -- a
+# property that never existed anywhere except in the reader's head.
+# An EMBEDDED block opener: a bare property name followed by `(`. Its contents belong to the
+# embedded CLASS, not to the parent, and this reader does not model that -- so they are
+# routed to `unparsed` rather than flattened onto the parent, which is what it did before:
+# `contact ( email: ..., phone: ... )` put `email` and `phone` on hier::Issuer, and a
+# generated service projecting them was answered "Can't find property 'email' in class
+# 'hier::Issuer'".
+#
+# `scope(` and `AssociationMapping(` share the shape and are excluded by name.
+# The name and the `(` are usually on SEPARATE lines, so both forms are matched: the
+# one-liner and a bare identifier whose next non-blank line is `(`.
+_EMBED_OPEN = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*\($")
+_EMBED_NAME = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*,?\s*$")
+
+_BINDINGMAP = re.compile(
+    r"(\w+)\s*:\s*Binding\s+([\w:]+)\s*:\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
+
+_LEFTOVER_PROP = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*\S", re.M)
 # `prop: EnumerationMapping <Name>: [db] TABLE.COL` — must be stripped BEFORE _COLMAP
 # runs, or _COLMAP matches the tail and records the mapping NAME as the property.
 _ENUMCOLMAP = re.compile(
@@ -706,7 +756,7 @@ def _split_mappings(body: str) -> list[str]:
     return out
 
 
-def _parse_mapping(text: str, c: Corpus) -> None:
+def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> None:
     cur = None
     cur_id = None
     cur_op = None
@@ -754,6 +804,16 @@ def _parse_mapping(text: str, c: Corpus) -> None:
         m = _CLSMAP.match(line)
         if m and "AssociationMapping" not in line:
             cur, in_assoc, cur_id = m.group(1), False, m.group(2)
+            embedded, pending_embed = None, None
+            # WHICH mapping declared this class mapping. The reader is otherwise
+            # mapping-agnostic, and deriving a service's mapping from the class's TABLE
+            # instead got it wrong the moment a mapping spanned two stores: hier::
+            # InstrumentReach is declared in IssuerMapping with a main table in HierDB, and
+            # routing by database produced "Error mapping not found for class
+            # InstrumentReach". Only the FIRST declaration is kept -- a class mapped twice
+            # still collapses, which is the wider limitation this does not fix.
+            if mapping_name and cur not in c.declared_in:
+                c.declared_in[cur] = mapping_name
             continue
         if "AssociationMapping" in line:
             in_assoc = True
@@ -781,12 +841,42 @@ def _parse_mapping(text: str, c: Corpus) -> None:
             continue
         if cur and cur in c.main_table:
             tbl = c.main_table[cur]
+            m_emb = _EMBED_OPEN.match(line)
+            if m_emb:
+                embedded = m_emb.group(1)
+                continue
+            if pending_embed and line.strip() == "(":
+                embedded, pending_embed = pending_embed, None
+                continue
+            m_name = _EMBED_NAME.match(line)
+            pending_embed = m_name.group(1) if m_name else None
+            if m_name:
+                continue
+            if embedded is not None:
+                if line.strip().startswith(")"):
+                    embedded, pending_embed = None, None
+                    continue
+                for sub in _LEFTOVER_PROP.findall(line):
+                    c.unparsed.append((cur, f"{embedded}.{sub}"))
+                continue
             for prop, mapping, t, col in _ENUMCOLMAP.findall(line):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
                 c.columns.setdefault(cur, {})[prop] = col
                 c.enum_props[(cur, prop)] = mapping
             line = _ENUMCOLMAP.sub("", line)
+            # Binding transformers first: their tail is a plain column mapping preceded by
+            # a binding path, so _COLMAP would fabricate a property from the binding's name.
+            for prop, binding, btbl, bcol in _BINDINGMAP.findall(line):
+                c.bindings[(cur, prop)] = (binding, btbl, bcol)
+            line = _BINDINGMAP.sub("", line)
+            # Join chains BEFORE dynafunctions and plain columns: the chain's tail looks
+            # exactly like a plain column mapping.
+            for prop, chaintext, ctbl, ccol in _CHAINMAP.findall(line):
+                joins = _CHAINJOIN.findall(chaintext)
+                if joins:
+                    c.chains[(cur, prop)] = (joins, ctbl, ccol)
+            line = _CHAINMAP.sub("", line)
             # Dynafunctions BEFORE plain columns, same ordering reason as the enum form.
             for prop, fn, argtext in _DYNAMAP.findall(line):
                 args = _DYNAARG.findall(argtext)
@@ -809,13 +899,36 @@ def _parse_mapping(text: str, c: Corpus) -> None:
             # vanished here. In every case the symptom appeared far from the cause. A
             # property the oracle cannot resolve should be visible in the reader, not
             # discovered when a service using it fails.
-            for leftover in _LEFTOVER_PROP.findall(line):
-                c.unparsed.append((cur, leftover))
             line = _DYNAMAP.sub("", line)
             for prop, t, col in _COLMAP.findall(line):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
                 c.columns.setdefault(cur, {})[prop] = col
+
+            # CATCH-ALL, not a pattern list. Anything still shaped like `prop:` after every
+            # recognised form has been stripped is a property mapping this reader does not
+            # model, and it is recorded rather than dropped.
+            #
+            # The previous version matched only `@` and `Binding` right-hand sides, so a
+            # dynafunction OVER a join chain -- `toUpper([db]@J1 > @J2 | [db]T.COL)` -- fell
+            # through both the recognisers and the leftover check and vanished entirely.
+            # That was the sixth silent drop in this reader. A catch-all cannot have a
+            # seventh: a construct it does not recognise is, by construction, still shaped
+            # like `prop:`.
+            for leftover in _LEFTOVER_PROP.findall(_COLMAP.sub('', line)):
+                if leftover in ("mainTable", "filter", "groupBy", "distinct",
+                                "primaryKey", "src", "func"):
+                    continue
+                # Only if NOTHING has resolved this property. A scope() block writes bare
+                # `prop: COL` with no [db]TABLE. prefix and this reader does not model
+                # scope -- but the same property is usually also mapped flatly elsewhere,
+                # and a property the oracle CAN resolve by another route is not a gap.
+                # Without this the list was 653 entries, almost all of them scope-block
+                # restatements of columns already known.
+                if (leftover not in c.columns.get(cur, {})
+                        and (cur, leftover) not in c.chains
+                        and (cur, leftover) not in c.dyna):
+                    c.unparsed.append((cur, leftover))
 
 
 def _assoc_matches(assoc_fqn: str, owner: str, end: AssocEnd) -> bool:
@@ -936,7 +1049,7 @@ def load() -> Corpus:
                     name = _MAPPING_NAME.search(chunk)
                     if name and name.group(1) in SKIP_MAPPINGS:
                         continue
-                    _parse_mapping(chunk, c)
+                    _parse_mapping(chunk, c, name.group(1) if name else None)
     return c
 
 

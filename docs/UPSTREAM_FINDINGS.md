@@ -925,4 +925,16 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   having an independent oracle disagree with the engine; the oracle was the side that was
   wrong, and correcting it is what surfaced the dialect split.
   (`scripts/corpus/hier.py`, service `stress::H1_IssuerLabel`)
+- **A cross-database join compiles and then cannot execute.** `Join J([dbA]T.c = [dbB]U.c)`
+  is accepted by the grammar, accepted by the compiler, and used happily in a join-chain
+  property mapping. The planner then emits a SINGLE SQL statement joining both tables --
+  which cannot work, because the two stores are two physical connections: whichever one runs
+  the statement, the other's table is absent (`Catalog Error: Table with name HIER_ISSUER
+  does not exist`).
+
+  Not a packaging problem: the runtime connects both stores and both `###Data` elements are
+  referenced by the test suite. A single relational join cannot span connections at all --
+  that is what XStore exists for. So the construct is reachable, compiles clean, and fails
+  only at execution, with an error that names a missing table rather than an impossible
+  join. Pinned by `stress::H1_InstrumentReach`.
 

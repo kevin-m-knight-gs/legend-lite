@@ -150,9 +150,13 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     hit = c.resolve_derived(root, path)
     if hit is not None:
         return _derived(c, data, row, root, path, hit, args)
+    owner = c.owner_of(root, path)
+    chain = c.chains.get((owner, path[-1]))
+    if chain is not None:
+        return _chain_value(c, data, row, root, path, chain)
     table, col, hops = c.resolve(root, path)
     landed = walk(c, data, row, hops)
-    dyn = c.dyna.get((c.owner_of(root, path), path[-1]))
+    dyn = c.dyna.get((owner, path[-1]))
     if dyn is not None:
         return _dynafunction(dyn, landed)
     raw = None if landed is None else landed.get(col)
@@ -167,6 +171,52 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     # Worth noting that the property is declared [1] and still comes back null, so the
     # multiplicity is not enforced on this path.
     return c.enum_maps[mapping].get(raw)
+
+
+# --------------------------------------------------------- join-chain evaluation
+#
+# A join chain reaches a value through JOINS, with no association involved -- so `resolve`,
+# which walks associations, cannot find it. The joins are followed here directly.
+#
+# Direction is decided per hop by which side the current table sits on, because a Join
+# declares two tables and says nothing about which is the source: `Join J(A.x = B.y)` is
+# followed A->B from A and B->A from B. Guessing wrong would silently land on the wrong row
+# rather than failing.
+def _chain_hops(c: Corpus, start: str, joins: list[str]):
+    hops, cur = [], start
+    for name in joins:
+        j = c.joins.get(name)
+        if j is None:
+            raise Unsupported(f"join {name!r} in a chain is not declared")
+        if j.left_table == cur:
+            hops.append((name, j.left_table, j.left_col, j.right_table, j.right_col))
+            cur = j.right_table
+        elif j.right_table == cur:
+            hops.append((name, j.right_table, j.right_col, j.left_table, j.left_col))
+            cur = j.left_table
+        else:
+            raise Unsupported(
+                f"join {name!r} connects {j.left_table}/{j.right_table}, neither of which "
+                f"is {cur} -- the chain does not compose")
+    return hops, cur
+
+
+def _chain_value(c: Corpus, data, row, root: str, path: list[str], chain):
+    joins, target_table, target_col = chain
+    # Everything before the last step is ordinary association navigation; the chain hangs
+    # off whatever row that lands on.
+    if len(path) > 1:
+        _t, _col, prefix = c.resolve(root, path[:-1])
+        row = walk(c, data, row, prefix)
+        if row is None:
+            return None
+    start = c.main_table.get(c.owner_of(root, path), "")
+    hops, landed_table = _chain_hops(c, start, joins)
+    if landed_table != target_table:
+        raise Unsupported(
+            f"chain ends at {landed_table} but the column is {target_table}.{target_col}")
+    landed = walk(c, data, row, hops)
+    return None if landed is None else landed.get(target_col)
 
 
 # ------------------------------------------------------- dynafunction evaluation
@@ -660,6 +710,14 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             continue
         if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
             out[p.alias] = "string"     # an enum renders as its VALUE NAME
+            continue
+        chain = c.chains.get((c.owner_of(spec.root, p.path), p.path[-1]))
+        if chain is not None:
+            # A chained property's kind comes from the table the chain LANDS on, not from
+            # the root's main table -- resolve() cannot reach it, since no association is
+            # involved.
+            _joins, ctbl, ccol = chain
+            out[p.alias] = c.tables[ctbl].columns[ccol].kind
             continue
         table, col, _ = c.resolve(spec.root, p.path)
         out[p.alias] = c.tables[table].columns[col].kind

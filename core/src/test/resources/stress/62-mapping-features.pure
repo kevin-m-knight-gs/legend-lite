@@ -74,12 +74,13 @@ Database hier::IssuerDB
       LEGAL_NAME VARCHAR(200) NOT NULL,
       CONTACT_EMAIL VARCHAR(200),
       CONTACT_PHONE VARCHAR(64),
-      PROFILE_JSON VARCHAR(1000)
+      PROFILE_JSON VARCHAR(1000),
+      COUNTRY_CODE VARCHAR(8)
    )
 
    // Cross-database join. `include` is NOT required for one -- [db] pointers resolve
    // globally -- which is why this works without IssuerDB including HierDB.
-   Join Issuer_Instrument([hier::IssuerDB]HIER_ISSUER.ISSUER_ID = [hier::HierDB]HIER_INSTRUMENT.ISSUER_ID)
+   Join HierIssuer_Instrument([hier::IssuerDB]HIER_ISSUER.ISSUER_ID = [hier::HierDB]HIER_INSTRUMENT.ISSUER_ID)
 
    // A second hop, so a join CHAIN (@A > @B) has somewhere to go. One join can only ever
    // produce a single-hop mapping, which is what the whole base model has.
@@ -88,8 +89,12 @@ Database hier::IssuerDB
       COUNTRY_CODE VARCHAR(8) PRIMARY KEY,
       COUNTRY_NAME VARCHAR(120)
    )
-   Join Issuer_Country([hier::IssuerDB]HIER_ISSUER.CONTACT_PHONE = [hier::IssuerDB]HIER_COUNTRY.COUNTRY_CODE)
-   Join Instrument_Issuer2([hier::HierDB]HIER_INSTRUMENT.ISSUER_ID = [hier::IssuerDB]HIER_ISSUER.ISSUER_ID)
+   // A REAL foreign key, so the seeder populates it from actual country rows. Joined on
+   // an arbitrary column instead, the chain resolved correctly and returned NULL for every
+   // row -- a green test proving nothing, which is the failure mode a corpus is most likely
+   // to ship.
+   Join HierIssuer_Country([hier::IssuerDB]HIER_ISSUER.COUNTRY_CODE = [hier::IssuerDB]HIER_COUNTRY.COUNTRY_CODE)
+   Join HierInstrument_Issuer([hier::HierDB]HIER_INSTRUMENT.ISSUER_ID = [hier::IssuerDB]HIER_ISSUER.ISSUER_ID)
 
    Filter NamedCountry([hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME is not null)
 )
@@ -105,7 +110,8 @@ Database hier::IssuerDBProd
       LEGAL_NAME VARCHAR(200) NOT NULL,
       CONTACT_EMAIL VARCHAR(200),
       CONTACT_PHONE VARCHAR(64),
-      PROFILE_JSON VARCHAR(1000)
+      PROFILE_JSON VARCHAR(1000),
+      COUNTRY_CODE VARCHAR(8)
    )
 )
 
@@ -168,11 +174,11 @@ Mapping hier::IssuerMapping
    //   * the store qualifier is required on the first hop and optional afterwards.
    hier::InstrumentReach[reach]: Relational
    {
-      ~filter [hier::IssuerDB]@Instrument_Issuer2 > @Issuer_Country | [hier::IssuerDB]NamedCountry
+      ~filter [hier::IssuerDB]@HierInstrument_Issuer > @HierIssuer_Country | [hier::IssuerDB]NamedCountry
       ~mainTable [hier::HierDB]HIER_INSTRUMENT
       instrumentId: [hier::HierDB]HIER_INSTRUMENT.INSTRUMENT_ID,
-      countryName: [hier::IssuerDB]@Instrument_Issuer2 > @Issuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME,
-      upperCountry: toUpper([hier::IssuerDB]@Instrument_Issuer2 > @Issuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME)
+      countryName: [hier::IssuerDB]@HierInstrument_Issuer > @HierIssuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME,
+      upperCountry: toUpper([hier::IssuerDB]@HierInstrument_Issuer > @HierIssuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME)
    }
 
    // ASSOCIATION MAPPING with explicit SOURCE and TARGET set ids on each end. The ids
@@ -186,8 +192,8 @@ Mapping hier::IssuerMapping
    {
       AssociationMapping
       (
-         instruments[issuer, base]: [hier::IssuerDB]@Issuer_Instrument,
-         issuer[base, issuer]: [hier::IssuerDB]@Issuer_Instrument
+         instruments[issuer, base]: [hier::IssuerDB]@HierIssuer_Instrument,
+         issuer[base, issuer]: [hier::IssuerDB]@HierIssuer_Instrument
       )
    }
 )

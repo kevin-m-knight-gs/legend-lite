@@ -56,6 +56,18 @@ ENGINE_QUARANTINE.update({
     )
 })
 
+# F26 -- a CROSS-DATABASE join compiles and then cannot execute. The chain
+# HIER_INSTRUMENT (hier::HierDB) -> HIER_ISSUER (hier::IssuerDB) -> HIER_COUNTRY is accepted
+# by the grammar and by the compiler, and the planner emits ONE SQL statement joining tables
+# that live in two different physical connections. Whichever connection runs it, the other
+# store's table is absent: "Catalog Error: Table with name HIER_ISSUER does not exist".
+#
+# Not a packaging problem -- the runtime connects both stores and both ###Data elements are
+# referenced. A single relational join cannot span connections; that is what XStore exists
+# for. The construct is reachable, compiles clean, and fails only at execution.
+ENGINE_QUARANTINE["stress::H1_InstrumentReach"] = (
+    "F26", "cross-database join compiles but cannot execute -- one SQL, two connections")
+
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")
 
