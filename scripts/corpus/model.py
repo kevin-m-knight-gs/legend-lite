@@ -290,6 +290,11 @@ class Corpus:
     filters: dict[str, tuple[str, str, str, object]] = field(default_factory=dict)
     # class fqn -> the store filter its mapping applies
     class_filter: dict[str, str] = field(default_factory=dict)
+    # Filters declared as MultiGrainFilter. Referenced from a mapping exactly like a Filter
+    # -- the distinction is consumed by the planner, for join elision -- so the reader kept
+    # no record of which was which and the feature could not be told apart from an ordinary
+    # Filter even in principle.
+    multigrain: set = field(default_factory=set)
     # cls -> ([join, ...], filter name). The predicate applies to the row the chain LANDS
     # on, so a row whose chain breaks is excluded -- unlike a to-one projection, where a
     # broken chain yields NULL and the row survives.
@@ -763,6 +768,8 @@ def _parse_store(text: str, c: Corpus) -> None:
                 else:
                     raise ValueError(f"Filter {m.group(1)}: unhandled literal {lit!r}")
             c.filters[m.group(1)] = (m.group(2), m.group(3), op, val)
+            if line.lstrip().startswith("MultiGrainFilter"):
+                c.multigrain.add(m.group(1))
             continue
         m = _JOIN.match(line)
         if m:

@@ -49,7 +49,21 @@ CONN_ID = "comboEnv"
 DATA = "combo::ComboData"
 
 ROOT, HOP1, HOP2 = "COMBO_ROOT", "COMBO_HOP1", "COMBO_HOP2"
+# A fourth table reached by the JOIN FORMS the corpus declared but never executed. Its rows
+# are DERIVED from COMBO_ROOT's (see derive_alt) so each form pairs deterministically and
+# to-one; generated independently, a multi-column or dynafunction condition matches nothing
+# at all, and a chain over it returns NULL for every row -- a green test proving nothing,
+# which is precisely what the corpus's first join chain was.
+ALT = "COMBO_ALT"
 J1, J2 = "Combo_Hop1", "Combo_Hop2"
+# One join per form. Each is the SAME shape dense_store.py generates, but over data built to
+# satisfy it.
+J_MULTI, J_INEQ, J_OR = "Combo_Multi", "Combo_Ineq", "Combo_Or"
+J_DYNA1, J_DYNA2 = "Combo_Dyna1", "Combo_Dyna2"
+
+# Derivation columns on COMBO_ALT: each exists to be the far side of one join form.
+ALT_KEY, ALT_LOW, ALT_CAT, ALT_UP = "A_KEY", "A_LOW", "A_CAT", "A_UP"
+SENTINEL = "ALT-SENTINEL"
 
 # ---------------------------------------------------------------- the axes
 REACH = ("col", "chain1", "chain2")
@@ -57,7 +71,11 @@ TYPES = ("string", "int", "float", "bool")
 NULLS = ("notnull", "nullable")
 HOST = ("top", "embedded")
 
-FILTERS = ("none", "direct", "chain")
+# `multigrain` is a MultiGrainFilter, which a mapping references exactly like a Filter --
+# the difference is consumed by the planner for join elision. Included as its own axis value
+# because otherwise the corpus can declare one and never find out whether a mapping using it
+# even executes: it was declared once in the generated dense store and referenced nowhere.
+FILTERS = ("none", "direct", "chain", "multigrain")
 EXTENDS = ("no", "yes")
 
 # Transforms are PER TYPE, because a dynafunction's arguments and result have to agree with
@@ -82,7 +100,7 @@ TYPE_PURE = {"string": "String", "int": "Integer", "float": "Float", "bool": "Bo
 
 # Two columns of every (type, nullability) per table, because a two-argument transform whose
 # arguments are the same column cannot detect an argument-order defect.
-_PREFIX = {ROOT: "R", HOP1: "H1", HOP2: "H2"}
+_PREFIX = {ROOT: "R", HOP1: "H1", HOP2: "H2", ALT: "A"}
 _SHORT = {"string": "S", "int": "I", "float": "F", "bool": "B"}
 
 
@@ -90,8 +108,17 @@ def column(table: str, type_: str, nulls: str, which: int) -> str:
     return f"{_PREFIX[table]}_{_SHORT[type_]}_{'NN' if nulls == 'notnull' else 'NL'}{which}"
 
 
-_TABLE_FOR = {"col": ROOT, "chain1": HOP1, "chain2": HOP2}
-_CHAIN_FOR = {"col": [], "chain1": [J1], "chain2": [J1, J2]}
+# The join FORMS, as one-hop reaches onto COMBO_ALT. Crossed with type and nullability but
+# not with the transform and host axes: the point of these cells is that each join form
+# EXECUTES and yields the right row, and multiplying them by every transform would triple the
+# matrix to assert the same thing about the join five more times.
+JOIN_REACH = {"multicol": J_MULTI, "ineq": J_INEQ, "ormix": J_OR,
+              "dyna1": J_DYNA1, "dyna2": J_DYNA2}
+
+_TABLE_FOR = {"col": ROOT, "chain1": HOP1, "chain2": HOP2,
+              **{r: ALT for r in JOIN_REACH}}
+_CHAIN_FOR = {"col": [], "chain1": [J1], "chain2": [J1, J2],
+              **{r: [j] for r, j in JOIN_REACH.items()}}
 AXES = ("reach", "type", "xform", "nulls", "host")
 
 
@@ -100,9 +127,16 @@ def cells() -> list[tuple[str, str, str, str, str]]:
 
     Not a rectangle: the transform axis depends on the type axis, so the cross is over the
     per-type transform lists rather than one shared list."""
-    return [(r, ty, x, n, h)
+    full = [(r, ty, x, n, h)
             for r in REACH for ty in TYPES for x in XFORM[ty]
             for n in NULLS for h in HOST]
+    # The join forms get a narrower cross -- see JOIN_REACH. Two transforms rather than all
+    # of them: `none` shows the join lands on the right row, and one transform shows a
+    # dynafunction composes over it.
+    forms = [(r, ty, x, n, "top")
+             for r in sorted(JOIN_REACH) for ty in TYPES
+             for x in XFORM[ty][:2] for n in NULLS]
+    return full + forms
 
 
 def class_cells() -> list[tuple[str, str]]:
@@ -263,7 +297,7 @@ def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
         if not kept:
             bad.append(f"{cls}: filter={filt} excludes EVERY row; its cells assert nothing")
     # Every nullable source column must actually carry a NULL somewhere.
-    for table in (ROOT, HOP1, HOP2):
+    for table in (ROOT, HOP1, HOP2, ALT):
         for type_ in TYPES:
             for which in (1, 2):
                 col = column(table, type_, "nullable", which)
@@ -378,8 +412,42 @@ def build_source() -> str:
         *cols(HOP2, last=True),
         "   )",
         "",
+        "   // Reached by the JOIN FORMS below rather than by a foreign key. Its rows are",
+        "   // derived from COMBO_ROOT's so each form pairs deterministically and to-one --",
+        "   // see combos.derive_alt. The four derivation columns exist only to be the far",
+        "   // side of one form each.",
+        f"   Table {ALT}",
+        "   (",
+        "      ALT_CODE VARCHAR(64) PRIMARY KEY,",
+        f"      {ALT_KEY} VARCHAR(200),",
+        f"      {ALT_LOW} INTEGER,",
+        f"      {ALT_CAT} VARCHAR(400),",
+        f"      {ALT_UP} VARCHAR(200),",
+        *cols(ALT, last=True),
+        "   )",
+        "",
         f"   Join {J1}({ROOT}.HOP1_CODE = {HOP1}.HOP1_CODE)",
         f"   Join {J2}({HOP1}.HOP2_CODE = {HOP2}.HOP2_CODE)",
+        "",
+        "   // MULTI-COLUMN: two equalities joined by `and`.",
+        f"   Join {J_MULTI}({ROOT}.HOP1_CODE = {ALT}.ALT_CODE and "
+        f"{ROOT}.{column(ROOT, 'string', 'notnull', 1)} = {ALT}.{ALT_KEY})",
+        "   // NON-EQUALITY. A_LOW is seeded so exactly one ALT row sits below every root",
+        "   // value and the rest sit above, which keeps the navigation to-one; the root",
+        "   // column is NULLABLE, so the row where it is NULL matches nothing and the",
+        "   // no-match case is exercised too.",
+        f"   Join {J_INEQ}({ROOT}.{column(ROOT, 'int', 'nullable', 1)} > {ALT}.{ALT_LOW})",
+        "   // `or`, with BOTH branches reachable: the equality matches for a root row whose",
+        "   // key resolves, and the null branch matches the sentinel row for the root whose",
+        "   // key is absent. Parenthesised because and/or are equal-precedence and",
+        "   // right-associative, so `A and B or C` would parse as `A and (B or C)`.",
+        f"   Join {J_OR}(({ROOT}.HOP1_CODE = {ALT}.ALT_CODE) or "
+        f"({ROOT}.HOP1_CODE is null and {ALT}.ALT_CODE = '{SENTINEL}'))",
+        "   // DYNAFUNCTION on one side, and on both.",
+        f"   Join {J_DYNA1}(concat({ROOT}.{column(ROOT, 'string', 'notnull', 1)}, "
+        f"{ROOT}.{column(ROOT, 'string', 'notnull', 2)}) = {ALT}.{ALT_CAT})",
+        f"   Join {J_DYNA2}(toUpper({ROOT}.{column(ROOT, 'string', 'notnull', 1)}) = "
+        f"toUpper({ALT}.{ALT_UP}))",
         "",
         "   // The DIRECT filter. It tests the foreign key rather than one of the columns",
         "   // the matrix cells read, for two reasons: the seeder GUARANTEES an absent key",
@@ -399,6 +467,13 @@ def build_source() -> str:
         "   // caught: a filter matching nothing asserts as little as one matching",
         "   // everything.",
         f"   Filter ComboNamedHop2({HOP2}.{column(HOP2, 'string', 'notnull', 1)} is not null)",
+        "   // A MultiGrainFilter. A mapping references it exactly as it references a Filter",
+        "   // -- the distinction is consumed by the planner, for join elision -- so nothing",
+        "   // about the reference tells you which kind it is. It is in the matrix because a",
+        "   // construct that can only be DECLARED is a construct nobody has run: the",
+        "   // generated dense store declared one and referenced it nowhere.",
+        f"   MultiGrainFilter ComboGrain({ROOT}.{column(ROOT, 'string', 'nullable', 1)} "
+        f"is not null)",
         ")",
         "",
     ]
@@ -432,6 +507,8 @@ def build_source() -> str:
         # Directive order is fixed: ~filter first, and an extending set has no ~mainTable.
         if filt == "direct":
             L.append(f"      ~filter [{DB}]ComboLinked")
+        elif filt == "multigrain":
+            L.append(f"      ~filter [{DB}]ComboGrain")
         elif filt == "chain":
             L.append(f"      ~filter [{DB}]@{J1} > @{J2} | [{DB}]ComboNamedHop2")
         if ext == "no":
@@ -549,6 +626,62 @@ def predicate_specs(c: model.Corpus) -> list[Spec]:
         spec.connection, spec.data_element = CONN_ID, DATA
         out.append(spec)
     return out
+
+
+def derive_alt(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
+    """Rewrite COMBO_ALT so each join FORM pairs deterministically with COMBO_ROOT.
+
+    Generated independently, none of these conditions matches anything: a multi-column
+    equality needs both columns to agree, and `concat(a, b) = x` needs a column literally
+    holding that concatenation. The corpus's generated dense joins are in exactly that
+    state -- `dense_DynaOneSide` and `dense_DynaBothSides` pair ZERO rows with zero, which
+    is why declaring them was never the same as executing them.
+
+    So the far side is derived from the near side, in the open:
+
+        ALT_CODE   the root's own HOP1_CODE, so the equality and multi-column forms land
+        A_KEY      the root's first NOT NULL string, the multi-column form's second term
+        A_LOW      one row far below every root value and the rest far above, so the
+                   non-equality form stays TO-ONE rather than fanning out
+        A_CAT      concat of the root's two NOT NULL strings
+        A_UP       the root's first NOT NULL string LOWERCASED, so `toUpper(x) = toUpper(y)`
+                   matches while a plain equality would not -- otherwise the test would pass
+                   whether or not the engine applied the function
+
+    One extra SENTINEL row exists for the `or` form's second branch, so the root whose key
+    is absent still lands somewhere and both branches of the disjunction are exercised.
+    """
+    root_rows = tables.get(ROOT) or []
+    if not root_rows:
+        return
+    s1 = column(ROOT, "string", "notnull", 1)
+    s2 = column(ROOT, "string", "notnull", 2)
+    # The generated rows are KEPT and only the join keys are overwritten. Copying one
+    # template row into all of them would give every ALT row identical typed values and no
+    # NULLs, so every cell reading COMBO_ALT would return the same thing for every source
+    # row -- five assertions of one fact, and the nullability axis silently dead on this
+    # whole reach.
+    generated = tables.get(ALT) or []
+    template = generated[0] if generated else {}
+    out = []
+    for i, r in enumerate(root_rows):
+        row = dict(generated[i] if i < len(generated) else template)
+        row["ALT_CODE"] = r.get("HOP1_CODE") or f"ALT-ORPHAN-{i}"
+        row[ALT_KEY] = r.get(s1)
+        # Exactly one row below every root value; the others above, so `>` matches at most
+        # one. Without that the navigation fans out and the oracle refuses it -- correctly,
+        # since a to-one property cannot land on three rows.
+        row[ALT_LOW] = -1 if i == 0 else 10 ** 6
+        row[ALT_CAT] = f"{r.get(s1)}{r.get(s2)}"
+        row[ALT_UP] = str(r.get(s1)).lower()
+        out.append(row)
+    sentinel = dict(out[0])
+    sentinel["ALT_CODE"] = SENTINEL
+    # Distinct on every join key, so it pairs ONLY through the `or` form's null branch.
+    sentinel[ALT_KEY] = sentinel[ALT_CAT] = sentinel[ALT_UP] = None
+    sentinel[ALT_LOW] = 10 ** 6
+    out.append(sentinel)
+    tables[ALT] = out
 
 
 def runtime_text() -> str:

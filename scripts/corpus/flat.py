@@ -190,6 +190,10 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     # c.views.
     for name, v in c.views.items():
         tables[name] = views.build(c, v, tables)
+    # The combination matrix's join-form table, derived from its root table so each join
+    # FORM pairs deterministically. Last, because it reads rows the expansion produced.
+    import combos
+    combos.derive_alt(c, tables)
     return tables
 
 

@@ -154,7 +154,9 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     add("--  composite PK", [t for t in ts if len(c.tables[t].pk) > 1])
     add("D8  Schema", [], "reader does not record a table's schema; cannot be measured")
     add("D10 TabularFunction", [], "reader does not model TabularFunction")
-    add("D11 MultiGrainFilter", [], "reader records it as a Filter; not distinguishable")
+    add("D11 MultiGrainFilter",
+        [n for k in c.class_filter if k in ks
+         for n in [c.class_filter[k]] if n in c.multigrain])
     return out
 
 
