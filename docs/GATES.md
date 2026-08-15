@@ -132,12 +132,18 @@ protocol validation are the cheapest coverage per second in the whole
 chain, and the alternative (sampling them) reintroduces the silent
 blind spots they exist to close.
 
-2026-08-14: `GrammarCoverageCensusTest` joins gate 8 (the
-bulletproof-and-total program's completeness instrument — corpus
-coverage of the engine's own grammars, ratcheted; see
-GRAMMAR_COVERAGE_CENSUS.md). It re-drives every corpus fragment
-through the ENGINE's generated parsers (~40s), so the ceiling moves
-6m -> 7m; the per-gate stamps in the log are the re-pin source. Per-mutant oracle instances were
+2026-08-14: `GrammarCoverageCensusTest` (the bulletproof-and-total
+program's completeness instrument — corpus coverage of the engine's
+own grammars, ratcheted; see GRAMMAR_COVERAGE_CENSUS.md) is
+TRIGGERED, NOT SCHEDULED: its inputs are both pinned (corpus manifest
+SHA + oracle jar version), so its output is a constant between pin
+changes and re-measuring a constant every chain is pure cost (~40s).
+Run it — ratchets enforced — on exactly three triggers: corpus
+manifest change, oracle-pin bump (it is a step of the bump procedure),
+or edits to the census itself:
+  mvn -pl parser-equivalence -am test -Dtest=GrammarCoverageCensusTest \
+      -Dlegend.engine.root=... -Dlegend.pure.root=...
+The chain ceiling stays 6m. Per-mutant oracle instances were
 already hoisted (FixtureCorpusParityTest 2.4s -> 0.5s); the next real
 lever, if the budget ever binds, is sharing one surefire JVM across
 gates 4/5 (the family-sharding speed leg), not thinning coverage.

@@ -6,7 +6,12 @@ what fraction of the ENGINE'S OWN GRAMMAR those sources exercise. An
 uncovered rule is a grammar path where lite could diverge with every
 gate green — the enumerated residue IS the completeness work-list.
 
-Instrument: `GrammarCoverageCensusTest` (gate 8). It discovers every
+Instrument: `GrammarCoverageCensusTest` — TRIGGERED, not scheduled
+(2026-08-14 cadence ruling): its inputs are both pinned (corpus
+manifest SHA, oracle jar version), so its output is constant between
+pin changes. Run it, ratchets enforced, on exactly three triggers:
+corpus manifest change, oracle-pin bump, census-code change. It
+discovers every
 generated `*ParserGrammar` in the pinned oracle jars, maps corpus
 sections to their section grammars (ranked prefix match; connection/
 authentication value-grammar packages penalized), drives each section
