@@ -56,7 +56,12 @@ FEATURES = [
     ("A2  join chain",            r"@\w+\s*>\s*@\w+", "body"),
     ("A3  dynafunction",          r":\s*(concat|upper|lower|substring|trim|coalesce|plus|"
                                   r"minus|times|divide|if|case|length|toUpper|toLower)\s*\(", "body"),
-    ("A4  dyna over join",        r"(concat|upper|lower|substring)\s*\([^)]*@\w+", "body"),
+    # `toUpper`, not `upper`. This pattern said `upper` -- the same non-existent name the
+    # superseded doc uses and the verification corrected -- so a dyna-over-join written
+    # CORRECTLY scored zero. Second time this file has encoded a spelling that does not
+    # exist; the meter keeps inheriting the errors it was built to detect.
+    ("A4  dyna over join",
+     r"(concat|toUpper|toLower|substring|trim|coalesce)\s*\(.{0,120}?@\w+", "body"),
     ("A5  enum transformer",      r"EnumerationMapping\s+[\w:]+\s*:", "body"),
     # `prop ( sub: [db]T.col )` -- a bare property name, parens, property mappings inside.
     #
@@ -161,8 +166,8 @@ def main() -> None:
 # association navigation -- it is what every one of the 174 association mappings does. The
 # feature worth counting is a join CHAIN (`@J1 > @J2`), of which the corpus has none. The
 # looser definition flattered the corpus by a factor of eight.
-MAX_PLAIN_RATIO = 0.82   # 375/462
-MAX_ABSENT = 5
+MAX_PLAIN_RATIO = 0.81   # 375/464
+MAX_ABSENT = 0
 
 
 if __name__ == "__main__":

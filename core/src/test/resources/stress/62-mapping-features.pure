@@ -30,6 +30,29 @@ Class hier::Contact
    phone: String[0..1];
 }
 
+// A class whose mapping TRANSFORMS rather than copies. Every property below is computed
+// by the store, so nothing here can be checked by comparing columns -- the oracle has to
+// evaluate the same function independently, which is why oracle._dynafunction exists and
+// why it refuses names it has no implementation for.
+Class hier::InstrumentReach
+{
+   instrumentId: String[1];
+   // Reached by a two-hop join CHAIN: instrument -> issuer -> country.
+   countryName: String[0..1];
+   // The same chain with a dynafunction wrapped round it.
+   upperCountry: String[0..1];
+}
+
+Class hier::IssuerLabel
+{
+   issuerId: String[1];
+   // concat over two columns, one of which is NULL for some rows: concat over NULL is NULL,
+   // not the other argument and not the empty string.
+   fullLabel: String[0..1];
+   upperName: String[0..1];
+   lowerName: String[0..1];
+}
+
 Class hier::Profile
 {
    sector: String[0..1];
@@ -45,7 +68,7 @@ Association hier::InstrumentIssuer
 ###Relational
 Database hier::IssuerDB
 (
-   Table ISSUER
+   Table HIER_ISSUER
    (
       ISSUER_ID VARCHAR(64) PRIMARY KEY,
       LEGAL_NAME VARCHAR(200) NOT NULL,
@@ -56,7 +79,19 @@ Database hier::IssuerDB
 
    // Cross-database join. `include` is NOT required for one -- [db] pointers resolve
    // globally -- which is why this works without IssuerDB including HierDB.
-   Join Issuer_Instrument([hier::IssuerDB]ISSUER.ISSUER_ID = [hier::HierDB]HIER_INSTRUMENT.ISSUER_ID)
+   Join Issuer_Instrument([hier::IssuerDB]HIER_ISSUER.ISSUER_ID = [hier::HierDB]HIER_INSTRUMENT.ISSUER_ID)
+
+   // A second hop, so a join CHAIN (@A > @B) has somewhere to go. One join can only ever
+   // produce a single-hop mapping, which is what the whole base model has.
+   Table HIER_COUNTRY
+   (
+      COUNTRY_CODE VARCHAR(8) PRIMARY KEY,
+      COUNTRY_NAME VARCHAR(120)
+   )
+   Join Issuer_Country([hier::IssuerDB]HIER_ISSUER.CONTACT_PHONE = [hier::IssuerDB]HIER_COUNTRY.COUNTRY_CODE)
+   Join Instrument_Issuer2([hier::HierDB]HIER_INSTRUMENT.ISSUER_ID = [hier::IssuerDB]HIER_ISSUER.ISSUER_ID)
+
+   Filter NamedCountry([hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME is not null)
 )
 
 // A SECOND database with the same shape, so `include ... [A -> B]` has somewhere to
@@ -64,7 +99,7 @@ Database hier::IssuerDB
 // with a single Database can never exercise it.
 Database hier::IssuerDBProd
 (
-   Table ISSUER
+   Table HIER_ISSUER
    (
       ISSUER_ID VARCHAR(64) PRIMARY KEY,
       LEGAL_NAME VARCHAR(200) NOT NULL,
@@ -89,22 +124,55 @@ Mapping hier::IssuerMapping
 (
    *hier::Issuer[issuer]: Relational
    {
-      ~primaryKey ( [hier::IssuerDB]ISSUER.ISSUER_ID )
-      ~mainTable [hier::IssuerDB]ISSUER
-      issuerId: [hier::IssuerDB]ISSUER.ISSUER_ID,
-      legalName: [hier::IssuerDB]ISSUER.LEGAL_NAME,
+      ~primaryKey ( [hier::IssuerDB]HIER_ISSUER.ISSUER_ID )
+      ~mainTable [hier::IssuerDB]HIER_ISSUER
+      issuerId: [hier::IssuerDB]HIER_ISSUER.ISSUER_ID,
+      legalName: [hier::IssuerDB]HIER_ISSUER.LEGAL_NAME,
 
       // EMBEDDED: `prop ( sub: col )`. Parentheses, and NO empty () after the name --
       // `prop()` is Inline's spelling, not this one.
       contact
       (
-         email: [hier::IssuerDB]ISSUER.CONTACT_EMAIL,
-         phone: [hier::IssuerDB]ISSUER.CONTACT_PHONE
+         email: [hier::IssuerDB]HIER_ISSUER.CONTACT_EMAIL,
+         phone: [hier::IssuerDB]HIER_ISSUER.CONTACT_PHONE
       ),
 
       // BINDING TRANSFORMER: a complex-typed property read out of one column through an
       // external-format Binding.
-      profile: Binding hier::ProfileBinding : [hier::IssuerDB]ISSUER.PROFILE_JSON
+      profile: Binding hier::ProfileBinding : [hier::IssuerDB]HIER_ISSUER.PROFILE_JSON
+   }
+
+   // DYNAFUNCTION property mappings (A3). ~distinct (B4) on the same set, so the two
+   // interact: a transform that collapses distinct source rows onto the same value makes
+   // ~distinct observable in a way a plain column mapping never would.
+   //
+   // toUpper / toLower, NOT upper / lower -- those do not exist, and NOTHING validates the
+   // name at parse or compile. A typo here compiles clean and fails at SQL generation.
+   hier::IssuerLabel[label]: Relational
+   {
+      ~distinct
+      ~mainTable [hier::IssuerDB]HIER_ISSUER
+      issuerId: [hier::IssuerDB]HIER_ISSUER.ISSUER_ID,
+      fullLabel: concat([hier::IssuerDB]HIER_ISSUER.LEGAL_NAME, [hier::IssuerDB]HIER_ISSUER.CONTACT_EMAIL),
+      upperName: toUpper([hier::IssuerDB]HIER_ISSUER.LEGAL_NAME),
+      lowerName: toLower([hier::IssuerDB]HIER_ISSUER.LEGAL_NAME)
+   }
+
+   // JOIN CHAIN (A2), DYNAFUNCTION OVER A JOIN (A4), and ~filter VIA A JOIN (B3).
+   //
+   // Three constraints, all verified and all easy to get wrong:
+   //   * a join TYPE is rejected on the FIRST hop of a property mapping, though it is legal
+   //     from hop 2 and legal on hop 1 of a ~filter;
+   //   * the ~filter-via-join form needs the PIPE -- `~filter [db]@J | [db]Filter` -- which
+   //     our own rosetta doc omits;
+   //   * the store qualifier is required on the first hop and optional afterwards.
+   hier::InstrumentReach[reach]: Relational
+   {
+      ~filter [hier::IssuerDB]@Instrument_Issuer2 > @Issuer_Country | [hier::IssuerDB]NamedCountry
+      ~mainTable [hier::HierDB]HIER_INSTRUMENT
+      instrumentId: [hier::HierDB]HIER_INSTRUMENT.INSTRUMENT_ID,
+      countryName: [hier::IssuerDB]@Instrument_Issuer2 > @Issuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME,
+      upperCountry: toUpper([hier::IssuerDB]@Instrument_Issuer2 > @Issuer_Country | [hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME)
    }
 
    // ASSOCIATION MAPPING with explicit SOURCE and TARGET set ids on each end. The ids

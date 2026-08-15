@@ -225,6 +225,10 @@ class Corpus:
     # change meaning silently everywhere.
     dyna: dict[tuple[str, str], tuple[str, list[str]]] = field(default_factory=dict)
 
+    # (class, property) the reader saw but cannot model -- join chains, Binding transformers.
+    # Visible so a service using one fails with a reason rather than a mystery.
+    unparsed: list[tuple[str, str]] = field(default_factory=list)
+
     # class fqn -> {property -> column}
     columns: dict[str, dict[str, str]] = field(default_factory=dict)
     # (class fqn, property) -> AssocEnd
@@ -371,6 +375,9 @@ _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
 _DYNAMAP = re.compile(
     r"(\w+)\s*:\s*(\w+)\s*\(\s*((?:\[[\w:]+\]\s*\w+\.\w+\s*,?\s*)+)\)")
 _DYNAARG = re.compile(r"\[[\w:]+\]\s*(\w+)\.(\w+)")
+# A property mapping whose right-hand side this reader has no rule for: a join chain
+# (`prop: @A > @B | T.col`), a Binding transformer, an embedded block opener.
+_LEFTOVER_PROP = re.compile(r"^\s*(\w+)\s*:\s*(?:\[[\w:]+\]\s*)?(?:@|Binding\s)", re.M)
 # `prop: EnumerationMapping <Name>: [db] TABLE.COL` — must be stripped BEFORE _COLMAP
 # runs, or _COLMAP matches the tail and records the mapping NAME as the property.
 _ENUMCOLMAP = re.compile(
@@ -524,10 +531,25 @@ def _parse_store(text: str, c: Corpus) -> None:
         _parse_view(name, body, c)
     for name, body, at in _table_bodies(text):
         if name in c.tables and c.tables[name].database != _owning_database(text, at):
-            raise ValueError(
-                f"table {name} is declared by both {c.tables[name].database} and "
-                f"{_owning_database(text, at)}. Names are scoped per Database in Legend "
-                f"but global here, so one mapping would bind to the other's table.")
+            # STORE SUBSTITUTION requires two databases declaring the SAME table -- that is
+            # the whole mechanism: `include M [dbA -> dbB]` rewrites the store pointer and
+            # every column reference has to still resolve. So a duplicate name is only a
+            # hazard when the two tables are DIFFERENT; when the column sets are identical,
+            # binding to "the other one" cannot change any answer.
+            #
+            # The check stays otherwise, because the hazard it guards is real (F7: names are
+            # scoped per Database in Legend and global here, so two genuinely different
+            # tables sharing a name would silently cross-bind).
+            existing = {col.name for col in c.tables[name].columns.values()}
+            incoming = set(re.findall(r"^\s*(\w+)\s+[A-Z]", body, re.M))
+            if not existing or existing != incoming:
+                raise ValueError(
+                    f"table {name} is declared by both {c.tables[name].database} and "
+                    f"{_owning_database(text, at)} with DIFFERENT columns. Names are scoped "
+                    f"per Database in Legend but global here, so one mapping would bind to "
+                    f"the other's table. (Identical shapes are allowed -- that is store "
+                    f"substitution.)")
+            continue
         t = Table(name, database=_owning_database(text, at))
         t.milestoning, body = _parse_milestoning(body)
         for spec in _split_cols(body):
@@ -758,6 +780,19 @@ def _parse_mapping(text: str, c: Corpus) -> None:
                             f"come from the row it already has")
                 c.dyna[(cur, prop)] = (fn, [acol for _t, acol in args])
                 c.columns.setdefault(cur, {})[prop] = args[0][1]
+            line = _DYNAMAP.sub("", line)
+            # Anything that still LOOKS like a property mapping after the recognised forms
+            # have been stripped is a form this reader does not model -- a join chain, a
+            # Binding transformer, an embedded block. Recorded rather than dropped.
+            #
+            # Silent dropping is a pattern that has now bitten three times: `Class X extends
+            # Y` did not match _CLASS and the class simply did not exist; a mapping using
+            # `extends [id]` matched no block in the density meter; and join-chain properties
+            # vanished here. In every case the symptom appeared far from the cause. A
+            # property the oracle cannot resolve should be visible in the reader, not
+            # discovered when a service using it fails.
+            for leftover in _LEFTOVER_PROP.findall(line):
+                c.unparsed.append((cur, leftover))
             line = _DYNAMAP.sub("", line)
             for prop, t, col in _COLMAP.findall(line):
                 if t != tbl:
