@@ -657,6 +657,12 @@ def _agg(c: Corpus, data, row, root: str, proj):
         # An entity with no children counts 0. Stated plainly because this is the
         # assertion, not an implementation detail.
         return len(landed)
+    if proj.agg in ("isEmpty", "isNotEmpty"):
+        # The EMPTY case is the whole point, and it is the case F6 gets wrong for count().
+        # These do not: verified before any were generated -- a parent with no children
+        # returns isEmpty=true and isNotEmpty=false, where count() returns 1 rather than 0.
+        # So a family of to-many queries is testable that count() cannot carry.
+        return (not landed) if proj.agg == "isEmpty" else bool(landed)
     raise Fanout(f"unhandled aggregate {proj.agg!r}")
 
 
@@ -957,6 +963,9 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
     for p in spec.projections:
         if p.agg == "count":
             out[p.alias] = "int"
+            continue
+        if p.agg in ("isEmpty", "isNotEmpty"):
+            out[p.alias] = "bool"
             continue
         if p.func:
             out[p.alias] = {"Boolean": "bool", "Float": "float", "Integer": "int",

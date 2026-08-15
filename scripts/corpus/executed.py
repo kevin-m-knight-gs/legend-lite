@@ -360,12 +360,14 @@ def all_specs(c: model.Corpus):
     import hier
     import query
     import stacks
+    import tomany
 
     tables = flat.all_tables(c)
     seeded = {k for k, v in tables.items() if v}
     return (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
-            + hier.specs(c) + combos.specs(c))
+            + hier.specs(c) + combos.specs(c)
+            + tomany.build(c, seeded, tables))
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.

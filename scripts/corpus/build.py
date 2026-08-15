@@ -34,6 +34,7 @@ import combos
 import hier
 import quarantine
 import stacks
+import tomany
 from model import STRESS
 
 DATA_FILE = STRESS / "93-testdata.pure"
@@ -181,6 +182,11 @@ def generate() -> dict[Path, str]:
     # non-empty half of the property the F-series pins on the empty half. F6 is what makes
     # the split necessary: it fails a whole service if any one row hits the empty case.
     generated += aggregates.build(c, seeded_now, TABLES)
+    # EMPTINESS over to-many ends. aggregates.py can only use the ends where EVERY parent
+    # has children, because F6 makes count() return 1 over an empty set and one such row
+    # fails the whole service. isEmpty/isNotEmpty are correct there, so these reach the 105
+    # ends that count() cannot -- and assert the empty case 299 times rather than avoiding it.
+    generated += tomany.build(c, seeded_now, TABLES)
     fan = []
     for spec in list(battery.SPECS) + generated:
         expected = _expect(c, spec, TABLES)

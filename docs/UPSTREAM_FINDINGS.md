@@ -1014,3 +1014,18 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
 
   Found while closing the gap between features that are PRESENT and features that are
   EXECUTED: it is the one entry in the taxonomy that cannot be closed from the corpus side.
+- **`forAll` over a to-many has no SQL translation.** `$firm.employees->forAll(e | $e.salary >
+  50)` inside a `project()` fails at plan generation with *"No SQL translation exists for the
+  PURE function `forAll_T_MANY__Function_1__Boolean_1_`"*. Its counterpart `exists` translates
+  fine, and so do `isEmpty` and `isNotEmpty`, over the same association and the same rows --
+  which is what makes this a gap in one function rather than a limit on to-many predicates
+  generally.
+
+  The asymmetry matters because `forAll` is the natural way to express a universal
+  constraint over a collection ("every leg settles in the same currency"), and the workaround
+  -- `->filter(not p)->isEmpty()` -- is not obviously equivalent to a reader, particularly
+  over an empty collection where `forAll` is vacuously true.
+
+  Pinned by `repro/exists-empty-tomany/`, which projects `exists` and `isEmpty` beside it
+  over a firm with two employees and a firm with none; those PASS, and are what identify
+  `forAll` as the odd one.
