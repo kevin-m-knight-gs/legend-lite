@@ -1,0 +1,83 @@
+// Class inheritance, and the mapping and query features that only exist because of it.
+//
+// The other 210 classes have no supertype at all. That absence hid three things: mapping
+// `extends [setId]`, `inheritance` Operation mappings, and subtype casts in a graph fetch
+// (`->subType(@)`) -- the last of which the PARSER corpus covers and the execution corpus
+// had never once run. None of them is reachable by writing more mappings over a flat model;
+// they need a hierarchy to exist first.
+//
+// Deliberately a SEPARATE hierarchy rather than retrofitting `extends` onto the trading
+// domain. Making products::Equity a subclass of products::Instrument would change what 397
+// existing mappings mean and what every existing service returns, which is a large change
+// to make in service of a feature nobody has tested yet.
+//
+// One table backs the whole hierarchy -- the classic single-table-inheritance shape, where
+// the subclass columns are null for rows of the other subclass. That is the interesting
+// case rather than the tidy one: SUB_COUPON is null for every option and SUB_STRIKE is null
+// for every bond, so a subtype cast has to be right about which rows it keeps.
+###Pure
+Class hier::Instrument
+{
+   instrumentId: String[1];
+   name: String[1];
+   assetClass: String[0..1];
+}
+
+Class hier::Bond extends hier::Instrument
+{
+   coupon: Float[0..1];
+}
+
+Class hier::Option extends hier::Instrument
+{
+   strike: Float[0..1];
+}
+
+###Relational
+Database hier::HierDB
+(
+   Table HIER_INSTRUMENT
+   (
+      INSTRUMENT_ID VARCHAR(64) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      ASSET_CLASS VARCHAR(32),
+      SUB_KIND VARCHAR(16),
+      SUB_COUPON DOUBLE,
+      SUB_STRIKE DOUBLE
+   )
+
+   // The discriminator, used as a class-mapping ~filter so each subclass set sees only its
+   // own rows. Without it both subclass sets would return every row of the table.
+   Filter BondRows(HIER_INSTRUMENT.SUB_KIND = 'BOND')
+   Filter OptionRows(HIER_INSTRUMENT.SUB_KIND = 'OPTION')
+)
+
+###Mapping
+Mapping hier::HierMapping
+(
+   // The ROOT set. A class mapped by more than one set implementation needs exactly one
+   // root, or compilation fails with "mapped by N set implementations and has 0 roots".
+   *hier::Instrument[base]: Relational
+   {
+      ~primaryKey ( [hier::HierDB]HIER_INSTRUMENT.INSTRUMENT_ID )
+      ~mainTable [hier::HierDB]HIER_INSTRUMENT
+      instrumentId: [hier::HierDB]HIER_INSTRUMENT.INSTRUMENT_ID,
+      name: [hier::HierDB]HIER_INSTRUMENT.NAME,
+      assetClass: [hier::HierDB]HIER_INSTRUMENT.ASSET_CLASS
+   }
+
+   // `extends [base]` inherits the superclass's property mappings, so each subclass set
+   // declares ONLY its own column. Directive order is fixed: ~filter comes before everything
+   // else, and an extending set carries no ~mainTable of its own.
+   hier::Bond[bond] extends [base]: Relational
+   {
+      ~filter [hier::HierDB]BondRows
+      coupon: [hier::HierDB]HIER_INSTRUMENT.SUB_COUPON
+   }
+
+   hier::Option[opt] extends [base]: Relational
+   {
+      ~filter [hier::HierDB]OptionRows
+      strike: [hier::HierDB]HIER_INSTRUMENT.SUB_STRIKE
+   }
+)

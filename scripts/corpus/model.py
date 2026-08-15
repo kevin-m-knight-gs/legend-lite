@@ -190,6 +190,7 @@ class Klass:
     props: dict[str, Prop] = field(default_factory=dict)
     derived: dict[str, Derived] = field(default_factory=dict)
     stereotypes: list[str] = field(default_factory=list)
+    supertype: str | None = None
 
     @property
     def temporal(self) -> str | None:
@@ -340,7 +341,13 @@ _FILTER_DECL = re.compile(
     r"^\s*Filter\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*(=|<>|<=|>=|<|>)\s*(.+?)\s*\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
-_CLASS = re.compile(r"^\s*Class\s+(?:<<([^>]*)>>\s*)?([\w:]+)\s*$")
+# The trailing `\s*$` used to be unconditional, which meant `Class X extends Y` did not
+# match at all -- the class was SILENTLY SKIPPED and simply did not exist in the model. The
+# corpus had no inheritance, so nothing ever noticed. Anything relying on a subclass would
+# have failed with "unknown class" pointing at the USE rather than at the declaration the
+# reader had quietly dropped.
+_CLASS = re.compile(
+    r"^\s*Class\s+(?:<<([^>]*)>>\s*)?([\w:]+)(?:\s+extends\s+([\w:]+))?\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
 _ENUM = re.compile(r"^\s*Enum\s+([\w:]+)\s*$")
 _FUNC = re.compile(r"^\s*function\s+([\w:]+)\s*\(([^)]*)\)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*$")
@@ -586,6 +593,7 @@ def _parse_domain(text: str, c: Corpus) -> None:
             cur_class, cur_assoc, cur_enum = m.group(2), None, None
             k = c.classes.setdefault(cur_class, Klass(cur_class))
             k.stereotypes = [s.strip() for s in (m.group(1) or "").split(",") if s.strip()]
+            k.supertype = m.group(3)
             continue
         m = _ASSOC.match(line)
         if m:

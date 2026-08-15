@@ -33,10 +33,22 @@ STRESS = "core/src/test/resources/stress/*.pure"
 # A class mapping's body, so a feature is credited to the mapping that uses it rather than
 # to the file it appears in. `Otherwise` in a comment at the top of a file is not a mapping
 # that uses Otherwise.
+# The header must admit `extends [id]` between the set id and the colon. Without it, a
+# mapping using inheritance did not match this pattern AT ALL -- so it was not counted as a
+# class mapping, and every feature inside it was invisible too. Adding three extending
+# mappings changed nothing in the report, which is what made it noticeable.
+#
+# Fourth regex in this file to understate the corpus. They share a shape: each was written
+# against the constructs that existed WHEN it was written, so each new construct is exactly
+# the thing it cannot see.
 _BLOCK = re.compile(
-    r"^\s*\*?[\w:]+(?:\[\w+\])?\s*:\s*"
+    r"^\s*\*?[\w:]+(?:\[\w+\])?(?:\s+extends\s*\[\w+\])?\s*:\s*"
     r"(Relational|Pure|Operation|XStore|AggregationAware|Relation)\s*\{(.*?)\n\s*\}",
     re.S | re.M)
+
+# `extends [id]` lives in the mapping HEADER, not the body, so it needs its own count
+# rather than a body pattern.
+_EXTENDS = re.compile(r"^\s*\*?[\w:]+(?:\[\w+\])?\s+extends\s*\[\w+\]\s*:", re.M)
 
 # (label, pattern, scope) -- 'body' counts class mappings using it, 'src' counts occurrences
 # anywhere in the corpus (for store objects, which live outside class mappings).
@@ -56,7 +68,7 @@ FEATURES = [
     ("B4  ~distinct",             r"~distinct", "body"),
     ("B5  ~groupBy",              r"~groupBy", "body"),
     ("B6  ~primaryKey",           r"~primaryKey", "body"),
-    ("B9  extends [id]",          r"extends\s*\[\w+\]", "body"),
+    ("B9  extends [id]",          r"^\s*\*?[\w:]+(?:\[\w+\])?\s+extends\s*\[\w+\]\s*:", "src"),
     ("B10 scope block",           r"scope\s*\(", "body"),
     ("C5  local property +",      r"^\s*\+\w+\s*:", "body"),
     ("E2  Pure/M2M ~src",         r"~src\s", "body"),
@@ -140,7 +152,7 @@ def main() -> None:
 # feature worth counting is a join CHAIN (`@J1 > @J2`), of which the corpus has none. The
 # looser definition flattered the corpus by a factor of eight.
 MAX_PLAIN_RATIO = 0.83   # 375/457 = 0.8206 after the dense mapping landed
-MAX_ABSENT = 10
+MAX_ABSENT = 9
 
 
 if __name__ == "__main__":
