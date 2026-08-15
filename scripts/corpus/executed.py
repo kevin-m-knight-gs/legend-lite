@@ -152,8 +152,16 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     add("D5  self-join {target}", joins_where(lambda j: j.self_join))
     add("--  milestoning", [t for t in ts if c.tables[t].milestoning])
     add("--  composite PK", [t for t in ts if len(c.tables[t].pk) > 1])
-    add("D8  Schema", [], "reader does not record a table's schema; cannot be measured")
-    add("D10 TabularFunction", [], "reader does not model TabularFunction")
+    add("D8  Schema", [n for n in ts if c.tables[n].schema != "default"])
+    # NOT a gap in the corpus. `###Data` materializes Tables only, so a mapping over a
+    # TabularFunction fails at test-session setup with the function reported as a missing
+    # table -- see repro/tabularfunction-untestable/, where a real Table in the same Schema
+    # seeded the same way is the control. The construct is unreachable by any service test,
+    # so it is reported separately rather than counted against the total: closing it is not
+    # something the corpus can do.
+    out.append(("D10 TabularFunction", None,
+                "UNTESTABLE by construction -- ###Data materializes Tables only; see "
+                "repro/tabularfunction-untestable/"))
     add("D11 MultiGrainFilter",
         [n for k in c.class_filter if k in ks
          for n in [c.class_filter[k]] if n in c.multigrain])
@@ -210,10 +218,14 @@ if __name__ == "__main__":
     c = model.load()
     rows = report(c, all_specs(c), set(quarantine.ENGINE_QUARANTINE) | set(quarantine.HANGS))
     done = sum(1 for _n, ok, _w in rows if ok)
+    blocked = sum(1 for _n, ok, _w in rows if ok is None)
+    measurable = len(rows) - blocked
     for name, ok, why in rows:
-        print(f"  {'EXEC' if ok else '  --'}  {name:<26} {why}")
-    print(f"\n{done} of {len(rows)} measurable features are EXECUTED by a passing service")
+        mark = "n/a " if ok is None else ("EXEC" if ok else "  --")
+        print(f"  {mark}  {name:<26} {why}")
+    print(f"\n{done} of {measurable} testable features are EXECUTED by a passing service"
+          + (f"; {blocked} untestable by construction" if blocked else ""))
     if "--gate" in sys.argv:
-        gaps = [n for n, ok, _w in rows if not ok]
+        gaps = [n for n, ok, _w in rows if ok is False]
         if gaps:
             raise SystemExit(f"\nnot executed: {', '.join(gaps)}")

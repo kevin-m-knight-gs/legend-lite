@@ -1000,3 +1000,17 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   Found by the corpus rather than aimed at: a seed change left one generated graph-fetch
   service with a single surviving row, and it began failing while its 59 siblings passed.
   Pinned by `stress::GG_PortfolioTree`.
+- **A mapping over a `TabularFunction` compiles but cannot be tested: `###Data` materializes
+  Tables only.** Declaring `TabularFunction ROLLUP (...)` inside a Schema, mapping a class
+  over it, and seeding it exactly as a Table is seeded fails at test-session setup with
+  `Table "ROLLUP" not found in Schema "analytics" in Database(s) demo::DB`. A real Table in
+  the same Schema, seeded the same way in the same element, works -- that is the control in
+  `repro/tabularfunction-untestable/`.
+
+  So the construct is reachable by the grammar and accepted by the compiler, and
+  unreachable by Legend's own testable framework. Any mapping that uses one is untestable by
+  construction, which means the feature cannot be covered by a service test at all -- not
+  merely that this corpus has not covered it.
+
+  Found while closing the gap between features that are PRESENT and features that are
+  EXECUTED: it is the one entry in the taxonomy that cannot be closed from the corpus side.

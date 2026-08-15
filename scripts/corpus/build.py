@@ -217,6 +217,15 @@ def generate() -> dict[Path, str]:
     # emitted -- a dealing rule that silently misses a pair is the failure this replaces.
     problems = (combos.check() + combos.check_data(c, TABLES)
                 + quarantine.check_f24(c, TABLES))
+    # RATCHET: a feature that reaches a passing service must not fall back to compile-only.
+    # Presence was already ratcheted by density.py, and presence is the number that was
+    # misleading -- nine taxonomy entries scored present while being declared once and
+    # reached by nothing.
+    import executed
+    quarantined = set(quarantine.ENGINE_QUARANTINE) | set(quarantine.HANGS)
+    problems += [f"feature no longer executed: {n}"
+                 for n, ok, _w in executed.report(c, executed.all_specs(c), quarantined)
+                 if ok is False]
     if problems:
         raise SystemExit("combination matrix is incomplete:\n  " + "\n  ".join(problems))
     combo_specs = combos.specs(c)

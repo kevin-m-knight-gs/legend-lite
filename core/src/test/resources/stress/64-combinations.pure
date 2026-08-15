@@ -360,6 +360,20 @@ Class combo::E7
    chain2_bool_isnull_nullable_embedded: Boolean[0..1];
 }
 
+// Mapped over a table inside the `analytics` Schema.
+Class combo::Summary
+{
+   summaryId: String[1];
+   sm_s_nn1: String[0..1];
+   sm_s_nl1: String[0..1];
+   sm_i_nn1: Integer[0..1];
+   sm_i_nl1: Integer[0..1];
+   sm_f_nn1: Float[0..1];
+   sm_f_nl1: Float[0..1];
+   sm_b_nn1: Boolean[0..1];
+   sm_b_nl1: Boolean[0..1];
+}
+
 ###Relational
 Database combo::ComboDB
 (
@@ -453,6 +467,36 @@ Database combo::ComboDB
       A_B_NN2 BIT NOT NULL,
       A_B_NL1 BIT,
       A_B_NL2 BIT
+   )
+
+   // A SCHEMA. Every other table in this corpus sits in the default schema, so a
+   // schema-qualified reference had never been resolved by anything -- not by a
+   // mapping, which writes `[db]schema.TABLE.COL`, and not by a ###Data element,
+   // which keys its rows `schema.TABLE`. Both were probed against the engine
+   // first; a Schema that only ever appears in a Database block is a declaration,
+   // not a tested feature.
+   Schema analytics
+   (
+      Table COMBO_SUMMARY
+      (
+         SUMMARY_ID VARCHAR(64) PRIMARY KEY,
+         SM_S_NN1 VARCHAR(200) NOT NULL,
+         SM_S_NN2 VARCHAR(200) NOT NULL,
+         SM_S_NL1 VARCHAR(200),
+         SM_S_NL2 VARCHAR(200),
+         SM_I_NN1 INTEGER NOT NULL,
+         SM_I_NN2 INTEGER NOT NULL,
+         SM_I_NL1 INTEGER,
+         SM_I_NL2 INTEGER,
+         SM_F_NN1 DOUBLE NOT NULL,
+         SM_F_NN2 DOUBLE NOT NULL,
+         SM_F_NL1 DOUBLE,
+         SM_F_NL2 DOUBLE,
+         SM_B_NN1 BIT NOT NULL,
+         SM_B_NN2 BIT NOT NULL,
+         SM_B_NL1 BIT,
+         SM_B_NL2 BIT
+      )
    )
 
    Join Combo_Hop1(COMBO_ROOT.HOP1_CODE = COMBO_HOP1.HOP1_CODE)
@@ -852,6 +896,22 @@ Mapping combo::ComboMapping
          chain2_float_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL2),
          chain2_bool_isnull_nullable_embedded: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1)
       )
+   }
+
+   // The SCHEMA-QUALIFIED mapping: every reference names analytics.COMBO_SUMMARY.
+   combo::Summary: Relational
+   {
+      ~primaryKey ( [combo::ComboDB]analytics.COMBO_SUMMARY.SUMMARY_ID )
+      ~mainTable [combo::ComboDB]analytics.COMBO_SUMMARY
+      summaryId: [combo::ComboDB]analytics.COMBO_SUMMARY.SUMMARY_ID,
+      sm_s_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_S_NN1,
+      sm_s_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_S_NL1,
+      sm_i_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_I_NN1,
+      sm_i_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_I_NL1,
+      sm_f_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_F_NN1,
+      sm_f_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_F_NL1,
+      sm_b_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_B_NN1,
+      sm_b_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_B_NL1
    }
 
 )

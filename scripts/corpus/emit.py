@@ -59,7 +59,10 @@ def side_tables(c) -> set:
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"
 RUNTIME = "stress::RT"
-SCHEMA = "default"                  # tables are declared without a Schema block
+# A ###Data element keys rows by SCHEMA.TABLE. Hardcoding "default" was correct only
+# while no table lived in a Schema block -- and a schema-qualified table seeded under
+# `default.` is not seeded at all, so the mapping over it returns nothing.
+SCHEMA = "default"
 
 
 def _pure_str(s: str) -> str:
@@ -98,7 +101,7 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in rows]
-        out.append(f"    {SCHEMA}.{name}:")
+        out.append(f"    {c.tables[name].schema}.{name}:")
         body = [f"      '{_pure_str(l)}\\n'" for l in lines]
         out.append(" +\n".join(body) + ";")
         if i < len(emitted) - 1:
@@ -146,7 +149,7 @@ def store_data_element(c: Corpus, tables: dict[str, list[dict]],
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in tables[name]]
         body = "\\n' +\n      '".join(lines)
-        out.append(f"    {SCHEMA}.{name}:")
+        out.append(f"    {c.tables[name].schema}.{name}:")
         out.append(f"      '{body}\\n'" + (";" if i == len(names) - 1 else ";"))
     out += ["  }#", "}"]
     return "\n".join(out)
@@ -164,7 +167,7 @@ def external_data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in tables[name]]
-        out.append(f"    {SCHEMA}.{name}:")
+        out.append(f"    {c.tables[name].schema}.{name}:")
         out.append(" +\n".join(f"      '{_pure_str(l)}\\n'" for l in lines) + ";")
     out += ["  }#", "}"]
     return "\n".join(out)

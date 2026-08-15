@@ -106,6 +106,12 @@ class Table:
     # collide and one mapping would bind to the other's table. check() rejects that
     # rather than letting it happen quietly.
     database: str = ""
+    # The Schema block the table is declared inside, or "default" when there is none.
+    # Untracked until now, so a schema-qualified table could not be MAPPED (the mapping
+    # names `[db]schema.TABLE`) nor SEEDED (a ###Data element keys rows by `schema.TABLE`),
+    # and a Schema could only ever be declared. Both forms were verified against the engine
+    # before this was added -- see scripts/corpus/repro/ -- rather than assumed to work.
+    schema: str = "default"
     columns: dict[str, Column] = field(default_factory=dict)
     # A list, not one: a BITEMPORAL table declares both business and processing
     # milestoning in the same block, and the two are combined at query time.
@@ -493,7 +499,11 @@ _PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
 _DERIVED = re.compile(
     r"^\s*(\w+)\s*\(([^)]*)\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
 _PARAM = re.compile(r"(\w+)\s*:\s*[\w:]+\s*\[[^\]]+\]")
-_MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
+# A reference may be SCHEMA-QUALIFIED: `[db]schema.TABLE.COL`. Tables are keyed globally
+# by name here, so the schema qualifier is matched and discarded -- but it has to be
+# MATCHED, or the pattern reads `analytics` as the table and `COMBO_SUMMARY` as the
+# column and the mapping silently records a property against a table that does not exist.
+_MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\s*$")
 # `Class: Relational`, `Class[id]: Relational`, and the root-marked `*Class: ...` form.
 # `extends [parentId]` sits between the set id and the colon. Without admitting it, a
 # subclass's class mapping did not match -- so `cur` stayed on the PREVIOUS class and every
@@ -509,7 +519,7 @@ _CLSMAP = re.compile(
 _OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
 _UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
-_COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
+_COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\.(\w+)")
 # `prop: concat([db]T.A, [db]T.B)` -- a DYNAFUNCTION property mapping. Like _ENUMCOLMAP this
 # must be stripped BEFORE _COLMAP runs, or _COLMAP matches the first column inside the
 # parentheses and records the property as a plain column mapping -- silently turning a
@@ -701,6 +711,22 @@ def _parse_view(name: str, body: str, c: Corpus) -> None:
 _DATABASE = re.compile(r"^\s*Database\s+([\w:]+)\s*$", re.M)
 
 
+
+def _owning_schema(text: str, at: int) -> str:
+    """The Schema block enclosing the declaration at `at`, or "default".
+
+    Found by scanning backwards for the nearest `Schema x (` and checking the parentheses
+    between it and here still leave us inside it -- a Schema's tables are nested, so a
+    plain "nearest preceding Schema" would also claim every table declared AFTER the block
+    closed.
+    """
+    best = "default"
+    for m in re.finditer(r"^\s*Schema\s+(\w+)\s*$", text[:at], re.M):
+        depth = text.count("(", m.end(), at) - text.count(")", m.end(), at)
+        if depth > 0:
+            best = m.group(1)
+    return best
+
 def _owning_database(text: str, at: int) -> str:
     """The Database whose declaration most recently precedes this offset."""
     last = ""
@@ -736,7 +762,8 @@ def _parse_store(text: str, c: Corpus) -> None:
                     f"the other's table. (Identical shapes are allowed -- that is store "
                     f"substitution.)")
             continue
-        t = Table(name, database=_owning_database(text, at))
+        t = Table(name, database=_owning_database(text, at),
+                  schema=_owning_schema(text, at))
         t.milestoning, body = _parse_milestoning(body)
         for spec in _split_cols(body):
             spec = " ".join(spec.split())

@@ -1,0 +1,101 @@
+// A mapping over a TabularFunction COMPILES and can never be TESTED.
+//
+// `###Data` materializes Tables only, so a TabularFunction declared beside them in the same
+// Schema is absent when the test session initializes:
+//
+//     Table "ROLLUP" not found in Schema "analytics" in Database(s) demo::DB
+//
+// demo::Row (a Table in the same Schema, seeded the same way) works -- that is the control.
+// The failure is specific to the TabularFunction, and it happens at session setup rather
+// than at compile, so the construct is reachable by the grammar and the compiler and
+// unreachable by any service test.
+//
+Class demo::Row { id: String[1]; label: String[0..1]; total: Float[0..1]; }
+Class demo::Fn  { id: String[1]; total: Float[0..1]; }
+
+###Relational
+Database demo::DB
+(
+  Schema analytics
+  (
+    Table SUMMARY (ID VARCHAR(20) PRIMARY KEY, LABEL VARCHAR(50), TOTAL DOUBLE)
+    TabularFunction ROLLUP (ID VARCHAR(20) NOT NULL, TOTAL DOUBLE)
+  )
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Fn: Relational
+  { ~primaryKey ( [demo::DB] analytics.ROLLUP.ID ) ~mainTable [demo::DB] analytics.ROLLUP
+    id: [demo::DB]analytics.ROLLUP.ID,
+    total: [demo::DB]analytics.ROLLUP.TOTAL }
+
+  demo::Row: Relational
+  { ~primaryKey ( [demo::DB] analytics.SUMMARY.ID ) ~mainTable [demo::DB] analytics.SUMMARY
+    id: [demo::DB]analytics.SUMMARY.ID,
+    label: [demo::DB]analytics.SUMMARY.LABEL,
+    total: [demo::DB]analytics.SUMMARY.TOTAL }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    analytics.SUMMARY:
+      'ID,LABEL,TOTAL\n' +
+      'S1,alpha,10.5\n' +
+      'S2,beta,20.0\n';
+    analytics.ROLLUP:
+      'ID,TOTAL\n' +
+      'R1,99.5\n';
+  }#
+}
+
+###Service
+Service demo::SchemaQualified
+{
+  pattern: '/schemaQualified';
+  documentation: 'Can a mapping read a table inside a Schema, and can ###Data seed it schema-qualified? The corpus declared a Schema and never mapped over one.';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, label:x|$x.label, total:x|$x.total]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+        asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[{"id":"S1","label":"alpha","total":10.5},{"id":"S2","label":"beta","total":20.0}]'; }#; }# ] } ] }
+  ]
+}
+
+Service demo::TabFn
+{
+  pattern: '/tabFn';
+  documentation: 'Can a class be mapped over a TabularFunction, and can ###Data seed one? A TabularFunction is a database FUNCTION returning a table, so seeding it as if it were a table may not be possible at all -- in which case the construct is compile-only by nature rather than by omission.';
+  execution: Single
+  {
+    query: |demo::Fn.all()->project(~[id:x|$x.id, total:x|$x.total]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+        asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[{"id":"R1","total":99.5}]'; }#; }# ] } ] }
+  ]
+}

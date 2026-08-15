@@ -148,14 +148,25 @@ class _Parser:
     def column(self):
         if self.peek()[0] == "db":
             self.take()
-        kind, table = self.take()
+        parts = []
+        kind, name = self.take()
         if kind not in ("ident", "target"):
-            raise ParseError(f"expected a table name, found {table!r}")
-        self.expect(".")
-        kind, col = self.take()
-        if kind != "ident":
-            raise ParseError(f"expected a column name, found {col!r}")
-        return ("col", (table, col))
+            raise ParseError(f"expected a table name, found {name!r}")
+        parts.append(name)
+        while self.peek()[1] == ".":
+            self.take()
+            kind, name = self.take()
+            if kind != "ident":
+                raise ParseError(f"expected a name after '.', found {name!r}")
+            parts.append(name)
+        # Two parts is TABLE.COL; three is SCHEMA.TABLE.COL. Tables are keyed globally by
+        # name in this reader, so the schema is dropped -- but it must be CONSUMED, or the
+        # trailing `.COL` is left unparsed and the caller reports trailing input.
+        if len(parts) == 3:
+            parts = parts[1:]
+        if len(parts) != 2:
+            raise ParseError(f"expected TABLE.COL or SCHEMA.TABLE.COL, found {'.'.join(parts)}")
+        return ("col", tuple(parts))
 
 
 def parse(text: str):
