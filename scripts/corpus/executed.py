@@ -368,23 +368,23 @@ def all_specs(c: model.Corpus):
             + hier.specs(c) + combos.specs(c))
 
 
-# Features with a passing service TODAY. A ratchet, not a target: build.py fails if one of
-# these stops executing, and the list is EXTENDED as gaps close. Two entries are absent
-# deliberately and both are blocked from outside the corpus:
+# Every taxonomy feature that a service can execute, all of them with a passing one today.
+# A ratchet, not a target: build.py fails if any stops executing.
 #
-#   A7  Otherwise        its only mapping is quarantined under F13 (Otherwise never falls
-#                        back under TDS projection), so no passing service can use one
-#   D10 TabularFunction  untestable by construction -- see the note in report()
+# D10 TabularFunction is absent and cannot be added: `###Data` materializes Tables only, so a
+# mapping over one fails at test-session setup. That is a property of the platform's test
+# framework rather than a gap here -- see the note in report() and
+# repro/tabularfunction-untestable/.
 BASELINE = {
     "--  composite PK", "--  join non-equality", "--  join with or", "--  milestoning",
     "A10 src/tgt ids", "A2  join chain", "A3  dynafunction", "A4  dyna over join",
-    "A5  enum transformer", "A6  embedded", "A8  Inline", "A9  Binding transformer",
-    "B10 scope block", "B2  ~filter", "B3  ~filter via join", "B4  ~distinct",
-    "B5  ~groupBy", "B6  ~primaryKey", "B9  extends [id]", "C2  store substitution",
-    "C5  local property +", "D11 MultiGrainFilter", "D3  multi-column join",
-    "D4  join w/ dynafunction", "D5  self-join {target}", "D6  Filter", "D7  View",
-    "D8  Schema", "E2  Pure/M2M ~src", "E3  XStore", "E4  AggregationAware",
-    "E5  Relation ~func", "E6  Operation union",
+    "A5  enum transformer", "A6  embedded", "A7  Otherwise", "A8  Inline",
+    "A9  Binding transformer", "B10 scope block", "B2  ~filter", "B3  ~filter via join",
+    "B4  ~distinct", "B5  ~groupBy", "B6  ~primaryKey", "B9  extends [id]",
+    "C2  store substitution", "C5  local property +", "D11 MultiGrainFilter",
+    "D3  multi-column join", "D4  join w/ dynafunction", "D5  self-join {target}",
+    "D6  Filter", "D7  View", "D8  Schema", "E2  Pure/M2M ~src", "E3  XStore",
+    "E4  AggregationAware", "E5  Relation ~func", "E6  Operation union",
 }
 
 

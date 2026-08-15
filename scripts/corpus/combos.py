@@ -77,6 +77,22 @@ SCHEMA_CLASS = "combo::Summary"
 SCOPE_CLASS = "combo::Scoped"
 HOP_CLASS = "combo::Hop"
 ASSOC = "combo::RootHop"
+# An OTHERWISE mapping whose inline branch always applies. F13 breaks the FALLBACK -- an
+# Otherwise never falls back under TDS projection -- so the only service using one is
+# quarantined and the construct had no passing demonstration. The inline branch is a
+# separate half and it works, so it is covered here and the broken half stays pinned by
+# O1_CounterpartyOtherwise. Same split aggregates.py makes around F6.
+OTW_CLASS = "combo::WithOtherwise"
+OTW_TARGET = "combo::OtherwiseTarget"
+# The inline branch and the fallback map the SAME class, and this reader keys a property's
+# column by class rather than by (mapping, class) -- so the two sets' columns collapse into
+# one view and the model fails to resolve unless every name exists on both tables. Hence one
+# pair of column names carried by COMBO_ROOT and COMBO_HOP1 alike.
+#
+# The VALUES still differ: the seeder generates per (column, row index), and a root row joins
+# to a hop row at a different index -- or to none at all, where the key is absent. So the
+# expectation distinguishes the branches even though the column names do not.
+OTW_COLS = ("OTW_CODE", "OTW_LABEL")
 
 # ---------------------------------------------------------------- the axes
 REACH = ("col", "chain1", "chain2")
@@ -414,11 +430,28 @@ def build_source() -> str:
                     sfx = "" if nulls == "nullable" else " NOT NULL"
                     out.append(f"      {column(table, type_, nulls, which)} "
                                f"{TYPE_SQL[type_]}{sfx},")
+        if table in (ROOT, HOP1):
+            out += [f"      {c} VARCHAR(200) NOT NULL," for c in OTW_COLS]
         if last:
             out[-1] = out[-1].rstrip(",")
         return out
 
     L += [
+        f"// Carries an embedded property with an `Otherwise` fallback. Its inline columns",
+        f"// are NOT NULL for every row, so the inline branch always applies and the",
+        f"// fallback is never reached -- which is the half F13 does not break.",
+        f"Class {OTW_CLASS}",
+        "{",
+        "   rootId: String[1];",
+        f"   inline: {OTW_TARGET}[0..1];",
+        "}",
+        "",
+        f"Class {OTW_TARGET}",
+        "{",
+        "   code: String[1];",
+        "   label: String[0..1];",
+        "}",
+        "",
         "// Mapped through a SCOPE block: the property mappings inside name their columns",
         "// BARE, with the table stated once by the scope. 60 class mappings in this corpus",
         "// are written that way and none was executed -- they live in a Mapping that no",
@@ -612,6 +645,31 @@ def build_source() -> str:
         L.append("   }")
         L.append("")
     L += [
+        "   // OTHERWISE. The embedded block is the inline branch; the set id after",
+        "   // `Otherwise` names the fallback, reached by a join when the inline branch does",
+        "   // not apply. Both columns below are NOT NULL, so it never does -- deliberately,",
+        "   // because F13 makes the fallback unreachable under TDS projection and a service",
+        "   // that needed it could only ever be quarantined.",
+        f"   *{OTW_TARGET}[otwFallback]: Relational",
+        "   {",
+        f"      ~primaryKey ( [{DB}]{HOP1}.HOP1_CODE )",
+        f"      ~mainTable [{DB}]{HOP1}",
+        f"      code: [{DB}]{HOP1}.{OTW_COLS[0]},",
+        f"      label: [{DB}]{HOP1}.{OTW_COLS[1]}",
+        "   }",
+        "",
+        f"   {OTW_CLASS}: Relational",
+        "   {",
+        f"      ~primaryKey ( [{DB}]{ROOT}.ROOT_ID )",
+        f"      ~mainTable [{DB}]{ROOT}",
+        f"      rootId: [{DB}]{ROOT}.ROOT_ID,",
+        "      inline",
+        "      (",
+        f"         code: [{DB}]{ROOT}.{OTW_COLS[0]},",
+        f"         label: [{DB}]{ROOT}.{OTW_COLS[1]}",
+        f"      ) Otherwise ([otwFallback]: [{DB}]@{J1})",
+        "   }",
+        "",
         "   // SCOPE. `scope([db]TABLE)` states the table once; the property mappings inside",
         "   // name bare columns. A second form, `scope([db])`, qualifies each column with",
         "   // its table instead -- this uses the first.",
@@ -702,11 +760,39 @@ def specs(c: model.Corpus) -> list[Spec]:
         spec.connection, spec.data_element = CONN_ID, DATA
         out.append(spec)
     extra = predicate_specs(c)
-    for maker in (schema_spec, scope_spec, assoc_ids_spec):
+    for maker in (schema_spec, scope_spec, assoc_ids_spec, otherwise_spec):
         s = maker(c)
         if s is not None:
             extra.append(s)
     return out + extra
+
+
+def otherwise_spec(c: model.Corpus):
+    """A service over the embedded property that carries an `Otherwise` fallback.
+
+    Its inline columns are NOT NULL for every row, so the inline branch always applies and
+    the fallback is never reached. That is deliberate: F13 makes an Otherwise never fall
+    back under TDS projection, so a service that NEEDED the fallback could only ever be
+    quarantined -- and the construct then has no demonstration that it works at all.
+
+    The expectation is the inline columns' own values, which is what makes the split honest:
+    if the engine took the fallback anyway it would return the joined table's values and
+    this would fail rather than quietly agree.
+    """
+    if (OTW_CLASS, "inline") not in c.embedded:
+        return None
+    spec = Spec("stress::CB_Otherwise", "/stress/cb_otherwise",
+                f"Reads the embedded property on {OTW_CLASS}, mapped with an `Otherwise` "
+                f"fallback that never applies because the inline columns are NOT NULL. The "
+                f"fallback half is pinned by O1_CounterpartyOtherwise under F13. Generated "
+                f"by scripts/corpus/combos.py.", OTW_CLASS)
+    spec.projections = [Proj("rootId", ["rootId"]),
+                        Proj("code", ["inline", "code"]),
+                        Proj("label", ["inline", "label"])]
+    spec.sort = ("rootId", False)
+    spec.mapping, spec.runtime = MAPPING, RUNTIME
+    spec.connection, spec.data_element = CONN_ID, DATA
+    return spec
 
 
 def scope_spec(c: model.Corpus):

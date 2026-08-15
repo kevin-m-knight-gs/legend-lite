@@ -444,6 +444,21 @@ Class combo::E15
    chain1_bool_none_nullable_embedded: Boolean[0..1];
 }
 
+// Carries an embedded property with an `Otherwise` fallback. Its inline columns
+// are NOT NULL for every row, so the inline branch always applies and the
+// fallback is never reached -- which is the half F13 does not break.
+Class combo::WithOtherwise
+{
+   rootId: String[1];
+   inline: combo::OtherwiseTarget[0..1];
+}
+
+Class combo::OtherwiseTarget
+{
+   code: String[1];
+   label: String[0..1];
+}
+
 // Mapped through a SCOPE block: the property mappings inside name their columns
 // BARE, with the table stated once by the scope. 60 class mappings in this corpus
 // are written that way and none was executed -- they live in a Mapping that no
@@ -517,6 +532,8 @@ Database combo::ComboDB
       R_B_NN2 BIT NOT NULL,
       R_B_NL1 BIT,
       R_B_NL2 BIT,
+      OTW_CODE VARCHAR(200) NOT NULL,
+      OTW_LABEL VARCHAR(200) NOT NULL,
       HOP1_CODE VARCHAR(64)
    )
    Table COMBO_HOP1
@@ -538,6 +555,8 @@ Database combo::ComboDB
       H1_B_NN2 BIT NOT NULL,
       H1_B_NL1 BIT,
       H1_B_NL2 BIT,
+      OTW_CODE VARCHAR(200) NOT NULL,
+      OTW_LABEL VARCHAR(200) NOT NULL,
       HOP2_CODE VARCHAR(64)
    )
    Table COMBO_HOP2
@@ -1105,6 +1124,31 @@ Mapping combo::ComboMapping
          chain1_float_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
          chain1_bool_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1
       )
+   }
+
+   // OTHERWISE. The embedded block is the inline branch; the set id after
+   // `Otherwise` names the fallback, reached by a join when the inline branch does
+   // not apply. Both columns below are NOT NULL, so it never does -- deliberately,
+   // because F13 makes the fallback unreachable under TDS projection and a service
+   // that needed it could only ever be quarantined.
+   *combo::OtherwiseTarget[otwFallback]: Relational
+   {
+      ~primaryKey ( [combo::ComboDB]COMBO_HOP1.HOP1_CODE )
+      ~mainTable [combo::ComboDB]COMBO_HOP1
+      code: [combo::ComboDB]COMBO_HOP1.OTW_CODE,
+      label: [combo::ComboDB]COMBO_HOP1.OTW_LABEL
+   }
+
+   combo::WithOtherwise: Relational
+   {
+      ~primaryKey ( [combo::ComboDB]COMBO_ROOT.ROOT_ID )
+      ~mainTable [combo::ComboDB]COMBO_ROOT
+      rootId: [combo::ComboDB]COMBO_ROOT.ROOT_ID,
+      inline
+      (
+         code: [combo::ComboDB]COMBO_ROOT.OTW_CODE,
+         label: [combo::ComboDB]COMBO_ROOT.OTW_LABEL
+      ) Otherwise ([otwFallback]: [combo::ComboDB]@Combo_Hop1)
    }
 
    // SCOPE. `scope([db]TABLE)` states the table once; the property mappings inside

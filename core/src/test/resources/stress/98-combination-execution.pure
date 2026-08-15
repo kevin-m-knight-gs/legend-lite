@@ -38,12 +38,12 @@ Data combo::ComboData
       'CH-0003,R-S-NN1-005,1000000,R-S-NN1-005R-S-NN2-005,r-s-nn1-005,A-S-NN1-005,A-S-NN2-005,A-S-NL1-005,A-S-NL2-005,73,73,73,,437.5,437.5,437.5,437.5,false,false,false,false\n' +
       'ALT-SENTINEL,,1000000,,,A-S-NN1-001,A-S-NN2-001,A-S-NL1-001,A-S-NL2-001,45,45,45,45,287.5,287.5,,287.5,true,true,true,true\n';
     default.COMBO_HOP1:
-      'HOP1_CODE,H1_S_NN1,H1_S_NN2,H1_S_NL1,H1_S_NL2,H1_I_NN1,H1_I_NN2,H1_I_NL1,H1_I_NL2,H1_F_NN1,H1_F_NN2,H1_F_NL1,H1_F_NL2,H1_B_NN1,H1_B_NN2,H1_B_NL1,H1_B_NL2,HOP2_CODE\n' +
-      'CH-0001,H1-S-NN1-001,H1-S-NN2-001,H1-S-NL1-001,H1-S-NL2-001,24,24,24,,175.0,175.0,175.0,175.0,true,true,true,true,\n' +
-      'CH-0002,H1-S-NN1-002,H1-S-NN2-002,H1-S-NL1-002,H1-S-NL2-002,31,31,31,31,212.5,212.5,,212.5,false,false,false,false,CH-0001-GONE\n' +
-      'CH-0003,H1-S-NN1-003,H1-S-NN2-003,,H1-S-NL2-003,38,38,38,38,250.0,250.0,250.0,,true,true,true,true,CH-0001\n' +
-      'CH-0004,H1-S-NN1-004,H1-S-NN2-004,H1-S-NL1-004,,45,45,45,45,287.5,287.5,287.5,287.5,true,true,,true,CH-0002\n' +
-      'CH-0005,H1-S-NN1-005,H1-S-NN2-005,H1-S-NL1-005,H1-S-NL2-005,52,52,,52,325.0,325.0,325.0,325.0,false,false,false,,CH-0003\n';
+      'HOP1_CODE,H1_S_NN1,H1_S_NN2,H1_S_NL1,H1_S_NL2,H1_I_NN1,H1_I_NN2,H1_I_NL1,H1_I_NL2,H1_F_NN1,H1_F_NN2,H1_F_NL1,H1_F_NL2,H1_B_NN1,H1_B_NN2,H1_B_NL1,H1_B_NL2,OTW_CODE,OTW_LABEL,HOP2_CODE\n' +
+      'CH-0001,H1-S-NN1-001,H1-S-NN2-001,H1-S-NL1-001,H1-S-NL2-001,24,24,24,,175.0,175.0,175.0,175.0,true,true,true,true,AA,OTW-LABEL-001,\n' +
+      'CH-0002,H1-S-NN1-002,H1-S-NN2-002,H1-S-NL1-002,H1-S-NL2-002,31,31,31,31,212.5,212.5,,212.5,false,false,false,false,BB,OTW-LABEL-002,CH-0001-GONE\n' +
+      'CH-0003,H1-S-NN1-003,H1-S-NN2-003,,H1-S-NL2-003,38,38,38,38,250.0,250.0,250.0,,true,true,true,true,CC,OTW-LABEL-003,CH-0001\n' +
+      'CH-0004,H1-S-NN1-004,H1-S-NN2-004,H1-S-NL1-004,,45,45,45,45,287.5,287.5,287.5,287.5,true,true,,true,DD,OTW-LABEL-004,CH-0002\n' +
+      'CH-0005,H1-S-NN1-005,H1-S-NN2-005,H1-S-NL1-005,H1-S-NL2-005,52,52,,52,325.0,325.0,325.0,325.0,false,false,false,,EE,OTW-LABEL-005,CH-0003\n';
     default.COMBO_HOP2:
       'HOP2_CODE,H2_S_NN1,H2_S_NN2,H2_S_NL1,H2_S_NL2,H2_I_NN1,H2_I_NN2,H2_I_NL1,H2_I_NL2,H2_F_NN1,H2_F_NN2,H2_F_NL1,H2_F_NL2,H2_B_NN1,H2_B_NN2,H2_B_NL1,H2_B_NL2\n' +
       'CH-0001,H2-S-NN1-001,H2-S-NN2-001,H2-S-NL1-001,H2-S-NL2-001,10,10,10,,100.0,100.0,100.0,100.0,false,false,false,false\n' +
@@ -52,12 +52,12 @@ Data combo::ComboData
       'CH-0004,H2-S-NN1-004,H2-S-NN2-004,H2-S-NL1-004,,31,31,31,31,212.5,212.5,212.5,212.5,false,false,,false\n' +
       'CH-0005,H2-S-NN1-005,H2-S-NN2-005,H2-S-NL1-005,H2-S-NL2-005,38,38,,38,250.0,250.0,250.0,250.0,true,true,true,\n';
     default.COMBO_ROOT:
-      'ROOT_ID,R_S_NN1,R_S_NN2,R_S_NL1,R_S_NL2,R_I_NN1,R_I_NN2,R_I_NL1,R_I_NL2,R_F_NN1,R_F_NN2,R_F_NL1,R_F_NL2,R_B_NN1,R_B_NN2,R_B_NL1,R_B_NL2,HOP1_CODE\n' +
-      'CR-0001,R-S-NN1-001,R-S-NN2-001,R-S-NL1-001,R-S-NL2-001,52,52,52,,325.0,325.0,325.0,325.0,false,false,false,false,\n' +
-      'CR-0002,R-S-NN1-002,R-S-NN2-002,R-S-NL1-002,R-S-NL2-002,59,59,59,59,362.5,362.5,,362.5,true,true,true,true,CH-0001-GONE\n' +
-      'CR-0003,R-S-NN1-003,R-S-NN2-003,,R-S-NL2-003,66,66,66,66,400.0,400.0,400.0,,true,true,true,true,CH-0001\n' +
-      'CR-0004,R-S-NN1-004,R-S-NN2-004,R-S-NL1-004,,73,73,73,73,437.5,437.5,437.5,437.5,false,false,,false,CH-0002\n' +
-      'CR-0005,R-S-NN1-005,R-S-NN2-005,R-S-NL1-005,R-S-NL2-005,80,80,,80,475.0,475.0,475.0,475.0,true,true,true,,CH-0003\n';
+      'ROOT_ID,R_S_NN1,R_S_NN2,R_S_NL1,R_S_NL2,R_I_NN1,R_I_NN2,R_I_NL1,R_I_NL2,R_F_NN1,R_F_NN2,R_F_NL1,R_F_NL2,R_B_NN1,R_B_NN2,R_B_NL1,R_B_NL2,OTW_CODE,OTW_LABEL,HOP1_CODE\n' +
+      'CR-0001,R-S-NN1-001,R-S-NN2-001,R-S-NL1-001,R-S-NL2-001,52,52,52,,325.0,325.0,325.0,325.0,false,false,false,false,AA,OTW-LABEL-001,\n' +
+      'CR-0002,R-S-NN1-002,R-S-NN2-002,R-S-NL1-002,R-S-NL2-002,59,59,59,59,362.5,362.5,,362.5,true,true,true,true,BB,OTW-LABEL-002,CH-0001-GONE\n' +
+      'CR-0003,R-S-NN1-003,R-S-NN2-003,,R-S-NL2-003,66,66,66,66,400.0,400.0,400.0,,true,true,true,true,CC,OTW-LABEL-003,CH-0001\n' +
+      'CR-0004,R-S-NN1-004,R-S-NN2-004,R-S-NL1-004,,73,73,73,73,437.5,437.5,437.5,437.5,false,false,,false,DD,OTW-LABEL-004,CH-0002\n' +
+      'CR-0005,R-S-NN1-005,R-S-NN2-005,R-S-NL1-005,R-S-NL2-005,80,80,,80,475.0,475.0,475.0,475.0,true,true,true,,EE,OTW-LABEL-005,CH-0003\n';
     analytics.COMBO_SUMMARY:
       'SUMMARY_ID,SM_S_NN1,SM_S_NN2,SM_S_NL1,SM_S_NL2,SM_I_NN1,SM_I_NN2,SM_I_NL1,SM_I_NL2,SM_F_NN1,SM_F_NN2,SM_F_NL1,SM_F_NL2,SM_B_NN1,SM_B_NN2,SM_B_NL1,SM_B_NL2\n' +
       'CS-0001,SM-S-NN1-001,SM-S-NN2-001,SM-S-NL1-001,SM-S-NL2-001,213,213,213,,1187.5,1187.5,1187.5,1187.5,true,true,true,true\n' +
@@ -1532,6 +1532,62 @@ Service stress::CB_AssocSetIds
                   #{
                     contentType: 'application/json';
                     data: '[{"rootId":"CR-0001","hopCode":null,"hopLeaf":null},{"rootId":"CR-0002","hopCode":null,"hopLeaf":null},{"rootId":"CR-0003","hopCode":"CH-0001","hopLeaf":"H1-S-NN1-001"},{"rootId":"CR-0004","hopCode":"CH-0002","hopLeaf":"H1-S-NN1-002"},{"rootId":"CR-0005","hopCode":"CH-0003","hopLeaf":"H1-S-NN1-003"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_Otherwise
+{
+    pattern: '/stress/cb_otherwise';
+    documentation: 'Reads the embedded property on combo::WithOtherwise, mapped with an `Otherwise` fallback that never applies because the inline columns are NOT NULL. The fallback half is pinned by O1_CounterpartyOtherwise under F13. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::WithOtherwise.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            code:x|$x.inline.code,
+            label:x|$x.inline.label
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_Otherwise_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0001","code":"AA","label":"OTW-LABEL-001"},{"rootId":"CR-0002","code":"BB","label":"OTW-LABEL-002"},{"rootId":"CR-0003","code":"CC","label":"OTW-LABEL-003"},{"rootId":"CR-0004","code":"DD","label":"OTW-LABEL-004"},{"rootId":"CR-0005","code":"EE","label":"OTW-LABEL-005"}]';
                   }#;
               }#
           ]
