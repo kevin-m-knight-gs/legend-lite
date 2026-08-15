@@ -101,6 +101,11 @@ public class CorpusSweepTest {
     /** M3 second-reference agreement floor on oracle-accepted
      *  section-free sources — below this the "m3-corroborated"
      *  allowlist label stops meaning anything. */
+    /** A6: verbatim first-line message matches on both-reject rows.
+     *  UP-only; measured 2026-08-15 (first measurement pins at 0 until
+     *  the run below replaces it). */
+    private static final int MSG_VERBATIM_FLOOR = 863;   // 2026-08-15 first pin: position-normalized text parity on both-reject rows (ours carries [l:c], the oracle does not); 1,531 mismatch rows in target/message-parity.txt are the A6 closure work-list
+
     private static final double M3_CALIBRATION_FLOOR = 95.0;
 
     @Test
@@ -137,6 +142,8 @@ public class CorpusSweepTest {
         int docsMatched = 0;
         int seamMatched = 0;
         int bothReject = 0;
+        int msgVerbatim = 0;
+        List<String> msgMismatch = new ArrayList<>();
         int oracleAccepts = 0;
         int calAccepted = 0;
         int calAgree = 0;
@@ -230,6 +237,25 @@ public class CorpusSweepTest {
 
             if (!docAccepts && !strictAccepts) {
                 bothReject++;
+                // A6 (message-parity floor): on both-reject rows, does
+                // OUR refusal say what the engine's says? First line,
+                // verbatim. The floor ratchets the drop-in error voice.
+                try {
+                    com.legend.parser.PmcdParser.parseDocument(src.text());
+                } catch (Throwable ours) {
+                    String om = msgOf(oracleRoot);
+                    String lm = String.valueOf(rootOf(ours).getMessage())
+                            .split("\n")[0]
+                            // ours carries a [line:col] prefix the oracle
+                            // lacks — RICHER, not divergent; compare text
+                            .replaceFirst("^\\[\\d+:\\d+\\]\\s*", "");
+                    if (om.equals(lm)) {
+                        msgVerbatim++;
+                    } else if (msgMismatch.size() < 200) {
+                        msgMismatch.add(src.id() + "\n  oracle: " + om
+                                + "\n  lite:   " + lm);
+                    }
+                }
             } else {
                 if (docAccepts) {
                     // PROTOCOL-CHECK (sibling handoff instrument, adopted
@@ -317,6 +343,16 @@ public class CorpusSweepTest {
                 asymRows, catalog, catalogByClass, stale);
         double calibration = calAccepted == 0 ? 0
                 : 100.0 * calAgree / calAccepted;
+        Files.writeString(Path.of("target", "message-parity.txt"),
+                "verbatim " + msgVerbatim + " / " + bothReject + "\n\n"
+                        + String.join("\n", msgMismatch));
+        // A6 floor (measured 2026-08-15): verbatim-match count on
+        // both-reject rows is UP-only — a drop means our refusal voice
+        // drifted from the engine's.
+        assertTrue(msgVerbatim >= MSG_VERBATIM_FLOOR,
+                "message parity fell: " + msgVerbatim + " verbatim < floor "
+                        + MSG_VERBATIM_FLOOR + " (see target/message-parity.txt)");
+
         System.out.printf("SWEEP: %d sources | oracle accepts %d | docs"
                 + " matched %d diff %d weRefuse %d | seam %d/%d asym %d |"
                 + " both-reject %d asymmetric %d (stale %d) | strictAsymmetry"
