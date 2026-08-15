@@ -43,7 +43,8 @@ Database hier::HierDB
       ASSET_CLASS VARCHAR(32),
       SUB_KIND VARCHAR(16),
       SUB_COUPON DOUBLE,
-      SUB_STRIKE DOUBLE
+      SUB_STRIKE DOUBLE,
+      ISSUER_ID VARCHAR(64)
    )
 
    // The discriminator, used as a class-mapping ~filter so each subclass set sees only its

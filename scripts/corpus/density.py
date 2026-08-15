@@ -58,7 +58,17 @@ FEATURES = [
                                   r"minus|times|divide|if|case|length|toUpper|toLower)\s*\(", "body"),
     ("A4  dyna over join",        r"(concat|upper|lower|substring)\s*\([^)]*@\w+", "body"),
     ("A5  enum transformer",      r"EnumerationMapping\s+[\w:]+\s*:", "body"),
-    ("A6  embedded",              r"\w+\s*\(\s*\)\s*\{", "body"),
+    # `prop ( sub: [db]T.col )` -- a bare property name, parens, property mappings inside.
+    #
+    # This pattern was `\w+\s*\(\s*\)\s*\{`, i.e. `prop() {`, which is the spelling the
+    # SUPERSEDED docs/MAPPING_FEATURE_CHECKLIST.md shows and which does not exist: empty
+    # parens belong to Inline. The meter was built from the same wrong source as the brief,
+    # so it would have scored an INVALID mapping as present and scores the valid one as
+    # absent. A measurement inheriting the error it is meant to detect.
+    #
+    # Negative lookahead on scope/AssociationMapping, which share the shape.
+    ("A6  embedded",
+     r"^\s*(?!scope\b|AssociationMapping\b)[a-z]\w*\s*\(\s*\n\s*\w+\s*:\s*\[", "body"),
     ("A7  Otherwise",             r"Otherwise\s*\(", "body"),
     ("A8  Inline",                r"Inline\s*\[", "body"),
     ("A9  Binding transformer",   r":\s*Binding\s+[\w:]+\s*:", "body"),
@@ -151,8 +161,8 @@ def main() -> None:
 # association navigation -- it is what every one of the 174 association mappings does. The
 # feature worth counting is a join CHAIN (`@J1 > @J2`), of which the corpus has none. The
 # looser definition flattered the corpus by a factor of eight.
-MAX_PLAIN_RATIO = 0.83   # 375/457 = 0.8206 after the dense mapping landed
-MAX_ABSENT = 9
+MAX_PLAIN_RATIO = 0.82   # 375/462
+MAX_ABSENT = 5
 
 
 if __name__ == "__main__":

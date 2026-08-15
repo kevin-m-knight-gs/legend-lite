@@ -1,0 +1,133 @@
+// The four mapping features that needed neither oracle work nor a reader change:
+// embedded property mappings, a Binding transformer, association ends with explicit
+// source/target set ids, and a mapping include with STORE SUBSTITUTION.
+//
+// Built on the hier:: domain rather than the trading one on purpose. `model.py` keys a
+// property's column by CLASS, not by (mapping, class), so a class mapped twice collapses to
+// one view in the reader -- and every trading class is already mapped flatly. Putting these
+// on fresh classes keeps the reader honest until that limitation is fixed.
+//
+// Every spelling here was verified in scripts/corpus/verified/ before being written, which
+// mattered: `prop() { ... }` is NOT embedded syntax (the empty parens belong to Inline), and
+// the AssociationMapping(...) wrapper is mandatory rather than decorative -- omitting it
+// PARSES, and then reports "Can't find class", pointing at the wrong thing entirely.
+###Pure
+Class hier::Issuer
+{
+   issuerId: String[1];
+   legalName: String[1];
+   // Mapped as an EMBEDDED property: no table of its own, its columns live on the issuer's
+   // row. The corpus had none of these, so nothing ever produced a sub-object that is not
+   // backed by a join.
+   contact: hier::Contact[0..1];
+   // Backed by a JSON column through a Binding transformer.
+   profile: hier::Profile[0..1];
+}
+
+Class hier::Contact
+{
+   email: String[0..1];
+   phone: String[0..1];
+}
+
+Class hier::Profile
+{
+   sector: String[0..1];
+   headquarters: String[0..1];
+}
+
+Association hier::InstrumentIssuer
+{
+   issuer: hier::Issuer[0..1];
+   instruments: hier::Instrument[*];
+}
+
+###Relational
+Database hier::IssuerDB
+(
+   Table ISSUER
+   (
+      ISSUER_ID VARCHAR(64) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      CONTACT_EMAIL VARCHAR(200),
+      CONTACT_PHONE VARCHAR(64),
+      PROFILE_JSON VARCHAR(1000)
+   )
+
+   // Cross-database join. `include` is NOT required for one -- [db] pointers resolve
+   // globally -- which is why this works without IssuerDB including HierDB.
+   Join Issuer_Instrument([hier::IssuerDB]ISSUER.ISSUER_ID = [hier::HierDB]HIER_INSTRUMENT.ISSUER_ID)
+)
+
+// A SECOND database with the same shape, so `include ... [A -> B]` has somewhere to
+// substitute TO. Store substitution is meaningless with one store, which is why a model
+// with a single Database can never exercise it.
+Database hier::IssuerDBProd
+(
+   Table ISSUER
+   (
+      ISSUER_ID VARCHAR(64) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      CONTACT_EMAIL VARCHAR(200),
+      CONTACT_PHONE VARCHAR(64),
+      PROFILE_JSON VARCHAR(1000)
+   )
+)
+
+###ExternalFormat
+Binding hier::ProfileBinding
+{
+   contentType: 'application/json';
+   modelIncludes:
+   [
+      hier::Profile
+   ];
+}
+
+###Mapping
+Mapping hier::IssuerMapping
+(
+   *hier::Issuer[issuer]: Relational
+   {
+      ~primaryKey ( [hier::IssuerDB]ISSUER.ISSUER_ID )
+      ~mainTable [hier::IssuerDB]ISSUER
+      issuerId: [hier::IssuerDB]ISSUER.ISSUER_ID,
+      legalName: [hier::IssuerDB]ISSUER.LEGAL_NAME,
+
+      // EMBEDDED: `prop ( sub: col )`. Parentheses, and NO empty () after the name --
+      // `prop()` is Inline's spelling, not this one.
+      contact
+      (
+         email: [hier::IssuerDB]ISSUER.CONTACT_EMAIL,
+         phone: [hier::IssuerDB]ISSUER.CONTACT_PHONE
+      ),
+
+      // BINDING TRANSFORMER: a complex-typed property read out of one column through an
+      // external-format Binding.
+      profile: Binding hier::ProfileBinding : [hier::IssuerDB]ISSUER.PROFILE_JSON
+   }
+
+   // ASSOCIATION MAPPING with explicit SOURCE and TARGET set ids on each end. The ids
+   // matter here rather than being ceremony: hier::Instrument has three sets (base, bond,
+   // opt), so an unqualified end would be ambiguous about which one it connects.
+   //
+   // The AssociationMapping(...) wrapper is mandatory. Without it this still PARSES -- the
+   // grammar reads it as a class mapping -- and then fails with "Can't find class
+   // 'hier::InstrumentIssuer'", which names the wrong problem entirely.
+   hier::InstrumentIssuer: Relational
+   {
+      AssociationMapping
+      (
+         instruments[issuer, base]: [hier::IssuerDB]@Issuer_Instrument,
+         issuer[base, issuer]: [hier::IssuerDB]@Issuer_Instrument
+      )
+   }
+)
+
+// STORE SUBSTITUTION: the same mappings, retargeted at the production database. Everything
+// the included mapping says about IssuerDB now applies to IssuerDBProd, with no mapping
+// re-stated.
+Mapping hier::IssuerMappingProd
+(
+   include hier::IssuerMapping[hier::IssuerDB->hier::IssuerDBProd]
+)
