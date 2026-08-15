@@ -75,7 +75,7 @@ public class H2 extends AnsiSqlRenderer {
         // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
         // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
         // CAST-around composition.
-        if (c.fn() == SqlFn.ADD_INTERVAL) {
+        if (c.fn() == SqlFn.ADD_INTERVAL || c.fn() == SqlFn.ADD_INTERVAL_TEMPORAL) {
             return "dateadd(" + dateUnit(((SqlExpr.StringLit) a.get(0))
                     .value()) + ", " + expr(a.get(1), 0) + ", "
                     + expr(a.get(2), 0) + ")";

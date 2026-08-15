@@ -521,7 +521,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     : fn("make_timestamp", a);           // (part, value)
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
-            case ADD_INTERVAL -> opSpelling(expr(a.get(2), 5) + " + "
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> opSpelling(expr(a.get(2), 5) + " + "
                     + ((SqlExpr.StringLit) a.get(0)).value()
                     + "(" + expr(a.get(1), 0) + ")", parentPrec);              // (part, d1, d2)               // (zone, ts) — ICU
             // Week buckets align to the Monday ON/BEFORE the epoch

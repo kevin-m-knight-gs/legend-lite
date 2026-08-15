@@ -55,7 +55,7 @@ final class DateShifts {
         SqlExpr shifted = new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 new SqlExpr.Call(SqlFn.MINUS,
                         List.of(diff, new SqlExpr.IntLit(7))))), diff);
-        return new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
+        return new SqlExpr.Call(SqlFn.ADD_INTERVAL_TEMPORAL, List.of(
                 new SqlExpr.StringLit("to_days"), shifted, anchor));
     }
 static String intervalFn(String unitName) {

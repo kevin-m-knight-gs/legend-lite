@@ -25,6 +25,7 @@ class SpellingsTest {
             SqlFn.CONCAT_JOIN,
             SqlFn.BOOL_TO_TEXT,
             SqlFn.ADD_INTERVAL,
+            SqlFn.ADD_INTERVAL_TEMPORAL,
             SqlFn.AND,
             SqlFn.BIT_AND,
             SqlFn.BIT_NOT,

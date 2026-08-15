@@ -1427,6 +1427,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case ADD_INTERVAL -> "dateadd("
                     + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
                     + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+            // milestoning adjust channel: unit UPPERCASE (engine
+            // mapToDBUnitType; E2E §4.4 cluster 6/cosmetic)
+            case ADD_INTERVAL_TEMPORAL -> "dateadd("
+                    + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value())
+                            .toUpperCase(java.util.Locale.ROOT) + ", "
+                    + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
             // engine h2 parseInteger dynaFn golden spelling; execution
             // dialects keep the 64-bit BIGINT cast
             case PARSE_INT -> "cast(" + expr(a.get(0), 0) + " as integer)";

@@ -59,6 +59,10 @@ public enum SqlFn {
     // Temporal (part-literal-first like EXTRACT): truncation, arithmetic,
     // bucketing, epoch conversion, calendar names
     DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE,
+    /** milestoning adjust() shift — same semantics as ADD_INTERVAL; the
+     *  engine-H2 golden spells its unit UPPERCASE (adjust/mapToDBUnitType
+     *  channel: dateadd(DAY,...) vs the dynaFn's dateadd(day,...)). */
+    ADD_INTERVAL_TEMPORAL,
     EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS,
     DAYNAME, MONTHNAME,
     // Math extras
