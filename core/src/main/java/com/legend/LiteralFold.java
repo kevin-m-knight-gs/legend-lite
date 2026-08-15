@@ -8,20 +8,42 @@ import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.ExecutionResult;
 
+import java.util.Set;
+
 /**
- * BARE-LITERAL FOLD (2026-08-15 round-trip census): a bare string or
- * boolean literal in result position is already a value — the SQL path
- * renders {@code SELECT '<text>' AS value} and reads the identical
- * value back, an identity with a round-trip tax that dominated the
- * corpus (344k of 357k plan executions, mostly executeInDb argument
- * strings). The engine's own plans fold constants in memory
- * (ConstantExecutionNode), so folding is engine-faithful; the tenet's
- * point (no shadow EVALUATOR) is untouched — nothing is computed, the
- * constant unwraps. ONLY the bare node folds: composites still lower
- * to SQL, and numeric/date literals ride the DB path so their
- * type-lattice coercions stay byte-identical.
+ * CONSTANT-PLAN classification (the engine's {@code ConstantExecutionNode},
+ * lite-shaped): a root that is a BARE LITERAL of an ADMITTED KIND
+ * compiles to its value; every other root lowers to SQL. Found by the
+ * 2026-08-15 round-trip census: 344k of 357k corpus plan executions were
+ * literals riding {@code SELECT '<text>' AS value} — identity with a
+ * round-trip tax.
+ *
+ * <p>THE ADMISSION RULE — both conditions, per kind:
+ * <ol>
+ *   <li><b>Syntactic value, zero computation.</b> The value appears
+ *       VERBATIM in the typed AST (a bare literal node). Never a
+ *       composite, variable, or call — folding is UNWRAPPING a field,
+ *       or it is the start of a shadow evaluator (the #1 tenet's line).</li>
+ *   <li><b>Representation-trivial round trip.</b> The execution frame's
+ *       value must be the AST value with NO rules applied. String and
+ *       Boolean pass (JDBC identity). Integer FAILS (driver-width
+ *       Integer/Long + lattice promotion + the BigInteger extension);
+ *       Float/Decimal FAIL (scale/format rules); Date FAILS (partial
+ *       dates travel as ISO-prefix string carriers). Folding those
+ *       would duplicate a coercion rule in a second place.</li>
+ * </ol>
+ *
+ * <p>The admitted set is PINNED by {@code ConstantPlanParityTest}: each
+ * kind proves fold == SQL-path on the live backends, differentially —
+ * admitting a kind is a green differential, not an argument. There is
+ * no performance case for widening: post-fold the whole corpus retains
+ * ~4k scalar executions (~0.7s).
  */
-final class LiteralFold {
+public final class LiteralFold {
+
+    /** Admitted literal kinds — shrink-or-justify; the parity test
+     *  enumerates exactly this set. */
+    public static final Set<String> ADMITTED = Set.of("String", "Boolean");
 
     private LiteralFold() {
     }
