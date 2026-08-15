@@ -38,21 +38,58 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 #
 # Listed by name rather than derived, even though the rule ("every generated tree containing
 # a DateTime") is mechanical, because a derived quarantine would silently absorb the next
-# timestamp defect too. When F24 is fixed these ten come back together, and if only nine do
-# the tenth is telling us something.
+# timestamp defect too. When F24 is fixed these come back together, and if all but one do
+# the remaining one is telling us something.
+#
+# The cost of listing is staleness, and it has already been paid once: a seed change altered
+# which properties the graph-fetch ranking selects, two of these stopped projecting a
+# DateTime at all, and they began "passing" while the defect they pinned was untouched.
+# That is the same laundering this file exists to prevent, arriving from the other
+# direction. So the list stays explicit AND check() asserts that every name in it still
+# projects a DateTime -- an entry that has stopped exercising its defect is reported rather
+# than silently counted as a pin.
 ENGINE_QUARANTINE.update({
     f"stress::{name}": ("F24", "graph fetch omits the UTC offset TDS projection includes")
     for name in (
-        "GG0_TradeTree",
-        "GG4_ClearedTradeTree",
-        "GG7_TradeExceptionTree",
-        "GG14_SalesCreditTree",
-        "GG15_CashSettlementTree",
-        "GG16_SettlementTree",
-        "GG17_AllocationTree",
-        "GG36_SanctionsCheckTree",
-        "GG46_ConfirmationTree",
-        "GG47_DataQualityIssueTree",
+        "GG_TradeTree",
+        "GG_ClearedTradeTree",
+        "GG_TradeExceptionTree",
+        "GG_SalesCreditTree",
+        "GG_CashSettlementTree",
+        "GG_SettlementTree",
+        "GG_AllocationTree",
+        "GG_ConfirmationTree",
+        "GG_NettingResultTree",
+    )
+})
+
+# F28 -- `!=` is the ONLY comparison that keeps a row whose operand is NULL.
+#
+# Against a NULL column the engine excludes the row for `==` and for `>`, and KEEPS it for
+# `!=`. Those cannot both be right:
+#
+#   SQL three-valued logic     NULL <> 'x' is UNKNOWN, so `!=` must EXCLUDE  -- it does not
+#   Pure collection semantics  [] == 'x' is false, so `!=` is true and keeps -- but then the
+#                              ordered comparisons should not be excluding either
+#
+# So this is an internal inconsistency in the engine's filter lowering rather than a
+# disagreement about which model to prefer, and it holds whichever model Legend intends.
+# The oracle stays on three-valued logic: it is self-consistent, and it is what `==` and `>`
+# already do.
+#
+# Minimized in repro/not-equals-null/, which pins all three operators side by side -- the
+# `==` and `>` cases PASS there, which is the evidence that the `!=` case is the odd one.
+#
+# Found by the seed change that put a NULL in EVERY nullable column rather than only the
+# first. Until then no `!=` predicate in the corpus had ever met a NULL, so four generated
+# services diverged at once the moment one could.
+ENGINE_QUARANTINE.update({
+    f"stress::{name}": ("F28", "`!=` keeps a row whose operand is NULL; `==` and `>` do not")
+    for name in (
+        "D_CashSettlementDense",
+        "D_TradeReportStatusDense",
+        "D_DepartmentDense",
+        "D_TeamDense",
     )
 })
 
@@ -120,3 +157,32 @@ QUARANTINE = ENGINE_QUARANTINE
 # service whose data contains no childless entity, and it passes. Keeping it in the green
 # set is what proves the other six fail because of the empty case specifically, rather
 # than because aggregate projections are broken in general.
+
+
+def check_f24(c, tables) -> list[str]:
+    """Every F24-quarantined service must still PROJECT a DateTime.
+
+    An entry that no longer does has stopped exercising the defect it pins, and will start
+    reporting as FIXED while the defect is untouched -- which is the same laundering this
+    file exists to prevent, arriving from the direction of the seed rather than the engine.
+    Two entries reached that state when a data change altered which properties the graph
+    ranking selects, so this is checked rather than assumed.
+    """
+    import json
+    import graphs
+    import oracle
+
+    seeded = {k for k, v in tables.items() if v}
+    by_name = {s.name: s for s in graphs.build(c, seeded, tables)}
+    bad = []
+    for fqn, (fid, _why) in ENGINE_QUARANTINE.items():
+        if fid != "F24":
+            continue
+        spec = by_name.get(fqn)
+        if spec is None:
+            bad.append(f"{fqn}: quarantined under F24 but no such generated service")
+            continue
+        if "+0000" not in json.dumps(oracle.evaluate_graph(c, spec, tables)):
+            bad.append(f"{fqn}: quarantined under F24 but projects no DateTime, so it no "
+                       f"longer exercises the defect -- re-point or remove the entry")
+    return bad

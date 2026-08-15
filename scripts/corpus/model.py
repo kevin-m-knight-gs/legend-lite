@@ -27,6 +27,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import rhs
+
 STRESS = Path(__file__).resolve().parents[2] / "core/src/test/resources/stress"
 
 
@@ -275,6 +277,10 @@ class Corpus:
     filters: dict[str, tuple[str, str, str, object]] = field(default_factory=dict)
     # class fqn -> the store filter its mapping applies
     class_filter: dict[str, str] = field(default_factory=dict)
+    # cls -> ([join, ...], filter name). The predicate applies to the row the chain LANDS
+    # on, so a row whose chain breaks is excluded -- unlike a to-one projection, where a
+    # broken chain yields NULL and the row survives.
+    class_filter_chain: dict[str, tuple[list[str], str]] = field(default_factory=dict)
 
     # -------------------------------------------------------- resolution
 
@@ -325,6 +331,36 @@ class Corpus:
                 raise KeyError(f"{cls}.{step} is a column but the path continues")
             return table, col, hops
         raise KeyError("empty path")
+
+    def owner_hops(self, root: str, path: list[str]):
+        """(hops, table) reaching the row that CARRIES `path` -- every step consumed as a
+        navigation, none required to end on a column.
+
+        resolve() refuses a path ending on an embedded property, because such a property has
+        no column of its own. That is right for a projection and wrong for asking "which row
+        do this property's columns live on", which is what a dynafunction inside an embedded
+        block needs: the block advances the class but contributes no hop, since the
+        sub-object's columns are on the parent's row.
+        """
+        cls, table, hops = root, self.main_table.get(root), []
+        if table is None:
+            raise KeyError(f"class {root} has no ~mainTable")
+        for step in path:
+            end = self.ends.get((cls, step))
+            if end is not None:
+                if end.join is None:
+                    raise KeyError(f"{cls}.{step} has no AssociationMapping")
+                j = self.joins[end.join]
+                tgt, fc, tc = j.other(table)
+                hops.append((end.join, table, fc, tgt, tc))
+                cls, table = end.target, tgt
+                continue
+            child = self.embedded.get((cls, step))
+            if child is not None:
+                cls = child                      # same row: deliberately no hop
+                continue
+            raise KeyError(f"{cls}.{step} is not a navigation")
+        return hops, table
 
     def resolve_assoc(self, root: str, path: list[str]):
         """Walk a path that ends ON an association rather than on a column.
@@ -404,9 +440,20 @@ _TABLE = re.compile(r"^\s*Table\s+(\w+)\s*\((.*)\)\s*$")
 _JOIN = re.compile(
     r"^\s*Join\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*=\s*"
     r"(?:\[[\w:]+\]\s*)?(\{target\}|\w+)\.(\w+)\s*\)\s*$")
+# A Filter's column may carry a store qualifier -- `Filter F([db]T.COL is not null)` -- and
+# its predicate may be a NULL TEST rather than a comparison. Neither was accepted before,
+# so three of this corpus's seven filters matched nothing and were silently absent from
+# c.filters. That is invisible rather than wrong only because all three happen to exclude
+# no rows; a filter that discriminated would have made every expectation for its class
+# wrong, with nothing pointing at the filter.
 _FILTER_DECL = re.compile(
-    r"^\s*Filter\s+(\w+)\s*\(\s*(\w+)\.(\w+)\s*(=|<>|<=|>=|<|>)\s*(.+?)\s*\)\s*$")
+    r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*"
+    r"(?:(=|<>|<=|>=|<|>)\s*(.+?)|(is\s+not\s+null|is\s+null))\s*\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
+# `~filter [db]@J1 > @J2 | [db]NAME` -- a filter reached through a JOIN CHAIN. The predicate
+# applies to the row the chain LANDS on, so a row whose chain breaks is excluded.
+_CLS_FILTER_CHAIN = re.compile(
+    r"^\s*~filter\s*(?:\[[\w:]+\]\s*)?((?:@\w+\s*>?\s*)+)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\s*$")
 # Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
 # The trailing `\s*$` used to be unconditional, which meant `Class X extends Y` did not
 # match at all -- the class was SILENTLY SKIPPED and simply did not exist in the model. The
@@ -445,9 +492,10 @@ _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
 # must be stripped BEFORE _COLMAP runs, or _COLMAP matches the first column inside the
 # parentheses and records the property as a plain column mapping -- silently turning a
 # transform into a copy, which the oracle would then agree with for the wrong reason.
-_DYNAMAP = re.compile(
-    r"(\w+)\s*:\s*(\w+)\s*\(\s*((?:\[[\w:]+\]\s*\w+\.\w+\s*,?\s*)+)\)")
-_DYNAARG = re.compile(r"\[[\w:]+\]\s*(\w+)\.(\w+)")
+# `prop: fn(` -- the ANCHOR for a dynafunction property mapping. Only the head is matched
+# by pattern; the extent of the call is found by balancing parentheses and the contents are
+# parsed by rhs.py, because the argument list can nest and can mix chains with columns.
+_CALL_START = re.compile(r"(\w+)\s*:\s*(\w+)\s*\(")
 # A property mapping whose right-hand side this reader has no rule for: a join chain
 # (`prop: @A > @B | T.col`), a Binding transformer, an embedded block opener.
 # `prop: [db]@J1 > @J2 | [db]T.COL` -- a JOIN CHAIN property mapping. The value comes from a
@@ -489,14 +537,6 @@ _SCOPE_QUAL = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*(\w+)\.(\w+)\s*(?:,|$)")
 
 _EMBED_OPEN = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*\($")
 _EMBED_NAME = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*,?\s*$")
-
-# `prop: toUpper([db]@J1 > @J2 | [db]T.COL)` -- a dynafunction wrapped round a JOIN CHAIN.
-# Neither _DYNAMAP (whose arguments are plain columns) nor _CHAINMAP (which needs `prop:`
-# followed directly by the chain) matches it, so it fell through both and was the last
-# entry left in c.unparsed.
-_DYNACHAIN = re.compile(
-    r"(\w+)\s*:\s*(\w+)\s*\(\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.]*?)\|\s*"
-    r"(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*\)")
 
 _BINDINGMAP = re.compile(
     r"(\w+)\s*:\s*Binding\s+([\w:]+)\s*:\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
@@ -691,16 +731,21 @@ def _parse_store(text: str, c: Corpus) -> None:
         line = _strip(raw)
         m = _FILTER_DECL.match(line)
         if m:
-            lit = m.group(5).strip()
-            if lit.startswith("'") and lit.endswith("'"):
-                val = lit[1:-1]
-            elif re.fullmatch(r"-?\d+", lit):
-                val = int(lit)
-            elif re.fullmatch(r"-?\d*\.\d+", lit):
-                val = float(lit)
+            if m.group(6):                      # `is null` / `is not null`
+                op = "isnull" if m.group(6).split()[1] == "null" else "isnotnull"
+                val = None
             else:
-                raise ValueError(f"Filter {m.group(1)}: unhandled literal {lit!r}")
-            c.filters[m.group(1)] = (m.group(2), m.group(3), m.group(4), val)
+                op = m.group(4)
+                lit = m.group(5).strip()
+                if lit.startswith("'") and lit.endswith("'"):
+                    val = lit[1:-1]
+                elif re.fullmatch(r"-?\d+", lit):
+                    val = int(lit)
+                elif re.fullmatch(r"-?\d*\.\d+", lit):
+                    val = float(lit)
+                else:
+                    raise ValueError(f"Filter {m.group(1)}: unhandled literal {lit!r}")
+            c.filters[m.group(1)] = (m.group(2), m.group(3), op, val)
             continue
         m = _JOIN.match(line)
         if m:
@@ -895,6 +940,20 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         if m and cur:
             c.class_filter[cur] = m.group(1)
             continue
+        m = _CLS_FILTER_CHAIN.match(line)
+        if m and cur:
+            c.class_filter_chain[cur] = (_CHAINJOIN.findall(m.group(1)), m.group(2))
+            continue
+        # A ~filter this reader cannot model changes what the class MEANS -- all() returns a
+        # different row set -- so every expectation for that class would be silently wrong.
+        # Dropping it is the worst available option and is exactly what happened: the
+        # chain-filter form matched neither pattern and vanished, and the corpus only stayed
+        # green because the filter excluded no rows. Raise instead.
+        if line.strip().startswith("~filter") and cur:
+            raise ValueError(
+                f"{cur}: ~filter form not modelled by this reader -- {line.strip()!r}. "
+                f"Extend the reader deliberately; ignoring it would change what all() "
+                f"returns for {cur} with nothing pointing at the cause.")
         m = _MAIN.match(line)
         if m and cur:
             # For a union member, the per-id table is what the union needs; the class's
@@ -956,15 +1015,24 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 kl = c.classes.get(cur)
                 if kl is not None and embedded in kl.props:
                     child = kl.props[embedded].type
-                for sub, sc_tbl, sc_col in _COLMAP.findall(line):
-                    if child:
-                        c.columns.setdefault(child, {})[sub] = sc_col
-                        c.main_table.setdefault(child, sc_tbl)
-                        c.embedded[(cur, embedded)] = child
-                    else:
+                if child is None:
+                    for sub in _LEFTOVER_PROP.findall(line):
                         c.unparsed.append((cur, f"{embedded}.{sub}"))
-                for sub in _LEFTOVER_PROP.findall(_COLMAP.sub("", line)):
-                    c.unparsed.append((cur, f"{embedded}.{sub}"))
+                    continue
+                # The hop is recorded from the BLOCK, not from the first column mapping
+                # inside it. Recording it per-column meant a block whose every entry was a
+                # dynafunction registered no embedded hop at all, so the property looked
+                # absent rather than unmodelled.
+                c.embedded[(cur, embedded)] = child
+                c.main_table.setdefault(child, tbl)
+                rest = _value_forms(line, c, child, tbl)
+                for sub, _sc_tbl, sc_col in _COLMAP.findall(rest):
+                    c.columns.setdefault(child, {})[sub] = sc_col
+                for sub in _LEFTOVER_PROP.findall(_COLMAP.sub("", rest)):
+                    if (sub not in c.columns.get(child, {})
+                            and (child, sub) not in c.chains
+                            and (child, sub) not in c.dyna):
+                        c.unparsed.append((cur, f"{embedded}.{sub}"))
                 continue
             for prop, mapping, t, col in _ENUMCOLMAP.findall(line):
                 if t != tbl:
@@ -988,32 +1056,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     c.json_backed[child] = (btbl, bcol)
                     c.main_table.setdefault(child, btbl)
             line = _BINDINGMAP.sub("", line)
-            # A dynafunction OVER a chain, before either of the simpler forms.
-            for prop, fn, chaintext, ctbl, ccol in _DYNACHAIN.findall(line):
-                joins = _CHAINJOIN.findall(chaintext)
-                if joins:
-                    c.chains[(cur, prop)] = (joins, ctbl, ccol)
-                    c.dyna[(cur, prop)] = (fn, [ccol])
-            line = _DYNACHAIN.sub("", line)
-            # Join chains BEFORE dynafunctions and plain columns: the chain's tail looks
-            # exactly like a plain column mapping.
-            for prop, chaintext, ctbl, ccol in _CHAINMAP.findall(line):
-                joins = _CHAINJOIN.findall(chaintext)
-                if joins:
-                    c.chains[(cur, prop)] = (joins, ctbl, ccol)
-            line = _CHAINMAP.sub("", line)
-            # Dynafunctions BEFORE plain columns, same ordering reason as the enum form.
-            for prop, fn, argtext in _DYNAMAP.findall(line):
-                args = _DYNAARG.findall(argtext)
-                for atbl, _acol in args:
-                    if atbl != tbl:
-                        raise ValueError(
-                            f"{cur}.{prop} uses {fn}() over {atbl}, not mainTable {tbl} -- "
-                            f"the oracle can only evaluate a dynafunction whose columns all "
-                            f"come from the row it already has")
-                c.dyna[(cur, prop)] = (fn, [acol for _t, acol in args])
-                c.columns.setdefault(cur, {})[prop] = args[0][1]
-            line = _DYNAMAP.sub("", line)
+            line = _value_forms(line, c, cur, tbl)
             # Anything that still LOOKS like a property mapping after the recognised forms
             # have been stripped is a form this reader does not model -- a join chain, a
             # Binding transformer, an embedded block. Recorded rather than dropped.
@@ -1024,7 +1067,6 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             # vanished here. In every case the symptom appeared far from the cause. A
             # property the oracle cannot resolve should be visible in the reader, not
             # discovered when a service using it fails.
-            line = _DYNAMAP.sub("", line)
             for prop, t, col in _COLMAP.findall(line):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
@@ -1054,6 +1096,55 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                         and (cur, leftover) not in c.chains
                         and (cur, leftover) not in c.dyna):
                     c.unparsed.append((cur, leftover))
+
+
+def _value_forms(line: str, c: "Corpus", owner: str, tbl: str) -> str:
+    """Record every VALUE-expression property mapping on `line` against `owner`.
+
+    Returns the line with the recognised forms stripped, so the caller can decide what to do
+    with whatever is left.
+
+    Extracted because the top-level path and the embedded-block path had drifted: the
+    embedded path understood plain columns and nothing else, so a dynafunction or a join
+    chain inside an embedded block went to `unparsed` -- 22 of the combination matrix's 48
+    cells, all of which the reader understood perfectly well one nesting level up. Two
+    copies of "how a property mapping is written" is one copy too many.
+    """
+    while True:
+        m = _CALL_START.search(line)
+        if m is None:
+            break
+        prop, _fn = m.group(1), m.group(2)
+        close = rhs.find_call(line, line.index("(", m.end() - 1))
+        node = rhs.parse(line[m.start(2):close + 1])
+        _tag, (fname, args) = node
+        c.dyna[(owner, prop)] = (fname, args)
+        # A plain-column argument on the main table keeps its entry in c.columns, so
+        # everything that types or resolves a property by column continues to work for the
+        # shapes that already existed. An expression whose every argument is a chain has no
+        # such column and is typed from the function's return kind instead.
+        #
+        # A PLAIN argument must sit on the main table, because that is the row the oracle
+        # holds. A value from another table is legal in the grammar but has to be written as
+        # a chain, so the reader records how to REACH it rather than assuming the column is
+        # somehow already in hand.
+        local = []
+        for atbl, acol in rhs.columns(node):
+            if atbl != tbl:
+                raise ValueError(
+                    f"{owner}.{prop} uses {fname}() over {atbl}.{acol}, not mainTable "
+                    f"{tbl} -- write it as a chain if it needs a join, since the oracle "
+                    f"has no row of {atbl} to read it from")
+            local.append(acol)
+        if local:
+            c.columns.setdefault(owner, {})[prop] = local[0]
+        line = line[:m.start(1)] + line[close + 1:]
+    # Join chains BEFORE plain columns: a chain's tail looks exactly like one.
+    for prop, chaintext, ctbl, ccol in _CHAINMAP.findall(line):
+        joins = _CHAINJOIN.findall(chaintext)
+        if joins:
+            c.chains[(owner, prop)] = (joins, ctbl, ccol)
+    return _CHAINMAP.sub("", line)
 
 
 def _assoc_matches(assoc_fqn: str, owner: str, end: AssocEnd) -> bool:

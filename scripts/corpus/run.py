@@ -40,7 +40,7 @@ def testables() -> list[str]:
     # than a list, and it has already been wrong once: it read "9[24]-*" while the hier
     # services lived in 97, so two services passed when run by hand and were simply absent
     # from the suite -- the total stayed at 182 and nothing said why.
-    for f in sorted(STRESS.glob("9[247]-*.pure")):
+    for f in sorted(STRESS.glob("9[2478]-*.pure")):
         out += re.findall(r"^Service (\S+)", f.read_text(), re.M)
     # Hanging cases are excluded from execution but still reported, so they cannot be
     # forgotten -- and so one non-returning test cannot block the whole suite.

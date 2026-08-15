@@ -1,0 +1,153 @@
+// `!=` against a NULL column: does the row survive the filter?
+//
+// SQL is three-valued -- `NULL <> 'x'` is UNKNOWN, and a WHERE clause keeps only rows for
+// which the predicate is TRUE, so a NULL row is EXCLUDED. This corpus's oracle applies that
+// rule, and every other predicate in it agrees with the engine.
+//
+// R3 below has a NULL NAME. If the engine returns R3, the filter is keeping a row whose
+// predicate is UNKNOWN.
+//
+// Found by the combination matrix rather than aimed at: the seeder began putting a NULL in
+// every nullable column instead of only the first, and four generated services that filter
+// with `!=` diverged at once. Until then no `!=` predicate in the corpus had ever met a
+// NULL, so the rule had never been exercised.
+Class demo::Thing
+{
+  id: String[1];
+  name: String[0..1];
+  tag: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table THING (ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50), TAG VARCHAR(50))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Thing: Relational
+  {
+    ~primaryKey ( [demo::DB] THING.ID )
+    ~mainTable [demo::DB] THING
+    id: [demo::DB] THING.ID,
+    name: [demo::DB] THING.NAME,
+    tag: [demo::DB] THING.TAG
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.THING:
+      'ID,NAME,TAG\n' +
+      'R1,alpha,keep\n' +
+      'R2,none,keep\n' +
+      'R3,,keep\n';
+  }#
+}
+
+###Service
+Service demo::NotEqualsNull
+{
+  pattern: '/notEqualsNull';
+  documentation: 'Under SQL three-valued logic NULL <> none is UNKNOWN and R3 is excluded; under Pure collection semantics [] != none is TRUE and R3 is kept. This asserts the SQL reading.';
+  execution: Single
+  {
+    query: |demo::Thing.all()->filter(t | $t.name != 'none')->project(~[id:t|$t.id]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"id":"R1"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::EqualsNull
+{
+  pattern: '/equalsNull';
+  documentation: 'The complement. Both models agree here -- R3 is excluded either way -- which is exactly why this divergence went unnoticed: every == predicate in the corpus agrees with the engine.';
+  execution: Single
+  {
+    query: |demo::Thing.all()->filter(t | $t.name == 'none')->project(~[id:t|$t.id]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"id":"R2"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::GreaterNull
+{
+  pattern: '/greaterNull';
+  documentation: 'An ORDERED comparison against a NULL, to see whether it follows the same rule as != or the same rule as ==.';
+  execution: Single
+  {
+    query: |demo::Thing.all()->filter(t | $t.name > 'alpha')->project(~[id:t|$t.id]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"id":"R2"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

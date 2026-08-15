@@ -155,6 +155,19 @@ def build(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[dict
         pk = table.pk[0]
         fks = _fk_targets(c, name, seeded)
         prefix = "".join(w[0] for w in name.split("_"))[:4]
+        # A foreign key whose parent has no rows YET must be left blank for relink() to
+        # fill, NOT handed to the generic value generator.
+        #
+        # This was the corpus's largest silent defect. The generator produces the same
+        # sequence for the same column name and kind, so an unlinked FK frequently landed
+        # on values its parent's key happened to also generate -- HIER_INSTRUMENT.VENUE_CODE
+        # was 'AA'..'EE' and so was HIER_VENUE.VENUE_CODE. The join resolved for every row
+        # and looked healthy while being a COINCIDENCE, and, being non-blank, relink() never
+        # revisited it -- so it carried no absent key, no dangling key and no childless
+        # parent. 53 foreign keys across the corpus were in that state: 48 resolving by
+        # accident and 5 resolving nothing at all.
+        deferred = ({local for local, _, _ in _fk_targets(c, name, set(c.tables))}
+                    - {local for local, _, _ in fks} - {pk})
 
         # A 1:1 extension table cannot have more rows than it has parents.
         pk_is_fk = any(local == pk for local, _, _ in fks)
@@ -167,14 +180,27 @@ def build(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[dict
             if n_rows == 0:
                 continue
 
+        # One NULLABLE, non-key, non-FK column carries a NULL in exactly one row -- the same
+        # rule bootstrap() applies to a component root, which the ring path did not. Without
+        # it a table reached by expansion had NULLs in its foreign keys and nowhere else, so
+        # any transform over a plain column of such a table -- a dynafunction, a concat --
+        # never met one. The oracle's null rules were then exercised only on the handful of
+        # tables that happened to be component roots.
+        fkcols = ({local for local, _, _ in fks} | deferred)
+        nullable = [col.name for col in table.columns.values()
+                    if col.name != pk and not col.not_null and col.name not in fkcols]
+        null_at = {name: 2 + k for k, name in enumerate(nullable)}
         rows = []
         for i in range(n_rows):
             row: dict = {}
             for col in table.columns.values():
                 if col.name == pk:
                     row[col.name] = f"{prefix}-{i + 1:04d}"
-                elif any(col.name == local for local, _, _ in fks):
-                    row[col.name] = None          # filled below, per FK
+                elif (any(col.name == local for local, _, _ in fks)
+                      or col.name in deferred):
+                    row[col.name] = None          # filled below, or later by relink()
+                elif null_at.get(col.name) == i:
+                    row[col.name] = None
                 else:
                     js = _json_value(c, name, col.name, i)
                     row[col.name] = js if js is not None else _value(col, i, offset)
@@ -329,9 +355,17 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
         # existed the corpus's NULL property covered only foreign keys, so any transform over
         # a plain column -- a dynafunction most obviously -- never met a null, and an oracle
         # careful about null semantics was never actually exercised on them.
-        nullable = next((col.name for col in table.columns.values()
-                         if col.name != pk and not col.not_null
-                         and col.name not in live_cols and col.name not in dead_cols), None)
+        # EVERY nullable non-key, non-FK column carries a NULL -- each in a DIFFERENT row.
+        #
+        # Nulling only the first left the second argument of every two-argument transform
+        # permanently non-null, so `concat(a, b)` met a NULL in argument one and never in
+        # argument two: an implementation that mishandled only the second position would
+        # have passed. Staggering the rows matters for the same reason -- nulling both in
+        # one row makes (NULL, NULL) the only case and never produces (value, NULL).
+        nullable = [col.name for col in table.columns.values()
+                    if col.name != pk and not col.not_null
+                    and col.name not in live_cols and col.name not in dead_cols]
+        null_at = {name: 2 + k for k, name in enumerate(nullable)}
         rows = []
         for i in range(ROWS_PER_TABLE):
             row = {}
@@ -340,7 +374,7 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
                     row[col.name] = f"{prefix}-{i + 1:04d}"
                 elif col.name in live_cols or col.name in dead_cols:
                     row[col.name] = None
-                elif col.name == nullable and i == 2:
+                elif null_at.get(col.name) == i:
                     row[col.name] = None
                 else:
                     js = _json_value(c, root, col.name, i)

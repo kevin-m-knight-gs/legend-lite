@@ -180,7 +180,12 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
                 features.add("derivedProperty")
                 break
 
-        spec = Spec(f"stress::D{n}_{root.split('::')[-1]}Dense", f"/stress/d{n}",
+        # Named from the CLASS, not the loop index -- the ranking is derived from the seed,
+        # so a data change renumbers every service after the one that moved and silently
+        # repoints any quarantine entry keyed on the name. The graph and aggregate
+        # generators carried the same bug; this was the last one.
+        short = root.split("::")[-1]
+        spec = Spec(f"stress::D_{short}Dense", f"/stress/d_{short.lower()}",
                     f"Dense stack on {root}: several distinct navigation chains plus "
                     f"whatever the model offers along them, with a filter, a sort and a "
                     f"limit. Generated from the model by scripts/corpus/stacks.py, so it "

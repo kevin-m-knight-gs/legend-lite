@@ -47,25 +47,25 @@ Data hier::InstrumentData
   #{
     default.HIER_INSTRUMENT:
       'INSTRUMENT_ID,NAME,ASSET_CLASS,SUB_KIND,SUB_COUPON,SUB_STRIKE,ISSUER_ID,VENUE_CODE\n' +
-      'HI-0001,Northbridge,ASSET-CLASS-001,SUB-KIND-001,325.0,325.0,,AA\n' +
-      'HI-0002,Kestrel,ASSET-CLASS-002,SUB-KIND-002,362.5,362.5,HI-0001-GONE,BB\n' +
-      'HI-0003,Aldgate,ASSET-CLASS-003,SUB-KIND-003,400.0,400.0,HI-0001,CC\n' +
-      'HI-0004,Fenwick,ASSET-CLASS-004,SUB-KIND-004,437.5,437.5,HI-0002,DD\n' +
-      'HI-0005,Thameside,ASSET-CLASS-005,SUB-KIND-005,475.0,475.0,HI-0003,EE\n';
+      'HI-0001,Northbridge,ASSET-CLASS-001,SUB-KIND-001,512.5,512.5,,\n' +
+      'HI-0002,Kestrel,ASSET-CLASS-002,SUB-KIND-002,550.0,550.0,HI-0001-GONE,HV-0001-GONE\n' +
+      'HI-0003,Aldgate,,SUB-KIND-003,587.5,587.5,HI-0001,HV-0001\n' +
+      'HI-0004,Fenwick,ASSET-CLASS-004,,625.0,625.0,HI-0002,HV-0002\n' +
+      'HI-0005,Thameside,ASSET-CLASS-005,SUB-KIND-005,,662.5,HI-0003,HV-0003\n';
     default.HIER_REGION:
       'REGION_CODE,REGION_NAME\n' +
-      'AA,Northbridge\n' +
-      'BB,Kestrel\n' +
-      'CC,Aldgate\n' +
-      'DD,Fenwick\n' +
-      'EE,Thameside\n';
+      'HR-0001,Northbridge\n' +
+      'HR-0002,Kestrel\n' +
+      'HR-0003,\n' +
+      'HR-0004,Fenwick\n' +
+      'HR-0005,Thameside\n';
     default.HIER_VENUE:
       'VENUE_CODE,VENUE_NAME,REGION_CODE\n' +
-      'AA,Northbridge,AA\n' +
-      'BB,Kestrel,BB\n' +
-      'CC,Aldgate,CC\n' +
-      'DD,Fenwick,DD\n' +
-      'EE,Thameside,EE\n';
+      'HV-0001,Northbridge,\n' +
+      'HV-0002,Kestrel,HR-0001-GONE\n' +
+      'HV-0003,,HR-0001\n' +
+      'HV-0004,Fenwick,HR-0002\n' +
+      'HV-0005,Thameside,HR-0003\n';
   }#
 }
 
@@ -86,8 +86,8 @@ Data hier::IssuerData
       'HI-0001,Northbridge,CONTACT-EMAIL-001,CONTACT-PHONE-001,"{""headquarters"": ""headquarters-001"", ""sector"": ""sector-001""}",\n' +
       'HI-0002,Kestrel,CONTACT-EMAIL-002,CONTACT-PHONE-002,"{""headquarters"": ""headquarters-002"", ""sector"": ""sector-002""}",HC-0001-GONE\n' +
       'HI-0003,Aldgate,,CONTACT-PHONE-003,"{""headquarters"": ""headquarters-003"", ""sector"": ""sector-003""}",HC-0001\n' +
-      'HI-0004,Fenwick,CONTACT-EMAIL-004,CONTACT-PHONE-004,"{""headquarters"": ""headquarters-004"", ""sector"": ""sector-004""}",HC-0002\n' +
-      'HI-0005,Thameside,CONTACT-EMAIL-005,CONTACT-PHONE-005,"{""headquarters"": ""headquarters-005"", ""sector"": ""sector-005""}",HC-0003\n';
+      'HI-0004,Fenwick,CONTACT-EMAIL-004,,"{""headquarters"": ""headquarters-004"", ""sector"": ""sector-004""}",HC-0002\n' +
+      'HI-0005,Thameside,CONTACT-EMAIL-005,CONTACT-PHONE-005,,HC-0003\n';
   }#
 }
 
@@ -205,7 +205,7 @@ Service stress::H_Instrument
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"instrumentId":"HI-0001","assetClass":"ASSET-CLASS-001","name":"Northbridge"},{"instrumentId":"HI-0002","assetClass":"ASSET-CLASS-002","name":"Kestrel"},{"instrumentId":"HI-0003","assetClass":"ASSET-CLASS-003","name":"Aldgate"},{"instrumentId":"HI-0004","assetClass":"ASSET-CLASS-004","name":"Fenwick"},{"instrumentId":"HI-0005","assetClass":"ASSET-CLASS-005","name":"Thameside"}]';
+                    data: '[{"instrumentId":"HI-0001","assetClass":"ASSET-CLASS-001","name":"Northbridge"},{"instrumentId":"HI-0002","assetClass":"ASSET-CLASS-002","name":"Kestrel"},{"instrumentId":"HI-0003","assetClass":null,"name":"Aldgate"},{"instrumentId":"HI-0004","assetClass":"ASSET-CLASS-004","name":"Fenwick"},{"instrumentId":"HI-0005","assetClass":"ASSET-CLASS-005","name":"Thameside"}]';
                   }#;
               }#
           ]
@@ -266,7 +266,7 @@ Service stress::H_InstrumentReach
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"instrumentId":"HI-0001","upperCountry":"NORTHBRIDGE","countryName":"Northbridge"},{"instrumentId":"HI-0002","upperCountry":"KESTREL","countryName":"Kestrel"},{"instrumentId":"HI-0003","upperCountry":"ALDGATE","countryName":"Aldgate"},{"instrumentId":"HI-0004","upperCountry":"FENWICK","countryName":"Fenwick"},{"instrumentId":"HI-0005","upperCountry":"THAMESIDE","countryName":"Thameside"}]';
+                    data: '[{"instrumentId":"HI-0005","upperCountry":"NORTHBRIDGE","countryName":"Northbridge"}]';
                   }#;
               }#
           ]
@@ -328,7 +328,7 @@ Service stress::H_Issuer
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"issuerId":"HI-0001","contact_email":"CONTACT-EMAIL-001","contact_phone":"CONTACT-PHONE-001","legalName":"Northbridge"},{"issuerId":"HI-0002","contact_email":"CONTACT-EMAIL-002","contact_phone":"CONTACT-PHONE-002","legalName":"Kestrel"},{"issuerId":"HI-0003","contact_email":null,"contact_phone":"CONTACT-PHONE-003","legalName":"Aldgate"},{"issuerId":"HI-0004","contact_email":"CONTACT-EMAIL-004","contact_phone":"CONTACT-PHONE-004","legalName":"Fenwick"},{"issuerId":"HI-0005","contact_email":"CONTACT-EMAIL-005","contact_phone":"CONTACT-PHONE-005","legalName":"Thameside"}]';
+                    data: '[{"issuerId":"HI-0001","contact_email":"CONTACT-EMAIL-001","contact_phone":"CONTACT-PHONE-001","legalName":"Northbridge"},{"issuerId":"HI-0002","contact_email":"CONTACT-EMAIL-002","contact_phone":"CONTACT-PHONE-002","legalName":"Kestrel"},{"issuerId":"HI-0003","contact_email":null,"contact_phone":"CONTACT-PHONE-003","legalName":"Aldgate"},{"issuerId":"HI-0004","contact_email":"CONTACT-EMAIL-004","contact_phone":null,"legalName":"Fenwick"},{"issuerId":"HI-0005","contact_email":"CONTACT-EMAIL-005","contact_phone":"CONTACT-PHONE-005","legalName":"Thameside"}]';
                   }#;
               }#
           ]
@@ -389,7 +389,7 @@ Service stress::H_IssuerBinding
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"issuerId":"HI-0001","profile_headquarters":"headquarters-001","profile_sector":"sector-001"},{"issuerId":"HI-0002","profile_headquarters":"headquarters-002","profile_sector":"sector-002"},{"issuerId":"HI-0003","profile_headquarters":"headquarters-003","profile_sector":"sector-003"},{"issuerId":"HI-0004","profile_headquarters":"headquarters-004","profile_sector":"sector-004"},{"issuerId":"HI-0005","profile_headquarters":"headquarters-005","profile_sector":"sector-005"}]';
+                    data: '[{"issuerId":"HI-0001","profile_headquarters":"headquarters-001","profile_sector":"sector-001"},{"issuerId":"HI-0002","profile_headquarters":"headquarters-002","profile_sector":"sector-002"},{"issuerId":"HI-0003","profile_headquarters":"headquarters-003","profile_sector":"sector-003"},{"issuerId":"HI-0004","profile_headquarters":"headquarters-004","profile_sector":"sector-004"},{"issuerId":"HI-0005","profile_headquarters":null,"profile_sector":null}]';
                   }#;
               }#
           ]

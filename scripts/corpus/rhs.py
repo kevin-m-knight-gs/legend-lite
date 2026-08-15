@@ -1,0 +1,217 @@
+"""
+Recursive-descent parser for the VALUE EXPRESSION of a relational property mapping.
+
+Replaces the two regexes that between them handled `fn(col, col)` and `fn(chain)`. Regexes
+cannot nest, and the combination matrix needs exactly the nesting they cannot express:
+
+    concat([db]@J | [db]T.A, [db]T.B)          a chain and a column as sibling arguments
+    toUpper(concat([db]T.A, [db]T.B))          a function over a function
+    substring([db]T.A, 1, 3)                   literal arguments
+
+The argument for a parser rather than a longer pattern is not elegance. The last time a
+regex in this reader met a form it was not written for it did not fail -- `_COLMAP` matched
+the TAIL of a Binding mapping and recorded a property named `ProfileBinding` that existed
+nowhere but in the reader. A wrong span is worse than no match, and nesting is where wrong
+spans come from.
+
+The grammar:
+
+    expr    := call | chain | column | literal
+    call    := IDENT '(' [expr (',' expr)*] ')'
+    chain   := [dbref] '@' IDENT ('>' '@' IDENT)* '|' [dbref] IDENT '.' IDENT
+    column  := [dbref] IDENT '.' IDENT
+    literal := STRING | NUMBER
+    dbref   := '[' path ']'
+
+Nodes are tuples, tagged so the oracle can evaluate them without re-inspecting text:
+
+    ("col",   (table, column))
+    ("chain", ([join, ...], table, column))
+    ("call",  (fn, [node, ...]))
+    ("lit",   value)
+"""
+from __future__ import annotations
+
+import re
+
+
+class ParseError(ValueError):
+    """The reader has no rule for this expression. Raised rather than returning a partial
+    parse -- a half-understood mapping is the thing that produces a green test asserting
+    the wrong value."""
+
+
+_TOKEN = re.compile(r"""
+      \s*(?:
+        (?P<db>\[[\w:]+\])
+      | (?P<str>'(?:[^']|'')*')
+      | (?P<num>-?\d+\.\d+|-?\d+)
+      | (?P<ident>[A-Za-z_]\w*)
+      | (?P<punct>[@|,().>])
+      )""", re.X)
+
+
+def _tokenise(text: str) -> list[tuple[str, str]]:
+    out, i = [], 0
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+            continue
+        m = _TOKEN.match(text, i)
+        if not m or m.end() == i:
+            raise ParseError(f"cannot tokenise at {text[i:][:30]!r}")
+        kind = m.lastgroup
+        out.append((kind, m.group(kind)))
+        i = m.end()
+    return out
+
+
+class _Parser:
+    def __init__(self, tokens: list[tuple[str, str]]):
+        self.t, self.i = tokens, 0
+
+    def peek(self, n: int = 0):
+        return self.t[self.i + n] if self.i + n < len(self.t) else (None, None)
+
+    def take(self):
+        tok = self.peek()
+        self.i += 1
+        return tok
+
+    def expect(self, value: str):
+        kind, v = self.take()
+        if v != value:
+            raise ParseError(f"expected {value!r}, found {v!r}")
+        return v
+
+    # ---- expr := call | chain | column | literal -------------------------------------
+    def expr(self):
+        kind, v = self.peek()
+        if kind == "str":
+            self.take()
+            return ("lit", v[1:-1].replace("''", "'"))
+        if kind == "num":
+            self.take()
+            return ("lit", float(v) if "." in v else int(v))
+        # A call is the only form where an identifier is followed by '('. A column is an
+        # identifier followed by '.', so one token of lookahead separates them.
+        if kind == "ident" and self.peek(1)[1] == "(":
+            return self.call()
+        if kind == "db" or kind == "ident" or v == "@":
+            return self.chain_or_column()
+        raise ParseError(f"unexpected {v!r}")
+
+    def call(self):
+        _k, fn = self.take()
+        self.expect("(")
+        args = []
+        if self.peek()[1] != ")":
+            args.append(self.expr())
+            while self.peek()[1] == ",":
+                self.take()
+                args.append(self.expr())
+        self.expect(")")
+        return ("call", (fn, args))
+
+    def chain_or_column(self):
+        # An optional store qualifier precedes either form. It is REQUIRED on a chain's
+        # first hop and optional afterwards, but that is the grammar's rule to enforce, not
+        # this reader's -- anything the engine accepts should parse here.
+        if self.peek()[0] == "db":
+            self.take()
+        if self.peek()[1] == "@":
+            return self.chain()
+        return self.column()
+
+    def chain(self):
+        joins = []
+        while self.peek()[1] == "@":
+            self.take()
+            kind, name = self.take()
+            if kind != "ident":
+                raise ParseError(f"expected a join name after '@', found {name!r}")
+            joins.append(name)
+            if self.peek()[1] == ">":
+                self.take()
+                if self.peek()[0] == "db":      # a qualifier may precede a later hop
+                    self.take()
+                continue
+            break
+        self.expect("|")
+        table, col = self.column()[1]
+        return ("chain", (joins, table, col))
+
+    def column(self):
+        if self.peek()[0] == "db":
+            self.take()
+        kind, table = self.take()
+        if kind != "ident":
+            raise ParseError(f"expected a table name, found {table!r}")
+        self.expect(".")
+        kind, col = self.take()
+        if kind != "ident":
+            raise ParseError(f"expected a column name, found {col!r}")
+        return ("col", (table, col))
+
+
+def parse(text: str):
+    """Parse one property-mapping value expression. Raises ParseError on anything the
+    grammar above does not cover, so an unmodelled form is visible rather than guessed."""
+    p = _Parser(_tokenise(text))
+    node = p.expr()
+    if p.i != len(p.t):
+        raise ParseError(f"trailing input at {p.peek()[1]!r}")
+    return node
+
+
+# ---------------------------------------------------------------- helpers for callers
+def columns(node) -> list[tuple[str, str]]:
+    """PLAIN (table, column) references -- deliberately NOT descending into chains.
+
+    A chain's target column is read from the row the chain LANDS on; a plain reference is
+    read from the row the oracle already holds. Returning both in one list invites the
+    caller to treat them alike, and the caller that does will read the landed table's
+    column off the base row and get None -- or, worse, a value from a same-named column."""
+    tag, body = node
+    if tag == "col":
+        return [body]
+    if tag == "call":
+        return [c for a in body[1] for c in columns(a)]
+    return []
+
+
+def functions(node) -> list[str]:
+    tag, body = node
+    if tag != "call":
+        return []
+    return [body[0]] + [f for a in body[1] for f in functions(a)]
+
+
+def chains(node) -> list[tuple]:
+    tag, body = node
+    if tag == "chain":
+        return [body]
+    if tag == "call":
+        return [ch for a in body[1] for ch in chains(a)]
+    return []
+
+
+def find_call(text: str, start: int) -> int:
+    """Index of the ')' closing the '(' at or after `start`, skipping string literals.
+    Needed because a call's extent cannot be found by a regex once it nests."""
+    depth, i, n = 0, start, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "'":
+            j = text.find("'", i + 1)
+            if j < 0:
+                raise ParseError("unterminated string literal")
+            i = j
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    raise ParseError("unbalanced parentheses")

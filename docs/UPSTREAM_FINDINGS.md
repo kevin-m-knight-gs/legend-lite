@@ -949,3 +949,29 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   behaviour rather than check it. Pinned by `stress::H_IssuerBinding`, kept separate from
   `stress::H_Issuer` so the embedded-property coverage on the same class stays green.
 
+- **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
+  `demo::Thing.all()->filter(t | $t.name != 'none')` over a table where one row has a NULL
+  `NAME` returns that row. The same query with `==` excludes it, and so does an ordered
+  comparison (`>`). Those three cannot all be right:
+
+      SQL three-valued logic     `NULL <> 'x'` is UNKNOWN, so `!=` must EXCLUDE the row
+      Pure collection semantics  `[] == 'x'` is false, so `!=` is TRUE and keeps the row --
+                                 but then `>` should not be excluding it either
+
+  So this is an inconsistency in the engine's own filter lowering rather than a disagreement
+  about which model to prefer: whichever semantics Legend intends, either `!=` or `>` is
+  wrong. `repro/not-equals-null/` pins all three operators side by side, and the `==` and
+  `>` cases PASS there -- that is the evidence identifying `!=` as the odd one rather than
+  the oracle.
+
+  The practical impact is silent and one-directional: every `!=` filter in a Legend query
+  admits rows the author almost certainly meant to exclude, and only for the rows where the
+  column is absent -- so it is invisible on data without NULLs and shows up as a handful of
+  unexpected rows on data with them.
+
+  Found by the combination matrix, indirectly. The corpus seeder had been putting a NULL in
+  only the FIRST nullable column of each table; when that was corrected to every nullable
+  column, four generated services diverged at once. Until a `!=` predicate could meet a
+  NULL, nothing in 180 services had ever exercised the rule. Pinned by
+  `stress::D_CashSettlementDense`, `D_TradeReportStatusDense`, `D_DepartmentDense` and
+  `D_TeamDense`.

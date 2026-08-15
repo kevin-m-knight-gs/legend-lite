@@ -111,7 +111,12 @@ def build(c: model.Corpus, seeded: set[str],
         seen.add(signature)
 
         short = root.split("::")[-1]
-        spec = Spec(f"stress::AA{n}_{short}Counts", f"/stress/aa{n}",
+        # Named from the CLASS, not from a loop index. An index renumbers every
+        # service downstream of it the moment the ranking changes -- and the
+        # ranking is derived from the seed, so a data change silently repoints
+        # every quarantine entry that keys on the name. That has already happened
+        # once (F26); the quarantine below keys on ten of these names.
+        spec = Spec(f"stress::AA_{short}Counts", f"/stress/aa_{short.lower()}",
                     f"Generated aggregate on {root}: {len(props)} count(s) over to-many "
                     f"associations, every parent of which HAS children. This is the "
                     f"non-empty half of the property the F-series pins on the empty half -- "

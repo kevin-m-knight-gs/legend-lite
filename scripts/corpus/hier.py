@@ -72,7 +72,11 @@ def resolvable(c: model.Corpus, cls: str) -> list[str]:
     only its leaves have values.
     """
     blocked = {p for k, p in c.unparsed if k == cls}
-    props = set(c.columns.get(cls, {})) | {p for k, p in c.chains if k == cls}
+    props = (set(c.columns.get(cls, {}))
+             | {p for k, p in c.chains if k == cls}
+             # A dynafunction over a chain is recorded ONLY in c.dyna now --
+             # it used to be in both, and reading only c.chains would drop it.
+             | {p for k, p in c.dyna if k == cls})
     for (owner, prop), child in c.embedded.items():
         if owner == cls:
             # An embedded child's leaves are COLUMNS; a Binding-backed child's are JSON

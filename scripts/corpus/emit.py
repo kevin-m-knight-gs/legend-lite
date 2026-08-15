@@ -42,9 +42,19 @@ EXTERNAL_TABLES = {"EXT_LEGAL_ENTITY"}
 # tables cannot travel in the main ###Data element -- test data is keyed by CONNECTION.
 # Derived from the model rather than listed, so a new hier table is routed correctly the
 # moment it is declared instead of silently landing in the wrong element.
-def hier_tables(c) -> set:
+# Any store outside the main one needs its own ###Data element, so the main element has to
+# know what to leave out. Keyed by DATABASE prefix rather than by a list of table names, so
+# a new table in an existing side store routes itself.
+SIDE_STORES = ("hier::", "combo::")
+
+
+def store_tables(c, prefix: str) -> set:
     return {n for n, t in c.tables.items()
-            if getattr(t, "database", "").startswith("hier::") and n not in c.views}
+            if getattr(t, "database", "").startswith(prefix) and n not in c.views}
+
+
+def side_tables(c) -> set:
+    return {n for p in SIDE_STORES for n in store_tables(c, p)}
 
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"
@@ -83,7 +93,7 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     out = ["###Data", f"Data {DATA_ELEMENT}", "{", "  Relational", "  #{"]
     emitted = [(n, r) for n, r in tables.items()
                if n not in c.views and n not in EXTERNAL_TABLES
-               and n not in hier_tables(c)]
+               and n not in side_tables(c)]
     for i, (name, rows) in enumerate(emitted):
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
@@ -118,9 +128,9 @@ def _tests(spec: Spec, payload: str) -> str:
     return ",\n".join(out)
 
 
-def hier_data_element(c: Corpus, tables: dict[str, list[dict]],
-                      database: str, element: str) -> str:
-    """A ###Data element for ONE hier:: store.
+def store_data_element(c: Corpus, tables: dict[str, list[dict]],
+                       database: str, element: str) -> str:
+    """A ###Data element for ONE side store.
 
     One element per STORE, not one for the domain. Test data is bound to a connection and a
     runtime connects a single store here, so an element carrying another store's tables is
@@ -129,7 +139,7 @@ def hier_data_element(c: Corpus, tables: dict[str, list[dict]],
     table rather than a misrouted one.
     """
     out = ["###Data", f"Data {element}", "{", "  Relational", "  #{"]
-    names = sorted(n for n in hier_tables(c)
+    names = sorted(n for n in side_tables(c)
                    if tables.get(n) and getattr(c.tables[n], "database", "") == database)
     for i, name in enumerate(names):
         cols = list(c.tables[name].columns)
@@ -347,3 +357,4 @@ def service(spec: Spec, expected: list[dict], note: str) -> str:
 {exec_block}
 {test_suite(spec, expected, note)}
 }}"""
+

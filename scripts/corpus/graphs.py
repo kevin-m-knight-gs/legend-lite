@@ -147,7 +147,12 @@ def build(c: model.Corpus, seeded: set[str],
         seen.add(signature)
 
         short = root.split("::")[-1]
-        spec = Spec(f"stress::GG{n}_{short}Tree", f"/stress/gg{n}",
+        # Named from the CLASS, not from a loop index. An index renumbers every
+        # service downstream of it the moment the ranking changes -- and the
+        # ranking is derived from the seed, so a data change silently repoints
+        # every quarantine entry that keys on the name. That has already happened
+        # once (F26); the quarantine below keys on ten of these names.
+        spec = Spec(f"stress::GG_{short}Tree", f"/stress/gg_{short.lower()}",
                     f"Generated graph fetch on {root}: {len(tree)} keys, "
                     f"{sum(1 for v in tree.values() if isinstance(v, dict))} sub-object(s). "
                     f"Tree-shaped read of the same rows the projection corpus reads flat -- "

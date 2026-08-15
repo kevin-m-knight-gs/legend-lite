@@ -33,6 +33,7 @@ that IS asserted — but the corpus must never claim to test ordering through th
 """
 from __future__ import annotations
 
+import math
 import re
 
 from model import Corpus
@@ -154,20 +155,26 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     src = c.json_backed.get(owner)
     if src is not None:
         return _json_property(c, data, row, root, path, src)
-    chain = c.chains.get((owner, path[-1]))
-    if chain is not None:
-        v = _chain_value(c, data, row, root, path, chain)
-        # A dynafunction wrapped round the chain applies to what the chain LANDED on, so
-        # the chain is followed first and the function applied to its single result.
-        dyn = c.dyna.get((owner, path[-1]))
-        if dyn is not None:
-            return _dynafunction((dyn[0], ["_"]), {"_": v})
-        return v
-    table, col, hops = c.resolve(root, path)
-    landed = walk(c, data, row, hops)
+    # A DYNAFUNCTION is now checked before the plain-column path rather than after it,
+    # because its arguments no longer have to be columns of one row: an argument may be a
+    # chain, a literal, or another call. The expression tree is walked, each argument
+    # evaluated in its own right, and the function applied to the results.
     dyn = c.dyna.get((owner, path[-1]))
     if dyn is not None:
-        return _dynafunction(dyn, landed)
+        fn, fnargs = dyn
+        # Plain-column arguments are read from the row the property's OWNER sits on, so a
+        # dynafunction inside an embedded block reads the embedded parent's row.
+        base = row
+        if len(path) > 1:
+            prefix, _t = c.owner_hops(root, path[:-1])
+            base = walk(c, data, row, prefix)
+        return _dynafunction(fn, [_arg_value(c, data, base, owner, path[-1], a)
+                                  for a in fnargs])
+    chain = c.chains.get((owner, path[-1]))
+    if chain is not None:
+        return _chain_value(c, data, row, root, path, chain)
+    table, col, hops = c.resolve(root, path)
+    landed = walk(c, data, row, hops)
     raw = None if landed is None else landed.get(col)
     mapping = c.enum_props.get((c.owner_of(root, path), path[-1]))
     if mapping is None or raw is None:
@@ -243,7 +250,10 @@ def _chain_value(c: Corpus, data, row, root: str, path: list[str], chain):
     # Everything before the last step is ordinary association navigation; the chain hangs
     # off whatever row that lands on.
     if len(path) > 1:
-        _t, _col, prefix = c.resolve(root, path[:-1])
+        # owner_hops, not resolve: the prefix may end on an EMBEDDED property, which has no
+        # column of its own and which resolve() therefore refuses. A chain inside an
+        # embedded block departs from the parent's row, since the block adds no hop.
+        prefix, _t = c.owner_hops(root, path[:-1])
         row = walk(c, data, row, prefix)
         if row is None:
             return None
@@ -269,12 +279,30 @@ def _chain_value(c: Corpus, data, row, root: str, path: list[str], chain):
 # NULL semantics are the whole difficulty. SQL propagates NULL through most scalar
 # functions, and the corpus guarantees a NULL in every column by construction (property
 # A2), so every one of these will meet one.
-def _dynafunction(dyn, landed):
-    fn, cols = dyn
-    if landed is None:
-        return None
-    vals = [landed.get(col) for col in cols]
+def _arg_value(c: Corpus, data, base, owner: str, prop: str, node):
+    """One argument of a dynafunction call, evaluated in its own right.
 
+    `base` is the row the OWNER sits on. A plain column is read from it directly; a chain
+    departs from the owner's main table; a nested call recurses. Splitting evaluation per
+    argument is what makes `concat(@J | T.A, T.B)` expressible at all -- the previous shape
+    read every argument off one row, so a chain could only ever be the whole expression.
+    """
+    tag, body = node
+    if tag == "lit":
+        return body
+    if tag == "col":
+        _table, col = body
+        return None if base is None else base.get(col)
+    if tag == "chain":
+        # A one-element path, so _chain_value walks no prefix -- `base` IS the owner's row.
+        return _chain_value(c, data, base, owner, [prop], body)
+    if tag == "call":
+        fn, args = body
+        return _dynafunction(fn, [_arg_value(c, data, base, owner, prop, a) for a in args])
+    raise Unsupported(f"dynafunction argument {tag!r} has no evaluation rule")
+
+
+def _dynafunction(fn, vals):
     if fn == "concat":
         # concat over NULL yields THE OTHER ARGUMENT, not NULL.
         #
@@ -288,12 +316,68 @@ def _dynafunction(dyn, landed):
         # An oracle cannot be dialect-agnostic about concat, which is worth knowing before
         # the next dynafunction is added: the ones with an obvious mathematical meaning are
         # safe, and the string ones are not.
-        present = [v for v in vals if v is not None]
-        return "".join(str(v) for v in present) if present else None
+        # And when EVERY argument is NULL the result is the EMPTY STRING, not NULL.
+        #
+        # This rule had an unexamined edge: "ignores NULL" was written as "drop the nulls,
+        # and if nothing is left return NULL". That last clause was a special case smuggled
+        # in, not a consequence. Concatenating the empty sequence of strings is the empty
+        # string -- that is the identity of concatenation, and deriving NULL from it would
+        # be a second rule contradicting the first. The combination matrix found it because
+        # only a BROKEN CHAIN makes both arguments null at once, and until the chain cells
+        # existed no case in the corpus could reach it.
+        return "".join(str(v) for v in vals if v is not None)
     if fn == "toUpper":
         return None if vals[0] is None else str(vals[0]).upper()
     if fn == "toLower":
         return None if vals[0] is None else str(vals[0]).lower()
+
+    # ---- null-inspecting: total, never return NULL themselves ------------------------
+    if fn == "isNull":
+        return vals[0] is None
+    if fn == "isNotNull":
+        return vals[0] is not None
+    if fn == "coalesce":
+        return next((v for v in vals if v is not None), None)
+
+    # ---- arithmetic: NULL propagates, as it does through every SQL scalar operator ----
+    #
+    # These are the SAFE ones, in the sense the concat comment above earns the right to
+    # use: `a + b` means the same thing in every dialect this corpus can reach, so an
+    # independent implementation is not a bet about lowering. The string functions are
+    # where dialect divergence lives.
+    if fn in ("plus", "times"):
+        if any(v is None for v in vals):
+            return None
+        out = 0 if fn == "plus" else 1
+        for v in vals:
+            out = out + v if fn == "plus" else out * v
+        return out
+    if fn == "minus":
+        return None if any(v is None for v in vals) else vals[0] - sum(vals[1:])
+    if fn == "abs":
+        return None if vals[0] is None else abs(vals[0])
+    if fn == "sign":
+        return None if vals[0] is None else (0 if vals[0] == 0 else
+                                             (1 if vals[0] > 0 else -1))
+    if fn == "sqrt":
+        if vals[0] is None:
+            return None
+        if vals[0] < 0:
+            # sqrt of a negative has no agreed answer -- an error in some dialects, NaN in
+            # others. Refusing keeps the seed honest: if a negative ever reaches here the
+            # corpus must change the data, not the expectation.
+            raise Unsupported(f"sqrt({vals[0]}) is not defined; the seed must not produce "
+                              f"a negative argument")
+        return math.sqrt(vals[0])
+
+    # ---- string, and therefore a bet about lowering rather than a fact ---------------
+    if fn == "length":
+        return None if vals[0] is None else len(str(vals[0]))
+    if fn == "trim":
+        # Whitespace at BOTH ends. ltrim/rtrim are deliberately not implemented here: they
+        # are one-sided and it would cost nothing to add them wrongly.
+        return None if vals[0] is None else str(vals[0]).strip()
+
     raise Unsupported(
         f"dynafunction {fn!r} has no independent implementation in the oracle. Add one "
         f"deliberately -- do NOT read the expected value from the engine, which would make "
@@ -525,18 +609,52 @@ def _rows_for(c: Corpus, root: str, data: dict[str, list[dict]]) -> list[dict]:
     return data[c.main_table[root]]
 
 
-def _mapping_filtered(c: Corpus, root: str, rows: list[dict]) -> list[dict]:
+def _filter_holds(c: Corpus, name: str, row: dict | None) -> bool:
+    """Whether the named store Filter's predicate holds of `row`.
+
+    A None row means a broken chain -- the filter is reached through joins and the joins
+    led nowhere. That is FALSE, not unknown: there is no landed row for the predicate to
+    be true of, so the source row is excluded.
+    """
+    if row is None:
+        return False
+    _table, col, op, val = c.filters[name]
+    if op == "isnull":
+        return row.get(col) is None
+    if op == "isnotnull":
+        return row.get(col) is not None
+    return _cmp({"=": "==", "<>": "!="}.get(op, op), row.get(col), val)
+
+
+def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
+                      data: dict[str, list[dict]]) -> list[dict]:
     """A store filter attached to the class mapping narrows what all() can even see.
 
     It is applied BEFORE any query predicate and before milestoning, which is the whole
     point: the class is defined as the filtered subset, so no query can widen it back.
+
+    Two forms. A DIRECT filter tests a column of the class's own main table. A CHAIN filter
+    -- `~filter [db]@J1 > @J2 | [db]F` -- tests a column of a table reached by joins, and
+    its exclusion semantics differ from a projection's: a projection over a broken chain
+    yields NULL and KEEPS the row, whereas a filter over a broken chain DROPS it. Getting
+    those two the same way round would be invisible on data where every chain resolves,
+    which is exactly the data this corpus had.
     """
     name = c.class_filter.get(root)
-    if name is None:
-        return rows
-    _table, col, op, val = c.filters[name]
-    sql_to_py = {"=": "==", "<>": "!="}
-    return [r for r in rows if _cmp(sql_to_py.get(op, op), r.get(col), val)]
+    if name is not None:
+        rows = [r for r in rows if _filter_holds(c, name, r)]
+    chained = c.class_filter_chain.get(root)
+    if chained is not None:
+        joins, fname = chained
+        start = c.main_table.get(root, "")
+        hops, landed_table = _chain_hops(c, start, joins)
+        ftable = c.filters[fname][0]
+        if landed_table != ftable:
+            raise Unsupported(
+                f"~filter chain on {root} ends at {landed_table}, but filter {fname} tests "
+                f"{ftable}")
+        rows = [r for r in rows if _filter_holds(c, fname, walk(c, data, r, hops))]
+    return rows
 
 
 def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
@@ -624,7 +742,7 @@ def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
 
 
 def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
-    base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data))
+    base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
     base = _milestoned(c, spec, base)
     return [_graph(c, data, r, spec.root, spec.graph) for r in base]
 
@@ -663,7 +781,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
-    base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data))
+    base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
     base = _milestoned(c, spec, base)
     kept = [r for r in base
             if all(_cmp(f.op, _value(c, data, r, spec.root, f.path), f.value)
@@ -714,6 +832,36 @@ def render(value, kind: str):
     raise ValueError(f"unhandled kind {kind}")
 
 
+# A dynafunction whose result type DIFFERS from its first argument's. Everything absent
+# here is type-preserving (toUpper, trim, abs, coalesce, plus...), which is why the map is
+# short rather than 228 entries long: only the exceptions have to be stated.
+DYNA_RETURN = {"length": "int", "sign": "int", "sqrt": "float",
+               "isNull": "bool", "isNotNull": "bool"}
+
+
+def _node_kind(c: Corpus, owner: str, node) -> str:
+    tag, body = node
+    if tag == "lit":
+        return {int: "int", float: "float", str: "string"}[type(body)]
+    if tag == "col":
+        return c.tables[c.main_table[owner]].columns[body[1]].kind
+    if tag == "chain":
+        return c.tables[body[1]].columns[body[2]].kind
+    if tag == "call":
+        return _dyna_kind(c, owner, body)
+    raise Unsupported(f"cannot type dynafunction argument {tag!r}")
+
+
+def _dyna_kind(c: Corpus, owner: str, dyn) -> str:
+    fn, args = dyn
+    ret = DYNA_RETURN.get(fn)
+    if ret is not None:
+        return ret
+    if not args:
+        raise Unsupported(f"{fn}() takes no arguments, so its result cannot be typed")
+    return _node_kind(c, owner, args[0])
+
+
 def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     out = {}
     if spec.group_by:
@@ -747,6 +895,10 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             continue
         if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
             out[p.alias] = "string"     # an enum renders as its VALUE NAME
+            continue
+        dyn = c.dyna.get((c.owner_of(spec.root, p.path), p.path[-1]))
+        if dyn is not None:
+            out[p.alias] = _dyna_kind(c, c.owner_of(spec.root, p.path), dyn)
             continue
         chain = c.chains.get((c.owner_of(spec.root, p.path), p.path[-1]))
         if chain is not None:
