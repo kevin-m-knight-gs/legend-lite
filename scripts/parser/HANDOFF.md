@@ -442,6 +442,54 @@ token at all.
 
 ---
 
+## 8a. The execution corpus: feature density (added late, read this)
+
+A separate strand from the parser work, and where the corpus now is.
+
+An audit against `docs/MAPPING_FEATURE_CHECKLIST.md` and `docs/rosetta/` -- catalogues that
+predate this corpus and that it had never been checked against -- found **94% of 397 class
+mappings were plain 1:1** (`~mainTable` plus direct columns). Two databases, one view, one
+filter, no schemas, and every join a single-column equality. All 24 findings to that point
+had come from navigation and query shape, because that was the only dimension the corpus had.
+
+`scripts/corpus/density.py --gate` measures and ratchets it. Current state:
+
+```
+plain 1:1          94% -> 82%
+features present   17 of 35 -> 25 of 35
+suite              182 tests, 161 passed, 0 unexpected
+```
+
+Landed: `dense_mapping.py` (scope blocks both arms, set ids, explicit ~primaryKey) and
+`dense_store.py` (Schema, TabularFunction, MultiGrainFilter, multi-column joins,
+non-equality joins, `or` joins, dynafunction joins, a View with all three directives).
+`dense_store.py` INCLUDES the base database rather than duplicating it, so its objects sit
+over already-seeded tables and are executable rather than compile-only.
+
+**Verified syntax for everything else is in `scripts/corpus/verified/`** -- ~50 snippets
+across four files, each run through `ParseMain --compile` before being written down. Five
+spellings in our own rosetta docs turned out to be WRONG and are corrected there.
+
+### The two blockers, precisely
+
+Neither is syntax. Syntax is done.
+
+1. **The reader is mapping-agnostic.** `c.columns` and `c.dyna` in `model.py` are keyed by
+   CLASS, not by `(mapping, class)`. The same class mapped twice -- which `dense_mapping.py`
+   does for 60 of them -- collapses to one view, so a dynafunction or join chain on a
+   re-mapped class silently overwrites the flat column. This blocks executing A2 (join
+   chains), A3/A4 (dynafunctions), B3 (~filter via join) and B4 (~distinct), and it is a
+   change to `model.py`'s core data structure that ripples through six modules.
+
+   The ORACLE side of that work is already done: `oracle._dynafunction` implements
+   concat/toUpper/toLower independently and raises `Unsupported` for anything else, so an
+   unimplemented dynafunction cannot silently take its expected value from the engine.
+
+2. **The domain has zero class inheritance.** 210 classes, not one `extends`. This blocks
+   mapping `extends [id]`, `inheritance` Operation mappings, and subtype graph fetch
+   (`->subType(@)`) -- which the PARSER corpus covers and the execution corpus has never
+   run. It is a DOMAIN change, and no amount of mapping generation reaches it.
+
 ## 9. Open decisions
 
 1. **Merge to `main`.** All work is on `test-corpus`, pushed. `main` was updated from origin and
