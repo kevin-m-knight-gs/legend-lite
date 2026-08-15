@@ -52,15 +52,41 @@ fires. Report: `target/grammar-coverage.tsv`.
    the same fragment identically — that is the byte-parity gates' job;
    the census only bounds what those gates could have SEEN.
 
-## Phase 2 — the work-list this census generates
+## Phase 2 — island drive (DONE 2026-08-15)
 
-1. **Island drive**: extract the sub-fragments the engine walkers
-   reparse (graph-fetch trees, connection values, mapping islands) and
-   drive their 44 grammars; shrink the undriven ceiling.
-2. **Uncovered-rule closure**: for each uncovered rule of a driven
-   grammar, either (a) write an oracle-probed fixture that exercises
-   it (byte-pinned, joins the fixture corpus), or (b) prove it
-   unreachable from any input (dead grammar — an upstream finding).
-   Start with the thin activator/store grammars.
-3. **Generative gate seeding**: the uncovered lists are exactly the
+15 island grammars driven via shape extractors (regex + quote-aware
+balanced-brace scan; island coverage counts ONLY error-free fragments,
+so a mis-routed fragment cannot inflate through ANTLR error recovery).
+Entry rules resolve by engine convention: `definition`, else the rule
+named after the grammar (island walkers' own entry), else first rule —
+a vacuous first-rule entry shows as the visible "1-rule" signature.
+
+New baseline: **39 grammars driven, 1,209/2,662 rules (45.4%),
+undriven 44 -> 27.** Strong islands: GraphFetchTree 85.7%,
+RelationalDatabaseConnection 85.7%, ModelStoreData 82.4%,
+EnumerationMapping 75.0%, ModelConnection 72.7%, Navigation 68.8%,
+PureInstanceClassMapping 44.7%. Ratchets: drives >= 39,
+coverage >= 1200, undriven <= 27.
+
+**EXTRACTION-PENDING** (driven but the fragment shape is wrong — the
+extractor, not the corpus, is the limit; fix means probing the exact
+walker-fed text): AggregationAware (34/34 err), DataSourceSpecification
+(125/181 err + vacuous), AuthenticationStrategy (38/61 err),
+PostProcessor (1 rule). These four rows are honest instrument debt.
+
+## Phase 3 — remaining work-list
+
+1. **The 27 undriven grammars**: exotic store connectors
+   (Databricks/Spanner/Trino/Redshift/DuckDB/Mongo/ES/Deephaven
+   connection values), MongoDBSchema island, FlatData, ServiceStore
+   embedded data + content patterns, PersistenceCloud/Relational,
+   Code, RelationalMapper, ModelJoin/RelationFunction mapping islands,
+   EqualTo/EqualToJson/EqualToTDS assertion leaves.
+2. **Fix the four EXTRACTION-PENDING extractors** (probe walker-fed
+   fragment shapes).
+3. **Uncovered-rule closure**: per uncovered rule of a driven grammar,
+   an oracle-probed byte-pinned fixture, or an unreachability proof
+   (dead grammar — upstream finding). Start with the thin
+   activator/store grammars.
+4. **Generative gate seeding**: the uncovered lists are exactly the
    productions a grammar-driven generator should weight first.

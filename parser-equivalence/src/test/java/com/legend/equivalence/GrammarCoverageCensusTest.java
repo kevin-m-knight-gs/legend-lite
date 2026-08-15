@@ -112,6 +112,52 @@ class GrammarCoverageCensusTest {
             }
         }
 
+        // ---- 3b. PHASE 2: island-grammar drive. The engine reparses
+        // walker-extracted sub-fragments through dedicated grammars; the
+        // census extracts the same fragments by SHAPE (regex + balanced
+        // scan — an under-measuring extractor only lowers coverage,
+        // never fakes it) and drives each family's target grammar.
+        // Island coverage counts ONLY error-free fragments, so a
+        // fragment routed to the wrong grammar cannot inflate coverage
+        // through ANTLR error recovery.
+        String pkg = "org.finos.legend.engine.language.pure.grammar.from.antlr4.";
+        List<String> allTexts = new ArrayList<>();
+        sources.forEach(s -> allTexts.add(s.text()));
+        driveIsland(drives, pkg + "graphFetchTree.GraphFetchTreeParserGrammar",
+                "island:graphFetch", hashBlocks(allTexts, true));
+        driveIsland(drives, pkg + "navigation.NavigationParserGrammar",
+                "island:navigation", navPaths(allTexts));
+        List<String> connBodies = elementBodies(bySection.get("Connection"),
+                "RelationalDatabaseConnection");
+        driveIsland(drives, pkg + "connection.RelationalDatabaseConnectionParserGrammar",
+                "island:relationalConnection", connBodies);
+        driveIsland(drives, pkg + "connection.datasource.DataSourceSpecificationParserGrammar",
+                "island:datasource", keyedIslands(connBodies, "specification"));
+        driveIsland(drives, pkg + "connection.authentication.AuthenticationStrategyParserGrammar",
+                "island:auth", keyedIslands(connBodies, "auth"));
+        driveIsland(drives, pkg + "connection.postProcessor.PostProcessorParserGrammar",
+                "island:postProcessor", bySection.getOrDefault(
+                        "QueryPostProcessor", List.of()));
+        driveIsland(drives, pkg + "connection.modelConnection.ModelConnectionParserGrammar",
+                "island:modelConnection", modelConnBodies(bySection.get("Connection")));
+        List<String> mappingFrags = bySection.getOrDefault("Mapping", List.of());
+        driveIsland(drives, pkg + "mapping.pureInstanceClassMapping.PureInstanceClassMappingParserGrammar",
+                "island:pureMapping", mappingIslands(mappingFrags, "Pure"));
+        driveIsland(drives, pkg + "mapping.enumerationMapping.EnumerationMappingParserGrammar",
+                "island:enumMapping", mappingIslands(mappingFrags, "EnumerationMapping"));
+        driveIsland(drives, pkg + "mapping.operationClassMapping.OperationClassMappingParserGrammar",
+                "island:operation", mappingIslands(mappingFrags, "Operation"));
+        driveIsland(drives, pkg + "mapping.xStoreAssociationMapping.XStoreAssociationMappingParserGrammar",
+                "island:xstore", mappingIslands(mappingFrags, "XStore"));
+        driveIsland(drives, pkg + "mapping.aggregationAware.AggregationAwareParserGrammar",
+                "island:aggAware", mappingIslands(mappingFrags, "AggregationAware"));
+        driveIsland(drives, pkg + "test.assertion.TestAssertionParserGrammar",
+                "island:testAssertion", assertionIslands(allTexts));
+        driveIsland(drives, pkg + "data.embedded.modelStore.ModelStoreDataParserGrammar",
+                "island:modelStoreData", dataIslands(bySection.get("Data"), "ModelStore"));
+        driveIsland(drives, pkg + "data.embedded.externalFormat.ExternalFormatDataParserGrammar",
+                "island:externalFormatData", dataIslands(bySection.get("Data"), "ExternalFormat"));
+
         // ---- 4. report
         StringBuilder out = new StringBuilder();
         out.append("# GRAMMAR-COVERAGE CENSUS — corpus coverage of the")
@@ -166,16 +212,18 @@ class GrammarCoverageCensusTest {
         // the mapping broke — both are regressions. The undriven-grammar
         // ceiling is DOWN-only: phase 2 (islands/value grammars) shrinks
         // it and pins the progress.
-        assertTrue(drives.size() >= 24,
-                "census drove only " + drives.size() + " grammars (floor 24)"
-                        + " — the section->grammar mapping broke");
-        assertTrue(coveredRules >= 1020,
+        assertTrue(drives.size() >= 39,
+                "census drove only " + drives.size() + " grammars (floor 39:"
+                        + " 24 sections + 15 islands) — mapping or an"
+                        + " island extractor broke");
+        assertTrue(coveredRules >= 1200,
                 "grammar-rule coverage fell: " + coveredRules
-                        + " < floor 1020 — corpus or mapping regression");
-        assertTrue(undriven.size() <= 44,
+                        + " < floor 1200 — corpus, mapping, or extractor"
+                        + " regression (phase-2 baseline 1209)");
+        assertTrue(undriven.size() <= 27,
                 "undriven grammar list grew: " + undriven.size()
-                        + " > 44 — a new engine grammar appeared; extend"
-                        + " the census (or phase-2 it explicitly)");
+                        + " > 27 — a new engine grammar appeared; extend"
+                        + " the census (or phase-3 it explicitly)");
         assertTrue(unmappedSections.size() <= 1,
                 "unmapped sections grew: " + unmappedSections);
     }
@@ -190,6 +238,9 @@ class GrammarCoverageCensusTest {
         final TreeSet<String> contextClasses = new TreeSet<>();
         int fragments;
         int errFragments;
+        /** island mode: only error-free fragments contribute coverage
+         *  (a mis-routed fragment must not inflate through recovery). */
+        boolean errorFreeOnly;
         private final Constructor<?> lexerCtor;
         private final Constructor<?> parserCtor;
         private final Method entry;
@@ -206,10 +257,20 @@ class GrammarCoverageCensusTest {
                         new CommonTokenStream((Lexer) lexerCtor.newInstance(
                                 CharStreams.fromString(""))));
                 ruleNames = probe.getRuleNames();
-                // engine convention: 'definition' is the section entry
-                // rule; fall back to the grammar's first rule
-                String entryName = List.of(ruleNames).contains("definition")
-                        ? "definition" : ruleNames[0];
+                // Engine conventions, in order: 'definition' (section
+                // grammars); the rule NAMED AFTER the grammar
+                // (operationClassMapping in OperationClassMappingParser-
+                // Grammar — island walkers call that entry); first rule
+                // as last resort (and then a vacuous-empty match shows
+                // up as the 1-rule signature in the report, visibly).
+                String stem = pc.getSimpleName()
+                        .replace("ParserGrammar", "");
+                String stemRule = Character.toLowerCase(stem.charAt(0))
+                        + stem.substring(1);
+                List<String> names = List.of(ruleNames);
+                String entryName = names.contains("definition")
+                        ? "definition"
+                        : names.contains(stemRule) ? stemRule : ruleNames[0];
                 entry = pc.getMethod(entryName);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(
@@ -230,6 +291,9 @@ class GrammarCoverageCensusTest {
                         (ParserRuleContext) entry.invoke(parser);
                 if (parser.getNumberOfSyntaxErrors() > 0) {
                     errFragments++;
+                    if (errorFreeOnly) {
+                        return;
+                    }
                 }
                 ParseTreeWalker.DEFAULT.walk(new ParseTreeListener() {
                     @Override
@@ -256,6 +320,193 @@ class GrammarCoverageCensusTest {
                 errFragments++;
             }
         }
+    }
+
+    private static void driveIsland(Map<String, Drive> drives, String fqn,
+            String label, List<String> fragments) {
+        if (fragments.isEmpty()) {
+            return;
+        }
+        Drive d = drives.computeIfAbsent(fqn, Drive::new);
+        d.sections.add(label);
+        d.errorFreeOnly = true;
+        fragments.forEach(d::drive);
+    }
+
+    /** Balanced {@code #{...}#} blocks; graph-fetch-shaped only when
+     *  {@code gfShape} (content opens with a type ref + '{'). */
+    private static List<String> hashBlocks(List<String> texts, boolean gfShape) {
+        List<String> out = new ArrayList<>();
+        Pattern open = Pattern.compile("#\\{");
+        for (String t : texts) {
+            Matcher m = open.matcher(t);
+            while (m.find()) {
+                int close = t.indexOf("}#", m.end());
+                if (close < 0) {
+                    continue;
+                }
+                String block = t.substring(m.start(), close + 2);
+                if (!gfShape || block.matches(
+                        "(?s)#\\{\\s*[\\w:]+\\s*\\{.*")) {
+                    // the engine walker reparses the INNER content —
+                    // the #{ }# wrapper is the OUTER lexer's island fence
+                    out.add(block.substring(2, block.length() - 2));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static List<String> navPaths(List<String> texts) {
+        List<String> out = new ArrayList<>();
+        Pattern p = Pattern.compile("#/[^#\\n]{1,300}#");
+        for (String t : texts) {
+            Matcher m = p.matcher(t);
+            while (m.find()) {
+                // inner content: leading '/' kept, island fences stripped
+                String g = m.group();
+                out.add(g.substring(1, g.length() - 1));
+            }
+        }
+        return out;
+    }
+
+    /** Bodies of {@code <keyword> name { ... }} elements, braces balanced. */
+    private static List<String> elementBodies(
+            @com.legend.Nullable List<String> fragments, String keyword) {
+        List<String> out = new ArrayList<>();
+        if (fragments == null) {
+            return out;
+        }
+        Pattern head = Pattern.compile(keyword + "\\s+[\\w:]+\\s*\\{");
+        for (String t : fragments) {
+            Matcher m = head.matcher(t);
+            while (m.find()) {
+                int end = balancedEnd(t, m.end() - 1);
+                if (end > 0) {
+                    out.add(t.substring(m.end(), end));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** {@code key: Name { ... }} value islands inside connection bodies. */
+    private static List<String> keyedIslands(List<String> bodies, String key) {
+        List<String> out = new ArrayList<>();
+        Pattern p = Pattern.compile(key + "\\s*:\\s*\\w+\\s*\\{");
+        for (String b : bodies) {
+            Matcher m = p.matcher(b);
+            while (m.find()) {
+                int end = balancedEnd(b, m.end() - 1);
+                if (end > 0) {
+                    // the engine's island value = "Name { ... }"
+                    out.add(b.substring(b.indexOf(':', m.start()) + 1, end + 1)
+                            .strip());
+                }
+            }
+        }
+        return out;
+    }
+
+    private static List<String> modelConnBodies(
+            @com.legend.Nullable List<String> fragments) {
+        List<String> out = new ArrayList<>();
+        if (fragments == null) {
+            return out;
+        }
+        for (String kw : List.of("JsonModelConnection", "XmlModelConnection",
+                "ModelChainConnection")) {
+            out.addAll(elementBodies(fragments, kw));
+        }
+        return out;
+    }
+
+    /** Class-mapping island bodies: {@code : <ParserName> ... { body }}. */
+    private static List<String> mappingIslands(List<String> fragments,
+            String parserName) {
+        List<String> out = new ArrayList<>();
+        Pattern p = Pattern.compile(
+                ":\\s*" + parserName + "\\b[^{]{0,120}\\{");
+        for (String t : fragments) {
+            Matcher m = p.matcher(t);
+            while (m.find()) {
+                int end = balancedEnd(t, m.end() - 1);
+                if (end > 0) {
+                    out.add(t.substring(m.end(), end));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Service/mapping test assertions: {@code id: EqualTo* #{...}#}. */
+    private static List<String> assertionIslands(List<String> texts) {
+        List<String> out = new ArrayList<>();
+        Pattern p = Pattern.compile(
+                "\\w+\\s*:\\s*(EqualTo(Json|TDS)?|EqualToJson)\\s*#\\{");
+        for (String t : texts) {
+            Matcher m = p.matcher(t);
+            while (m.find()) {
+                int close = t.indexOf("}#", m.end());
+                if (close > 0) {
+                    out.add(t.substring(t.indexOf(':', m.start()) + 1,
+                            close + 2).strip());
+                }
+            }
+        }
+        return out;
+    }
+
+    /** ###Data embedded blocks: {@code <Format> #{...}#} contents. */
+    private static List<String> dataIslands(
+            @com.legend.Nullable List<String> fragments, String format) {
+        List<String> out = new ArrayList<>();
+        if (fragments == null) {
+            return out;
+        }
+        Pattern p = Pattern.compile(format + "\\s*#\\{");
+        for (String t : fragments) {
+            Matcher m = p.matcher(t);
+            while (m.find()) {
+                int close = t.indexOf("}#", m.end());
+                if (close > 0) {
+                    out.add(t.substring(m.end(), close));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Index of the matching close brace of the brace at {@code openIdx};
+     *  QUOTE-AWARE (braces inside '...' string literals — property
+     *  mapping lambdas and formats — must not skew the balance); -1
+     *  when unbalanced. */
+    private static int balancedEnd(String t, int openIdx) {
+        int depth = 0;
+        boolean inString = false;
+        for (int i = openIdx; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '\'') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                inString = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /** Scan the classpath jars for generated engine parser grammars. */
