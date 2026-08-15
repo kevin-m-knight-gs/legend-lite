@@ -152,6 +152,9 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
         return _derived(c, data, row, root, path, hit, args)
     table, col, hops = c.resolve(root, path)
     landed = walk(c, data, row, hops)
+    dyn = c.dyna.get((c.owner_of(root, path), path[-1]))
+    if dyn is not None:
+        return _dynafunction(dyn, landed)
     raw = None if landed is None else landed.get(col)
     mapping = c.enum_props.get((c.owner_of(root, path), path[-1]))
     if mapping is None or raw is None:
@@ -164,6 +167,38 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None)
     # Worth noting that the property is declared [1] and still comes back null, so the
     # multiplicity is not enforced on this path.
     return c.enum_maps[mapping].get(raw)
+
+
+# ------------------------------------------------------- dynafunction evaluation
+#
+# Implemented INDEPENDENTLY of legend-engine, which is the only thing that makes a
+# dynafunction mapping testable at all. Reading the expected value out of the engine would
+# make the assertion circular; these are written from what the function MEANS.
+#
+# Deliberately few. legend-engine's registry is 178 names, and each one added here is a
+# separate opportunity to encode a subtly wrong belief about NULL handling or coercion --
+# so the set grows only when something needs it, and every entry states its null rule.
+#
+# NULL semantics are the whole difficulty. SQL propagates NULL through most scalar
+# functions, and the corpus guarantees a NULL in every column by construction (property
+# A2), so every one of these will meet one.
+def _dynafunction(dyn, landed):
+    fn, cols = dyn
+    if landed is None:
+        return None
+    vals = [landed.get(col) for col in cols]
+
+    if fn == "concat":
+        # concat over a NULL argument yields NULL, not the other argument and not ''.
+        return None if any(v is None for v in vals) else "".join(str(v) for v in vals)
+    if fn == "toUpper":
+        return None if vals[0] is None else str(vals[0]).upper()
+    if fn == "toLower":
+        return None if vals[0] is None else str(vals[0]).lower()
+    raise Unsupported(
+        f"dynafunction {fn!r} has no independent implementation in the oracle. Add one "
+        f"deliberately -- do NOT read the expected value from the engine, which would make "
+        f"the assertion circular.")
 
 
 # ---------------------------------------------------- derived-property evaluation

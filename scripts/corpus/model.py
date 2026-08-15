@@ -218,6 +218,12 @@ class Corpus:
     functions: dict[str, Func] = field(default_factory=dict)
     # class fqn -> table name
     main_table: dict[str, str] = field(default_factory=dict)
+    # (class fqn, property) -> (dynafunction name, [column, ...]) for property mappings
+    # that TRANSFORM rather than copy. Kept beside `columns` rather than inside it because
+    # six modules read `columns` expecting a bare column name; a transform there would
+    # change meaning silently everywhere.
+    dyna: dict[tuple[str, str], tuple[str, list[str]]] = field(default_factory=dict)
+
     # class fqn -> {property -> column}
     columns: dict[str, dict[str, str]] = field(default_factory=dict)
     # (class fqn, property) -> AssocEnd
@@ -351,6 +357,13 @@ _OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
 _UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
 _COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
+# `prop: concat([db]T.A, [db]T.B)` -- a DYNAFUNCTION property mapping. Like _ENUMCOLMAP this
+# must be stripped BEFORE _COLMAP runs, or _COLMAP matches the first column inside the
+# parentheses and records the property as a plain column mapping -- silently turning a
+# transform into a copy, which the oracle would then agree with for the wrong reason.
+_DYNAMAP = re.compile(
+    r"(\w+)\s*:\s*(\w+)\s*\(\s*((?:\[[\w:]+\]\s*\w+\.\w+\s*,?\s*)+)\)")
+_DYNAARG = re.compile(r"\[[\w:]+\]\s*(\w+)\.(\w+)")
 # `prop: EnumerationMapping <Name>: [db] TABLE.COL` — must be stripped BEFORE _COLMAP
 # runs, or _COLMAP matches the tail and records the mapping NAME as the property.
 _ENUMCOLMAP = re.compile(
@@ -443,7 +456,17 @@ def _view_bodies(text: str) -> list[tuple[str, str]]:
     return out
 
 
+# A View may carry ~filter and ~distinct as well as ~groupBy, in that fixed order. The
+# reader ignores the first two rather than modelling them: ~distinct changes which rows a
+# view yields and ~filter changes which rows it sees, so a view using either is NOT
+# oracle-computable from the base table alone. Stripping them keeps the reader honest about
+# what it does understand -- the alternative was a parse failure that made the whole corpus
+# unreadable the moment a view used a directive the base model never had.
+_VIEW_DIRECTIVE = re.compile(r"~(filter\s+[\w:\[\]@|.]+|distinct)\s*", re.M)
+
+
 def _parse_view(name: str, body: str, c: Corpus) -> None:
+    body = _VIEW_DIRECTIVE.sub("", body)
     gb = _VIEW_GROUPBY.search(body)
     group_cols, base = [], None
     if gb:
@@ -716,6 +739,18 @@ def _parse_mapping(text: str, c: Corpus) -> None:
                 c.columns.setdefault(cur, {})[prop] = col
                 c.enum_props[(cur, prop)] = mapping
             line = _ENUMCOLMAP.sub("", line)
+            # Dynafunctions BEFORE plain columns, same ordering reason as the enum form.
+            for prop, fn, argtext in _DYNAMAP.findall(line):
+                args = _DYNAARG.findall(argtext)
+                for atbl, _acol in args:
+                    if atbl != tbl:
+                        raise ValueError(
+                            f"{cur}.{prop} uses {fn}() over {atbl}, not mainTable {tbl} -- "
+                            f"the oracle can only evaluate a dynafunction whose columns all "
+                            f"come from the row it already has")
+                c.dyna[(cur, prop)] = (fn, [acol for _t, acol in args])
+                c.columns.setdefault(cur, {})[prop] = args[0][1]
+            line = _DYNAMAP.sub("", line)
             for prop, t, col in _COLMAP.findall(line):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
