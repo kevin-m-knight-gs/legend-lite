@@ -57,7 +57,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/advanced | 68 | 60 | 3 | 5 | 0 | 21 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
-| tests/mapping | 10 | 7 | 0 | 3 | 0 | 0 |
+| tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
@@ -89,7 +89,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2292** | 89 | 99 | 95 | 244 |
+| **total** | 2575 | **2294** | 89 | 97 | 95 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1344,8 +1344,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
-- ERROR testGet [tests/mapping]: Binder Error: Cannot compare values of type TIMESTAMP_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required |  | LINE 3: WHERE t0.settlementDateTime <= now() |                                     ^
-- ERROR testQuery [tests/mapping]: Binder Error: Cannot compare values of type TIMESTAMP_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required |  | LINE 8: ... (t0.settlementDateTime IS NOT NULL AND t0.settlementDateTime <= now()) |                                                                          ^
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[bondDetails]; head subNavs=[holder]; head binding=TypedNativeCall]

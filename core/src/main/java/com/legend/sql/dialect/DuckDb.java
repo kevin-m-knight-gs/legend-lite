@@ -45,6 +45,40 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
+    protected String call(SqlExpr.Call c, int parentPrec) {
+        // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
+        // the engine's H2 returns NaN for out-of-domain acos/asin;
+        // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
+        // both backends means guarding the domain and yielding NaN —
+        // the engine's answer — not propagating DuckDB's exception.
+        if (c.fn() == com.legend.sql.SqlFn.ACOS
+                || c.fn() == com.legend.sql.SqlFn.ASIN) {
+            String arg = expr(c.args().get(0), 0);
+            String fn = c.fn() == com.legend.sql.SqlFn.ACOS
+                    ? "acos" : "asin";
+            return "(CASE WHEN (" + arg + ") BETWEEN -1 AND 1 THEN " + fn
+                    + "(" + arg + ") ELSE 'NaN'::DOUBLE END)";
+        }
+        // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
+        // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
+        // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
+        // type (session TZ is pinned UTC).
+        if (c.fn() == com.legend.sql.SqlFn.NOW) {
+            return "CAST(now() AS TIMESTAMP)";
+        }
+        // len(DOUBLE): the corpus spells length() over numeric-typed
+        // expressions (engine H2 coerces); DuckDB has no len(DOUBLE) —
+        // stringify the argument first, matching the engine's implicit
+        // varchar coercion.
+        if (c.fn() == com.legend.sql.SqlFn.LENGTH
+                && !(c.args().get(0) instanceof SqlExpr.StringLit)) {
+            return "length(CAST(" + expr(c.args().get(0), 0)
+                    + " AS VARCHAR))";
+        }
+        return super.call(c, parentPrec);
+    }
+
+    @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         // carrier strategies FIRST (base contract), then this dialect's
         // structural rewrites
