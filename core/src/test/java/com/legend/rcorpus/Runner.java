@@ -53,19 +53,18 @@ public final class Runner {
     private static final java.util.concurrent.atomic.AtomicInteger
             SESSION_IDS = new java.util.concurrent.atomic.AtomicInteger();
 
-    /** ONE session factory — dialect and connection bind together. */
+    /** ONE session factory — dialect and connection bind together.
+     *  H2 keeps instance-per-session (1.6ms/boot: instances ARE cheap
+     *  catalogs); DuckDB sessions are attached-catalog workspaces over
+     *  one long-lived instance ({@link DuckWorkspaces} — the old
+     *  per-session native boot cost 19.4ms x 938 sessions/run). */
     static Connection openSession() throws java.sql.SQLException {
         if (H2_BACKEND) {
             return DriverManager.getConnection("jdbc:h2:mem:rcorpus"
                     + SESSION_IDS.getAndIncrement()
                     + com.legend.harness.H2Verify.SETTINGS, "sa", "");
         }
-        Connection conn = DriverManager.getConnection("jdbc:duckdb:");
-        try (var st = conn.createStatement()) {
-            st.execute("SET TimeZone='UTC'");
-            st.execute("SET threads=1");
-        }
-        return conn;
+        return DuckWorkspaces.open();
     }
 
     /** Class-FQN -> defining file (the corpus-wide index, incl. the M2M
