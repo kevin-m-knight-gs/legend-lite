@@ -106,6 +106,10 @@ public class CorpusSweepTest {
      *  the run below replaces it). */
     private static final int MSG_VERBATIM_FLOOR = 863;   // 2026-08-15 first pin: position-normalized text parity on both-reject rows (ours carries [l:c], the oracle does not); 1,531 mismatch rows in target/message-parity.txt are the A6 closure work-list
 
+    /** A5: m3-accepts-platform-refuses ceiling — measured 2026-08-15;
+     *  placeholder until the first run pins it. */
+    private static final int MAX_M3_ONLY_PLATFORM_GAPS = 273;   // 2026-08-15 first pin: each row = legend-pure M3 accepts, PLATFORM refuses — candidate platform gaps, target/m3-platform-differential.txt is the adjudication list
+
     private static final double M3_CALIBRATION_FLOOR = 95.0;
 
     @Test
@@ -144,6 +148,8 @@ public class CorpusSweepTest {
         int bothReject = 0;
         int msgVerbatim = 0;
         List<String> msgMismatch = new ArrayList<>();
+        int m3PlatformAgree = 0;
+        List<String> m3OnlyRows = new ArrayList<>();
         int oracleAccepts = 0;
         int calAccepted = 0;
         int calAgree = 0;
@@ -234,6 +240,18 @@ public class CorpusSweepTest {
             boolean strictAccepts = accepts(() -> Surfaces.engine(src.text()));
             boolean platformAccepts = accepts(() -> Surfaces.platform(src.text()));
             boolean pureOnly = !SECTION.matcher(src.text()).find();
+            // A5 (platform differential): on rows where BOTH verdicts
+            // exist, legend-pure's own M3 parser vs our PLATFORM tier.
+            // m3-accepts-platform-REFUSES is the finding that matters:
+            // a genuine platform-tier gap. Down-only.
+            if (pureOnly) {
+                boolean m3 = m3Accepts(src.text());
+                if (m3 == platformAccepts) {
+                    m3PlatformAgree++;
+                } else if (m3) {
+                    m3OnlyRows.add(src.id());
+                }
+            }
 
             if (!docAccepts && !strictAccepts) {
                 bothReject++;
@@ -343,6 +361,18 @@ public class CorpusSweepTest {
                 asymRows, catalog, catalogByClass, stale);
         double calibration = calAccepted == 0 ? 0
                 : 100.0 * calAgree / calAccepted;
+        Files.writeString(Path.of("target", "m3-platform-differential.txt"),
+                "agree " + m3PlatformAgree + "; m3-only (PLATFORM GAP) "
+                        + m3OnlyRows.size() + "\n"
+                        + String.join("\n", m3OnlyRows));
+        // A5 ceiling (measured 2026-08-15): sources legend-pure's M3
+        // parser accepts that the PLATFORM tier refuses. Down-only —
+        // each is a candidate platform gap (or an M3-only construct,
+        // adjudicated like every ledger).
+        assertTrue(m3OnlyRows.size() <= MAX_M3_ONLY_PLATFORM_GAPS,
+                "m3-accepts-platform-refuses grew: " + m3OnlyRows.size()
+                        + " > " + MAX_M3_ONLY_PLATFORM_GAPS
+                        + " (see target/m3-platform-differential.txt)");
         Files.writeString(Path.of("target", "message-parity.txt"),
                 "verbatim " + msgVerbatim + " / " + bothReject + "\n\n"
                         + String.join("\n", msgMismatch));
