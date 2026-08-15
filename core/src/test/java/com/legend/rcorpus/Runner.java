@@ -59,12 +59,28 @@ public final class Runner {
      *  one long-lived instance ({@link DuckWorkspaces} — the old
      *  per-session native boot cost 19.4ms x 938 sessions/run). */
     static Connection openSession() throws java.sql.SQLException {
-        if (H2_BACKEND) {
-            return DriverManager.getConnection("jdbc:h2:mem:rcorpus"
-                    + SESSION_IDS.getAndIncrement()
-                    + com.legend.harness.H2Verify.SETTINGS, "sa", "");
+        // TEMPORARY (2026-08-15 wall accounting): session-open cost
+        long st0 = System.nanoTime();
+        try {
+            if (H2_BACKEND) {
+                return DriverManager.getConnection("jdbc:h2:mem:rcorpus"
+                        + SESSION_IDS.getAndIncrement()
+                        + com.legend.harness.H2Verify.SETTINGS, "sa", "");
+            }
+            // NOTE (2026-08-15 perf program): txn-batching the seed
+            // writes was BUILT AND MEASURED at zero savings — DuckDB's
+            // per-statement cost is parse+plan+JNI, not commit — and
+            // its DDL-bearing variant hit a 1.1.3 native abort
+            // (DuckTransaction::Commit -> std::terminate through JNI).
+            // The remaining seed cost is per-statement intrinsic;
+            // reducing it means changing the statement stream
+            // (multi-row consolidation), a fidelity decision, not a
+            // transport tweak.
+            return DuckWorkspaces.open();
+        } finally {
+            com.legend.exec.TimingLedger.add("session.open",
+                    System.nanoTime() - st0);
         }
-        return DuckWorkspaces.open();
     }
 
     /** Class-FQN -> defining file (the corpus-wide index, incl. the M2M
@@ -1214,6 +1230,17 @@ public final class Runner {
 
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
+        // TEMPORARY (2026-08-15 wall accounting): total per-test wall
+        long tt0 = System.nanoTime();
+        try {
+            return run0(t);
+        } finally {
+            com.legend.exec.TimingLedger.add("test.wall",
+                    System.nanoTime() - tt0);
+        }
+    }
+
+    private Outcome run0(ParsedTest t) {
         com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
         // #67: record every raw corpus statement this test executes —
         // the H2 advisory second target replays them verbatim to verify
@@ -1464,6 +1491,18 @@ public final class Runner {
     }
 
     private com.legend.compiler.element.ModelContext moduleContextFor(
+            List<String> mappingRefs, List<String> fileOnlyRefs) {
+        // TEMPORARY (2026-08-15 wall accounting): per-test context/overlay
+        long ct0 = System.nanoTime();
+        try {
+            return moduleContextFor0(mappingRefs, fileOnlyRefs);
+        } finally {
+            com.legend.exec.TimingLedger.add("ctx.overlay",
+                    System.nanoTime() - ct0);
+        }
+    }
+
+    private com.legend.compiler.element.ModelContext moduleContextFor0(
             List<String> mappingRefs, List<String> fileOnlyRefs) {
         com.legend.Compiler.BuiltModule built = globalModule();
         // DDL SCOPE stays MODULE-SHAPED under the global compile: the

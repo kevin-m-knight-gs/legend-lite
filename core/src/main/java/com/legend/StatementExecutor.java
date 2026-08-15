@@ -3177,6 +3177,10 @@ final class StatementExecutor {
                         .equals(sc.callee().qualifiedName())) {
             return dropAndCreateSchemaInDb(body, sc, env);
         }
+        com.legend.exec.ExecutionResult folded = LiteralFold.fold(root);
+        if (folded != null) {
+            return folded;
+        }
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
             System.err.println("[resolved] " + body);
         }

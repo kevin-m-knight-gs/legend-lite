@@ -487,6 +487,8 @@ public class RelationalCorpusRunner {
         System.out.println("[rcorpus] h2-mirror verify: "
                 + (com.legend.harness.H2Verify.MIRROR_NANOS.get() / 1_000_000)
                 + " ms");
+        // TEMPORARY (2026-08-15): full wall reconciliation ledger
+        com.legend.exec.TimingLedger.dump();
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {
