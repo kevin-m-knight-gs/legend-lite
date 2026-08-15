@@ -1942,11 +1942,21 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall ep,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (!(ep.args().get(0)
-                instanceof com.legend.compiler.spec.typed.TypedLambda lam)
-                || !(ep.args().get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+                instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
                     "plan walk: executionPlan argument shapes pending");
+        }
+        // mapping arg: the generalized reader (a bare ref, a dummy
+        // ^Mapping, or the 2-arg overload with in-query from) — the
+        // SAME rules the text printer already applies at planText
+        // (E2E §4.4 cluster 8: this path demanded a bare ref only)
+        String pmFqn = ep.args().size() > 1 && ep.args().get(1)
+                instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+                ? pr.fullPath()
+                : firstFromMapping(lam.body().get(lam.body().size() - 1));
+        if (pmFqn == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "plan walk: no mapping (arg or in-query from) named");
         }
         // same helper-call inlining as planToString: testRuntime(true)
         // carries the connection flags inside its body
@@ -1986,8 +1996,7 @@ final class StatementExecutor {
             fps.add(new com.legend.plan.PlanNode.Param(
                     lam.parameters().get(i),
                     supportsStream(lam, lam.parameters().get(i),
-                            src -> streamStoreOf(src, env.ctx(),
-                                    pr.fullPath()))));
+                            src -> streamStoreOf(src, env.ctx(), pmFqn))));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
         // the runtime argument may carry relationalMapperPostProcessor
@@ -1997,7 +2006,7 @@ final class StatementExecutor {
                 ? com.legend.plan.RelationalMapperRenames.extract(
                         ep.args().get(2), specs, env.queryLets(), env.ctx())
                 : java.util.function.UnaryOperator.identity();
-        EngineSql es = engineSql(java.util.List.of(term), pr.fullPath(),
+        EngineSql es = engineSql(java.util.List.of(term), pmFqn,
                 specs, env, new com.legend.sql.dialect.EngineStyleH2(quote,
                         tz), params, mapperRenames);
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(

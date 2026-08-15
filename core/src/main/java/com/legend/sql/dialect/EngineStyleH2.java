@@ -1036,8 +1036,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // dotted placeholder ('${reportEndDate.date}' — Allocation-bound
         // instance fields in the terminal's SQL)
         if (e instanceof SqlExpr.StructGet sg) {
-            if (sg.source() instanceof SqlExpr.PlanParam pp) {
-                return "'${" + pp.name() + "." + sg.field() + "}'";
+            // walk NESTED gets down to the plan param: $var.a.b spells
+            // '${var.a.b}' (E2E §4.4 cluster 5 — only one level walked
+            // before)
+            java.util.ArrayDeque<String> path = new java.util.ArrayDeque<>();
+            SqlExpr cur = sg;
+            while (cur instanceof SqlExpr.StructGet g2) {
+                path.addFirst(g2.field());
+                cur = g2.source();
+            }
+            if (cur instanceof SqlExpr.PlanParam pp) {
+                return "'${" + pp.name() + "." + String.join(".", path)
+                        + "}'";
             }
             // engine-H2 text has no struct vocabulary — a named wall
             // (SHAPE in the plan branch), not a dialect bug
