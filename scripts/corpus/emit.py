@@ -38,6 +38,14 @@ from query import Spec
 DATA_ELEMENT = "stress::TestData"
 EXTERNAL_DATA = "external::EntityData"
 EXTERNAL_TABLES = {"EXT_LEGAL_ENTITY"}
+# The hier:: feature domain has its own stores and therefore its own connection, so its
+# tables cannot travel in the main ###Data element -- test data is keyed by CONNECTION.
+# Derived from the model rather than listed, so a new hier table is routed correctly the
+# moment it is declared instead of silently landing in the wrong element.
+def hier_tables(c) -> set:
+    return {n for n, t in c.tables.items()
+            if getattr(t, "database", "").startswith("hier::") and n not in c.views}
+
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"
 RUNTIME = "stress::RT"
@@ -67,7 +75,8 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     """
     out = ["###Data", f"Data {DATA_ELEMENT}", "{", "  Relational", "  #{"]
     emitted = [(n, r) for n, r in tables.items()
-               if n not in c.views and n not in EXTERNAL_TABLES]
+               if n not in c.views and n not in EXTERNAL_TABLES
+               and n not in hier_tables(c)]
     for i, (name, rows) in enumerate(emitted):
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
@@ -100,6 +109,30 @@ def _tests(spec: Spec, payload: str) -> str:
     # failure at `asserts` inside the FIRST test -- "Valid alternatives: [',', ']']" --
     # which points nowhere near the missing separator.
     return ",\n".join(out)
+
+
+def hier_data_element(c: Corpus, tables: dict[str, list[dict]],
+                      database: str, element: str) -> str:
+    """A ###Data element for ONE hier:: store.
+
+    One element per STORE, not one for the domain. Test data is bound to a connection and a
+    runtime connects a single store here, so an element carrying another store's tables is
+    rejected at session setup with `Table "X" not found in Schema "default" in Database(s) Y`
+    -- an error that names the table rather than the packaging, and so reads as a missing
+    table rather than a misrouted one.
+    """
+    out = ["###Data", f"Data {element}", "{", "  Relational", "  #{"]
+    names = sorted(n for n in hier_tables(c)
+                   if tables.get(n) and getattr(c.tables[n], "database", "") == database)
+    for i, name in enumerate(names):
+        cols = list(c.tables[name].columns)
+        lines = [",".join(cols)]
+        lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in tables[name]]
+        body = "\\n' +\n      '".join(lines)
+        out.append(f"    {SCHEMA}.{name}:")
+        out.append(f"      '{body}\\n'" + (";" if i == len(names) - 1 else ";"))
+    out += ["  }#", "}"]
+    return "\n".join(out)
 
 
 def external_data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
@@ -142,7 +175,7 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
           {spec.connection or CONNECTION_KEY}:
             Reference
             #{{
-              {DATA_ELEMENT}
+              {spec.data_element or DATA_ELEMENT}
             }}#{_extra_connections(spec)}
         ]
       ]

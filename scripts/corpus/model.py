@@ -37,6 +37,12 @@ class Column:
     name: str
     type: str
     pk: bool = False
+    # Whether the DDL forbids a NULL here. Previously untracked, which is why the corpus's
+    # adversarial NULL property (A2) only ever covered FOREIGN KEYS: nothing else could be
+    # nulled without risking a NOT NULL violation in the generated DDL. That left every
+    # transform over a plain column -- a dynafunction, most obviously -- with no null case
+    # to meet.
+    not_null: bool = False
 
     @property
     def kind(self) -> str:
@@ -363,7 +369,17 @@ _DERIVED = re.compile(
 _PARAM = re.compile(r"(\w+)\s*:\s*[\w:]+\s*\[[^\]]+\]")
 _MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
 # `Class: Relational`, `Class[id]: Relational`, and the root-marked `*Class: ...` form.
-_CLSMAP = re.compile(r"^\s*\*?([\w:]+)(?:\[(\w+)\])?\s*:\s*Relational\s*\{?\s*$")
+# `extends [parentId]` sits between the set id and the colon. Without admitting it, a
+# subclass's class mapping did not match -- so `cur` stayed on the PREVIOUS class and every
+# property of the subclass was recorded against its superclass. The symptom was
+# "Can't find property 'coupon' in class 'hier::Instrument'" from the ENGINE, pointing at a
+# generated service, three files away from the regex that caused it.
+#
+# Third construct to hit this exact blind spot: _CLASS could not see `Class X extends Y`,
+# density's _BLOCK could not see a mapping using `extends [id]`, and now this. Each pattern
+# was written before inheritance existed anywhere in the corpus.
+_CLSMAP = re.compile(
+    r"^\s*\*?([\w:]+)(?:\[(\w+)\])?(?:\s+extends\s*\[\w+\])?\s*:\s*Relational\s*\{?\s*$")
 _OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
 _UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
@@ -557,8 +573,10 @@ def _parse_store(text: str, c: Corpus) -> None:
             if not spec:
                 continue
             parts = spec.split()
+            u = spec.upper()
             t.columns[parts[0]] = Column(parts[0], parts[1],
-                                         spec.upper().endswith("PRIMARY KEY"))
+                                         u.endswith("PRIMARY KEY"),
+                                         "NOT NULL" in u)
         c.tables[t.name] = t
 
     for raw in text.splitlines():

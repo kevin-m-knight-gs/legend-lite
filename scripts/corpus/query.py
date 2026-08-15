@@ -59,6 +59,10 @@ class Spec:
     # None means the corpus default (stress::AllMapping / stress::RT).
     mapping: str | None = None
     runtime: str | None = None
+    # The ###Data element the testSuite's primary connection references. Defaults to the
+    # main corpus one; a service over a store with its OWN connection needs its own, since
+    # test data is bound to a connection rather than to a runtime.
+    data_element: str | None = None
     # The identifiedConnection id inside that runtime — what the testSuite's
     # `data: [ connections: [ <key>: ... ] ]` is matched against.
     connection: str | None = None

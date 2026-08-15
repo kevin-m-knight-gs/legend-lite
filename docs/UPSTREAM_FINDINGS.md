@@ -914,4 +914,15 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   (10 overriding), plus `case`, `not` and `extractFromSemiStructured` special-cased in
   `dbExtension.pure#processDynaFunction`. Confirmed ABSENT in every dialect: `upper`,
   `lower`, `substr`, `nvl`, `ifnull`, `len`, `to_char`, `date_part`.
+- **`concat`'s NULL semantics depend on the database dialect, so the same model returns
+  different answers on different stores.** Legend lowers the `concat` dynafunction to
+  `concat(a, b)` -- the SQL *function*, which ignores NULLs -- on DuckDB, Snowflake and
+  BigQuery, and to `a || b` -- the *operator*, which propagates NULL -- on Postgres. With one
+  argument NULL, the first group returns the other argument and Postgres returns NULL.
+
+  Not a performance or plan difference: an ANSWER difference, from one model and one set of
+  rows. Found by giving a generated dynafunction service a row with a NULL argument and
+  having an independent oracle disagree with the engine; the oracle was the side that was
+  wrong, and correcting it is what surfaced the dialect split.
+  (`scripts/corpus/hier.py`, service `stress::H1_IssuerLabel`)
 

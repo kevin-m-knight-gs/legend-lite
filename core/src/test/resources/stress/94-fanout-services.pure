@@ -5510,13 +5510,13 @@ Service stress::GG0_TradeTree
     {
       avgTradeId,
       arrivalPrice,
-      avgPrice
+      closePrice
     },
     block
     {
       blockId,
       averagePrice,
-      blockDate
+      broker
     }
   }
 }#)
@@ -5531,13 +5531,13 @@ Service stress::GG0_TradeTree
     {
       avgTradeId,
       arrivalPrice,
-      avgPrice
+      closePrice
     },
     block
     {
       blockId,
       averagePrice,
-      blockDate
+      broker
     }
   }
 }#);
@@ -9123,7 +9123,7 @@ Service stress::GG43_BenchmarkRateTree
     {
       curveId,
       currency,
-      curveDate
+      curveName
     }
   }
 }#)
@@ -9138,7 +9138,7 @@ Service stress::GG43_BenchmarkRateTree
     {
       curveId,
       currency,
-      curveDate
+      curveName
     }
   }
 }#);
@@ -9174,7 +9174,7 @@ Service stress::GG43_BenchmarkRateTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"rateId":"BR-0001","administrator":"ADMINISTRATOR-001","changeAmount":137.5,"currency":"USD","yieldCurve":null},{"rateId":"BR-0002","administrator":"ADMINISTRATOR-002","changeAmount":175.0,"currency":"GBP","yieldCurve":null},{"rateId":"BR-0003","administrator":"ADMINISTRATOR-003","changeAmount":212.5,"currency":"EUR","yieldCurve":{"curveId":"YC-0001","currency":"USD","curveDate":"2024-07-07"}},{"rateId":"BR-0004","administrator":"ADMINISTRATOR-004","changeAmount":250.0,"currency":"USD","yieldCurve":{"curveId":"YC-0002","currency":"GBP","curveDate":"2024-08-08"}},{"rateId":"BR-0005","administrator":"ADMINISTRATOR-005","changeAmount":287.5,"currency":"JPY","yieldCurve":{"curveId":"YC-0003","currency":"EUR","curveDate":"2024-09-09"}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"rateId":"BR-0001","administrator":"ADMINISTRATOR-001","changeAmount":137.5,"currency":"USD","yieldCurve":null},{"rateId":"BR-0002","administrator":"ADMINISTRATOR-002","changeAmount":175.0,"currency":"GBP","yieldCurve":null},{"rateId":"BR-0003","administrator":"ADMINISTRATOR-003","changeAmount":212.5,"currency":"EUR","yieldCurve":{"curveId":"YC-0001","currency":"USD","curveName":"Northbridge"}},{"rateId":"BR-0004","administrator":"ADMINISTRATOR-004","changeAmount":250.0,"currency":"USD","yieldCurve":{"curveId":"YC-0002","currency":"GBP","curveName":"Kestrel"}},{"rateId":"BR-0005","administrator":"ADMINISTRATOR-005","changeAmount":287.5,"currency":"JPY","yieldCurve":{"curveId":"YC-0003","currency":"EUR","curveName":"Aldgate"}}]}';
                   }#;
               }#
           ]
@@ -9517,8 +9517,8 @@ Service stress::GG48_NettingResultTree
     nettingSet
     {
       nettingSetId,
-      agreementType,
-      currency
+      currency,
+      description
     }
   }
 }#)
@@ -9532,8 +9532,8 @@ Service stress::GG48_NettingResultTree
     nettingSet
     {
       nettingSetId,
-      agreementType,
-      currency
+      currency,
+      description
     }
   }
 }#);
@@ -9569,7 +9569,7 @@ Service stress::GG48_NettingResultTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"resultId":"NR-0001","currency":"USD","grossAmount":400.0,"isFinalized":true,"nettingSet":null},{"resultId":"NR-0002","currency":"GBP","grossAmount":437.5,"isFinalized":false,"nettingSet":null},{"resultId":"NR-0003","currency":"EUR","grossAmount":475.0,"isFinalized":true,"nettingSet":{"nettingSetId":"NS-0001","agreementType":"STANDARD","currency":"USD"}},{"resultId":"NR-0004","currency":"USD","grossAmount":512.5,"isFinalized":true,"nettingSet":{"nettingSetId":"NS-0002","agreementType":"PREMIUM","currency":"GBP"}},{"resultId":"NR-0005","currency":"JPY","grossAmount":550.0,"isFinalized":false,"nettingSet":{"nettingSetId":"NS-0003","agreementType":"LEGACY","currency":"EUR"}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"resultId":"NR-0001","currency":"USD","grossAmount":400.0,"isFinalized":true,"nettingSet":null},{"resultId":"NR-0002","currency":"GBP","grossAmount":437.5,"isFinalized":false,"nettingSet":null},{"resultId":"NR-0003","currency":"EUR","grossAmount":475.0,"isFinalized":true,"nettingSet":{"nettingSetId":"NS-0001","currency":"USD","description":"primary record"}},{"resultId":"NR-0004","currency":"USD","grossAmount":512.5,"isFinalized":true,"nettingSet":{"nettingSetId":"NS-0002","currency":"GBP","description":"secondary record"}},{"resultId":"NR-0005","currency":"JPY","grossAmount":550.0,"isFinalized":false,"nettingSet":{"nettingSetId":"NS-0003","currency":"EUR","description":"archived record"}}]}';
                   }#;
               }#
           ]

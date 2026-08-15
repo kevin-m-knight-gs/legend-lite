@@ -301,6 +301,13 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
         live_cols = {local for local, _, _ in live}
         dead_cols = {local for local, _, _ in _fk_targets(c, root, set(c.tables))} - live_cols
         prefix = "".join(w[0] for w in root.split("_"))[:4]
+        # One NULLABLE, non-key, non-FK column is nulled in exactly one row. Until this
+        # existed the corpus's NULL property covered only foreign keys, so any transform over
+        # a plain column -- a dynafunction most obviously -- never met a null, and an oracle
+        # careful about null semantics was never actually exercised on them.
+        nullable = next((col.name for col in table.columns.values()
+                         if col.name != pk and not col.not_null
+                         and col.name not in live_cols and col.name not in dead_cols), None)
         rows = []
         for i in range(ROWS_PER_TABLE):
             row = {}
@@ -308,6 +315,8 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
                 if col.name == pk:
                     row[col.name] = f"{prefix}-{i + 1:04d}"
                 elif col.name in live_cols or col.name in dead_cols:
+                    row[col.name] = None
+                elif col.name == nullable and i == 2:
                     row[col.name] = None
                 else:
                     row[col.name] = _value(col, i, offset)

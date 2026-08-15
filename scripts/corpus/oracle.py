@@ -189,8 +189,20 @@ def _dynafunction(dyn, landed):
     vals = [landed.get(col) for col in cols]
 
     if fn == "concat":
-        # concat over a NULL argument yields NULL, not the other argument and not ''.
-        return None if any(v is None for v in vals) else "".join(str(v) for v in vals)
+        # concat over NULL yields THE OTHER ARGUMENT, not NULL.
+        #
+        # I asserted the opposite first, from SQL's `||` semantics, and the engine
+        # disagreed -- correctly. Legend lowers `concat` to different SQL per dialect:
+        #
+        #   DuckDB / Snowflake / BigQuery   concat(a, b)   the FUNCTION, ignores NULL
+        #   Postgres                        a || b         the OPERATOR, propagates NULL
+        #
+        # So this is dialect-dependent, and this corpus executes on the function dialects.
+        # An oracle cannot be dialect-agnostic about concat, which is worth knowing before
+        # the next dynafunction is added: the ones with an obvious mathematical meaning are
+        # safe, and the string ones are not.
+        present = [v for v in vals if v is not None]
+        return "".join(str(v) for v in present) if present else None
     if fn == "toUpper":
         return None if vals[0] is None else str(vals[0]).upper()
     if fn == "toLower":

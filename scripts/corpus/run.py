@@ -36,7 +36,11 @@ def testables() -> list[str]:
     """Services, plus the FUNCTION testables — which are addressed by a mangled id
     encoding the signature, not by the function's path."""
     out = []
-    for f in sorted(STRESS.glob("9[24]-*.pure")):
+    # 92 hand-written, 94 generated fan-out, 97 the hier:: feature domain. A GLOB rather
+    # than a list, and it has already been wrong once: it read "9[24]-*" while the hier
+    # services lived in 97, so two services passed when run by hand and were simply absent
+    # from the suite -- the total stayed at 182 and nothing said why.
+    for f in sorted(STRESS.glob("9[247]-*.pure")):
         out += re.findall(r"^Service (\S+)", f.read_text(), re.M)
     # Hanging cases are excluded from execution but still reported, so they cannot be
     # forgotten -- and so one non-returning test cannot block the whole suite.
