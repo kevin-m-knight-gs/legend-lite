@@ -132,7 +132,12 @@ def _tests(spec: Spec, payload: str) -> str:
 
 
 def store_data_element(c: Corpus, tables: dict[str, list[dict]],
-                       database: str, element: str) -> str:
+                       database: str, element: str, only=None) -> str:
+    """`only` names the tables explicitly, for a store whose tables this reader cannot
+    attribute to it. STORE SUBSTITUTION creates exactly that case: the substituted database
+    redeclares the same table names with the same shapes, and table names are keyed globally
+    here, so every such table is attributed to whichever database declared it first.
+    """
     """A ###Data element for ONE side store.
 
     One element per STORE, not one for the domain. Test data is bound to a connection and a
@@ -142,8 +147,9 @@ def store_data_element(c: Corpus, tables: dict[str, list[dict]],
     table rather than a misrouted one.
     """
     out = ["###Data", f"Data {element}", "{", "  Relational", "  #{"]
-    names = sorted(n for n in side_tables(c)
-                   if tables.get(n) and getattr(c.tables[n], "database", "") == database)
+    names = sorted(only) if only is not None else sorted(
+        n for n in side_tables(c)
+        if tables.get(n) and getattr(c.tables[n], "database", "") == database)
     for i, name in enumerate(names):
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]

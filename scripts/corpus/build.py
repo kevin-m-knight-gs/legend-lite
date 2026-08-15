@@ -209,7 +209,15 @@ def generate() -> dict[Path, str]:
     hier_data = "\n\n".join(
         emit.store_data_element(c, TABLES, db, elem)
         for db, (_m, _r, _c, elem) in sorted(hier.BINDINGS.items()))
-    hier_text = (hier.runtime_text() + "\n" + hier_data + "\n\n"
+    # STORE SUBSTITUTION: the substituted store needs its own runtime and its own ###Data,
+    # seeded with the SAME rows. `only` names the tables explicitly because both databases
+    # declare them and this reader keys table names globally, so every one is attributed to
+    # whichever database was read first.
+    prod_data = emit.store_data_element(
+        c, TABLES, hier.PROD_DB, hier.PROD_DATA,
+        only=[n for n in TABLES if TABLES[n] and n.startswith("HIER_ISSUER")])
+    hier_text = (hier.runtime_text() + hier.prod_runtime_text() + "\n"
+                 + hier_data + "\n\n" + prod_data + "\n\n"
                  + "###Service\n" + "\n\n".join(hier_svc) + "\n")
 
     # The COMBINATION matrix: mapping features stacked on each other rather than each
@@ -223,9 +231,8 @@ def generate() -> dict[Path, str]:
     # reached by nothing.
     import executed
     quarantined = set(quarantine.ENGINE_QUARANTINE) | set(quarantine.HANGS)
-    problems += [f"feature no longer executed: {n}"
-                 for n, ok, _w in executed.report(c, executed.all_specs(c), quarantined)
-                 if ok is False]
+    problems += [f"feature no longer executed: {n}" for n in executed.regressions(
+        executed.report(c, executed.all_specs(c), quarantined))]
     if problems:
         raise SystemExit("combination matrix is incomplete:\n  " + "\n  ".join(problems))
     combo_specs = combos.specs(c)

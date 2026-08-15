@@ -235,6 +235,13 @@ class AssocEnd:
     target: str
     to_many: bool
     join: str | None = None   # filled from the AssociationMapping
+    # WHICH association declared this end. Recorded rather than inferred from the
+    # association's NAME, which is what binding used to rely on: it split the short
+    # name on "_" and required both class names to appear. An association not named
+    # `A_B` therefore bound to nothing -- its ends kept `join=None` and every
+    # navigation through it silently failed to resolve. Two of this corpus's
+    # associations were in that state.
+    assoc: str = ""
 
 
 @dataclass
@@ -301,6 +308,7 @@ class Corpus:
     # no record of which was which and the feature could not be told apart from an ordinary
     # Filter even in principle.
     multigrain: set = field(default_factory=set)
+
     # cls -> ([join, ...], filter name). The predicate applies to the row the chain LANDS
     # on, so a row whose chain breaks is excluded -- unlike a to-one projection, where a
     # broken chain yields NULL and the row survives.
@@ -580,7 +588,12 @@ _ENUMCOLMAP = re.compile(
     r"(\w+)\s*:\s*EnumerationMapping\s+(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
 _ENUMMAP_HEAD = re.compile(r"^\s*([\w:]+)\s*:\s*EnumerationMapping\s+(\w+)\s*$")
 _ENUMMAP_ROW = re.compile(r"^\s*(\w+)\s*:\s*\[([^\]]*)\]\s*,?\s*$")
-_ENDMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*@(\w+)")
+# An association end may name its SOURCE and TARGET set ids -- `end[srcId, tgtId]:` --
+# which the pattern did not admit, so such an end bound to no join at all. The end
+# still existed (it comes from the Association declaration), so the symptom was not a
+# missing property but a navigation that could never resolve: `join=None`. The one
+# association in the corpus written that way was unreachable for exactly this reason.
+_ENDMAP = re.compile(r"(\w+)(?:\[\s*\w+\s*,\s*\w+\s*\])?\s*:\s*\[[\w:]+\]\s*@(\w+)")
 
 
 def _strip(line: str) -> str:
@@ -903,8 +916,10 @@ def _parse_domain(text: str, c: Corpus) -> None:
                     raise ValueError(f"association {cur_assoc} has {len(ends)} ends")
                 (n0, t0, _, u0), (n1, t1, _, u1) = ends
                 # The end named n0 has type t0, so it is reachable FROM t1.
-                c.ends[(t1, n0)] = AssocEnd(t1, n0, t0, u0 is None or u0 > 1)
-                c.ends[(t0, n1)] = AssocEnd(t0, n1, t1, u1 is None or u1 > 1)
+                c.ends[(t1, n0)] = AssocEnd(t1, n0, t0, u0 is None or u0 > 1,
+                                            assoc=cur_assoc)
+                c.ends[(t0, n1)] = AssocEnd(t0, n1, t1, u1 is None or u1 > 1,
+                                            assoc=cur_assoc)
             cur_class = cur_assoc = cur_enum = None
             continue
         if cur_enum is not None:
@@ -1069,10 +1084,17 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     scope_tbl = None
                     continue
                 if scope_tbl:
-                    for sp, sc in _SCOPE_BARE.findall(line):
+                    # Value forms FIRST, with the scope's table supplied for bare columns.
+                    # A dynafunction inside a scope -- `up: toUpper(A)` -- is accepted by
+                    # the engine and matched none of the scope patterns, which recognise
+                    # `prop: COL` only; it was therefore dropped, and a scope block could
+                    # hold nothing but plain columns as far as this reader was concerned.
+                    rest = _value_forms(line, c, cur, scope_tbl, bare=scope_tbl)
+                    for sp, sc in _SCOPE_BARE.findall(rest):
                         c.columns.setdefault(cur, {}).setdefault(sp, sc)
                 else:
-                    for sp, _st, sc in _SCOPE_QUAL.findall(line):
+                    rest = _value_forms(line, c, cur, tbl)
+                    for sp, _st, sc in _SCOPE_QUAL.findall(rest):
                         c.columns.setdefault(cur, {}).setdefault(sp, sc)
                 continue
             m_emb = _EMBED_OPEN.match(line)
@@ -1182,7 +1204,8 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     c.unparsed.append((cur, leftover))
 
 
-def _value_forms(line: str, c: "Corpus", owner: str, tbl: str) -> str:
+def _value_forms(line: str, c: "Corpus", owner: str, tbl: str,
+                 bare: str | None = None) -> str:
     """Record every VALUE-expression property mapping on `line` against `owner`.
 
     Returns the line with the recognised forms stripped, so the caller can decide what to do
@@ -1200,7 +1223,7 @@ def _value_forms(line: str, c: "Corpus", owner: str, tbl: str) -> str:
             break
         prop, _fn = m.group(1), m.group(2)
         close = rhs.find_call(line, line.index("(", m.end() - 1))
-        node = rhs.parse(line[m.start(2):close + 1])
+        node = rhs.parse(line[m.start(2):close + 1], default_table=bare)
         _tag, (fname, args) = node
         c.dyna[(owner, prop)] = (fname, args)
         # A plain-column argument on the main table keeps its entry in c.columns, so
@@ -1239,6 +1262,8 @@ def _assoc_matches(assoc_fqn: str, owner: str, end: AssocEnd) -> bool:
     the pair {Trader, Manager} never matches {Trader}. Handled explicitly — for a
     self-association it is enough that one half of the name is the class.
     """
+    if end.assoc:
+        return end.assoc == assoc_fqn
     short = assoc_fqn.split("::")[-1]
     a, _, b = short.partition("_")
     o, t = owner.split("::")[-1], end.target.split("::")[-1]

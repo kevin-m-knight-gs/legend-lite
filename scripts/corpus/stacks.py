@@ -52,6 +52,20 @@ def _identifier(c: model.Corpus, root: str) -> str | None:
     return next((prop for prop, col in c.columns.get(root, {}).items() if col == pk), None)
 
 
+# The generated services below build over the trading DOMAIN. The combination matrix and the
+# hier:: feature domain are FIXTURES for mapping constructs -- they carry their own
+# generators, their own runtimes and their own data elements -- so sweeping them in here
+# couples every matrix change to the domain service set, and did: adding an association to
+# the matrix made a graph fetch over combo::C0 a generated root, which fails plan generation
+# with "Only one return type should be selected during Serialization Class generation" and
+# blocks its whole batch.
+FIXTURE_DOMAINS = ("combo::", "hier::")
+
+
+def _is_fixture(cls: str) -> bool:
+    return cls.startswith(FIXTURE_DOMAINS)
+
+
 def roots(c: model.Corpus, seeded: set[str]) -> list[tuple[str, str]]:
     """Every class worth stacking on, richest first.
 
@@ -60,7 +74,7 @@ def roots(c: model.Corpus, seeded: set[str]) -> list[tuple[str, str]]:
     """
     scored = []
     for cls, table in c.main_table.items():
-        if table not in seeded or cls in c.views:
+        if table not in seeded or cls in c.views or _is_fixture(cls):
             continue
         ident = _identifier(c, cls)
         if ident is None:

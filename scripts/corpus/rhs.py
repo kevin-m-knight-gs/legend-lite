@@ -71,8 +71,13 @@ def _tokenise(text: str) -> list[tuple[str, str]]:
 
 
 class _Parser:
-    def __init__(self, tokens: list[tuple[str, str]]):
+    def __init__(self, tokens: list[tuple[str, str]], default_table: str | None = None):
         self.t, self.i = tokens, 0
+        # Inside a `scope([db]TABLE)` block a column is written BARE, with the table stated
+        # once by the scope. Passing the scope's table lets the same grammar read both
+        # forms; without it the scope handler could only recognise `prop: COL` by pattern,
+        # so a dynafunction inside a scope -- which the engine accepts -- was unmodellable.
+        self.default_table = default_table
 
     def peek(self, n: int = 0):
         return self.t[self.i + n] if self.i + n < len(self.t) else (None, None)
@@ -153,6 +158,8 @@ class _Parser:
         if kind not in ("ident", "target"):
             raise ParseError(f"expected a table name, found {name!r}")
         parts.append(name)
+        if self.default_table is not None and self.peek()[1] != ".":
+            return ("col", (self.default_table, name))     # a bare column inside a scope
         while self.peek()[1] == ".":
             self.take()
             kind, name = self.take()
@@ -169,10 +176,13 @@ class _Parser:
         return ("col", tuple(parts))
 
 
-def parse(text: str):
+def parse(text: str, default_table: str | None = None):
     """Parse one property-mapping value expression. Raises ParseError on anything the
-    grammar above does not cover, so an unmodelled form is visible rather than guessed."""
-    p = _Parser(_tokenise(text))
+    grammar above does not cover, so an unmodelled form is visible rather than guessed.
+
+    `default_table` names the table a BARE column belongs to -- the table a `scope(...)`
+    block states once for everything inside it."""
+    p = _Parser(_tokenise(text), default_table)
     node = p.expr()
     if p.i != len(p.t):
         raise ParseError(f"trailing input at {p.peek()[1]!r}")

@@ -84,32 +84,16 @@ Service stress::CB_C0
             chain2_string_none_notnull_top:x|$x.chain2_string_none_notnull_top,
             col_bool_none_notnull_top:x|$x.col_bool_none_notnull_top,
             col_float_none_notnull_top:x|$x.col_float_none_notnull_top,
-            col_int_none_notnull_top:x|$x.col_int_none_notnull_top,
             col_bool_isnotnull_notnull_top:x|$x.col_bool_isnotnull_notnull_top,
             col_int_plus_notnull_top:x|$x.col_int_plus_notnull_top,
             col_float_sqrt_notnull_top:x|$x.col_float_sqrt_notnull_top,
             col_int_times_notnull_top:x|$x.col_int_times_notnull_top,
-            chain1_float_abs_notnull_embedded:x|$x.nested.chain1_float_abs_notnull_embedded,
-            chain1_float_sqrt_nullable_top:x|$x.chain1_float_sqrt_nullable_top,
-            chain1_float_times_nullable_top:x|$x.chain1_float_times_nullable_top,
-            chain1_bool_none_nullable_top:x|$x.chain1_bool_none_nullable_top,
-            chain1_bool_isnull_nullable_embedded:x|$x.nested.chain1_bool_isnull_nullable_embedded,
-            chain2_string_cat_notnull_top:x|$x.chain2_string_cat_notnull_top,
-            chain2_int_none_notnull_top:x|$x.chain2_int_none_notnull_top,
-            chain2_int_plus_notnull_top:x|$x.chain2_int_plus_notnull_top,
-            chain2_float_none_notnull_top:x|$x.chain2_float_none_notnull_top,
-            chain2_float_sqrt_notnull_top:x|$x.chain2_float_sqrt_notnull_top,
-            chain2_bool_none_notnull_top:x|$x.chain2_bool_none_notnull_top,
-            chain2_bool_isnotnull_notnull_top:x|$x.chain2_bool_isnotnull_notnull_top,
-            dyna1_int_none_notnull_top:x|$x.dyna1_int_none_notnull_top,
+            dyna1_string_none_nullable_top:x|$x.dyna1_string_none_nullable_top,
             dyna1_bool_none_notnull_top:x|$x.dyna1_bool_none_notnull_top,
-            dyna2_int_none_notnull_top:x|$x.dyna2_int_none_notnull_top,
-            dyna2_bool_none_notnull_top:x|$x.dyna2_bool_none_notnull_top,
-            ineq_int_none_notnull_top:x|$x.ineq_int_none_notnull_top,
-            ineq_bool_none_notnull_top:x|$x.ineq_bool_none_notnull_top,
-            multicol_int_none_notnull_top:x|$x.multicol_int_none_notnull_top,
-            multicol_bool_none_notnull_top:x|$x.multicol_bool_none_notnull_top,
-            ormix_int_none_notnull_top:x|$x.ormix_int_none_notnull_top,
+            dyna2_int_abs_nullable_top:x|$x.dyna2_int_abs_nullable_top,
+            ineq_string_up_nullable_top:x|$x.ineq_string_up_nullable_top,
+            multicol_string_none_notnull_top:x|$x.multicol_string_none_notnull_top,
+            multicol_bool_none_nullable_top:x|$x.multicol_bool_none_nullable_top,
             ormix_bool_none_notnull_top:x|$x.ormix_bool_none_notnull_top
         ])
         ->sort(~rootId->ascending());
@@ -133,7 +117,7 @@ Service stress::CB_C0
       ]
       tests:
       [
-        // 33 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 17 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -146,7 +130,7 @@ Service stress::CB_C0
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001","col_string_none_notnull_embedded":"R-S-NN1-001","col_string_none_notnull_top":"R-S-NN1-001","chain1_string_none_notnull_top":null,"chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":false,"col_float_none_notnull_top":325.0,"col_int_none_notnull_top":52,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":104,"col_float_sqrt_notnull_top":18.027756377319946,"col_int_times_notnull_top":2704,"chain1_float_abs_notnull_embedded":null,"chain1_float_sqrt_nullable_top":null,"chain1_float_times_nullable_top":null,"chain1_bool_none_nullable_top":null,"chain1_bool_isnull_nullable_embedded":true,"chain2_string_cat_notnull_top":"","chain2_int_none_notnull_top":null,"chain2_int_plus_notnull_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_notnull_top":false,"dyna1_int_none_notnull_top":45,"dyna1_bool_none_notnull_top":true,"dyna2_int_none_notnull_top":45,"dyna2_bool_none_notnull_top":true,"ineq_int_none_notnull_top":45,"ineq_bool_none_notnull_top":true,"multicol_int_none_notnull_top":null,"multicol_bool_none_notnull_top":null,"ormix_int_none_notnull_top":45,"ormix_bool_none_notnull_top":true},{"rootId":"CR-0002","col_string_none_notnull_embedded":"R-S-NN1-002","col_string_none_notnull_top":"R-S-NN1-002","chain1_string_none_notnull_top":null,"chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":true,"col_float_none_notnull_top":362.5,"col_int_none_notnull_top":59,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":118,"col_float_sqrt_notnull_top":19.03943276465977,"col_int_times_notnull_top":3481,"chain1_float_abs_notnull_embedded":null,"chain1_float_sqrt_nullable_top":null,"chain1_float_times_nullable_top":null,"chain1_bool_none_nullable_top":null,"chain1_bool_isnull_nullable_embedded":true,"chain2_string_cat_notnull_top":"","chain2_int_none_notnull_top":null,"chain2_int_plus_notnull_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_notnull_top":false,"dyna1_int_none_notnull_top":52,"dyna1_bool_none_notnull_top":false,"dyna2_int_none_notnull_top":52,"dyna2_bool_none_notnull_top":false,"ineq_int_none_notnull_top":45,"ineq_bool_none_notnull_top":true,"multicol_int_none_notnull_top":52,"multicol_bool_none_notnull_top":false,"ormix_int_none_notnull_top":52,"ormix_bool_none_notnull_top":false},{"rootId":"CR-0003","col_string_none_notnull_embedded":"R-S-NN1-003","col_string_none_notnull_top":"R-S-NN1-003","chain1_string_none_notnull_top":"H1-S-NN1-001","chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":true,"col_float_none_notnull_top":400.0,"col_int_none_notnull_top":66,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":132,"col_float_sqrt_notnull_top":20.0,"col_int_times_notnull_top":4356,"chain1_float_abs_notnull_embedded":175.0,"chain1_float_sqrt_nullable_top":13.228756555322953,"chain1_float_times_nullable_top":30625.0,"chain1_bool_none_nullable_top":true,"chain1_bool_isnull_nullable_embedded":false,"chain2_string_cat_notnull_top":"","chain2_int_none_notnull_top":null,"chain2_int_plus_notnull_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_notnull_top":false,"dyna1_int_none_notnull_top":59,"dyna1_bool_none_notnull_top":true,"dyna2_int_none_notnull_top":59,"dyna2_bool_none_notnull_top":true,"ineq_int_none_notnull_top":45,"ineq_bool_none_notnull_top":true,"multicol_int_none_notnull_top":59,"multicol_bool_none_notnull_top":true,"ormix_int_none_notnull_top":59,"ormix_bool_none_notnull_top":true},{"rootId":"CR-0004","col_string_none_notnull_embedded":"R-S-NN1-004","col_string_none_notnull_top":"R-S-NN1-004","chain1_string_none_notnull_top":"H1-S-NN1-002","chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":false,"col_float_none_notnull_top":437.5,"col_int_none_notnull_top":73,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":146,"col_float_sqrt_notnull_top":20.91650066335189,"col_int_times_notnull_top":5329,"chain1_float_abs_notnull_embedded":212.5,"chain1_float_sqrt_nullable_top":null,"chain1_float_times_nullable_top":null,"chain1_bool_none_nullable_top":false,"chain1_bool_isnull_nullable_embedded":false,"chain2_string_cat_notnull_top":"","chain2_int_none_notnull_top":null,"chain2_int_plus_notnull_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_notnull_top":false,"dyna1_int_none_notnull_top":66,"dyna1_bool_none_notnull_top":true,"dyna2_int_none_notnull_top":66,"dyna2_bool_none_notnull_top":true,"ineq_int_none_notnull_top":45,"ineq_bool_none_notnull_top":true,"multicol_int_none_notnull_top":66,"multicol_bool_none_notnull_top":true,"ormix_int_none_notnull_top":66,"ormix_bool_none_notnull_top":true},{"rootId":"CR-0005","col_string_none_notnull_embedded":"R-S-NN1-005","col_string_none_notnull_top":"R-S-NN1-005","chain1_string_none_notnull_top":"H1-S-NN1-003","chain2_string_none_notnull_top":"H2-S-NN1-001","col_bool_none_notnull_top":true,"col_float_none_notnull_top":475.0,"col_int_none_notnull_top":80,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":160,"col_float_sqrt_notnull_top":21.79449471770337,"col_int_times_notnull_top":6400,"chain1_float_abs_notnull_embedded":250.0,"chain1_float_sqrt_nullable_top":15.811388300841896,"chain1_float_times_nullable_top":null,"chain1_bool_none_nullable_top":true,"chain1_bool_isnull_nullable_embedded":false,"chain2_string_cat_notnull_top":"H2-S-NN1-001H2-S-NN2-001","chain2_int_none_notnull_top":10,"chain2_int_plus_notnull_top":20,"chain2_float_none_notnull_top":100.0,"chain2_float_sqrt_notnull_top":10.0,"chain2_bool_none_notnull_top":false,"chain2_bool_isnotnull_notnull_top":true,"dyna1_int_none_notnull_top":73,"dyna1_bool_none_notnull_top":false,"dyna2_int_none_notnull_top":73,"dyna2_bool_none_notnull_top":false,"ineq_int_none_notnull_top":null,"ineq_bool_none_notnull_top":null,"multicol_int_none_notnull_top":73,"multicol_bool_none_notnull_top":false,"ormix_int_none_notnull_top":73,"ormix_bool_none_notnull_top":false}]';
+                    data: '[{"rootId":"CR-0001","col_string_none_notnull_embedded":"R-S-NN1-001","col_string_none_notnull_top":"R-S-NN1-001","chain1_string_none_notnull_top":null,"chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":false,"col_float_none_notnull_top":325.0,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":104,"col_float_sqrt_notnull_top":18.027756377319946,"col_int_times_notnull_top":2704,"dyna1_string_none_nullable_top":"A-S-NL1-001","dyna1_bool_none_notnull_top":true,"dyna2_int_abs_nullable_top":45,"ineq_string_up_nullable_top":"A-S-NL1-001","multicol_string_none_notnull_top":null,"multicol_bool_none_nullable_top":null,"ormix_bool_none_notnull_top":true},{"rootId":"CR-0002","col_string_none_notnull_embedded":"R-S-NN1-002","col_string_none_notnull_top":"R-S-NN1-002","chain1_string_none_notnull_top":null,"chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":true,"col_float_none_notnull_top":362.5,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":118,"col_float_sqrt_notnull_top":19.03943276465977,"col_int_times_notnull_top":3481,"dyna1_string_none_nullable_top":null,"dyna1_bool_none_notnull_top":false,"dyna2_int_abs_nullable_top":52,"ineq_string_up_nullable_top":"A-S-NL1-001","multicol_string_none_notnull_top":"A-S-NN1-002","multicol_bool_none_nullable_top":false,"ormix_bool_none_notnull_top":false},{"rootId":"CR-0003","col_string_none_notnull_embedded":"R-S-NN1-003","col_string_none_notnull_top":"R-S-NN1-003","chain1_string_none_notnull_top":"H1-S-NN1-001","chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":true,"col_float_none_notnull_top":400.0,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":132,"col_float_sqrt_notnull_top":20.0,"col_int_times_notnull_top":4356,"dyna1_string_none_nullable_top":"A-S-NL1-003","dyna1_bool_none_notnull_top":true,"dyna2_int_abs_nullable_top":59,"ineq_string_up_nullable_top":"A-S-NL1-001","multicol_string_none_notnull_top":"A-S-NN1-003","multicol_bool_none_nullable_top":null,"ormix_bool_none_notnull_top":true},{"rootId":"CR-0004","col_string_none_notnull_embedded":"R-S-NN1-004","col_string_none_notnull_top":"R-S-NN1-004","chain1_string_none_notnull_top":"H1-S-NN1-002","chain2_string_none_notnull_top":null,"col_bool_none_notnull_top":false,"col_float_none_notnull_top":437.5,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":146,"col_float_sqrt_notnull_top":20.91650066335189,"col_int_times_notnull_top":5329,"dyna1_string_none_nullable_top":"A-S-NL1-004","dyna1_bool_none_notnull_top":true,"dyna2_int_abs_nullable_top":null,"ineq_string_up_nullable_top":"A-S-NL1-001","multicol_string_none_notnull_top":"A-S-NN1-004","multicol_bool_none_nullable_top":true,"ormix_bool_none_notnull_top":true},{"rootId":"CR-0005","col_string_none_notnull_embedded":"R-S-NN1-005","col_string_none_notnull_top":"R-S-NN1-005","chain1_string_none_notnull_top":"H1-S-NN1-003","chain2_string_none_notnull_top":"H2-S-NN1-001","col_bool_none_notnull_top":true,"col_float_none_notnull_top":475.0,"col_bool_isnotnull_notnull_top":true,"col_int_plus_notnull_top":160,"col_float_sqrt_notnull_top":21.79449471770337,"col_int_times_notnull_top":6400,"dyna1_string_none_nullable_top":"A-S-NL1-005","dyna1_bool_none_notnull_top":false,"dyna2_int_abs_nullable_top":73,"ineq_string_up_nullable_top":null,"multicol_string_none_notnull_top":"A-S-NN1-005","multicol_bool_none_nullable_top":false,"ormix_bool_none_notnull_top":false}]';
                   }#;
               }#
           ]
@@ -159,44 +143,28 @@ Service stress::CB_C0
 Service stress::CB_C1
 {
     pattern: '/stress/cb_c1';
-    documentation: 'Combination matrix cell: class filter=none, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=none, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C1.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_none_nullable_embedded:x|$x.nested.col_string_none_nullable_embedded,
-            col_string_none_nullable_top:x|$x.col_string_none_nullable_top,
-            col_string_nest_notnull_top:x|$x.col_string_nest_notnull_top,
-            chain1_string_none_notnull_embedded:x|$x.nested.chain1_string_none_notnull_embedded,
-            chain2_string_none_notnull_embedded:x|$x.nested.chain2_string_none_notnull_embedded,
-            col_bool_none_notnull_embedded:x|$x.nested.col_bool_none_notnull_embedded,
-            col_float_none_notnull_embedded:x|$x.nested.col_float_none_notnull_embedded,
-            col_int_none_notnull_embedded:x|$x.nested.col_int_none_notnull_embedded,
-            col_int_abs_notnull_embedded:x|$x.nested.col_int_abs_notnull_embedded,
-            chain1_string_cat_notnull_top:x|$x.chain1_string_cat_notnull_top,
-            col_bool_isnotnull_notnull_embedded:x|$x.nested.col_bool_isnotnull_notnull_embedded,
-            col_bool_isnull_notnull_embedded:x|$x.nested.col_bool_isnull_notnull_embedded,
-            col_int_plus_notnull_embedded:x|$x.nested.col_int_plus_notnull_embedded,
-            col_float_sqrt_notnull_embedded:x|$x.nested.col_float_sqrt_notnull_embedded,
-            col_int_times_notnull_embedded:x|$x.nested.col_int_times_notnull_embedded,
+            col_string_cat_nullable_embedded:x|$x.nested.col_string_cat_nullable_embedded,
+            col_string_cat_nullable_top:x|$x.col_string_cat_nullable_top,
+            col_int_none_notnull_top:x|$x.col_int_none_notnull_top,
             chain1_string_up_notnull_embedded:x|$x.nested.chain1_string_up_notnull_embedded,
-            chain2_string_cat_notnull_embedded:x|$x.nested.chain2_string_cat_notnull_embedded,
-            chain2_int_none_notnull_embedded:x|$x.nested.chain2_int_none_notnull_embedded,
-            chain2_int_plus_notnull_embedded:x|$x.nested.chain2_int_plus_notnull_embedded,
-            chain2_float_none_notnull_embedded:x|$x.nested.chain2_float_none_notnull_embedded,
-            chain2_float_sqrt_notnull_embedded:x|$x.nested.chain2_float_sqrt_notnull_embedded,
-            chain2_bool_none_notnull_embedded:x|$x.nested.chain2_bool_none_notnull_embedded,
-            chain2_bool_isnotnull_notnull_embedded:x|$x.nested.chain2_bool_isnotnull_notnull_embedded,
-            dyna1_int_none_nullable_top:x|$x.dyna1_int_none_nullable_top,
-            dyna1_bool_none_nullable_top:x|$x.dyna1_bool_none_nullable_top,
-            dyna2_int_none_nullable_top:x|$x.dyna2_int_none_nullable_top,
-            dyna2_bool_none_nullable_top:x|$x.dyna2_bool_none_nullable_top,
-            ineq_int_none_nullable_top:x|$x.ineq_int_none_nullable_top,
-            ineq_bool_none_nullable_top:x|$x.ineq_bool_none_nullable_top,
-            multicol_int_none_nullable_top:x|$x.multicol_int_none_nullable_top,
-            multicol_bool_none_nullable_top:x|$x.multicol_bool_none_nullable_top,
-            ormix_int_none_nullable_top:x|$x.ormix_int_none_nullable_top,
+            chain2_string_up_notnull_embedded:x|$x.nested.chain2_string_up_notnull_embedded,
+            col_bool_isnull_notnull_embedded:x|$x.nested.col_bool_isnull_notnull_embedded,
+            col_float_abs_notnull_embedded:x|$x.nested.col_float_abs_notnull_embedded,
+            chain1_bool_isnotnull_notnull_embedded:x|$x.nested.chain1_bool_isnotnull_notnull_embedded,
+            chain1_string_nest_notnull_top:x|$x.chain1_string_nest_notnull_top,
+            chain1_int_plus_notnull_embedded:x|$x.nested.chain1_int_plus_notnull_embedded,
+            chain1_float_sqrt_notnull_embedded:x|$x.nested.chain1_float_sqrt_notnull_embedded,
+            col_float_times_notnull_embedded:x|$x.nested.col_float_times_notnull_embedded,
+            dyna2_float_none_notnull_top:x|$x.dyna2_float_none_notnull_top,
+            ineq_int_none_notnull_top:x|$x.ineq_int_none_notnull_top,
+            multicol_string_none_nullable_top:x|$x.multicol_string_none_nullable_top,
+            multicol_bool_isnull_notnull_top:x|$x.multicol_bool_isnull_notnull_top,
             ormix_bool_none_nullable_top:x|$x.ormix_bool_none_nullable_top
         ])
         ->sort(~rootId->ascending());
@@ -220,7 +188,7 @@ Service stress::CB_C1
       ]
       tests:
       [
-        // 33 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 17 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -233,7 +201,7 @@ Service stress::CB_C1
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001","col_string_none_nullable_embedded":"R-S-NL1-001","col_string_none_nullable_top":"R-S-NL1-001","col_string_nest_notnull_top":"R-S-NN1-001R-S-NN2-001","chain1_string_none_notnull_embedded":null,"chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":false,"col_float_none_notnull_embedded":325.0,"col_int_none_notnull_embedded":52,"col_int_abs_notnull_embedded":52,"chain1_string_cat_notnull_top":"","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_notnull_embedded":false,"col_int_plus_notnull_embedded":104,"col_float_sqrt_notnull_embedded":18.027756377319946,"col_int_times_notnull_embedded":2704,"chain1_string_up_notnull_embedded":null,"chain2_string_cat_notnull_embedded":"","chain2_int_none_notnull_embedded":null,"chain2_int_plus_notnull_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_notnull_embedded":false,"dyna1_int_none_nullable_top":45,"dyna1_bool_none_nullable_top":true,"dyna2_int_none_nullable_top":45,"dyna2_bool_none_nullable_top":true,"ineq_int_none_nullable_top":45,"ineq_bool_none_nullable_top":true,"multicol_int_none_nullable_top":null,"multicol_bool_none_nullable_top":null,"ormix_int_none_nullable_top":45,"ormix_bool_none_nullable_top":true},{"rootId":"CR-0002","col_string_none_nullable_embedded":"R-S-NL1-002","col_string_none_nullable_top":"R-S-NL1-002","col_string_nest_notnull_top":"R-S-NN1-002R-S-NN2-002","chain1_string_none_notnull_embedded":null,"chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":true,"col_float_none_notnull_embedded":362.5,"col_int_none_notnull_embedded":59,"col_int_abs_notnull_embedded":59,"chain1_string_cat_notnull_top":"","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_notnull_embedded":false,"col_int_plus_notnull_embedded":118,"col_float_sqrt_notnull_embedded":19.03943276465977,"col_int_times_notnull_embedded":3481,"chain1_string_up_notnull_embedded":null,"chain2_string_cat_notnull_embedded":"","chain2_int_none_notnull_embedded":null,"chain2_int_plus_notnull_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_notnull_embedded":false,"dyna1_int_none_nullable_top":52,"dyna1_bool_none_nullable_top":false,"dyna2_int_none_nullable_top":52,"dyna2_bool_none_nullable_top":false,"ineq_int_none_nullable_top":45,"ineq_bool_none_nullable_top":true,"multicol_int_none_nullable_top":52,"multicol_bool_none_nullable_top":false,"ormix_int_none_nullable_top":52,"ormix_bool_none_nullable_top":false},{"rootId":"CR-0003","col_string_none_nullable_embedded":null,"col_string_none_nullable_top":null,"col_string_nest_notnull_top":"R-S-NN1-003R-S-NN2-003","chain1_string_none_notnull_embedded":"H1-S-NN1-001","chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":true,"col_float_none_notnull_embedded":400.0,"col_int_none_notnull_embedded":66,"col_int_abs_notnull_embedded":66,"chain1_string_cat_notnull_top":"H1-S-NN1-001H1-S-NN2-001","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_notnull_embedded":false,"col_int_plus_notnull_embedded":132,"col_float_sqrt_notnull_embedded":20.0,"col_int_times_notnull_embedded":4356,"chain1_string_up_notnull_embedded":"H1-S-NN1-001","chain2_string_cat_notnull_embedded":"","chain2_int_none_notnull_embedded":null,"chain2_int_plus_notnull_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_notnull_embedded":false,"dyna1_int_none_nullable_top":59,"dyna1_bool_none_nullable_top":null,"dyna2_int_none_nullable_top":59,"dyna2_bool_none_nullable_top":null,"ineq_int_none_nullable_top":45,"ineq_bool_none_nullable_top":true,"multicol_int_none_nullable_top":59,"multicol_bool_none_nullable_top":null,"ormix_int_none_nullable_top":59,"ormix_bool_none_nullable_top":null},{"rootId":"CR-0004","col_string_none_nullable_embedded":"R-S-NL1-004","col_string_none_nullable_top":"R-S-NL1-004","col_string_nest_notnull_top":"R-S-NN1-004R-S-NN2-004","chain1_string_none_notnull_embedded":"H1-S-NN1-002","chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":false,"col_float_none_notnull_embedded":437.5,"col_int_none_notnull_embedded":73,"col_int_abs_notnull_embedded":73,"chain1_string_cat_notnull_top":"H1-S-NN1-002H1-S-NN2-002","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_notnull_embedded":false,"col_int_plus_notnull_embedded":146,"col_float_sqrt_notnull_embedded":20.91650066335189,"col_int_times_notnull_embedded":5329,"chain1_string_up_notnull_embedded":"H1-S-NN1-002","chain2_string_cat_notnull_embedded":"","chain2_int_none_notnull_embedded":null,"chain2_int_plus_notnull_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_notnull_embedded":false,"dyna1_int_none_nullable_top":null,"dyna1_bool_none_nullable_top":true,"dyna2_int_none_nullable_top":null,"dyna2_bool_none_nullable_top":true,"ineq_int_none_nullable_top":45,"ineq_bool_none_nullable_top":true,"multicol_int_none_nullable_top":null,"multicol_bool_none_nullable_top":true,"ormix_int_none_nullable_top":null,"ormix_bool_none_nullable_top":true},{"rootId":"CR-0005","col_string_none_nullable_embedded":"R-S-NL1-005","col_string_none_nullable_top":"R-S-NL1-005","col_string_nest_notnull_top":"R-S-NN1-005R-S-NN2-005","chain1_string_none_notnull_embedded":"H1-S-NN1-003","chain2_string_none_notnull_embedded":"H2-S-NN1-001","col_bool_none_notnull_embedded":true,"col_float_none_notnull_embedded":475.0,"col_int_none_notnull_embedded":80,"col_int_abs_notnull_embedded":80,"chain1_string_cat_notnull_top":"H1-S-NN1-003H1-S-NN2-003","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_notnull_embedded":false,"col_int_plus_notnull_embedded":160,"col_float_sqrt_notnull_embedded":21.79449471770337,"col_int_times_notnull_embedded":6400,"chain1_string_up_notnull_embedded":"H1-S-NN1-003","chain2_string_cat_notnull_embedded":"H2-S-NN1-001H2-S-NN2-001","chain2_int_none_notnull_embedded":10,"chain2_int_plus_notnull_embedded":20,"chain2_float_none_notnull_embedded":100.0,"chain2_float_sqrt_notnull_embedded":10.0,"chain2_bool_none_notnull_embedded":false,"chain2_bool_isnotnull_notnull_embedded":true,"dyna1_int_none_nullable_top":73,"dyna1_bool_none_nullable_top":false,"dyna2_int_none_nullable_top":73,"dyna2_bool_none_nullable_top":false,"ineq_int_none_nullable_top":null,"ineq_bool_none_nullable_top":null,"multicol_int_none_nullable_top":73,"multicol_bool_none_nullable_top":false,"ormix_int_none_nullable_top":73,"ormix_bool_none_nullable_top":false}]';
+                    data: '[{"rootId":"CR-0001","col_string_cat_nullable_embedded":"R-S-NL1-001R-S-NL2-001","col_string_cat_nullable_top":"R-S-NL1-001R-S-NL2-001","col_int_none_notnull_top":52,"chain1_string_up_notnull_embedded":null,"chain2_string_up_notnull_embedded":null,"col_bool_isnull_notnull_embedded":false,"col_float_abs_notnull_embedded":325.0,"chain1_bool_isnotnull_notnull_embedded":false,"chain1_string_nest_notnull_top":"","chain1_int_plus_notnull_embedded":null,"chain1_float_sqrt_notnull_embedded":null,"col_float_times_notnull_embedded":105625.0,"dyna2_float_none_notnull_top":287.5,"ineq_int_none_notnull_top":45,"multicol_string_none_nullable_top":null,"multicol_bool_isnull_notnull_top":true,"ormix_bool_none_nullable_top":true},{"rootId":"CR-0002","col_string_cat_nullable_embedded":"R-S-NL1-002R-S-NL2-002","col_string_cat_nullable_top":"R-S-NL1-002R-S-NL2-002","col_int_none_notnull_top":59,"chain1_string_up_notnull_embedded":null,"chain2_string_up_notnull_embedded":null,"col_bool_isnull_notnull_embedded":false,"col_float_abs_notnull_embedded":362.5,"chain1_bool_isnotnull_notnull_embedded":false,"chain1_string_nest_notnull_top":"","chain1_int_plus_notnull_embedded":null,"chain1_float_sqrt_notnull_embedded":null,"col_float_times_notnull_embedded":131406.25,"dyna2_float_none_notnull_top":325.0,"ineq_int_none_notnull_top":45,"multicol_string_none_nullable_top":null,"multicol_bool_isnull_notnull_top":false,"ormix_bool_none_nullable_top":false},{"rootId":"CR-0003","col_string_cat_nullable_embedded":"R-S-NL2-003","col_string_cat_nullable_top":"R-S-NL2-003","col_int_none_notnull_top":66,"chain1_string_up_notnull_embedded":"H1-S-NN1-001","chain2_string_up_notnull_embedded":null,"col_bool_isnull_notnull_embedded":false,"col_float_abs_notnull_embedded":400.0,"chain1_bool_isnotnull_notnull_embedded":true,"chain1_string_nest_notnull_top":"H1-S-NN1-001H1-S-NN2-001","chain1_int_plus_notnull_embedded":48,"chain1_float_sqrt_notnull_embedded":13.228756555322953,"col_float_times_notnull_embedded":160000.0,"dyna2_float_none_notnull_top":362.5,"ineq_int_none_notnull_top":45,"multicol_string_none_nullable_top":"A-S-NL1-003","multicol_bool_isnull_notnull_top":false,"ormix_bool_none_nullable_top":null},{"rootId":"CR-0004","col_string_cat_nullable_embedded":"R-S-NL1-004","col_string_cat_nullable_top":"R-S-NL1-004","col_int_none_notnull_top":73,"chain1_string_up_notnull_embedded":"H1-S-NN1-002","chain2_string_up_notnull_embedded":null,"col_bool_isnull_notnull_embedded":false,"col_float_abs_notnull_embedded":437.5,"chain1_bool_isnotnull_notnull_embedded":true,"chain1_string_nest_notnull_top":"H1-S-NN1-002H1-S-NN2-002","chain1_int_plus_notnull_embedded":62,"chain1_float_sqrt_notnull_embedded":14.577379737113251,"col_float_times_notnull_embedded":191406.25,"dyna2_float_none_notnull_top":400.0,"ineq_int_none_notnull_top":45,"multicol_string_none_nullable_top":"A-S-NL1-004","multicol_bool_isnull_notnull_top":false,"ormix_bool_none_nullable_top":true},{"rootId":"CR-0005","col_string_cat_nullable_embedded":"R-S-NL1-005R-S-NL2-005","col_string_cat_nullable_top":"R-S-NL1-005R-S-NL2-005","col_int_none_notnull_top":80,"chain1_string_up_notnull_embedded":"H1-S-NN1-003","chain2_string_up_notnull_embedded":"H2-S-NN1-001","col_bool_isnull_notnull_embedded":false,"col_float_abs_notnull_embedded":475.0,"chain1_bool_isnotnull_notnull_embedded":true,"chain1_string_nest_notnull_top":"H1-S-NN1-003H1-S-NN2-003","chain1_int_plus_notnull_embedded":76,"chain1_float_sqrt_notnull_embedded":15.811388300841896,"col_float_times_notnull_embedded":225625.0,"dyna2_float_none_notnull_top":437.5,"ineq_int_none_notnull_top":null,"multicol_string_none_nullable_top":"A-S-NL1-005","multicol_bool_isnull_notnull_top":false,"ormix_bool_none_nullable_top":false}]';
                   }#;
               }#
           ]
@@ -246,44 +214,28 @@ Service stress::CB_C1
 Service stress::CB_C2
 {
     pattern: '/stress/cb_c2';
-    documentation: 'Combination matrix cell: class filter=direct, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=none, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C2.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_up_nullable_embedded:x|$x.nested.col_string_up_nullable_embedded,
-            col_string_up_nullable_top:x|$x.col_string_up_nullable_top,
-            col_string_nest_notnull_embedded:x|$x.nested.col_string_nest_notnull_embedded,
-            chain1_string_none_nullable_embedded:x|$x.nested.chain1_string_none_nullable_embedded,
-            chain2_string_none_nullable_embedded:x|$x.nested.chain2_string_none_nullable_embedded,
-            col_bool_none_nullable_embedded:x|$x.nested.col_bool_none_nullable_embedded,
-            col_float_none_nullable_embedded:x|$x.nested.col_float_none_nullable_embedded,
-            col_int_none_nullable_embedded:x|$x.nested.col_int_none_nullable_embedded,
-            col_int_abs_nullable_embedded:x|$x.nested.col_int_abs_nullable_embedded,
-            chain1_string_cat_notnull_embedded:x|$x.nested.chain1_string_cat_notnull_embedded,
-            col_bool_isnotnull_nullable_embedded:x|$x.nested.col_bool_isnotnull_nullable_embedded,
-            col_bool_isnull_nullable_embedded:x|$x.nested.col_bool_isnull_nullable_embedded,
-            col_int_plus_nullable_embedded:x|$x.nested.col_int_plus_nullable_embedded,
-            col_float_sqrt_nullable_embedded:x|$x.nested.col_float_sqrt_nullable_embedded,
-            col_int_times_nullable_embedded:x|$x.nested.col_int_times_nullable_embedded,
-            chain1_bool_isnotnull_notnull_embedded:x|$x.nested.chain1_bool_isnotnull_notnull_embedded,
-            chain2_string_cat_nullable_top:x|$x.chain2_string_cat_nullable_top,
-            chain2_int_none_nullable_top:x|$x.chain2_int_none_nullable_top,
-            chain2_int_plus_nullable_top:x|$x.chain2_int_plus_nullable_top,
-            chain2_float_none_nullable_top:x|$x.chain2_float_none_nullable_top,
-            chain2_float_sqrt_nullable_top:x|$x.chain2_float_sqrt_nullable_top,
-            chain2_bool_none_nullable_top:x|$x.chain2_bool_none_nullable_top,
-            chain2_bool_isnotnull_nullable_top:x|$x.chain2_bool_isnotnull_nullable_top,
-            dyna1_int_abs_notnull_top:x|$x.dyna1_int_abs_notnull_top,
-            dyna1_bool_isnull_notnull_top:x|$x.dyna1_bool_isnull_notnull_top,
-            dyna2_int_abs_notnull_top:x|$x.dyna2_int_abs_notnull_top,
-            dyna2_bool_isnull_notnull_top:x|$x.dyna2_bool_isnull_notnull_top,
-            ineq_int_abs_notnull_top:x|$x.ineq_int_abs_notnull_top,
-            ineq_bool_isnull_notnull_top:x|$x.ineq_bool_isnull_notnull_top,
-            multicol_int_abs_notnull_top:x|$x.multicol_int_abs_notnull_top,
-            multicol_bool_isnull_notnull_top:x|$x.multicol_bool_isnull_notnull_top,
-            ormix_int_abs_notnull_top:x|$x.ormix_int_abs_notnull_top,
+            col_string_none_nullable_embedded:x|$x.nested.col_string_none_nullable_embedded,
+            col_string_none_nullable_top:x|$x.col_string_none_nullable_top,
+            col_string_nest_notnull_top:x|$x.col_string_nest_notnull_top,
+            chain1_string_none_notnull_embedded:x|$x.nested.chain1_string_none_notnull_embedded,
+            chain2_string_none_notnull_embedded:x|$x.nested.chain2_string_none_notnull_embedded,
+            col_bool_none_notnull_embedded:x|$x.nested.col_bool_none_notnull_embedded,
+            col_float_none_notnull_embedded:x|$x.nested.col_float_none_notnull_embedded,
+            col_int_none_notnull_embedded:x|$x.nested.col_int_none_notnull_embedded,
+            col_int_abs_notnull_embedded:x|$x.nested.col_int_abs_notnull_embedded,
+            chain1_string_cat_notnull_top:x|$x.chain1_string_cat_notnull_top,
+            col_bool_isnotnull_notnull_embedded:x|$x.nested.col_bool_isnotnull_notnull_embedded,
+            col_bool_isnull_nullable_top:x|$x.col_bool_isnull_nullable_top,
+            col_int_plus_notnull_embedded:x|$x.nested.col_int_plus_notnull_embedded,
+            col_float_sqrt_notnull_embedded:x|$x.nested.col_float_sqrt_notnull_embedded,
+            col_int_times_notnull_embedded:x|$x.nested.col_int_times_notnull_embedded,
+            chain1_string_up_nullable_top:x|$x.chain1_string_up_nullable_top,
             ormix_bool_isnull_notnull_top:x|$x.ormix_bool_isnull_notnull_top
         ])
         ->sort(~rootId->ascending());
@@ -307,7 +259,7 @@ Service stress::CB_C2
       ]
       tests:
       [
-        // 33 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 17 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -320,7 +272,7 @@ Service stress::CB_C2
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0002","col_string_up_nullable_embedded":"R-S-NL1-002","col_string_up_nullable_top":"R-S-NL1-002","col_string_nest_notnull_embedded":"R-S-NN1-002R-S-NN2-002","chain1_string_none_nullable_embedded":null,"chain2_string_none_nullable_embedded":null,"col_bool_none_nullable_embedded":true,"col_float_none_nullable_embedded":null,"col_int_none_nullable_embedded":59,"col_int_abs_nullable_embedded":59,"chain1_string_cat_notnull_embedded":"","col_bool_isnotnull_nullable_embedded":true,"col_bool_isnull_nullable_embedded":false,"col_int_plus_nullable_embedded":118,"col_float_sqrt_nullable_embedded":null,"col_int_times_nullable_embedded":3481,"chain1_bool_isnotnull_notnull_embedded":false,"chain2_string_cat_nullable_top":"","chain2_int_none_nullable_top":null,"chain2_int_plus_nullable_top":null,"chain2_float_none_nullable_top":null,"chain2_float_sqrt_nullable_top":null,"chain2_bool_none_nullable_top":null,"chain2_bool_isnotnull_nullable_top":false,"dyna1_int_abs_notnull_top":52,"dyna1_bool_isnull_notnull_top":false,"dyna2_int_abs_notnull_top":52,"dyna2_bool_isnull_notnull_top":false,"ineq_int_abs_notnull_top":45,"ineq_bool_isnull_notnull_top":false,"multicol_int_abs_notnull_top":52,"multicol_bool_isnull_notnull_top":false,"ormix_int_abs_notnull_top":52,"ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0003","col_string_up_nullable_embedded":null,"col_string_up_nullable_top":null,"col_string_nest_notnull_embedded":"R-S-NN1-003R-S-NN2-003","chain1_string_none_nullable_embedded":"H1-S-NL1-001","chain2_string_none_nullable_embedded":null,"col_bool_none_nullable_embedded":true,"col_float_none_nullable_embedded":400.0,"col_int_none_nullable_embedded":66,"col_int_abs_nullable_embedded":66,"chain1_string_cat_notnull_embedded":"H1-S-NN1-001H1-S-NN2-001","col_bool_isnotnull_nullable_embedded":true,"col_bool_isnull_nullable_embedded":false,"col_int_plus_nullable_embedded":132,"col_float_sqrt_nullable_embedded":20.0,"col_int_times_nullable_embedded":4356,"chain1_bool_isnotnull_notnull_embedded":true,"chain2_string_cat_nullable_top":"","chain2_int_none_nullable_top":null,"chain2_int_plus_nullable_top":null,"chain2_float_none_nullable_top":null,"chain2_float_sqrt_nullable_top":null,"chain2_bool_none_nullable_top":null,"chain2_bool_isnotnull_nullable_top":false,"dyna1_int_abs_notnull_top":59,"dyna1_bool_isnull_notnull_top":false,"dyna2_int_abs_notnull_top":59,"dyna2_bool_isnull_notnull_top":false,"ineq_int_abs_notnull_top":45,"ineq_bool_isnull_notnull_top":false,"multicol_int_abs_notnull_top":59,"multicol_bool_isnull_notnull_top":false,"ormix_int_abs_notnull_top":59,"ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0004","col_string_up_nullable_embedded":"R-S-NL1-004","col_string_up_nullable_top":"R-S-NL1-004","col_string_nest_notnull_embedded":"R-S-NN1-004R-S-NN2-004","chain1_string_none_nullable_embedded":"H1-S-NL1-002","chain2_string_none_nullable_embedded":null,"col_bool_none_nullable_embedded":null,"col_float_none_nullable_embedded":437.5,"col_int_none_nullable_embedded":73,"col_int_abs_nullable_embedded":73,"chain1_string_cat_notnull_embedded":"H1-S-NN1-002H1-S-NN2-002","col_bool_isnotnull_nullable_embedded":false,"col_bool_isnull_nullable_embedded":true,"col_int_plus_nullable_embedded":146,"col_float_sqrt_nullable_embedded":20.91650066335189,"col_int_times_nullable_embedded":5329,"chain1_bool_isnotnull_notnull_embedded":true,"chain2_string_cat_nullable_top":"","chain2_int_none_nullable_top":null,"chain2_int_plus_nullable_top":null,"chain2_float_none_nullable_top":null,"chain2_float_sqrt_nullable_top":null,"chain2_bool_none_nullable_top":null,"chain2_bool_isnotnull_nullable_top":false,"dyna1_int_abs_notnull_top":66,"dyna1_bool_isnull_notnull_top":false,"dyna2_int_abs_notnull_top":66,"dyna2_bool_isnull_notnull_top":false,"ineq_int_abs_notnull_top":45,"ineq_bool_isnull_notnull_top":false,"multicol_int_abs_notnull_top":66,"multicol_bool_isnull_notnull_top":false,"ormix_int_abs_notnull_top":66,"ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0005","col_string_up_nullable_embedded":"R-S-NL1-005","col_string_up_nullable_top":"R-S-NL1-005","col_string_nest_notnull_embedded":"R-S-NN1-005R-S-NN2-005","chain1_string_none_nullable_embedded":null,"chain2_string_none_nullable_embedded":"H2-S-NL1-001","col_bool_none_nullable_embedded":true,"col_float_none_nullable_embedded":475.0,"col_int_none_nullable_embedded":null,"col_int_abs_nullable_embedded":null,"chain1_string_cat_notnull_embedded":"H1-S-NN1-003H1-S-NN2-003","col_bool_isnotnull_nullable_embedded":true,"col_bool_isnull_nullable_embedded":false,"col_int_plus_nullable_embedded":null,"col_float_sqrt_nullable_embedded":21.79449471770337,"col_int_times_nullable_embedded":null,"chain1_bool_isnotnull_notnull_embedded":true,"chain2_string_cat_nullable_top":"H2-S-NL1-001H2-S-NL2-001","chain2_int_none_nullable_top":10,"chain2_int_plus_nullable_top":null,"chain2_float_none_nullable_top":100.0,"chain2_float_sqrt_nullable_top":10.0,"chain2_bool_none_nullable_top":false,"chain2_bool_isnotnull_nullable_top":true,"dyna1_int_abs_notnull_top":73,"dyna1_bool_isnull_notnull_top":false,"dyna2_int_abs_notnull_top":73,"dyna2_bool_isnull_notnull_top":false,"ineq_int_abs_notnull_top":null,"ineq_bool_isnull_notnull_top":true,"multicol_int_abs_notnull_top":73,"multicol_bool_isnull_notnull_top":false,"ormix_int_abs_notnull_top":73,"ormix_bool_isnull_notnull_top":false}]';
+                    data: '[{"rootId":"CR-0001","col_string_none_nullable_embedded":"R-S-NL1-001","col_string_none_nullable_top":"R-S-NL1-001","col_string_nest_notnull_top":"R-S-NN1-001R-S-NN2-001","chain1_string_none_notnull_embedded":null,"chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":false,"col_float_none_notnull_embedded":325.0,"col_int_none_notnull_embedded":52,"col_int_abs_notnull_embedded":52,"chain1_string_cat_notnull_top":"","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_nullable_top":false,"col_int_plus_notnull_embedded":104,"col_float_sqrt_notnull_embedded":18.027756377319946,"col_int_times_notnull_embedded":2704,"chain1_string_up_nullable_top":null,"ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0002","col_string_none_nullable_embedded":"R-S-NL1-002","col_string_none_nullable_top":"R-S-NL1-002","col_string_nest_notnull_top":"R-S-NN1-002R-S-NN2-002","chain1_string_none_notnull_embedded":null,"chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":true,"col_float_none_notnull_embedded":362.5,"col_int_none_notnull_embedded":59,"col_int_abs_notnull_embedded":59,"chain1_string_cat_notnull_top":"","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_nullable_top":false,"col_int_plus_notnull_embedded":118,"col_float_sqrt_notnull_embedded":19.03943276465977,"col_int_times_notnull_embedded":3481,"chain1_string_up_nullable_top":null,"ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0003","col_string_none_nullable_embedded":null,"col_string_none_nullable_top":null,"col_string_nest_notnull_top":"R-S-NN1-003R-S-NN2-003","chain1_string_none_notnull_embedded":"H1-S-NN1-001","chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":true,"col_float_none_notnull_embedded":400.0,"col_int_none_notnull_embedded":66,"col_int_abs_notnull_embedded":66,"chain1_string_cat_notnull_top":"H1-S-NN1-001H1-S-NN2-001","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_nullable_top":false,"col_int_plus_notnull_embedded":132,"col_float_sqrt_notnull_embedded":20.0,"col_int_times_notnull_embedded":4356,"chain1_string_up_nullable_top":"H1-S-NL1-001","ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0004","col_string_none_nullable_embedded":"R-S-NL1-004","col_string_none_nullable_top":"R-S-NL1-004","col_string_nest_notnull_top":"R-S-NN1-004R-S-NN2-004","chain1_string_none_notnull_embedded":"H1-S-NN1-002","chain2_string_none_notnull_embedded":null,"col_bool_none_notnull_embedded":false,"col_float_none_notnull_embedded":437.5,"col_int_none_notnull_embedded":73,"col_int_abs_notnull_embedded":73,"chain1_string_cat_notnull_top":"H1-S-NN1-002H1-S-NN2-002","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_nullable_top":true,"col_int_plus_notnull_embedded":146,"col_float_sqrt_notnull_embedded":20.91650066335189,"col_int_times_notnull_embedded":5329,"chain1_string_up_nullable_top":"H1-S-NL1-002","ormix_bool_isnull_notnull_top":false},{"rootId":"CR-0005","col_string_none_nullable_embedded":"R-S-NL1-005","col_string_none_nullable_top":"R-S-NL1-005","col_string_nest_notnull_top":"R-S-NN1-005R-S-NN2-005","chain1_string_none_notnull_embedded":"H1-S-NN1-003","chain2_string_none_notnull_embedded":"H2-S-NN1-001","col_bool_none_notnull_embedded":true,"col_float_none_notnull_embedded":475.0,"col_int_none_notnull_embedded":80,"col_int_abs_notnull_embedded":80,"chain1_string_cat_notnull_top":"H1-S-NN1-003H1-S-NN2-003","col_bool_isnotnull_notnull_embedded":true,"col_bool_isnull_nullable_top":false,"col_int_plus_notnull_embedded":160,"col_float_sqrt_notnull_embedded":21.79449471770337,"col_int_times_notnull_embedded":6400,"chain1_string_up_nullable_top":null,"ormix_bool_isnull_notnull_top":false}]';
                   }#;
               }#
           ]
@@ -333,44 +285,28 @@ Service stress::CB_C2
 Service stress::CB_C3
 {
     pattern: '/stress/cb_c3';
-    documentation: 'Combination matrix cell: class filter=direct, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=none, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C3.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_float_abs_notnull_embedded:x|$x.nested.col_float_abs_notnull_embedded,
-            col_float_times_notnull_embedded:x|$x.nested.col_float_times_notnull_embedded,
-            chain1_string_up_nullable_top:x|$x.chain1_string_up_nullable_top,
-            chain1_string_cat_nullable_embedded:x|$x.nested.chain1_string_cat_nullable_embedded,
-            chain1_string_nest_nullable_top:x|$x.chain1_string_nest_nullable_top,
+            col_float_abs_nullable_top:x|$x.col_float_abs_nullable_top,
             chain1_int_none_nullable_top:x|$x.chain1_int_none_nullable_top,
-            chain1_int_abs_notnull_embedded:x|$x.nested.chain1_int_abs_notnull_embedded,
-            chain1_int_plus_notnull_embedded:x|$x.nested.chain1_int_plus_notnull_embedded,
-            chain1_int_times_notnull_top:x|$x.chain1_int_times_notnull_top,
-            chain1_int_times_nullable_embedded:x|$x.nested.chain1_int_times_nullable_embedded,
-            chain1_float_none_nullable_top:x|$x.chain1_float_none_nullable_top,
-            chain1_float_abs_nullable_top:x|$x.chain1_float_abs_nullable_top,
-            chain1_float_sqrt_nullable_embedded:x|$x.nested.chain1_float_sqrt_nullable_embedded,
-            chain1_float_times_nullable_embedded:x|$x.nested.chain1_float_times_nullable_embedded,
-            chain1_bool_none_nullable_embedded:x|$x.nested.chain1_bool_none_nullable_embedded,
-            chain1_bool_isnotnull_nullable_top:x|$x.chain1_bool_isnotnull_nullable_top,
+            chain1_int_times_nullable_top:x|$x.chain1_int_times_nullable_top,
+            chain1_float_sqrt_nullable_top:x|$x.chain1_float_sqrt_nullable_top,
+            chain1_bool_isnull_notnull_embedded:x|$x.nested.chain1_bool_isnull_notnull_embedded,
             chain2_string_cat_nullable_embedded:x|$x.nested.chain2_string_cat_nullable_embedded,
-            chain2_int_none_nullable_embedded:x|$x.nested.chain2_int_none_nullable_embedded,
-            chain2_int_plus_nullable_embedded:x|$x.nested.chain2_int_plus_nullable_embedded,
-            chain2_float_none_nullable_embedded:x|$x.nested.chain2_float_none_nullable_embedded,
-            chain2_float_sqrt_nullable_embedded:x|$x.nested.chain2_float_sqrt_nullable_embedded,
+            chain2_int_abs_notnull_embedded:x|$x.nested.chain2_int_abs_notnull_embedded,
+            chain2_int_times_nullable_embedded:x|$x.nested.chain2_int_times_nullable_embedded,
+            chain2_float_sqrt_notnull_embedded:x|$x.nested.chain2_float_sqrt_notnull_embedded,
             chain2_bool_none_nullable_embedded:x|$x.nested.chain2_bool_none_nullable_embedded,
-            chain2_bool_isnotnull_nullable_embedded:x|$x.nested.chain2_bool_isnotnull_nullable_embedded,
-            dyna1_int_abs_nullable_top:x|$x.dyna1_int_abs_nullable_top,
-            dyna1_bool_isnull_nullable_top:x|$x.dyna1_bool_isnull_nullable_top,
-            dyna2_int_abs_nullable_top:x|$x.dyna2_int_abs_nullable_top,
-            dyna2_bool_isnull_nullable_top:x|$x.dyna2_bool_isnull_nullable_top,
-            ineq_int_abs_nullable_top:x|$x.ineq_int_abs_nullable_top,
-            ineq_bool_isnull_nullable_top:x|$x.ineq_bool_isnull_nullable_top,
-            multicol_int_abs_nullable_top:x|$x.multicol_int_abs_nullable_top,
+            dyna1_string_up_notnull_top:x|$x.dyna1_string_up_notnull_top,
+            dyna1_bool_none_nullable_top:x|$x.dyna1_bool_none_nullable_top,
+            dyna2_float_none_nullable_top:x|$x.dyna2_float_none_nullable_top,
+            ineq_int_none_nullable_top:x|$x.ineq_int_none_nullable_top,
+            multicol_string_up_notnull_top:x|$x.multicol_string_up_notnull_top,
             multicol_bool_isnull_nullable_top:x|$x.multicol_bool_isnull_nullable_top,
-            ormix_int_abs_nullable_top:x|$x.ormix_int_abs_nullable_top,
             ormix_bool_isnull_nullable_top:x|$x.ormix_bool_isnull_nullable_top
         ])
         ->sort(~rootId->ascending());
@@ -394,7 +330,7 @@ Service stress::CB_C3
       ]
       tests:
       [
-        // 33 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 17 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -407,7 +343,7 @@ Service stress::CB_C3
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0002","col_float_abs_notnull_embedded":362.5,"col_float_times_notnull_embedded":131406.25,"chain1_string_up_nullable_top":null,"chain1_string_cat_nullable_embedded":"","chain1_string_nest_nullable_top":"","chain1_int_none_nullable_top":null,"chain1_int_abs_notnull_embedded":null,"chain1_int_plus_notnull_embedded":null,"chain1_int_times_notnull_top":null,"chain1_int_times_nullable_embedded":null,"chain1_float_none_nullable_top":null,"chain1_float_abs_nullable_top":null,"chain1_float_sqrt_nullable_embedded":null,"chain1_float_times_nullable_embedded":null,"chain1_bool_none_nullable_embedded":null,"chain1_bool_isnotnull_nullable_top":false,"chain2_string_cat_nullable_embedded":"","chain2_int_none_nullable_embedded":null,"chain2_int_plus_nullable_embedded":null,"chain2_float_none_nullable_embedded":null,"chain2_float_sqrt_nullable_embedded":null,"chain2_bool_none_nullable_embedded":null,"chain2_bool_isnotnull_nullable_embedded":false,"dyna1_int_abs_nullable_top":52,"dyna1_bool_isnull_nullable_top":false,"dyna2_int_abs_nullable_top":52,"dyna2_bool_isnull_nullable_top":false,"ineq_int_abs_nullable_top":45,"ineq_bool_isnull_nullable_top":false,"multicol_int_abs_nullable_top":52,"multicol_bool_isnull_nullable_top":false,"ormix_int_abs_nullable_top":52,"ormix_bool_isnull_nullable_top":false},{"rootId":"CR-0003","col_float_abs_notnull_embedded":400.0,"col_float_times_notnull_embedded":160000.0,"chain1_string_up_nullable_top":"H1-S-NL1-001","chain1_string_cat_nullable_embedded":"H1-S-NL1-001H1-S-NL2-001","chain1_string_nest_nullable_top":"H1-S-NL1-001H1-S-NL2-001","chain1_int_none_nullable_top":24,"chain1_int_abs_notnull_embedded":24,"chain1_int_plus_notnull_embedded":48,"chain1_int_times_notnull_top":576,"chain1_int_times_nullable_embedded":null,"chain1_float_none_nullable_top":175.0,"chain1_float_abs_nullable_top":175.0,"chain1_float_sqrt_nullable_embedded":13.228756555322953,"chain1_float_times_nullable_embedded":30625.0,"chain1_bool_none_nullable_embedded":true,"chain1_bool_isnotnull_nullable_top":true,"chain2_string_cat_nullable_embedded":"","chain2_int_none_nullable_embedded":null,"chain2_int_plus_nullable_embedded":null,"chain2_float_none_nullable_embedded":null,"chain2_float_sqrt_nullable_embedded":null,"chain2_bool_none_nullable_embedded":null,"chain2_bool_isnotnull_nullable_embedded":false,"dyna1_int_abs_nullable_top":59,"dyna1_bool_isnull_nullable_top":true,"dyna2_int_abs_nullable_top":59,"dyna2_bool_isnull_nullable_top":true,"ineq_int_abs_nullable_top":45,"ineq_bool_isnull_nullable_top":false,"multicol_int_abs_nullable_top":59,"multicol_bool_isnull_nullable_top":true,"ormix_int_abs_nullable_top":59,"ormix_bool_isnull_nullable_top":true},{"rootId":"CR-0004","col_float_abs_notnull_embedded":437.5,"col_float_times_notnull_embedded":191406.25,"chain1_string_up_nullable_top":"H1-S-NL1-002","chain1_string_cat_nullable_embedded":"H1-S-NL1-002H1-S-NL2-002","chain1_string_nest_nullable_top":"H1-S-NL1-002H1-S-NL2-002","chain1_int_none_nullable_top":31,"chain1_int_abs_notnull_embedded":31,"chain1_int_plus_notnull_embedded":62,"chain1_int_times_notnull_top":961,"chain1_int_times_nullable_embedded":961,"chain1_float_none_nullable_top":null,"chain1_float_abs_nullable_top":null,"chain1_float_sqrt_nullable_embedded":null,"chain1_float_times_nullable_embedded":null,"chain1_bool_none_nullable_embedded":false,"chain1_bool_isnotnull_nullable_top":true,"chain2_string_cat_nullable_embedded":"","chain2_int_none_nullable_embedded":null,"chain2_int_plus_nullable_embedded":null,"chain2_float_none_nullable_embedded":null,"chain2_float_sqrt_nullable_embedded":null,"chain2_bool_none_nullable_embedded":null,"chain2_bool_isnotnull_nullable_embedded":false,"dyna1_int_abs_nullable_top":null,"dyna1_bool_isnull_nullable_top":false,"dyna2_int_abs_nullable_top":null,"dyna2_bool_isnull_nullable_top":false,"ineq_int_abs_nullable_top":45,"ineq_bool_isnull_nullable_top":false,"multicol_int_abs_nullable_top":null,"multicol_bool_isnull_nullable_top":false,"ormix_int_abs_nullable_top":null,"ormix_bool_isnull_nullable_top":false},{"rootId":"CR-0005","col_float_abs_notnull_embedded":475.0,"col_float_times_notnull_embedded":225625.0,"chain1_string_up_nullable_top":null,"chain1_string_cat_nullable_embedded":"H1-S-NL2-003","chain1_string_nest_nullable_top":"H1-S-NL2-003","chain1_int_none_nullable_top":38,"chain1_int_abs_notnull_embedded":38,"chain1_int_plus_notnull_embedded":76,"chain1_int_times_notnull_top":1444,"chain1_int_times_nullable_embedded":1444,"chain1_float_none_nullable_top":250.0,"chain1_float_abs_nullable_top":250.0,"chain1_float_sqrt_nullable_embedded":15.811388300841896,"chain1_float_times_nullable_embedded":null,"chain1_bool_none_nullable_embedded":true,"chain1_bool_isnotnull_nullable_top":true,"chain2_string_cat_nullable_embedded":"H2-S-NL1-001H2-S-NL2-001","chain2_int_none_nullable_embedded":10,"chain2_int_plus_nullable_embedded":null,"chain2_float_none_nullable_embedded":100.0,"chain2_float_sqrt_nullable_embedded":10.0,"chain2_bool_none_nullable_embedded":false,"chain2_bool_isnotnull_nullable_embedded":true,"dyna1_int_abs_nullable_top":73,"dyna1_bool_isnull_nullable_top":false,"dyna2_int_abs_nullable_top":73,"dyna2_bool_isnull_nullable_top":false,"ineq_int_abs_nullable_top":null,"ineq_bool_isnull_nullable_top":true,"multicol_int_abs_nullable_top":73,"multicol_bool_isnull_nullable_top":false,"ormix_int_abs_nullable_top":73,"ormix_bool_isnull_nullable_top":false}]';
+                    data: '[{"rootId":"CR-0001","col_float_abs_nullable_top":325.0,"chain1_int_none_nullable_top":null,"chain1_int_times_nullable_top":null,"chain1_float_sqrt_nullable_top":null,"chain1_bool_isnull_notnull_embedded":true,"chain2_string_cat_nullable_embedded":"","chain2_int_abs_notnull_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_nullable_embedded":null,"dyna1_string_up_notnull_top":"A-S-NN1-001","dyna1_bool_none_nullable_top":true,"dyna2_float_none_nullable_top":null,"ineq_int_none_nullable_top":45,"multicol_string_up_notnull_top":null,"multicol_bool_isnull_nullable_top":true,"ormix_bool_isnull_nullable_top":false},{"rootId":"CR-0002","col_float_abs_nullable_top":null,"chain1_int_none_nullable_top":null,"chain1_int_times_nullable_top":null,"chain1_float_sqrt_nullable_top":null,"chain1_bool_isnull_notnull_embedded":true,"chain2_string_cat_nullable_embedded":"","chain2_int_abs_notnull_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_nullable_embedded":null,"dyna1_string_up_notnull_top":"A-S-NN1-002","dyna1_bool_none_nullable_top":false,"dyna2_float_none_nullable_top":325.0,"ineq_int_none_nullable_top":45,"multicol_string_up_notnull_top":"A-S-NN1-002","multicol_bool_isnull_nullable_top":false,"ormix_bool_isnull_nullable_top":false},{"rootId":"CR-0003","col_float_abs_nullable_top":400.0,"chain1_int_none_nullable_top":24,"chain1_int_times_nullable_top":null,"chain1_float_sqrt_nullable_top":13.228756555322953,"chain1_bool_isnull_notnull_embedded":false,"chain2_string_cat_nullable_embedded":"","chain2_int_abs_notnull_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_nullable_embedded":null,"dyna1_string_up_notnull_top":"A-S-NN1-003","dyna1_bool_none_nullable_top":null,"dyna2_float_none_nullable_top":362.5,"ineq_int_none_nullable_top":45,"multicol_string_up_notnull_top":"A-S-NN1-003","multicol_bool_isnull_nullable_top":true,"ormix_bool_isnull_nullable_top":true},{"rootId":"CR-0004","col_float_abs_nullable_top":437.5,"chain1_int_none_nullable_top":31,"chain1_int_times_nullable_top":961,"chain1_float_sqrt_nullable_top":null,"chain1_bool_isnull_notnull_embedded":false,"chain2_string_cat_nullable_embedded":"","chain2_int_abs_notnull_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_sqrt_notnull_embedded":null,"chain2_bool_none_nullable_embedded":null,"dyna1_string_up_notnull_top":"A-S-NN1-004","dyna1_bool_none_nullable_top":true,"dyna2_float_none_nullable_top":400.0,"ineq_int_none_nullable_top":45,"multicol_string_up_notnull_top":"A-S-NN1-004","multicol_bool_isnull_nullable_top":false,"ormix_bool_isnull_nullable_top":false},{"rootId":"CR-0005","col_float_abs_nullable_top":475.0,"chain1_int_none_nullable_top":38,"chain1_int_times_nullable_top":1444,"chain1_float_sqrt_nullable_top":15.811388300841896,"chain1_bool_isnull_notnull_embedded":false,"chain2_string_cat_nullable_embedded":"H2-S-NL1-001H2-S-NL2-001","chain2_int_abs_notnull_embedded":10,"chain2_int_times_nullable_embedded":null,"chain2_float_sqrt_notnull_embedded":10.0,"chain2_bool_none_nullable_embedded":false,"dyna1_string_up_notnull_top":"A-S-NN1-005","dyna1_bool_none_nullable_top":false,"dyna2_float_none_nullable_top":437.5,"ineq_int_none_nullable_top":null,"multicol_string_up_notnull_top":"A-S-NN1-005","multicol_bool_isnull_nullable_top":false,"ormix_bool_isnull_nullable_top":false}]';
                   }#;
               }#
           ]
@@ -420,44 +356,28 @@ Service stress::CB_C3
 Service stress::CB_C4
 {
     pattern: '/stress/cb_c4';
-    documentation: 'Combination matrix cell: class filter=chain, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=direct, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C4.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_up_notnull_embedded:x|$x.nested.col_string_up_notnull_embedded,
-            col_string_up_notnull_top:x|$x.col_string_up_notnull_top,
-            col_string_cat_nullable_top:x|$x.col_string_cat_nullable_top,
-            chain1_string_none_nullable_top:x|$x.chain1_string_none_nullable_top,
-            chain2_string_none_nullable_top:x|$x.chain2_string_none_nullable_top,
-            col_bool_none_nullable_top:x|$x.col_bool_none_nullable_top,
-            col_float_none_nullable_top:x|$x.col_float_none_nullable_top,
-            col_int_none_nullable_top:x|$x.col_int_none_nullable_top,
-            col_int_abs_nullable_top:x|$x.col_int_abs_nullable_top,
-            col_bool_isnotnull_nullable_top:x|$x.col_bool_isnotnull_nullable_top,
-            col_bool_isnull_nullable_top:x|$x.col_bool_isnull_nullable_top,
-            col_string_nest_nullable_top:x|$x.col_string_nest_nullable_top,
-            col_int_plus_nullable_top:x|$x.col_int_plus_nullable_top,
-            col_float_sqrt_nullable_top:x|$x.col_float_sqrt_nullable_top,
-            col_int_times_nullable_top:x|$x.col_int_times_nullable_top,
-            chain1_bool_isnotnull_nullable_embedded:x|$x.nested.chain1_bool_isnotnull_nullable_embedded,
-            chain2_string_nest_notnull_top:x|$x.chain2_string_nest_notnull_top,
-            chain2_int_abs_notnull_top:x|$x.chain2_int_abs_notnull_top,
-            chain2_int_times_notnull_top:x|$x.chain2_int_times_notnull_top,
-            chain2_float_abs_notnull_top:x|$x.chain2_float_abs_notnull_top,
-            chain2_float_times_notnull_top:x|$x.chain2_float_times_notnull_top,
-            chain2_bool_isnull_notnull_top:x|$x.chain2_bool_isnull_notnull_top,
-            dyna1_string_none_notnull_top:x|$x.dyna1_string_none_notnull_top,
-            dyna1_float_none_notnull_top:x|$x.dyna1_float_none_notnull_top,
-            dyna2_string_none_notnull_top:x|$x.dyna2_string_none_notnull_top,
-            dyna2_float_none_notnull_top:x|$x.dyna2_float_none_notnull_top,
-            ineq_string_none_notnull_top:x|$x.ineq_string_none_notnull_top,
-            ineq_float_none_notnull_top:x|$x.ineq_float_none_notnull_top,
-            multicol_string_none_notnull_top:x|$x.multicol_string_none_notnull_top,
-            multicol_float_none_notnull_top:x|$x.multicol_float_none_notnull_top,
-            ormix_string_none_notnull_top:x|$x.ormix_string_none_notnull_top,
-            ormix_float_none_notnull_top:x|$x.ormix_float_none_notnull_top
+            col_string_up_nullable_embedded:x|$x.nested.col_string_up_nullable_embedded,
+            col_string_up_nullable_top:x|$x.col_string_up_nullable_top,
+            col_string_nest_notnull_embedded:x|$x.nested.col_string_nest_notnull_embedded,
+            chain1_string_none_nullable_embedded:x|$x.nested.chain1_string_none_nullable_embedded,
+            chain2_string_none_nullable_embedded:x|$x.nested.chain2_string_none_nullable_embedded,
+            col_bool_none_nullable_embedded:x|$x.nested.col_bool_none_nullable_embedded,
+            col_float_none_nullable_embedded:x|$x.nested.col_float_none_nullable_embedded,
+            col_int_none_nullable_embedded:x|$x.nested.col_int_none_nullable_embedded,
+            col_int_abs_nullable_embedded:x|$x.nested.col_int_abs_nullable_embedded,
+            chain1_string_cat_nullable_top:x|$x.chain1_string_cat_nullable_top,
+            col_bool_isnotnull_nullable_embedded:x|$x.nested.col_bool_isnotnull_nullable_embedded,
+            chain1_bool_isnull_notnull_top:x|$x.chain1_bool_isnull_notnull_top,
+            col_int_plus_nullable_embedded:x|$x.nested.col_int_plus_nullable_embedded,
+            col_float_sqrt_nullable_embedded:x|$x.nested.col_float_sqrt_nullable_embedded,
+            col_int_times_nullable_embedded:x|$x.nested.col_int_times_nullable_embedded,
+            ormix_string_none_notnull_top:x|$x.ormix_string_none_notnull_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -480,7 +400,7 @@ Service stress::CB_C4
       ]
       tests:
       [
-        // 32 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -493,7 +413,7 @@ Service stress::CB_C4
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0005","col_string_up_notnull_embedded":"R-S-NN1-005","col_string_up_notnull_top":"R-S-NN1-005","col_string_cat_nullable_top":"R-S-NL1-005R-S-NL2-005","chain1_string_none_nullable_top":null,"chain2_string_none_nullable_top":"H2-S-NL1-001","col_bool_none_nullable_top":true,"col_float_none_nullable_top":475.0,"col_int_none_nullable_top":null,"col_int_abs_nullable_top":null,"col_bool_isnotnull_nullable_top":true,"col_bool_isnull_nullable_top":false,"col_string_nest_nullable_top":"R-S-NL1-005R-S-NL2-005","col_int_plus_nullable_top":null,"col_float_sqrt_nullable_top":21.79449471770337,"col_int_times_nullable_top":null,"chain1_bool_isnotnull_nullable_embedded":true,"chain2_string_nest_notnull_top":"H2-S-NN1-001H2-S-NN2-001","chain2_int_abs_notnull_top":10,"chain2_int_times_notnull_top":100,"chain2_float_abs_notnull_top":100.0,"chain2_float_times_notnull_top":10000.0,"chain2_bool_isnull_notnull_top":false,"dyna1_string_none_notnull_top":"A-S-NN1-005","dyna1_float_none_notnull_top":437.5,"dyna2_string_none_notnull_top":"A-S-NN1-005","dyna2_float_none_notnull_top":437.5,"ineq_string_none_notnull_top":null,"ineq_float_none_notnull_top":null,"multicol_string_none_notnull_top":"A-S-NN1-005","multicol_float_none_notnull_top":437.5,"ormix_string_none_notnull_top":"A-S-NN1-005","ormix_float_none_notnull_top":437.5}]';
+                    data: '[{"rootId":"CR-0002","col_string_up_nullable_embedded":"R-S-NL1-002","col_string_up_nullable_top":"R-S-NL1-002","col_string_nest_notnull_embedded":"R-S-NN1-002R-S-NN2-002","chain1_string_none_nullable_embedded":null,"chain2_string_none_nullable_embedded":null,"col_bool_none_nullable_embedded":true,"col_float_none_nullable_embedded":null,"col_int_none_nullable_embedded":59,"col_int_abs_nullable_embedded":59,"chain1_string_cat_nullable_top":"","col_bool_isnotnull_nullable_embedded":true,"chain1_bool_isnull_notnull_top":true,"col_int_plus_nullable_embedded":118,"col_float_sqrt_nullable_embedded":null,"col_int_times_nullable_embedded":3481,"ormix_string_none_notnull_top":"A-S-NN1-002"},{"rootId":"CR-0003","col_string_up_nullable_embedded":null,"col_string_up_nullable_top":null,"col_string_nest_notnull_embedded":"R-S-NN1-003R-S-NN2-003","chain1_string_none_nullable_embedded":"H1-S-NL1-001","chain2_string_none_nullable_embedded":null,"col_bool_none_nullable_embedded":true,"col_float_none_nullable_embedded":400.0,"col_int_none_nullable_embedded":66,"col_int_abs_nullable_embedded":66,"chain1_string_cat_nullable_top":"H1-S-NL1-001H1-S-NL2-001","col_bool_isnotnull_nullable_embedded":true,"chain1_bool_isnull_notnull_top":false,"col_int_plus_nullable_embedded":132,"col_float_sqrt_nullable_embedded":20.0,"col_int_times_nullable_embedded":4356,"ormix_string_none_notnull_top":"A-S-NN1-003"},{"rootId":"CR-0004","col_string_up_nullable_embedded":"R-S-NL1-004","col_string_up_nullable_top":"R-S-NL1-004","col_string_nest_notnull_embedded":"R-S-NN1-004R-S-NN2-004","chain1_string_none_nullable_embedded":"H1-S-NL1-002","chain2_string_none_nullable_embedded":null,"col_bool_none_nullable_embedded":null,"col_float_none_nullable_embedded":437.5,"col_int_none_nullable_embedded":73,"col_int_abs_nullable_embedded":73,"chain1_string_cat_nullable_top":"H1-S-NL1-002H1-S-NL2-002","col_bool_isnotnull_nullable_embedded":false,"chain1_bool_isnull_notnull_top":false,"col_int_plus_nullable_embedded":146,"col_float_sqrt_nullable_embedded":20.91650066335189,"col_int_times_nullable_embedded":5329,"ormix_string_none_notnull_top":"A-S-NN1-004"},{"rootId":"CR-0005","col_string_up_nullable_embedded":"R-S-NL1-005","col_string_up_nullable_top":"R-S-NL1-005","col_string_nest_notnull_embedded":"R-S-NN1-005R-S-NN2-005","chain1_string_none_nullable_embedded":null,"chain2_string_none_nullable_embedded":"H2-S-NL1-001","col_bool_none_nullable_embedded":true,"col_float_none_nullable_embedded":475.0,"col_int_none_nullable_embedded":null,"col_int_abs_nullable_embedded":null,"chain1_string_cat_nullable_top":"H1-S-NL2-003","col_bool_isnotnull_nullable_embedded":true,"chain1_bool_isnull_notnull_top":false,"col_int_plus_nullable_embedded":null,"col_float_sqrt_nullable_embedded":21.79449471770337,"col_int_times_nullable_embedded":null,"ormix_string_none_notnull_top":"A-S-NN1-005"}]';
                   }#;
               }#
           ]
@@ -506,44 +426,28 @@ Service stress::CB_C4
 Service stress::CB_C5
 {
     pattern: '/stress/cb_c5';
-    documentation: 'Combination matrix cell: class filter=chain, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=direct, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C5.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_float_abs_nullable_top:x|$x.col_float_abs_nullable_top,
-            col_float_times_nullable_top:x|$x.col_float_times_nullable_top,
-            chain1_string_up_nullable_embedded:x|$x.nested.chain1_string_up_nullable_embedded,
-            chain1_string_nest_notnull_top:x|$x.chain1_string_nest_notnull_top,
-            chain1_string_nest_nullable_embedded:x|$x.nested.chain1_string_nest_nullable_embedded,
+            col_float_abs_nullable_embedded:x|$x.nested.col_float_abs_nullable_embedded,
             chain1_int_none_nullable_embedded:x|$x.nested.chain1_int_none_nullable_embedded,
-            chain1_int_abs_nullable_top:x|$x.chain1_int_abs_nullable_top,
-            chain1_int_plus_nullable_top:x|$x.chain1_int_plus_nullable_top,
-            chain1_int_times_notnull_embedded:x|$x.nested.chain1_int_times_notnull_embedded,
-            chain1_float_none_notnull_top:x|$x.chain1_float_none_notnull_top,
-            chain1_float_none_nullable_embedded:x|$x.nested.chain1_float_none_nullable_embedded,
-            chain1_float_abs_nullable_embedded:x|$x.nested.chain1_float_abs_nullable_embedded,
-            chain1_float_times_notnull_top:x|$x.chain1_float_times_notnull_top,
-            chain1_bool_none_notnull_top:x|$x.chain1_bool_none_notnull_top,
-            chain1_bool_isnull_notnull_top:x|$x.chain1_bool_isnull_notnull_top,
-            chain2_string_up_notnull_embedded:x|$x.nested.chain2_string_up_notnull_embedded,
-            chain2_string_nest_notnull_embedded:x|$x.nested.chain2_string_nest_notnull_embedded,
-            chain2_int_abs_notnull_embedded:x|$x.nested.chain2_int_abs_notnull_embedded,
-            chain2_int_times_notnull_embedded:x|$x.nested.chain2_int_times_notnull_embedded,
-            chain2_float_abs_notnull_embedded:x|$x.nested.chain2_float_abs_notnull_embedded,
-            chain2_float_times_notnull_embedded:x|$x.nested.chain2_float_times_notnull_embedded,
-            chain2_bool_isnull_notnull_embedded:x|$x.nested.chain2_bool_isnull_notnull_embedded,
-            dyna1_string_none_nullable_top:x|$x.dyna1_string_none_nullable_top,
-            dyna1_float_none_nullable_top:x|$x.dyna1_float_none_nullable_top,
-            dyna2_string_none_nullable_top:x|$x.dyna2_string_none_nullable_top,
-            dyna2_float_none_nullable_top:x|$x.dyna2_float_none_nullable_top,
-            ineq_string_none_nullable_top:x|$x.ineq_string_none_nullable_top,
-            ineq_float_none_nullable_top:x|$x.ineq_float_none_nullable_top,
-            multicol_string_none_nullable_top:x|$x.multicol_string_none_nullable_top,
-            multicol_float_none_nullable_top:x|$x.multicol_float_none_nullable_top,
-            ormix_string_none_nullable_top:x|$x.ormix_string_none_nullable_top,
-            ormix_float_none_nullable_top:x|$x.ormix_float_none_nullable_top
+            chain1_int_times_nullable_embedded:x|$x.nested.chain1_int_times_nullable_embedded,
+            chain1_float_sqrt_nullable_embedded:x|$x.nested.chain1_float_sqrt_nullable_embedded,
+            chain1_bool_isnull_nullable_top:x|$x.chain1_bool_isnull_nullable_top,
+            chain2_string_nest_notnull_top:x|$x.chain2_string_nest_notnull_top,
+            chain2_int_abs_nullable_top:x|$x.chain2_int_abs_nullable_top,
+            chain2_float_none_notnull_top:x|$x.chain2_float_none_notnull_top,
+            chain2_float_sqrt_nullable_top:x|$x.chain2_float_sqrt_nullable_top,
+            chain2_bool_isnull_notnull_top:x|$x.chain2_bool_isnull_notnull_top,
+            dyna1_string_up_nullable_top:x|$x.dyna1_string_up_nullable_top,
+            dyna1_bool_isnull_notnull_top:x|$x.dyna1_bool_isnull_notnull_top,
+            dyna2_float_abs_notnull_top:x|$x.dyna2_float_abs_notnull_top,
+            ineq_int_abs_notnull_top:x|$x.ineq_int_abs_notnull_top,
+            multicol_string_up_nullable_top:x|$x.multicol_string_up_nullable_top,
+            ormix_string_none_nullable_top:x|$x.ormix_string_none_nullable_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -566,7 +470,7 @@ Service stress::CB_C5
       ]
       tests:
       [
-        // 32 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -579,7 +483,7 @@ Service stress::CB_C5
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0005","col_float_abs_nullable_top":475.0,"col_float_times_nullable_top":225625.0,"chain1_string_up_nullable_embedded":null,"chain1_string_nest_notnull_top":"H1-S-NN1-003H1-S-NN2-003","chain1_string_nest_nullable_embedded":"H1-S-NL2-003","chain1_int_none_nullable_embedded":38,"chain1_int_abs_nullable_top":38,"chain1_int_plus_nullable_top":76,"chain1_int_times_notnull_embedded":1444,"chain1_float_none_notnull_top":250.0,"chain1_float_none_nullable_embedded":250.0,"chain1_float_abs_nullable_embedded":250.0,"chain1_float_times_notnull_top":62500.0,"chain1_bool_none_notnull_top":true,"chain1_bool_isnull_notnull_top":false,"chain2_string_up_notnull_embedded":"H2-S-NN1-001","chain2_string_nest_notnull_embedded":"H2-S-NN1-001H2-S-NN2-001","chain2_int_abs_notnull_embedded":10,"chain2_int_times_notnull_embedded":100,"chain2_float_abs_notnull_embedded":100.0,"chain2_float_times_notnull_embedded":10000.0,"chain2_bool_isnull_notnull_embedded":false,"dyna1_string_none_nullable_top":"A-S-NL1-005","dyna1_float_none_nullable_top":437.5,"dyna2_string_none_nullable_top":"A-S-NL1-005","dyna2_float_none_nullable_top":437.5,"ineq_string_none_nullable_top":null,"ineq_float_none_nullable_top":null,"multicol_string_none_nullable_top":"A-S-NL1-005","multicol_float_none_nullable_top":437.5,"ormix_string_none_nullable_top":"A-S-NL1-005","ormix_float_none_nullable_top":437.5}]';
+                    data: '[{"rootId":"CR-0002","col_float_abs_nullable_embedded":null,"chain1_int_none_nullable_embedded":null,"chain1_int_times_nullable_embedded":null,"chain1_float_sqrt_nullable_embedded":null,"chain1_bool_isnull_nullable_top":true,"chain2_string_nest_notnull_top":"","chain2_int_abs_nullable_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_nullable_top":null,"chain2_bool_isnull_notnull_top":true,"dyna1_string_up_nullable_top":null,"dyna1_bool_isnull_notnull_top":false,"dyna2_float_abs_notnull_top":325.0,"ineq_int_abs_notnull_top":45,"multicol_string_up_nullable_top":null,"ormix_string_none_nullable_top":null},{"rootId":"CR-0003","col_float_abs_nullable_embedded":400.0,"chain1_int_none_nullable_embedded":24,"chain1_int_times_nullable_embedded":null,"chain1_float_sqrt_nullable_embedded":13.228756555322953,"chain1_bool_isnull_nullable_top":false,"chain2_string_nest_notnull_top":"","chain2_int_abs_nullable_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_nullable_top":null,"chain2_bool_isnull_notnull_top":true,"dyna1_string_up_nullable_top":"A-S-NL1-003","dyna1_bool_isnull_notnull_top":false,"dyna2_float_abs_notnull_top":362.5,"ineq_int_abs_notnull_top":45,"multicol_string_up_nullable_top":"A-S-NL1-003","ormix_string_none_nullable_top":"A-S-NL1-003"},{"rootId":"CR-0004","col_float_abs_nullable_embedded":437.5,"chain1_int_none_nullable_embedded":31,"chain1_int_times_nullable_embedded":961,"chain1_float_sqrt_nullable_embedded":null,"chain1_bool_isnull_nullable_top":false,"chain2_string_nest_notnull_top":"","chain2_int_abs_nullable_top":null,"chain2_float_none_notnull_top":null,"chain2_float_sqrt_nullable_top":null,"chain2_bool_isnull_notnull_top":true,"dyna1_string_up_nullable_top":"A-S-NL1-004","dyna1_bool_isnull_notnull_top":false,"dyna2_float_abs_notnull_top":400.0,"ineq_int_abs_notnull_top":45,"multicol_string_up_nullable_top":"A-S-NL1-004","ormix_string_none_nullable_top":"A-S-NL1-004"},{"rootId":"CR-0005","col_float_abs_nullable_embedded":475.0,"chain1_int_none_nullable_embedded":38,"chain1_int_times_nullable_embedded":1444,"chain1_float_sqrt_nullable_embedded":15.811388300841896,"chain1_bool_isnull_nullable_top":false,"chain2_string_nest_notnull_top":"H2-S-NN1-001H2-S-NN2-001","chain2_int_abs_nullable_top":10,"chain2_float_none_notnull_top":100.0,"chain2_float_sqrt_nullable_top":10.0,"chain2_bool_isnull_notnull_top":false,"dyna1_string_up_nullable_top":"A-S-NL1-005","dyna1_bool_isnull_notnull_top":false,"dyna2_float_abs_notnull_top":437.5,"ineq_int_abs_notnull_top":null,"multicol_string_up_nullable_top":"A-S-NL1-005","ormix_string_none_nullable_top":"A-S-NL1-005"}]';
                   }#;
               }#
           ]
@@ -592,44 +496,28 @@ Service stress::CB_C5
 Service stress::CB_C6
 {
     pattern: '/stress/cb_c6';
-    documentation: 'Combination matrix cell: class filter=multigrain, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=direct, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C6.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_cat_notnull_embedded:x|$x.nested.col_string_cat_notnull_embedded,
-            col_string_cat_notnull_top:x|$x.col_string_cat_notnull_top,
-            col_string_cat_nullable_embedded:x|$x.nested.col_string_cat_nullable_embedded,
-            chain1_string_up_notnull_top:x|$x.chain1_string_up_notnull_top,
-            chain2_string_up_notnull_top:x|$x.chain2_string_up_notnull_top,
-            col_bool_isnull_notnull_top:x|$x.col_bool_isnull_notnull_top,
-            col_float_abs_notnull_top:x|$x.col_float_abs_notnull_top,
-            col_int_abs_notnull_top:x|$x.col_int_abs_notnull_top,
-            chain1_bool_isnotnull_notnull_top:x|$x.chain1_bool_isnotnull_notnull_top,
-            col_string_nest_nullable_embedded:x|$x.nested.col_string_nest_nullable_embedded,
-            chain1_int_none_notnull_top:x|$x.chain1_int_none_notnull_top,
-            chain1_int_plus_notnull_top:x|$x.chain1_int_plus_notnull_top,
-            chain1_float_sqrt_notnull_top:x|$x.chain1_float_sqrt_notnull_top,
-            col_float_times_notnull_top:x|$x.col_float_times_notnull_top,
-            chain1_bool_isnull_notnull_embedded:x|$x.nested.chain1_bool_isnull_notnull_embedded,
-            chain2_string_up_nullable_top:x|$x.chain2_string_up_nullable_top,
-            chain2_string_nest_nullable_top:x|$x.chain2_string_nest_nullable_top,
-            chain2_int_abs_nullable_top:x|$x.chain2_int_abs_nullable_top,
-            chain2_int_times_nullable_top:x|$x.chain2_int_times_nullable_top,
-            chain2_float_abs_nullable_top:x|$x.chain2_float_abs_nullable_top,
-            chain2_float_times_nullable_top:x|$x.chain2_float_times_nullable_top,
-            chain2_bool_isnull_nullable_top:x|$x.chain2_bool_isnull_nullable_top,
-            dyna1_string_up_notnull_top:x|$x.dyna1_string_up_notnull_top,
-            dyna1_float_abs_notnull_top:x|$x.dyna1_float_abs_notnull_top,
-            dyna2_string_up_notnull_top:x|$x.dyna2_string_up_notnull_top,
-            dyna2_float_abs_notnull_top:x|$x.dyna2_float_abs_notnull_top,
-            ineq_string_up_notnull_top:x|$x.ineq_string_up_notnull_top,
-            ineq_float_abs_notnull_top:x|$x.ineq_float_abs_notnull_top,
-            multicol_string_up_notnull_top:x|$x.multicol_string_up_notnull_top,
-            multicol_float_abs_notnull_top:x|$x.multicol_float_abs_notnull_top,
-            ormix_string_up_notnull_top:x|$x.ormix_string_up_notnull_top,
-            ormix_float_abs_notnull_top:x|$x.ormix_float_abs_notnull_top
+            col_float_times_nullable_top:x|$x.col_float_times_nullable_top,
+            chain1_int_abs_notnull_top:x|$x.chain1_int_abs_notnull_top,
+            chain1_float_none_notnull_top:x|$x.chain1_float_none_notnull_top,
+            chain1_float_times_notnull_top:x|$x.chain1_float_times_notnull_top,
+            chain1_bool_isnull_nullable_embedded:x|$x.nested.chain1_bool_isnull_nullable_embedded,
+            chain2_string_nest_notnull_embedded:x|$x.nested.chain2_string_nest_notnull_embedded,
+            chain2_int_abs_nullable_embedded:x|$x.nested.chain2_int_abs_nullable_embedded,
+            chain2_float_none_notnull_embedded:x|$x.nested.chain2_float_none_notnull_embedded,
+            chain2_float_sqrt_nullable_embedded:x|$x.nested.chain2_float_sqrt_nullable_embedded,
+            chain2_bool_isnull_notnull_embedded:x|$x.nested.chain2_bool_isnull_notnull_embedded,
+            dyna1_int_none_notnull_top:x|$x.dyna1_int_none_notnull_top,
+            dyna1_bool_isnull_nullable_top:x|$x.dyna1_bool_isnull_nullable_top,
+            dyna2_float_abs_nullable_top:x|$x.dyna2_float_abs_nullable_top,
+            ineq_int_abs_nullable_top:x|$x.ineq_int_abs_nullable_top,
+            multicol_int_none_notnull_top:x|$x.multicol_int_none_notnull_top,
+            ormix_string_up_notnull_top:x|$x.ormix_string_up_notnull_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -652,7 +540,7 @@ Service stress::CB_C6
       ]
       tests:
       [
-        // 32 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -665,7 +553,7 @@ Service stress::CB_C6
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001","col_string_cat_notnull_embedded":"R-S-NN1-001R-S-NN2-001","col_string_cat_notnull_top":"R-S-NN1-001R-S-NN2-001","col_string_cat_nullable_embedded":"R-S-NL1-001R-S-NL2-001","chain1_string_up_notnull_top":null,"chain2_string_up_notnull_top":null,"col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":325.0,"col_int_abs_notnull_top":52,"chain1_bool_isnotnull_notnull_top":false,"col_string_nest_nullable_embedded":"R-S-NL1-001R-S-NL2-001","chain1_int_none_notnull_top":null,"chain1_int_plus_notnull_top":null,"chain1_float_sqrt_notnull_top":null,"col_float_times_notnull_top":105625.0,"chain1_bool_isnull_notnull_embedded":true,"chain2_string_up_nullable_top":null,"chain2_string_nest_nullable_top":"","chain2_int_abs_nullable_top":null,"chain2_int_times_nullable_top":null,"chain2_float_abs_nullable_top":null,"chain2_float_times_nullable_top":null,"chain2_bool_isnull_nullable_top":true,"dyna1_string_up_notnull_top":"A-S-NN1-001","dyna1_float_abs_notnull_top":287.5,"dyna2_string_up_notnull_top":"A-S-NN1-001","dyna2_float_abs_notnull_top":287.5,"ineq_string_up_notnull_top":"A-S-NN1-001","ineq_float_abs_notnull_top":287.5,"multicol_string_up_notnull_top":null,"multicol_float_abs_notnull_top":null,"ormix_string_up_notnull_top":"A-S-NN1-001","ormix_float_abs_notnull_top":287.5},{"rootId":"CR-0002","col_string_cat_notnull_embedded":"R-S-NN1-002R-S-NN2-002","col_string_cat_notnull_top":"R-S-NN1-002R-S-NN2-002","col_string_cat_nullable_embedded":"R-S-NL1-002R-S-NL2-002","chain1_string_up_notnull_top":null,"chain2_string_up_notnull_top":null,"col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":362.5,"col_int_abs_notnull_top":59,"chain1_bool_isnotnull_notnull_top":false,"col_string_nest_nullable_embedded":"R-S-NL1-002R-S-NL2-002","chain1_int_none_notnull_top":null,"chain1_int_plus_notnull_top":null,"chain1_float_sqrt_notnull_top":null,"col_float_times_notnull_top":131406.25,"chain1_bool_isnull_notnull_embedded":true,"chain2_string_up_nullable_top":null,"chain2_string_nest_nullable_top":"","chain2_int_abs_nullable_top":null,"chain2_int_times_nullable_top":null,"chain2_float_abs_nullable_top":null,"chain2_float_times_nullable_top":null,"chain2_bool_isnull_nullable_top":true,"dyna1_string_up_notnull_top":"A-S-NN1-002","dyna1_float_abs_notnull_top":325.0,"dyna2_string_up_notnull_top":"A-S-NN1-002","dyna2_float_abs_notnull_top":325.0,"ineq_string_up_notnull_top":"A-S-NN1-001","ineq_float_abs_notnull_top":287.5,"multicol_string_up_notnull_top":"A-S-NN1-002","multicol_float_abs_notnull_top":325.0,"ormix_string_up_notnull_top":"A-S-NN1-002","ormix_float_abs_notnull_top":325.0},{"rootId":"CR-0004","col_string_cat_notnull_embedded":"R-S-NN1-004R-S-NN2-004","col_string_cat_notnull_top":"R-S-NN1-004R-S-NN2-004","col_string_cat_nullable_embedded":"R-S-NL1-004","chain1_string_up_notnull_top":"H1-S-NN1-002","chain2_string_up_notnull_top":null,"col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":437.5,"col_int_abs_notnull_top":73,"chain1_bool_isnotnull_notnull_top":true,"col_string_nest_nullable_embedded":"R-S-NL1-004","chain1_int_none_notnull_top":31,"chain1_int_plus_notnull_top":62,"chain1_float_sqrt_notnull_top":14.577379737113251,"col_float_times_notnull_top":191406.25,"chain1_bool_isnull_notnull_embedded":false,"chain2_string_up_nullable_top":null,"chain2_string_nest_nullable_top":"","chain2_int_abs_nullable_top":null,"chain2_int_times_nullable_top":null,"chain2_float_abs_nullable_top":null,"chain2_float_times_nullable_top":null,"chain2_bool_isnull_nullable_top":true,"dyna1_string_up_notnull_top":"A-S-NN1-004","dyna1_float_abs_notnull_top":400.0,"dyna2_string_up_notnull_top":"A-S-NN1-004","dyna2_float_abs_notnull_top":400.0,"ineq_string_up_notnull_top":"A-S-NN1-001","ineq_float_abs_notnull_top":287.5,"multicol_string_up_notnull_top":"A-S-NN1-004","multicol_float_abs_notnull_top":400.0,"ormix_string_up_notnull_top":"A-S-NN1-004","ormix_float_abs_notnull_top":400.0},{"rootId":"CR-0005","col_string_cat_notnull_embedded":"R-S-NN1-005R-S-NN2-005","col_string_cat_notnull_top":"R-S-NN1-005R-S-NN2-005","col_string_cat_nullable_embedded":"R-S-NL1-005R-S-NL2-005","chain1_string_up_notnull_top":"H1-S-NN1-003","chain2_string_up_notnull_top":"H2-S-NN1-001","col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":475.0,"col_int_abs_notnull_top":80,"chain1_bool_isnotnull_notnull_top":true,"col_string_nest_nullable_embedded":"R-S-NL1-005R-S-NL2-005","chain1_int_none_notnull_top":38,"chain1_int_plus_notnull_top":76,"chain1_float_sqrt_notnull_top":15.811388300841896,"col_float_times_notnull_top":225625.0,"chain1_bool_isnull_notnull_embedded":false,"chain2_string_up_nullable_top":"H2-S-NL1-001","chain2_string_nest_nullable_top":"H2-S-NL1-001H2-S-NL2-001","chain2_int_abs_nullable_top":10,"chain2_int_times_nullable_top":null,"chain2_float_abs_nullable_top":100.0,"chain2_float_times_nullable_top":10000.0,"chain2_bool_isnull_nullable_top":false,"dyna1_string_up_notnull_top":"A-S-NN1-005","dyna1_float_abs_notnull_top":437.5,"dyna2_string_up_notnull_top":"A-S-NN1-005","dyna2_float_abs_notnull_top":437.5,"ineq_string_up_notnull_top":null,"ineq_float_abs_notnull_top":null,"multicol_string_up_notnull_top":"A-S-NN1-005","multicol_float_abs_notnull_top":437.5,"ormix_string_up_notnull_top":"A-S-NN1-005","ormix_float_abs_notnull_top":437.5}]';
+                    data: '[{"rootId":"CR-0002","col_float_times_nullable_top":null,"chain1_int_abs_notnull_top":null,"chain1_float_none_notnull_top":null,"chain1_float_times_notnull_top":null,"chain1_bool_isnull_nullable_embedded":true,"chain2_string_nest_notnull_embedded":"","chain2_int_abs_nullable_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_nullable_embedded":null,"chain2_bool_isnull_notnull_embedded":true,"dyna1_int_none_notnull_top":52,"dyna1_bool_isnull_nullable_top":false,"dyna2_float_abs_nullable_top":325.0,"ineq_int_abs_nullable_top":45,"multicol_int_none_notnull_top":52,"ormix_string_up_notnull_top":"A-S-NN1-002"},{"rootId":"CR-0003","col_float_times_nullable_top":null,"chain1_int_abs_notnull_top":24,"chain1_float_none_notnull_top":175.0,"chain1_float_times_notnull_top":30625.0,"chain1_bool_isnull_nullable_embedded":false,"chain2_string_nest_notnull_embedded":"","chain2_int_abs_nullable_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_nullable_embedded":null,"chain2_bool_isnull_notnull_embedded":true,"dyna1_int_none_notnull_top":59,"dyna1_bool_isnull_nullable_top":true,"dyna2_float_abs_nullable_top":362.5,"ineq_int_abs_nullable_top":45,"multicol_int_none_notnull_top":59,"ormix_string_up_notnull_top":"A-S-NN1-003"},{"rootId":"CR-0004","col_float_times_nullable_top":191406.25,"chain1_int_abs_notnull_top":31,"chain1_float_none_notnull_top":212.5,"chain1_float_times_notnull_top":45156.25,"chain1_bool_isnull_nullable_embedded":false,"chain2_string_nest_notnull_embedded":"","chain2_int_abs_nullable_embedded":null,"chain2_float_none_notnull_embedded":null,"chain2_float_sqrt_nullable_embedded":null,"chain2_bool_isnull_notnull_embedded":true,"dyna1_int_none_notnull_top":66,"dyna1_bool_isnull_nullable_top":false,"dyna2_float_abs_nullable_top":400.0,"ineq_int_abs_nullable_top":45,"multicol_int_none_notnull_top":66,"ormix_string_up_notnull_top":"A-S-NN1-004"},{"rootId":"CR-0005","col_float_times_nullable_top":225625.0,"chain1_int_abs_notnull_top":38,"chain1_float_none_notnull_top":250.0,"chain1_float_times_notnull_top":62500.0,"chain1_bool_isnull_nullable_embedded":false,"chain2_string_nest_notnull_embedded":"H2-S-NN1-001H2-S-NN2-001","chain2_int_abs_nullable_embedded":10,"chain2_float_none_notnull_embedded":100.0,"chain2_float_sqrt_nullable_embedded":10.0,"chain2_bool_isnull_notnull_embedded":false,"dyna1_int_none_notnull_top":73,"dyna1_bool_isnull_nullable_top":false,"dyna2_float_abs_nullable_top":437.5,"ineq_int_abs_nullable_top":null,"multicol_int_none_notnull_top":73,"ormix_string_up_notnull_top":"A-S-NN1-005"}]';
                   }#;
               }#
           ]
@@ -678,44 +566,28 @@ Service stress::CB_C6
 Service stress::CB_C7
 {
     pattern: '/stress/cb_c7';
-    documentation: 'Combination matrix cell: class filter=multigrain, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    documentation: 'Combination matrix cell: class filter=direct, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
     query: |combo::C7.all()
         ->project(~[
             rootId:x|$x.rootId,
-            col_float_abs_nullable_embedded:x|$x.nested.col_float_abs_nullable_embedded,
             col_float_times_nullable_embedded:x|$x.nested.col_float_times_nullable_embedded,
-            chain1_string_cat_nullable_top:x|$x.chain1_string_cat_nullable_top,
-            chain1_string_nest_notnull_embedded:x|$x.nested.chain1_string_nest_notnull_embedded,
-            chain1_int_none_notnull_embedded:x|$x.nested.chain1_int_none_notnull_embedded,
-            chain1_int_abs_notnull_top:x|$x.chain1_int_abs_notnull_top,
-            chain1_int_abs_nullable_embedded:x|$x.nested.chain1_int_abs_nullable_embedded,
-            chain1_int_plus_nullable_embedded:x|$x.nested.chain1_int_plus_nullable_embedded,
-            chain1_int_times_nullable_top:x|$x.chain1_int_times_nullable_top,
+            chain1_int_abs_notnull_embedded:x|$x.nested.chain1_int_abs_notnull_embedded,
             chain1_float_none_notnull_embedded:x|$x.nested.chain1_float_none_notnull_embedded,
-            chain1_float_abs_notnull_top:x|$x.chain1_float_abs_notnull_top,
-            chain1_float_sqrt_notnull_embedded:x|$x.nested.chain1_float_sqrt_notnull_embedded,
             chain1_float_times_notnull_embedded:x|$x.nested.chain1_float_times_notnull_embedded,
-            chain1_bool_none_notnull_embedded:x|$x.nested.chain1_bool_none_notnull_embedded,
-            chain1_bool_isnull_nullable_top:x|$x.chain1_bool_isnull_nullable_top,
-            chain2_string_up_nullable_embedded:x|$x.nested.chain2_string_up_nullable_embedded,
-            chain2_string_nest_nullable_embedded:x|$x.nested.chain2_string_nest_nullable_embedded,
-            chain2_int_abs_nullable_embedded:x|$x.nested.chain2_int_abs_nullable_embedded,
-            chain2_int_times_nullable_embedded:x|$x.nested.chain2_int_times_nullable_embedded,
-            chain2_float_abs_nullable_embedded:x|$x.nested.chain2_float_abs_nullable_embedded,
-            chain2_float_times_nullable_embedded:x|$x.nested.chain2_float_times_nullable_embedded,
-            chain2_bool_isnull_nullable_embedded:x|$x.nested.chain2_bool_isnull_nullable_embedded,
-            dyna1_string_up_nullable_top:x|$x.dyna1_string_up_nullable_top,
-            dyna1_float_abs_nullable_top:x|$x.dyna1_float_abs_nullable_top,
-            dyna2_string_up_nullable_top:x|$x.dyna2_string_up_nullable_top,
-            dyna2_float_abs_nullable_top:x|$x.dyna2_float_abs_nullable_top,
-            ineq_string_up_nullable_top:x|$x.ineq_string_up_nullable_top,
-            ineq_float_abs_nullable_top:x|$x.ineq_float_abs_nullable_top,
-            multicol_string_up_nullable_top:x|$x.multicol_string_up_nullable_top,
-            multicol_float_abs_nullable_top:x|$x.multicol_float_abs_nullable_top,
-            ormix_string_up_nullable_top:x|$x.ormix_string_up_nullable_top,
-            ormix_float_abs_nullable_top:x|$x.ormix_float_abs_nullable_top
+            chain1_bool_isnotnull_nullable_top:x|$x.chain1_bool_isnotnull_nullable_top,
+            chain2_string_nest_nullable_top:x|$x.chain2_string_nest_nullable_top,
+            chain2_int_plus_notnull_top:x|$x.chain2_int_plus_notnull_top,
+            chain2_float_none_nullable_top:x|$x.chain2_float_none_nullable_top,
+            chain2_float_times_notnull_top:x|$x.chain2_float_times_notnull_top,
+            chain2_bool_isnull_nullable_top:x|$x.chain2_bool_isnull_nullable_top,
+            dyna1_int_none_nullable_top:x|$x.dyna1_int_none_nullable_top,
+            dyna2_string_none_notnull_top:x|$x.dyna2_string_none_notnull_top,
+            dyna2_bool_none_notnull_top:x|$x.dyna2_bool_none_notnull_top,
+            ineq_float_none_notnull_top:x|$x.ineq_float_none_notnull_top,
+            multicol_int_none_nullable_top:x|$x.multicol_int_none_nullable_top,
+            ormix_string_up_nullable_top:x|$x.ormix_string_up_nullable_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -738,7 +610,7 @@ Service stress::CB_C7
       ]
       tests:
       [
-        // 32 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -751,7 +623,567 @@ Service stress::CB_C7
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001","col_float_abs_nullable_embedded":325.0,"col_float_times_nullable_embedded":105625.0,"chain1_string_cat_nullable_top":"","chain1_string_nest_notnull_embedded":"","chain1_int_none_notnull_embedded":null,"chain1_int_abs_notnull_top":null,"chain1_int_abs_nullable_embedded":null,"chain1_int_plus_nullable_embedded":null,"chain1_int_times_nullable_top":null,"chain1_float_none_notnull_embedded":null,"chain1_float_abs_notnull_top":null,"chain1_float_sqrt_notnull_embedded":null,"chain1_float_times_notnull_embedded":null,"chain1_bool_none_notnull_embedded":null,"chain1_bool_isnull_nullable_top":true,"chain2_string_up_nullable_embedded":null,"chain2_string_nest_nullable_embedded":"","chain2_int_abs_nullable_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_abs_nullable_embedded":null,"chain2_float_times_nullable_embedded":null,"chain2_bool_isnull_nullable_embedded":true,"dyna1_string_up_nullable_top":"A-S-NL1-001","dyna1_float_abs_nullable_top":null,"dyna2_string_up_nullable_top":"A-S-NL1-001","dyna2_float_abs_nullable_top":null,"ineq_string_up_nullable_top":"A-S-NL1-001","ineq_float_abs_nullable_top":null,"multicol_string_up_nullable_top":null,"multicol_float_abs_nullable_top":null,"ormix_string_up_nullable_top":"A-S-NL1-001","ormix_float_abs_nullable_top":null},{"rootId":"CR-0002","col_float_abs_nullable_embedded":null,"col_float_times_nullable_embedded":null,"chain1_string_cat_nullable_top":"","chain1_string_nest_notnull_embedded":"","chain1_int_none_notnull_embedded":null,"chain1_int_abs_notnull_top":null,"chain1_int_abs_nullable_embedded":null,"chain1_int_plus_nullable_embedded":null,"chain1_int_times_nullable_top":null,"chain1_float_none_notnull_embedded":null,"chain1_float_abs_notnull_top":null,"chain1_float_sqrt_notnull_embedded":null,"chain1_float_times_notnull_embedded":null,"chain1_bool_none_notnull_embedded":null,"chain1_bool_isnull_nullable_top":true,"chain2_string_up_nullable_embedded":null,"chain2_string_nest_nullable_embedded":"","chain2_int_abs_nullable_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_abs_nullable_embedded":null,"chain2_float_times_nullable_embedded":null,"chain2_bool_isnull_nullable_embedded":true,"dyna1_string_up_nullable_top":null,"dyna1_float_abs_nullable_top":325.0,"dyna2_string_up_nullable_top":null,"dyna2_float_abs_nullable_top":325.0,"ineq_string_up_nullable_top":"A-S-NL1-001","ineq_float_abs_nullable_top":null,"multicol_string_up_nullable_top":null,"multicol_float_abs_nullable_top":325.0,"ormix_string_up_nullable_top":null,"ormix_float_abs_nullable_top":325.0},{"rootId":"CR-0004","col_float_abs_nullable_embedded":437.5,"col_float_times_nullable_embedded":191406.25,"chain1_string_cat_nullable_top":"H1-S-NL1-002H1-S-NL2-002","chain1_string_nest_notnull_embedded":"H1-S-NN1-002H1-S-NN2-002","chain1_int_none_notnull_embedded":31,"chain1_int_abs_notnull_top":31,"chain1_int_abs_nullable_embedded":31,"chain1_int_plus_nullable_embedded":62,"chain1_int_times_nullable_top":961,"chain1_float_none_notnull_embedded":212.5,"chain1_float_abs_notnull_top":212.5,"chain1_float_sqrt_notnull_embedded":14.577379737113251,"chain1_float_times_notnull_embedded":45156.25,"chain1_bool_none_notnull_embedded":false,"chain1_bool_isnull_nullable_top":false,"chain2_string_up_nullable_embedded":null,"chain2_string_nest_nullable_embedded":"","chain2_int_abs_nullable_embedded":null,"chain2_int_times_nullable_embedded":null,"chain2_float_abs_nullable_embedded":null,"chain2_float_times_nullable_embedded":null,"chain2_bool_isnull_nullable_embedded":true,"dyna1_string_up_nullable_top":"A-S-NL1-004","dyna1_float_abs_nullable_top":400.0,"dyna2_string_up_nullable_top":"A-S-NL1-004","dyna2_float_abs_nullable_top":400.0,"ineq_string_up_nullable_top":"A-S-NL1-001","ineq_float_abs_nullable_top":null,"multicol_string_up_nullable_top":"A-S-NL1-004","multicol_float_abs_nullable_top":400.0,"ormix_string_up_nullable_top":"A-S-NL1-004","ormix_float_abs_nullable_top":400.0},{"rootId":"CR-0005","col_float_abs_nullable_embedded":475.0,"col_float_times_nullable_embedded":225625.0,"chain1_string_cat_nullable_top":"H1-S-NL2-003","chain1_string_nest_notnull_embedded":"H1-S-NN1-003H1-S-NN2-003","chain1_int_none_notnull_embedded":38,"chain1_int_abs_notnull_top":38,"chain1_int_abs_nullable_embedded":38,"chain1_int_plus_nullable_embedded":76,"chain1_int_times_nullable_top":1444,"chain1_float_none_notnull_embedded":250.0,"chain1_float_abs_notnull_top":250.0,"chain1_float_sqrt_notnull_embedded":15.811388300841896,"chain1_float_times_notnull_embedded":62500.0,"chain1_bool_none_notnull_embedded":true,"chain1_bool_isnull_nullable_top":false,"chain2_string_up_nullable_embedded":"H2-S-NL1-001","chain2_string_nest_nullable_embedded":"H2-S-NL1-001H2-S-NL2-001","chain2_int_abs_nullable_embedded":10,"chain2_int_times_nullable_embedded":null,"chain2_float_abs_nullable_embedded":100.0,"chain2_float_times_nullable_embedded":10000.0,"chain2_bool_isnull_nullable_embedded":false,"dyna1_string_up_nullable_top":"A-S-NL1-005","dyna1_float_abs_nullable_top":437.5,"dyna2_string_up_nullable_top":"A-S-NL1-005","dyna2_float_abs_nullable_top":437.5,"ineq_string_up_nullable_top":null,"ineq_float_abs_nullable_top":null,"multicol_string_up_nullable_top":"A-S-NL1-005","multicol_float_abs_nullable_top":437.5,"ormix_string_up_nullable_top":"A-S-NL1-005","ormix_float_abs_nullable_top":437.5}]';
+                    data: '[{"rootId":"CR-0002","col_float_times_nullable_embedded":null,"chain1_int_abs_notnull_embedded":null,"chain1_float_none_notnull_embedded":null,"chain1_float_times_notnull_embedded":null,"chain1_bool_isnotnull_nullable_top":false,"chain2_string_nest_nullable_top":"","chain2_int_plus_notnull_top":null,"chain2_float_none_nullable_top":null,"chain2_float_times_notnull_top":null,"chain2_bool_isnull_nullable_top":true,"dyna1_int_none_nullable_top":52,"dyna2_string_none_notnull_top":"A-S-NN1-002","dyna2_bool_none_notnull_top":false,"ineq_float_none_notnull_top":287.5,"multicol_int_none_nullable_top":52,"ormix_string_up_nullable_top":null},{"rootId":"CR-0003","col_float_times_nullable_embedded":null,"chain1_int_abs_notnull_embedded":24,"chain1_float_none_notnull_embedded":175.0,"chain1_float_times_notnull_embedded":30625.0,"chain1_bool_isnotnull_nullable_top":true,"chain2_string_nest_nullable_top":"","chain2_int_plus_notnull_top":null,"chain2_float_none_nullable_top":null,"chain2_float_times_notnull_top":null,"chain2_bool_isnull_nullable_top":true,"dyna1_int_none_nullable_top":59,"dyna2_string_none_notnull_top":"A-S-NN1-003","dyna2_bool_none_notnull_top":true,"ineq_float_none_notnull_top":287.5,"multicol_int_none_nullable_top":59,"ormix_string_up_nullable_top":"A-S-NL1-003"},{"rootId":"CR-0004","col_float_times_nullable_embedded":191406.25,"chain1_int_abs_notnull_embedded":31,"chain1_float_none_notnull_embedded":212.5,"chain1_float_times_notnull_embedded":45156.25,"chain1_bool_isnotnull_nullable_top":true,"chain2_string_nest_nullable_top":"","chain2_int_plus_notnull_top":null,"chain2_float_none_nullable_top":null,"chain2_float_times_notnull_top":null,"chain2_bool_isnull_nullable_top":true,"dyna1_int_none_nullable_top":null,"dyna2_string_none_notnull_top":"A-S-NN1-004","dyna2_bool_none_notnull_top":true,"ineq_float_none_notnull_top":287.5,"multicol_int_none_nullable_top":null,"ormix_string_up_nullable_top":"A-S-NL1-004"},{"rootId":"CR-0005","col_float_times_nullable_embedded":225625.0,"chain1_int_abs_notnull_embedded":38,"chain1_float_none_notnull_embedded":250.0,"chain1_float_times_notnull_embedded":62500.0,"chain1_bool_isnotnull_nullable_top":true,"chain2_string_nest_nullable_top":"H2-S-NL1-001H2-S-NL2-001","chain2_int_plus_notnull_top":20,"chain2_float_none_nullable_top":100.0,"chain2_float_times_notnull_top":10000.0,"chain2_bool_isnull_nullable_top":false,"dyna1_int_none_nullable_top":73,"dyna2_string_none_notnull_top":"A-S-NN1-005","dyna2_bool_none_notnull_top":false,"ineq_float_none_notnull_top":null,"multicol_int_none_nullable_top":73,"ormix_string_up_nullable_top":"A-S-NL1-005"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C8
+{
+    pattern: '/stress/cb_c8';
+    documentation: 'Combination matrix cell: class filter=chain, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C8.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            col_string_up_notnull_embedded:x|$x.nested.col_string_up_notnull_embedded,
+            col_string_up_notnull_top:x|$x.col_string_up_notnull_top,
+            col_string_nest_nullable_top:x|$x.col_string_nest_nullable_top,
+            chain1_string_none_nullable_top:x|$x.chain1_string_none_nullable_top,
+            chain2_string_none_nullable_top:x|$x.chain2_string_none_nullable_top,
+            col_bool_none_nullable_top:x|$x.col_bool_none_nullable_top,
+            col_float_none_nullable_top:x|$x.col_float_none_nullable_top,
+            col_int_none_nullable_top:x|$x.col_int_none_nullable_top,
+            col_int_abs_nullable_top:x|$x.col_int_abs_nullable_top,
+            chain1_string_cat_notnull_embedded:x|$x.nested.chain1_string_cat_notnull_embedded,
+            col_bool_isnotnull_nullable_top:x|$x.col_bool_isnotnull_nullable_top,
+            col_bool_isnull_nullable_embedded:x|$x.nested.col_bool_isnull_nullable_embedded,
+            col_int_plus_nullable_top:x|$x.col_int_plus_nullable_top,
+            col_float_sqrt_nullable_top:x|$x.col_float_sqrt_nullable_top,
+            col_int_times_nullable_top:x|$x.col_int_times_nullable_top,
+            ormix_int_none_notnull_top:x|$x.ormix_int_none_notnull_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C8_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0005","col_string_up_notnull_embedded":"R-S-NN1-005","col_string_up_notnull_top":"R-S-NN1-005","col_string_nest_nullable_top":"R-S-NL1-005R-S-NL2-005","chain1_string_none_nullable_top":null,"chain2_string_none_nullable_top":"H2-S-NL1-001","col_bool_none_nullable_top":true,"col_float_none_nullable_top":475.0,"col_int_none_nullable_top":null,"col_int_abs_nullable_top":null,"chain1_string_cat_notnull_embedded":"H1-S-NN1-003H1-S-NN2-003","col_bool_isnotnull_nullable_top":true,"col_bool_isnull_nullable_embedded":false,"col_int_plus_nullable_top":null,"col_float_sqrt_nullable_top":21.79449471770337,"col_int_times_nullable_top":null,"ormix_int_none_notnull_top":73}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C9
+{
+    pattern: '/stress/cb_c9';
+    documentation: 'Combination matrix cell: class filter=chain, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C9.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            chain1_string_up_nullable_embedded:x|$x.nested.chain1_string_up_nullable_embedded,
+            chain1_int_abs_nullable_top:x|$x.chain1_int_abs_nullable_top,
+            chain1_float_none_nullable_top:x|$x.chain1_float_none_nullable_top,
+            chain1_float_times_nullable_top:x|$x.chain1_float_times_nullable_top,
+            chain1_bool_isnotnull_nullable_embedded:x|$x.nested.chain1_bool_isnotnull_nullable_embedded,
+            chain2_string_nest_nullable_embedded:x|$x.nested.chain2_string_nest_nullable_embedded,
+            chain2_int_plus_notnull_embedded:x|$x.nested.chain2_int_plus_notnull_embedded,
+            chain2_float_none_nullable_embedded:x|$x.nested.chain2_float_none_nullable_embedded,
+            chain2_float_times_notnull_embedded:x|$x.nested.chain2_float_times_notnull_embedded,
+            chain2_bool_isnull_nullable_embedded:x|$x.nested.chain2_bool_isnull_nullable_embedded,
+            dyna1_int_abs_notnull_top:x|$x.dyna1_int_abs_notnull_top,
+            dyna2_string_none_nullable_top:x|$x.dyna2_string_none_nullable_top,
+            dyna2_bool_none_nullable_top:x|$x.dyna2_bool_none_nullable_top,
+            ineq_float_none_nullable_top:x|$x.ineq_float_none_nullable_top,
+            multicol_int_abs_notnull_top:x|$x.multicol_int_abs_notnull_top,
+            ormix_int_none_nullable_top:x|$x.ormix_int_none_nullable_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C9_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0005","chain1_string_up_nullable_embedded":null,"chain1_int_abs_nullable_top":38,"chain1_float_none_nullable_top":250.0,"chain1_float_times_nullable_top":null,"chain1_bool_isnotnull_nullable_embedded":true,"chain2_string_nest_nullable_embedded":"H2-S-NL1-001H2-S-NL2-001","chain2_int_plus_notnull_embedded":20,"chain2_float_none_nullable_embedded":100.0,"chain2_float_times_notnull_embedded":10000.0,"chain2_bool_isnull_nullable_embedded":false,"dyna1_int_abs_notnull_top":73,"dyna2_string_none_nullable_top":"A-S-NL1-005","dyna2_bool_none_nullable_top":false,"ineq_float_none_nullable_top":null,"multicol_int_abs_notnull_top":73,"ormix_int_none_nullable_top":73}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C10
+{
+    pattern: '/stress/cb_c10';
+    documentation: 'Combination matrix cell: class filter=chain, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C10.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            chain1_string_cat_nullable_embedded:x|$x.nested.chain1_string_cat_nullable_embedded,
+            chain1_int_abs_nullable_embedded:x|$x.nested.chain1_int_abs_nullable_embedded,
+            chain1_float_none_nullable_embedded:x|$x.nested.chain1_float_none_nullable_embedded,
+            chain1_float_times_nullable_embedded:x|$x.nested.chain1_float_times_nullable_embedded,
+            chain2_string_up_nullable_top:x|$x.chain2_string_up_nullable_top,
+            chain2_int_none_notnull_top:x|$x.chain2_int_none_notnull_top,
+            chain2_int_plus_nullable_top:x|$x.chain2_int_plus_nullable_top,
+            chain2_float_abs_notnull_top:x|$x.chain2_float_abs_notnull_top,
+            chain2_float_times_nullable_top:x|$x.chain2_float_times_nullable_top,
+            chain2_bool_isnotnull_notnull_top:x|$x.chain2_bool_isnotnull_notnull_top,
+            dyna1_int_abs_nullable_top:x|$x.dyna1_int_abs_nullable_top,
+            dyna2_string_up_notnull_top:x|$x.dyna2_string_up_notnull_top,
+            dyna2_bool_isnull_notnull_top:x|$x.dyna2_bool_isnull_notnull_top,
+            ineq_float_abs_notnull_top:x|$x.ineq_float_abs_notnull_top,
+            multicol_int_abs_nullable_top:x|$x.multicol_int_abs_nullable_top,
+            ormix_int_abs_notnull_top:x|$x.ormix_int_abs_notnull_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C10_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0005","chain1_string_cat_nullable_embedded":"H1-S-NL2-003","chain1_int_abs_nullable_embedded":38,"chain1_float_none_nullable_embedded":250.0,"chain1_float_times_nullable_embedded":null,"chain2_string_up_nullable_top":"H2-S-NL1-001","chain2_int_none_notnull_top":10,"chain2_int_plus_nullable_top":null,"chain2_float_abs_notnull_top":100.0,"chain2_float_times_nullable_top":10000.0,"chain2_bool_isnotnull_notnull_top":true,"dyna1_int_abs_nullable_top":73,"dyna2_string_up_notnull_top":"A-S-NN1-005","dyna2_bool_isnull_notnull_top":false,"ineq_float_abs_notnull_top":null,"multicol_int_abs_nullable_top":73,"ormix_int_abs_notnull_top":73}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C11
+{
+    pattern: '/stress/cb_c11';
+    documentation: 'Combination matrix cell: class filter=chain, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C11.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            chain1_string_nest_notnull_embedded:x|$x.nested.chain1_string_nest_notnull_embedded,
+            chain1_int_plus_nullable_top:x|$x.chain1_int_plus_nullable_top,
+            chain1_float_abs_notnull_top:x|$x.chain1_float_abs_notnull_top,
+            chain1_bool_none_notnull_top:x|$x.chain1_bool_none_notnull_top,
+            chain2_string_up_nullable_embedded:x|$x.nested.chain2_string_up_nullable_embedded,
+            chain2_int_none_notnull_embedded:x|$x.nested.chain2_int_none_notnull_embedded,
+            chain2_int_plus_nullable_embedded:x|$x.nested.chain2_int_plus_nullable_embedded,
+            chain2_float_abs_notnull_embedded:x|$x.nested.chain2_float_abs_notnull_embedded,
+            chain2_float_times_nullable_embedded:x|$x.nested.chain2_float_times_nullable_embedded,
+            chain2_bool_isnotnull_notnull_embedded:x|$x.nested.chain2_bool_isnotnull_notnull_embedded,
+            dyna1_float_none_notnull_top:x|$x.dyna1_float_none_notnull_top,
+            dyna2_string_up_nullable_top:x|$x.dyna2_string_up_nullable_top,
+            dyna2_bool_isnull_nullable_top:x|$x.dyna2_bool_isnull_nullable_top,
+            ineq_float_abs_nullable_top:x|$x.ineq_float_abs_nullable_top,
+            multicol_float_none_notnull_top:x|$x.multicol_float_none_notnull_top,
+            ormix_int_abs_nullable_top:x|$x.ormix_int_abs_nullable_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C11_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0005","chain1_string_nest_notnull_embedded":"H1-S-NN1-003H1-S-NN2-003","chain1_int_plus_nullable_top":76,"chain1_float_abs_notnull_top":250.0,"chain1_bool_none_notnull_top":true,"chain2_string_up_nullable_embedded":"H2-S-NL1-001","chain2_int_none_notnull_embedded":10,"chain2_int_plus_nullable_embedded":null,"chain2_float_abs_notnull_embedded":100.0,"chain2_float_times_nullable_embedded":10000.0,"chain2_bool_isnotnull_notnull_embedded":true,"dyna1_float_none_notnull_top":437.5,"dyna2_string_up_nullable_top":"A-S-NL1-005","dyna2_bool_isnull_nullable_top":false,"ineq_float_abs_nullable_top":null,"multicol_float_none_notnull_top":437.5,"ormix_int_abs_nullable_top":73}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C12
+{
+    pattern: '/stress/cb_c12';
+    documentation: 'Combination matrix cell: class filter=multigrain, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C12.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            col_string_cat_notnull_embedded:x|$x.nested.col_string_cat_notnull_embedded,
+            col_string_cat_notnull_top:x|$x.col_string_cat_notnull_top,
+            col_string_nest_nullable_embedded:x|$x.nested.col_string_nest_nullable_embedded,
+            chain1_string_up_notnull_top:x|$x.chain1_string_up_notnull_top,
+            chain2_string_up_notnull_top:x|$x.chain2_string_up_notnull_top,
+            col_bool_isnull_notnull_top:x|$x.col_bool_isnull_notnull_top,
+            col_float_abs_notnull_top:x|$x.col_float_abs_notnull_top,
+            col_int_abs_notnull_top:x|$x.col_int_abs_notnull_top,
+            chain1_bool_isnotnull_notnull_top:x|$x.chain1_bool_isnotnull_notnull_top,
+            chain1_int_none_notnull_top:x|$x.chain1_int_none_notnull_top,
+            chain1_int_plus_notnull_top:x|$x.chain1_int_plus_notnull_top,
+            chain1_float_sqrt_notnull_top:x|$x.chain1_float_sqrt_notnull_top,
+            col_float_times_notnull_top:x|$x.col_float_times_notnull_top,
+            ineq_bool_none_notnull_top:x|$x.ineq_bool_none_notnull_top,
+            multicol_float_none_nullable_top:x|$x.multicol_float_none_nullable_top,
+            ormix_float_none_notnull_top:x|$x.ormix_float_none_notnull_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C12_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0001","col_string_cat_notnull_embedded":"R-S-NN1-001R-S-NN2-001","col_string_cat_notnull_top":"R-S-NN1-001R-S-NN2-001","col_string_nest_nullable_embedded":"R-S-NL1-001R-S-NL2-001","chain1_string_up_notnull_top":null,"chain2_string_up_notnull_top":null,"col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":325.0,"col_int_abs_notnull_top":52,"chain1_bool_isnotnull_notnull_top":false,"chain1_int_none_notnull_top":null,"chain1_int_plus_notnull_top":null,"chain1_float_sqrt_notnull_top":null,"col_float_times_notnull_top":105625.0,"ineq_bool_none_notnull_top":true,"multicol_float_none_nullable_top":null,"ormix_float_none_notnull_top":287.5},{"rootId":"CR-0002","col_string_cat_notnull_embedded":"R-S-NN1-002R-S-NN2-002","col_string_cat_notnull_top":"R-S-NN1-002R-S-NN2-002","col_string_nest_nullable_embedded":"R-S-NL1-002R-S-NL2-002","chain1_string_up_notnull_top":null,"chain2_string_up_notnull_top":null,"col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":362.5,"col_int_abs_notnull_top":59,"chain1_bool_isnotnull_notnull_top":false,"chain1_int_none_notnull_top":null,"chain1_int_plus_notnull_top":null,"chain1_float_sqrt_notnull_top":null,"col_float_times_notnull_top":131406.25,"ineq_bool_none_notnull_top":true,"multicol_float_none_nullable_top":325.0,"ormix_float_none_notnull_top":325.0},{"rootId":"CR-0004","col_string_cat_notnull_embedded":"R-S-NN1-004R-S-NN2-004","col_string_cat_notnull_top":"R-S-NN1-004R-S-NN2-004","col_string_nest_nullable_embedded":"R-S-NL1-004","chain1_string_up_notnull_top":"H1-S-NN1-002","chain2_string_up_notnull_top":null,"col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":437.5,"col_int_abs_notnull_top":73,"chain1_bool_isnotnull_notnull_top":true,"chain1_int_none_notnull_top":31,"chain1_int_plus_notnull_top":62,"chain1_float_sqrt_notnull_top":14.577379737113251,"col_float_times_notnull_top":191406.25,"ineq_bool_none_notnull_top":true,"multicol_float_none_nullable_top":400.0,"ormix_float_none_notnull_top":400.0},{"rootId":"CR-0005","col_string_cat_notnull_embedded":"R-S-NN1-005R-S-NN2-005","col_string_cat_notnull_top":"R-S-NN1-005R-S-NN2-005","col_string_nest_nullable_embedded":"R-S-NL1-005R-S-NL2-005","chain1_string_up_notnull_top":"H1-S-NN1-003","chain2_string_up_notnull_top":"H2-S-NN1-001","col_bool_isnull_notnull_top":false,"col_float_abs_notnull_top":475.0,"col_int_abs_notnull_top":80,"chain1_bool_isnotnull_notnull_top":true,"chain1_int_none_notnull_top":38,"chain1_int_plus_notnull_top":76,"chain1_float_sqrt_notnull_top":15.811388300841896,"col_float_times_notnull_top":225625.0,"ineq_bool_none_notnull_top":null,"multicol_float_none_nullable_top":437.5,"ormix_float_none_notnull_top":437.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C13
+{
+    pattern: '/stress/cb_c13';
+    documentation: 'Combination matrix cell: class filter=multigrain, extends=no. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C13.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            chain1_string_nest_nullable_top:x|$x.chain1_string_nest_nullable_top,
+            chain1_int_plus_nullable_embedded:x|$x.nested.chain1_int_plus_nullable_embedded,
+            chain1_float_abs_notnull_embedded:x|$x.nested.chain1_float_abs_notnull_embedded,
+            chain1_bool_none_notnull_embedded:x|$x.nested.chain1_bool_none_notnull_embedded,
+            chain2_string_cat_notnull_top:x|$x.chain2_string_cat_notnull_top,
+            chain2_int_none_nullable_top:x|$x.chain2_int_none_nullable_top,
+            chain2_int_times_notnull_top:x|$x.chain2_int_times_notnull_top,
+            chain2_float_abs_nullable_top:x|$x.chain2_float_abs_nullable_top,
+            chain2_bool_none_notnull_top:x|$x.chain2_bool_none_notnull_top,
+            chain2_bool_isnotnull_nullable_top:x|$x.chain2_bool_isnotnull_nullable_top,
+            dyna1_float_none_nullable_top:x|$x.dyna1_float_none_nullable_top,
+            dyna2_int_none_notnull_top:x|$x.dyna2_int_none_notnull_top,
+            ineq_string_none_notnull_top:x|$x.ineq_string_none_notnull_top,
+            ineq_bool_none_nullable_top:x|$x.ineq_bool_none_nullable_top,
+            multicol_float_abs_notnull_top:x|$x.multicol_float_abs_notnull_top,
+            ormix_float_none_nullable_top:x|$x.ormix_float_none_nullable_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C13_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0001","chain1_string_nest_nullable_top":"","chain1_int_plus_nullable_embedded":null,"chain1_float_abs_notnull_embedded":null,"chain1_bool_none_notnull_embedded":null,"chain2_string_cat_notnull_top":"","chain2_int_none_nullable_top":null,"chain2_int_times_notnull_top":null,"chain2_float_abs_nullable_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_nullable_top":false,"dyna1_float_none_nullable_top":null,"dyna2_int_none_notnull_top":45,"ineq_string_none_notnull_top":"A-S-NN1-001","ineq_bool_none_nullable_top":true,"multicol_float_abs_notnull_top":null,"ormix_float_none_nullable_top":null},{"rootId":"CR-0002","chain1_string_nest_nullable_top":"","chain1_int_plus_nullable_embedded":null,"chain1_float_abs_notnull_embedded":null,"chain1_bool_none_notnull_embedded":null,"chain2_string_cat_notnull_top":"","chain2_int_none_nullable_top":null,"chain2_int_times_notnull_top":null,"chain2_float_abs_nullable_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_nullable_top":false,"dyna1_float_none_nullable_top":325.0,"dyna2_int_none_notnull_top":52,"ineq_string_none_notnull_top":"A-S-NN1-001","ineq_bool_none_nullable_top":true,"multicol_float_abs_notnull_top":325.0,"ormix_float_none_nullable_top":325.0},{"rootId":"CR-0004","chain1_string_nest_nullable_top":"H1-S-NL1-002H1-S-NL2-002","chain1_int_plus_nullable_embedded":62,"chain1_float_abs_notnull_embedded":212.5,"chain1_bool_none_notnull_embedded":false,"chain2_string_cat_notnull_top":"","chain2_int_none_nullable_top":null,"chain2_int_times_notnull_top":null,"chain2_float_abs_nullable_top":null,"chain2_bool_none_notnull_top":null,"chain2_bool_isnotnull_nullable_top":false,"dyna1_float_none_nullable_top":400.0,"dyna2_int_none_notnull_top":66,"ineq_string_none_notnull_top":"A-S-NN1-001","ineq_bool_none_nullable_top":true,"multicol_float_abs_notnull_top":400.0,"ormix_float_none_nullable_top":400.0},{"rootId":"CR-0005","chain1_string_nest_nullable_top":"H1-S-NL2-003","chain1_int_plus_nullable_embedded":76,"chain1_float_abs_notnull_embedded":250.0,"chain1_bool_none_notnull_embedded":true,"chain2_string_cat_notnull_top":"H2-S-NN1-001H2-S-NN2-001","chain2_int_none_nullable_top":10,"chain2_int_times_notnull_top":100,"chain2_float_abs_nullable_top":100.0,"chain2_bool_none_notnull_top":false,"chain2_bool_isnotnull_nullable_top":true,"dyna1_float_none_nullable_top":437.5,"dyna2_int_none_notnull_top":73,"ineq_string_none_notnull_top":null,"ineq_bool_none_nullable_top":null,"multicol_float_abs_notnull_top":437.5,"ormix_float_none_nullable_top":437.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C14
+{
+    pattern: '/stress/cb_c14';
+    documentation: 'Combination matrix cell: class filter=multigrain, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C14.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            chain1_string_nest_nullable_embedded:x|$x.nested.chain1_string_nest_nullable_embedded,
+            chain1_int_times_notnull_top:x|$x.chain1_int_times_notnull_top,
+            chain1_float_abs_nullable_top:x|$x.chain1_float_abs_nullable_top,
+            chain1_bool_none_nullable_top:x|$x.chain1_bool_none_nullable_top,
+            chain2_string_cat_notnull_embedded:x|$x.nested.chain2_string_cat_notnull_embedded,
+            chain2_int_none_nullable_embedded:x|$x.nested.chain2_int_none_nullable_embedded,
+            chain2_int_times_notnull_embedded:x|$x.nested.chain2_int_times_notnull_embedded,
+            chain2_float_abs_nullable_embedded:x|$x.nested.chain2_float_abs_nullable_embedded,
+            chain2_bool_none_notnull_embedded:x|$x.nested.chain2_bool_none_notnull_embedded,
+            chain2_bool_isnotnull_nullable_embedded:x|$x.nested.chain2_bool_isnotnull_nullable_embedded,
+            dyna1_float_abs_notnull_top:x|$x.dyna1_float_abs_notnull_top,
+            dyna2_int_none_nullable_top:x|$x.dyna2_int_none_nullable_top,
+            ineq_string_none_nullable_top:x|$x.ineq_string_none_nullable_top,
+            ineq_bool_isnull_notnull_top:x|$x.ineq_bool_isnull_notnull_top,
+            multicol_float_abs_nullable_top:x|$x.multicol_float_abs_nullable_top,
+            ormix_float_abs_notnull_top:x|$x.ormix_float_abs_notnull_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C14_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0001","chain1_string_nest_nullable_embedded":"","chain1_int_times_notnull_top":null,"chain1_float_abs_nullable_top":null,"chain1_bool_none_nullable_top":null,"chain2_string_cat_notnull_embedded":"","chain2_int_none_nullable_embedded":null,"chain2_int_times_notnull_embedded":null,"chain2_float_abs_nullable_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_nullable_embedded":false,"dyna1_float_abs_notnull_top":287.5,"dyna2_int_none_nullable_top":45,"ineq_string_none_nullable_top":"A-S-NL1-001","ineq_bool_isnull_notnull_top":false,"multicol_float_abs_nullable_top":null,"ormix_float_abs_notnull_top":287.5},{"rootId":"CR-0002","chain1_string_nest_nullable_embedded":"","chain1_int_times_notnull_top":null,"chain1_float_abs_nullable_top":null,"chain1_bool_none_nullable_top":null,"chain2_string_cat_notnull_embedded":"","chain2_int_none_nullable_embedded":null,"chain2_int_times_notnull_embedded":null,"chain2_float_abs_nullable_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_nullable_embedded":false,"dyna1_float_abs_notnull_top":325.0,"dyna2_int_none_nullable_top":52,"ineq_string_none_nullable_top":"A-S-NL1-001","ineq_bool_isnull_notnull_top":false,"multicol_float_abs_nullable_top":325.0,"ormix_float_abs_notnull_top":325.0},{"rootId":"CR-0004","chain1_string_nest_nullable_embedded":"H1-S-NL1-002H1-S-NL2-002","chain1_int_times_notnull_top":961,"chain1_float_abs_nullable_top":null,"chain1_bool_none_nullable_top":false,"chain2_string_cat_notnull_embedded":"","chain2_int_none_nullable_embedded":null,"chain2_int_times_notnull_embedded":null,"chain2_float_abs_nullable_embedded":null,"chain2_bool_none_notnull_embedded":null,"chain2_bool_isnotnull_nullable_embedded":false,"dyna1_float_abs_notnull_top":400.0,"dyna2_int_none_nullable_top":null,"ineq_string_none_nullable_top":"A-S-NL1-001","ineq_bool_isnull_notnull_top":false,"multicol_float_abs_nullable_top":400.0,"ormix_float_abs_notnull_top":400.0},{"rootId":"CR-0005","chain1_string_nest_nullable_embedded":"H1-S-NL2-003","chain1_int_times_notnull_top":1444,"chain1_float_abs_nullable_top":250.0,"chain1_bool_none_nullable_top":true,"chain2_string_cat_notnull_embedded":"H2-S-NN1-001H2-S-NN2-001","chain2_int_none_nullable_embedded":10,"chain2_int_times_notnull_embedded":100,"chain2_float_abs_nullable_embedded":100.0,"chain2_bool_none_notnull_embedded":false,"chain2_bool_isnotnull_nullable_embedded":true,"dyna1_float_abs_notnull_top":437.5,"dyna2_int_none_nullable_top":73,"ineq_string_none_nullable_top":null,"ineq_bool_isnull_notnull_top":true,"multicol_float_abs_nullable_top":437.5,"ormix_float_abs_notnull_top":437.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_C15
+{
+    pattern: '/stress/cb_c15';
+    documentation: 'Combination matrix cell: class filter=multigrain, extends=yes. Projects every property cell dealt to this class -- each a distinct (reach, transform, nullability, host) combination. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C15.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            chain1_int_none_notnull_embedded:x|$x.nested.chain1_int_none_notnull_embedded,
+            chain1_int_times_notnull_embedded:x|$x.nested.chain1_int_times_notnull_embedded,
+            chain1_float_abs_nullable_embedded:x|$x.nested.chain1_float_abs_nullable_embedded,
+            chain1_bool_none_nullable_embedded:x|$x.nested.chain1_bool_none_nullable_embedded,
+            chain2_string_cat_nullable_top:x|$x.chain2_string_cat_nullable_top,
+            chain2_int_abs_notnull_top:x|$x.chain2_int_abs_notnull_top,
+            chain2_int_times_nullable_top:x|$x.chain2_int_times_nullable_top,
+            chain2_float_sqrt_notnull_top:x|$x.chain2_float_sqrt_notnull_top,
+            chain2_bool_none_nullable_top:x|$x.chain2_bool_none_nullable_top,
+            dyna1_string_none_notnull_top:x|$x.dyna1_string_none_notnull_top,
+            dyna1_float_abs_nullable_top:x|$x.dyna1_float_abs_nullable_top,
+            dyna2_int_abs_notnull_top:x|$x.dyna2_int_abs_notnull_top,
+            ineq_string_up_notnull_top:x|$x.ineq_string_up_notnull_top,
+            ineq_bool_isnull_nullable_top:x|$x.ineq_bool_isnull_nullable_top,
+            multicol_bool_none_notnull_top:x|$x.multicol_bool_none_notnull_top,
+            ormix_float_abs_nullable_top:x|$x.ormix_float_abs_nullable_top
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_C15_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0001","chain1_int_none_notnull_embedded":null,"chain1_int_times_notnull_embedded":null,"chain1_float_abs_nullable_embedded":null,"chain1_bool_none_nullable_embedded":null,"chain2_string_cat_nullable_top":"","chain2_int_abs_notnull_top":null,"chain2_int_times_nullable_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_nullable_top":null,"dyna1_string_none_notnull_top":"A-S-NN1-001","dyna1_float_abs_nullable_top":null,"dyna2_int_abs_notnull_top":45,"ineq_string_up_notnull_top":"A-S-NN1-001","ineq_bool_isnull_nullable_top":false,"multicol_bool_none_notnull_top":null,"ormix_float_abs_nullable_top":null},{"rootId":"CR-0002","chain1_int_none_notnull_embedded":null,"chain1_int_times_notnull_embedded":null,"chain1_float_abs_nullable_embedded":null,"chain1_bool_none_nullable_embedded":null,"chain2_string_cat_nullable_top":"","chain2_int_abs_notnull_top":null,"chain2_int_times_nullable_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_nullable_top":null,"dyna1_string_none_notnull_top":"A-S-NN1-002","dyna1_float_abs_nullable_top":325.0,"dyna2_int_abs_notnull_top":52,"ineq_string_up_notnull_top":"A-S-NN1-001","ineq_bool_isnull_nullable_top":false,"multicol_bool_none_notnull_top":false,"ormix_float_abs_nullable_top":325.0},{"rootId":"CR-0004","chain1_int_none_notnull_embedded":31,"chain1_int_times_notnull_embedded":961,"chain1_float_abs_nullable_embedded":null,"chain1_bool_none_nullable_embedded":false,"chain2_string_cat_nullable_top":"","chain2_int_abs_notnull_top":null,"chain2_int_times_nullable_top":null,"chain2_float_sqrt_notnull_top":null,"chain2_bool_none_nullable_top":null,"dyna1_string_none_notnull_top":"A-S-NN1-004","dyna1_float_abs_nullable_top":400.0,"dyna2_int_abs_notnull_top":66,"ineq_string_up_notnull_top":"A-S-NN1-001","ineq_bool_isnull_nullable_top":false,"multicol_bool_none_notnull_top":true,"ormix_float_abs_nullable_top":400.0},{"rootId":"CR-0005","chain1_int_none_notnull_embedded":38,"chain1_int_times_notnull_embedded":1444,"chain1_float_abs_nullable_embedded":250.0,"chain1_bool_none_nullable_embedded":true,"chain2_string_cat_nullable_top":"H2-S-NL1-001H2-S-NL2-001","chain2_int_abs_notnull_top":10,"chain2_int_times_nullable_top":null,"chain2_float_sqrt_notnull_top":10.0,"chain2_bool_none_nullable_top":false,"dyna1_string_none_notnull_top":"A-S-NN1-005","dyna1_float_abs_nullable_top":437.5,"dyna2_int_abs_notnull_top":73,"ineq_string_up_notnull_top":null,"ineq_bool_isnull_nullable_top":true,"multicol_bool_none_notnull_top":false,"ormix_float_abs_nullable_top":437.5}]';
                   }#;
               }#
           ]
@@ -767,11 +1199,11 @@ Service stress::CB_NotEqualsNull
     documentation: 'Comparison `!=` against a column that is NULL in some rows. F28: the engine KEEPS the row whose operand is NULL. SQL three-valued logic makes the comparison UNKNOWN, and a predicate that is not TRUE excludes. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
-    query: |combo::C1.all()
-        ->filter({x|($x.col_string_none_nullable_top != ' none')})
+    query: |combo::C0.all()
+        ->filter({x|($x.dyna1_string_none_nullable_top != ' none')})
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_none_nullable_top:x|$x.col_string_none_nullable_top
+            dyna1_string_none_nullable_top:x|$x.dyna1_string_none_nullable_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -807,7 +1239,7 @@ Service stress::CB_NotEqualsNull
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001","col_string_none_nullable_top":"R-S-NL1-001"},{"rootId":"CR-0002","col_string_none_nullable_top":"R-S-NL1-002"},{"rootId":"CR-0004","col_string_none_nullable_top":"R-S-NL1-004"},{"rootId":"CR-0005","col_string_none_nullable_top":"R-S-NL1-005"}]';
+                    data: '[{"rootId":"CR-0001","dyna1_string_none_nullable_top":"A-S-NL1-001"},{"rootId":"CR-0003","dyna1_string_none_nullable_top":"A-S-NL1-003"},{"rootId":"CR-0004","dyna1_string_none_nullable_top":"A-S-NL1-004"},{"rootId":"CR-0005","dyna1_string_none_nullable_top":"A-S-NL1-005"}]';
                   }#;
               }#
           ]
@@ -823,11 +1255,11 @@ Service stress::CB_EqualsNull
     documentation: 'Comparison `==` against a column that is NULL in some rows. The complement, which AGREES. Both readings exclude a NULL here, which is why no `==` predicate in the corpus ever exposed F28. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
-    query: |combo::C1.all()
-        ->filter({x|($x.col_string_none_nullable_top == ' none')})
+    query: |combo::C0.all()
+        ->filter({x|($x.dyna1_string_none_nullable_top == ' none')})
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_none_nullable_top:x|$x.col_string_none_nullable_top
+            dyna1_string_none_nullable_top:x|$x.dyna1_string_none_nullable_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -879,11 +1311,11 @@ Service stress::CB_GreaterNull
     documentation: 'Comparison `>` against a column that is NULL in some rows. An ORDERED comparison against the same NULL, which also AGREES -- so the engine excludes for `>` and keeps for `!=`, and those cannot both be right. Generated by scripts/corpus/combos.py.';
     execution: Single
     {
-    query: |combo::C1.all()
-        ->filter({x|($x.col_string_none_nullable_top > ' ')})
+    query: |combo::C0.all()
+        ->filter({x|($x.dyna1_string_none_nullable_top > ' ')})
         ->project(~[
             rootId:x|$x.rootId,
-            col_string_none_nullable_top:x|$x.col_string_none_nullable_top
+            dyna1_string_none_nullable_top:x|$x.dyna1_string_none_nullable_top
         ])
         ->sort(~rootId->ascending());
         mapping: combo::ComboMapping;
@@ -919,7 +1351,7 @@ Service stress::CB_GreaterNull
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001","col_string_none_nullable_top":"R-S-NL1-001"},{"rootId":"CR-0002","col_string_none_nullable_top":"R-S-NL1-002"},{"rootId":"CR-0004","col_string_none_nullable_top":"R-S-NL1-004"},{"rootId":"CR-0005","col_string_none_nullable_top":"R-S-NL1-005"}]';
+                    data: '[{"rootId":"CR-0001","dyna1_string_none_nullable_top":"A-S-NL1-001"},{"rootId":"CR-0003","dyna1_string_none_nullable_top":"A-S-NL1-003"},{"rootId":"CR-0004","dyna1_string_none_nullable_top":"A-S-NL1-004"},{"rootId":"CR-0005","dyna1_string_none_nullable_top":"A-S-NL1-005"}]';
                   }#;
               }#
           ]
@@ -982,6 +1414,124 @@ Service stress::CB_SchemaQualified
                   #{
                     contentType: 'application/json';
                     data: '[{"sm_b_nl1":true,"sm_b_nn1":true,"sm_f_nl1":1187.5,"sm_f_nn1":1187.5,"sm_i_nl1":213,"sm_i_nn1":213,"sm_s_nl1":"SM-S-NL1-001","sm_s_nn1":"SM-S-NN1-001","summaryId":"CS-0001"},{"sm_b_nl1":false,"sm_b_nn1":false,"sm_f_nl1":null,"sm_f_nn1":1225.0,"sm_i_nl1":220,"sm_i_nn1":220,"sm_s_nl1":"SM-S-NL1-002","sm_s_nn1":"SM-S-NN1-002","summaryId":"CS-0002"},{"sm_b_nl1":true,"sm_b_nn1":true,"sm_f_nl1":1262.5,"sm_f_nn1":1262.5,"sm_i_nl1":227,"sm_i_nn1":227,"sm_s_nl1":null,"sm_s_nn1":"SM-S-NN1-003","summaryId":"CS-0003"},{"sm_b_nl1":null,"sm_b_nn1":true,"sm_f_nl1":1300.0,"sm_f_nn1":1300.0,"sm_i_nl1":234,"sm_i_nn1":234,"sm_s_nl1":"SM-S-NL1-004","sm_s_nn1":"SM-S-NN1-004","summaryId":"CS-0004"},{"sm_b_nl1":false,"sm_b_nn1":false,"sm_f_nl1":1337.5,"sm_f_nn1":1337.5,"sm_i_nl1":null,"sm_i_nn1":241,"sm_s_nl1":"SM-S-NL1-005","sm_s_nn1":"SM-S-NN1-005","summaryId":"CS-0005"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_Scoped
+{
+    pattern: '/stress/cb_scoped';
+    documentation: 'Reads combo::Scoped, whose property mappings sit inside `scope([db]TABLE)` and name their columns BARE. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::Scoped.all()
+        ->project(~[
+            r_b_nl1:x|$x.r_b_nl1,
+            r_b_nn1:x|$x.r_b_nn1,
+            r_f_nl1:x|$x.r_f_nl1,
+            r_f_nn1:x|$x.r_f_nn1,
+            r_i_nl1:x|$x.r_i_nl1,
+            r_i_nn1:x|$x.r_i_nn1,
+            r_s_nl1:x|$x.r_s_nl1,
+            r_s_nn1:x|$x.r_s_nn1,
+            rootId:x|$x.rootId
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_Scoped_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"r_b_nl1":false,"r_b_nn1":false,"r_f_nl1":325.0,"r_f_nn1":325.0,"r_i_nl1":52,"r_i_nn1":52,"r_s_nl1":"R-S-NL1-001","r_s_nn1":"R-S-NN1-001","rootId":"CR-0001"},{"r_b_nl1":true,"r_b_nn1":true,"r_f_nl1":null,"r_f_nn1":362.5,"r_i_nl1":59,"r_i_nn1":59,"r_s_nl1":"R-S-NL1-002","r_s_nn1":"R-S-NN1-002","rootId":"CR-0002"},{"r_b_nl1":true,"r_b_nn1":true,"r_f_nl1":400.0,"r_f_nn1":400.0,"r_i_nl1":66,"r_i_nn1":66,"r_s_nl1":null,"r_s_nn1":"R-S-NN1-003","rootId":"CR-0003"},{"r_b_nl1":null,"r_b_nn1":false,"r_f_nl1":437.5,"r_f_nn1":437.5,"r_i_nl1":73,"r_i_nn1":73,"r_s_nl1":"R-S-NL1-004","r_s_nn1":"R-S-NN1-004","rootId":"CR-0004"},{"r_b_nl1":true,"r_b_nn1":true,"r_f_nl1":475.0,"r_f_nn1":475.0,"r_i_nl1":null,"r_i_nn1":80,"r_s_nl1":"R-S-NL1-005","r_s_nn1":"R-S-NN1-005","rootId":"CR-0005"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CB_AssocSetIds
+{
+    pattern: '/stress/cb_assoc_setids';
+    documentation: 'Navigates combo::RootHop from combo::C0, whose AssociationMapping names an explicit SOURCE and TARGET set id on each end. The ids are load-bearing: COMBO_ROOT carries eight set implementations, so an unqualified end would be ambiguous. Generated by scripts/corpus/combos.py.';
+    execution: Single
+    {
+    query: |combo::C0.all()
+        ->project(~[
+            rootId:x|$x.rootId,
+            hopCode:x|$x.hop.hopCode,
+            hopLeaf:x|$x.hop.h1_s_nn1
+        ])
+        ->sort(~rootId->ascending());
+        mapping: combo::ComboMapping;
+        runtime: combo::ComboRT;
+    }
+  testSuites:
+  [
+    CB_AssocSetIds_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          comboEnv:
+            Reference
+            #{
+              combo::ComboData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 combination cells, each a distinct (reach, transform, nullability, host) stacking.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rootId":"CR-0001","hopCode":null,"hopLeaf":null},{"rootId":"CR-0002","hopCode":null,"hopLeaf":null},{"rootId":"CR-0003","hopCode":"CH-0001","hopLeaf":"H1-S-NN1-001"},{"rootId":"CR-0004","hopCode":"CH-0002","hopLeaf":"H1-S-NN1-002"},{"rootId":"CR-0005","hopCode":"CH-0003","hopLeaf":"H1-S-NN1-003"}]';
                   }#;
               }#
           ]

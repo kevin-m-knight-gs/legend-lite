@@ -61,8 +61,15 @@ def testables() -> list[str]:
 # twelve tests waiting out 30s each is six minutes of doing nothing.
 #
 # So BATCH must stay comfortably under the pool size -- 40 leaves room for the connections
-# a single batch holds concurrently, and puts a 182-test suite at five processes. Raising it
-# past ~90 would reintroduce the same failure with the same misleading shape.
+# a batch opens without exhausting it.
+#
+# A later hang was NOT this. A batch blocked at 0% CPU with its JVM's CPU time frozen, which
+# looked exactly like pool exhaustion and was not: the batch contained a generated graph
+# fetch over a combination-matrix class, which fails plan generation with "Only one return
+# type should be selected during Serialization Class generation". Halving BATCH moved the
+# hang later rather than removing it, which is what showed the batch size was innocent --
+# a size limit that is genuinely a size limit does not survive being halved. The matrix
+# domain is now excluded from the generators that rank over the trading model.
 BATCH = 40
 
 

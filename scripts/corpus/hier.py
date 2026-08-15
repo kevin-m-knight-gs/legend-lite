@@ -42,6 +42,15 @@ BINDINGS = {
                      "hier::InstrumentData"),
 }
 CONN = "hier::HierConn"
+# STORE SUBSTITUTION. hier::IssuerMappingProd re-targets hier::IssuerMapping at
+# hier::IssuerDBProd without restating a single property mapping. It was declared and never
+# run -- no runtime bound it -- so the construct compiled and nothing ever checked that the
+# substituted mapping RESOLVES, let alone that it resolves to the same answers.
+PROD_MAPPING = "hier::IssuerMappingProd"
+PROD_RUNTIME = "hier::IssuerProdRT"
+PROD_CONN_ID = "issuerProdEnv"
+PROD_DATA = "hier::IssuerProdData"
+PROD_DB = "hier::IssuerDBProd"
 
 # Classes whose every property the oracle can resolve. Anything with an entry in
 # c.unparsed is excluded by construction rather than by a hand-written list, so a reader
@@ -88,6 +97,44 @@ def resolvable(c: model.Corpus, cls: str) -> list[str]:
             if child not in c.json_backed:
                 props |= {f"{prop}.{sub}" for sub in c.columns.get(child, {})}
     return sorted(props - blocked)
+
+
+def prod_runtime_text() -> str:
+    return f"""
+
+###Runtime
+Runtime {PROD_RUNTIME}
+{{
+    mappings:
+    [
+        {PROD_MAPPING}
+    ];
+    connections:
+    [
+        {PROD_DB}: [ {PROD_CONN_ID}: {CONN} ]
+    ];
+}}
+"""
+
+
+def prod_spec(c: model.Corpus, base):
+    """The SAME query as `base`, resolved through the substituted mapping.
+
+    Not merely that the substituted mapping runs: that it returns what the original returns.
+    Store substitution's whole claim is that nothing about the mapping changes except which
+    database it reads, so an expectation computed once and asserted through both stores is
+    the claim itself rather than a proxy for it.
+    """
+    spec = Spec("stress::H_IssuerProd", "/stress/h_issuer_prod",
+                f"{base.root} read through {PROD_MAPPING}, which is {base.mapping} "
+                f"re-targeted at {PROD_DB} by store substitution and restates no property "
+                f"mapping. The expectation is the one computed for the original store: if "
+                f"substitution means anything, the two must agree.", base.root)
+    spec.projections = list(base.projections)
+    spec.sort = base.sort
+    spec.mapping, spec.runtime = PROD_MAPPING, PROD_RUNTIME
+    spec.connection, spec.data_element = PROD_CONN_ID, PROD_DATA
+    return spec
 
 
 def runtime_text() -> str:
@@ -230,6 +277,9 @@ def specs(c: model.Corpus) -> list[Spec]:
             b.connection, b.data_element = spec.connection, spec.data_element
             b.extra_data = spec.extra_data
             out.append(b)
+    base = next((s for s in out if s.name == "stress::H_Issuer"), None)
+    if base is not None:
+        out.append(prod_spec(c, base))
     return out
 
 

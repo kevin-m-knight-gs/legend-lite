@@ -89,10 +89,17 @@ def _identifier(c: model.Corpus, root: str) -> str | None:
     return next((p for p, col in c.columns.get(root, {}).items() if col == pk), None)
 
 
+# See graphs.FIXTURE_DOMAINS: the combination matrix and the hier:: feature domain are
+# fixtures for mapping constructs, with their own generators, runtimes and data elements.
+# Ranking over them couples every matrix change to the domain service set.
+def _is_fixture(cls: str) -> bool:
+    return cls.startswith(("combo::", "hier::"))
+
+
 def build(c: model.Corpus, seeded: set[str],
           tables: dict[str, list[dict]]) -> list[Spec]:
     """One aggregate service per qualifying root, richest first."""
-    ends = usable_ends(c, tables, seeded)
+    ends = {k: v for k, v in usable_ends(c, tables, seeded).items() if not _is_fixture(k)}
     ranked = sorted(ends, key=lambda cls: (-len(ends[cls]), cls))[:MAX_ROOTS]
 
     specs, seen = [], set()

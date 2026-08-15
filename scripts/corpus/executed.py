@@ -30,7 +30,111 @@ from __future__ import annotations
 
 import sys
 
+import re
+
 import model
+
+# The mapping a service runs against when its spec names none.
+DEFAULT_MAPPING = "stress::AllMapping"
+
+
+# ---------------------------------------------------------------- body attribution
+#
+# The SAME patterns density.py uses, applied per class mapping and attributed to the class
+# it maps. That coupling is deliberate: `present` and `executed` must differ only in the
+# QUESTION asked, never in what counts as a use. Two pattern sets would drift, and the first
+# symptom would be a feature reported present-but-unexecuted purely because the two files
+# disagreed about what it looks like.
+#
+# density's own block regex does not capture the class name -- it only counts -- so this
+# repeats it with the name captured.
+_BLOCK = re.compile(
+    r"^\s*\*?([\w:]+)(?:\[\w+\])?(?:\s+extends\s*\[\w+\])?\s*:\s*"
+    r"(Relational|Pure|Operation|XStore|AggregationAware|Relation)\s*\{(.*?)\n\s*\}",
+    re.S | re.M)
+
+# A class mapping's KIND is a feature in its own right, and one that no body pattern can
+# see: `cls: XStore { ... }` differs from `cls: Relational { ... }` in the header alone.
+_KIND_FEATURE = {"XStore": "E3  XStore",
+                 "AggregationAware": "E4  AggregationAware",
+                 "Operation": "E6  Operation union"}
+
+# `include other::Mapping[storeA->storeB]` -- store substitution, which is declared at
+# MAPPING level and belongs to no class.
+_SUBSTITUTION = re.compile(r"include\s+[\w:]+\s*\[[\w:]+\s*->")
+# A plain `include other::Mapping`. A service naming one mapping resolves classes mapped in
+# everything it includes, so attributing a feature to the mapping that DECLARES it and
+# comparing against the mapping a service NAMES misses every included one -- which is most
+# of them, since this corpus has one aggregate mapping including the rest.
+_INCLUDE = re.compile(r"^\s*include\s+([\w:]+)\s*$", re.M)
+
+
+def include_closure() -> dict[str, set[str]]:
+    """mapping -> itself and every mapping it includes, transitively."""
+    import density
+
+    src, _blocks = density.load()
+    direct: dict[str, set[str]] = {}
+    heads = list(_MAPPING_HEAD.finditer(src))
+    for i, h in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+        direct[h.group(1)] = set(_INCLUDE.findall(src[h.start():end]))
+    out = {}
+    for name in direct:
+        seen, stack = {name}, [name]
+        while stack:
+            cur = stack.pop()
+            for nxt in direct.get(cur, ()):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        out[name] = seen
+    return out
+
+
+_MAPPING_HEAD = re.compile(r"^Mapping\s+([\w:]+)", re.M)
+
+
+def class_features() -> dict[tuple[str, str], set[str]]:
+    """(mapping, class) -> the taxonomy ids that class mapping's body uses.
+
+    Keyed by MAPPING as well as class, because a class mapped twice does not inherit one
+    mapping's features into the other. trading::Trade is mapped plainly in the main mapping
+    and with `Otherwise` in reporting::OtherwiseMapping; keyed by class alone, Otherwise
+    counted as executed because a passing service reaches the PLAIN mapping -- while the
+    only service using the Otherwise one is quarantined under F13. That is the flattering
+    this file exists to prevent, arriving through the same class-collision the reader has.
+    """
+    import density
+
+    src, _blocks = density.load()
+    body_pats = [(n, p) for n, p, scope in density.FEATURES if scope == "body"]
+    out: dict[tuple[str, str], set[str]] = {}
+    heads = list(_MAPPING_HEAD.finditer(src))
+    for i, h in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+        section = src[h.start():end]
+        for cls, kind, body in _BLOCK.findall(section):
+            for name, pat in body_pats:
+                if re.search(pat, body, re.M):
+                    out.setdefault((h.group(1), cls), set()).add(name)
+            if kind in _KIND_FEATURE:
+                out.setdefault((h.group(1), cls), set()).add(_KIND_FEATURE[kind])
+    return out
+
+
+def mapping_features() -> dict[str, set[str]]:
+    """mapping -> constructs declared at MAPPING level, belonging to no class."""
+    import density
+
+    src, _blocks = density.load()
+    out: dict[str, set[str]] = {}
+    heads = list(_MAPPING_HEAD.finditer(src))
+    for i, h in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+        if _SUBSTITUTION.search(src[h.start():end]):
+            out.setdefault(h.group(1), set()).add("C2  store substitution")
+    return out
 
 
 def _spec_touches(c: model.Corpus, spec) -> tuple[set[str], set[tuple[str, str]]]:
@@ -49,12 +153,33 @@ def _spec_touches(c: model.Corpus, spec) -> tuple[set[str], set[tuple[str, str]]
             props.add((cls, step))
             end = c.ends.get((cls, step))
             if end is not None:
+                # The ASSOCIATION itself, not only the class it leads to. An
+                # AssociationMapping's body is attributed to the association, so a feature
+                # written there -- explicit source and target set ids, for one -- is
+                # credited only if something records that a service navigated it.
+                if end.assoc:
+                    classes.add(end.assoc)
                 cls = end.target
             elif (cls, step) in c.embedded:
                 cls = c.embedded[(cls, step)]
             else:
                 break
             classes.add(cls)
+    tree = getattr(spec, "graph", None)
+    if tree:
+        stack = [(spec.root, tree)]
+        while stack:
+            cls, node = stack.pop()
+            for step, sub in (node or {}).items():
+                props.add((cls, step))
+                end = c.ends.get((cls, step))
+                nxt = end.target if end is not None else c.embedded.get((cls, step))
+                if end is not None and end.assoc:
+                    classes.add(end.assoc)
+                if nxt:
+                    classes.add(nxt)
+                    if isinstance(sub, dict):
+                        stack.append((nxt, sub))
     for pred in getattr(spec, "filters", []):
         props.add((spec.root, pred.path[-1]))
     for key in getattr(spec, "group_by", []):
@@ -116,6 +241,20 @@ def reached(c: model.Corpus, specs, quarantined: set[str]):
 # the thing worth looking at.
 def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, bool, str]]:
     ks, ps, ts, js = reached(c, specs, quarantined)
+    # (mapping, class) pairs a passing service actually resolves through. A spec with no
+    # explicit mapping runs against the corpus's default one.
+    closure = include_closure()
+    reachable = set()
+    used_mappings: set[str] = set()
+    for spec in specs:
+        if spec.name in quarantined:
+            continue
+        mp = getattr(spec, "mapping", None) or DEFAULT_MAPPING
+        mps = closure.get(mp, {mp})
+        used_mappings |= mps
+        for k in _spec_touches(c, spec)[0]:
+            for m in mps:
+                reachable.add((m, k))
 
     def any_prop(d, pred=lambda k: True):
         return sorted(k for k in d if k in ps and pred(k))
@@ -153,6 +292,23 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     add("--  milestoning", [t for t in ts if c.tables[t].milestoning])
     add("--  composite PK", [t for t in ts if len(c.tables[t].pk) > 1])
     add("D8  Schema", [n for n in ts if c.tables[n].schema != "default"])
+
+    # Everything else density.py counts in a class-mapping BODY, attributed to its class and
+    # asked whether any passing service reaches that class. Reported for every body feature
+    # rather than a chosen few, because the entries left out of a coverage report are
+    # precisely the ones nobody looks at.
+    # Mapping-level constructs: executed when a PASSING service runs against that mapping.
+    for mp, names in sorted(mapping_features().items()):
+        for name in sorted(names):
+            add(name, [mp] if mp in used_mappings else [])
+
+    byclass = class_features()
+    covered = {n for n, _ok, _w in out}
+    for name in sorted({n for fs in byclass.values() for n in fs}):
+        if name in covered:
+            continue
+        add(name, sorted(f"{m}/{k.split('::')[-1]}" for (m, k), fs in byclass.items()
+                         if name in fs and (m, k) in reachable))
     # NOT a gap in the corpus. `###Data` materializes Tables only, so a mapping over a
     # TabularFunction fails at test-session setup with the function reported as a missing
     # table -- see repro/tabularfunction-untestable/, where a real Table in the same Schema
@@ -210,6 +366,30 @@ def all_specs(c: model.Corpus):
     return (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c))
+
+
+# Features with a passing service TODAY. A ratchet, not a target: build.py fails if one of
+# these stops executing, and the list is EXTENDED as gaps close. Two entries are absent
+# deliberately and both are blocked from outside the corpus:
+#
+#   A7  Otherwise        its only mapping is quarantined under F13 (Otherwise never falls
+#                        back under TDS projection), so no passing service can use one
+#   D10 TabularFunction  untestable by construction -- see the note in report()
+BASELINE = {
+    "--  composite PK", "--  join non-equality", "--  join with or", "--  milestoning",
+    "A10 src/tgt ids", "A2  join chain", "A3  dynafunction", "A4  dyna over join",
+    "A5  enum transformer", "A6  embedded", "A8  Inline", "A9  Binding transformer",
+    "B10 scope block", "B2  ~filter", "B3  ~filter via join", "B4  ~distinct",
+    "B5  ~groupBy", "B6  ~primaryKey", "B9  extends [id]", "C2  store substitution",
+    "C5  local property +", "D11 MultiGrainFilter", "D3  multi-column join",
+    "D4  join w/ dynafunction", "D5  self-join {target}", "D6  Filter", "D7  View",
+    "D8  Schema", "E2  Pure/M2M ~src", "E3  XStore", "E4  AggregationAware",
+    "E5  Relation ~func", "E6  Operation union",
+}
+
+
+def regressions(rows) -> list[str]:
+    return sorted(n for n, ok, _w in rows if ok is False and n in BASELINE)
 
 
 if __name__ == "__main__":

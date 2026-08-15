@@ -40,6 +40,20 @@ Runtime hier::IssuerRT
     ];
 }
 
+
+###Runtime
+Runtime hier::IssuerProdRT
+{
+    mappings:
+    [
+        hier::IssuerMappingProd
+    ];
+    connections:
+    [
+        hier::IssuerDBProd: [ issuerProdEnv: hier::HierConn ]
+    ];
+}
+
 ###Data
 Data hier::InstrumentData
 {
@@ -81,6 +95,21 @@ Data hier::IssuerData
       'HC-0003,\n' +
       'HC-0004,Fenwick\n' +
       'HC-0005,Thameside\n';
+    default.HIER_ISSUER:
+      'ISSUER_ID,LEGAL_NAME,CONTACT_EMAIL,CONTACT_PHONE,PROFILE_JSON,COUNTRY_CODE\n' +
+      'HI-0001,Northbridge,CONTACT-EMAIL-001,CONTACT-PHONE-001,"{""flagged"": true, ""headquarters"": ""headquarters-001"", ""sector"": ""sector-001""}",\n' +
+      'HI-0002,Kestrel,CONTACT-EMAIL-002,CONTACT-PHONE-002,"{""flagged"": false, ""headquarters"": ""headquarters-002"", ""sector"": ""sector-002""}",HC-0001-GONE\n' +
+      'HI-0003,Aldgate,,CONTACT-PHONE-003,"{""flagged"": true, ""headquarters"": ""headquarters-003"", ""sector"": ""sector-003""}",HC-0001\n' +
+      'HI-0004,Fenwick,CONTACT-EMAIL-004,,"{""flagged"": false, ""headquarters"": ""headquarters-004"", ""sector"": ""sector-004""}",HC-0002\n' +
+      'HI-0005,Thameside,CONTACT-EMAIL-005,CONTACT-PHONE-005,,HC-0003\n';
+  }#
+}
+
+###Data
+Data hier::IssuerProdData
+{
+  Relational
+  #{
     default.HIER_ISSUER:
       'ISSUER_ID,LEGAL_NAME,CONTACT_EMAIL,CONTACT_PHONE,PROFILE_JSON,COUNTRY_CODE\n' +
       'HI-0001,Northbridge,CONTACT-EMAIL-001,CONTACT-PHONE-001,"{""flagged"": true, ""headquarters"": ""headquarters-001"", ""sector"": ""sector-001""}",\n' +
@@ -574,6 +603,63 @@ Service stress::H_Option
                   #{
                     contentType: 'application/json';
                     data: '[]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::H_IssuerProd
+{
+    pattern: '/stress/h_issuer_prod';
+    documentation: 'hier::Issuer read through hier::IssuerMappingProd, which is hier::IssuerMapping re-targeted at hier::IssuerDBProd by store substitution and restates no property mapping. The expectation is the one computed for the original store: if substitution means anything, the two must agree.';
+    execution: Single
+    {
+    query: |hier::Issuer.all()
+        ->project(~[
+            issuerId:x|$x.issuerId,
+            contact_email:x|$x.contact.email,
+            contact_phone:x|$x.contact.phone,
+            legalName:x|$x.legalName
+        ])
+        ->sort(~issuerId->ascending());
+        mapping: hier::IssuerMappingProd;
+        runtime: hier::IssuerProdRT;
+    }
+  testSuites:
+  [
+    H_IssuerProd_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          issuerProdEnv:
+            Reference
+            #{
+              hier::IssuerProdData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 columns over the hier:: feature mapping.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"issuerId":"HI-0001","contact_email":"CONTACT-EMAIL-001","contact_phone":"CONTACT-PHONE-001","legalName":"Northbridge"},{"issuerId":"HI-0002","contact_email":"CONTACT-EMAIL-002","contact_phone":"CONTACT-PHONE-002","legalName":"Kestrel"},{"issuerId":"HI-0003","contact_email":null,"contact_phone":"CONTACT-PHONE-003","legalName":"Aldgate"},{"issuerId":"HI-0004","contact_email":"CONTACT-EMAIL-004","contact_phone":null,"legalName":"Fenwick"},{"issuerId":"HI-0005","contact_email":"CONTACT-EMAIL-005","contact_phone":"CONTACT-PHONE-005","legalName":"Thameside"}]';
                   }#;
               }#
           ]

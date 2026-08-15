@@ -70,6 +70,13 @@ SENTINEL = "ALT-SENTINEL"
 SCHEMA = "analytics"
 SCHEMA_TABLE = "COMBO_SUMMARY"
 SCHEMA_CLASS = "combo::Summary"
+# A class mapped through a SCOPE block, and one reached by an association whose ends name
+# both set ids. Both constructs existed in the corpus and neither was executed: the 60
+# scope-using class mappings live in a Mapping no runtime binds, and the only association
+# with explicit src/tgt ids spans two stores, so navigating it hits F26.
+SCOPE_CLASS = "combo::Scoped"
+HOP_CLASS = "combo::Hop"
+ASSOC = "combo::RootHop"
 
 # ---------------------------------------------------------------- the axes
 REACH = ("col", "chain1", "chain2")
@@ -83,6 +90,12 @@ HOST = ("top", "embedded")
 # even executes: it was declared once in the generated dense store and referenced nowhere.
 FILTERS = ("none", "direct", "chain", "multigrain")
 EXTENDS = ("no", "yes")
+# How a class mapping is WRITTEN, not what it maps. `scope([db]TABLE)` states the table once
+# and names its columns bare; the alternative repeats `[db]TABLE.` on every one. Crossed as
+# an axis because it is a spelling every property mapping can be written in, so covering it
+# once says nothing about whether a TRANSFORM survives being written that way -- and the
+# engine does accept a dynafunction over bare names inside a scope.
+WRITTEN = ("plain", "scope")
 
 # Transforms are PER TYPE, because a dynafunction's arguments and result have to agree with
 # the property it maps. Every one preserves its argument's type, so a cell's Pure type is
@@ -145,8 +158,8 @@ def cells() -> list[tuple[str, str, str, str, str]]:
     return full + forms
 
 
-def class_cells() -> list[tuple[str, str]]:
-    return [(f, e) for f in FILTERS for e in EXTENDS]
+def class_cells() -> list[tuple[str, str, str]]:
+    return [(f, e, w) for f in FILTERS for e in EXTENDS for w in WRITTEN]
 
 
 def prop_name(cell) -> str:
@@ -183,12 +196,20 @@ _UNARY = {"up": "toUpper", "abs": "abs", "sqrt": "sqrt",
 _BINARY = {"cat": "concat", "plus": "plus", "times": "times"}
 
 
-def expression(cell) -> str:
-    """The right-hand side of the property mapping for one cell."""
+def expression(cell, bare: bool = False) -> str:
+    """The right-hand side of the property mapping for one cell.
+
+    `bare` writes the columns without their `[db]TABLE.` prefix, which is the form a
+    `scope([db]TABLE)` block requires -- the scope states the table once for everything
+    inside it.
+    """
     reach, type_, xform, nulls, _host = cell
     table = _TABLE_FOR[reach]
-    ra = _ref(reach, column(table, type_, nulls, 1))
-    rb = _ref(reach, column(table, type_, nulls, 2))
+    if bare:
+        ra, rb = (column(table, type_, nulls, 1), column(table, type_, nulls, 2))
+    else:
+        ra = _ref(reach, column(table, type_, nulls, 1))
+        rb = _ref(reach, column(table, type_, nulls, 2))
     if xform == "none":
         return ra
     if xform in _UNARY:
@@ -209,7 +230,7 @@ def _class_for(idx: int) -> str:
 
 def _pairs(cell, ccell) -> set:
     """Every (property-axis value, class-axis value) this placement would witness."""
-    cnames = ("filter", "extends")
+    cnames = ("filter", "extends", "written")
     return {((a, v), (b, w))
             for a, v in zip(AXES, cell) for b, w in zip(cnames, ccell)}
 
@@ -244,7 +265,7 @@ def assignment() -> dict[int, list[tuple]]:
             continue
         (paxis, pval), (caxis, cval) = pair
         pidx = AXES.index(paxis)
-        cidx = ("filter", "extends").index(caxis)
+        cidx = ("filter", "extends", "written").index(caxis)
         for cell in remaining:
             if cell[pidx] != pval:
                 continue
@@ -271,7 +292,8 @@ def _required() -> set:
               "xform": tuple(sorted({x for xs in XFORM.values() for x in xs}))}
     return {((a, v), (b, w))
             for a, vs in values.items() for v in vs
-            for b, ws in (("filter", FILTERS), ("extends", EXTENDS)) for w in ws}
+            for b, ws in (("filter", FILTERS), ("extends", EXTENDS),
+                          ("written", WRITTEN)) for w in ws}
 
 
 def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
@@ -291,7 +313,7 @@ def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
     import oracle
 
     bad = []
-    for i, (filt, _ext) in enumerate(class_cells()):
+    for i, (filt, _ext, _w) in enumerate(class_cells()):
         cls = _class_for(i)
         if cls not in c.main_table:
             continue
@@ -354,7 +376,7 @@ def build_source() -> str:
         "}",
         "",
     ]
-    for i, (filt, ext) in enumerate(ccells):
+    for i, (filt, ext, written) in enumerate(ccells):
         cls = _class_for(i)
         tops = [c for c in deal[i] if axis(c, "host") == "top"]
         embs = [c for c in deal[i] if axis(c, "host") == "embedded"]
@@ -397,6 +419,31 @@ def build_source() -> str:
         return out
 
     L += [
+        "// Mapped through a SCOPE block: the property mappings inside name their columns",
+        "// BARE, with the table stated once by the scope. 60 class mappings in this corpus",
+        "// are written that way and none was executed -- they live in a Mapping that no",
+        "// runtime binds, so nothing could resolve one.",
+        f"Class {SCOPE_CLASS}",
+        "{",
+        "   rootId: String[1];",
+        *[f"   {column(ROOT, ty, nl, 1).lower()}: {TYPE_PURE[ty]}[0..1];"
+          for ty in TYPES for nl in NULLS],
+        "}",
+        "",
+        "// Reached from a root class by an association whose ends name BOTH set ids.",
+        f"Class {HOP_CLASS}",
+        "{",
+        "   hopCode: String[1];",
+        *[f"   {column(HOP1, ty, nl, 1).lower()}: {TYPE_PURE[ty]}[0..1];"
+          for ty in TYPES for nl in NULLS],
+        "}",
+        "",
+        f"Association {ASSOC}",
+        "{",
+        f"   hop: {HOP_CLASS}[0..1];",
+        f"   roots: {_class_for(0)}[*];",
+        "}",
+        "",
         f"// Mapped over a table inside the `{SCHEMA}` Schema.",
         f"Class {SCHEMA_CLASS}",
         "{",
@@ -522,7 +569,7 @@ def build_source() -> str:
         "   }",
         "",
     ]
-    for i, (filt, ext) in enumerate(ccells):
+    for i, (filt, ext, written) in enumerate(ccells):
         cls = _class_for(i)
         tops = [c for c in deal[i] if axis(c, "host") == "top"]
         embs = [c for c in deal[i] if axis(c, "host") == "embedded"]
@@ -546,7 +593,16 @@ def build_source() -> str:
         body = []
         if ext == "no":
             body.append(f"      rootId: [{DB}]{ROOT}.ROOT_ID")
-        for cell in tops:
+        # In `scope` form the cells reading COMBO_ROOT move inside a scope block and lose
+        # their `[db]TABLE.` prefix. Only those: a chain names its own tables and cannot be
+        # covered by a scope over the root, so mixing the two in one mapping is the point --
+        # it is what a real mapping written this way looks like.
+        scoped = [x for x in tops if written == "scope" and _TABLE_FOR[axis(x, "reach")] == ROOT]
+        if scoped:
+            inner = ",\n".join(f"         {prop_name(x)}: {expression(x, bare=True)}"
+                               for x in scoped)
+            body.append(f"      scope([{DB}]{ROOT})\n      (\n{inner}\n      )")
+        for cell in [x for x in tops if x not in scoped]:
             body.append(f"      {prop_name(cell)}: {expression(cell)}")
         if embs:
             inner = ",\n".join(f"         {prop_name(cell)}: {expression(cell)}"
@@ -556,6 +612,44 @@ def build_source() -> str:
         L.append("   }")
         L.append("")
     L += [
+        "   // SCOPE. `scope([db]TABLE)` states the table once; the property mappings inside",
+        "   // name bare columns. A second form, `scope([db])`, qualifies each column with",
+        "   // its table instead -- this uses the first.",
+        f"   {SCOPE_CLASS}: Relational",
+        "   {",
+        f"      ~primaryKey ( [{DB}]{ROOT}.ROOT_ID )",
+        f"      ~mainTable [{DB}]{ROOT}",
+        f"      scope([{DB}]{ROOT})",
+        "      (",
+        ",\n".join(
+            ["         rootId: ROOT_ID"]
+            + [f"         {column(ROOT, ty, nl, 1).lower()}: {column(ROOT, ty, nl, 1)}"
+               for ty in TYPES for nl in NULLS]),
+        "      )",
+        "   }",
+        "",
+        f"   {HOP_CLASS}[hop1]: Relational",
+        "   {",
+        f"      ~primaryKey ( [{DB}]{HOP1}.HOP1_CODE )",
+        f"      ~mainTable [{DB}]{HOP1}",
+        ",\n".join(
+            [f"      hopCode: [{DB}]{HOP1}.HOP1_CODE"]
+            + [f"      {column(HOP1, ty, nl, 1).lower()}: [{DB}]{HOP1}.{column(HOP1, ty, nl, 1)}"
+               for ty in TYPES for nl in NULLS]),
+        "   }",
+        "",
+        "   // ASSOCIATION ENDS WITH EXPLICIT SOURCE AND TARGET SET IDS. The ids are load-",
+        "   // bearing rather than ceremony here: C0 is one of eight sets over COMBO_ROOT, so",
+        "   // an unqualified end would be ambiguous about which it connects.",
+        f"   {ASSOC}: Relational",
+        "   {",
+        "      AssociationMapping",
+        "      (",
+        f"         hop[c0, hop1]: [{DB}]@{J1},",
+        f"         roots[hop1, c0]: [{DB}]@{J1}",
+        "      )",
+        "   }",
+        "",
         f"   // The SCHEMA-QUALIFIED mapping: every reference names {SCHEMA}.{SCHEMA_TABLE}.",
         f"   {SCHEMA_CLASS}: Relational",
         "   {",
@@ -588,7 +682,7 @@ def specs(c: model.Corpus) -> list[Spec]:
 
     tables = flat.all_tables(c)
     out = []
-    for i, (filt, ext) in enumerate(class_cells()):
+    for i, (filt, ext, written) in enumerate(class_cells()):
         cls = _class_for(i)
         if cls not in c.main_table:
             continue
@@ -608,10 +702,56 @@ def specs(c: model.Corpus) -> list[Spec]:
         spec.connection, spec.data_element = CONN_ID, DATA
         out.append(spec)
     extra = predicate_specs(c)
-    sm = schema_spec(c)
-    if sm is not None:
-        extra.append(sm)
+    for maker in (schema_spec, scope_spec, assoc_ids_spec):
+        s = maker(c)
+        if s is not None:
+            extra.append(s)
     return out + extra
+
+
+def scope_spec(c: model.Corpus):
+    """A service over the class mapped through a SCOPE block.
+
+    The corpus has 60 scope-using class mappings and executed none of them: they live in
+    stress::DenseMapping, which no runtime binds, so nothing could resolve one. A construct
+    reachable only from a mapping nobody runs is a construct nobody has tested.
+    """
+    if SCOPE_CLASS not in c.main_table:
+        return None
+    spec = Spec("stress::CB_Scoped", "/stress/cb_scoped",
+                f"Reads {SCOPE_CLASS}, whose property mappings sit inside `scope([db]TABLE)` "
+                f"and name their columns BARE. Generated by scripts/corpus/combos.py.",
+                SCOPE_CLASS)
+    spec.projections = [Proj(p, [p]) for p in sorted(c.columns.get(SCOPE_CLASS, {}))]
+    spec.sort = ("rootId", False)
+    spec.mapping, spec.runtime = MAPPING, RUNTIME
+    spec.connection, spec.data_element = CONN_ID, DATA
+    return spec
+
+
+def assoc_ids_spec(c: model.Corpus):
+    """A service navigating the association whose ends name both set ids.
+
+    The only other association written that way spans two stores, so navigating it hits F26
+    and cannot execute at all -- and its ends were not even bound, because binding matched
+    on the association's NAME and that one is not named `A_B`.
+    """
+    cls = _class_for(0)
+    if c.ends.get((cls, "hop")) is None or c.ends[(cls, "hop")].join is None:
+        return None
+    leaf = column(HOP1, "string", "notnull", 1).lower()
+    spec = Spec("stress::CB_AssocSetIds", "/stress/cb_assoc_setids",
+                f"Navigates {ASSOC} from {cls}, whose AssociationMapping names an explicit "
+                f"SOURCE and TARGET set id on each end. The ids are load-bearing: COMBO_ROOT "
+                f"carries eight set implementations, so an unqualified end would be "
+                f"ambiguous. Generated by scripts/corpus/combos.py.", cls)
+    spec.projections = [Proj("rootId", ["rootId"]),
+                        Proj("hopCode", ["hop", "hopCode"]),
+                        Proj("hopLeaf", ["hop", leaf])]
+    spec.sort = ("rootId", False)
+    spec.mapping, spec.runtime = MAPPING, RUNTIME
+    spec.connection, spec.data_element = CONN_ID, DATA
+    return spec
 
 
 def schema_spec(c: model.Corpus):
@@ -663,7 +803,7 @@ def predicate_specs(c: model.Corpus) -> list[Spec]:
     # class filter already excluded.
     want = ("string", "none", "nullable", "top")
     cls = prop = None
-    for i, (filt, _ext) in enumerate(class_cells()):
+    for i, (filt, _ext, _w) in enumerate(class_cells()):
         if filt != "none":
             continue
         hit = next((x for x in assignment()[i]
@@ -790,9 +930,9 @@ if __name__ == "__main__":
     problems = check()
     print(f"property cells: {len(cells())}   class cells: {len(class_cells())}")
     print(f"pair coverage: {'COMPLETE' if not problems else problems}")
-    for i, (f, e) in enumerate(class_cells()):
+    for i, (f, e, w) in enumerate(class_cells()):
         got = deal[i]
-        print(f"  C{i}  filter={f:<7} extends={e:<4} {len(got)} cells "
+        print(f"  C{i}  filter={f:<10} extends={e:<4} written={w:<6} {len(got)} cells "
               f"({sum(1 for g in got if axis(g, 'host') == 'embedded')} embedded)")
     print()
     seen = {ax: set() for ax in ("reach", "xform", "nulls", "host")}
