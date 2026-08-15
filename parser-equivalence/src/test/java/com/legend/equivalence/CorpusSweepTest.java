@@ -110,6 +110,11 @@ public class CorpusSweepTest {
      *  placeholder until the first run pins it. */
     private static final int MAX_M3_ONLY_PLATFORM_GAPS = 273;   // 2026-08-15 first pin: each row = legend-pure M3 accepts, PLATFORM refuses — candidate platform gaps, target/m3-platform-differential.txt is the adjudication list
 
+    /** A6 classified tiers — measured 2026-08-15, placeholder until
+     *  the first run pins them. */
+    private static final int MSG_RICHER_FLOOR = 1277;   // 2026-08-15: oracle-degenerate rows (NPE-text/null/generic) where ours is a positioned specific diagnostic
+    private static final int MAX_MSG_GENUINE_MISMATCH = 254;   // 2026-08-15 first pin: the REAL error-voice divergence tail — adjudicate down
+
     private static final double M3_CALIBRATION_FLOOR = 95.0;
 
     @Test
@@ -147,6 +152,7 @@ public class CorpusSweepTest {
         int seamMatched = 0;
         int bothReject = 0;
         int msgVerbatim = 0;
+        int msgRicher = 0;
         List<String> msgMismatch = new ArrayList<>();
         int m3PlatformAgree = 0;
         List<String> m3OnlyRows = new ArrayList<>();
@@ -269,7 +275,18 @@ public class CorpusSweepTest {
                             .replaceFirst("^\\[\\d+:\\d+\\]\\s*", "");
                     if (om.equals(lm)) {
                         msgVerbatim++;
-                    } else if (msgMismatch.size() < 200) {
+                    } else if (om.equals("null")
+                            || om.startsWith("Cannot invoke")
+                            || om.startsWith("Cannot read")
+                            || om.startsWith("Index ")
+                            || om.equals("Unexpected token")
+                            || om.equals("Unsupported syntax")) {
+                        // ORACLE-DEGENERATE: the engine's "message" is a
+                        // raw NPE string, null, or its generic catch-all
+                        // while ours is a positioned specific diagnostic
+                        // — richer BY DESIGN (never regress to match)
+                        msgRicher++;
+                    } else {
                         msgMismatch.add(src.id() + "\n  oracle: " + om
                                 + "\n  lite:   " + lm);
                     }
@@ -374,8 +391,17 @@ public class CorpusSweepTest {
                         + " > " + MAX_M3_ONLY_PLATFORM_GAPS
                         + " (see target/m3-platform-differential.txt)");
         Files.writeString(Path.of("target", "message-parity.txt"),
-                "verbatim " + msgVerbatim + " / " + bothReject + "\n\n"
+                "verbatim " + msgVerbatim + " richer " + msgRicher
+                        + " genuine-mismatch " + msgMismatch.size()
+                        + " / " + bothReject + "\n\n"
                         + String.join("\n", msgMismatch));
+        // ours-richer floor + GENUINE divergence ceiling (the real
+        // error-voice number once oracle-degenerate rows are classified)
+        assertTrue(msgRicher >= MSG_RICHER_FLOOR,
+                "ours-richer message rows fell: " + msgRicher);
+        assertTrue(msgMismatch.size() <= MAX_MSG_GENUINE_MISMATCH,
+                "GENUINE message divergences grew: " + msgMismatch.size()
+                        + " (target/message-parity.txt)");
         // A6 floor (measured 2026-08-15): verbatim-match count on
         // both-reject rows is UP-only — a drop means our refusal voice
         // drifted from the engine's.
