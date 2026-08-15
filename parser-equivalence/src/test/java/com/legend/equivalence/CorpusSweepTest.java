@@ -96,7 +96,7 @@ public class CorpusSweepTest {
      *  2d: the population was unbounded — every row classifies, but
      *  nothing stopped the TOTAL from growing silently). Shrink-only;
      *  measured 2026-08-14. */
-    private static final int MAX_PLATFORM_CATALOG = 1470;
+    private static final int MAX_PLATFORM_CATALOG = 1517;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
 
     /** M3 second-reference agreement floor on oracle-accepted
      *  section-free sources — below this the "m3-corroborated"
@@ -108,7 +108,7 @@ public class CorpusSweepTest {
 
     /** A5: m3-accepts-platform-refuses ceiling — measured 2026-08-15;
      *  placeholder until the first run pins it. */
-    private static final int MAX_M3_ONLY_PLATFORM_GAPS = 273;   // 2026-08-15 first pin: each row = legend-pure M3 accepts, PLATFORM refuses — candidate platform gaps, target/m3-platform-differential.txt is the adjudication list
+    private static final int MAX_M3_ONLY_PLATFORM_GAPS = 226;   // 2026-08-15: doc-string family burned (was 273)
 
     /** A6 classified tiers — measured 2026-08-15, placeholder until
      *  the first run pins them. */
@@ -571,6 +571,11 @@ public class CorpusSweepTest {
                     // ^$x(...) — pure-dialect copy-new, adopted on the
                     // LITE surface, refused drop-in (2026-08-14 gate)
                     return "DIALECT-copy-new";
+                }
+                if (sm.contains("DOC_STRING")) {
+                    // m3 triple-quote documentation literals — PLATFORM
+                    // trivia (A5 burn 2026-08-15); engine refuses them
+                    return "PURE-DIALECT-doc-string";
                 }
                 if (sm.contains("brace-less #TDS")) {
                     // platform_dsl_tds spelling — the engine's xt-tds

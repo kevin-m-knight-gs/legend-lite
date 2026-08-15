@@ -568,6 +568,16 @@ public final class ElementParser implements TokenStreamCursor {
      * switch is its index.
      */
     private PackageableElement parseSingleElement() {
+        // PLATFORM: a top-level '''...''' documentation literal is m3's
+        // element-doc sugar attached to the NEXT declaration (legend-pure
+        // documentation.pure). Doc text does not affect execution — the
+        // platform charter — so it reads as leading trivia here. The
+        // drop-in/lite surfaces keep refusing it like the engine does.
+        // (A5 platform-gap burn 2026-08-15: 43 top-level rows.)
+        while (!dialect.refusesPlatformDialect()
+                && peek() == TokenType.DOC_STRING) {
+            pos++;
+        }
         TokenType t = peek();
         // STRICT SECTION BINDING (quarantine doctrine, OwnCorpusConformance):
         // the engine's default/###Pure section admits ONLY domain elements —
@@ -855,6 +865,13 @@ public final class ElementParser implements TokenStreamCursor {
         List<com.legend.protocol.Protocol.PProperty> properties = new ArrayList<>();
         List<DerivedPropertyDefinition> derivedProperties = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+            // PLATFORM: member-level m3 doc literal — trivia (see
+            // parseSingleElement's top-level arm)
+            if (!dialect.refusesPlatformDialect()
+                    && peek() == TokenType.DOC_STRING) {
+                pos++;
+                continue;
+            }
             if (isDerivedPropertyStart()) {
                 derivedProperties.add(parseDerivedProperty());
             } else {
