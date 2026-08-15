@@ -131,13 +131,39 @@ class GrammarCoverageCensusTest {
                 "RelationalDatabaseConnection");
         driveIsland(drives, pkg + "connection.RelationalDatabaseConnectionParserGrammar",
                 "island:relationalConnection", connBodies);
+        List<String> specIslands = keyedIslands(connBodies, "specification");
+        List<String> authIslands = keyedIslands(connBodies, "auth");
+        // per-kind rule collections: NO single entry — best-rule drive
+        // (probe 2026-08-15: LocalH2 -> localH2DatasourceSpecification,
+        // DefaultH2 -> defaultH2Auth; the walker dispatches on kind)
         driveIsland(drives, pkg + "connection.datasource.DataSourceSpecificationParserGrammar",
-                "island:datasource", keyedIslands(connBodies, "specification"));
+                "island:datasource", specIslands, true);
         driveIsland(drives, pkg + "connection.authentication.AuthenticationStrategyParserGrammar",
-                "island:auth", keyedIslands(connBodies, "auth"));
+                "island:auth", authIslands, true);
         driveIsland(drives, pkg + "connection.postProcessor.PostProcessorParserGrammar",
                 "island:postProcessor", bySection.getOrDefault(
-                        "QueryPostProcessor", List.of()));
+                        "QueryPostProcessor", List.of()), true);
+        // A2: store-specific connection-value grammars parse the SAME
+        // spec/auth islands for their store kinds — best-rule matching
+        // selects the applicable fragments, the rest count as errors
+        // only against THAT family's fragments (never inflate)
+        List<String> specAndAuth = new ArrayList<>(specIslands);
+        specAndAuth.addAll(authIslands);
+        for (String store : List.of("Databricks", "Spanner", "Trino",
+                "Redshift", "DuckDB", "BigQuery")) {
+            driveIsland(drives, pkg + "connection." + store + "ParserGrammar",
+                    "island:conn-" + store, specAndAuth, true);
+        }
+        for (String kw : List.of("MongoDBConnection", "ServiceStoreConnection",
+                "Elasticsearch7StoreConnection", "DeephavenConnection")) {
+            String g = kw.startsWith("Elasticsearch")
+                    ? "ElasticsearchConnection" : kw;
+            driveIsland(drives, pkg + "connection." + g + "ParserGrammar",
+                    "island:" + kw, elementBodies(
+                            bySection.get("Connection"), kw), true);
+        }
+        driveIsland(drives, pkg + "connection.queryGenerationConfigs.QueryGenerationConfigsParserGrammar",
+                "island:queryGenConfigs", connBodies, true);
         driveIsland(drives, pkg + "connection.modelConnection.ModelConnectionParserGrammar",
                 "island:modelConnection", modelConnBodies(bySection.get("Connection")));
         List<String> mappingFrags = bySection.getOrDefault("Mapping", List.of());
@@ -150,13 +176,48 @@ class GrammarCoverageCensusTest {
         driveIsland(drives, pkg + "mapping.xStoreAssociationMapping.XStoreAssociationMappingParserGrammar",
                 "island:xstore", mappingIslands(mappingFrags, "XStore"));
         driveIsland(drives, pkg + "mapping.aggregationAware.AggregationAwareParserGrammar",
-                "island:aggAware", mappingIslands(mappingFrags, "AggregationAware"));
+                "island:aggAware", mappingIslands(mappingFrags, "AggregationAware"), true);
+        driveIsland(drives, pkg + "mapping.modelJoinAssociationMapping.ModelJoinAssociationMappingParserGrammar",
+                "island:modelJoin", mappingIslands(mappingFrags, "ModelJoin"), true);
+        driveIsland(drives, pkg + "mapping.relationFunctionMapping.RelationFunctionMappingParserGrammar",
+                "island:relationFn", mappingIslands(mappingFrags, "Relation"), true);
+        driveIsland(drives, pkg + "mapper.RelationalMapperParserGrammar",
+                "island:relationalMapper", mappingFrags, true);
         driveIsland(drives, pkg + "test.assertion.TestAssertionParserGrammar",
                 "island:testAssertion", assertionIslands(allTexts));
         driveIsland(drives, pkg + "data.embedded.modelStore.ModelStoreDataParserGrammar",
                 "island:modelStoreData", dataIslands(bySection.get("Data"), "ModelStore"));
         driveIsland(drives, pkg + "data.embedded.externalFormat.ExternalFormatDataParserGrammar",
                 "island:externalFormatData", dataIslands(bySection.get("Data"), "ExternalFormat"));
+        driveIsland(drives, pkg + "data.RelationalEmbeddedDataParserGrammar",
+                "island:relationalData", dataIslands(bySection.get("Data"), "Relational"), true);
+        driveIsland(drives, pkg + "data.embedded.relation.RelationElementsDataParserGrammar",
+                "island:relationElementsData", union(
+                        dataIslands(bySection.get("Data"), "RelationElements"),
+                        dataIslands(allTexts, "RelationElements")), true);
+        driveIsland(drives, pkg + "data.embedded.serviceStore.ServiceStoreEmbeddedDataParserGrammar",
+                "island:serviceStoreData", dataIslands(bySection.get("Data"), "ServiceStore"), true);
+        List<String> assertPool = assertionIslands(allTexts);
+        driveIsland(drives, pkg + "data.embedded.serviceStore.contentPattern.equalTo.EqualToContentPatternParserGrammar",
+                "island:eqPattern", assertPool, true);
+        driveIsland(drives, pkg + "data.embedded.serviceStore.contentPattern.equalToJson.EqualToJsonContentPatternParserGrammar",
+                "island:eqJsonPattern", assertPool, true);
+        driveIsland(drives, pkg + "test.EqualToTDSAssertionParserGrammar",
+                "island:eqTds", assertPool, true);
+        driveIsland(drives, pkg + "test.assertion.equalTo.EqualToAssertionParserGrammar",
+                "island:eqAssert", assertPool, true);
+        driveIsland(drives, pkg + "test.assertion.equalToJson.EqualToJsonAssertionParserGrammar",
+                "island:eqJsonAssert", assertPool, true);
+        driveIsland(drives, pkg + "schema.MongoDBSchemaParserGrammar",
+                "island:mongoSchema", bySection.getOrDefault("MongoDB", List.of()), true);
+        driveIsland(drives, "org.finos.legend.engine.external.format.flatdata.grammar.antlr4.FlatDataParserGrammar",
+                "island:flatData", bySection.getOrDefault("ExternalFormat", List.of()), true);
+        driveIsland(drives, pkg + "PersistenceCloudParserGrammar",
+                "island:persistenceCloud", bySection.getOrDefault("Persistence", List.of()), true);
+        driveIsland(drives, "org.finos.legend.pure.grammar.from.antlr4.PersistenceRelationalParserGrammar",
+                "island:persistenceRelational", bySection.getOrDefault("Persistence", List.of()), true);
+        driveIsland(drives, pkg + "CodeParserGrammar",
+                "island:code", hashBlocks(allTexts, false), true);
 
         // ---- 4. report
         StringBuilder out = new StringBuilder();
@@ -212,18 +273,21 @@ class GrammarCoverageCensusTest {
         // the mapping broke — both are regressions. The undriven-grammar
         // ceiling is DOWN-only: phase 2 (islands/value grammars) shrinks
         // it and pins the progress.
-        assertTrue(drives.size() >= 39,
-                "census drove only " + drives.size() + " grammars (floor 39:"
-                        + " 24 sections + 15 islands) — mapping or an"
-                        + " island extractor broke");
-        assertTrue(coveredRules >= 1200,
+        assertTrue(drives.size() >= 40,
+                "census drove only " + drives.size() + " grammars (floor 40)"
+                        + " — mapping or an island extractor broke");
+        assertTrue(coveredRules >= 1400,
                 "grammar-rule coverage fell: " + coveredRules
-                        + " < floor 1200 — corpus, mapping, or extractor"
-                        + " regression (phase-2 baseline 1209)");
-        assertTrue(undriven.size() <= 27,
+                        + " < floor 1400 — corpus, mapping, or extractor"
+                        + " regression (A2 baseline 1447)");
+        // the two remaining are CORPUS-ABSENT (zero instances of the
+        // island exist in any corpus source — verified 2026-08-15):
+        // ElasticsearchConnection, RelationElementsData. Closable only
+        // by fixtures (A3), not by extraction.
+        assertTrue(undriven.size() <= 2,
                 "undriven grammar list grew: " + undriven.size()
-                        + " > 27 — a new engine grammar appeared; extend"
-                        + " the census (or phase-3 it explicitly)");
+                        + " > 2 — a new engine grammar appeared; extend"
+                        + " the census (or record it corpus-absent)");
         assertTrue(unmappedSections.size() <= 1,
                 "unmapped sections grew: " + unmappedSections);
     }
@@ -241,6 +305,11 @@ class GrammarCoverageCensusTest {
         /** island mode: only error-free fragments contribute coverage
          *  (a mis-routed fragment must not inflate through recovery). */
         boolean errorFreeOnly;
+        /** per-kind rule collections (datasource/auth/postProcessor
+         *  value grammars): no single entry — per fragment, the first
+         *  rule that parses error-free WITH FULL CONSUMPTION wins;
+         *  coverage counts from that parse only. */
+        boolean bestRule;
         private final Constructor<?> lexerCtor;
         private final Constructor<?> parserCtor;
         private final Method entry;
@@ -279,6 +348,10 @@ class GrammarCoverageCensusTest {
         }
 
         void drive(String code) {
+            if (bestRule) {
+                driveBestRule(code);
+                return;
+            }
             fragments++;
             try {
                 Lexer lexer = (Lexer) lexerCtor.newInstance(
@@ -320,16 +393,66 @@ class GrammarCoverageCensusTest {
                 errFragments++;
             }
         }
+
+        private void driveBestRule(String code) {
+            fragments++;
+            for (String rule : ruleNames) {
+                try {
+                    Lexer lexer = (Lexer) lexerCtor.newInstance(
+                            CharStreams.fromString(code));
+                    lexer.removeErrorListeners();
+                    Parser parser = (Parser) parserCtor.newInstance(
+                            new CommonTokenStream(lexer));
+                    parser.removeErrorListeners();
+                    ParserRuleContext tree = (ParserRuleContext) parser
+                            .getClass().getMethod(rule).invoke(parser);
+                    if (parser.getNumberOfSyntaxErrors() > 0
+                            || parser.getCurrentToken().getType()
+                                    != org.antlr.v4.runtime.Token.EOF) {
+                        continue;   // wrong rule: errors or unconsumed tail
+                    }
+                    ParseTreeWalker.DEFAULT.walk(new ParseTreeListener() {
+                        @Override
+                        public void enterEveryRule(ParserRuleContext ctx) {
+                            covered.set(ctx.getRuleIndex());
+                            contextClasses.add(ctx.getClass().getSimpleName());
+                        }
+
+                        @Override
+                        public void exitEveryRule(ParserRuleContext ctx) {
+                        }
+
+                        @Override
+                        public void visitTerminal(TerminalNode node) {
+                        }
+
+                        @Override
+                        public void visitErrorNode(ErrorNode node) {
+                        }
+                    }, tree);
+                    return;
+                } catch (Throwable t) {
+                    // try the next rule
+                }
+            }
+            errFragments++;   // no rule fully consumes this fragment
+        }
     }
 
     private static void driveIsland(Map<String, Drive> drives, String fqn,
             String label, List<String> fragments) {
+        driveIsland(drives, fqn, label, fragments, false);
+    }
+
+    private static void driveIsland(Map<String, Drive> drives, String fqn,
+            String label, List<String> fragments, boolean bestRule) {
         if (fragments.isEmpty()) {
             return;
         }
         Drive d = drives.computeIfAbsent(fqn, Drive::new);
         d.sections.add(label);
         d.errorFreeOnly = true;
+        d.bestRule = bestRule;
         fragments.forEach(d::drive);
     }
 
@@ -355,6 +478,12 @@ class GrammarCoverageCensusTest {
             }
         }
         return out;
+    }
+
+    private static List<String> union(List<String> a, List<String> b) {
+        List<String> u = new ArrayList<>(a);
+        u.addAll(b);
+        return u;
     }
 
     private static List<String> navPaths(List<String> texts) {
@@ -541,6 +670,11 @@ class GrammarCoverageCensusTest {
     private static String grammarFor(String section,
             Map<String, String> parserClasses) {
         String want = section.equals("Pure") ? "Domain" : section;
+        if (section.equals("BigQuery")) {
+            // ###BigQuery is the ACTIVATOR section (BigQueryFunction);
+            // plain BigQueryParserGrammar is its connection-VALUE island
+            return parserClasses.get("BigQueryFunctionParserGrammar");
+        }
         // Ranked prefix match, never bare substring. Base score:
         //   6 = exact stem; 4 = section name EXTENDS the stem
         //   (DataQualityValidation -> DataQuality); 2 = stem EXTENDS the

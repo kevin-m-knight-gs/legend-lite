@@ -74,19 +74,30 @@ walker-fed text): AggregationAware (34/34 err), DataSourceSpecification
 (125/181 err + vacuous), AuthenticationStrategy (38/61 err),
 PostProcessor (1 rule). These four rows are honest instrument debt.
 
+## A2 completion (2026-08-15): every extractable grammar driven
+
+Best-rule drive landed (per-kind value grammars have NO single entry —
+per fragment, the first rule that parses error-free with FULL token
+consumption wins; datasource 42.1%, auth 57.1%, store-specific
+connectors 25-65%, DeephavenConnection 90.9%). **Baseline: 41 grammars
+driven, 1,447/3,914 rules (37.0% — the denominator grew as value
+grammars joined), undriven 44 -> 2.** Ratchets: drives >= 40,
+coverage >= 1400, undriven <= 2.
+
+The 2 remaining are **CORPUS-ABSENT** (verified: zero instances of the
+island exist in any corpus source): `ElasticsearchConnection`,
+`RelationElementsData`. Closable only by fixtures, not extraction.
+Low-coverage EXTRACTION-PENDING rows remain honest instrument debt:
+PostProcessor 0%, RelationalMapper 0%, EqualToAssertion 0%,
+PersistenceCloud/Relational ~1%, aggAware 5.5%, Code 1-rule — each
+needs its true walker-fed shape probed.
+
 ## Phase 3 — remaining work-list
 
-1. **The 27 undriven grammars**: exotic store connectors
-   (Databricks/Spanner/Trino/Redshift/DuckDB/Mongo/ES/Deephaven
-   connection values), MongoDBSchema island, FlatData, ServiceStore
-   embedded data + content patterns, PersistenceCloud/Relational,
-   Code, RelationalMapper, ModelJoin/RelationFunction mapping islands,
-   EqualTo/EqualToJson/EqualToTDS assertion leaves.
-2. **Fix the four EXTRACTION-PENDING extractors** (probe walker-fed
-   fragment shapes).
-3. **Uncovered-rule closure**: per uncovered rule of a driven grammar,
-   an oracle-probed byte-pinned fixture, or an unreachability proof
-   (dead grammar — upstream finding). Start with the thin
-   activator/store grammars.
-4. **Generative gate seeding**: the uncovered lists are exactly the
+1. **Uncovered-rule closure** (the big one): per uncovered rule of a
+   driven grammar, an oracle-probed byte-pinned fixture, or an
+   unreachability proof (dead grammar — upstream finding). Start with
+   the thin activator/store grammars + the 2 corpus-absent islands.
+2. **EXTRACTION-PENDING shapes** (list above) — probe walker-fed text.
+3. **Generative gate seeding**: the uncovered lists are exactly the
    productions a grammar-driven generator should weight first.
