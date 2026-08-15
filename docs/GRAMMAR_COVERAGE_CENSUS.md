@@ -101,3 +101,13 @@ needs its true walker-fed shape probed.
 2. **EXTRACTION-PENDING shapes** (list above) — probe walker-fed text.
 3. **Generative gate seeding**: the uncovered lists are exactly the
    productions a grammar-driven generator should weight first.
+
+## A4 — generative dual-parse gate (landed 2026-08-15)
+
+`GenerativeDualParseTest` (triggered, like the census): fixed-seed
+random walks of the ENGINE's own Domain ATN, each sentence dual-parsed
+oracle-vs-lite, verdict parity pinned at ZERO divergences (first run:
+1,043 parseable sentences, 0 diverge). Known limits, being the
+improvement list: uniform walk yields no both-accepts (bias toward
+exit transitions / template seeding would fix); Domain grammar only
+(extend per-grammar using the census's uncovered lists as weights).
