@@ -21,15 +21,6 @@ Counted by the discovery path (`Runner.discoverTests`), keyed by test FQN so a
 shared source registered by several families cannot double-count. Run with
 `-Drcorpus.includeExcluded` to run the excluded ones too.
 
-## Failed seed statements (6)
-
-- `Create Table personExtensionTable("ID" INTEGER, "PERSON_ID" INTEGER, "EXTRAINFO" VARCHAR(200), "NUMBER" INTEGER, "AGE" INTEGER) => Catalog Error: Table with name "personExtensionTable" already exists!`
-- `Create Table firmPersonBridgeTable("FIRM_ID" INTEGER, "PERSON_ID" INTEGER) => Catalog Error: Table with name "firmPersonBridgeTable" already exists!`
-- `Create Table TypeTable("ID" INTEGER, "TypeProperty" VARCHAR(200)) => Catalog Error: Table with name "TypeTable" already exists!`
-- `Create Table TypeTableA("ID" INTEGER, "TypePropertyA" VARCHAR(200)) => Catalog Error: Table with name "TypeTableA" already exists!`
-- `Create Table TypeTableB("ID" INTEGER, "TypePropertyB" VARCHAR(200), "IN_Z" TIMESTAMP, "OUT_Z" TIMESTAMP) => Catalog Error: Table with name "TypeTableB" already exists!`
-- `Create Table MiddleTable("ID" INTEGER, "LINKID" INTEGER) => Catalog Error: Table with name "MiddleTable" already exists!`
-
 | family | tests | pass | fail | error | shape | sqldiff-pass |
 |---|---|---|---|---|---|---|
 | aggregationAware/test/rewrite | 13 | 13 | 0 | 0 | 0 | 0 |
@@ -89,7 +80,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/relation | 109 | 103 | 5 | 0 | 1 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 1 |
+| tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 | 2 |
 | tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
@@ -98,7 +89,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2292** | 89 | 99 | 95 | 245 |
+| **total** | 2575 | **2292** | 89 | 99 | 95 | 244 |
 
 ### mapping walls (dropped at assembly)
 

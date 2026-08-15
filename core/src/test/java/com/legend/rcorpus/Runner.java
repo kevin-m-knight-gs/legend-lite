@@ -1399,7 +1399,12 @@ public final class Runner {
                 return score(t.fqn(), o);
             } finally {
                 com.legend.harness.H2Verify.mirrorSuspend(false);
-                if (!shared) {
+                if (shared) {
+                    // live-shape census (t5 root cause): everything this
+                    // test executed — module DDL AND setup-fn streams —
+                    // updates the session's live table shapes
+                    noteExecutedDdl(recording);
+                } else {
                     conn.close();
                 }
             }
@@ -1744,6 +1749,38 @@ public final class Runner {
      * across a family's tests exactly like the engine's shared server
      * carries it across a package's tests; per-test order is unchanged. */
     private @com.legend.Nullable Connection familyConn;
+    /** SETUP-STREAM table shapes (t5 root cause, goal #18): cross-family
+     * setup functions drop+recreate same-named tables with DIFFERENT
+     * shapes through executeInDb — invisible to the MODULE-derived
+     * conflict router, so the shared session's live table silently
+     * diverged from the module shape the next test compiled against
+     * (FirmSet1 (id,name,NICKNAME) clobbered to (ID,LegalName); the
+     * query then read a dropped column, surfaced by DuckDB 1.5 as a
+     * bogus 'table t5 not found'). Track every CREATE TABLE the session
+     * EXECUTES; the conflict router consults this map too, so a
+     * clobbered-shape test routes to a private session. */
+    private final java.util.Map<String, String> familyLiveShapes =
+            new java.util.HashMap<>();
+
+    void noteExecutedDdl(java.util.List<String> stmts) {
+        for (String raw : stmts) {
+            String t = raw.strip();
+            String lower = t.toLowerCase(java.util.Locale.ROOT);
+            if (lower.startsWith("create table")) {
+                int open = t.indexOf('(');
+                if (open > 12) {
+                    String name = t.substring(12, open).strip()
+                            .toLowerCase(java.util.Locale.ROOT);
+                    familyLiveShapes.put(name, t);
+                }
+            } else if (lower.startsWith("drop table")) {
+                String name = lower.replace("drop table if exists", "")
+                        .replace("drop table", "").replace(";", "").strip();
+                familyLiveShapes.remove(name);
+            }
+        }
+    }
+
     private final java.util.Map<String, String> familyDdlShapes =
             new java.util.HashMap<>();
     private final java.util.Set<String> familySetupsDone = new java.util.HashSet<>();
@@ -1788,6 +1825,14 @@ public final class Runner {
         for (DdlUnit unit : moduleDdl(ctx)) {
             String prev = familyDdlShapes.get(unit.key());
             if (prev != null && !prev.equals(unit.createSql())) {
+                return true;
+            }
+            // setup-stream clobber (t5 root cause): the session's LIVE
+            // shape for this module table was rewritten by a setup fn —
+            // shapes diverged even though module DDL never conflicted
+            String live = familyLiveShapes.get(unit.key());
+            if (live != null && familyDdlShapes.containsKey(unit.key())
+                    && !live.equals(familyDdlShapes.get(unit.key()))) {
                 return true;
             }
         }
@@ -1837,6 +1882,7 @@ public final class Runner {
             familyConn = null;
         }
         familyDdlShapes.clear();
+        familyLiveShapes.clear();
         familySetupsDone.clear();
         familyCrossDone.clear();
         familySeedLedger.clear();

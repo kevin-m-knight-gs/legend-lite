@@ -44,6 +44,12 @@ add the issue link; when fixed upstream, the oracle-bump procedure
 | U15 | Deephaven grammar's `appMultiplicity` wants `DOT DOT` but CoreLexer emits one `DOT_DOT` token — `[n..m]` is unreachable in the Deephaven grammar only | sibling negative + grammar cross-read |
 | U16 | Deephaven connection `serverUrlDefinition` is the only field rule WITHOUT a trailing `SEMI_COLON` — `serverUrl: '...';` refuses | .g4 cross-read + fixture |
 
+## Non-legend upstreams
+
+| # | defect | evidence |
+|---|---|---|
+| U18 | **DuckDB 1.5.0** (not legend): a missing COLUMN inside a nested union-join subquery reports as `Referenced table "tN" not found! Candidate tables: "tM"` — the honest missing-column/missing-table message is replaced by a bogus alias error, which masked the t5 clobber diagnosis for a full bisect session | T5 probes 2026-08-15 (scratchpad T5Probe*/T5Bisect; 1.1.3 reports honestly, 1.5.0 does not) |
+
 ## Filing notes
 
 - U1–U5 are one upstream theme: route every walker NPE/NFE through a
