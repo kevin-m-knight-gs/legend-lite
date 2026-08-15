@@ -880,9 +880,18 @@ public final class EngineTestExecutor {
             int[] counters, List<String> sqlDiffs, int executed) {
         if (failure == UNSUPPORTED_MARKER) {
             String why = takeUnsupportedReason();
-            return new Outcome.Unsupported("assert form '" + af.function()
-                    + "/" + af.parameters().size() + "' is not supported yet"
-                    + (why == null ? "" : " — " + why));
+            // ATTRIBUTION (E2E burndown §2.1, goal #18 step 1b): when a
+            // PLATFORM cause exists it is the PRIMARY message — the old
+            // stamp buried it after an em-dash, so 82 of 95 SHAPE rows
+            // read as harness gaps when they were platform walls (nobody
+            // can prioritise a column that says "harness" and means it
+            // 3 times). Only a genuinely bare marker is harness-shaped.
+            return new Outcome.Unsupported(why != null
+                    ? why + " [surfaced via assert form '" + af.function()
+                            + "/" + af.parameters().size() + "']"
+                    : "assert form '" + af.function() + "/"
+                            + af.parameters().size()
+                            + "' is not supported yet");
         }
         if (failure == ADVISORY_MARKER) {
             counters[1]++;
@@ -1859,8 +1868,33 @@ public final class EngineTestExecutor {
                             + "\n[cmp] a types=" + a.values().stream().map(o ->
                                     o == null ? "null" : o.getClass().getSimpleName()).toList());
                 }
-                return equal ? null : "assertEquals: expected " + e.render()
-                        + ", got " + a.render();
+                if (equal) {
+                    return null;
+                }
+                String er = e.render();
+                String ar = a.render();
+                // COMPARATOR HONESTY (E2E burndown §3.2, goal #18 step
+                // 2): when both sides RENDER identically the failure is
+                // on invisible grounds (cell type identity, arity,
+                // TDSNull-vs-null) — a message that cannot show its own
+                // reason also cannot be audited, and a comparator that
+                // fails invisibly can pass invisibly. Render types+arity
+                // whenever the plain renders agree.
+                if (er.equals(ar)) {
+                    return "assertEquals: expected " + er + ", got " + ar
+                            + " — renders equal, comparison differs:"
+                            + " expected types=" + e.values().stream()
+                                    .map(o -> o == null ? "null"
+                                            : o.getClass().getSimpleName())
+                                    .toList()
+                            + " arity=" + e.size()
+                            + "; got types=" + a.values().stream()
+                                    .map(o -> o == null ? "null"
+                                            : o.getClass().getSimpleName())
+                                    .toList()
+                            + " arity=" + a.size();
+                }
+                return "assertEquals: expected " + er + ", got " + ar;
             }
             case "assertSameElements" -> {
                 if (args.size() != 2) {

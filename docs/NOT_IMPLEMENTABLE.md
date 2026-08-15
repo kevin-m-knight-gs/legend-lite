@@ -63,3 +63,24 @@ decode inversion), and these three compare correct multisets.
   the engine's join-distinct exists form (ExistsJoinForm,
   buildExistsAsJoinWithNullCheck parity) — the test now byte-matches.
   Implemented beats documented.
+
+## Goal-#18 adjudications (2026-08-15, evidence: E2E_BURNDOWN_2026_08_14 §3.1/§4.3)
+
+**DuckDB-order artifacts (6):** positional asserts (`rows->at(0)`) over
+golden SQL with NO ORDER BY — the engine goldens encode H2's scan
+order; the H2-sweep decisive experiment (same pipeline, H2 target)
+passes them. Not a defect in either engine; unfixable without faking
+H2 scan order on DuckDB: selfJoin/testSelfJoinPropertyMappingOverlap,
+selfJoin/testSelfJoinPropertyMappingWithDynaFunction,
+filter/testFilterMappingWithProjectionOverlapp,
+advanced/…OverlappForcedCorrelated, advanced/…OverlappForcedOnClause,
+functions/tests/testSequenceMapWithConfusingSetImplementation.
+
+**White-box engine-compiler unit tests (23):** pureToSQLQuery/tests(8),
+postprocessor/tests(3), router/tests(3), helperFunctions/tests(2),
+sqlQueryToString(2), +5 — call `routeFunction`/`toSQLQuery`/
+`buildJoinTreeNode` and construct `^RelationalExecutionContext` etc.:
+unit tests OF legend-engine's compiler, which is written in Pure.
+Passing them means interpreting the engine's own compiler as data —
+the banned shadow evaluator. Adjudicated not-implementable BY DESIGN;
+revisit only if a Pure-interpreter tier is ever chartered.
