@@ -1220,7 +1220,10 @@ final class Scalars {
         // platform pure's 0-based).
         for (String f : Pure.nativeKeysAt("substring")) {
             RULES.put(f, (n, args) -> {
-                // engine-TEXT: args VERBATIM; the clamp is execution-only
+                // DECLARED TEXT/EXEC PAIR (D2-4, adjudicated 2026-08-15):
+                // TEXT = engine advisory golden (verbatim; H2 clamps at
+                // its runtime); EXEC adds DuckDB's row-parity clamp. One
+                // statement, two dialect roles; G4/G5 rows verify.
                 if (com.legend.sql.dialect.TextGoldens.active()) {
                     return new SqlExpr.Call(SqlFn.SUBSTRING, args);
                 }

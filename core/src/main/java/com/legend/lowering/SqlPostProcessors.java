@@ -57,18 +57,21 @@ public final class SqlPostProcessors {
                 }
             }
             // the PLAIN slot carries the same replaceTables shape (hook
-            // takes (SQLQuery) instead of (SQLQuery, DatabaseConnection));
-            // its OTHER hook kinds (e.g. CTE extraction) are SQL-shape
-            // rewrites that preserve rows — skipping them keeps the
-            // row-verified state, with sql-text staying advisory
+            // takes (SQLQuery) instead of (SQLQuery, DatabaseConnection))
             TypedSpec plain = ni.properties().get("sqlQueryPostProcessors");
             if (plain != null) {
                 for (TypedSpec hook : elements(plain)) {
-                    try {
-                        readHook(hook, out);
-                    } catch (NotImplementedException rowPreserving) {
-                        // not a replaceTables hook — leave unapplied
-                    }
+                    // LOUD (deep-audit D2-4, slice zero 2026-08-15;
+                    // user ruling): the old catch-and-skip silently
+                    // dropped any hook the recognizer didn't parse — and
+                    // the cteExtraction corpus tests were "passing" with
+                    // the very feature they test skipped (a false
+                    // green). A hook is either recognized-and-applied
+                    // (the replaceTables pattern) or the query REFUSES;
+                    // the 7 cteExtraction tests are adjudicated
+                    // blocked-on-feature until an IR CTE-extraction pass
+                    // exists.
+                    readHook(hook, out);
                 }
             }
         }

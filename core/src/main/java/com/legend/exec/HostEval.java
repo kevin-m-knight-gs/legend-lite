@@ -819,6 +819,21 @@ public final class HostEval {
      * (prerequisites for the main stream's schema-qualified DDL), then
      * the corpus's own statements, then constraint post-fixes. */
     private static List<String> replayStream() {
+        // LOUD WALL (deep-audit 2A-1, slice zero 2026-08-15): the replay
+        // channel exists only when a recorder was installed on this
+        // thread (the corpus harness does; no product path does). With
+        // no recorder, metadata would be read from an EMPTY throwaway H2
+        // — an empty result set with no error, the exact silent-wrong
+        // failure Tenet 3 bans. Until metadata reads from the supplied
+        // connection, refuse loudly.
+        if (RawSqlBoundary.recording() == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "host-eval database metadata (fetchDb*/executeInDb"
+                    + " reads) requires the recorded-statement replay"
+                    + " channel, which only the test harness installs —"
+                    + " reading metadata from the live connection is not"
+                    + " implemented yet (deep-audit 2A-1)");
+        }
         List<String> replay = new ArrayList<>();
         List<String> meta = RawSqlBoundary.metaRecording() == null
                 ? List.of() : RawSqlBoundary.metaRecording();
