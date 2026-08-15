@@ -139,8 +139,8 @@ def main() -> None:
 # association navigation -- it is what every one of the 174 association mappings does. The
 # feature worth counting is a join CHAIN (`@J1 > @J2`), of which the corpus has none. The
 # looser definition flattered the corpus by a factor of eight.
-MAX_PLAIN_RATIO = 0.95   # 375/397 = 0.9446; the printed 94% is rounded
-MAX_ABSENT = 18
+MAX_PLAIN_RATIO = 0.83   # 375/457 = 0.8206 after the dense mapping landed
+MAX_ABSENT = 17
 
 
 if __name__ == "__main__":
