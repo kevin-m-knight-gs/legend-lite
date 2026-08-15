@@ -231,6 +231,10 @@ class Corpus:
     # change meaning silently everywhere.
     dyna: dict[tuple[str, str], tuple[str, list[str]]] = field(default_factory=dict)
 
+    # mapping set id -> the class it maps. Needed to resolve `extends [setId]`, which names
+    # a SET rather than a class.
+    setid_class: dict[str, str] = field(default_factory=dict)
+
     # (parent class, property) -> embedded class. The hop stays on the SAME row: an
     # embedded property has no join and no association, so navigation must not look for one.
     embedded: dict[tuple[str, str], str] = field(default_factory=dict)
@@ -420,7 +424,7 @@ _MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(\w+)\s*$")
 # density's _BLOCK could not see a mapping using `extends [id]`, and now this. Each pattern
 # was written before inheritance existed anywhere in the corpus.
 _CLSMAP = re.compile(
-    r"^\s*\*?([\w:]+)(?:\[(\w+)\])?(?:\s+extends\s*\[\w+\])?\s*:\s*Relational\s*\{?\s*$")
+    r"^\s*\*?([\w:]+)(?:\[(\w+)\])?(?:\s+extends\s*\[(\w+)\])?\s*:\s*Relational\s*\{?\s*$")
 _OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
 _UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
@@ -461,6 +465,16 @@ _CHAINJOIN = re.compile(r"@(\w+)")
 # `scope(` and `AssociationMapping(` share the shape and are excluded by name.
 # The name and the `(` are usually on SEPARATE lines, so both forms are matched: the
 # one-liner and a bare identifier whose next non-blank line is `(`.
+# `scope([db]TABLE)` and the db-pointer-only `scope([db])`. Inside the first, property
+# mappings are written with BARE column names; inside the second they carry `TABLE.COL`.
+# Neither form matches _COLMAP, which requires a `[db]` prefix, so 60 generated class
+# mappings were parsed as having no properties at all -- invisible rather than wrong,
+# because each of those classes is also mapped flatly elsewhere.
+_SCOPE_TABLE = re.compile(r"^\s*scope\s*\(\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\s*\)\s*$")
+_SCOPE_DB = re.compile(r"^\s*scope\s*\(\s*\[[\w:]+\]\s*\)\s*$")
+_SCOPE_BARE = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*(\w+)\s*(?:,|$)")
+_SCOPE_QUAL = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*(\w+)\.(\w+)\s*(?:,|$)")
+
 _EMBED_OPEN = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*\($")
 _EMBED_NAME = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*,?\s*$")
 
@@ -836,7 +850,20 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         m = _CLSMAP.match(line)
         if m and "AssociationMapping" not in line:
             cur, in_assoc, cur_id = m.group(1), False, m.group(2)
-            embedded, pending_embed = None, None
+            embedded, pending_embed, scope_tbl = None, None, None
+            if cur_id:
+                c.setid_class[cur_id] = cur
+            # `extends [parentSetId]` INHERITS the parent set's main table and property
+            # mappings -- an extending set declares only what it adds, and carries no
+            # ~mainTable of its own. Without this the subclass had no table and no columns,
+            # so inheritance was covered at compile time and by nothing else.
+            parent_set = m.group(3)
+            if parent_set:
+                parent_cls = c.setid_class.get(parent_set)
+                if parent_cls:
+                    c.main_table.setdefault(cur, c.main_table.get(parent_cls, ""))
+                    for pp, pcol in c.columns.get(parent_cls, {}).items():
+                        c.columns.setdefault(cur, {}).setdefault(pp, pcol)
             # WHICH mapping declared this class mapping. The reader is otherwise
             # mapping-agnostic, and deriving a service's mapping from the class's TABLE
             # instead got it wrong the moment a mapping spanned two stores: hier::
@@ -873,6 +900,26 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             continue
         if cur and cur in c.main_table:
             tbl = c.main_table[cur]
+            m_sc = _SCOPE_TABLE.match(line)
+            if m_sc:
+                scope_tbl, pending_embed = m_sc.group(1), None
+                continue
+            if _SCOPE_DB.match(line):
+                scope_tbl, pending_embed = "", None      # qualified inside
+                continue
+            if scope_tbl is not None:
+                if line.strip() in ("(", ""):
+                    continue
+                if line.strip().startswith(")"):
+                    scope_tbl = None
+                    continue
+                if scope_tbl:
+                    for sp, sc in _SCOPE_BARE.findall(line):
+                        c.columns.setdefault(cur, {}).setdefault(sp, sc)
+                else:
+                    for sp, _st, sc in _SCOPE_QUAL.findall(line):
+                        c.columns.setdefault(cur, {}).setdefault(sp, sc)
+                continue
             m_emb = _EMBED_OPEN.match(line)
             if m_emb:
                 embedded = m_emb.group(1)
