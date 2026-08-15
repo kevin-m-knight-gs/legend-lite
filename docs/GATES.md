@@ -130,7 +130,14 @@ parsing). Honest chain estimate ≈ **5m45s**. Decision: the ceiling
 moves to 6m — 950 mutants + the fixture ratchet + engine-side
 protocol validation are the cheapest coverage per second in the whole
 chain, and the alternative (sampling them) reintroduces the silent
-blind spots they exist to close. Per-mutant oracle instances were
+blind spots they exist to close.
+
+2026-08-14: `GrammarCoverageCensusTest` joins gate 8 (the
+bulletproof-and-total program's completeness instrument — corpus
+coverage of the engine's own grammars, ratcheted; see
+GRAMMAR_COVERAGE_CENSUS.md). It re-drives every corpus fragment
+through the ENGINE's generated parsers (~40s), so the ceiling moves
+6m -> 7m; the per-gate stamps in the log are the re-pin source. Per-mutant oracle instances were
 already hoisted (FixtureCorpusParityTest 2.4s -> 0.5s); the next real
 lever, if the budget ever binds, is sharing one surefire JVM across
 gates 4/5 (the family-sharding speed leg), not thinning coverage.
