@@ -1177,7 +1177,7 @@ public final class InferenceKernel {
      * LambdaFunction&lt;T&gt; extends FunctionDefinition&lt;T&gt; extends
      * Function&lt;T&gt;; each is a wrapper spelling of the bare
      * FunctionType it carries. */
-    private static final java.util.Set<String> FUNCTION_CARRIER_FQNS =
+    static final java.util.Set<String> FUNCTION_CARRIER_FQNS =
             java.util.Set.of(
                     com.legend.compiler.element.type.PlatformTypes.FUNCTION,
                     "meta::pure::metamodel::function::FunctionDefinition",

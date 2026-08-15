@@ -824,7 +824,9 @@ class NativeFunctionTest {
                     "meta::pure::executionPlan::FunctionParameter",
                     List.of("name", "supportsStream"),
                     "meta::relational::mapping::SQLExecutionNode",
-                    List.of("sqlQuery"),
+                    // sqlComment: real engine executionPlan.pure:65
+                    // (E2E §4.4 cluster 3, verified 2026-08-15)
+                    List.of("sqlQuery", "sqlComment"),
                     // taxonomy T2 additions — real engine sources:
                     // runtime.pure (EngineRuntime.mappings),
                     // executionPlan_generation.pure (MultiExecutionContext,

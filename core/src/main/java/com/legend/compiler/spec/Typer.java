@@ -1670,7 +1670,14 @@ final class Typer {
     private static boolean isFunctionTyped(Type t) {
         return t instanceof Type.FunctionType
                 || (t instanceof Type.GenericType g && g.arguments().size() == 1
-                        && g.arguments().get(0) instanceof Type.FunctionType);
+                        && g.arguments().get(0) instanceof Type.FunctionType)
+                // FunctionDefinition<Any> etc: the whole carrier family is
+                // function-typed even when the argument is not spelled as
+                // a function type (E2E §4.4 cluster 2 — the kernel already
+                // names FUNCTION_CARRIER_FQNS)
+                || (t instanceof Type.GenericType g2
+                        && com.legend.compiler.spec.InferenceKernel
+                                .FUNCTION_CARRIER_FQNS.contains(g2.rawFqn()));
     }
 
     private static boolean genericRawIs(Type t, com.legend.model.ClassDefinition def) {

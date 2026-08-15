@@ -600,7 +600,11 @@ final class StatementExecutor {
                 : fromConn != null ? fromConn
                 : "TestDatabaseConnection(type = \"H2\")";
         String dbType = rtArg != null ? databaseTypeOf(rtArg) : "H2";
-        if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
+        if (!lam.parameters().isEmpty() || lam.body().size() > 1
+                // a lone LET is a sequence too (E2E §4.4 cluster 1):
+                // the engine prints Allocation, never bare Relational
+                || (lam.body().size() == 1 && lam.body().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedLet)) {
             return sequencePlan(lam, mappingFqn, specs, env, quote, tz,
                     connName, dbType);
         }

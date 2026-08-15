@@ -513,7 +513,7 @@ public final class Pure {
     public static final ClassDefinition GLOBAL_GRAPH_FETCH_EXECUTION_NODE = nativeClass("native Class meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
     public static final ClassDefinition STORE_MAPPING_GLOBAL_GRAPH_FETCH_EXECUTION_NODE = nativeClass("native Class meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode extends meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode {}");
     public static final ClassDefinition FUNCTION_PARAMETER = nativeClass("native Class meta::pure::executionPlan::FunctionParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; supportsStream: meta::pure::metamodel::type::Boolean[0..1]; }");
-    public static final ClassDefinition SQL_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::SQLExecutionNode extends meta::pure::executionPlan::ExecutionNode { sqlQuery: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition SQL_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::SQLExecutionNode extends meta::pure::executionPlan::ExecutionNode { sqlQuery: meta::pure::metamodel::type::String[1]; sqlComment: meta::pure::metamodel::type::String[0..1]; }");
     public static final ClassDefinition RELATIONAL_INSTANTIATION_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::RelationalInstantiationExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
 
     // ---- Function carrier (parameterized over a function-type token) ----
