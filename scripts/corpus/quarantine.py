@@ -59,7 +59,7 @@ ENGINE_QUARANTINE.update({
         "GG_SettlementTree",
         "GG_AllocationTree",
         "GG_ConfirmationTree",
-        "GG_NettingResultTree",
+        "GG_SanctionsCheckTree",
     )
 })
 
@@ -86,11 +86,20 @@ ENGINE_QUARANTINE.update({
 ENGINE_QUARANTINE.update({
     f"stress::{name}": ("F28", "`!=` keeps a row whose operand is NULL; `==` and `>` do not")
     for name in (
-        "D_CashSettlementDense",
-        "D_TradeReportStatusDense",
-        "D_DepartmentDense",
-        "D_TeamDense",
+        # The trio lives in combos.predicate_specs; only the `!=` member diverges, and its
+        # two passing companions are what identify it as the odd one.
+        "CB_NotEqualsNull",
     )
+})
+
+# F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
+# rather than a one-element ARRAY. Two rows produce an array from the same query shape, the
+# same mapping and the same serialization format, so the JSON TYPE of `values` depends on
+# the row count. Minimized in repro/graphfetch-single-row/, which puts the one-row and
+# two-row cases side by side; the two-row case PASSES there.
+ENGINE_QUARANTINE.update({
+    "stress::GG_PortfolioTree": ("F29", "one-row graph fetch yields an object, not a "
+                                        "one-element array"),
 })
 
 # F26 -- a CROSS-DATABASE join compiles and then cannot execute. The chain
@@ -185,4 +194,14 @@ def check_f24(c, tables) -> list[str]:
         if "+0000" not in json.dumps(oracle.evaluate_graph(c, spec, tables)):
             bad.append(f"{fqn}: quarantined under F24 but projects no DateTime, so it no "
                        f"longer exercises the defect -- re-point or remove the entry")
+    # And the other direction. A generated tree that DOES project a DateTime and is not
+    # listed will fail as a REGRESSION, which is the right alarm but the wrong diagnosis --
+    # it reads as a new defect rather than as this list having gone stale.
+    listed = {k for k, (fid, _w) in ENGINE_QUARANTINE.items() if fid == "F24"}
+    for name, spec in by_name.items():
+        if name in listed:
+            continue
+        if "+0000" in json.dumps(oracle.evaluate_graph(c, spec, tables)):
+            bad.append(f"{name}: projects a DateTime but is not quarantined under F24; it "
+                       f"will report as a regression rather than as a known defect")
     return bad

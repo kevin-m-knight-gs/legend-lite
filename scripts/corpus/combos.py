@@ -10,16 +10,18 @@ point where one feature meets another.
 
 So the axes are enumerated and crossed rather than illustrated:
 
-  PROPERTY axes                      CLASS-MAPPING axes
-    reach    col | chain1 | chain2     filter    none | direct | chain
-    xform    none | up | cat | nest    extends   no | yes
+  PROPERTY axes                            CLASS-MAPPING axes
+    reach    col | chain1 | chain2           filter    none | direct | chain
+    type     string | int | float | bool     extends   no | yes
+    xform    per type -- see XFORM
     nulls    notnull | nullable
     host     top | embedded
 
-The property cross is 3x4x2x2 = 48 cells and every one is generated -- this is a full cross,
-not a sample, because 48 is small enough to afford. The class cross is 3x2 = 6, and the
-property cells are dealt round-robin across the six so that each property shape also meets
-each class shape. What that buys over 48 separate one-feature tests is the interaction: a
+The transform axis DEPENDS on the type axis, because a dynafunction's arguments and result
+have to agree with the property it maps, so the cross is over the per-type transform lists
+rather than one shared list: 180 cells, every one generated. The class cross is 3x2 = 6, and
+the property cells are dealt across the six so that each property shape also meets each
+class shape. What that buys over 48 separate one-feature tests is the interaction: a
 dynafunction over a two-hop chain, inside an embedded block, on a set that extends another
 set and carries a filter reached through joins, where the source column is NULL for some rows.
 
@@ -51,27 +53,56 @@ J1, J2 = "Combo_Hop1", "Combo_Hop2"
 
 # ---------------------------------------------------------------- the axes
 REACH = ("col", "chain1", "chain2")
-XFORM = ("none", "up", "cat", "nest")
+TYPES = ("string", "int", "float", "bool")
 NULLS = ("notnull", "nullable")
 HOST = ("top", "embedded")
 
 FILTERS = ("none", "direct", "chain")
 EXTENDS = ("no", "yes")
 
-# Columns the axes draw on. Two of each kind per table so `cat` has a second argument that
-# is not the same column -- concat(x, x) would hide an argument-order defect.
-_COLS = {
-    ROOT: {"notnull": ("R_NAME", "R_ALT"), "nullable": ("R_NOTE", "R_MEMO")},
-    HOP1: {"notnull": ("H1_NAME", "H1_ALT"), "nullable": ("H1_NOTE", "H1_MEMO")},
-    HOP2: {"notnull": ("H2_NAME", "H2_ALT"), "nullable": ("H2_NOTE", "H2_MEMO")},
+# Transforms are PER TYPE, because a dynafunction's arguments and result have to agree with
+# the property it maps. Every one preserves its argument's type, so a cell's Pure type is
+# decided by the type axis alone.
+#
+# Each was verified usable in a relational property mapping before being listed -- nothing
+# validates a dynafunction name at parse OR compile, so an unusable one fails at SQL
+# generation with an error far from the mapping. `plus`/`minus`/`times` in particular are
+# binary here, which was a guess worth checking rather than assuming from Pure's list form.
+XFORM = {
+    "string": ("none", "up", "cat", "nest"),
+    "int": ("none", "abs", "plus", "times"),
+    "float": ("none", "abs", "sqrt", "times"),
+    # isNull/isNotNull are the only transforms whose RESULT type is fixed rather than
+    # inherited, and Boolean is the one type where that is not a mismatch.
+    "bool": ("none", "isnull", "isnotnull"),
 }
+
+TYPE_SQL = {"string": "VARCHAR(200)", "int": "INTEGER", "float": "DOUBLE", "bool": "BIT"}
+TYPE_PURE = {"string": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
+
+# Two columns of every (type, nullability) per table, because a two-argument transform whose
+# arguments are the same column cannot detect an argument-order defect.
+_PREFIX = {ROOT: "R", HOP1: "H1", HOP2: "H2"}
+_SHORT = {"string": "S", "int": "I", "float": "F", "bool": "B"}
+
+
+def column(table: str, type_: str, nulls: str, which: int) -> str:
+    return f"{_PREFIX[table]}_{_SHORT[type_]}_{'NN' if nulls == 'notnull' else 'NL'}{which}"
+
+
 _TABLE_FOR = {"col": ROOT, "chain1": HOP1, "chain2": HOP2}
 _CHAIN_FOR = {"col": [], "chain1": [J1], "chain2": [J1, J2]}
+AXES = ("reach", "type", "xform", "nulls", "host")
 
 
-def cells() -> list[tuple[str, str, str, str]]:
-    """The full property cross, in a fixed order so names are stable across runs."""
-    return [(r, x, n, h) for r in REACH for x in XFORM for n in NULLS for h in HOST]
+def cells() -> list[tuple[str, str, str, str, str]]:
+    """The full property cross, in a fixed order so names are stable across runs.
+
+    Not a rectangle: the transform axis depends on the type axis, so the cross is over the
+    per-type transform lists rather than one shared list."""
+    return [(r, ty, x, n, h)
+            for r in REACH for ty in TYPES for x in XFORM[ty]
+            for n in NULLS for h in HOST]
 
 
 def class_cells() -> list[tuple[str, str]]:
@@ -79,8 +110,22 @@ def class_cells() -> list[tuple[str, str]]:
 
 
 def prop_name(cell) -> str:
-    r, x, n, h = cell
-    return f"{r}_{x}_{n}_{h}"
+    r, ty, x, n, h = cell
+    return f"{r}_{ty}_{x}_{n}_{h}"
+
+
+def pure_type(cell) -> str:
+    return TYPE_PURE[axis(cell, "type")]
+
+
+def axis(cell, name: str):
+    """One axis value of a cell, BY NAME.
+
+    Positional indexing is what broke when the type axis was inserted: `cell[3]` had meant
+    `host` and silently became `nulls`, so every class mapping came out with no properties
+    at all -- a generator that emitted a well-formed, entirely empty matrix.
+    """
+    return cell[AXES.index(name)]
 
 
 def _ref(reach: str, col: str) -> str:
@@ -93,17 +138,23 @@ def _ref(reach: str, col: str) -> str:
     return f"[{DB}]{chain} | [{DB}]{table}.{col}"
 
 
+_UNARY = {"up": "toUpper", "abs": "abs", "sqrt": "sqrt",
+          "isnull": "isNull", "isnotnull": "isNotNull"}
+_BINARY = {"cat": "concat", "plus": "plus", "times": "times"}
+
+
 def expression(cell) -> str:
     """The right-hand side of the property mapping for one cell."""
-    reach, xform, nulls, _host = cell
-    a, b = _COLS[_TABLE_FOR[reach]][nulls]
-    ra, rb = _ref(reach, a), _ref(reach, b)
+    reach, type_, xform, nulls, _host = cell
+    table = _TABLE_FOR[reach]
+    ra = _ref(reach, column(table, type_, nulls, 1))
+    rb = _ref(reach, column(table, type_, nulls, 2))
     if xform == "none":
         return ra
-    if xform == "up":
-        return f"toUpper({ra})"
-    if xform == "cat":
-        return f"concat({ra}, {rb})"
+    if xform in _UNARY:
+        return f"{_UNARY[xform]}({ra})"
+    if xform in _BINARY:
+        return f"{_BINARY[xform]}({ra}, {rb})"
     if xform == "nest":
         # A function OVER a function. Neither regex the reader used before could span this,
         # which is why it is in the matrix rather than assumed to work.
@@ -118,10 +169,9 @@ def _class_for(idx: int) -> str:
 
 def _pairs(cell, ccell) -> set:
     """Every (property-axis value, class-axis value) this placement would witness."""
-    names = ("reach", "xform", "nulls", "host")
     cnames = ("filter", "extends")
     return {((a, v), (b, w))
-            for a, v in zip(names, cell) for b, w in zip(cnames, ccell)}
+            for a, v in zip(AXES, cell) for b, w in zip(cnames, ccell)}
 
 
 def assignment() -> dict[int, list[tuple]]:
@@ -153,7 +203,7 @@ def assignment() -> dict[int, list[tuple]]:
         if pair in covered:
             continue
         (paxis, pval), (caxis, cval) = pair
-        pidx = ("reach", "xform", "nulls", "host").index(paxis)
+        pidx = AXES.index(paxis)
         cidx = ("filter", "extends").index(caxis)
         for cell in remaining:
             if cell[pidx] != pval:
@@ -177,9 +227,10 @@ def assignment() -> dict[int, list[tuple]]:
 
 
 def _required() -> set:
+    values = {"reach": REACH, "type": TYPES, "nulls": NULLS, "host": HOST,
+              "xform": tuple(sorted({x for xs in XFORM.values() for x in xs}))}
     return {((a, v), (b, w))
-            for a, vs in (("reach", REACH), ("xform", XFORM),
-                          ("nulls", NULLS), ("host", HOST)) for v in vs
+            for a, vs in values.items() for v in vs
             for b, ws in (("filter", FILTERS), ("extends", EXTENDS)) for w in ws}
 
 
@@ -212,12 +263,14 @@ def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
         if not kept:
             bad.append(f"{cls}: filter={filt} excludes EVERY row; its cells assert nothing")
     # Every nullable source column must actually carry a NULL somewhere.
-    for table, bykind in _COLS.items():
-        for col in bykind["nullable"]:
-            vals = [r.get(col) for r in tables.get(table, [])]
-            if vals and not any(v is None for v in vals):
-                bad.append(f"{table}.{col} is a `nullable` source but carries no NULL, so "
-                           f"every cell reading it tests the non-null case twice")
+    for table in (ROOT, HOP1, HOP2):
+        for type_ in TYPES:
+            for which in (1, 2):
+                col = column(table, type_, "nullable", which)
+                vals = [r.get(col) for r in tables.get(table, [])]
+                if vals and not any(v is None for v in vals):
+                    bad.append(f"{table}.{col} is a `nullable` source but carries no NULL, "
+                               f"so every cell reading it tests the non-null case twice")
     return bad
 
 
@@ -239,12 +292,12 @@ def build_source() -> str:
         "// GENERATED by scripts/corpus/combos.py -- do not edit by hand.",
         "//",
         "// The COMBINATION matrix. Every cell of the property cross",
-        "//     reach {col, chain1, chain2} x xform {none, up, cat, nest}",
-        "//     x nulls {notnull, nullable} x host {top, embedded}",
+        "//     reach {col, chain1, chain2} x type {string, int, float, bool}",
+        "//     x xform (per type) x nulls {notnull, nullable} x host {top, embedded}",
         "// dealt across the class cross",
         "//     filter {none, direct, chain} x extends {no, yes}",
         "//",
-        "// 48 property cells over 6 class mappings. The corpus previously had two feature",
+        "// 180 property cells over 6 class mappings. The corpus previously had two feature",
         "// PAIRS in total; this crosses them deliberately, because every defect it has",
         "// found so far lived where one feature met another rather than in a feature",
         "// alone.",
@@ -263,8 +316,8 @@ def build_source() -> str:
     ]
     for i, (filt, ext) in enumerate(ccells):
         cls = _class_for(i)
-        tops = [c for c in deal[i] if c[3] == "top"]
-        embs = [c for c in deal[i] if c[3] == "embedded"]
+        tops = [c for c in deal[i] if axis(c, "host") == "top"]
+        embs = [c for c in deal[i] if axis(c, "host") == "embedded"]
         head = (f"Class {cls} extends combo::Base" if ext == "yes" else f"Class {cls}")
         L.append(f"// filter={filt}  extends={ext}")
         L.append(head)
@@ -272,7 +325,7 @@ def build_source() -> str:
         if ext == "no":
             L.append("   rootId: String[1];")
         for cell in tops:
-            L.append(f"   {prop_name(cell)}: String[0..1];")
+            L.append(f"   {prop_name(cell)}: {pure_type(cell)}[0..1];")
         if embs:
             L.append(f"   nested: combo::E{i}[0..1];")
         L.append("}")
@@ -281,19 +334,24 @@ def build_source() -> str:
             L.append(f"Class combo::E{i}")
             L.append("{")
             for cell in embs:
-                L.append(f"   {prop_name(cell)}: String[0..1];")
+                L.append(f"   {prop_name(cell)}: {pure_type(cell)}[0..1];")
             L.append("}")
             L.append("")
 
     # ---- store ------------------------------------------------------------------
     def cols(table: str, last: bool = False) -> list[str]:
-        """Column lines for `table`. `last=True` drops the trailing comma -- a Table's final
-        columnDefinition must not carry one, and the parser reports it deep inside
-        relationalIdentifier rather than at the comma."""
-        nn = _COLS[table]["notnull"]
-        nl = _COLS[table]["nullable"]
-        out = ([f"      {c} VARCHAR(200) NOT NULL," for c in nn]
-               + [f"      {c} VARCHAR(200)," for c in nl])
+        """Column lines for `table`: two of every (type, nullability).
+
+        `last=True` drops the trailing comma -- a Table's final columnDefinition must not
+        carry one, and the parser reports that deep inside relationalIdentifier rather than
+        at the comma, so it reads as a bad column name."""
+        out = []
+        for type_ in TYPES:
+            for nulls in NULLS:
+                for which in (1, 2):
+                    sfx = "" if nulls == "nullable" else " NOT NULL"
+                    out.append(f"      {column(table, type_, nulls, which)} "
+                               f"{TYPE_SQL[type_]}{sfx},")
         if last:
             out[-1] = out[-1].rstrip(",")
         return out
@@ -333,8 +391,14 @@ def build_source() -> str:
         "   // seeder nulls only the FIRST nullable column of a table. A filter matching every",
         "   // row is indistinguishable from no filter at all.",
         "   Filter ComboLinked(COMBO_ROOT.HOP1_CODE is not null)",
-        "   // The chain filter's predicate, on the far end of two joins.",
-        "   Filter ComboNamedHop2(COMBO_HOP2.H2_NAME is not null)",
+        "   // The chain filter's predicate, on the far end of two joins. It names a NOT",
+        "   // NULL column deliberately: what this cell tests is that the FILTER FOLLOWS THE",
+        "   // CHAIN, so the rows it must exclude are the ones whose chain breaks -- an",
+        "   // absent key, a dangling key -- not the ones failing a predicate. Pointing it",
+        "   // at a nullable column instead excluded every row, which the vacuity guard",
+        "   // caught: a filter matching nothing asserts as little as one matching",
+        "   // everything.",
+        f"   Filter ComboNamedHop2({HOP2}.{column(HOP2, 'string', 'notnull', 1)} is not null)",
         ")",
         "",
     ]
@@ -356,8 +420,8 @@ def build_source() -> str:
     ]
     for i, (filt, ext) in enumerate(ccells):
         cls = _class_for(i)
-        tops = [c for c in deal[i] if c[3] == "top"]
-        embs = [c for c in deal[i] if c[3] == "embedded"]
+        tops = [c for c in deal[i] if axis(c, "host") == "top"]
+        embs = [c for c in deal[i] if axis(c, "host") == "embedded"]
         L.append(f"   // filter={filt}  extends={ext}  "
                  f"({len(tops)} top-level, {len(embs)} embedded)")
         if ext == "yes":
@@ -415,10 +479,71 @@ def specs(c: model.Corpus) -> list[Spec]:
                     f"scripts/corpus/combos.py.", cls)
         projs = [Proj("rootId", ["rootId"])]
         for cell in assignment()[i]:
-            path = (["nested", prop_name(cell)] if cell[3] == "embedded"
+            path = (["nested", prop_name(cell)] if axis(cell, "host") == "embedded"
                     else [prop_name(cell)])
             projs.append(Proj(prop_name(cell), path))
         spec.projections = projs
+        spec.sort = ("rootId", False)
+        spec.mapping, spec.runtime = MAPPING, RUNTIME
+        spec.connection, spec.data_element = CONN_ID, DATA
+        out.append(spec)
+    return out + predicate_specs(c)
+
+
+def predicate_specs(c: model.Corpus) -> list[Spec]:
+    """The three comparison operators against a NULL operand, side by side.
+
+    F28: the engine EXCLUDES a row whose operand is NULL for `==` and for `>`, and KEEPS it
+    for `!=`. Pinned as a trio rather than as one failing case, because the two that pass
+    are the evidence: they show the divergence is specific to `!=` rather than the oracle
+    being wrong about NULL comparison generally. A lone failing service would leave that
+    ambiguous, and the obvious "fix" -- teaching the oracle that NULL != x is true -- would
+    then have made all three disagree.
+
+    Deliberately here rather than on the dense services, which used to carry it. Thirty of
+    them diverged at once when the seeder began nulling every nullable column, coupling
+    every deep-navigation test to an unrelated defect. Same split aggregates.py makes
+    around F6.
+    """
+    from query import Pred
+
+    # SEARCHED, not assumed. The first version hardcoded class 0 and found nothing: the
+    # dealing is a coverage-driven greedy, so which class carries a given cell is not
+    # something a caller can predict -- and the services silently did not exist.
+    #
+    # A class with NO filter, so what the predicate excludes is not confounded with what a
+    # class filter already excluded.
+    want = ("string", "none", "nullable", "top")
+    cls = prop = None
+    for i, (filt, _ext) in enumerate(class_cells()):
+        if filt != "none":
+            continue
+        hit = next((x for x in assignment()[i]
+                    if (axis(x, "type"), axis(x, "xform"),
+                        axis(x, "nulls"), axis(x, "host")) == want), None)
+        if hit is not None and _class_for(i) in c.main_table:
+            cls, prop = _class_for(i), prop_name(hit)
+            break
+    if prop is None:
+        raise SystemExit(
+            "combination matrix carries no plain nullable string cell on an unfiltered "
+            "class, so F28 cannot be pinned -- the trio would vanish silently")
+    out = []
+    for name, op, value, note in (
+            ("NotEqualsNull", "!=", " none",
+             "F28: the engine KEEPS the row whose operand is NULL. SQL three-valued logic "
+             "makes the comparison UNKNOWN, and a predicate that is not TRUE excludes."),
+            ("EqualsNull", "==", " none",
+             "The complement, which AGREES. Both readings exclude a NULL here, which is "
+             "why no `==` predicate in the corpus ever exposed F28."),
+            ("GreaterNull", ">", " ",
+             "An ORDERED comparison against the same NULL, which also AGREES -- so the "
+             "engine excludes for `>` and keeps for `!=`, and those cannot both be right.")):
+        spec = Spec(f"stress::CB_{name}", f"/stress/cb_{name.lower()}",
+                    f"Comparison `{op}` against a column that is NULL in some rows. {note} "
+                    f"Generated by scripts/corpus/combos.py.", cls)
+        spec.projections = [Proj("rootId", ["rootId"]), Proj(prop, [prop])]
+        spec.filters = [Pred([prop], op, value)]
         spec.sort = ("rootId", False)
         spec.mapping, spec.runtime = MAPPING, RUNTIME
         spec.connection, spec.data_element = CONN_ID, DATA
@@ -464,7 +589,7 @@ if __name__ == "__main__":
     for i, (f, e) in enumerate(class_cells()):
         got = deal[i]
         print(f"  C{i}  filter={f:<7} extends={e:<4} {len(got)} cells "
-              f"({sum(1 for g in got if g[3] == 'embedded')} embedded)")
+              f"({sum(1 for g in got if axis(g, 'host') == 'embedded')} embedded)")
     print()
     seen = {ax: set() for ax in ("reach", "xform", "nulls", "host")}
     for r, x, n, h in cells():

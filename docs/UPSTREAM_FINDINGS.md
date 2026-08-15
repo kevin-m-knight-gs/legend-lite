@@ -975,3 +975,17 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   NULL, nothing in 180 services had ever exercised the rule. Pinned by
   `stress::D_CashSettlementDense`, `D_TradeReportStatusDense`, `D_DepartmentDense` and
   `D_TeamDense`.
+- **A graph fetch returning exactly one row serializes `values` as an object, not a
+  one-element array.** The same query shape over a two-row table produces
+  `"values": [ {...}, {...} ]`; over a one-row table it produces `"values": { ... }`. Same
+  mapping, same serialization format, same graph -- the JSON *type* of `values` depends on
+  how many rows came back.
+
+  The impact is that every consumer of a graph-fetch result has to handle both shapes, and
+  a consumer written against multi-row results keeps working until a filter happens to
+  narrow the result to one. `repro/graphfetch-single-row/` pins the two cases side by side;
+  the two-row case passes there, which is what identifies the row count as the variable.
+
+  Found by the corpus rather than aimed at: a seed change left one generated graph-fetch
+  service with a single surviving row, and it began failing while its 59 siblings passed.
+  Pinned by `stress::GG_PortfolioTree`.

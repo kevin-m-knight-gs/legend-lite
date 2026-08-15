@@ -95,9 +95,14 @@ def _chains(c: model.Corpus, root: str, seeded: set[str], depth: int = 3):
     return sorted(out, key=lambda p: -len(p[0]))
 
 
-def _leaf(c: model.Corpus, cls: str, kind: str = "string"):
+def _leaf(c: model.Corpus, cls: str, kind: str = "string", not_null: bool = False):
     """A scalar property on `cls`, preferring one that reads like a label so the generated
-    query stays legible to a human reviewing the diff."""
+    query stays legible to a human reviewing the diff.
+
+    `not_null` restricts the choice to columns the DDL forbids a NULL in. Only 2 of this
+    model's 86 roots have one, so it is not usable for choosing a filter column -- see the
+    comment at the filter itself.
+    """
     cols = c.columns.get(cls, {})
     table = c.tables.get(c.main_table.get(cls, ""))
     if table is None:
@@ -105,6 +110,8 @@ def _leaf(c: model.Corpus, cls: str, kind: str = "string"):
     fallback = None
     for prop, col in sorted(cols.items()):
         if table.columns[col].kind != kind:
+            continue
+        if not_null and not table.columns[col].not_null:
             continue
         if prop.lower() in _LABELLISH:
             return prop
@@ -195,10 +202,22 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
 
         scalar = _leaf(c, root)
         if scalar:
-            # A predicate that excludes nothing is not a filter. `!= ' none'` keeps every
-            # row — no seeded value has a leading space — while still exercising the
-            # predicate path and the three-valued comparison on any NULL in that column.
-            spec.filters = [Pred([scalar], "!=", " none")]
+            # `> ' '` rather than `!= ' none'`, for two reasons.
+            #
+            # It is a REAL filter: every seeded string sorts above a single space, so it
+            # keeps the non-null rows and EXCLUDES the null ones. The old predicate was
+            # chosen to exclude nothing, which exercises the predicate path but asserts
+            # nothing about what a predicate does.
+            #
+            # And it agrees with the engine on NULLs, where `!=` does not. F28 makes `!=`
+            # keep a row whose operand is NULL while `==` and `>` exclude it; once the
+            # seeder nulled every nullable column, thirty of these services diverged at once
+            # for that one reason. F28 is pinned deliberately by CB_NotEqualsNull and its
+            # two passing companions, and by repro/not-equals-null/ -- so this is the same
+            # split aggregates.py makes around F6, not a defect being routed around:
+            # tangled together one defect blocks all the coverage, separated it blocks only
+            # the part it actually affects.
+            spec.filters = [Pred([scalar], ">", " ")]
             features.add("queryFilter")
         spec.sort = (ident, False)
         spec.limit = 25

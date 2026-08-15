@@ -189,7 +189,11 @@ def build(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[dict
         fkcols = ({local for local, _, _ in fks} | deferred)
         nullable = [col.name for col in table.columns.values()
                     if col.name != pk and not col.not_null and col.name not in fkcols]
-        null_at = {name: 2 + k for k, name in enumerate(nullable)}
+        # Modulo the row count: with more nullable columns than rows past index 2,
+        # a fixed 2+k runs off the end and the later columns never get a NULL at all --
+        # silently, and only for the tables with the most nullable columns, which are
+        # exactly the ones carrying the most combination cells.
+        null_at = {name: (2 + k) % n_rows for k, name in enumerate(nullable)}
         rows = []
         for i in range(n_rows):
             row: dict = {}
@@ -365,7 +369,11 @@ def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[
         nullable = [col.name for col in table.columns.values()
                     if col.name != pk and not col.not_null
                     and col.name not in live_cols and col.name not in dead_cols]
-        null_at = {name: 2 + k for k, name in enumerate(nullable)}
+        # Modulo the row count: with more nullable columns than rows past index 2,
+        # a fixed 2+k runs off the end and the later columns never get a NULL at all --
+        # silently, and only for the tables with the most nullable columns, which are
+        # exactly the ones carrying the most combination cells.
+        null_at = {name: (2 + k) % ROWS_PER_TABLE for k, name in enumerate(nullable)}
         rows = []
         for i in range(ROWS_PER_TABLE):
             row = {}
