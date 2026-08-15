@@ -70,7 +70,21 @@ def _json_value(c: model.Corpus, table: str, col: str, i: int) -> str | None:
         if kl is None:
             return None
         import json
-        return json.dumps({p: f"{p}-{i + 1:03d}" for p in sorted(kl.props)})
+
+        # TYPED, not all strings. A Boolean property whose payload holds "flagged-001" is
+        # not a boolean, and the mapping compiles either way -- so the query would fail or
+        # return nothing, which is a green-looking way to test nothing.
+        def value(prop):
+            kind = kl.props[prop].type
+            if kind == "Boolean":
+                return i % 2 == 0
+            if kind == "Integer":
+                return 10 + i * 7
+            if kind == "Float":
+                return round(100.0 + i * 37.5, 2)
+            return f"{prop}-{i + 1:03d}"
+
+        return json.dumps({p: value(p) for p in sorted(kl.props)})
     return None
 
 
@@ -108,6 +122,11 @@ def _fk_targets(c: model.Corpus, table: str, seeded: set[str]):
     that already has rows."""
     out = []
     for j in c.joins.values():
+        # A join with a GENERAL condition is not a foreign key: there is no single column
+        # pair to fill, and its left_col/right_col are empty by construction. Seeding from
+        # one would write '' as a column name -- which is how this surfaced.
+        if j.condition is not None:
+            continue
         if j.left_table == table and j.right_table in seeded:
             out.append((j.left_col, j.right_table, j.right_col))
         elif j.right_table == table and j.left_table in seeded:

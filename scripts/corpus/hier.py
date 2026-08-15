@@ -122,13 +122,28 @@ RelationalDatabaseConnection {CONN}
 """
 
 
-def binding_paths(c: model.Corpus, cls: str) -> list[str]:
-    """Dotted paths reached through a BINDING transformer -- JSON keys, not columns."""
+def binding_paths(c: model.Corpus, cls: str, boolean: bool) -> list[str]:
+    """Dotted paths reached through a BINDING transformer -- JSON keys, not columns.
+
+    Split by whether the leaf is a BOOLEAN, because that is where F27 divides. Every other
+    type comes back as its raw JSON token rendered as a string -- a String arrives with its
+    quotes, an Integer arrives as "7" rather than 7 -- so a service projecting one can only
+    ever be quarantined. A boolean's token is already a boolean literal and survives, which
+    is the only way this feature has a PASSING service at all.
+
+    Two services rather than one: a single service mixing them would fail on the string
+    leaves and take the boolean's evidence down with it, leaving the Binding transformer
+    with no demonstration that it works anywhere.
+    """
     out = []
     for (owner, prop), child in c.embedded.items():
-        if owner == cls and child in c.json_backed:
-            kl = c.classes.get(child)
-            out += [f"{prop}.{sub}" for sub in sorted(kl.props)] if kl else []
+        if owner != cls or child not in c.json_backed:
+            continue
+        kl = c.classes.get(child)
+        if kl is None:
+            continue
+        out += [f"{prop}.{sub}" for sub, pr in kl.props.items()
+                if (pr.type == "Boolean") == boolean]
     return sorted(out)
 
 
@@ -188,15 +203,26 @@ def specs(c: model.Corpus) -> list[Spec]:
                            if cid != conn]
         out.append(spec)
 
-        # A separate service per class for the Binding-backed leaves, so F27 isolates to it.
-        bpaths = binding_paths(c, cls)
-        if bpaths:
-            b = Spec(f"stress::H_{short}Binding", f"/stress/h_{short.lower()}_binding",
-                     f"Binding transformer over a JSON column on {cls}. Separate from the "
-                     f"main service so the divergence recorded as F27 -- the engine returns "
-                     f"the JSON-ENCODED value where the oracle returns the decoded one -- "
-                     f"does not take that service's embedded and dynafunction coverage with "
-                     f"it.", cls)
+        # Separate services for the Binding-backed leaves, so F27 isolates to the half it
+        # affects. `Bool` carries the boolean leaves and PASSES -- it is the only evidence
+        # that a Binding transformer works at all -- while `Binding` carries the rest and is
+        # quarantined.
+        for boolean, suffix, note in (
+                (False, "Binding",
+                 "Every non-boolean leaf comes back as its raw JSON TOKEN rendered as a "
+                 "string (F27): a String arrives with its quotes, an Integer as \"7\" "
+                 "rather than 7. Quarantined."),
+                (True, "BindingBool",
+                 "The BOOLEAN leaves, which the engine reads back correctly -- a boolean's "
+                 "JSON token is already a boolean literal. Kept apart from the leaves F27 "
+                 "affects so the feature has a passing demonstration rather than only a "
+                 "pinned defect.")):
+            bpaths = binding_paths(c, cls, boolean)
+            if not bpaths:
+                continue
+            b = Spec(f"stress::H_{short}{suffix}",
+                     f"/stress/h_{short.lower()}_{suffix.lower()}",
+                     f"Binding transformer over a JSON column on {cls}. {note}", cls)
             b.projections = ([Proj(ident, [ident])]
                              + [Proj(p.replace(".", "_"), p.split(".")) for p in bpaths])
             b.sort = (ident, False)

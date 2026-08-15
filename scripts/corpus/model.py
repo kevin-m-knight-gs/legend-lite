@@ -125,12 +125,25 @@ class Table:
 @dataclass
 class Join:
     """A.X = B.Y. Direction is resolved at use, not here — the same join is
-    traversed both ways by the two ends of an association."""
+    traversed both ways by the two ends of an association.
+
+    `condition` carries the FULL parsed condition when the join is more than one equality --
+    multi-column, non-equality, `or`, a dynafunction on either side. The four simple fields
+    stay populated for the single-equality case, which is 192 of this corpus's 198 joins and
+    which the indexed walk depends on; a general condition cannot be indexed, so it is
+    evaluated per candidate row instead.
+
+    Before this existed the reader dropped every join it could not fit into the four fields,
+    without a word. Five of the six generated dense joins were in that state: unusable by any
+    mapping, unexecutable by any service, and still counted as present by the feature meter.
+    """
     name: str
     left_table: str
     left_col: str
     right_table: str
     right_col: str
+    condition: object | None = None
+    tables: tuple = ()
 
     @property
     def self_join(self) -> bool:
@@ -446,6 +459,10 @@ _JOIN = re.compile(
 # c.filters. That is invisible rather than wrong only because all three happen to exclude
 # no rows; a filter that discriminated would have made every expectation for its class
 # wrong, with nothing pointing at the filter.
+# A Join whose condition is anything more than a single equality. Matched loosely and then
+# PARSED, because the condition can nest and a regex that tried to span it would match the
+# wrong extent rather than fail.
+_JOIN_HEAD = re.compile(r"^\s*Join\s+(\w+)\s*\((.*)\)\s*$")
 _FILTER_DECL = re.compile(
     r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*"
     r"(?:(=|<>|<=|>=|<|>)\s*(.+?)|(is\s+not\s+null|is\s+null))\s*\)\s*$")
@@ -752,7 +769,40 @@ def _parse_store(text: str, c: Corpus) -> None:
             n, lt, lc, rt, rc = m.groups()
             if n in c.joins:
                 raise ValueError(f"duplicate join {n}")
-            c.joins[n] = Join(n, lt, lc, lt if rt == "{target}" else rt, rc)
+            c.joins[n] = Join(n, lt, lc, lt if rt == "{target}" else rt, rc,
+                              tables=(lt, lt if rt == "{target}" else rt))
+            continue
+        m = _JOIN_HEAD.match(line)
+        if m:
+            # A general condition. The two sides are whichever tables it names; `{target}`
+            # resolves to the other one, since a self-join names its own table once and
+            # {target} once.
+            name, body = m.group(1), m.group(2)
+            if name in c.joins:
+                raise ValueError(f"duplicate join {name}")
+            cond = rhs.parse_condition(body)
+            named = sorted(rhs.condition_tables(cond))
+            real = [x for x in named if x != "{target}"]
+            if "{target}" in named:
+                real = real * 2
+            if len(real) != 2:
+                raise ValueError(
+                    f"Join {name} names {len(real)} table(s) {real} -- a join must connect "
+                    f"exactly two. A condition mentioning ONE is rejected by the engine too, "
+                    f"with \"can only find one table in the join\"; use the {{target}} form.")
+            c.joins[name] = Join(name, real[0], "", real[1], "", condition=cond,
+                                 tables=tuple(real))
+            continue
+        # A Join this reader cannot parse is DROPPED, and a dropped join is invisible in
+        # exactly the way a dropped filter was: nothing references it, so nothing complains,
+        # and the store object counts as "present" in the density meter while no mapping can
+        # use it and no service can execute it. Five of the six generated dense joins --
+        # multi-column, non-equality, `or`, and both dynafunction forms -- were in that state.
+        if line.strip().startswith("Join "):
+            raise ValueError(
+                f"Join form not modelled by this reader -- {line.strip()!r}. Extend it "
+                f"deliberately; dropping it silently makes the join uncountable and "
+                f"unexecutable while leaving it visible to a text-matching feature meter.")
 
 
 def _split_cols(body: str) -> list[str]:

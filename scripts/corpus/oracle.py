@@ -70,6 +70,65 @@ def _index(rows: list[dict], key: str, table: str, join: str) -> dict:
     return idx
 
 
+# ------------------------------------------------------- general join conditions
+#
+# A join whose condition is more than one equality cannot be indexed, so it is evaluated per
+# candidate row. Correctness first: these are the joins the reader used to drop entirely, so
+# there is no existing behaviour to preserve and no reason to be clever. The tables are five
+# rows each.
+def _operand(c: Corpus, node, binding: dict):
+    """One side of a join comparison, read from whichever row its table is bound to."""
+    tag, body = node
+    if tag == "lit":
+        return body
+    if tag == "col":
+        table, col = body
+        row = binding.get(table)
+        return None if row is None else row.get(col)
+    if tag == "call":
+        fn, args = body
+        return _dynafunction(fn, [_operand(c, a, binding) for a in args])
+    raise Unsupported(f"join operand {tag!r} has no evaluation rule")
+
+
+def _condition(c: Corpus, node, binding: dict) -> bool:
+    tag, body = node
+    if tag == "and":
+        return _condition(c, body[0], binding) and _condition(c, body[1], binding)
+    if tag == "or":
+        return _condition(c, body[0], binding) or _condition(c, body[1], binding)
+    if tag == "null":
+        operand, negated = body
+        v = _operand(c, operand, binding)
+        return (v is not None) if negated else (v is None)
+    if tag == "cmp":
+        left, op, right = body
+        # Three-valued: a NULL operand makes the comparison UNKNOWN, and a join keeps only
+        # pairs for which the condition is TRUE. Same rule the query predicates use, and the
+        # same one F28 shows `!=` breaking on the query side.
+        return _cmp({"=": "==", "<>": "!="}.get(op, op),
+                    _operand(c, left, binding), _operand(c, right, binding))
+    raise Unsupported(f"join condition node {tag!r} has no evaluation rule")
+
+
+def _general_targets(c: Corpus, data, join, from_table: str, src: dict) -> list[dict]:
+    """Every row on the far side of `join` that the condition pairs with `src`."""
+    import rhs
+
+    named = rhs.condition_tables(join.condition)
+    a, b = join.tables
+    to_table = b if from_table == a else a
+    out = []
+    for tgt in data.get(to_table, []):
+        if "{target}" in named:
+            binding = {from_table: src, "{target}": tgt}
+        else:
+            binding = {from_table: src, to_table: tgt}
+        if _condition(c, join.condition, binding):
+            out.append(tgt)
+    return out
+
+
 def walk(c: Corpus, data: dict[str, list[dict]], row: dict,
          hops: list[tuple[str, str, str, str, str]]) -> dict | None:
     """Follow the hops from `row`. Returns the landed row, or None if the chain broke —
@@ -78,6 +137,14 @@ def walk(c: Corpus, data: dict[str, list[dict]], row: dict,
     for join, ftab, fcol, ttab, tcol in hops:
         if cur is None:
             return None
+        if fcol is None:                       # a general condition: no key to index on
+            landed = _general_targets(c, data, c.joins[join], ftab, cur)
+            if len(landed) > 1:
+                raise Fanout(
+                    f"join {join} pairs one row of {ftab} with {len(landed)} rows of "
+                    f"{ttab}; the navigation would fan out")
+            cur = landed[0] if landed else None
+            continue
         key = cur.get(fcol)
         if key is None:
             return None
@@ -232,6 +299,18 @@ def _chain_hops(c: Corpus, start: str, joins: list[str]):
         j = c.joins.get(name)
         if j is None:
             raise Unsupported(f"join {name!r} in a chain is not declared")
+        if j.condition is not None:
+            # No from/to columns: the pairing is a whole condition, so the hop carries None
+            # in their place and walk() evaluates instead of indexing.
+            a, b = j.tables
+            if cur not in (a, b):
+                raise Unsupported(
+                    f"join {name!r} connects {a}/{b}, neither of which is {cur} -- the "
+                    f"chain does not compose")
+            nxt = b if cur == a else a
+            hops.append((name, cur, None, nxt, None))
+            cur = nxt
+            continue
         if j.left_table == cur:
             hops.append((name, j.left_table, j.left_col, j.right_table, j.right_col))
             cur = j.right_table

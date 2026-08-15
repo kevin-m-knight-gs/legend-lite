@@ -41,13 +41,17 @@ class ParseError(ValueError):
     the wrong value."""
 
 
+# `{target}` is a TABLE NAME, not punctuation: in a self-join it stands for the far side of
+# the same table. Lexed as an identifier-shaped token so the operand grammar needs no special
+# case for it.
 _TOKEN = re.compile(r"""
       \s*(?:
         (?P<db>\[[\w:]+\])
+      | (?P<target>\{target\})
       | (?P<str>'(?:[^']|'')*')
       | (?P<num>-?\d+\.\d+|-?\d+)
       | (?P<ident>[A-Za-z_]\w*)
-      | (?P<punct>[@|,().>])
+      | (?P<punct>[@|,().><=])
       )""", re.X)
 
 
@@ -97,7 +101,7 @@ class _Parser:
         # identifier followed by '.', so one token of lookahead separates them.
         if kind == "ident" and self.peek(1)[1] == "(":
             return self.call()
-        if kind == "db" or kind == "ident" or v == "@":
+        if kind in ("db", "ident", "target") or v == "@":
             return self.chain_or_column()
         raise ParseError(f"unexpected {v!r}")
 
@@ -145,7 +149,7 @@ class _Parser:
         if self.peek()[0] == "db":
             self.take()
         kind, table = self.take()
-        if kind != "ident":
+        if kind not in ("ident", "target"):
             raise ParseError(f"expected a table name, found {table!r}")
         self.expect(".")
         kind, col = self.take()
@@ -215,3 +219,80 @@ def find_call(text: str, start: int) -> int:
                 return i
         i += 1
     raise ParseError("unbalanced parentheses")
+
+
+# ------------------------------------------------------------------ join conditions
+#
+# A Join's condition is a boolean expression over the same operand grammar as a property
+# mapping's value: columns, dynafunction calls, literals. The corpus's reader modelled only
+# `A.X = B.Y`, so five of its six generated dense joins -- multi-column, non-equality, `or`,
+# and both dynafunction forms -- were dropped without a word, which made them unusable by any
+# mapping and unexecutable by any service while still counting as present in the feature meter.
+#
+# `and` and `or` have EQUAL precedence and are RIGHT-associative in this grammar, so
+# `A and B or C` parses as `A and (B or C)`. That is not SQL's rule and it is easy to get
+# wrong in both directions; it is verified in scripts/corpus/verified/store.md.
+#
+# Nodes:
+#     ("cmp",  (operand, op, operand))       op in = <> < <= > >=
+#     ("null", (operand, negated))           `is null` / `is not null`
+#     ("and",  (left, right))
+#     ("or",   (left, right))
+_COMPARISONS = ("<=", ">=", "<>", "=", "<", ">")
+
+
+class _CondParser(_Parser):
+    def condition(self):
+        left = self.primary()
+        kind, v = self.peek()
+        if v in ("and", "or"):
+            self.take()
+            return (v, (left, self.condition()))      # right-associative, equal precedence
+        return left
+
+    def primary(self):
+        if self.peek()[1] == "(":
+            self.take()
+            inner = self.condition()
+            self.expect(")")
+            return inner
+        left = self.expr()
+        kind, v = self.peek()
+        if v == "is":
+            self.take()
+            negated = self.peek()[1] == "not"
+            if negated:
+                self.take()
+            self.expect("null")
+            return ("null", (left, negated))
+        # `<=` and `>=` arrive as two tokens, so the longer forms are reassembled here
+        # rather than lexed: a lexer that produced `<` then `=` for `<=` would otherwise
+        # parse it as a comparison against an empty right-hand side.
+        op = self.take()[1]
+        if op not in ("<", ">", "=", "<>") and op is not None:
+            raise ParseError(f"expected a comparison operator, found {op!r}")
+        if self.peek()[1] == "=" and op in ("<", ">"):
+            self.take()
+            op += "="
+        elif op == "<" and self.peek()[1] == ">":
+            self.take()
+            op = "<>"
+        return ("cmp", (left, op, self.expr()))
+
+
+def parse_condition(text: str):
+    p = _CondParser(_tokenise(text))
+    node = p.condition()
+    if p.i != len(p.t):
+        raise ParseError(f"trailing input in join condition at {p.peek()[1]!r}")
+    return node
+
+
+def condition_tables(node) -> set:
+    """Every table the condition names, so a caller can tell which two sides it joins."""
+    tag, body = node
+    if tag == "cmp":
+        return set(t for t, _c in columns(body[0]) + columns(body[2]))
+    if tag == "null":
+        return set(t for t, _c in columns(body[0]))
+    return condition_tables(body[0]) | condition_tables(body[1])

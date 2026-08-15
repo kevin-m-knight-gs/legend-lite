@@ -937,17 +937,28 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   that is what XStore exists for. So the construct is reachable, compiles clean, and fails
   only at execution, with an error that names a missing table rather than an impossible
   join. Pinned by `stress::H1_InstrumentReach`.
-- **A Binding transformer returns the JSON-ENCODED value rather than the decoded one.** A
-  property declared `String[0..1]` and read out of a JSON payload through
-  `prop: Binding path::B : [db]T.JSON_COL` comes back as `"\"sector-001\""` -- the JSON
-  token including its quotes -- where the value of that key is `sector-001`. Every string
-  read this way carries two extra characters, and a consumer comparing it to anything else
-  in the model will not match.
+- **A Binding transformer returns each value as its raw JSON TOKEN, not as its declared
+  type.** A property read out of a JSON payload through
+  `prop: Binding path::B : [db]T.JSON_COL` comes back as the literal text of its token:
 
-  The oracle asserts the decoded string, because that is what a `String[0..1]` property
-  means; recording the engine's answer instead would have made the test agree with the
-  behaviour rather than check it. Pinned by `stress::H_IssuerBinding`, kept separate from
-  `stress::H_Issuer` so the embedded-property coverage on the same class stays green.
+      declared type      payload      returned
+      String[0..1]       "energy"     "\"energy\""   -- the quotes are part of the value
+      Integer[0..1]      7            "7"            -- a STRING, not an integer
+      Float[0..1]        1.5          "1.5"          -- a STRING, not a float
+      Boolean[0..1]      true         true           -- correct
+
+  So this is not a quoting bug on strings, which is how it first appeared. Every value is
+  handed back as text regardless of the property's declared type, and Boolean is the single
+  exception -- its JSON token is already a boolean literal, so returning the token happens
+  to be right. An `Integer` property yielding the string `"7"` violates its own type
+  signature, and any arithmetic downstream of it fails or coerces silently.
+
+  `repro/binding-json-token/` projects all four types from one payload, which is what
+  separates "strings are quoted" from "everything is a token". Pinned by
+  `stress::H_IssuerBinding`; `stress::H_IssuerBindingBool` projects the boolean leaf
+  separately and PASSES, so the feature has a working demonstration rather than only a
+  pinned defect. Both are kept apart from `stress::H_Issuer` so the embedded-property
+  coverage on the same class stays green.
 
 - **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
   `demo::Thing.all()->filter(t | $t.name != 'none')` over a table where one row has a NULL

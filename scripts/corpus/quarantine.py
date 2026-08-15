@@ -122,7 +122,7 @@ ENGINE_QUARANTINE.update({
 # all -- where the value of the key is sector-001. The oracle asserts the decoded string
 # because that is what a String[0..1] property means; the engine disagrees.
 ENGINE_QUARANTINE["stress::H_IssuerBinding"] = (
-    "F27", "Binding transformer yields the JSON-encoded value, quotes included")
+    "F27", "Binding returns each value as its raw JSON token, not its declared type")
 
 ENGINE_QUARANTINE["stress::G3_UnionTreeWithEnum"] = (
     "F10", "graph fetch RAISES on an unmapped enum code where TDS returns null")

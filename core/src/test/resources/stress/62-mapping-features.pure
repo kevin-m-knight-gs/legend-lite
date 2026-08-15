@@ -57,6 +57,13 @@ Class hier::Profile
 {
    sector: String[0..1];
    headquarters: String[0..1];
+   // BOOLEAN, deliberately. Every other type read through a Binding comes back as its raw
+   // JSON TOKEN rendered as a string -- `"\"energy\""` for a String, `"7"` for an Integer
+   // (F27) -- so no other type can carry a PASSING assertion. A boolean's JSON token is
+   // already a boolean literal, and it survives. Without this the Binding transformer had
+   // no executing service at all: its only coverage was a quarantined one, which pins a
+   // defect but does not show the feature working.
+   flagged: Boolean[0..1];
 }
 
 Association hier::InstrumentIssuer
