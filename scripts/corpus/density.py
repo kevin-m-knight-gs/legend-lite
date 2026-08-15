@@ -74,8 +74,8 @@ FEATURES = [
     ("E3  XStore",                r":\s*XStore", "src"),
     ("E4  AggregationAware",      r":\s*AggregationAware", "src"),
     ("E6  Operation union",       r"union_OperationSetImplementation|:\s*Operation\s*\{", "src"),
-    ("--  join non-equality",     r"Join\s+\w+\s*\([^)]*(<|>|is\s+not\s+null|is\s+null)", "src"),
-    ("--  join with or",          r"Join\s+\w+\s*\([^)]*\bor\b", "src"),
+    ("--  join non-equality",     r"Join\s+\w+\s*\(.{0,200}?(<|>|is\s+not\s+null|is\s+null)", "src"),
+    ("--  join with or",          r"Join\s+\w+\s*\(.{0,200}?\bor\b", "src"),
     ("--  composite PK",          r"PRIMARY KEY[^)]*,[^)]*PRIMARY KEY", "src"),
     ("--  milestoning",           r"milestoning\s*\(", "src"),
 ]
@@ -140,7 +140,7 @@ def main() -> None:
 # feature worth counting is a join CHAIN (`@J1 > @J2`), of which the corpus has none. The
 # looser definition flattered the corpus by a factor of eight.
 MAX_PLAIN_RATIO = 0.83   # 375/457 = 0.8206 after the dense mapping landed
-MAX_ABSENT = 17
+MAX_ABSENT = 10
 
 
 if __name__ == "__main__":
