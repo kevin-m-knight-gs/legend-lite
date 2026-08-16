@@ -51,7 +51,7 @@ _TOKEN = re.compile(r"""
       | (?P<str>'(?:[^']|'')*')
       | (?P<num>-?\d+\.\d+|-?\d+)
       | (?P<ident>[A-Za-z_]\w*)
-      | (?P<punct>[@|,().><=!])
+      | (?P<punct>[@|,().><=!\[\]])
       )""", re.X)
 
 
@@ -115,12 +115,31 @@ class _Parser:
         self.expect("(")
         args = []
         if self.peek()[1] != ")":
-            args.append(self.expr())
+            args.append(self.argument())
             while self.peek()[1] == ",":
                 self.take()
-                args.append(self.expr())
+                args.append(self.argument())
         self.expect(")")
         return ("call", (fn, args))
+
+    def argument(self):
+        """One argument, which may be an ARRAY of expressions: `coalesce([a, b])`.
+
+        Kept as its own node rather than flattened into the argument list. Flattening is
+        right for coalesce and wrong for anything where the array IS the argument -- `in`,
+        most obviously -- and a reader that flattens cannot tell the two apart afterwards.
+        """
+        if self.peek()[1] != "[":
+            return self.expr()
+        self.take()
+        items = []
+        if self.peek()[1] != "]":
+            items.append(self.expr())
+            while self.peek()[1] == ",":
+                self.take()
+                items.append(self.expr())
+        self.expect("]")
+        return ("array", items)
 
     def chain_or_column(self):
         # An optional store qualifier precedes either form. It is REQUIRED on a chain's
@@ -201,7 +220,9 @@ def columns(node) -> list[tuple[str, str]]:
     if tag == "col":
         return [body]
     if tag == "call":
-        return [c for a in body[1] for c in columns(a)]
+        return [x for a in body[1] for x in columns(a)]
+    if tag == "array":
+        return [x for a in body for x in columns(a)]
     return []
 
 
@@ -217,7 +238,9 @@ def chains(node) -> list[tuple]:
     if tag == "chain":
         return [body]
     if tag == "call":
-        return [ch for a in body[1] for ch in chains(a)]
+        return [x for a in body[1] for x in chains(a)]
+    if tag == "array":
+        return [x for a in body for x in chains(a)]
     return []
 
 

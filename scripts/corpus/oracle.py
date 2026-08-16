@@ -377,7 +377,23 @@ def _arg_value(c: Corpus, data, base, owner: str, prop: str, node):
         return _chain_value(c, data, base, owner, [prop], body)
     if tag == "call":
         fn, args = body
-        return _dynafunction(fn, [_arg_value(c, data, base, owner, prop, a) for a in args])
+        vals = []
+        for a in args:
+            v = _arg_value(c, data, base, owner, prop, a)
+            # An ARRAY argument is spread only for the functions where that is what it
+            # MEANS. coalesce([a, b]) is coalesce(a, b); `in(x, [a, b])` is not `in(x, a, b)`,
+            # so spreading blindly would quietly change the call.
+            if isinstance(a, tuple) and a[0] == "array":
+                if fn != "coalesce":
+                    raise Unsupported(
+                        f"{fn}() takes an ARRAY argument and the oracle only knows how to "
+                        f"spread one for coalesce")
+                vals.extend(v)
+            else:
+                vals.append(v)
+        return _dynafunction(fn, vals)
+    if tag == "array":
+        return [_arg_value(c, data, base, owner, prop, a) for a in body]
     raise Unsupported(f"dynafunction argument {tag!r} has no evaluation rule")
 
 

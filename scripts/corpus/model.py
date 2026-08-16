@@ -507,8 +507,14 @@ _FILTER_DECL = re.compile(
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # `~filter [db]@J1 > @J2 | [db]NAME` -- a filter reached through a JOIN CHAIN. The predicate
 # applies to the row the chain LANDS on, so a row whose chain breaks is excluded.
+# A join sequence may carry a JOIN KIND in parentheses -- `(INNER)` / `(OUTER)` -- before
+# the leading pointer and before any later hop. The pattern admitted neither, so a filter
+# using one raised rather than being read; the kind changes which rows survive the hop, so
+# reading past it silently would be worse than the raise.
 _CLS_FILTER_CHAIN = re.compile(
-    r"^\s*~filter\s*(?:\[[\w:]+\]\s*)?((?:@\w+\s*>?\s*)+)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\s*$")
+    r"^\s*~filter\s*(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?"
+    r"((?:@\w+\s*(?:>\s*(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?)?)+)"
+    r"\|\s*(?:\[[\w:]+\]\s*)?(\w+)\s*$")
 # Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
 # The trailing `\s*$` used to be unconditional, which meant `Class X extends Y` did not
 # match at all -- the class was SILENTLY SKIPPED and simply did not exist in the model. The
@@ -544,7 +550,7 @@ _PARAM = re.compile(r"(\w+)\s*:\s*[\w:]+\s*\[[^\]]+\]")
 # by name here, so the schema qualifier is matched and discarded -- but it has to be
 # MATCHED, or the pattern reads `analytics` as the table and `COMBO_SUMMARY` as the
 # column and the mapping silently records a property against a table that does not exist.
-_MAIN = re.compile(r"^\s*~mainTable\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\s*$")
+_MAIN = re.compile(r'^\s*~mainTable\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\s*$')
 # `Class: Relational`, `Class[id]: Relational`, and the root-marked `*Class: ...` form.
 # `extends [parentId]` sits between the set id and the colon. Without admitting it, a
 # subclass's class mapping did not match -- so `cur` stayed on the PREVIOUS class and every
@@ -560,7 +566,7 @@ _CLSMAP = re.compile(
 _OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
 _UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
-_COLMAP = re.compile(r"(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\.(\w+)")
+_COLMAP = re.compile(r'(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\.(\w+|"[^"]+")')
 # `prop: concat([db]T.A, [db]T.B)` -- a DYNAFUNCTION property mapping. Like _ENUMCOLMAP this
 # must be stripped BEFORE _COLMAP runs, or _COLMAP matches the first column inside the
 # parentheses and records the property as a plain column mapping -- silently turning a
@@ -1133,9 +1139,12 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             # For a union member, the per-id table is what the union needs; the class's
             # own main_table is set by whichever member comes last and is only used as a
             # fallback for callers that do not know about unions.
+            # Quotes are stripped here, not in the pattern: a quoted name is the SAME table
+            # as its unquoted key, and leaving them on made ~mainTable point at a table that
+            # "is not declared" while sitting right there in the store.
             if cur_id:
-                set_tables[cur_id] = m.group(1)
-            c.main_table[cur] = m.group(1)
+                set_tables[cur_id] = m.group(1).strip('"')
+            c.main_table[cur] = m.group(1).strip('"')
             continue
         if cur and in_assoc:
             for prop, join in _ENDMAP.findall(line):
@@ -1248,7 +1257,8 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             # vanished here. In every case the symptom appeared far from the cause. A
             # property the oracle cannot resolve should be visible in the reader, not
             # discovered when a service using it fails.
-            for prop, t, col in _COLMAP.findall(line):
+            for prop, t, col in ((a, b.strip('"'), d.strip('"'))
+                                 for a, b, d in _COLMAP.findall(line)):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")
                 c.columns.setdefault(cur, {})[prop] = col

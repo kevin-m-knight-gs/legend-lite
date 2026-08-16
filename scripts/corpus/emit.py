@@ -30,6 +30,8 @@ resolved that reference, so it survived. It becomes `stress::AllMapping`.
 """
 from __future__ import annotations
 
+import re
+
 import json
 
 from model import Corpus
@@ -43,8 +45,14 @@ EXTERNAL_TABLES = {"EXT_LEGAL_ENTITY"}
 # Derived from the model rather than listed, so a new hier table is routed correctly the
 # moment it is declared instead of silently landing in the wrong element.
 # Any store outside the main one needs its own ###Data element, so the main element has to
-# know what to leave out. Keyed by DATABASE prefix rather than by a list of table names, so
-# a new table in an existing side store routes itself.
+# know what to leave out.
+#
+# Derived from the table's DATABASE rather than from a list of store prefixes. The prefix
+# list was a standing trap: a new store not on it had its tables emitted into the MAIN
+# element, which is bound to store::DB, and the session then failed with `Table "LEG" not
+# found in Schema "default" in Database(s) store::DB` -- an error naming the table rather
+# than the routing. Every table now routes by where it was declared.
+MAIN_STORE = "store::DB"
 SIDE_STORES = ("hier::", "combo::")
 
 
@@ -54,7 +62,9 @@ def store_tables(c, prefix: str) -> set:
 
 
 def side_tables(c) -> set:
-    return {n for p in SIDE_STORES for n in store_tables(c, p)}
+    return {n for n, t in c.tables.items()
+            if n not in c.views
+            and getattr(t, "database", "") not in ("", MAIN_STORE)}
 
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"
@@ -63,6 +73,22 @@ RUNTIME = "stress::RT"
 # while no table lived in a Schema block -- and a schema-qualified table seeded under
 # `default.` is not seeded at all, so the mapping over it returns nothing.
 SCHEMA = "default"
+
+
+def _ident(name: str) -> str:
+    """A relational identifier, re-quoted if it is not a bare one.
+
+    The reader strips quotes so a quoted table keys the same as an unquoted one, which is
+    right for lookups and wrong at EMIT: `default.spaced table:` is not parseable, so a
+    seeded table with a quoted name produced a ###Data element that failed to parse and took
+    the whole model down with it.
+    """
+    # SINGLE quotes, not double. A Database DDL takes `relationalIdentifier:
+    # unquotedIdentifier | QUOTED_STRING` (double); a ###Data element takes `identifier:
+    # unquotedIdentifier | STRING` (single). The same table is "spaced table" where it is
+    # declared and 'spaced table' where it is seeded, and the declaration's form does not
+    # parse in the data element.
+    return name if re.fullmatch(r"[A-Za-z_]\w*", name) else f"'{name}'"
 
 
 def _pure_str(s: str) -> str:
@@ -101,7 +127,7 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in rows]
-        out.append(f"    {c.tables[name].schema}.{name}:")
+        out.append(f"    {_ident(c.tables[name].schema)}.{_ident(name)}:")
         body = [f"      '{_pure_str(l)}\\n'" for l in lines]
         out.append(" +\n".join(body) + ";")
         if i < len(emitted) - 1:
@@ -155,7 +181,7 @@ def store_data_element(c: Corpus, tables: dict[str, list[dict]],
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in tables[name]]
         body = "\\n' +\n      '".join(lines)
-        out.append(f"    {c.tables[name].schema}.{name}:")
+        out.append(f"    {_ident(c.tables[name].schema)}.{_ident(name)}:")
         out.append(f"      '{body}\\n'" + (";" if i == len(names) - 1 else ";"))
     out += ["  }#", "}"]
     return "\n".join(out)
@@ -173,7 +199,7 @@ def external_data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
         cols = list(c.tables[name].columns)
         lines = [",".join(cols)]
         lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in tables[name]]
-        out.append(f"    {c.tables[name].schema}.{name}:")
+        out.append(f"    {_ident(c.tables[name].schema)}.{_ident(name)}:")
         out.append(" +\n".join(f"      '{_pure_str(l)}\\n'" for l in lines) + ";")
     out += ["  }#", "}"]
     return "\n".join(out)

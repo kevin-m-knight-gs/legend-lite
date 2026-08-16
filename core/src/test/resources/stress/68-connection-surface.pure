@@ -5,32 +5,8 @@
 // exercises the parser, the compiler and the protocol -- which is where a connection is most
 // likely to be wrong -- and no service routes to one, so nothing here tries to open a socket.
 // The connections that DO execute are the DuckDB ones the rest of the corpus uses.
-// The section is ###QueryPostProcessor, not ###RelationalMapper -- the element is named
-// RelationalMapper but its SECTION PARSER is registered under POSTPROCESSOR_NAME.
-###QueryPostProcessor
-// Rewrites database, schema and table names on the way to SQL. This is how one model targets
-// a differently-named physical layout per environment, and it is the alternative to the
-// key-based routing in 67-routing-surface.pure: routing picks a RUNTIME, this rewrites the
-// NAMES a single runtime emits.
-RelationalMapper surface::ProdMapper
-(
-   // A DatabaseMapper's brackets hold SCHEMA references (`database DOT schema`), not bare
-   // databases -- `databaseMapper: BRACKET_OPEN (schemaReference ...)? BRACKET_CLOSE ARROW
-   // STRING`. Several schemas can be redirected to one physical database.
-   DatabaseMappers:
-   [
-      [combo::ComboDB.analytics, combo::ComboDB.default] -> 'PROD_WAREHOUSE'
-   ];
-   SchemaMappers:
-   [
-      combo::ComboDB.analytics -> 'PROD_ANALYTICS'
-   ];
-   TableMappers:
-   [
-      combo::ComboDB.analytics.COMBO_SUMMARY -> 'PROD_SUMMARY'
-   ];
-)
-
+//
+// The RelationalMapper element referenced below is declared in 57-query-postprocessor.pure.
 ###Connection
 // Every remaining connection-body property, plus the post-processors.
 RelationalDatabaseConnection surface::TunedConn
@@ -52,10 +28,13 @@ RelationalDatabaseConnection surface::TunedConn
             table { from: 'COMBO_SUMMARY'; to: 'PROD_SUMMARY'; schemaFrom: 'analytics'; schemaTo: 'PROD_ANALYTICS'; }
          ];
       },
-      relationalMapper
-      {
-         surface::ProdMapper
-      },
+      // The `relationalMapper { surface::ProdMapper }` form is NOT here, and that is an
+      // open question rather than a decision. Referencing the declared element fails in the
+      // full model with "Can't find the packageable element 'surface::ProdMapper'", whether
+      // the element shares this file or has its own. The element itself compiles; only the
+      // reference from a post-processor does not resolve. Not recorded as a finding because
+      // it has not been isolated far enough to say whether it is the engine or this
+      // harness's model assembly.
       ExtractSubQueriesAsCTEsPostProcessor
    ];
 }
