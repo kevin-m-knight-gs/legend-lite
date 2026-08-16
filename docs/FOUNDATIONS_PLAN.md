@@ -1,0 +1,1075 @@
+# Foundations Plan — the burndown pause
+
+> **Read `docs/TENET_AUDIT_2026_08_16.md` first.** Every task here cites a finding in it.
+> This document is the executable form; the audit is the evidence.
+>
+> **Decision (2026-08-16):** corpus burn-down is **paused as a goal**. It continues to run
+> **every cycle as a referee**. We fix foundations, guards, and duplication first, then resume
+> burn-down on a baseline that means what it says.
+
+---
+
+## 0. The deal — read this before touching anything
+
+### 0.1 What "paused" means, precisely
+
+| | Status during the pause |
+|---|---|
+| Converting non-passing corpus rows to PASS | **STOP.** No conversion work. Not even easy ones. |
+| Running the full corpus sweep every cycle | **CONTINUE — mandatory.** It is the only instrument that catches mass diversion (the `hostChannel` predicate has collapsed it twice: 2096→408 and 2091→2013). Losing it during the riskiest surgery in the project's history would be the single worst call available. |
+| Recording family deltas each cycle | **CONTINUE.** |
+| Writing burn-down verdicts / `BURNDOWN_EXPLANATIONS.md` | **CONTINUE where a task produces one.** Several tasks below convert a false PASS into an honest *explained* row; write the verdict at that moment, not later. |
+
+**The sweep changes role, not frequency.** It stops being the thing we optimise and becomes the
+thing that tells us we broke something. Treat any unexplained family delta as a stop-the-line
+event.
+
+### 0.2 Success criteria — and the pass count is not one of them
+
+**The pass count will go DOWN. That is the plan working, not the plan failing.** Declare this
+before starting so nobody panics at cycle 3.
+
+Track these five instead:
+
+| Metric | Now | Target at end of pause |
+|---|---|---|
+| **Unexplained rows** (non-passing without a verdict, *plus* passing-with-unverified-elements) | unknown — the scoreboard cannot express the second term | **0**, and mechanically gated |
+| **Duplicate implementations** (JSON readers/writers, substitution, multiplicity, ASOR, quoting, renderers) | 5 readers, 4 writers, 2 substitution, 2 multiplicity, 2 ASOR, 3 quoting, 5 renderers | **one owner each** |
+| **Unguarded tenet surface** (`java.sql` reachable from any package; harness unconstrained) | total — every ArchUnit allowlist admits `java..` | **funnelled + positively constrained** |
+| **Falsified self-claims** | 9 | **0** |
+| **Uncounted concealment channels** | 2 of 3 (only `H2Verify` instruments its declines) | **0** |
+
+`passed + explained = 2793` stays the burn-down's definition of done. This pause exists to make
+the **left** term trustworthy before we drive the right term to zero.
+
+### 0.3 Operating rules for the implementing session
+
+1. **One task per commit.** Task ID in the subject line (`F1.2: …`). No task bundling.
+2. **Run the referee after every task**, not every phase. Record the four numbers
+   (pass / fail / error / shape) plus family deltas in the commit body.
+3. **Expected-red is declared per task below.** If a task turns red *more* rows than declared,
+   or reddens a family it shouldn't touch — **stop, revert, report.** Do not patch forward.
+   That divergence is information; burying it is how we got here.
+4. **No discretionary scope.** If you find something new, append it to §9 Backlog and keep
+   going. The failure mode for a foundations pass is sprawl.
+5. **Every deletion must be justified by the deletion test** (audit §6): delete the site, let
+   the platform answer. Same result → it was compensation. Loud error → a real gap that must be
+   **named** in `docs/OUTSTANDING.md`, not patched.
+6. **Never widen a tolerance or add a fallback to make a task green.** That is the exact
+   mechanism this pause exists to reverse.
+7. **Before any task that touches `core/`, `mvn -pl core install -DskipTests`** — downstream
+   modules resolve from `~/.m2`, not the reactor (`AGENTS.md` common mistake #11).
+
+### 0.4 Expected-red and the referee baseline (policy)
+
+The corpus runner **fails the build** when a family drops below the baseline committed in
+`docs/RELATIONAL_CORPUS.md`, and the PCT exclusion ledger fails when pins go stale in either
+direction. Expected-red tasks therefore need an explicit blessing mechanism or the line stops
+at the first one (F6.1's 71 reds would make G4 permanently red):
+
+1. **A red-landing task commits its re-frozen scoreboard in the same commit.** The sweep
+   rewrites `docs/RELATIONAL_CORPUS.md`; the commit body lists every family delta and matches
+   it row-for-row against the task's declared expected-red. A delta the declaration does not
+   cover = revert (rule 3 of §0.3), never a baseline bless.
+2. **The referee's DOWN-only ratchets (advisory ceiling, decline buckets) move only with a
+   dated justification comment at the constant**, naming the task ID. Same discipline the
+   burn-down used.
+3. **PCT reds enter the exclusion ledger as adjudicated pins in the same commit** — each pin
+   carries the task ID and the platform-gap verdict. The ledger's stale-pin assert stays; a
+   pin that starts passing later fails the build exactly as today.
+4. **`BURNDOWN_EXPLANATIONS.md` verdicts are written in the same commit** (per §0.1) — the
+   scoreboard row moves from false-PASS to explained in one atomic step, never two.
+
+### 0.5 Gate commands
+
+```bash
+# referee (run after EVERY task)
+tools/allgates.sh                       # reads GATES_LOG; check G<n>_EXIT by eye — it always exits 0
+
+# focused
+mvn -pl core install -DskipTests
+mvn -pl core test -Dtest=RelationalCorpusRunner -Dlegend.engine.root=$HOME/legend/legend-engine
+mvn -pl pct -am test
+mvn -pl parser-equivalence -am test
+```
+
+**Sanity tells for a wrong engine checkout** (`docs/GATES.md`): `census: 2759` instead of
+`2798`; `h2-exec 0 verified`; ~320s instead of ~90s. Any one means the flag is wrong — fix it
+before reading any number.
+
+---
+
+## 1. Phase 0 — Baseline (do this first, it is not optional)
+
+### F0.1 — Capture the honest baseline
+
+**First, two corrections this plan needs at execution time (2026-08-16):**
+
+- **Re-verify every line anchor on contact.** This plan and the audit were written against
+  `f6a50a7d`; main has moved past it (the burn's closing batches extracted `MetamodelSteps.java`
+  and `PlanAllocations.java` out of `StatementExecutor`, reworked `SubselectPrune`, and touched
+  `UnionSynthesis`/`JoinChainEmission`). Cited line numbers are hints, not addresses — the
+  audit's own "do not cite round 1's line numbers" warning applies to round 2 already.
+- **The baseline is captured at CURRENT HEAD**, not at the audit's HEAD — otherwise every
+  expected-red is measured against numbers that no longer exist.
+
+**Do:** run the full referee plus PCT and record, in a new `docs/FOUNDATIONS_BASELINE.md`:
+
+- corpus: total / runnable / pass / fail / error / shape / sqldiff-pass, **per family**
+- PCT: run / failures / errors / skipped, per suite, plus the 36 pin list
+- parser-equivalence: every ratchet constant's live value
+- `H2Verify`: verified / unverifiable / diverged, and the decline buckets
+- the four `@Disabled("GAP:")` counts by file
+
+**Why:** every "expected red" below is measured against this. Without it, task 3 is unfalsifiable.
+
+**Also do (audit delta):** append to `FOUNDATIONS_BASELINE.md` an audit-delta section covering
+the commits landed after the audit's HEAD (`f6a50a7d..HEAD` — the burn's closing batches).
+The audit has not seen them; some added S1-shaped harness surface (assert-loop lifting,
+envelope peels, splice arms, identity-hook recognition), some are clean typed-fact reasoning,
+and one (the metamodel-walk unification with its honest-failure sentinel) partially addresses
+a §9 note. One paragraph per commit: which audit shape it matches, or "clean", so the ledger
+stays complete without re-running the eleven auditors.
+
+**Acceptance:** the file exists, committed, and every number is dated and reproducible by a
+named command; the audit-delta section covers every commit in `f6a50a7d..HEAD`.
+
+**Expected red:** none.
+
+---
+
+## 2. Phase 1 — Guards (FIRST; everything after is non-regressing)
+
+> **Rationale for going first:** every finding in the audit was produced by burn-down-shaped
+> activity — "make this failing test pass." Guards before repair means the repair work cannot
+> quietly re-create what it is removing.
+
+### F1.1 — Extract `H2Verify.SETTINGS` out of the harness
+
+**Files:** `core/src/main/java/com/legend/harness/H2Verify.java`,
+`pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java:157`
+
+**Change:** move the `SETTINGS` constant to a non-harness home
+(`com.legend.exec.H2Settings` or similar); repoint both readers.
+
+**Why:** this is the **only** thing outside `com.legend.harness` that depends on it
+(verified: `grep -rn "com\.legend\.harness" pct/src/` returns exactly this one line). It is
+the sole blocker to F1.2.
+
+**Acceptance:** `grep -rn "com\.legend\.harness" pct/ core/src/main --include=*.java` returns
+only files inside `core/src/main/java/com/legend/harness/` itself, plus comments.
+
+**Expected red:** none. **Gate:** full referee + `mvn -pl pct -am test`.
+
+### F1.2 — Move `com.legend.harness` to `src/test/java`
+
+**Files:** all 16 files under `core/src/main/java/com/legend/harness/` → `core/src/test/java/com/legend/harness/`. `core/pom.xml` may need a `test-jar` for `pct`/`rcorpus`.
+
+**Change:** relocate. Delete the four `com.legend.harness` exemption clauses in
+`core/src/test/java/com/legend/ArchitectureTest.java` (`:133`, `:141`, `:158`, `:504`) and the
+exemption in `ParserBoundaryArchTest:46-53`.
+
+**Why:** 7,019 lines currently ship in the production jar with **zero production consumers**,
+and the package appears in `ArchitectureTest` *only* in exemptions — so no rule constrains what
+the harness may do, while tenet #2 calls harness compensation the cardinal sin. This makes the
+cardinal sin structurally unreachable rather than merely discouraged. Audit §7 T2.
+
+**Acceptance:** the four exemptions are gone and `ArchitectureTest` still passes; production jar
+no longer contains `com/legend/harness/`.
+
+**Expected red:** compile errors in `rcorpus`/`pct` until the `test-jar` wiring is right. No
+corpus row should move. **Revert if:** any corpus family delta is non-zero.
+
+### F1.3 — The `java.sql` funnel rule ★ **the keystone guard**
+
+**Files:** `core/src/test/java/com/legend/ArchitectureTest.java`
+
+**Change:** add a rule that only
+`{com.legend.exec, com.legend.server, com.legend (root), com.legend.testdatagen}`
+may depend on `java.sql..`. After F1.2, `harness` is out of `src/main` and needs no exemption.
+
+**Why:** **this is the single rule that turns the tenet from cultural into mechanical.** Every
+existing allowlist in `ArchitectureTest` ends in `"java.."` (7 occurrences), which *includes*
+`java.sql` — so `com.legend.lowering` could import `ResultSet` tomorrow and the build stays
+green. The proof it matters: the audit rubric's own worked calibration example
+(`TestDataGenerator`'s `hashString` over `rs.getString`) survived **691 commits** unfixed
+precisely because nothing forbade it. Audit §7 T1.
+
+**Acceptance:** the rule exists, passes, and costs ≤5 exemptions; deliberately adding
+`import java.sql.ResultSet;` to `com/legend/lowering/Scalars.java` **fails the build** (verify
+this, then revert the probe).
+
+**Known limitation the rule must name (F1.3b, same task):** the funnel licenses the
+`com.legend` ROOT package — which contains `StatementExecutor`, the audit's own S1 dispatcher
+("21 name-matched dispatch arms before anything reaches the Lowerer"). The funnel constrains
+the harness and the compiler but leaves the biggest offender structurally free. Mitigate now,
+fix later: (a) pin root's `java.sql` usage to an **enumerated, shrink-only class list**
+(seeded at the current consumers) so a NEW root class touching `java.sql` fails the build;
+(b) record in §9 Backlog the real fix — split root into orchestration (unlicensed) and a
+named exec seam (licensed). Do not attempt the split during this pause; the class-list pin is
+the guard.
+
+**Expected red:** none. **Gate:** full referee.
+
+### F1.4 — A positive rule on the harness
+
+**Files:** `ArchitectureTest` (or a new `HarnessDisciplineTest`)
+
+**Change:** the harness may not `Collections.sort` / `stream().sorted()` / `.distinct()` over
+an `ExecutionResult` outside a site gated on `sortedChain()`.
+
+**Why:** `EngineTestExecutor.compare:2775-2806` **already applies this discipline to itself** —
+it gates every unordered comparison on `ordered && actual.sortedChain()`, and `sortedChain()` is
+a *compile-time fact about the query*, not about the data. The discipline exists; it is simply
+not required of anyone. Audit §7.3.
+
+**Acceptance:** rule passes with an explicit, enumerated allowlist of currently-gated sites.
+Every entry in that allowlist has a comment naming why.
+
+**Expected red:** none in the corpus; the rule itself may need several allowlist entries — that
+list *is* the finding, record its size in the commit body.
+
+### F1.5 — Pin the `hostChannel` dispatch predicate
+
+**Files:** new `core/src/test/java/com/legend/exec/HostChannelPredicateTest.java`
+
+**Change:** assert that no `ResultSet`-derived value can reach `HostEval.eval()`. Pin
+`wantsHostEval`'s selection on a fixed set of shapes, including the `containsFetchDb`
+containment arm.
+
+**Why:** the predicate gates 894 lines of interpreter, has **collapsed the sweep twice by two
+different mechanisms**, and `grep wantsHostEval core/src/test` returns **zero hits**. Nothing
+pins it. Audit §7 T3, §8.
+
+**Important — write the invariant the right way.** Round 1 assumed the risk was the channel
+*growing arms*; it did not (+24/−7 over 691 commits). The real mechanism is that **one dispatch
+edge silently reclassified all 47 existing arms**: 18 of them (`fold`, `map`, `concatenate`,
+`at`, `size`, `eq`, `in`, `slice`, `filter`…) are *dual-use* — model-space or data-space
+depending on what flows through. A ~6-line commit wired a `ResultSet` into the bottom of the
+chain and moved an entire interpreter from compilation into execution. **A charter enumerating
+forbidden arms would not have caught it. Forbid the provenance, not the arm.**
+
+**Acceptance:** the test fails if `executeInDb`'s READ path is re-wired into `chainBottom`.
+
+### F1.6 — Make the R0 rule real
+
+**Files:** `ArchitectureTest`; `core/src/main/java/com/legend/exec/RawSqlBoundary.java`
+
+**Change:** assert `RawSqlBoundary` is called only with corpus-authored text. Until F7.4 lands,
+encode the current call sites as an explicit shrink-only ledger.
+
+**Why:** its contract says *"corpus-authored statements only … never against platform-GENERATED
+SQL."* At HEAD **4 of 5 call sites violate it, 3 exclusively Java-generated**, one of them in
+the harness. `docs/RUNNABILITY_PLAN.md:65` has listed R0 as a plan item without a mechanism.
+Audit §3 S4.
+
+**Acceptance:** ledger exists, shrink-only, and F7.4 can drive it to the single legitimate entry.
+
+### F1.7 — Ban `default ->` fallbacks that lose a type
+
+**Files:** `CodeShapeGuardrailTest`
+
+**Change:** (a) fix the `SIG` regex to scan nested-class methods — it anchors on exactly 4
+spaces today, so nested methods are unscanned (the 8-space variant currently finds **0**
+offenders, so this is free); (b) add a shrink-only ratchet on `default -> "String"` /
+`default -> <literal>` in type-mapping switches.
+
+**Why:** `default -> "String"` is the exact defect audit 15 removed from `Executor.pureOfSqlType`
+and that PCT reintroduced. Audit §4.2 P2.
+
+### F1.8 — Detect dead private methods
+
+**Files:** `CodeShapeGuardrailTest`
+
+**Change:** flag unreferenced private methods (shrink-only ratchet seeded at the current count).
+
+**Why:** ~89 dead lines in `EngineTestExecutor` alone (`csvText`, `constantStrings`,
+`jsonDeepEquals`), plus `inlineFunctionLiterals` in PCT firing 0 of 2,473 times. Nothing catches
+this.
+
+### F1.9 — Wire the orphans into the gate
+
+**Files:** `tools/allgates.sh:176`, `docs/GATES.md`
+
+**Change:** add the **11 parser-equivalence classes** that have real assertions but run in no
+gate (including all four census tests, whose ratchets already exist). Either make
+`CorpusDifferentialTest` a real gate step (run `differential.py` in `allgates.sh`) **or delete
+its claim** at `:16-19` to be "the third assertion mechanism."
+
+**Why:** the strongest verifiers in the tree are dark in every build. `CorpusDifferentialTest`
+`Assumptions`-skips because `core/target/diff` never exists. Audit §7 T15, T18.
+
+**Acceptance:** `allgates.sh`'s ran-verification loop names every added class; a rename goes red.
+
+**Expected red:** possible — these ratchets have never run in CI. **Any red here is a
+pre-existing defect, not a regression.** Record it, adjudicate it, do not weaken the ratchet.
+
+---
+
+## 3. Phase 2 — Measurement honesty
+
+### F2.1 — Render the soft-pass columns ★
+
+**Files:** `core/src/test/java/com/legend/rcorpus/Runner.java:2365-2382` (`writeScoreboard`),
+`RelationalCorpusRunner.java`
+
+**Change:** emit, per family and in the totals: `advisory` (the dropped `r.advisory()` counter),
+`0-asserts` (PASSes whose detail starts `"0 asserts"`), `vacuous`, and `rescued` (see F2.2).
+
+**Why:** `writeScoreboard` currently prints **only non-passing rows**, so every soft pass is
+structurally unmeasurable. `score()` has a four-rung softening gradient — real failure → FAIL,
+SQL-only divergence → FAIL, advisory-only → SHAPE, **assert-free-but-executed → PASS** — and
+renders none of it. The data already exists in `Outcome.detail` and is discarded at render
+time. This is round 1's C0.2 finished properly. Audit §5.1.
+
+**Acceptance:** the scoreboard carries all four columns; the totals row reconciles;
+`2301 = <genuinely verified> + advisory + 0-asserts + vacuous + rescued`.
+
+**Expected red:** none — **this is a render change with no semantic change.** The numbers it
+reveals will be uncomfortable; that is the point.
+
+### F2.2 — Count the SQL-text rescue
+
+**Files:** `core/src/main/java/com/legend/harness/EngineTestExecutor.java:1007-1013`
+(`sqlTextVerify`)
+
+**Change:** increment a counter on the divergent-text-but-rows-match branch; surface it in F2.1.
+
+**Why:** when our SQL text diverges from the engine golden, `h2Upgrade` runs and a row match
+returns `null` → scored **verified**, and the divergence is **never recorded in `sqlDiffs`**.
+So the committed `244` sqldiff-passes count only the divergences the H2 oracle *failed* to
+rescue. The true rate is `244 + <this counter>`. Audit §5.1.
+
+### F2.3 — Count the uncounted concealment channel
+
+**Files:** `core/src/main/java/com/legend/harness/ExecCallFinder.java:151-156`
+
+**Change:** route its `catch (RuntimeException | SQLException) → null` through the same
+decline/bucket machinery `H2Verify.decline:121-126` + `bucketOf:131-147` already use, so it is
+counted, bucketed, and **the build fails when a bucket grows**.
+
+**Why:** this gates the **entire golden-SQL channel (1,220 sites)** and nothing counts it — a
+genuine renderer crash and "this test has no SQL side" are the same outcome, printed only under
+`LL_SQLTEXT_DEBUG`. `H2Verify`'s machinery is excellent and exists in exactly one place;
+generalise it. Audit §3 S3.
+
+**Acceptance:** decline counts appear in the scoreboard; buckets are shrink-only.
+
+**Expected red:** the initial bucket seed may be large. Seed it, don't fix it here.
+
+### F2.4 — Complete the leniency census
+
+**Files:** `EngineTestExecutor.java` — wire `ordLeniency:3003-3007` into the four uninstrumented
+paths: `compare:2915-2936`, `compare:2883-2914`, `csvJoinedEquals:3063-3077`,
+`tdsStringEquals:3297-3301`. Add `LL_TOL_COUNT` to `H2Verify`'s float tolerance (`:562`).
+
+**Why:** the instrument that exists to make leniency countable is wired into **2 of 6** paths,
+so every number it produces is a floor, not a count. `H2Verify` never counts a comparison that
+passed only because of its 10-digit rounding. Audit §5.1.
+
+### F2.5 — Correct the nine falsified self-claims (V0)
+
+**Files:** `exec/Executor.java:319-321`, `harness/LineageForm.java:44-46`,
+`testdatagen/TestDataGenerator.java:43-45`, `pct/.../ExecuteLegendLiteQuery.java:73`,
+`exec/Column.java:5-9`, `rcorpus/Corpus.java` javadoc, `exec/Ddl.java:321`, plus round 1's five
+in `docs/ENGINEERING_LOG.md:123-125`, `RawSqlBoundary.java:20-21`, `sql/Json.java:11`.
+
+**Change:** each header becomes a statement of what is **true**, plus a pointer to the task here
+that would make the original claim true again.
+
+**Why:** these headers are load-bearing for reviewers — an auditor who trusts them stops
+looking. Nine falsified claims across two audit rounds, **every one flattering**. One commit,
+no code change. Audit §1.2.
+
+**Acceptance:** no header asserts a discipline the file does not implement.
+
+### F2.6 — Surface the `@Disabled("GAP:")` rows
+
+**Files:** the 20 `@Disabled("GAP: …")` sites (mostly `RelationalMappingIntegrationTest`);
+`docs/OUTSTANDING.md`
+
+**Change:** emit them into `OUTSTANDING.md`. **Re-check each — at least two are stale**:
+`"GAP: XStore not in grammar"` and `"GAP: AggregationAware not in grammar"` are both implemented
+at HEAD, and `aggregationAware/test/rewrite` scores **13/13 pass**.
+
+**Why:** 20 declared platform gaps are invisible to every scoreboard. Audit §7 T21.
+
+---
+
+## 4. Phase 3 — De-duplication ("all the duplicate stuff")
+
+> Each of these is one behaviour with two or more owners, and in every case **the platform's
+> version is the disciplined one**. The rule for this phase: **delete the copy, keep the owner.**
+> Never merge them into a third thing.
+
+### F3.1 — JSON: one reader, one writer ★
+
+**Current state — five readers, four writers, three escape tables:**
+
+| Reader | Lines | Policy |
+|---|---|---|
+| `server/Json.java:708-907` | 908 | strict RFC-8259; **decimal → `double`** ← the bug |
+| `sql/Json.java:33-180` | 181 | very lenient: `t`/`f`/`n` **prefix** match with blind index advance; decimal → `BigDecimal` |
+| `compiler/spec/TdsChecker.java:229-371` | ~143 | validator only, **inside the type checker**; accepts leading zeros and `1.` |
+| `parser/section/MongoDBSectionGrammar.java:154-218` | ~65 | token-level, no escape decoding, no floats |
+| `exec/Executor.java:400-430` | 31 | JSON-string decoder; unknown escape **keeps** the backslash (opposite of `sql/Json`, which drops it) |
+
+**F3.1a — fix `server/Json`'s decimal path first (highest severity, smallest change).**
+`server/Json.parseNumber:874` returns `Num.ofDouble(Double.parseDouble(num))`. `sql/Json.java:167-170`
+documents the exact bug: *"Decimal tokens parse as BigDecimal, NOT double (audit 18): two
+distinct Decimals beyond 17 significant digits round to the SAME double, so a wrong Decimal wire
+value would compare equal."* **The audit-18 fix was applied to one of two parsers with the same
+name**, and `server/Json` reads every HTTP body and LSP message. Audit §5 A15.
+
+**F3.1b — collapse `TdsChecker`'s validator into the platform reader.**
+Replace `:212-371` with `try { Json.parse(v); return VARIANT; } catch (…) { return STRING; }`.
+**Why it matters beyond duplication: the parser that decides the TYPE is not the parser that
+reads the VALUE**, their acceptance sets differ, and the disagreement surfaces as a runtime cast
+failure on a type decision Java already committed to. A single parser cannot disagree with
+itself. Ledger the residual (`Json` is still lenient relative to DuckDB).
+
+**F3.1c — one writer.** `server/Json.Writer`, `exec/ResultJson`, `protocol/ProtocolEmitter.str`
+(uppercase `\u%04X` for Jackson parity), `server/serial/JsonSerializer`. Keep **one** escape
+table. `ProtocolEmitter`'s byte-parity requirement is a legitimate constraint — make it a
+parameter of the one writer, not a second writer.
+
+**F3.1d — reconcile the two escape policies** in `exec/Executor.java:426` (keeps the backslash)
+vs `sql/Json.str:150` (drops it). One of them is wrong; determine which against RFC-8259 and
+delete the other.
+
+**F3.1e — `MongoDBSectionGrammar`**: leave it. It is token-level, not char-level, and loud on
+floats. Record the exemption with a reason.
+
+**Acceptance:** `sql/Json.java:11`'s "one for the platform" claim becomes **true**, or the claim
+is deleted. A single grep for hand-rolled scanning (`charAt` + `skipWs` + `parseValue`) finds
+one owner plus documented exemptions.
+
+**Expected red:** possible in `server/` tests if any pinned a `double`-rounded value.
+**That red is the bug.**
+
+### F3.2 — Substitution: delete the harness copy
+
+**Files:** delete `core/src/main/java/com/legend/harness/HarnessSubstitution.java`; repoint
+callers to `compiler/spec/SourceSubst.java`.
+
+**Why:** two β-substitution engines, and **they disagree semantically**. The harness resolves a
+`let`'s RHS **at the use site** (`:69-70`) — dynamic scoping — where `SourceSubst:50` substitutes
+**at binding time** (lexical). `let a = $x; let x = 5; …$a…` yields `5` in the harness and the
+old `$x` in the platform. The harness copy also lacks the self-referential cycle guard its own
+sibling `ExecCallFinder:60-66` explicitly added, so a `let result = $result` shape
+**StackOverflows**. `SourceSubst`'s javadoc already calls itself *"the compiler-side sibling of
+the harness's inliner"* — **the fork is documented and nothing binds the halves.**
+Audit §5 A8.
+
+**Do first — the decisive cheap experiment:** run both over every corpus `[let*, final]` body and
+diff. An empty diff retires the urgency; a non-empty diff names the bug and its blast radius.
+
+**Acceptance:** one substitution engine. The quoted-code fold at `HarnessSubstitution:71-87`
+(which hard-codes `Dialect.LEGEND_ENGINE`, something `SourceSubst:66-70` **explicitly refuses**
+with a stated reason) is deleted, not ported.
+
+### F3.3 — Multiplicity: delete the second engine
+
+**Files:** `core/src/main/java/com/legend/harness/ReflectAsserts.java:89-204`
+
+**Why:** `:120-122`/`:187-189` is **character-for-character** `compiler/spec/Typer.java:2635-2636`,
+hand-maintained twice, and the harness copy runs over the **untyped** spec. It asks the value a
+question the type already answers — the typed-fact tie-breaker, failed outright. Audit §5, §7.3.
+
+**Acceptance:** the multiplicity walk is gone; `expressionSequenceReturnsAtLeastToOneDataType`
+routes through the typed pipeline or becomes a named, ledgered gap.
+
+### F3.4 — ASOR: delete the harness decode
+
+**Files:** `core/src/main/java/com/legend/harness/ObjectRefs.java:88-198`, `:330-344`
+
+**Why:** the platform already decodes ASOR references **inside SQL**
+(`resolver/Substitution.java:1517`, `:2534`), and derives the prefix from the model
+(`GraphEmission.asorPrefix:3324`). The harness re-implements both in Java, remapping positional
+`pk$_i` keys to column names **by index** (consults magnitude → fails §6-Q5(b)), returns `null`
+on six unrecognized shapes instead of throwing, and **hard-codes an H2 connection literal**
+(`"type":"H2"`, `"timeZone":"GMT"`) so a golden that should expose a connection-shape difference
+cannot. Audit §5 A11.
+
+### F3.5 — Identifier quoting: one rule
+
+**Files:** `exec/Ddl.java:37-54` (`createTable`, quotes everything),
+`exec/Ddl.java:79-104` (`createTableStatementText`, quotes only H2 reserved words),
+`exec/RawSqlBoundary.java:210-234` (`quoteCreateColumns`, whitespace-delimited head)
+
+**Why:** **three coexisting rules; whichever runs last wins.** Traced at HEAD: a real corpus
+column `"Previous Fiscal Week Year"` (`datePeriods.pure:699`) emits bare from
+`createTableStatementText`, then `quoteCreateColumns` mangles it to
+`"Previous" Fiscal Week Year`. **Java rewrites rather than failing.** Audit §5 A16.
+
+**Change:** `createTableStatementText:89-91` quotes unconditionally, matching `createTable:50`.
+Keep `H2_RESERVED` only if a golden genuinely pins unquoted non-reserved names.
+
+### F3.6 — Escape tables: delete `Protocol.unescapeSegment`
+
+**Files:** `core/src/main/java/com/legend/protocol/Protocol.java:3005-3031`
+
+**Why:** its javadoc claims *"same rules as the parser's canonical
+`TokenStreamCursor.unescapeBody`"*. **It is not** — `unescapeJavaLike:1039-1077` decodes octal
+and `\uXXXX`; `unescapeSegment` has neither, both falling to `default -> sb.append(esc)`. So
+`Class a::'xAy'` names the element `x` `u0041` `y` on the model side while the same escape
+in a property name yields `xAy`. `TokenStreamCursor:665-668` records that refusing octal/`\u`
+"was an invented divergence (adversarial-audit fuzz)" — **that fix landed in one copy only.**
+Audit §5.
+
+**Change:** delete the copy; route `splitFqn` → `unquoteSegments` through the owner. It wants no
+error channel — give it a non-throwing wrapper rather than a second table.
+
+**Acceptance:** add three `AdversarialParityTest` rows (`'xAy'`, `'x\101y'`, and the same
+escape in property position) and compare against the reference engine.
+
+### F3.7 — Rebuild the pardon ledgers on the one good shape
+
+**Files:** `parser-equivalence/.../model-refuse-allowlist.tsv` (71 rows, no stale-row check, ≥1
+provably dead row), `refusal-allowlist.tsv`, `version-skew-claims.tsv`,
+`MutationFuzzTest.ADJUDICATED`, `OwnCorpusConformanceTest` per-class pins.
+
+**Change:** give every ledger the shape `FixtureCorpusParityTest` already has (`:128-133`) — a
+**stale-row assert** and **total accounting**.
+
+**Why:** 196 named pardon rows are live, plus two *file-granular* allowlists with unbounded
+capacity (`OwnDialectCensusTest:37-67` — `ElementParserTest.java`, 3,483 lines, is in both), plus
+an unbounded lenient-fixture population under a 21-**kind** ceiling. Audit §7.5.
+
+**Also:** delete `sibling-corpus/parity-quarantine.tsv` (8 rows, read by no Java file — dead data)
+or wire it.
+
+---
+
+## 5. Phase 4 — The `RENDER` phase ★ the keystone
+
+> **One missing pipeline phase generates the largest class of violations in the tree.** Do this
+> after Phases 1–3 so the guards and the single JSON writer are already in place.
+
+### F4.1 — Add result rendering to the platform
+
+**Files:** new `com/legend/exec/render/` (or equivalent); `error/LegendCompileException.java:27`
+
+**Change:** give `ExecutionResult` a renderer per format — Pure print form, CSV, TDS, JSON —
+owned by the platform. Add `RENDER` to `Phase`.
+
+**Why:** the pipeline is A→K ending at `ExecutionResult`, and
+`Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE }` has **no `RENDER`**
+(verified at HEAD). So the Pure print form of a value is implemented **five times** by parties
+that do not know about each other, with two measurable consequences: the same result serializes
+under different value policies depending on the format requested (a `DECIMAL(38,10)` survives CSV
+and is destroyed by JSON), and **the platform's own float printer is untested by all 1,109 PCT
+tests** because `formatValue` uses a *more correct* Java path. Audit §2.
+
+**Reuse, do not invent:** `Scalars.floatRepr:3170-3209` and `DateFmt.ISO_PURE_UTC` are the
+correct print forms and already exist — in SQL. `Lowerer.java:2674-2688` already flattens the
+relation shape; `Scalars.java:2645-2660` builds a nested-`CONCAT` render; a CSV render is
+`string_agg` over row-wise `concat_ws`.
+
+### F4.2 — Register `toCSV` and relation `toString` as platform lowerings
+
+**Why:** `toCSV` has **no owner anywhere in `com.legend`** — it exists only inside the harness,
+which self-describes at `:3248` as *"RFC4180 cell rendering (the engine's toCSV)"* — yet
+**165 of 2,070 corpus test functions (8.0%) pass over it.** Audit §2, §4.
+
+**Also narrow the `toString` overload.** `builtin/Pure.java:2054`'s `toString(any: Any[1])`
+still accepts a `RelationType` because `Any` is unchecked in both kernel halves
+(`InferenceKernel.java:75`, `:961`, `compatibleRebind:1287-1289`). The mis-lowering is already
+fixed — `Scalars.pureToString:2790-2791` **throws** — but the fix fires in phase LOWER, not TYPE.
+Narrow the overload so it fails at TYPE. **Do not "fix" `pureToString` by adding a cast; that
+throw is the single best fix since round 1.**
+
+### F4.2b — The CSV differential probe ★ run this before F4.3, it de-risks the whole phase
+
+**Files:** a temporary probe in `core/src/test/java/com/legend/harness/` (delete after use);
+no production change.
+
+**Change:** with `toCSV` now registered (F4.2) but the strip **still in place**, run both paths
+over every corpus `toCSV` assertion and diff them:
+
+- **side A** — what the harness renders today: `csvCell`/`csvJoinedEquals`' view of the `Tabular`
+- **side B** — what the platform now produces: execute the *unstripped* expression through
+  `Compiler.execute` and take the returned string
+
+Emit one row per assertion: test FQN, equal/differs, and on a difference the first divergent
+line with both spellings.
+
+**Why:** this is the same de-risking trick as F5.3 Stage A — **compare-and-log before
+compare-and-fail.** It converts F4.3 from "delete and see what burns" into "delete against a
+known work list." Three specific unknowns it settles:
+
+1. **The true size of F4.3's red.** The declared "up to 165 test functions" is a worst case
+   assuming the platform's render disagrees everywhere. The probe replaces that guess with a count.
+2. **`Scalars.floatRepr`'s first real workout.** It is currently exercised by **neither** the
+   corpus (the harness renders instead) **nor** PCT (which uses Java's `BigDecimal.valueOf`,
+   a *more correct* path). 246 corpus `toCSV` occurrences across 32 files are about to become
+   its first genuine test. **Expect divergences here and budget for them** — they are fixable
+   bugs in one function, and finding them is the point.
+3. **Which of the four leniencies are actually load-bearing.** Run the probe twice — once
+   comparing exact, once comparing as a line multiset — and the delta is exactly the set of
+   assertions that genuinely depend on row-order tolerance.
+
+**Acceptance:** a committed work list (`docs/CSV_DIFFERENTIAL.md`) with a row per assertion and
+a total. **F4.3 must not start until this exists.**
+
+**Expected red:** **none — the probe is read-only and the strip is untouched.**
+
+**Gate:** full referee (should be a no-op delta).
+
+### F4.3 — Delete the harness renderer and the strip
+
+**Files:** `EngineTestExecutor.java:2579-2602`, `:2603-2616` (the strip),
+`:3136-3302` (`tdsStringEquals`, `csvText`), `:3248` (RFC4180 cell)
+
+**Why:** the strip intercepts `toCSV`/`toString` tails, executes only the receiver, and renders
+in Java — which is what keeps the platform gap invisible. It also **downgrades an exact string
+equality to a tolerant structural grid comparison**: what the corpus wrote as
+`assertEquals('<literal csv>', …)` becomes header-pinned token match + unordered row multiset +
+`Double.parseDouble` on **both** sides + 1e-11 relative tolerance, so `'007'` equals `'7'` and
+`'1e3'` equals `'1000'`. **Four leniencies replacing one exact test.**
+
+**Keep the comparison policy; delete the renderer.** That is the conflation to avoid.
+
+**Expected red:** **exactly the differing rows F4.2b listed — no more.** The worst case is 165
+test functions (concentrated in `calendarAggregation`, 41 functions currently reported 92/92
+PASS), but that figure assumes the platform's render disagrees everywhere; **F4.2b replaces it
+with a count before you start.** Budget a full cycle.
+
+**Revert if:** red exceeds F4.2b's list, or reaches a family with no `toCSV`/`toString`.
+Either means the strip was load-bearing for something nobody knew about.
+
+**What to keep, and what to drop** — the strip bundles four leniencies and they do not share a
+fate:
+
+| Leniency | Fate | Why |
+|---|---|---|
+| Row order → line multiset | **KEEP as comparison policy** | The corpus genuinely wrote a string-equality assert against an unordered `groupBy`. That is a property of the test, not a platform gap. `endsInSort(orderView(…))` already distinguishes ordered chains and carries over untouched |
+| Float tolerance | **KEEP, bounded and counted** | Non-associative double summation is real (`testPwaValue`). But it **shrinks**: today it absorbs any float-print divergence; afterwards printing is `floatRepr`'s job, so it need only cover genuine drift. `LL_TOL_COUNT` already measures it |
+| Header pinning | **DELETE** | The platform emits the header now. A divergence is a finding |
+| Cross-kind collapse (`'007'` == `'7'`, `'1e3'` == `'1000'`) | **DELETE** | Justified by nothing in the comments — a side effect of `Double.parseDouble` on both sides, which `wireEquals:3325-3335` refuses 200 lines away |
+
+**The principle: keeping a structural comparison does not require keeping a renderer.** That is
+the conflation to avoid, and it is why the 165 are recoverable rather than lost.
+
+### F4.4 — Route the other renderers through the owner
+
+`pct/.../ExecuteLegendLiteQuery.formatValue:678-707` (fixed 3-digit subseconds where
+`DateFmt.SUBSEC_MIN` is minimal; a hard-coded `"+0000"` on a zone-less `LocalDateTime`);
+`exec/ResultJson.java:87`; `server/serial/CsvSerializer.java:78-83`.
+
+**Acceptance:** one renderer per format, tree-wide. PCT exercises `floatRepr`.
+
+---
+
+## 6. Phase 5 — The result bridge (type fidelity)
+
+> Evidence gathered 2026-08-16: `Type.Column(name, type, multiplicity)` — the compiler carries
+> multiplicity, **required and non-null**. `exec.Column(name, sqlType, pureType)` — the bridge
+> **drops it**. That is the gap.
+
+### F5.1 — PCT: `sqlType()` → `pureType()` (isolated, do first)
+
+**Files:** `pct/.../ExecuteLegendLiteQuery.java:635`, `:645`; delete `pureTypeName:657-676`
+
+**Why:** `sqlType()` has **exactly two consumers in the entire tree, both in PCT.**
+`pureType()` already exists, is already populated, is already read by `H2Verify` (4 sites), and
+is already pinned by `ExecutorTest` (`assertEquals(Type.Primitive.STRING/INTEGER, …)`). This is
+a pure call-site swap with **no platform change**.
+
+**Hypothesis to test here:** the one concealed defect we caught — declared `Float[0..1]`, wire
+said `Decimal[1]` — arrived through `pureTypeName(col.sqlType())`, i.e. the SQL-type sniff
+(DuckDB reports `DECIMAL`, the table maps it to `"Decimal"`). **If `col.pureType()` says `Float`,
+this task alone dissolves that case.** A good fraction of the "concealment inventory" may be
+self-inflicted rather than a platform defect. Cheap and decisive.
+
+**Expected red:** none, ideally — and if some, they are the inventory arriving early.
+
+### F5.2 — Carry multiplicity across the bridge
+
+**Files:** `core/src/main/java/com/legend/exec/Column.java`; its population site in `Executor`
+
+**Change:** add `Multiplicity multiplicity` to `exec.Column`, populated from
+`Type.RelationType.columns()`.
+
+**Why:** it is computed and then discarded. **Additive and low-risk:** nothing reads multiplicity
+today because it does not exist, so existing corpus behaviour cannot change.
+
+**Expected red:** none. **Revert if:** any corpus family delta is non-zero.
+
+### F5.3 — PCT: delete the null-scan and the header overlay ★
+
+**Files:** `pct/.../ExecuteLegendLiteQuery.java:628-636`;
+`pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure:88-128`, `:285-294`
+
+**Run this in two stages.**
+
+**Stage A (read-only, do it before the burn-down baseline is ever re-frozen):** change
+`pct_adapter.pure:286-294` to **compare** the declared header against the wire header and
+**log** the mismatch instead of overwriting. Run the suite. **The mismatch list is the exact
+concealment inventory** — every wrong column type, multiplicity, and name PCT is currently
+unable to see.
+
+**Stage B:** delete the overlay and the null-scan; take type and multiplicity from
+`col.pureType()` / `col.multiplicity()`; adjudicate each red as a real gap, exactly as
+`SqlPostProcessors.java:64-73` did for the 7 cteExtraction tests. **Do not fix them by
+re-widening the overlay.**
+
+**Why:** the adapter replaces the first line of the DB-produced TDS with a header built from the
+test's own declared return type. The discarded header crossed a `ResultSet`; the replacement is
+the **expectation**. **405 results overlaid; 322 of 405 have their multiplicity rewritten.**
+PCT cannot currently detect a wrong column type, multiplicity, or name. Audit §4.1.
+
+**Expected red:** unknown until Stage A. **That is why Stage A exists.**
+
+### F5.4 — Split `DATE` from `DATE_TIME`, kill the midnight heuristic
+
+**Files:** `lowering/PureSql.java:70`; `exec/Executor.java:337-350`
+
+**Why:** `case DATE_TIME, DATE, LATEST_DATE -> SqlType.Scalar.TIMESTAMP` erases the kind, which
+is why `Executor` needs a heuristic that asks whether the time-of-day is midnight — reading the
+cell's **magnitude**, failing §6-Q5(b). **A genuine `DateTime` at exactly `00:00:00` under a
+`Date`-typed root is silently returned as a `StrictDate`.** Carry the kind as a typed fact.
+Audit §5 A10.
+
+### F5.5 — PCT: make the permissive fallbacks throw
+
+`:572-573` (`return coreInstances.get(0)` — comment: *"this shouldn't happen … but return first
+as fallback"*), `:576`, `:674`, `:541-550` (date classifier reading text precision). Scope the
+five unconditional null-drops (`:258-261`, `:244-246`, `:312-314`, `:326-329`, `:766`) **by
+channel**, following `d0f3a356`'s precedent — the unscoped version was already proven wrong in
+the corpus harness (`tds/tests 248→235`).
+
+### F5.6 — PCT: the free deletions (can be done any time, zero risk)
+
+Delete `inlineFunctionLiterals` (`:147`, `:1110-1123` — fires **0 of 2,473 executions**, a live
+`DOTALL` regex over every query with no test coverage), the dead `removeDuplicates::cmp` body
+(`:109-112`), and `createClassInstance:726-793` (68 lines, `LIKELY` unreachable, whose
+`default -> "Pair"` fabricates a type for any unknown struct — prove reachability or delete).
+
+### F5.7 — PCT: replace the hardcoded support functions
+
+**Files:** `pct/.../ExecuteLegendLiteQuery.java:77-113`
+
+**Change:** add `extractFunctionDefinitions`, mirroring the `extractClassMetadata:848-897` /
+`extractEnumDefinitions:806-846` mechanism **already in the same file**.
+
+**Why:** five verbatim copies of legend-engine PCT support-function bodies keyed by exact FQN —
+an **unversioned fork of third-party test source**. If upstream changes `filterValues`, we
+silently keep testing the old definition and stay green.
+
+---
+
+## 7. Phase 6 — Compensation removal (the baseline movers)
+
+> Each of these converts a **false PASS** into an **honest `explained` row**. In burn-down's own
+> scheme (`2793 = passed + explained`) that is the same distance from done — but true. Write the
+> `BURNDOWN_EXPLANATIONS.md` verdict **in the same commit**.
+
+### F6.1 — Stop fabricating execution activities ★
+
+**Files:** `StatementExecutor.java:2592-2600`, `:2622-2670` (esp. `:2649-2651`)
+
+**Why:** `$r.activities…comment` returns a Java-manufactured string containing
+`java.util.UUID.randomUUID()`; `$r.activities` folds to `[]` and a `filter` over it folds to
+empty **without evaluating the predicate**. The code names the asymmetry itself: absence-asserts
+**pass for the wrong reason** while presence-asserts fail. **71 occurrences / 24 corpus files.**
+Audit §5 A1.
+
+**Change:** delete both; let the reads fail with
+`NotImplementedException("execution activities are not recorded")`.
+
+**Expected red:** up to 71 reads. Adjudicate as blocked-on-feature.
+
+### F6.2 — Delete the `u_map__` null strip
+
+**Files:** `EngineTestExecutor.java:2507-2521`
+
+**Why:** filters NULL rows out of a `ResultSet`-crossed collection when the column name starts
+with the platform's own synthetic map-binder prefix (hardcoded as a literal rather than imported
+from `SqlSelect.SYNTH_MAP_COL`). `assertEquals([1,2], …)` passes when the DB returned
+`[1, NULL, 2]` — **arity repaired before comparison.** Audit §5 A2.
+
+**Fix belongs upstream:** the map-binder lowering should not emit a row where Pure semantics
+demands absence (a `WHERE col IS NOT NULL` or a nullability-aware projection).
+
+**Expected red:** ≥16 (its own comment records `tds/tests -13, tree -3` for a different scoping).
+
+### F6.3 — Remove `coerceTemporal`'s side-agnostic coercion
+
+**Files:** `EngineTestExecutor.java:2501-2506` → `H2Verify.java:301-323`
+
+**Why:** `wireEquals:3368-3376` **explicitly refuses** to bridge "an ACTUAL that comes back as a
+string where the engine returns a Date … a TYPING BUG this compare must catch, never bridge."
+`coerceTemporal` runs one layer above, is **side-agnostic**, and converts that String to a
+`Timestamp` before the refusal can fire. **The harness's own best discipline, defeated from
+above.** Audit §5 A3.
+
+**Probe first:** instrument `H2Verify.java:315` to print the declared type, value, and side. Any
+hit on a side that came from an `execute()` binding is a masked typing bug — likely fixed by F5.4.
+
+### F6.4 — Fix `hostEquals`'s numeric arm (one line)
+
+**Files:** `exec/HostEval.java:244-247`
+
+**Why:** compares two `Number`s via `longValue()` when neither is a `Double`, so
+**`hostEquals(1.5, 1)` is `true`** — on the live assert path (`EngineTestExecutor:3316`). Use
+`BigDecimal.compareTo` or exact comparison. Audit §5 A4.
+
+### F6.5 — Fix `csvRowEquals`'s cross-kind collapse
+
+**Files:** `EngineTestExecutor.java:3093-3095`; also `H2Verify.java:568`, `TdsEquivalence.java:71`
+
+**Why:** three independent comparators fall back to `Double.parseDouble` or `String.valueOf` on
+**both** sides, so VARCHAR `'007'` equals INTEGER `7` and VARCHAR `'1'` equals INTEGER `1` —
+a collapse the primary `wireEquals:3325-3335` **explicitly refuses**. Whether an assert gets the
+strict comparator or a permissive one is decided by **which spelling the test happened to use.**
+
+### F6.6 — Re-site the `executeInDb` READ path
+
+**Files:** `exec/HostEval.java:376-382`, `exec/DbMetaData.java:89-99`, `:104-127`
+
+**Why:** answers from a **fresh throwaway H2** reconstructed by replaying recorded statements —
+CSV seeds and generator inserts are **absent** from that shadow DB, and rejected statements are
+**skipped** (`:114-123`), so it can silently answer from a partially-populated database. It
+**replaced a loud refusal** to gain **one test**. Audit §5 A9.
+
+**Change:** route reads to the ambient connection (`Executor.executeRaw` already owns raw
+statements) or restore the refusal and ledger the one test. Make the replay skip **throw**.
+
+### F6.7 — Fix the H2 extension wiring gap
+
+**Files:** `harness/H2Verify.java:273` (`aliases()` is called in the *fresh-replay* branch only)
+
+**Why:** `Runner.java:1855` makes the incremental **mirror** the default path for DuckDB sweeps,
+and the mirror never registers the aliases — so the C1 fix this class exists for is not in effect
+on the default path.
+
+### F6.8 — Fix the emptiness-guard ordering hole
+
+**Files:** `EngineTestExecutor.java:1944-1953`
+
+**Why:** `assertSize` checks the carrier arm **before** the `emptinessUnverifiable` guard, so a
+non-TDS result with failed seeds yields `av.size() == 0` against an expectation of 0 — a
+**hollow PASS** bypassing the guard the file installs everywhere else. Move the guard above
+`:1944`. (17 corpus asserts of shape `assertSize(…, 0)`; ≥4 over an exec-chain variable.)
+
+### F6.9 — Fix the FQN-spelled assert polarity
+
+**Files:** `EngineTestExecutor.java:1809`, `:1859`
+
+**Why:** dispatch is by `simpleName` but the polarity decision reads the **full** name, so an
+FQN-spelled `assert` demands its predicate be **false** and an FQN-spelled `assertNotEquals` is
+evaluated as `assertEquals`. Blast radius today is **0** (the corpus spells all asserts bare) —
+but `:3410-3412` already fixed exactly this class elsewhere and documented it. Two sites missed.
+
+---
+
+## 8. Phase 7 — Ingress, atomicity, SQL text
+
+### F7.1 — Transactions ★ the highest-leverage deletion in the tree
+
+**Files:** the seed paths — `exec/CsvSeed.java`, `exec/Ddl.java`,
+`testdatagen/TestDataGenerator.loadSide`, `rcorpus/Runner.java`
+
+**Why:** `grep -riE "setautocommit|\.commit\(\)|\.rollback\(\)|savepoint"` over the whole repo
+returns **one hit, and it is a reserved-word string list.** Every seed runs autocommit, so a
+mid-seed failure leaves the DB half-populated — which is precisely why
+`rawSqlFailureSink`, per-statement tolerate-and-continue, `RawSqlBoundary.unrecordLast()`,
+`Runner.failedSeeds`, and `emptinessUnverifiable` had to be invented. **That apparatus exists to
+downgrade a red assertion to advisory.** Audit §5.2.
+
+**Change:** wrap each seed unit in `setAutoCommit(false)` … `commit()`/`rollback()`. Then
+**attempt to delete** the entire apparatus. Whatever refuses to delete is a real gap that must be
+**named**.
+
+**Expected direction: GREEN.** This converts unverifiable → verifiable. It is the one task in the
+plan likely to *raise* the honest pass count.
+
+### F7.2 — CSV values: copy the fix that already exists
+
+**Files:** `exec/CsvSeed.java:93-107`; `harness/EngineTestExecutor.java:2732`
+
+**Why:** types each CSV literal from **a regex on the token's text** (`:101`) while holding the
+resolved column type in scope (`:61-79`) — the typed-fact test, failed. The DDL side was fixed
+(`ddlType:135-136` now throws); **the value side was not.** Worse:
+`EngineTestExecutor.java:2732` calls `CsvSeed.sqls(csv, null, ctx)`, so `ddlType` is **never
+called** and the T3.1 loudness is bypassed entirely.
+
+**The correct policy is 1,000 lines away, by the same project, under the same remediation ID:**
+`TestDataGenerator.loadSide:1194-1226` — *"literals and the DATABASE casts them to the model's
+column types (uniform policy — no host-side type dispatch)"* — with `duckType:1272-1300`'s
+explicit-per-variant switch. Copy it, or switch to a typed `PreparedStatement`.
+
+**Expected red:** real, where the regex was papering over a type mismatch. **Those reds are the
+finding.**
+
+### F7.3 — JSON ingress through the database
+
+**Files:** `resolver/JsonSourceFrame.java:75`, `:109-119`
+
+**Why:** parses the `data:application/json` payload in Java, then `String.valueOf(v)` **erases
+every JSON type back to text**, which `Scalars.tdsCell` re-parses (`Long.parseLong`,
+`new BigDecimal`, `Boolean.parseBoolean`). Concrete bugs: a JSON string `"null"` becomes SQL
+`NULL`; a nested object becomes Java's `{a=1}`, not JSON.
+
+**The DB path exists and is fully wired end-to-end** and is simply not used:
+`SourceUrlChecker.java:38` → `Lowerer.java:323-324` → `SqlSource.SourceUrl` →
+`DuckDb.java:171-185` (`unnest(CAST(… AS JSON[]))`). 27 occurrences / 5 files. Audit §5 A12.
+
+### F7.4 — End the self-inflicted SQL rewrite loop
+
+**Files:** `exec/Ddl.java:323` (`Float_ -> "FLOAT"`), `exec/RawSqlBoundary.java:245-249`
+(`mapColumnTypes`) and its three `Pattern` fields (`:111-115`);
+`StatementExecutor.java:3352`, `:3354`; `rcorpus/Runner.java:1942`
+
+**Why:** `Ddl.spell` emits H2 `FLOAT` **on purpose, with a comment saying so**, *so that*
+`RawSqlBoundary` can regex it to `DOUBLE`. Java renders SQL from a typed model, throws the type
+away into text, then pattern-matches the text to recover it. The root sentence is
+`Ddl.java:15-18`: *"ONE adaptation path for hand-written and model-derived DDL alike."*
+**That sentence is the bug** — hand-written text needs adaptation because its origin is another
+dialect; model-derived text should be spelled correctly the first time. Audit §3 S4.
+
+**Change, in order:** (a) `Ddl.spell` emits `DOUBLE`/`BOOLEAN` directly; delete `mapColumnTypes`
+and the comment that justified it. (b) Route Java-generated DDL to `Executor.executeRaw`
+**directly**, exactly as `dropAndCreateSchemaInDb:3316` already does — proving sites 3–4 never
+had to route through the boundary. (c) Record on the H2 mirror via `recordMeta`
+(`RawSqlBoundary:66-77`), the side channel **built for exactly this**, whose javadoc already
+names the downgrade risk. (d) Retire `RawSql.splitStatements`, which mis-splits on `--`, `/* */`,
+and `"`-quoted identifiers containing `;`.
+
+**Acceptance:** `RawSqlBoundary`'s stated contract becomes **true for the first time**, and
+F1.6's ledger drops to its one legitimate entry.
+
+### F7.5 — Batch the seeds
+
+`CsvSeed.java:85-108`, `Ddl.setUpDataSqlsText:157-162`, `TestDataGenerator.loadSide:1212-1226`
+(twice per table), `Runner.java:1934-1956`. Multi-row `INSERT … VALUES` or `executeBatch()`.
+Also fold the effectful `map` arm (`StatementExecutor.java:3174-3185`), which materialises a
+collection, calls `executeTyped` per element, and **keeps only the last result**.
+
+### F7.6 — `DynamicPivot`: add typed arms, make `default` throw
+
+**Files:** `exec/DynamicPivot.java:86-93`
+
+**Why:** `default -> new SqlExpr.StringLit(String.valueOf(v))` silently turns a `DATE`/`DECIMAL`/
+`TIMESTAMP` pivot key into a **string literal** in the regenerated `IN` list. `SqlExpr` already
+has `DateLit`/`DecimalLit`/`TimestampLit`. **Do not regress this class's placement** — its
+two-phase run at the execution seam, rewriting IR via `SqlRewriter`, is the target design.
+
+### F7.7 — `planWalk`: exact FQN dispatch, loud default
+
+**Files:** `StatementExecutor.java:1293`, `:1430`, `:1520`, `:1753`; the null returns at
+`:1416-1418`, `:1421`, `:1243`, `:1268`, `:1650`, `:1763`, `:1812`, `:1908`
+
+**Why:** ~750 lines dispatching on `fn.substring(fn.lastIndexOf(':') + 1)` — in a file that
+states the opposite rule at `:2057-2058` (*"EXACT FQN (never suffix matching)"*) and already has
+`AT_FQN`/`FIRST_FQN`/`SIZE_FQNS` constants at `:2059-2065` as the model. Terminal defaults should
+throw, not return null. Delete the `LL_TMP_DEBUG` breadcrumbs that exist only because the silence
+was undiagnosable.
+
+### F7.8 — The `normalizer/`'s 31 silent defaults
+
+**Files:** 31 `orElse(null)` sites in `normalizer/`, 11 in `resolver/`. Start with
+`MappingNormalizer.isBitemporalClass:1507-1510`.
+
+**Why:** an unresolvable class silently answers "not bitemporal", **omitting milestoning
+predicates from the plan** — wrong rows, no error. Contradicts AGENTS.md common-mistake #10.
+
+**Probe:** make it throw and run the referee. **Green → it was never reachable and the
+defensiveness should be deleted (all 31). Red → each red names a real gap.** Either outcome is
+a result.
+
+---
+
+## 9. Phase 8 — Long tail (after the referee is trustworthy)
+
+`A5`/`A6` testdatagen expression channel (give `Fetched` per-column `SqlExpr` instead of `String`
+— **one capability, and both the SHA-256 breach and the lossy CSV scrub dissolve without touching
+the temp-table machinery, which must be preserved**); `A13` host-side UNNEST; `A17`–`A22`;
+`server/LegendHttpServer`'s double-encoded `data` payload and its unreachable streaming path;
+`nlq`'s syntax-only validation (`Compiler.compileQuery` exists and is never called) and its
+tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decode cluster
+(`V1.7`–`V1.9`); the three zero-assertion "tests"
+(`DuckDBVariantLoadTest`, `DuckDBUnnestSyntaxTest`, `ProbeWireShapes`) — convert to
+`experiments/backend-probes/` shape or give them assertions.
+
+**Backlog (append new findings here, do not act on them mid-plan):**
+- `scripts/outstanding.py:14` / `walldepth.py:7` hardcode `/Users/neema/...` — another account's
+  checkout. `docs/RUNNABILITY_PLAN.md:129-133,184` derives its re-forecast from their artifacts,
+  so **those numbers cannot be reproduced from this checkout.**
+- `tools/scoreboard.py` points at the deleted `engine/` module; with `--record` it appends **a
+  row of all zeros** to `docs/SCOREBOARD.md` as a legitimate run.
+- We wire **5 of 7** upstream PCT scopes — "1109/1109" is 1,109 of **1,203** (Variant: 88 tests,
+  Quant: 6).
+- `EngineSectionRosterTest:74` / `EngineElementRosterTest:58` use `>=`, so a roster that **grows**
+  passes in exactly the silence the header says it should not.
+- **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
+  exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
+  rather than class-list-pinned. Deferred — not pause work.
+
+---
+
+## 10. Dependency order
+
+```
+F0.1  baseline
+  │
+  ├─ Phase 1 GUARDS ────────────────────────────────────  do first, in order
+  │    F1.1 → F1.2 → F1.3 ★     (extract → move → funnel)
+  │    F1.4, F1.5, F1.6, F1.7, F1.8, F1.9   (parallel)
+  │
+  ├─ Phase 2 MEASUREMENT ───────────────────────────────  needs nothing; do early
+  │    F2.1 ★, F2.2, F2.3, F2.4, F2.5, F2.6   (parallel)
+  │
+  ├─ Phase 3 DE-DUPLICATION ────────────────────────────  needs F1.2 for F3.2–F3.4
+  │    F3.1 ★ (a→b→c→d), F3.2, F3.3, F3.4, F3.5, F3.6, F3.7
+  │
+  ├─ Phase 5 BRIDGE ────────────────────────────────────  F5.1, F5.6 need nothing
+  │    F5.6 (free) ─ F5.1 ─ F5.2 ─ F5.3 Stage A ★ ─ Stage B
+  │    F5.4, F5.5
+  │
+  ├─ Phase 4 RENDER ★ ──────────────────────────────────  needs F3.1c, F5.2
+  │    F4.1 → F4.2 → F4.2b PROBE (read-only) → F4.3 (largest red) → F4.4
+  │                       └─ F4.3 MUST NOT start until this work list exists
+  │
+  ├─ Phase 6 COMPENSATION ──────────────────────────────  F6.3 after F5.4
+  │    F6.4 (1 line) ─ F6.8, F6.9 ─ F6.2 ─ F6.1 ★ ─ F6.3 ─ F6.5 ─ F6.6, F6.7
+  │
+  ├─ Phase 7 INGRESS ───────────────────────────────────  F7.4 needs F1.6, F3.5
+  │    F7.1 ★ (likely GREEN) ─ F7.2 ─ F7.3 ─ F7.4 ─ F7.5 ─ F7.6, F7.7, F7.8
+  │
+  └─ Phase 8 tail
+```
+
+**If you can only do three things:** `F1.3` (the funnel — makes the tenet mechanical),
+`F2.1` (soft-pass columns — makes the burn-down's left term visible), `F7.1` (transactions —
+deletes the downgrade apparatus and probably raises the honest pass count).
+
+**The two read-only probes — `F4.2b` and `F5.3 Stage A` — are the highest value-per-risk tasks
+in the plan.** Both are compare-and-*log* rather than compare-and-fail; neither can redden a row;
+and each converts the largest unknown in its phase into a committed work list before any
+destructive step begins. Run `F5.3 Stage A` early regardless of phase order — discovering a
+type-propagation defect *after* re-freezing the burn-down baseline is the bad case. Run `F4.2b`
+as soon as `F4.2` lands.
+
+**Generalise the pattern:** any task in this plan whose expected-red is stated as a range rather
+than a number deserves a probe first. That list is currently `F4.3`, `F5.3`, `F6.1`, `F6.2`,
+`F7.2`, `F7.8`.
+
+---
+
+## 11. Definition of done for the pause
+
+1. All five §0.2 metrics at target.
+2. Every falsified self-claim corrected; no header asserts a discipline its file does not implement.
+3. One owner for: JSON reading, JSON writing, substitution, multiplicity, ASOR decode, identifier
+   quoting, result rendering.
+4. `java.sql` funnelled and the funnel **proven** by a deliberate violation that fails the build.
+5. `RawSqlBoundary`'s contract true; `sql/Json.java:11`'s claim true or deleted;
+   `Column.java:5-9`'s claim true.
+6. The referee (full corpus sweep) green in the sense that **every non-passing row has a verdict
+   and every passing row is verified** — the scoreboard can now express both.
+7. `docs/FOUNDATIONS_BASELINE.md` updated with the closing numbers and a written explanation of
+   every family that moved.
+
+**Then resume burn-down**, against a scoreboard where `passed` means passed.
