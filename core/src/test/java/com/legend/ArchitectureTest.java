@@ -490,6 +490,55 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /**
+     * <strong>F1.3 — the {@code java.sql} funnel (Charter C1/C2
+     * boundary).</strong> "Java orchestrates, the DATABASE executes"
+     * becomes MECHANICAL: only the chartered egress/ingress packages may
+     * touch JDBC. Every other allowlist in this file admits {@code java..}
+     * (which includes {@code java.sql}) — this rule is the narrow pin
+     * that made the tenet enforceable (docs/TENET_CHARTER.md, enforcement
+     * map). The audit's proof it matters: round 1's worked example
+     * (hashString over rs.getString) survived 691 commits because no
+     * rule forbade it.
+     */
+    @Test
+    void javaSqlIsFunnelledToTheCharteredSeam() {
+        noClasses()
+            .that().resideOutsideOfPackages("com.legend.exec",
+                    "com.legend.server..", "com.legend.testdatagen",
+                    "com.legend")
+            .and().resideInAPackage("com.legend..")
+            .should().dependOnClassesThat()
+            .resideInAPackage("java.sql..")
+            .as("F1.3: java.sql is funnelled to {exec, server, root,"
+                    + " testdatagen} — Charter clauses C1/C2")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>F1.3b — the root package's {@code java.sql} class-list
+     * pin.</strong> The funnel licenses {@code com.legend} ROOT, which
+     * contains StatementExecutor — the audit's S1 dispatcher. Until the
+     * orchestration/exec-seam split (backlogged), root's JDBC surface is
+     * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
+     * {@code java.sql} fails this rule.
+     */
+    @Test
+    void rootJavaSqlSurfaceIsPinned() {
+        noClasses()
+            .that().resideInAPackage("com.legend")
+            // nested classes (StatementExecutor$ExecEnv, ...) ride with
+            // their owner — the pin is per top-level class
+            .and().haveNameNotMatching("com\\.legend\\.(Compiler"
+                    + "|StatementExecutor|SeedSqlForms)(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAPackage("java.sql..")
+            .as("F1.3b: root's java.sql surface is pinned to"
+                    + " {Compiler, StatementExecutor, SeedSqlForms} —"
+                    + " shrink-only; the split is backlogged")
+            .check(CORE_PROD_CLASSES);
+    }
+
     /** Grammar cursors and section parsers are parse-time machinery. */
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {
