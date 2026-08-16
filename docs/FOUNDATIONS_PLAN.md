@@ -1126,6 +1126,20 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 - **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
   exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
   rather than class-list-pinned. Deferred — not pause work.
+- **Phase-1/2 deep-audit residue (2026-08-16):** (a) F1.7's ratchet misses
+  `default -> CONSTANT` and old-style `default: return "x"` spellings — a
+  tripwire, not a wall; (b) the float-ROUNDING leniency count (norm's
+  10-significant-digit fold) needs a norm-free recheck; (c) ord-leniency
+  should graduate from LL_ORD_COUNT-gated stderr lines to ALWAYS-ON
+  census counters beside M1_RESCUED; (d) the `sql-text: ` message-prefix
+  protocol should become a typed outcome channel; (e) the per-family
+  regression gate compares pass COUNTS — a PASS→FAIL/FAIL→PASS swap is
+  invisible to the GATE (mitigated: the non-passing list is committed,
+  so swaps surface in the doc diff and §0.4 demands row-for-row
+  justification); (f) TreeMap/TreeSet implicit sorting is censused clean
+  in the harness but not pattern-guarded; (g) F2.3's decline total varied
+  51→56 between an exclusive sweep and the chain's G4 — ceiling held
+  since; if it flaps, diagnose the nondeterminism, never raise blind.
 - **Reflection removal (F1.11 residue):** the bytecode ban found three
   pre-existing production reflection sites the source census missed —
   DbMetaData's java.sql.Types field iteration (replace with a literal

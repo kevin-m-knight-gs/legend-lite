@@ -51,11 +51,14 @@ class HarnessDisciplineTest {
             "JsonAssertCanon.java", 1,
             "LineageForm.java", 1,
             "Runner.java", 2,
-            "RelationalCorpusRunner.java", 14);
+            "RelationalCorpusRunner.java", 14,
+            // PX.1: TreeSet as a deterministic-iteration REGISTRY
+            // (workspace names), not a result reorder
+            "DuckWorkspaces.java", 1);
 
     private static final Pattern SITE = Pattern.compile(
             "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)"
-            + "|\\.sort\\(");
+            + "|\\.sort\\(|new TreeSet|new TreeMap");
 
     @Test
     void resultReorderingIsEnumeratedComparisonPolicyOnly()

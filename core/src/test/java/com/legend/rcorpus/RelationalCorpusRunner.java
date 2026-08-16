@@ -592,12 +592,15 @@ public class RelationalCorpusRunner {
                 }
             }
             if (passCol < 0) {
-                System.out.println("[rcorpus] baseline has no 'pass' header"
-                        + " — regression gate SKIPPED");
+                throw new IllegalStateException("baseline has no 'pass'"
+                        + " header — the regression gate would fail OPEN"
+                        + " and the sweep would still WRITE (PX.1; audit"
+                        + " §5.1). Fix docs/RELATIONAL_CORPUS.md.");
             }
-        } catch (Exception e) {
-            System.out.println("[rcorpus] baseline unreadable (" + e
-                    + ") — regression gate SKIPPED");
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("baseline unreadable — the"
+                    + " regression gate would fail OPEN and the sweep"
+                    + " would still WRITE (PX.1; audit §5.1): " + e, e);
         }
         return m;
     }

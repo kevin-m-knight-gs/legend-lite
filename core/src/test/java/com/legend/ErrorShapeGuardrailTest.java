@@ -186,7 +186,10 @@ class ErrorShapeGuardrailTest {
         List<String> bad = new ArrayList<>();
         Pattern p1 = Pattern.compile("Class\\.forName\\(|\\.setAccessible\\("
                 + "|getDeclaredMethod\\(|getDeclaredField\\("
-                + "|getDeclaredConstructor\\(|loadClass\\(");
+                + "|getDeclaredConstructor\\(|loadClass\\("
+                // PX.1: subprocess escape — the remaining way to compute
+                // outside every dependency rule (zero uses; stays zero)
+                + "|new ProcessBuilder|Runtime\\.getRuntime\\(\\)\\.exec");
         for (Path p : mainSources()) {
             String src = Files.readString(p);
             Matcher m = p1.matcher(src);
