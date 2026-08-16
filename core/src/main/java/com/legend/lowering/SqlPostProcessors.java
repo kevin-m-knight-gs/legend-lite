@@ -75,6 +75,19 @@ public final class SqlPostProcessors {
                 }
             }
         }
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedCopyInstance cp) {
+            for (String key : new String[] {
+                    "sqlQueryPostProcessorsConnectionAware",
+                    "sqlQueryPostProcessors"}) {
+                TypedSpec hooks = cp.overrides().get(key);
+                if (hooks != null) {
+                    for (TypedSpec hook : elements(hooks)) {
+                        readHook(hook, out);
+                    }
+                }
+            }
+        }
         for (TypedSpec c : n.children()) {
             collectConnections(c, out);
         }
@@ -87,6 +100,25 @@ public final class SqlPostProcessors {
     /** One hook lambda: the ONLY recognized body is a terminal
      * {@code replaceTables($query, <pairs>)} call. */
     private static void readHook(TypedSpec hook, Map<String, String> out) {
+        // IDENTITY hook (ledger cluster 63): {query|$query->postprocess(
+        // {rel|$rel})} — recognized-and-applied, and the application is
+        // a no-op (the inner transform returns its argument). Any other
+        // postprocess body stays at the loud wall below.
+        if (hook instanceof TypedLambda idl && !idl.body().isEmpty()
+                && idl.body().get(idl.body().size() - 1)
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedUserCall pu
+                && "meta::relational::postProcessor::postprocess"
+                        .equals(pu.callee().qualifiedName())
+                && pu.args().size() == 2
+                && pu.args().get(1) instanceof TypedLambda inner
+                && inner.parameters().size() == 1
+                && inner.body().size() == 1
+                && inner.body().get(0) instanceof com.legend.compiler.spec
+                        .typed.TypedVariable iv
+                && iv.name().equals(inner.parameters().get(0))) {
+            return;
+        }
         if (!(hook instanceof TypedLambda lam) || lam.body().isEmpty()
                 || !(lam.body().get(lam.body().size() - 1)
                         instanceof TypedNativeCall call)

@@ -1110,7 +1110,7 @@ final class StatementExecutor {
      * executionPlan call; the value is the walked result (node, list,
      * param, scalar). Unknown steps return null — the chain falls back
      * to the ordinary pipeline and its own walls. */
-    private static @com.legend.Nullable Object planWalk(TypedSpec n,
+    static @com.legend.Nullable Object planWalk(TypedSpec n,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ep
                 && com.legend.compiler.element.type.PlatformTypes
@@ -1221,7 +1221,8 @@ final class StatementExecutor {
         if (n instanceof com.legend.compiler.spec.typed.TypedMap tm
                 && tm.mapper() instanceof com.legend.compiler.spec.typed
                         .TypedLambda tml) {
-            return walkMapOver(planWalk(tm.source(), specs, env), tml);
+            return MetamodelSteps.walkMapOver(
+                    planWalk(tm.source(), specs, env), tml, specs, env);
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && !c.args().isEmpty()) {
@@ -1231,128 +1232,9 @@ final class StatementExecutor {
             if (recv == null) {
                 return null;
             }
-            switch (simple) {
-                case "allNodes" -> {
-                    if (recv instanceof com.legend.plan.PlanNode pn) {
-                        return new java.util.ArrayList<Object>(pn.allNodes());
-                    }
-                }
-                case "filter" -> {
-                    if (recv instanceof java.util.List<?> l
-                            && c.args().get(1)
-                                    instanceof com.legend.compiler.spec.typed
-                                            .TypedLambda lam2) {
-                        return walkFilter(l, lam2);
-                    }
-                }
-                case "cast", "toOne", "toOneMany" -> {
-                    return recv;
-                }
-                case "at" -> {
-                    if (recv instanceof java.util.List<?> l
-                            && c.args().get(1)
-                                    instanceof com.legend.compiler.spec.typed
-                                            .TypedCInteger ix) {
-                        return l.get((int) (long) ix.value());
-                    }
-                }
-                case "first" -> {
-                    if (recv instanceof java.util.List<?> l) {
-                        return l.isEmpty() ? null : l.get(0);
-                    }
-                }
-                case "schema" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString sn9) {
-                        return com.legend.exec.MetamodelWalk.schema(recv,
-                                sn9.value());
-                    }
-                }
-                case "table" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString tn9) {
-                        return com.legend.exec.MetamodelWalk.table(recv,
-                                tn9.value());
-                    }
-                }
-                case "convertElement" -> {
-                    return com.legend.exec.MetamodelWalk
-                            .convertElement(recv);
-                }
-                case "convertSelectSqlQuery" -> {
-                    Object body = com.legend.exec.MetamodelWalk
-                            .convertElement(recv);
-                    return body == null ? null
-                            : com.legend.exec.MetamodelWalk.nodeOf("Query",
-                                    new java.util.TreeMap<>(java.util.Map
-                                            .of("queryBody", body)));
-                }
-                case "view" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString vn) {
-                        return com.legend.exec.MetamodelWalk.view(recv,
-                                vn.value());
-                    }
-                }
-                case "map" -> {
-                    if (recv instanceof java.util.List<?> l
-                            && c.args().get(1) instanceof
-                                    com.legend.compiler.spec.typed
-                                            .TypedLambda ml) {
-                        java.util.List<Object> out =
-                                new java.util.ArrayList<>();
-                        for (Object e : l) {
-                            Object v = walkMapBody(e, ml);
-                            if (v != null) {
-                                out.add(v);
-                            }
-                        }
-                        return out;
-                    }
-                }
-                case "_classMappingByClass" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedPackageableRef cref2) {
-                        return com.legend.exec.MetamodelWalk
-                                .classMappingsByClass(recv, cref2.fullPath());
-                    }
-                }
-                case "rootClassMappingByClass" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedPackageableRef cref) {
-                        return com.legend.exec.MetamodelWalk
-                                .rootClassMappingByClass(recv,
-                                        cref.fullPath());
-                    }
-                }
-                case "classMappingById", "superMapping",
-                        "allSuperSetImplementations", "mainTable",
-                        "resolvePrimaryKey" -> {
-                    return mappingNav(simple, recv, c, specs, env);
-                }
-                case "propertyMappingsByPropertyName" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedCString pn) {
-                        return com.legend.exec.MetamodelWalk
-                                .propertyMappingsByName(recv, pn.value());
-                    }
-                }
-                case "inferRelationalType" -> {
-                    return com.legend.exec.MetamodelWalk.infer(recv);
-                }
-                case "dataTypeToSqlText" -> {
-                    return com.legend.exec.MetamodelWalk.sqlText(recv);
-                }
-                default -> {
-                    return null;
-                }
-            }
+            Object step = MetamodelSteps.metamodelStep(simple, recv, c,
+                    specs, env);
+            return step == MetamodelSteps.WALK_UNRECOGNIZED ? null : step;
         }
         return null;
     }
@@ -1671,84 +1553,6 @@ final class StatementExecutor {
                 ? r.op() : null;
     }
 
-    /** NARROW map-lambda body: one native call over the parameter
-     * ({@code x|$x->view('name')}) — evaluated per element; null on any
-     * other shape (the walk falls through to its walls). */
-    private static @com.legend.Nullable Object walkMapBody(Object e,
-            com.legend.compiler.spec.typed.TypedLambda ml) {
-        if (ml.body().size() != 1 || ml.parameters().isEmpty()
-                || !(ml.body().get(0) instanceof
-                        com.legend.compiler.spec.typed.TypedNativeCall mb)
-                || mb.args().isEmpty()
-                || !(mb.args().get(0) instanceof
-                        com.legend.compiler.spec.typed.TypedVariable mv)
-                || !mv.name().equals(ml.parameters().get(0))) {
-            return null;
-        }
-        String mfn = mb.callee().qualifiedName();
-        String msimple = mfn.substring(mfn.lastIndexOf(':') + 1);
-        return switch (msimple) {
-            case "view" -> mb.args().size() == 2
-                    && mb.args().get(1) instanceof
-                            com.legend.compiler.spec.typed.TypedCString mvn
-                    ? com.legend.exec.MetamodelWalk.view(e, mvn.value())
-                    : null;
-            case "mainTable" -> com.legend.exec.MetamodelWalk.mainTable(e);
-            case "resolvePrimaryKey" ->
-                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(e);
-            default -> null;
-        };
-    }
-
-    /** {@code ->map(x|...)} over walked handles; a single IS a [1]
-     * collection (pure semantics), so classMappingById's [0..1] result
-     * maps like the metamodel families' lists. */
-    private static @com.legend.Nullable Object walkMapOver(@com.legend.Nullable Object recvM,
-            com.legend.compiler.spec.typed.TypedLambda tml) {
-        if (recvM != null && !(recvM instanceof java.util.List)) {
-            recvM = java.util.List.of(recvM);
-        }
-        if (recvM instanceof java.util.List<?> lm) {
-            java.util.List<Object> outM = new java.util.ArrayList<>();
-            for (Object e : lm) {
-                Object v = walkMapBody(e, tml);
-                if (v != null) {
-                    outM.add(v);
-                }
-            }
-            return outM;
-        }
-        return null;
-    }
-
-    /** The extends-chain mapping-metamodel natives (classMappingById /
-     * superMapping / allSuperSetImplementations / mainTable /
-     * resolvePrimaryKey) — recv-dispatched to MetamodelWalk. */
-    private static @com.legend.Nullable Object mappingNav(String simple, Object recv,
-            com.legend.compiler.spec.typed.TypedNativeCall c,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return switch (simple) {
-            case "classMappingById" -> c.args().size() == 2
-                    && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed.TypedCString mid
-                    ? com.legend.exec.MetamodelWalk.classMappingById(recv,
-                            mid.value())
-                    : null;
-            case "superMapping" ->
-                    com.legend.exec.MetamodelWalk.superMapping(recv);
-            case "allSuperSetImplementations" -> c.args().size() == 2
-                    ? com.legend.exec.MetamodelWalk
-                            .allSuperSetImplementations(recv,
-                                    planWalk(c.args().get(1), specs, env))
-                    : null;
-            case "mainTable" ->
-                    com.legend.exec.MetamodelWalk.mainTable(recv);
-            case "resolvePrimaryKey" ->
-                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(recv);
-            default -> null;
-        };
-    }
-
     /** Property step, AUTO-MAPPING over lists (pure semantics). */
     private static @com.legend.Nullable Object walkProp(Object recv, String prop) {
         Object mm = com.legend.exec.MetamodelWalk.prop(recv, prop);
@@ -1792,7 +1596,7 @@ final class StatementExecutor {
 
     /** filter lambda bodies the walk understands: instanceOf($n, X) and
      * {@code $p.name == 'lit'}. */
-    private static @com.legend.Nullable Object walkFilter(java.util.List<?> l,
+    static @com.legend.Nullable Object walkFilter(java.util.List<?> l,
             com.legend.compiler.spec.typed.TypedLambda lam) {
         TypedSpec body = lam.body().get(lam.body().size() - 1);
         if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall io
@@ -2229,6 +2033,33 @@ final class StatementExecutor {
             if (containsEffect(uc, specs, new java.util.HashMap<>())) {
                 executeCallStatement(uc, letPrefix, specs, env,
                         new java.util.ArrayDeque<>());
+            }
+            return;
+        }
+        // post-processor CONFIG values never run as effects and must not
+        // be compiled by the effect scan (ledger cluster 63 — the same
+        // skip containsEffect applies, mirrored on this walk's own
+        // recursion)
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni8) {
+            for (var pe : ni8.properties().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                        .isPostProcessorConfigProperty(pe.getKey())) {
+                    runRuntimeArgEffects(pe.getValue(), letPrefix, specs,
+                            env);
+                }
+            }
+            return;
+        }
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedCopyInstance cp8) {
+            runRuntimeArgEffects(cp8.source(), letPrefix, specs, env);
+            for (var pe : cp8.overrides().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                        .isPostProcessorConfigProperty(pe.getKey())) {
+                    runRuntimeArgEffects(pe.getValue(), letPrefix, specs,
+                            env);
+                }
             }
             return;
         }
@@ -2897,6 +2728,35 @@ final class StatementExecutor {
             if (known) {
                 return true;
             }
+        }
+        // post-processor CONFIG properties carry plan-time SQL-rewrite
+        // hooks, never DDL/executeInDb effects — compiling them drags in
+        // relational-metamodel vocabulary the prelude does not declare
+        // (ledger cluster 63)
+        if (node instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni9) {
+            for (var pe : ni9.properties().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                                .isPostProcessorConfigProperty(pe.getKey())
+                        && containsEffect(pe.getValue(), specs, memo)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node instanceof com.legend.compiler.spec.typed
+                .TypedCopyInstance cp9) {
+            if (containsEffect(cp9.source(), specs, memo)) {
+                return true;
+            }
+            for (var pe : cp9.overrides().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                                .isPostProcessorConfigProperty(pe.getKey())
+                        && containsEffect(pe.getValue(), specs, memo)) {
+                    return true;
+                }
+            }
+            return false;
         }
         for (TypedSpec c : node.children()) {
             if (containsEffect(c, specs, memo)) {

@@ -790,13 +790,14 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** {@code rootClassMappingByClass} — the class's relational set. */
     public static @com.legend.Nullable Object rootClassMappingByClass(Object recv,
             String classFqn) {
+        // INCLUDE closure (same walk as classMappingsByClass — the
+        // engine resolves rootClassMappingByClass through includes;
+        // simpleRelationalMapping maps Person in its included mapping)
         if (recv instanceof Mm m) {
-            for (var cm : m.mapping().classMappings()) {
-                if (cm instanceof com.legend.model.ClassMapping.Relational r
-                        && r.className().equals(classFqn)) {
-                    return new Cm(m.ctx(), m.mapping(), r);
-                }
-            }
+            java.util.List<Object> all = new java.util.ArrayList<>();
+            collectClassMappings(m.ctx(), m.mapping(), classFqn, all,
+                    new java.util.HashSet<>());
+            return all.isEmpty() ? null : all.get(all.size() - 1);
         }
         return null;
     }
@@ -1256,6 +1257,9 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                         "contains" -> new RelationalDataType.Bit();
                 // sqlNull carries the engine's OTHER type
                 case "sqlnull" -> new RelationalDataType.Other();
+                // engine inferDynaFunctionReturnType: sqlTrue/sqlFalse
+                // are BIT literals (ledger cluster 56)
+                case "sqltrue", "sqlfalse" -> new RelationalDataType.Bit();
                 // string transforms keep their input's type
                 case "substring", "left", "right", "trim", "ltrim",
                         "rtrim", "toupper", "tolower", "upper", "lower" ->
@@ -1463,6 +1467,15 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
             return a;
         }
         if (a.equals(b)) {
+            return a;
+        }
+        // engine getSafeType: OTHER absorbs into the other operand
+        // (getSafeType(Other, X) = X; an Other operand contributes size 0
+        // to the Char/Varchar max-size rule) — ledger cluster 56
+        if (a instanceof RelationalDataType.Other) {
+            return b;
+        }
+        if (b instanceof RelationalDataType.Other) {
             return a;
         }
         Integer[] da = decimalOf(a);

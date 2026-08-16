@@ -338,13 +338,14 @@ public final class UserCallInliner {
             // helpers never hit the recursion wall (the execute()-runtime
             // orchestration-position rule, one property deeper).
             case com.legend.compiler.spec.typed.TypedNewInstance ni
-                    when ni.properties().containsKey(
-                            "queryPostProcessorsWithParameter")
+                    when ni.properties().keySet().stream().anyMatch(
+                            com.legend.compiler.element.type.PlatformTypes
+                                    ::isPostProcessorConfigProperty)
                     && !configMode -> {
                 var props = new LinkedHashMap<String, TypedSpec>();
                 for (var pe : ni.properties().entrySet()) {
-                    if ("queryPostProcessorsWithParameter"
-                            .equals(pe.getKey())) {
+                    if (com.legend.compiler.element.type.PlatformTypes
+                            .isPostProcessorConfigProperty(pe.getKey())) {
                         configMode = true;
                         try {
                             props.put(pe.getKey(),
@@ -358,6 +359,30 @@ public final class UserCallInliner {
                 }
                 yield new com.legend.compiler.spec.typed.TypedNewInstance(
                         ni.classFqn(), props, ni.info());
+            }
+            case com.legend.compiler.spec.typed.TypedCopyInstance cpi
+                    when cpi.overrides().keySet().stream().anyMatch(
+                            com.legend.compiler.element.type.PlatformTypes
+                                    ::isPostProcessorConfigProperty)
+                    && !configMode -> {
+                var ovs = new LinkedHashMap<String, TypedSpec>();
+                for (var pe : cpi.overrides().entrySet()) {
+                    if (com.legend.compiler.element.type.PlatformTypes
+                            .isPostProcessorConfigProperty(pe.getKey())) {
+                        configMode = true;
+                        try {
+                            ovs.put(pe.getKey(),
+                                    rewrite(pe.getValue(), env));
+                        } finally {
+                            configMode = false;
+                        }
+                    } else {
+                        ovs.put(pe.getKey(), rewrite(pe.getValue(), env));
+                    }
+                }
+                yield new com.legend.compiler.spec.typed.TypedCopyInstance(
+                        rewrite(cpi.source(), env), cpi.classFqn(), ovs,
+                        cpi.info());
             }
 
             // BINDERS — α-fresh inside inlined bodies (env non-empty),

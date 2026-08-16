@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 70 | 14 | 5 | 19 | 0 |
-| functions/tests | 259 | 238 | 6 | 10 | 5 | 67 |
+| functions/tests | 259 | 239 | 6 | 9 | 5 | 67 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 145 | 3 | 6 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
@@ -61,9 +61,9 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
-| tds/tests | 266 | 252 | 2 | 5 | 7 | 6 |
+| tds/tests | 266 | 253 | 2 | 4 | 7 | 6 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 |
-| tests | 39 | 31 | 2 | 0 | 6 | 0 |
+| tests | 39 | 33 | 2 | 0 | 4 | 0 |
 | tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
@@ -92,14 +92,14 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 |
-| tests/mapping/union | 127 | 119 | 0 | 7 | 1 | 8 |
+| tests/mapping/union | 127 | 120 | 0 | 6 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 79 | 3 | 5 | 0 | 37 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2341** | 74 | 72 | 88 | 247 |
+| **total** | 2575 | **2346** | 74 | 69 | 86 | 247 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1116,7 +1116,6 @@ shared source registered by several families cannot double-count. Run with
 
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]], multiplicity=Bounded[lower=1, upper=1]]]
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
-- 2x in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x unbound variable '$_nr2'
@@ -1144,6 +1143,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
+- 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 
 ### per-test outcomes (non-passing)
 
@@ -1191,7 +1191,6 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME,"persontable_0".FIRSTNAME
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - ERROR testSubAggregationMultiLevel [functions/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not DOUBLE |  | LINE 1: SELECT UNNEST((SELECT AVG(t1.AGE) FROM firmTable AS t0 LEFT OUTER... |                ^
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
@@ -1294,7 +1293,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
-- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable_d#6_d#3_m3" on ("firmTable_d#6_d#3_m3".ID = "root".FIRMID), got select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)
 - SHAPE testExecutionPlanGeneration [tds/tests]: plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeVar[name=?], multiplicity=Bounded[lower=1, upper=1]],
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
@@ -1307,8 +1305,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::pure::tds::TDSColumn' has no property 'type'
 - SHAPE testExtractDBsWithSubstituition [tests]: no execute(|...) call [calls meta::relational::runtime] — wall: in function 'meta::relational::runtime::extractDBs': class meta::pure::mapping::Mapping has no property 'includes'
-- SHAPE testJoinStringsTypeInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference] — wall: no scalar lowering registered for resolved overload 'meta::pure::mapping::rootClassMappingByClass' with 2 parameter(s)
-- SHAPE testSQLNullWithinCaseTypeInference1 [tests]: no execute(|...) call [calls meta::relational::functions::typeInference] — wall: no scalar lowering registered for resolved overload 'meta::pure::mapping::rootClassMappingByClass' with 2 parameter(s)
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
@@ -1356,7 +1352,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: expected at most one value, got many ([*])
-- ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - FAIL testUnionTwoRelationMappings_ManyColumnProject [tests/mapping/union/relation]: assertEquals: expected [Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null], got [Anand, , Anand, , Anand, , Anand, , Anand, , Anand, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Scott, , Scott, , Scott, , Scott, , Scott, , Scott, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Wright, , Wright, , Wright, , Wright, , Wright, , Wright, ]
 - FAIL testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion [tests/mapping/union/relation]: assertEquals: expected [Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null], got [Anand, , Anand, , Anand, , Anand, , Anand, , Anand, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Scott, , Scott, , Scott, , Scott, , Scott, , Scott, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Wright, , Wright, , Wright, , Wright, , Wright, , Wright, ]

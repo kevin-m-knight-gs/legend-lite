@@ -246,6 +246,16 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn);
     }
 
+    /** Post-processor CONFIG property names (runtime/connection hook
+     * slots): their values are plan-time SQL-rewrite config, never Pure
+     * the executor evaluates — the effect scan and the inliner treat
+     * them as config, not query code (ledger cluster 63). */
+    public static boolean isPostProcessorConfigProperty(String name) {
+        return "sqlQueryPostProcessors".equals(name)
+                || "sqlQueryPostProcessorsConnectionAware".equals(name)
+                || "queryPostProcessorsWithParameter".equals(name);
+    }
+
     /** All K-natives: calls that EXECUTE at the K boundary and never lower. */
     public static boolean isKNative(String fqn) {
         return EXECUTE_IN_DB.equals(fqn)
