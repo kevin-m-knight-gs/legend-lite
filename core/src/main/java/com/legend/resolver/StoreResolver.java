@@ -1422,9 +1422,7 @@ public final class StoreResolver {
             // navigate step's ON — the head leaves the slot spine (the
             // slot stays unmaterialized) and joins as an AssocJoin whose
             // target is the parent-copy subselect (fold 2b).
-            TypedLambda cpH = mid == 1
-                    ? synthetics.correlatedPred(path.get(0)) : null;
-            if (cpH != null && assocMaterial.corrPredDemandsParentNav(cpH)
+            if (assocMaterial.explodingReroutePred(path, mid) != null
                     && !demandedNavs.contains(alias)) {
                 corrNavHeads.putIfAbsent(headKey, alias);
                 continue;
@@ -1943,7 +1941,9 @@ public final class StoreResolver {
                 joinTarget = aj.onForm().pipeline();
                 joinCond = aj.onForm().condition();
             }
-            if (aj.corrSubPred() != null) {
+            if (aj.corrSubPred() != null
+                    || aj.targetSubNavs().keySet().stream().anyMatch(k ->
+                            synthetics.correlatedPred(k) != null)) {
                 CorrelatedSubselects.ExplodingSub ex =
                         corrSubs.explodingSubselect(cs, aj,
                                 (Type.RelationType) withJoins.info().type());

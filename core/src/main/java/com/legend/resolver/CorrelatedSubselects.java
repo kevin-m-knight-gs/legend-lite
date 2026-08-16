@@ -292,8 +292,18 @@ final class CorrelatedSubselects {
                 sources.ctx());
         List<String> keyCols = !pkKeys.isEmpty() ? pkKeys
                 : parentEquiKeys(aj.condition(), aj.prefix());
+        List<TypedLambda> allCorrs = new ArrayList<>();
+        if (aj.corrSubPred() != null) {
+            allCorrs.add(aj.corrSubPred());
+        }
+        for (String snHead0 : aj.targetSubNavs().keySet()) {
+            TypedLambda tp0 = assocMaterial.synthetics().correlatedPred(snHead0);
+            if (tp0 != null) {
+                allCorrs.add(tp0);
+            }
+        }
         ParentCopy pc = java.util.Objects.requireNonNull(
-                parentCopyFor(cs, aj.corrSubPred()));
+                parentCopyFor(cs, allCorrs));
         Type.RelationType pcRow = (Type.RelationType)
                 pc.mat().pipeline().info().type();
         String corrTp = aj.prefix() + "t_";
@@ -320,12 +330,17 @@ final class CorrelatedSubselects {
         while (cjTaken2.contains(cjVar)) {
             cjVar = "_cj" + cjOrd2++;
         }
-        TypedLambda where = assocMaterial.corrPredOnJoinedRow(
-                aj.corrSubPred(), cs, aj.target(), corrTp,
-                aj.targetSlotPrefixes(), aj.targetSubNavs(),
-                pc.mat().slotPrefixes(), pc.subNavs(),
-                cjVar, jRow);
-        TypedSpec filtered = new TypedFilter(joinedSub, where, jInfo);
+        // a HEAD-pred-less reroute (only TAIL-hop preds correlate) skips
+        // the head WHERE; the tail loop below is the sub's only filter
+        TypedSpec filtered = joinedSub;
+        if (aj.corrSubPred() != null) {
+            TypedLambda where = assocMaterial.corrPredOnJoinedRow(
+                    aj.corrSubPred(), cs, aj.target(), corrTp,
+                    aj.targetSlotPrefixes(), aj.targetSubNavs(),
+                    pc.mat().slotPrefixes(), pc.subNavs(),
+                    cjVar, jRow);
+            filtered = new TypedFilter(joinedSub, where, jInfo);
+        }
         // TAIL-hop parked CORRELATED preds (#69 second filter — the
         // firm#f0.address#f1 chain): a target sub-nav head carrying a
         // parked pred ANDs into this sub's WHERE — both sides already
@@ -439,17 +454,26 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
      * aggregate): no outer reads, the plain parent pipeline materializes. */
     @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
             @com.legend.Nullable TypedLambda corr) {
-        Set<String> names = new LinkedHashSet<>();
-        if (corr != null) {
+        return parentCopyFor(cs,
+                corr == null ? List.of() : List.of(corr));
+    }
+
+    /** Parent copy demanded by SEVERAL correlated preds (a head pred
+     * plus tail-hop preds — the exploding sub's whole pred set): every
+     * pred's OUTER reads join the copy's demand. */
+    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
+            List<TypedLambda> corrs) {
+        Set<List<String>> outerPaths = new LinkedHashSet<>();
+        for (TypedLambda corr : corrs) {
+            Set<String> names = new LinkedHashSet<>();
             for (TypedSpec b : corr.body()) {
                 collectVarNamesInto(b, names);
             }
             names.removeAll(corr.parameters());
-        }
-        Set<List<String>> outerPaths = new LinkedHashSet<>();
-        for (String v : names) {
-            for (TypedSpec b : java.util.Objects.requireNonNull(corr).body()) {
-                StoreResolver.consumedPaths(b, v, outerPaths);
+            for (String v : names) {
+                for (TypedSpec b : corr.body()) {
+                    StoreResolver.consumedPaths(b, v, outerPaths);
+                }
             }
         }
         Set<String> slots = Pipelines.slotAliases(cs.pipeline());

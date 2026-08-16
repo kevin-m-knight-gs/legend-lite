@@ -38,6 +38,26 @@ final class AssociationJoins {
         return synthetics;
     }
 
+    /** The #69 exploding-reroute trigger for a nav-slot chain: the
+     * head's OWN correlated pred (mid==1), or a TAIL seg's — a sub-hop
+     * pred applies in the exploding sub's WHERE (the tail-pred loop)
+     * and can never compose on the flat step's ON. Null when the chain
+     * composes on the slot spine. */
+    @com.legend.Nullable TypedLambda explodingReroutePred(
+            List<String> path, int mid) {
+        if (mid != 1) {
+            return null;
+        }
+        TypedLambda cp = synthetics.correlatedPred(path.get(0));
+        if (cp == null) {
+            cp = path.subList(mid, path.size()).stream()
+                    .map(synthetics::correlatedPred)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst().orElse(null);
+        }
+        return cp != null && corrPredDemandsParentNav(cp) ? cp : null;
+    }
+
     AssociationJoins(ModelContext ctx, ClassSources sources,
             SpecCompiler specs, SyntheticHeads synthetics) {
         this.ctx = ctx;

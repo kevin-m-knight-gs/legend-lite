@@ -453,12 +453,12 @@ final class NavMaterializer {
         // the SubNav's full binding table resolves them at substitution)
         if (tail.size() >= 2
                 || assocs.toOneClassProp(t.classFqn(), tail.get(0))) {
-            // a CORRELATED pred on a filtered sub-hop cannot park
-            // in-target — leave the step undemanded (loud read),
-            // never an unfiltered join (wrong rows)
-            if (synthetics.correlatedPred(tail.get(0)) != null) {
-                return;
-            }
+            // a CORRELATED sub-hop pred does NOT park in-target
+            // (applyToPipe reads closed preds only — the sub pipe stays
+            // unfiltered HERE); it applies in the exploding parent-copy
+            // sub's WHERE (the tail-pred loop) — the reroute trigger
+            // diverts every such chain there, so no route consumes the
+            // unfiltered join.
             String subAlias = InnerDemand.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
             if (subAlias != null) {
                 // audit 12 F2: a TEMPORAL (or gated) sub-target must NOT
