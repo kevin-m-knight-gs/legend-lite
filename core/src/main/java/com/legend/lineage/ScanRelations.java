@@ -1247,11 +1247,12 @@ public final class ScanRelations {
                     || prop.name().equals("snapshotDate")) {
                 return;
             }
-            // a SCALAR leaf that is genuinely unmapped is loud; a mid-hop
-            // must resolve
-            throw new NotImplementedException("scanRelations: property '"
-                    + prop.name() + "' has no property mapping in set '"
-                    + cm.className() + "'");
+            // engine scanRelations.pure: an empty propMappings collection
+            // is a NORMAL outcome — $propMappings->map(...) contributes
+            // nothing and the set prints childless (union arms that do
+            // not map the navigated property; adjudication ledger
+            // cluster 4). The old loud throw walled every such arm.
+            return;
         }
         // the RUNTIME scan forks a UNION-mapped navigation target per
         // MEMBER SET (union keys + member PK demand; a merged-local-key

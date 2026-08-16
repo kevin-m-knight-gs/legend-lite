@@ -46,7 +46,7 @@ shared source registered by several families cannot double-count. Run with
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
-| lineage/scanRelations | 49 | 45 | 0 | 0 | 4 | 0 |
+| lineage/scanRelations | 49 | 46 | 0 | 0 | 3 | 0 |
 | milestoning/tests | 228 | 214 | 10 | 1 | 3 | 34 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2309** | 83 | 90 | 93 | 244 |
+| **total** | 2575 | **2310** | 83 | 90 | 92 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1246,7 +1246,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
 - SHAPE testTableToTdsWithJoinAndUnion [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
-- SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: scanRelations: scanRelations: property 'employees' has no property mapping in set 'meta::relational::tests::model::simple::Firm'
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension] — wall: Unknown type: 'Operation' is not a known primitive, class, or enum
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
 - SHAPE testBusinessDatePropagationInColFunction_asQueryParam [milestoning/tests]: plan wall: no overload of 'cast' matches 2 argument(s) of these shapes — candidates: [meta::pure::functions::lang::cast/2] [surfaced via assert form 'assertEqualsH2Compatible/3']
@@ -1371,7 +1370,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testDateTimeRetrieveWithTimeZone [tests/mapping/relation]: assertTdsEquivalent: cell 1 expected 2016-02-05, got 2016-02-05 21:00:00.123456789
 - FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
 - FAIL testMixedMappingWithFilterInProject [tests/mapping/relation]: assertEquals: expected [David, null, Fabrice, null, John, John, Oliver, Fabrice, Oliver, Oliver], got [David, null, Fabrice, Oliver, John, John, Oliver, Oliver]
-- SHAPE testRelationStoreAccessorOnView [tests/mapping/relation]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown table 'personView' in database 'meta::relational::tests::mapping::relation::testDB'
+- SHAPE testRelationStoreAccessorOnView [tests/mapping/relation]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: toString over RelationType[columns=[Column[name=ID, type=INTEGER, multiplicity=Bounded[lower=1, upper=1]], Column[name=age, type=INTEGER, multiplicity=Bounded[lower=1, upper=1]], Column[name=name, type=STRING, multiplicit
 - FAIL testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: assertEquals: expected [David, null, Fabrice, null, John, John, Oliver, Fabrice, Oliver, Oliver], got [David, null, Fabrice, Oliver, John, John, Oliver, Oliver]
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
