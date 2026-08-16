@@ -736,7 +736,9 @@ final class StatementExecutor {
                             mappingFqn),
                     com.legend.plan.PlanText.single(env.ctx(), aRoot,
                             mappingFqn, aEs.plan(), aSql,
-                            java.util.List.of(at), connName, chainMaps)));
+                            java.util.List.of(at), connName, chainMaps,
+                            com.legend.plan.PlanText.colsPlanFor(
+                                    aEs.plan(), prevVar))));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
@@ -745,12 +747,12 @@ final class StatementExecutor {
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
                 fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
                 planDialect(dbType, quote, tz));
-        if (splicedSql == null) {
-            return null;
-        }
+        if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
-                lam.body(), connName, chainMaps);
+                lam.body(), connName, chainMaps,
+                com.legend.plan.PlanText.colsPlanFor(
+                        fullEs.plan(), prevVar));
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -763,8 +765,6 @@ final class StatementExecutor {
                         children),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
-
-
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
