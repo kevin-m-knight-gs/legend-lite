@@ -214,29 +214,9 @@ public final class StoreResolver {
         return fns.get(0);
     }
 
-    /** POST-CONDITION (core/README rule 9): no {@code TypedGetAll} or
-     *  {@code TypedUserCall} survives store resolution — a RESOLVER-phase
-     *  gap named as such, with its ancestry path. */
+    /** POST-CONDITION (core/README rule 9) — {@link StoreEscapees}. */
     static void assertNoStoreOnlyEscapees(TypedSpec n) {
-        assertNoStoreOnlyEscapees(n, "root");
-    }
-    private static void assertNoStoreOnlyEscapees(TypedSpec n, String path) {
-        if (n instanceof TypedGetAll ga) {
-            throw new com.legend.error.NotImplementedException(
-                    "store resolution left getAll(" + ga.classFqn()
-                    + ") unresolved — the query shape around it is not"
-                    + " supported by the resolver yet [at " + path + "]");
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            throw new com.legend.error.NotImplementedException(
-                    "store resolution left user call '" + uc.callee().qualifiedName()
-                    + "' uninlined — the call shape is not supported by the"
-                    + " resolver yet [at " + path + "]");
-        }
-        String next = path + " > " + n.getClass().getSimpleName();
-        for (TypedSpec c : n.children()) {
-            assertNoStoreOnlyEscapees(c, next);
-        }
+        StoreEscapees.check(n);
     }
 
     /**
@@ -500,8 +480,13 @@ public final class StoreResolver {
                 }
                 yield resolveNode(am, context);
             }
-            // a BARE lambda VALUE is DATA — its consumer owns resolution
-            case com.legend.compiler.spec.typed.TypedLambda l -> l;
+            // a BARE lambda VALUE is DATA — but a SELF-CONTAINED query
+            // beneath it has no other owner (SubQueryLift.resolveClosed
+            // javadoc): resolve those, leave param-dependent reads as data
+            case com.legend.compiler.spec.typed.TypedLambda l ->
+                    l.mapChildren(b -> SubQueryLift.resolveClosed(b,
+                            new java.util.LinkedHashSet<>(l.parameters()),
+                            r -> resolveNode(r, context)));
             // The NAMED wall: an ANCHORED variant with no arm — loud,
             // never a silent pass-through (the old default's silent
             // 'yield n' path is now the INERT level).
@@ -2735,7 +2720,6 @@ public final class StoreResolver {
         return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
                 flattenAssocs);
     }
-
 
     /** Milestoned property functions: each head's temporal arguments,
      * chain-keyed (conflicting dates for one chain are loud — the date

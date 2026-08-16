@@ -1803,6 +1803,29 @@ public final class EngineTestExecutor {
                     // enough that blanket-unsupported stays honest
                     return UNSUPPORTED_MARKER;
                 }
+                // forAll-contains SUBSET assert (functionvariables idiom
+                // assert($expected->forAll(e|$results->contains($e)),|m)):
+                // both sides evaluate through the pipeline; the forAll
+                // fold is assert-level logic — DuckDB cannot host a
+                // subquery inside a SQL lambda (Binder), and pure's own
+                // evaluation of this shape is in-memory too.
+                ValueSpecification[] fc = forAllContains(subst(args.get(0), lets));
+                if (fc != null) {
+                    Eval need = eval(fc[0], lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
+                    Eval have = eval(fc[1], lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
+                    List<Object> missing = need.values().stream()
+                            .filter(n2 -> have.values().stream()
+                                    .noneMatch(h -> wireEquals(n2, h)))
+                            .toList();
+                    boolean holds = missing.isEmpty();
+                    boolean want = af.function().equals("assert");
+                    return holds == want ? null
+                            : "assert" + (want ? "" : "False")
+                                    + " (forAll-contains subset): missing "
+                                    + missing + " from " + have.render();
+                }
                 // connection-equality contract folds HOST-side (ConnEquality)
                 Object v = ConnEquality.tryEval(subst(args.get(0), lets), ctx, imports);
                 v = v != null ? v : evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
@@ -2409,6 +2432,29 @@ public final class EngineTestExecutor {
             return true;
         }
         return java.util.Objects.equals(e, a);
+    }
+
+    /** The {@code $exp->forAll(e|$act->contains($e))} SUBSET shape:
+     * returns {expected, actual} expressions, or null when the arg is
+     * not this idiom (the predicate must be a contains of the forAll
+     * binder itself). */
+    private static ValueSpecification @com.legend.Nullable [] forAllContains(
+            ValueSpecification a0) {
+        if (a0 instanceof AppliedFunction fa
+                && simpleName(fa.function()).equals("forAll")
+                && fa.parameters().size() == 2
+                && fa.parameters().get(1) instanceof LambdaFunction lam
+                && lam.parameters().size() == 1
+                && lam.body().size() == 1
+                && lam.body().get(0) instanceof AppliedFunction cont
+                && simpleName(cont.function()).equals("contains")
+                && cont.parameters().size() == 2
+                && cont.parameters().get(1) instanceof Variable ev
+                && ev.name().equals(lam.parameters().get(0).name())) {
+            return new ValueSpecification[] {
+                    fa.parameters().get(0), cont.parameters().get(0)};
+        }
+        return null;
     }
 
     static String simpleName(String fn) {
