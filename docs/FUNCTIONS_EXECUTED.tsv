@@ -1,4 +1,6 @@
 function	probe	verdict
+CYMinus2	scalar	REFUSED: not in the DynaFunctionRegistry
+CYMinus3	scalar	REFUSED: not in the DynaFunctionRegistry
 abs	scalar	ok
 acos	scalar	ok
 add	collection	an.execution.stores.relational.result.SQLExecut …
@@ -6,6 +8,8 @@ adjust	scalar	DISAGREES with the oracle
 aggregate	relation	ok
 and	collection	DISAGREES with the oracle
 and	scalar	ok
+annualized	scalar	REFUSED: not in the DynaFunctionRegistry
+asOfJoin	relation	RUNS; not asserted -- ties in this seed make the expectation unfalsifiable
 ascii	scalar	ok
 asin	scalar	ok
 atan	scalar	ok
@@ -22,6 +26,7 @@ cast	scalar	REFUSED: @Float is read as a join reference in a relational mapping 
 cbrt	scalar	ok
 ceiling	scalar	ok
 char	scalar	ok
+cme	scalar	REFUSED: not in the DynaFunctionRegistry
 coalesce	scalar	ok
 concat	scalar	ok
 concatenate	collection	Caused by: Execution error at (resource:/core_relational/rel
@@ -29,6 +34,7 @@ concatenate	relation	ok
 concatenate	tds	ERROR
 contains	collection	Caused by: Assert failure at (resource:/core_relational/rela
 contains	scalar	ok
+convertTimeZone	scalar	REFUSED: not supported yet
 corr	aggregate	ok
 cos	scalar	ok
 cosh	scalar	ok
@@ -38,6 +44,9 @@ count	collection	DISAGREES with the oracle
 covarPopulation	aggregate	ok
 covarSample	aggregate	ok
 cumulativeDistribution	relation	ok
+currentUserId	scalar	DISAGREES with the oracle
+cw	scalar	REFUSED: not in the DynaFunctionRegistry
+cw_fm	scalar	REFUSED: not in the DynaFunctionRegistry
 date	scalar	ok
 dateDiff	scalar	ok
 datePart	scalar	ok
@@ -59,6 +68,7 @@ encodeBase64	scalar	ok
 endsWith	scalar	ok
 eq	scalar	REFUSED: not in the DynaFunctionRegistry
 equal	scalar	ok
+eval	remaining	ok
 exists	collection	ok
 exp	scalar	ok
 extend	relation	ok
@@ -72,6 +82,9 @@ first	collection	DISAGREES with the oracle
 first	relation	F41 -- returns the whole relation instead of the first row
 firstDayOfMonth	scalar	ok
 firstDayOfQuarter	scalar	ok
+firstDayOfThisMonth	scalar	DISAGREES with the oracle
+firstDayOfThisQuarter	scalar	DISAGREES with the oracle
+firstDayOfThisYear	scalar	DISAGREES with the oracle
 firstDayOfWeek	scalar	DISAGREES with the oracle
 firstDayOfWeek	scalar	ok
 firstDayOfYear	scalar	ok
@@ -84,11 +97,14 @@ flatten	remaining	refused: Collection element must have a multiplicity [1] - C
 floor	scalar	ok
 formatDate	scalar	ok
 fromJson	scalar	REFUSED: not in the DynaFunctionRegistry
+generateGuid	scalar	DISAGREES with the oracle
 get	remaining	ok
 getAll	remaining	refused: Can't find property 'getAll' in class 'meta::pure::
 getAllForEachDate	remaining	refused: Can't find property 'all' in class 'meta::pure::met
 getAllVersions	remaining	ok
 getAllVersionsInRange	remaining	refused: .allVersionsInRange(%2024-01-01,%2024-12-31) is not
+graphFetch	remaining	refused: java.lang.RuntimeException: PURE_TDSOBJECT format n
+graphFetchChecked	remaining	refused: java.lang.RuntimeException: PURE_TDSOBJECT format n
 greaterThan	scalar	ok
 greaterThanEqual	scalar	ok
 greatest	collection	DISAGREES with the oracle
@@ -96,6 +112,8 @@ greatest	scalar	ok
 groupBy	relation	ok
 groupBy	tds	ok
 groupByWithWindowSubset	remaining	refused: Error in 'rem::S_groupByWithWindowSubset': class or
+hash	scalar	REFUSED: not in the DynaFunctionRegistry
+hashCode	scalar	DISAGREES with the oracle
 hour	scalar	ok
 if	scalar	ok
 in	collection	Caused by: Assert failure at (resource:/core_relational/rela
@@ -109,6 +127,7 @@ isNotEmpty	collection	ok
 isNotEmpty	scalar	REFUSED: aggregate position lowers to a per-row null test (F40)
 isNotNull	scalar	ok
 isNull	scalar	ok
+jaroWinklerSimilarity	scalar	ok
 join	relation	ok
 join	tds	ok
 joinStrings	aggregate	ok
@@ -117,6 +136,7 @@ keys	remaining	refused: java.lang.RuntimeException: java.sql.SQLException:
 last	aggregate	ok
 last	collection	ct(STRUCT, BIGINT) -> ANY at org.finos.legend.e …
 last	relation	F42 -- generates SQL that builds a list of mixed types, whic
+lateral	relation	REFUSED: Can't find variable class for variable 'r' in the graph
 least	collection	DISAGREES with the oracle
 least	scalar	ok
 left	scalar	ok
@@ -133,6 +153,7 @@ log10	scalar	ok
 lpad	scalar	ok
 ltrim	scalar	ok
 map	collection	DISAGREES with the oracle
+matches	scalar	ok
 max	aggregate	ok
 max	scalar	REFUSED: two-arg form has only the aggregate lowering (F45)
 maxBy	aggregate	ok
@@ -147,8 +168,10 @@ mode	aggregate	ok
 month	scalar	ok
 monthNumber	scalar	ok
 mostRecentDayOfWeek	scalar	REFUSED: not supported yet
+mtd	scalar	REFUSED: not in the DynaFunctionRegistry
 newMap	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 not	scalar	ok
+now	scalar	DISAGREES with the oracle
 nth	relation	ok
 ntile	relation	ok
 objectReferenceIn	remaining	refused: Error initializing test suite session for 'S_object
@@ -156,25 +179,55 @@ offset	relation	REFUSED: registered signature names a function that does not exi
 olapGroupBy	tds	ERROR
 or	collection	DISAGREES with the oracle
 or	scalar	ok
+p12mtd	scalar	REFUSED: not in the DynaFunctionRegistry
+p12wa	scalar	REFUSED: not in the DynaFunctionRegistry
+p12wtd	scalar	REFUSED: not in the DynaFunctionRegistry
+p4wa	scalar	REFUSED: not in the DynaFunctionRegistry
+p4wtd	scalar	REFUSED: not in the DynaFunctionRegistry
+p52wa	scalar	REFUSED: not in the DynaFunctionRegistry
+p52wtd	scalar	REFUSED: not in the DynaFunctionRegistry
 paginated	collection	Caused by: Assert failure at (resource:/platform/pure/essent
 paginated	tds	ok
 parseBoolean	scalar	REFUSED: not supported yet
+parseDate	scalar	REFUSED: not supported yet
 parseDecimal	scalar	ok
 parseFloat	scalar	ok
 parseInteger	scalar	ok
 percentRank	relation	ok
 percentile	aggregate	ok
+pivot	relation	RUNS; not asserted -- ties in this seed make the expectation unfalsifiable
 plus	scalar	ok
+pma	scalar	REFUSED: not in the DynaFunctionRegistry
+pmtd	scalar	REFUSED: not in the DynaFunctionRegistry
 pow	scalar	ok
+pqtd	scalar	REFUSED: not in the DynaFunctionRegistry
 previousDayOfWeek	scalar	REFUSED: not supported yet
+priorDay	scalar	REFUSED: not in the DynaFunctionRegistry
+priorYear	scalar	REFUSED: not in the DynaFunctionRegistry
 project	relation	ok
 project	tds	ok
 projectWithColumnSubset	tds	ok
 put	remaining	refused: no matching signature: put
 putAll	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
+pw	scalar	REFUSED: not in the DynaFunctionRegistry
+pw_fm	scalar	REFUSED: not in the DynaFunctionRegistry
+pwa	scalar	REFUSED: not in the DynaFunctionRegistry
+pwtd	scalar	REFUSED: not in the DynaFunctionRegistry
+pymtd	scalar	REFUSED: not in the DynaFunctionRegistry
+pyqtd	scalar	REFUSED: not in the DynaFunctionRegistry
+pytd	scalar	REFUSED: not in the DynaFunctionRegistry
+pywa	scalar	REFUSED: not in the DynaFunctionRegistry
+pywtd	scalar	REFUSED: not in the DynaFunctionRegistry
+qtd	scalar	REFUSED: not in the DynaFunctionRegistry
 quarterNumber	scalar	ok
 range	remaining	ok
 rank	relation	ok
+reduce	relation	REFUSED: NPE reaching for a generic type during compilation
+regexpCount	scalar	ok
+regexpExtract	scalar	DISAGREES with the oracle
+regexpIndexOf	scalar	DISAGREES with the oracle
+regexpLike	scalar	ok
+regexpReplace	scalar	REFUSED: unattributed: Caused by: Execution error at (resource:/core_relational_duckdb/relati
 rem	scalar	ok
 removeDuplicates	aggregate	not in DynaFunctionRegistry
 removeDuplicates	collection	inos.legend.engine.plan.execution.stores.relati …
@@ -182,6 +235,7 @@ rename	relation	ok
 renameColumns	tds	ok
 repeatString	scalar	ok
 replace	scalar	ok
+reportEndDay	scalar	REFUSED: not in the DynaFunctionRegistry
 restrict	tds	ok
 reverse	aggregate	not in DynaFunctionRegistry
 reverse	collection	 at org.finos.legend.engine.plan.execution.stor …
@@ -192,6 +246,7 @@ rowMapper	aggregate	ok
 rowNumber	relation	ok
 rpad	scalar	ok
 rtrim	scalar	ok
+save	remaining	refused: no matching signature: save
 second	scalar	ok
 select	relation	ok
 sign	scalar	ok
@@ -240,6 +295,7 @@ toOneMany	scalar	REFUSED: not in the DynaFunctionRegistry
 toString	scalar	ok
 toUpper	scalar	ok
 toVariant	scalar	ok
+today	scalar	DISAGREES with the oracle
 trim	scalar	ok
 union	collection	engine.plan.execution.stores.relational.result. …
 values	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
@@ -251,4 +307,6 @@ wavg	aggregate	ok
 wavgRowMapper	aggregate	ok
 weekOfYear	scalar	ok
 whenSubType	remaining	refused: Error initializing test suite session for 'S_whenSu
+wtd	scalar	REFUSED: not in the DynaFunctionRegistry
 year	scalar	ok
+ytd	scalar	REFUSED: not in the DynaFunctionRegistry

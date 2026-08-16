@@ -1152,7 +1152,13 @@ still cannot be used, in three distinct ways:
     reverse
     sort
 
-The second message is the more interesting one. These four are in `getSupportedFunctions()`
+**All thirty calendar aggregations are in the second group.** `ytd`, `mtd`, `qtd`, `wtd`,
+`priorDay`, `pwtd`, `p12wtd`, `annualized` and the rest — every one of them is registered in
+`getSupportedFunctions()` and absent from the `DynaFunctionRegistry`, so none of them can be
+used in a relational query at all. That is an entire documented feature area, and the only
+way to discover it is to call one.
+
+The second message is the more interesting one. These are in `getSupportedFunctions()`
 and absent from the `DynaFunctionRegistry` that the lowering actually consults, so the two
 registries disagree with each other — the first says yes and the second has never heard of
 them. None of these are exotic: `between`, `parseBoolean`, `sort` and `reverse` are likelier
@@ -1463,3 +1469,34 @@ mapping `@X` is a JOIN reference, so `cast(T.I, @Float)` is read as a join named
 *"Can't find join 'Float' in database 'DB'"*. Relational mapping syntax claims the punctuation
 that these type-level operations need, and the resulting message describes the misreading
 rather than the mistake.
+
+## F46 — The regexp functions advertise arities their lowering cannot accept
+
+    regexpLike(S, 'ph')        Execution error: The system is trying to get an element
+                               at offset 2 where the collection is of size 2
+    regexpLike(S, 'ph', 'i')   works
+
+Both overloads are registered:
+
+    regexpLike_String_1__String_1__Boolean_1_
+    regexpLike_String_1__String_1__RegexpParameter_$1_MANY$__Boolean_1_
+
+and the lowering is typed to exactly one arity:
+
+    dynaFnToSql('regexpCount',   ... transform={p:String[3]|...}),
+    dynaFnToSql('regexpIndexOf', ... transform={p:String[4]|...}),
+    dynaFnToSql('regexpExtract', ... transform={p:String[5]|...}),
+
+so the shorter form — the one the registry lists first and the one anyone writes first —
+reaches a transform that indexes past its own argument list.
+
+Working arities, established by trying them: `matches(S,p)`; `regexpLike(S,p,flags)`;
+`regexpCount(S,p,flags)`; `regexpIndexOf(S,p,1,flags)`; `regexpExtract(S,p,1,1,flags)`. For
+`regexpReplace` no arity was found that works — three arguments and four both fail.
+
+The diagnostic is the substantive complaint. An internal bounds error naming no function, no
+argument and no overload describes the engine's list handling to someone who wrote a query,
+while the fact they need — this overload has no lowering, pass the flags — is sitting in the
+transform's type signature.
+
+`repro/regexp-arity/`.

@@ -39,6 +39,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run as runner  # noqa: E402
 
+def _calendar_cases():
+    """One case per calendar aggregation, all with the same four-argument shape.
+
+    They are added programmatically because they are genuinely uniform -- the same call with
+    a different name -- and writing thirty near-identical tuples by hand invites exactly the
+    copy-paste slip that F35 is made of.
+    """
+    import oracle
+    return [(n, "Integer", f"{n}(T.D, 'default', T.D2, T.I)",
+             ["2024-06-03", "default", "2024-06-13", 7])
+            for n in oracle.CALENDAR]
+
+
 # (function, Pure return type, expression over the probe table, oracle args)
 # The probe table carries one row with values chosen so no function meets an argument it
 # would refuse: positive numbers, a non-empty string, a real date.
@@ -199,8 +212,44 @@ CASES = [
     # Passing the text itself made the oracle encode a STRING and answer `"[1]"` -- quotes
     # and all -- which is the right answer to the wrong question.
     ("toJson", "String", "toJson(T.JS)", [[1]]),
+    # -- the families that were refused by the oracle until now. Each is implemented against
+    # a stated convention, so a disagreement here names the convention that was wrong.
+    ("matches", "Boolean", "matches(T.S, 'al.*')", ["alpha", "al.*"]),
+    # The regexp family is probed at the arity its LOWERING accepts, not the arity the
+    # registry advertises. Each transform is typed to a fixed number of parameters --
+    # String[3] for regexpCount, String[4] for regexpIndexOf, String[5] for regexpExtract --
+    # and the shorter overloads, which are registered, cannot reach them (F46). The trailing
+    # argument is the regex flags.
+    ("regexpLike", "Boolean", "regexpLike(T.S, 'ph', 'i')", ["alpha", "ph"]),
+    ("regexpCount", "Integer", "regexpCount(T.S, 'a', 'i')", ["alpha", "a"]),
+    ("regexpIndexOf", "Integer", "regexpIndexOf(T.S, 'ph', 1, 'i')", ["alpha", "ph"]),
+    ("regexpExtract", "String", "regexpExtract(T.S, 'ph', 1, 1, 'i')", ["alpha", "ph"]),
+    # regexpReplace has no arity that works: three arguments hits the same index error and
+    # four is refused as well. Left at the natural spelling so the failure is recorded
+    # against the function rather than hidden by omission.
+    ("regexpReplace", "String", "regexpReplace(T.S, 'a', 'z')", ["alpha", "a", "z"]),
+    ("hash", "String", "hash(T.S, 'MD5')", ["alpha", "MD5"]),
+    ("hashCode", "Integer", "hashCode(T.S)", ["alpha"]),
+    ("jaroWinklerSimilarity", "Float", "jaroWinklerSimilarity(T.S, T.S2)",
+     ["alpha", "beta"]),
+    ("parseDate", "StrictDate", "parseDate(T.DS)", ["2024-06-03"]),
+    ("convertTimeZone", "DateTime", "convertTimeZone(T.TS, 'UTC')",
+     ["2024-06-03 19:15:00", "UTC"]),
+    ("today", "StrictDate", "today()", []),
+    ("firstDayOfThisMonth", "StrictDate", "firstDayOfThisMonth()", []),
+    ("firstDayOfThisYear", "StrictDate", "firstDayOfThisYear()", []),
+    ("firstDayOfThisQuarter", "StrictDate", "firstDayOfThisQuarter()", []),
+    # These three cannot AGREE by construction -- two clock readings taken seconds apart, and
+    # a fresh GUID each call. They are probed anyway: whether the engine can execute them is
+    # a separate question from whether their values can be compared, and the first question
+    # is the one the burndown asks.
+    ("now", "DateTime", "now()", []),
+    ("currentUserId", "String", "currentUserId()", []),
+    ("generateGuid", "String", "generateGuid()", []),
     ("least", "Integer", "least(T.I, T.J)", [[7, 3]]),
 ]
+
+CASES += _calendar_cases()
 
 MODEL = """Class probe::P
 {{
@@ -213,6 +262,7 @@ Database probe::DB
 (
    Table T ( K VARCHAR(20) PRIMARY KEY, S VARCHAR(50), S2 VARCHAR(50), S64 VARCHAR(50),
              N VARCHAR(20), NF VARCHAR(20), NB VARCHAR(20), JS VARCHAR(40),
+             DS VARCHAR(20),
              I INTEGER, J INTEGER, F DOUBLE, G DOUBLE, H DOUBLE, B BIT,
              D DATE, D2 DATE, TS TIMESTAMP )
 )
@@ -241,8 +291,8 @@ Data probe::Seed
   Relational
   #{{
     default.T:
-      'K,S,S2,S64,N,NF,NB,JS,I,J,F,G,H,B,D,D2,TS\\n' +
-      'R1,alpha,beta,YWxwaGE=,42,42.5,true,[1],7,3,10.0,4.0,0.5,true,'
+      'K,S,S2,S64,N,NF,NB,JS,DS,I,J,F,G,H,B,D,D2,TS\\n' +
+      'R1,alpha,beta,YWxwaGE=,42,42.5,true,[1],2024-06-03,7,3,10.0,4.0,0.5,true,'
         + '2024-06-03,2024-06-13,2024-06-03 19:15:00\\n';
   }}#
 }}

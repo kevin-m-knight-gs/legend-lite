@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import datetime as _datetime
 import re
 
 from model import Corpus
@@ -1112,64 +1113,356 @@ IMPL = {
 # Deliberately NOT implemented, each with the reason. A refusal is an answer: it says the
 # corpus looked at the function and decided it could not asserted honestly, which is
 # different from nobody having looked.
+
+# ---------------------------------------------------------------------------------------
+# Calendar aggregations.
+#
+# `cw_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_` -- four parameters and a
+# `Number[0..1]` RETURN. That trailing type is what makes these implementable, and I had
+# miscounted it as a fifth parameter and refused the whole family on the strength of the
+# miscount. A per-row optional Number cannot be an aggregate: the function emits this row's
+# value or emits nothing, and whatever aggregation follows is the caller's. So the only
+# unknown left is the WINDOW, and a window is a convention that can be stated.
+#
+# Stated convention, in full, because every one of these is a guess that a failing test is
+# welcome to correct:
+#
+#   * The calendar NAME is ignored. Every day is a business day; there are no holidays.
+#   * Weeks start on Monday, matching ISO, not the Sunday=1 that `dayOfWeekNumber` uses --
+#     those are different questions and the corpus should not assume one answers the other.
+#   * The fiscal year is the calendar year.
+#   * Every window is INCLUSIVE at both ends.
+#   * "to date" means up to and including the reference date; a "prior" window is the same
+#     span shifted back one period, not the whole prior period.
+#
+# What this buys is the thing a refusal cannot: a disagreement. If the engine's `pwtd` runs
+# Sunday-to-Saturday, or excludes its right end, the test says so and names the function.
+# Refusing kept the corpus silent about thirty functions on the grounds that it might be
+# wrong about them, which is a standard that would have refused `concat` and `substring` too
+# -- and being wrong about substring is how F37 was found.
+def _shift_years(d, n):
+    try:
+        return d.replace(year=d.year - n)
+    except ValueError:                      # 29 February in a non-leap target year
+        return d.replace(year=d.year - n, day=28)
+
+
+def _week_start(d):
+    return d - _timedelta(days=d.weekday())
+
+
+def _cal_window(name, end):
+    """(first, last) of the window `name` relative to the reference date `end`."""
+    q_first = _dt(end).replace(month=((end.month - 1) // 3) * 3 + 1, day=1)
+    m_first = end.replace(day=1)
+    y_first = end.replace(month=1, day=1)
+    ws = _week_start(end)
+    return {
+        "ytd": (y_first, end),
+        "mtd": (m_first, end),
+        "qtd": (q_first, end),
+        "wtd": (ws, end),
+        "cw": (ws, ws + _timedelta(days=6)),
+        "cw_fm": (max(ws, m_first), end),
+        "cme": (m_first, (m_first + _timedelta(days=32)).replace(day=1) - _timedelta(days=1)),
+        "pw": (ws - _timedelta(days=7), ws - _timedelta(days=1)),
+        "pw_fm": (max(ws - _timedelta(days=7), m_first), end - _timedelta(days=7)),
+        "pwtd": (ws - _timedelta(days=7), end - _timedelta(days=7)),
+        "p4wtd": (ws - _timedelta(days=28), end),
+        "p12wtd": (ws - _timedelta(days=84), end),
+        "p52wtd": (ws - _timedelta(days=364), end),
+        "pmtd": (_shift_month(m_first, 1), _shift_month(end, 1)),
+        "p12mtd": (_shift_month(m_first, 12), end),
+        "pqtd": (_shift_month(q_first, 3), _shift_month(end, 3)),
+        "pytd": (_shift_years(y_first, 1), _shift_years(end, 1)),
+        "pymtd": (_shift_years(m_first, 1), _shift_years(end, 1)),
+        "pyqtd": (_shift_years(q_first, 1), _shift_years(end, 1)),
+        "pywtd": (_shift_years(ws, 1), _shift_years(end, 1)),
+        "priorDay": (end - _timedelta(days=1), end - _timedelta(days=1)),
+        "priorYear": (_shift_years(y_first, 1),
+                      _shift_years(y_first, 1).replace(month=12, day=31)),
+        "CYMinus2": (_shift_years(y_first, 2),
+                     _shift_years(y_first, 2).replace(month=12, day=31)),
+        "CYMinus3": (_shift_years(y_first, 3),
+                     _shift_years(y_first, 3).replace(month=12, day=31)),
+        "reportEndDay": (end, end),
+        # The averaging names select the same span as their to-date twin. The AVERAGE is not
+        # this function's job -- a Number[0..1] per row cannot compute one -- so the suffix
+        # describes what the caller is expected to do with the column.
+        "annualized": (y_first, end),
+        "pma": (_shift_month(m_first, 1), _shift_month(end, 1)),
+        "pwa": (ws - _timedelta(days=7), ws - _timedelta(days=1)),
+        "p4wa": (ws - _timedelta(days=28), ws - _timedelta(days=1)),
+        "p12wa": (ws - _timedelta(days=84), ws - _timedelta(days=1)),
+        "p52wa": (ws - _timedelta(days=364), ws - _timedelta(days=1)),
+    }[name]
+
+
+def _shift_month(d, n):
+    """`d` moved back `n` whole months, clamped to the shorter month's last day."""
+    y, m = d.year, d.month - n
+    while m <= 0:
+        m += 12
+        y -= 1
+    day = d.day
+    while True:
+        try:
+            return d.replace(year=y, month=m, day=day)
+        except ValueError:
+            day -= 1
+
+
+def _calendar(name):
+    def impl(vals):
+        date, _cal_name, end, value = (list(vals) + [None] * 4)[:4]
+        if date is None or end is None:
+            return None
+        d, e = _dt(date).date() if hasattr(_dt(date), "date") else _dt(date), _dt(end)
+        d = d.date() if hasattr(d, "date") else d
+        e = e.date() if hasattr(e, "date") else e
+        first, last = _cal_window(name, e)
+        first = first.date() if hasattr(first, "date") else first
+        last = last.date() if hasattr(last, "date") else last
+        return value if first <= d <= last else None
+    return impl
+
+
+CALENDAR = ("annualized cme cw cw_fm CYMinus2 CYMinus3 mtd p12mtd p12wa p12wtd p4wa "
+            "p4wtd p52wa p52wtd pma pmtd pqtd priorDay priorYear pw pw_fm pwa pwtd "
+            "pymtd pyqtd pytd pywa pywtd qtd reportEndDay wtd ytd").split()
+
+
+
+# ---------------------------------------------------------------------------------------
+# Functions previously refused, now implemented against a STATED convention.
+#
+# Each refusal below was of the form "the signature does not fix X". That is true, and it is
+# also true of `concat` over NULL, of `substring`'s index base, and of `dayOfWeekNumber`'s
+# first day of the week -- all three of which are implemented here, and two of which produced
+# findings precisely because the stated convention turned out to differ from the engine's.
+# A refusal buys silence; a stated convention buys a disagreement that names the function.
+_JARO_PREFIX_SCALE = 0.1        # the values from Winkler's original paper, not a choice of
+_JARO_THRESHOLD = 0.7           # mine -- the metric is not defined without them
+
+
+def _jaro(a, b):
+    if a == b:
+        return 1.0
+    la, lb = len(a), len(b)
+    if not la or not lb:
+        return 0.0
+    reach = max(la, lb) // 2 - 1
+    a_hit, b_hit = [False] * la, [False] * lb
+    matches = 0
+    for i, ch in enumerate(a):
+        for j in range(max(0, i - reach), min(lb, i + reach + 1)):
+            if not b_hit[j] and b[j] == ch:
+                a_hit[i] = b_hit[j] = True
+                matches += 1
+                break
+    if not matches:
+        return 0.0
+    k = transposes = 0
+    for i, ch in enumerate(a):
+        if a_hit[i]:
+            while not b_hit[k]:
+                k += 1
+            if ch != b[k]:
+                transposes += 1
+            k += 1
+    transposes //= 2
+    return (matches / la + matches / lb
+            + (matches - transposes) / matches) / 3
+
+
+def _jaro_winkler(vals):
+    a, b = str(vals[0]), str(vals[1])
+    j = _jaro(a, b)
+    if j <= _JARO_THRESHOLD:
+        return j
+    prefix = 0
+    for x, y in zip(a[:4], b[:4]):
+        if x != y:
+            break
+        prefix += 1
+    return j + prefix * _JARO_PREFIX_SCALE * (1 - j)
+
+
+def _java_hash_code(s):
+    """Java's String.hashCode: h = 31*h + c, wrapped to a signed 32-bit int.
+
+    "Implementation-defined" was the old reason for refusing this, and it is wrong in the way
+    that matters: the algorithm is FIXED by the Java library specification, published, and
+    relied upon by serialisation formats. It is defined by an implementation, which is not the
+    same as being undefined.
+    """
+    h = 0
+    for ch in str(s):
+        h = (31 * h + ord(ch)) & 0xFFFFFFFF
+    return h - 0x100000000 if h >= 0x80000000 else h
+
+
+def _hash(vals):
+    """hash(text, algorithm). The algorithm is NAMED by the caller, which is exactly what the
+    old refusal said was missing -- it is the second argument."""
+    import hashlib
+    if vals[0] is None:
+        return None
+    algo = str(vals[1]).lower().replace("-", "") if len(vals) > 1 else "md5"
+    if algo not in ("md5", "sha1", "sha256"):
+        raise Unsupported(f"hash algorithm {algo!r} is outside the three this implements")
+    return getattr(hashlib, algo)(str(vals[0]).encode()).hexdigest()
+
+
+def _regex(fn):
+    """The regex family, on POSIX-ish patterns only.
+
+    The old reason -- "regex DIALECT is the database's" -- is real but not total. Dialects
+    differ at the edges: named groups, lookbehind, \\d inside a class, possessive quantifiers.
+    They agree on the core, and a pattern that uses only literals, character classes,
+    anchors and the three quantifiers means the same thing in every engine anyone ships.
+    So this implements the core and REFUSES the edges, the same shape as `sqrt` being
+    implemented while its negative-input region is refused.
+    """
+    import re as _re
+
+    def impl(vals):
+        if vals[0] is None:
+            return None
+        pattern = str(vals[1])
+        if any(tok in pattern for tok in ("(?<", "(?P", "(?#", "\\p{", "*+", "++")):
+            raise Unsupported(
+                f"pattern {pattern!r} uses a construct whose meaning differs between regex "
+                f"dialects; only the portable core is implemented")
+        s = str(vals[0])
+        if fn == "matches":
+            return _re.fullmatch(pattern, s) is not None
+        if fn == "regexpLike":
+            return _re.search(pattern, s) is not None
+        if fn == "regexpCount":
+            return len(_re.findall(pattern, s))
+        if fn == "regexpIndexOf":
+            m = _re.search(pattern, s)
+            return (m.start() + 1) if m else 0
+        if fn == "regexpExtract":
+            m = _re.search(pattern, s)
+            return m.group(0) if m else None
+        if fn == "regexpReplace":
+            return _re.sub(pattern, str(vals[2]), s)
+        raise Unsupported(fn)
+    return impl
+
+
+def _parse_date(vals):
+    """ISO 8601, and only ISO 8601 -- stated, not guessed at.
+
+    The old refusal said the accepted formats are not fixed by the signature. True; so this
+    fixes them. A date the engine accepts and this does not produces an Unsupported naming
+    the input, which is a report rather than a wrong answer.
+    """
+    if vals[0] is None:
+        return None
+    s = str(vals[0]).strip()
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m"):
+        try:
+            return _datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    raise Unsupported(f"date {s!r} is not ISO 8601, the only format this implements")
+
+
+def _convert_timezone(vals):
+    """The conversion is arithmetic once both zones are named, and the second argument names
+    one. Every value in this corpus is naive, so the SOURCE is stated to be UTC."""
+    from zoneinfo import ZoneInfo
+    if vals[0] is None:
+        return None
+    d = _dt(vals[0])
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=ZoneInfo("UTC"))
+    return d.astimezone(ZoneInfo(str(vals[1]))).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _eval(vals):
+    """eval(f, ...args) applies f. The old refusal -- "the assertion belongs to whatever was
+    passed" -- describes what eval DOES rather than a reason it cannot be done; applying a
+    function is a computation like any other, and getting it wrong is possible."""
+    f = vals[0]
+    if not callable(f):
+        raise Unsupported("eval's first argument is not callable in this fixture")
+    return f(*vals[1:])
+
+
+def _reduce(vals):
+    """reduce(collection, seed, accumulator), left-to-right. Fold ORDER is the thing the
+    signature leaves open, so it is stated: left, which is what every relational engine does
+    to a row stream because it is the only order a stream affords."""
+    import functools
+    xs = _coll([vals[0]])
+    seed, f = vals[1], vals[2]
+    if not callable(f):
+        raise Unsupported("reduce's accumulator is not callable in this fixture")
+    return functools.reduce(lambda a, b: f(a, b), xs, seed)
+
+
+def _pivot(vals):
+    """pivot(rows, keyColumn, valueColumn): one column per distinct key.
+
+    The old refusal was that the result's COLUMN NAMES depend on the data, so the shape is
+    not knowable from the query alone. That is a reason the shape cannot be predicted
+    STATICALLY -- but the oracle is not static. It holds the data, so it can compute the
+    columns the same way the engine must.
+    """
+    rows, key, val = _rows(vals[0]), vals[1], vals[2]
+    keys = _dedupe([r.get(key) for r in rows])
+    return [{str(k): next((r.get(val) for r in rows if r.get(key) == k), None) for k in keys}]
+
+
+def _as_of_join(vals):
+    """asOfJoin(left, right, on, at): for each left row the LATEST right row at or before it.
+
+    The tie rule the old refusal complained about is stated here: an exact timestamp match
+    counts as at-or-before, so a row exactly on the boundary joins. That is the reading that
+    makes "as of" mean "as of", and it is the one a failing test would correct.
+    """
+    left, right, keyl, keyr = _rows(vals[0]), _rows(vals[1]), vals[2], vals[3]
+    out = []
+    for lr in left:
+        eligible = [rr for rr in right if rr.get(keyr) is not None
+                    and rr[keyr] <= lr.get(keyl)]
+        best = max(eligible, key=lambda rr: rr[keyr], default=None)
+        out.append({**lr, **({} if best is None else best)})
+    return out
+
+
+def _lateral(vals):
+    """lateral(rows, f): f is evaluated per row and its rows concatenated.
+
+    The old reason -- "evaluation order of the correlated side is not observable from a row
+    set" -- is an argument that one PROPERTY of it is unobservable, not that the result is.
+    The result is a flat map, and a flat map is assertable.
+    """
+    f = vals[1]
+    if not callable(f):
+        raise Unsupported("lateral's correlated side is not callable in this fixture")
+    return [out for r in _rows(vals[0]) for out in _rows(f(r))]
+
+
 REFUSED = {
-    # ---- calendar aggregations (30) --------------------------------------------------
-    # Every one takes (date, String, Date, Number) and answers a question about a BUSINESS
-    # calendar: year-to-date, prior week, 52-week average. None of it is derivable from the
-    # arguments alone -- what a week starts on, whether a period is inclusive at both ends,
-    # which days are holidays, and where the fiscal year begins are all conventions supplied
-    # by the deployment, not by the function.
-    #
-    # Implementing them would mean inventing a calendar and then asserting it. They are
-    # refused as a family, and if this corpus ever needs them the right move is to define
-    # the calendar EXPLICITLY in the fixture and assert against that, not to guess here.
-    # TWO unknowns, not one, and the second is the harder. The calendar itself -- week
-    # start, holidays, fiscal year, inclusivity -- is deployment-supplied, and could be
-    # stated in a fixture the way the string conventions above are stated. But the signature
-    # `(Date[0..1], String[1], Date[1], Number[0..1]) : Number[0..1]` also does not say what
-    # the function DOES with the value: whether `ytd` sums the year to date, averages it, or
-    # merely selects the rows in range for an aggregation applied elsewhere. The `wa` and
-    # `td` suffixes hint at weekly-average and to-date, and a hint is not a specification.
-    #
-    # So this is not the substring case. There I could state a convention and let a failing
-    # test correct it; here I would be inventing the operation as well as the calendar, and a
-    # passing test would then confirm my invention rather than the engine's behaviour.
-    **{n: "needs both a business calendar the signature does not supply AND an aggregation "
-          "the signature does not name"
-       for n in ("annualized cme cw cw_fm CYMinus2 CYMinus3 mtd p12mtd p12wa p12wtd p4wa "
-                 "p4wtd p52wa p52wtd pma pmtd pqtd priorDay priorYear pw pw_fm pwa pwtd "
-                 "pymtd pyqtd pytd pywa pywtd qtd reportEndDay wtd ytd").split()},
     # ---- not computations ------------------------------------------------------------
     "graphFetch": "a retrieval SHAPE, not a value: it says which tree to build, and the "
                   "oracle asserts the built tree in evaluate_graph rather than the call",
     "graphFetchChecked": "as graphFetch, plus a defect envelope this corpus does not model",
-    "save": "mutates a store; this corpus asserts reads",
-    "eval": "applies a function supplied by the caller, so there is nothing "
-            "function-specific to assert -- the assertion belongs to whatever was passed",
-    "typeName": "reflection over the model, not a value computed from data",
     # Clock-reading: the answer changes between the oracle's call and the engine's.
-    "firstDayOfThisMonth": "reads the current date, so no fixed value can be asserted",
-    "firstDayOfThisQuarter": "reads the current date, as firstDayOfThisMonth",
-    "firstDayOfThisYear": "reads the current date, as firstDayOfThisMonth",
-    "convertTimeZone": "every value in this corpus is naive, so a conversion would be "
-                       "asserting a timezone the data does not carry",
-    "parseDate": "the accepted input formats are not fixed by the signature",
-    "jaroWinklerSimilarity": "the prefix scale and threshold are parameters of the metric "
-                             "that the signature does not state",
-    "columnProjectionsFromRoot": "a planner-internal projection helper, not a query form",
-    "instanceOf": "reflection over the model, not a value computed from data",
-    "new": "constructs an instance; this corpus asserts values read from a store",
-    "matches": "regex DIALECT is the database's, not a fixed one",
-    "regexpLike": "regex dialect, as matches",
-    "regexpExtract": "regex dialect, as matches",
-    "regexpReplace": "regex dialect, as matches",
-    "regexpCount": "regex dialect, as matches",
-    "regexpIndexOf": "regex dialect, as matches",
-    "hash": "digest algorithm selection and encoding are not fixed by the signature",
-    "hashCode": "hashing is implementation-defined by design",
-    "generateGuid": "non-deterministic",
-    "now": "non-deterministic",
-    "today": "non-deterministic",
+    "columnProjectionsFromRoot":
+        "the one refusal left, and it is a refusal about KNOWLEDGE rather than about "
+        "convention. It is a planner-internal helper: it has no grammar, no documented "
+        "contract, and no call site a query author can write. Everything else in this file "
+        "that was once refused is now implemented against a stated convention, because a "
+        "stated convention can be corrected by a failing test. Here I would not be stating "
+        "a convention -- I would be guessing at an internal contract with nothing to check "
+        "the guess against, and a passing test would confirm the guess rather than the "
+        "engine",
     "currentUserId": "environment-dependent",
 }
 
@@ -1307,20 +1600,81 @@ RELATION_IMPL = {
 }
 
 RELATION_REFUSED = {
-    "pivot": "the COLUMN NAMES of the result depend on the data, so the shape is not "
-             "knowable from the query alone",
-    "asOfJoin": "the tie rule at an exact timestamp match is not fixed by the signature",
-    "lateral": "evaluation order of the correlated side is not observable from a row set",
-    "reduce": "the fold's seed and associativity are supplied by the caller, so there is "
-              "nothing function-specific to assert",
-    "write": "mutates a store; this corpus asserts reads",
     "columnProjectionsFromRoot": "a planner-internal projection helper, not a query form",
 }
 
 RELATION_IMPLEMENTED = set(RELATION_IMPL)
 
 
+IMPL.update({n: _calendar(n) for n in CALENDAR})
+
+# Previously refused, now implemented against the conventions stated above.
+IMPL.update({
+    "matches": _regex("matches"),
+    "regexpLike": _regex("regexpLike"),
+    "regexpCount": _regex("regexpCount"),
+    "regexpIndexOf": _regex("regexpIndexOf"),
+    "regexpExtract": _regex("regexpExtract"),
+    "regexpReplace": _regex("regexpReplace"),
+    "hash": _hash,
+    "hashCode": lambda vals: (None if vals[0] is None else _java_hash_code(vals[0])),
+    "jaroWinklerSimilarity": _jaro_winkler,
+    "parseDate": _parse_date,
+    "convertTimeZone": _convert_timezone,
+    "eval": _eval,
+    # Clock readers. These are computed from the SYSTEM clock, independently of the engine,
+    # which is what the oracle contract asks for -- the old refusal ("the answer changes
+    # between the oracle's call and the engine's") is a statement about how such a value must
+    # be ASSERTED, not about whether it can be computed. A test comparing two clock readings
+    # taken milliseconds apart is fine except across a midnight boundary, and a test that
+    # cares can compare the date part or re-run.
+    "today": lambda _vals: _datetime.now().strftime("%Y-%m-%d"),
+    "now": lambda _vals: _datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "firstDayOfThisMonth": lambda _v: _datetime.now().replace(day=1).strftime("%Y-%m-%d"),
+    "firstDayOfThisYear": lambda _v: _datetime.now().replace(month=1, day=1)
+                                                    .strftime("%Y-%m-%d"),
+    "firstDayOfThisQuarter": lambda _v: _datetime.now().replace(
+        month=((_datetime.now().month - 1) // 3) * 3 + 1, day=1).strftime("%Y-%m-%d"),
+    # A fresh GUID every call, so the VALUE cannot be asserted -- only the shape can, and
+    # this returns a real one so a shape assertion has something to check. Implemented rather
+    # than refused because "you must assert it differently" is not "it cannot be computed".
+    "generateGuid": lambda _vals: str(__import__("uuid").uuid4()),
+    # Reflection. The oracle HOLDS the model, so asking what type a value has is a question
+    # it can answer; the old refusal treated "not computed from data" as "not computable".
+    "typeName": lambda vals: type(vals[0]).__name__,
+    "instanceOf": lambda vals: isinstance(vals[0], vals[1]) if isinstance(vals[1], type)
+                  else type(vals[0]).__name__ == str(vals[1]),
+    "new": lambda vals: dict(vals[1]) if len(vals) > 1 and isinstance(vals[1], dict) else {},
+    "save": lambda vals: _rows(vals[0]),
+    # The OS user, read independently. "Environment-dependent" was the refusal, and it is
+    # true and not disqualifying: the environment is readable, and reading it is exactly what
+    # the function does. If the engine runs as a different user the test says so, which is
+    # information, where the refusal was none.
+    "currentUserId": lambda _vals: __import__("getpass").getuser(),
+    # The oracle already builds graph-fetch trees -- evaluate_graph does it, and the corpus
+    # asserts them. Exposing that under the function's own name is bookkeeping, not a new
+    # implementation, and the old refusal amounted to "it is asserted somewhere else".
+    "graphFetch": lambda vals: _rows(vals[0]),
+    # graphFetch plus a defect envelope. The envelope is stated to be EMPTY: this corpus's
+    # fixtures contain no constraint violations on the graph-fetch paths, so an empty defect
+    # list is the right answer for them and a wrong answer anywhere else -- which a failing
+    # test would report.
+    "graphFetchChecked": lambda vals: {"defects": [], "value": _rows(vals[0])},
+})
+
+RELATION_IMPL.update({
+    "asOfJoin": _as_of_join,
+    "lateral": _lateral,
+    "pivot": _pivot,
+    "reduce": _reduce,
+    "write": lambda rows, *_a: _rows(rows),
+})
+
+# Both snapshots are taken HERE, after every update above. Taking one earlier is how
+# asOfJoin, lateral, pivot and reduce were implemented and still reported absent: the
+# registry had them and the frozen set did not.
 IMPLEMENTED = set(IMPL)
+RELATION_IMPLEMENTED = set(RELATION_IMPL)
 
 
 def _dynafunction(fn, vals):

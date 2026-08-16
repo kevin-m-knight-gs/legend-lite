@@ -310,6 +310,21 @@ KNOWN_BAD = {
 # Run, diagnosed, and removed from the case list because they cannot compile. Recorded so
 # they are not reported as untouched.
 DIAGNOSED = {
+    # These four run and are recorded, but none is ASSERTED, and the distinction matters.
+    #
+    # asOfJoin and pivot compile and execute against this seed; what stopped them being
+    # probed properly is that the seed has duplicate `v` values, so "the latest row at or
+    # before" and "the column for each key" both have ties, and an expectation over a tie is
+    # unfalsifiable -- the same trap that made `slice` look like a disagreement. Asserting
+    # them needs a seed built for them, not this one.
+    #
+    # lateral and reduce do not compile: the lambda forms this file guessed at are wrong, and
+    # the engine's messages ("Can't find variable class for variable 'r'", an NPE reaching for
+    # a generic type) name the guess rather than the right spelling.
+    "asOfJoin": "RUNS; not asserted -- ties in this seed make the expectation unfalsifiable",
+    "pivot": "RUNS; not asserted -- ties in this seed make the expectation unfalsifiable",
+    "lateral": "REFUSED: Can't find variable class for variable 'r' in the graph",
+    "reduce": "REFUSED: NPE reaching for a generic type during compilation",
     "offset": "REFUSED: registered signature names a function that does not exist (F36)",
     "size": "REFUSED: a scalar-returning service cannot be asserted by the framework",
 }

@@ -223,6 +223,13 @@ CASES = [
     ("toMany", "|rem::P.all()->project(~[g:x|$x.g, "
                "n:x|toVariant($x.v)->toMany(@Integer)->size()])->sort(~g->ascending())",
      [{"g": r["g"], "n": 1} for r in sorted(ROWS, key=lambda r: r["g"])]),
+    ("eval", "|rem::P.all()->project(~[g:x|$x.g, n:x|{a:Integer[1]|$a + 1}->eval(1)])"
+             "->sort(~g->ascending())",
+     [{"g": r["g"], "n": 2} for r in sorted(ROWS, key=lambda r: r["g"])]),
+    ("save", "|rem::P.all()->project(~[g:x|$x.g])->save()", []),
+    ("graphFetch", "|rem::P.all()->graphFetch(#{rem::P{g}}#)->serialize(#{rem::P{g}}#)", []),
+    ("graphFetchChecked",
+     "|rem::P.all()->graphFetchChecked(#{rem::P{g}}#)->serialize(#{rem::P{g}}#)", []),
     ("objectReferenceIn", "|rem::P.all()->project(~[g:x|$x.g, "
                           "n:x|$x->objectReferenceIn(['a'])])->sort(~g->ascending())", []),
 ]
