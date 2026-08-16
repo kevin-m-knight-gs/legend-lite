@@ -3,8 +3,22 @@ The FUNCTION burndown: what the oracle can evaluate, against what the engine can
 
 docs/ENGINE_FUNCTIONS.tsv is derived from `getSupportedFunctions()` in pureToSQLQuery.pure --
 the map the engine consults before it emits "No SQL translation exists for the PURE function".
-292 distinct names, 428 entries once overloads are counted. It is generated, not transcribed:
-the list is too long to copy without error and too important to get wrong.
+It is generated, not transcribed: the list is too long to copy without error and too important
+to get wrong.
+
+Three counts, and they are not interchangeable:
+
+    427   entries in the registry, overloads included
+    292   (package, name) pairs
+    262   DISTINCT names
+
+30 names appear under more than one package -- `filter` and `size` in both collection and
+relation, `contains` and `and` and `or` in both collection and scalar. The per-family rows
+below count PAIRS, because a collection `filter` and a relation `filter` are different
+functions and closing one does not close the other. The totals count DISTINCT names, because
+summing the family rows counts a shared name once per family and inflates the result. An
+earlier version summed the rows and reported 234 implemented where 205 names were; the
+scoreboard was flattering itself by exactly the amount the families overlap.
 
 A function is IMPLEMENTED here when the oracle computes its result independently of
 legend-engine. That is the whole bar, and it is deliberately high. Reading the engine's
@@ -17,6 +31,19 @@ So each entry lands in one of three states, and the middle one is not a failure:
     IMPLEMENTED   the oracle has an independent implementation and states its NULL rule
     REFUSED       the oracle raises Unsupported, with a reason
     ABSENT        neither -- nobody has looked at it yet
+
+and a fourth column, which is the one that means something:
+
+    EXECUTED      the function RAN against the engine and agreed with the oracle
+
+An implementation with no executing test proves nothing. 234 of these were implemented in an
+afternoon and 76 of them had ever run; the gap is not a rounding error, it is the difference
+between a scoreboard that measures the corpus and one that measures my typing. The evidence
+comes from docs/FUNCTIONS_EXECUTED.tsv, which probe_functions.py WRITES rather than anyone
+maintaining -- a hand-kept list of "functions we have tested" drifts, and drifts flatteringly.
+
+Note what does not count. A function that ran and disagreed is recorded but not counted, or
+the scoreboard would improve every time the corpus found a bug.
 
 REFUSED is a real answer. `concat` taught the lesson: its behaviour over NULL is decided by
 the DIALECT, not by the function, so an implementation written from what concat "means" was
@@ -98,25 +125,53 @@ def refused(fam: str | None = None) -> dict[str, str]:
     return dict(oracle.REFUSED)
 
 
+EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
+
+
+def executed() -> dict[str, str]:
+    """function -> evidence, from the probe's own output. Empty if it has never been run."""
+    if not EVIDENCE.exists():
+        return {}
+    return dict(line.split("\t", 1)
+                for line in EVIDENCE.read_text().splitlines()[1:] if "\t" in line)
+
+
 def report():
     rows = inventory()
     by_family: dict[str, list] = {}
     for pkg, name, n in rows:
         by_family.setdefault(family(pkg), []).append(name)
 
-    print(f"ENGINE FUNCTION REGISTRY: {len(rows)} distinct names "
-          f"({sum(n for _p, _n, n in rows)} entries with overloads)\n")
-    print(f"  {'family':<18} {'impl':>5} {'refused':>8} {'absent':>7}   of")
-    tot_i = tot_r = 0
+    distinct = {name for _p, name, _n in rows}
+    print(f"ENGINE FUNCTION REGISTRY: {len(distinct)} distinct names, {len(rows)} "
+          f"(package, name) pairs, {sum(n for _p, _n, n in rows)} entries with overloads\n")
+    ev = executed()
+    print(f"  {'family':<18} {'impl':>5} {'refused':>8} {'absent':>7} {'EXEC':>6}   of")
+    tot_i = tot_r = tot_e = 0
     for fam, names in sorted(by_family.items()):
         impl, refu = implemented(fam), refused(fam)
         i = sum(1 for x in names if x in impl)
         r = sum(1 for x in names if x in refu)
+        e = sum(1 for x in names if ev.get(x) in ("probe", "matrix"))
         tot_i += i
         tot_r += r
-        print(f"  {fam:<18} {i:>5} {r:>8} {len(names) - i - r:>7}   {len(names)}")
-    print(f"\n  {'TOTAL':<18} {tot_i:>5} {tot_r:>8} "
-          f"{len(rows) - tot_i - tot_r:>7}   {len(rows)}")
+        tot_e += e
+        print(f"  {fam:<18} {i:>5} {r:>8} {len(names) - i - r:>7} {e:>6}   {len(names)}")
+    # Totals over DISTINCT names, not the sum of the rows above. A name shared by two
+    # families has one implementation and must not be counted twice.
+    fam_of: dict[str, set] = {}
+    for pkg, name, _n in rows:
+        fam_of.setdefault(name, set()).add(family(pkg))
+    d_i = sum(1 for n in distinct if any(n in implemented(f) for f in fam_of[n]))
+    d_r = sum(1 for n in distinct
+              if not any(n in implemented(f) for f in fam_of[n])
+              and any(n in refused(f) for f in fam_of[n]))
+    d_e = sum(1 for n in distinct if ev.get(n) in ("probe", "matrix"))
+    print(f"  {'':<18} {'-' * 5} {'-' * 8} {'-' * 7} {'-' * 6}")
+    print(f"  {'DISTINCT NAMES':<18} {d_i:>5} {d_r:>8} "
+          f"{len(distinct) - d_i - d_r:>7} {d_e:>6}   {len(distinct)}")
+    print(f"\n  {d_i - d_e} functions are implemented by the oracle and have never been "
+          f"run against\n  the engine. That gap, not the absent column, is the remaining work.")
 
     if "--absent" in sys.argv:
         fam_want = next((a.split("=")[1] for a in sys.argv if a.startswith("--family=")), None)
@@ -130,6 +185,17 @@ def report():
                 print(f"\n  [{fam}] {len(missing)}")
                 for i in range(0, len(missing), 6):
                     print("    " + "  ".join(f"{m:<20}" for m in missing[i:i + 6]))
+
+    if "--unexecuted" in sys.argv:
+        print("\nIMPLEMENTED BUT NEVER EXECUTED:")
+        for fam, names in sorted(by_family.items()):
+            impl = implemented(fam)
+            gap = sorted(x for x in names
+                         if x in impl and ev.get(x) not in ("probe", "matrix"))
+            if gap:
+                print(f"\n  [{fam}] {len(gap)}")
+                for i in range(0, len(gap), 6):
+                    print("    " + "  ".join(f"{m:<20}" for m in gap[i:i + 6]))
 
     if "--refused" in sys.argv:
         print("\nREFUSED -- deliberately not implemented, with the reason:")

@@ -627,8 +627,19 @@ def _format_date(vals):
     if vals[0] is None:
         return None
     fmt = str(vals[1])
-    # Only the strftime-compatible subset. A format string is a little language, and
-    # guessing at the rest would mean asserting a translation nobody wrote down.
+    # The two NAMED formats relational execution accepts. Every dialect that implements
+    # formatDate offers exactly these two and rejects anything else with "Unsupported
+    # DateFormat", so a format PATTERN like 'yyyy-MM-dd' never reaches SQL at all.
+    #
+    # Implementing them is not deference: ISO 8601 is a published standard and its rendering
+    # of a date is '2024-06-03' whoever writes the code. The nanosecond variant is spelled
+    # out to nine fractional digits by the same standard.
+    if fmt == "ISO8601":
+        return _dt(vals[0]).strftime("%Y-%m-%d")
+    if fmt == "ISO8601_NanoSecondPrecision":
+        return _dt(vals[0]).strftime("%Y-%m-%dT%H:%M:%S.%f") + "000"
+    # Otherwise only the strftime-compatible subset. A format string is a little language,
+    # and guessing at the rest would mean asserting a translation nobody wrote down.
     if any(c in fmt for c in "[]{}"):
         raise Unsupported(f"date format {fmt!r} is outside the strftime subset implemented")
     return _dt(vals[0]).strftime(fmt)

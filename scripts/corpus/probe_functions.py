@@ -125,6 +125,48 @@ CASES = [
     ("mostRecentDayOfWeek", "StrictDate", "mostRecentDayOfWeek(T.D, 'Monday')",
      ["2024-06-03", "Monday"]),
     ("greatest", "Integer", "greatest(T.I, T.J)", [[7, 3]]),
+    # -- second batch: trigonometry over a bounded operand, comparisons, parsing, and the
+    # date functions whose extra argument is an enum or a format string. Anything the engine
+    # refuses is dropped by the bisect, so a case that turns out not to be reachable from a
+    # property mapping costs one round rather than a broken probe.
+    ("acos", "Float", "acos(T.H)", [0.5]),
+    ("asin", "Float", "asin(T.H)", [0.5]),
+    ("cosh", "Float", "cosh(T.H)", [0.5]),
+    ("sinh", "Float", "sinh(T.H)", [0.5]),
+    ("tanh", "Float", "tanh(T.H)", [0.5]),
+    ("cot", "Float", "cot(T.F)", [10.0]),
+    ("char", "String", "char(T.I)", [7]),
+    ("repeatString", "String", "repeatString(T.S, 2)", ["alpha", 2]),
+    ("between", "Boolean", "between(T.I, 1, 9)", [7, 1, 9]),
+    ("eq", "Boolean", "eq(T.I, T.J)", [7, 3]),
+    ("equal", "Boolean", "equal(T.I, T.J)", [7, 3]),
+    ("greaterThan", "Boolean", "greaterThan(T.I, T.J)", [7, 3]),
+    ("greaterThanEqual", "Boolean", "greaterThanEqual(T.I, T.J)", [7, 3]),
+    ("lessThan", "Boolean", "lessThan(T.I, T.J)", [7, 3]),
+    ("lessThanEqual", "Boolean", "lessThanEqual(T.I, T.J)", [7, 3]),
+    ("and", "Boolean", "and(T.B, T.B)", [True, True]),
+    ("or", "Boolean", "or(T.B, T.B)", [True, True]),
+    ("parseInteger", "Integer", "parseInteger(T.N)", ["42"]),
+    ("parseFloat", "Float", "parseFloat(T.NF)", ["42.5"]),
+    ("parseDecimal", "Float", "parseDecimal(T.NF)", ["42.5"]),
+    ("parseBoolean", "Boolean", "parseBoolean(T.NB)", ["true"]),
+    ("month", "Integer", "month(T.D)", ["2024-06-03"]),
+    ("dayOfWeek", "String", "dayOfWeek(T.D)", ["2024-06-03"]),
+    ("firstMillisecondOfSecond", "DateTime", "firstMillisecondOfSecond(T.TS)",
+     ["2024-06-03 19:15:00"]),
+    # The enum arguments are written as STRING LITERALS, not as `DurationUnit.DAYS`. Inside a
+    # relational property mapping `X.Y` is a table-and-column reference, so an enum literal
+    # there is read as a table -- "Can't find table 'DurationUnit'" -- and the fully qualified
+    # form is a parse error. The lowerings strip quotes off the argument, so a literal is
+    # what they expect. Nothing says so; it is visible only in the transform's source.
+    ("dateDiff", "Integer", "dateDiff(T.D, T.D2, 'DAYS')",
+     ["2024-06-03", "2024-06-13", "DAYS"]),
+    ("adjust", "StrictDate", "adjust(T.D, 5, 'DAYS')", ["2024-06-03", 5, "DAYS"]),
+    # ISO8601, not a format PATTERN. Relational formatDate accepts exactly two named formats
+    # -- ISO8601 and ISO8601_NanoSecondPrecision -- in every dialect that implements it, and
+    # `yyyy-MM-dd` fails with "Unsupported DateFormat". Consistent across dialects, so it is
+    # a limitation of the relational lowering rather than a defect in one of them.
+    ("formatDate", "String", "formatDate(T.D, 'ISO8601')", ["2024-06-03", "ISO8601"]),
     ("least", "Integer", "least(T.I, T.J)", [[7, 3]]),
 ]
 
@@ -138,7 +180,9 @@ MODEL = """Class probe::P
 Database probe::DB
 (
    Table T ( K VARCHAR(20) PRIMARY KEY, S VARCHAR(50), S2 VARCHAR(50), S64 VARCHAR(50),
-             I INTEGER, J INTEGER, F DOUBLE, G DOUBLE, B BIT, D DATE, TS TIMESTAMP )
+             N VARCHAR(20), NF VARCHAR(20), NB VARCHAR(20),
+             I INTEGER, J INTEGER, F DOUBLE, G DOUBLE, H DOUBLE, B BIT,
+             D DATE, D2 DATE, TS TIMESTAMP )
 )
 
 ###Mapping
@@ -165,8 +209,9 @@ Data probe::Seed
   Relational
   #{{
     default.T:
-      'K,S,S2,S64,I,J,F,G,B,D,TS\\n' +
-      'R1,alpha,beta,YWxwaGE=,7,3,10.0,4.0,true,2024-06-03,2024-06-03 19:15:00\\n';
+      'K,S,S2,S64,N,NF,NB,I,J,F,G,H,B,D,D2,TS\\n' +
+      'R1,alpha,beta,YWxwaGE=,42,42.5,true,7,3,10.0,4.0,0.5,true,'
+        + '2024-06-03,2024-06-13,2024-06-03 19:15:00\\n';
   }}#
 }}
 
@@ -236,8 +281,36 @@ def attempt(cases) -> tuple[str, str]:
     m = re.search(r"actual\s*:\s*(.*)", out)
     if m:
         return "ok", m.group(1)
+    # Compilation errors name the function they could not match, which is as good as a
+    # refusal for the purpose of dropping it.
+    m = re.search(r"Can't find a match for function '([\w:]+)", out)
+    if m:
+        return m.group(1).split("::")[-1], "no matching signature"
     m = re.search(r"(?:EngineException|Caused by)[^\n]*", out)
     return "ERROR", (m.group(0) if m else out[-300:])
+
+
+def bisect_error(cases) -> tuple[list, list]:
+    """Split a set that fails for a reason no message attributes to a function.
+
+    Some failures name nothing usable -- a type mismatch deep in plan generation, a NULL
+    pointer. Rather than stopping the whole probe on one bad case, halve the set and keep
+    whichever halves run. Log2(n) runs finds every offender, which is the difference between
+    a probe that grows by adding a line and one that has to be nursed through every addition.
+    """
+    if len(cases) == 1:
+        return [], cases
+    mid = len(cases) // 2
+    good, bad = [], []
+    for half in (cases[:mid], cases[mid:]):
+        outcome, _d = attempt(half)
+        if outcome == "ok":
+            good += half
+        else:
+            g, b = bisect_error(half)
+            good += g
+            bad += b
+    return good, bad
 
 
 def _same(a, b) -> bool:
@@ -274,7 +347,7 @@ def _same(a, b) -> bool:
     return norm(sa) == norm(sb)
 
 
-def compare(cases, actual: str) -> None:
+def compare(cases, actual: str) -> list:
     """Engine value against oracle value, per function.
 
     A disagreement is NOT called a defect. The oracle is an independent implementation, so a
@@ -289,7 +362,7 @@ def compare(cases, actual: str) -> None:
         rows = json.loads(actual[actual.index("["):])
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"  could not parse the engine result: {exc}")
-        return
+        return []
     got = rows[0]
     agree, differ, nooracle = 0, [], []
     for i, (name, _ret, _expr, args) in enumerate(cases):
@@ -312,6 +385,43 @@ def compare(cases, actual: str) -> None:
         print("  which; each needs a person to adjudicate against the dialect's own rules:")
         for name, engine, mine in differ:
             print(f"    {name:<22} engine={engine!r:<28} oracle={mine!r}")
+    return differ
+
+
+EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
+
+
+def record(ran, rejected, differ=()) -> None:
+    """Write the evidence file the function scoreboard reads.
+
+    Written from what actually ran rather than maintained by hand, for the same reason the
+    implemented/refused counts are read out of the oracle's registries: a list of "functions
+    we have tested" that is edited separately from the testing drifts, and drifts in the
+    flattering direction. A function leaves this file the moment it stops executing.
+
+    The matrix contributes too. Its cells are asserted per-cell against independently
+    computed values, which is the same standard the probe holds, so a function exercised
+    there is as executed as one exercised here.
+    """
+    import combos
+
+    rows = {name: "probe" for name, _r, _e, _a in ran}
+    for x in set(combos._UNARY.values()) | set(combos._BINARY.values()):
+        rows.setdefault(x, "matrix")
+    for fn, _lit in combos._LITERAL_ARG.values():
+        rows.setdefault(fn, "matrix")
+    for name, why in rejected:
+        rows[name] = f"REFUSED-BY-ENGINE ({why})"
+    # A function that ran and produced the WRONG answer is not evidence of anything working.
+    # It is recorded, because "we looked and it disagreed" is worth more than silence, but it
+    # is not counted as executed -- otherwise the scoreboard would improve by finding bugs.
+    for name in differ:
+        rows[name] = "DISAGREES-WITH-ORACLE"
+    lines = ["function\tevidence"] + [f"{k}\t{v}" for k, v in sorted(rows.items())]
+    EVIDENCE.write_text("\n".join(lines) + "\n")
+    ok = sum(1 for v in rows.values() if v in ("probe", "matrix"))
+    print(f"\n  wrote {EVIDENCE.name}: {ok} functions executed and agreeing, "
+          f"{len(rows) - ok} recorded as refused or disagreeing")
 
 
 def main() -> None:
@@ -321,21 +431,29 @@ def main() -> None:
     time. Removing the named function and retrying walks the whole list in as many rounds as
     there are refusals, which is far fewer than one round per function.
     """
-    cases, rejected = list(CASES), []
+    cases, rejected, differ = list(CASES), [], []
     for _round in range(len(CASES)):
         outcome, detail = attempt(cases)
         if outcome == "ok":
             print(f"{len(cases)} functions EXECUTE in a relational property mapping.")
-            compare(cases, detail)
+            differ = [d[0] for d in compare(cases, detail)]
             break
         if outcome == "ERROR":
-            print(f"probe failed for a reason that is not a refusal:\n  {detail}")
-            break
+            print(f"  unattributed failure, bisecting: {detail[:110]}", flush=True)
+            cases, dropped = bisect_error(cases)
+            for c in dropped:
+                rejected.append((c[0], "fails with no message naming it"))
+                print(f"  REJECTED  {c[0]:<22} fails with no message naming it", flush=True)
+            if not cases:
+                break
+            continue
         rejected.append((outcome, detail))
         print(f"  REJECTED  {outcome:<22} {detail}", flush=True)
         cases = [c for c in cases if c[0] != outcome]
     else:
         print("every case was rejected")
+
+    record(cases, rejected, differ)
 
     if rejected:
         print(f"\n{len(rejected)} of {len(CASES)} registered functions do NOT execute here.")

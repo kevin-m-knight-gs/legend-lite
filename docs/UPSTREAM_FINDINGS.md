@@ -1137,13 +1137,24 @@ date independently of the engine, which is what this corpus does.
 
 `repro/dayofyear-is-dayofmonth/` asserts 155 and currently fails.
 
-## F36 — Two functions are in `getSupportedFunctions()` and refuse to execute
+## F36 — Five functions are in `getSupportedFunctions()` and cannot be executed
 
-`previousDayOfWeek` and `mostRecentDayOfWeek` are both registered, and using either fails at
-execution:
+Probing each registered function in a real property mapping turns up five that are listed and
+still cannot be used, in three distinct ways:
 
-    [unsupported-api] The function 'previousDayOfWeek' (state: [Select, false])
-    is not supported yet
+    previousDayOfWeek     [unsupported-api] The function '...' (state: [Select, false])
+    mostRecentDayOfWeek   is not supported yet
+    between
+    parseBoolean
+
+    eq                    dyna function [eq] is not registered in
+                          meta::relational::functions::sqlQueryToString::DynaFunctionRegistry
+
+The second message is the more interesting one. `eq` is in `getSupportedFunctions()` and
+absent from the `DynaFunctionRegistry` that the lowering actually consults, so the two
+registries disagree with each other — the first says yes and the second has never heard of
+it. `between` and `parseBoolean` are not exotic; a query is likelier to contain them than
+most of the 292.
 
 `getSupportedFunctions()` is the map the engine consults before reporting "No SQL translation
 exists for the PURE function", so it reads as the authoritative list of what a query may
@@ -1223,6 +1234,13 @@ model. The property says `StrictDate`, and the declared type does not narrow the
 way out — the SQL expression's result type wins. A consumer reading this column gets a
 different string shape depending on which function produced it, and the model gives no
 warning because all four properties have the same declared type.
+
+`adjust` behaves the same way: `adjust(2024-06-03, 5, 'DAYS')` through a `StrictDate`
+property returns `2024-06-08T00:00:00.000000000+0000`. The value is right and the type is
+not, and again the lowering is date arithmetic rather than a truncation. So this is not one
+function's slip -- any date function whose SQL promotes to TIMESTAMP carries the promotion
+out through a StrictDate property, and the two found so far are simply the two the corpus
+has run.
 
 Related to F24, where the same DateTime differs between TDS projection and graph fetch. Both
 say the same thing: serialization follows the execution path, not the declared type.
