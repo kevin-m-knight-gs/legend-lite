@@ -16,6 +16,12 @@
     <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-extensions-collection-generation</artifactId><version>${legend.version}</version></dependency>
     <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-extensions-collection-execution</artifactId><version>${legend.version}</version></dependency>
     <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-xt-relationalStore-executionPlan-connection</artifactId><version>${legend.version}</version></dependency>
+    <!-- legend-lite's own parser. LiteParseMain drives it side by side with legend-engine,
+         so the harness cannot compile without it, and this dependency was MISSING: `mvn
+         compile` failed from a clean checkout and only a stale target/ kept the suite
+         running. Needs `mvn -pl core install` first, which is why the gate installs core
+         before building this. -->
+    <dependency><groupId>org.finos.legend</groupId><artifactId>legend-lite-core</artifactId><version>1.0.0-SNAPSHOT</version></dependency>
     <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><version>2.2.224</version></dependency>
     <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-test-runner-mapping</artifactId><version>${legend.version}</version></dependency>
     <dependency><groupId>org.finos.legend.engine</groupId><artifactId>legend-engine-test-runner-function</artifactId><version>${legend.version}</version></dependency>

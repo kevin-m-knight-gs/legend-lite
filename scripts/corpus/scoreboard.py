@@ -199,5 +199,34 @@ def main() -> None:
                 print(f"    {r['id']:<7} {r['name']:<38} {r['syntax'][:44]}")
 
 
+def blocked() -> dict:
+    """Constructs that cannot be closed from the corpus side, with the reason each."""
+    f = SURFACE.parent / "SURFACE_BLOCKED.tsv"
+    if not f.exists():
+        return {}
+    return dict(line.split("\t", 1) for line in f.read_text().splitlines()[1:] if "\t" in line)
+
+
+def regressions() -> list[str]:
+    """Absent constructs that are NOT on the blocked list.
+
+    The ratchet is `absent is a subset of blocked`, not a count. A count can be held steady
+    by closing one construct while another quietly falls out, and the whole point of the
+    inventory is that each row is answerable individually.
+    """
+    allowed = blocked()
+    return [f"{r['id']} {r['name']}" for r, s in score()
+            if s == "absent" and r["id"] not in allowed]
+
+
 if __name__ == "__main__":
     main()
+    if "--gate" in sys.argv:
+        gone = regressions()
+        if gone:
+            raise SystemExit(
+                "\nconstructs absent and NOT recorded as blocked:\n  "
+                + "\n  ".join(gone)
+                + "\n\nEither write the construct, or record why it cannot be written in "
+                  "docs/SURFACE_BLOCKED.tsv. Silence is the one option the inventory does "
+                  "not offer.")

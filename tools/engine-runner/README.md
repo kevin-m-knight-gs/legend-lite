@@ -9,13 +9,18 @@ parses and plans those files; this runs them for real and checks the answers.
 
 ## Build
 
+This harness is OUTSIDE the reactor, so `-pl` cannot reach it -- use `-f`. It depends on
+legend-lite's own `core` (LiteParseMain drives that parser beside legend-engine), so core
+must be installed first. Drop `-o` on a cold Maven cache.
+
 ```
-export JAVA_HOME=~/jdk/jdk-21.0.11+10/Contents/Home
-mvn -o compile -q
-mvn -o dependency:build-classpath -Dmdep.outputFile=cp.txt -q
+mvn -B -pl core install -DskipTests
+mvn -B -f tools/engine-runner/pom.xml compile
+mvn -B -f tools/engine-runner/pom.xml dependency:build-classpath -Dmdep.outputFile=cp.txt
 ```
 
 `target/` and `cp.txt` are generated and gitignored; regenerate them after any pom change.
+`JAVA_HOME` is taken from the environment.
 
 ## Run
 
