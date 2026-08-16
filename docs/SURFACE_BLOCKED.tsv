@@ -32,3 +32,4 @@ RM-05	RelationalMapper include: rule unreachable from definition
 RT-14	Runtime includes: token does not exist
 SV-12	extensionExec: zero registered handlers in this repo
 TST-15	EqualToTDS: complete grammar pair, NO registered parser
+P03	documentation slot declared on classDefinition and rejected in both string forms (F33)

@@ -564,8 +564,16 @@ _MAIN = re.compile(r'^\s*~mainTable\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\s*$')
 # was written before inheritance existed anywhere in the corpus.
 _CLSMAP = re.compile(
     r"^\s*\*?([\w:]+)(?:\[(\w+)\])?(?:\s+extends\s*\[(\w+)\])?\s*:\s*Relational\s*\{?\s*$")
-_OPMAP = re.compile(r"^\s*\*?([\w:]+)\s*:\s*Operation\s*\{?\s*$")
-_UNION = re.compile(r"union_OperationSetImplementation_1__SetImplementation_MANY_"
+# An Operation class mapping may carry a SET ID like any other. Without it the
+# header did not match, `cur_op` was never set, and the operation body fell to the
+# property parser.
+_OPMAP = re.compile(r"^\s*\*?([\w:]+)(?:\[\w+\])?\s*:\s*Operation\s*\{?\s*$")
+# Three Operation forms share one shape: union, special_union and inheritance. The pattern
+# named only the first, so the other two were not recorded as unions -- and, worse, their
+# body then fell through to the property parser, which read `meta::pure::router::...` as a
+# property called `meta`. A FABRICATED property, the same failure as `ProfileBinding`.
+_UNION = re.compile(r"(?:special_|)(?:union|inheritance)"
+                    r"_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
 _COLMAP = re.compile(r'(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\.(\w+|"[^"]+")')
 # `prop: concat([db]T.A, [db]T.B)` -- a DYNAFUNCTION property mapping. Like _ENUMCOLMAP this
@@ -1080,6 +1088,11 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         if m:
             cur, in_assoc, cur_op = None, False, m.group(1)
             continue
+        if cur_op and "OperationSetImplementation" in line and not _UNION.search(line):
+            raise ValueError(
+                f"{cur_op}: Operation form not modelled by this reader -- {line.strip()!r}. "
+                f"An unrecognised operation body falls through to the property parser, "
+                f"which reads its qualified name as a property.")
         if cur_op and _UNION.search(line):
             ids = [i.strip() for i in _UNION.search(line).group(1).split(",") if i.strip()]
             c.unions[cur_op] = [set_tables[i] for i in ids if i in set_tables]
