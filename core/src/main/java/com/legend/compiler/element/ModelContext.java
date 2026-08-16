@@ -24,7 +24,7 @@ import java.util.Optional;
  * resolved by the one {@link #findFunction}. Constraints are metadata on
  * {@link TypedClass}, not a lookup (doc §1.4, §4).
  */
-public interface WZModelContext {
+public interface ModelContext {
 
     /** O(1)-ish. The {@link TypedClass} for {@code fqn}, if present. */
     Optional<TypedClass> findClass(String fqn);
