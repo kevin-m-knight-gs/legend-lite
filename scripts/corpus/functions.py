@@ -128,6 +128,19 @@ def refused(fam: str | None = None) -> dict[str, str]:
 EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
 
 
+# Which families each probe's verdicts apply to. Evidence is per (probe, name), and a probe
+# only speaks for the families it can actually reach: the relation probe running `size` says
+# nothing about the COLLECTION `size`, which is a different function that happens to share a
+# name. Without this the two overwrite each other and the scoreboard moves by a dozen
+# functions depending on which probe ran last.
+PROBE_FAMILIES = {
+    "scalar": {"scalar", "scalar-date", "lang", "variant", "other", "calendar"},
+    "aggregate": {"scalar", "collection"},
+    "relation": {"relation", "tds"},
+    "collection": {"collection"},
+}
+
+
 def _counts(evidence: str | None) -> bool:
     """Whether an evidence value means the function ran AND agreed.
 
@@ -136,15 +149,26 @@ def _counts(evidence: str | None) -> bool:
     ignored the aggregate probe's 17 functions because it named its evidence differently, and
     a scoreboard that quietly drops evidence is worse than one that has none.
     """
-    return bool(evidence) and not evidence.startswith(("REFUSED", "DISAGREES"))
+    return evidence == "ok"
 
 
-def executed() -> dict[str, str]:
-    """function -> evidence, from the probes' own output. Empty if none has ever been run."""
+def evidence_rows() -> list[tuple[str, str, str]]:
+    """(function, probe, verdict) as recorded by the probes themselves."""
     if not EVIDENCE.exists():
-        return {}
-    return dict(line.split("\t", 1)
-                for line in EVIDENCE.read_text().splitlines()[1:] if "\t" in line)
+        return []
+    return [tuple(line.split("\t")) for line in EVIDENCE.read_text().splitlines()[1:]
+            if line.count("\t") == 2]
+
+
+def executed() -> dict[tuple[str, str], str]:
+    """(function, family) -> verdict, expanding each probe's rows to the families it covers."""
+    out = {}
+    for name, probe, verdict in evidence_rows():
+        for fam in PROBE_FAMILIES.get(probe, ()):
+            # An "ok" from any probe covering this family wins over a failure from another.
+            if out.get((name, fam)) != "ok":
+                out[(name, fam)] = verdict
+    return out
 
 
 def report():
@@ -163,7 +187,7 @@ def report():
         impl, refu = implemented(fam), refused(fam)
         i = sum(1 for x in names if x in impl)
         r = sum(1 for x in names if x in refu)
-        e = sum(1 for x in names if _counts(ev.get(x)))
+        e = sum(1 for x in names if _counts(ev.get((x, fam))))
         tot_i += i
         tot_r += r
         tot_e += e
@@ -177,7 +201,8 @@ def report():
     d_r = sum(1 for n in distinct
               if not any(n in implemented(f) for f in fam_of[n])
               and any(n in refused(f) for f in fam_of[n]))
-    d_e = sum(1 for n in distinct if _counts(ev.get(n)))
+    d_e = sum(1 for n in distinct
+              if any(_counts(ev.get((n, f))) for f in fam_of[n]))
     print(f"  {'':<18} {'-' * 5} {'-' * 8} {'-' * 7} {'-' * 6}")
     print(f"  {'DISTINCT NAMES':<18} {d_i:>5} {d_r:>8} "
           f"{len(distinct) - d_i - d_r:>7} {d_e:>6}   {len(distinct)}")
@@ -198,10 +223,19 @@ def report():
                     print("    " + "  ".join(f"{m:<20}" for m in missing[i:i + 6]))
 
     if "--unexecuted" in sys.argv:
-        print("\nIMPLEMENTED BUT NEVER EXECUTED:")
+        # Split, because the two halves are not the same kind of work. A function the engine
+        # REFUSED or that DISAGREED has been run and written up; a function nobody has tried
+        # is the actual remaining task. Reporting them as one number reads as 73 untouched
+        # when a ninth of them are findings with repro directories.
+        tried = {f"{n} [{fam}]": v for (n, fam), v in ev.items() if v and not _counts(v)}
+        print("\nRUN, AND DID NOT AGREE -- each is a recorded finding, not a gap:")
+        for name, why in sorted(tried.items()):
+            print(f"    {name:<24} {why}")
+        print("\nNEVER RUN AGAINST THE ENGINE:")
         for fam, names in sorted(by_family.items()):
             impl = implemented(fam)
-            gap = sorted(x for x in names if x in impl and not _counts(ev.get(x)))
+            gap = sorted(x for x in names if x in impl
+                         and ev.get((x, fam)) is None)
             if gap:
                 print(f"\n  [{fam}] {len(gap)}")
                 for i in range(0, len(gap), 6):

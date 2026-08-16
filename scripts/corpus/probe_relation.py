@@ -333,15 +333,7 @@ def main() -> None:
 def _merge_evidence(names) -> None:
     import probe_functions
 
-    f = probe_functions.EVIDENCE
-    rows = {}
-    if f.exists():
-        rows = dict(line.split("\t", 1)
-                    for line in f.read_text().splitlines()[1:] if "\t" in line)
-    for n in names:
-        rows[n] = "relation-probe"
-    f.write_text("\n".join(["function\tevidence"]
-                           + [f"{k}\t{v}" for k, v in sorted(rows.items())]) + "\n")
+    probe_functions.merge_evidence("relation", sorted(set(names)))
 
 
 if __name__ == "__main__":

@@ -1,146 +1,152 @@
-function	evidence
-abs	probe
-acos	probe
-adjust	DISAGREES-WITH-ORACLE
-and	probe
-ascii	probe
-asin	probe
-atan	probe
-atan2	probe
-average	aggregate-probe
-between	REFUSED-BY-ENGINE (not supported yet)
-bitAnd	probe
-bitNot	probe
-bitOr	probe
-bitShiftLeft	probe
-bitShiftRight	probe
-bitXor	probe
-cbrt	probe
-ceiling	probe
-char	probe
-coalesce	probe
-concat	probe
-concatenate	relation-probe
-contains	probe
-cos	probe
-cosh	probe
-cot	probe
-count	aggregate-probe
-cumulativeDistribution	relation-probe
-dateDiff	probe
-datePart	probe
-dayOfMonth	probe
-dayOfWeek	probe
-dayOfWeekNumber	probe
-dayOfYear	DISAGREES-WITH-ORACLE
-decodeBase64	probe
-denseRank	relation-probe
-distinct	relation-probe
-divide	probe
-drop	relation-probe
-encodeBase64	probe
-endsWith	probe
-eq	REFUSED-BY-ENGINE (fails with no message naming it)
-equal	probe
-exp	probe
-extend	relation-probe
-filter	relation-probe
-first	aggregate-probe
-firstDayOfMonth	probe
-firstDayOfQuarter	probe
-firstDayOfWeek	DISAGREES-WITH-ORACLE
-firstDayOfYear	probe
-firstHourOfDay	probe
-firstMillisecondOfSecond	probe
-firstMinuteOfHour	probe
-firstSecondOfMinute	probe
-floor	probe
-formatDate	probe
-greaterThan	probe
-greaterThanEqual	probe
-greatest	probe
-groupBy	relation-probe
-hour	probe
-indexOf	probe
-isAlphaNumeric	probe
-isDistinct	aggregate-probe
-isNotNull	probe
-isNull	probe
-join	relation-probe
-last	aggregate-probe
-least	probe
-left	probe
-length	probe
-lessThan	probe
-lessThanEqual	probe
-levenshteinDistance	probe
-limit	relation-probe
-log	probe
-log10	probe
-lpad	probe
-ltrim	probe
-max	aggregate-probe
-median	aggregate-probe
-min	aggregate-probe
-minus	probe
-minute	probe
-mod	probe
-mode	aggregate-probe
-month	probe
-monthNumber	probe
-mostRecentDayOfWeek	REFUSED-BY-ENGINE (not supported yet)
-not	probe
-nth	relation-probe
-ntile	relation-probe
-or	probe
-parseBoolean	REFUSED-BY-ENGINE (fails with no message naming it)
-parseDecimal	probe
-parseFloat	probe
-parseInteger	probe
-percentRank	relation-probe
-percentile	aggregate-probe
-plus	probe
-pow	probe
-previousDayOfWeek	REFUSED-BY-ENGINE (not supported yet)
-project	relation-probe
-quarterNumber	probe
-rank	relation-probe
-rem	probe
-rename	relation-probe
-repeatString	probe
-replace	probe
-reverseString	probe
-right	probe
-round	probe
-rowNumber	relation-probe
-rpad	probe
-rtrim	probe
-second	probe
-select	relation-probe
-sign	probe
-sin	probe
-sinh	probe
-size	aggregate-probe
-slice	relation-probe
-sort	relation-probe
-splitPart	probe
-sqrt	probe
-startsWith	probe
-stdDevPopulation	aggregate-probe
-stdDevSample	aggregate-probe
-substring	DISAGREES-WITH-ORACLE
-sum	aggregate-probe
-take	relation-probe
-tan	probe
-tanh	probe
-times	probe
-toDecimal	probe
-toFloat	probe
-toLower	probe
-toString	probe
-toUpper	probe
-trim	probe
-variancePopulation	aggregate-probe
-varianceSample	aggregate-probe
-weekOfYear	probe
-year	probe
+function	probe	verdict
+abs	scalar	ok
+acos	scalar	ok
+adjust	scalar	DISAGREES with the oracle
+and	scalar	ok
+ascii	scalar	ok
+asin	scalar	ok
+atan	scalar	ok
+atan2	scalar	ok
+average	aggregate	ok
+between	scalar	REFUSED: not supported yet
+bitAnd	scalar	ok
+bitNot	scalar	ok
+bitOr	scalar	ok
+bitShiftLeft	scalar	ok
+bitShiftRight	scalar	ok
+bitXor	scalar	ok
+cbrt	scalar	ok
+ceiling	scalar	ok
+char	scalar	ok
+coalesce	scalar	ok
+concat	scalar	ok
+concatenate	relation	ok
+contains	scalar	ok
+cos	scalar	ok
+cosh	scalar	ok
+cot	scalar	ok
+count	aggregate	ok
+cumulativeDistribution	relation	ok
+dateDiff	scalar	ok
+datePart	scalar	ok
+dayOfMonth	scalar	ok
+dayOfWeek	scalar	ok
+dayOfWeekNumber	scalar	ok
+dayOfYear	scalar	DISAGREES with the oracle
+decodeBase64	scalar	ok
+denseRank	relation	ok
+distinct	aggregate	ok
+distinct	relation	ok
+divide	scalar	ok
+drop	relation	ok
+encodeBase64	scalar	ok
+endsWith	scalar	ok
+eq	scalar	REFUSED: not in the DynaFunctionRegistry
+equal	scalar	ok
+exists	collection	ok
+exp	scalar	ok
+extend	relation	ok
+filter	relation	ok
+first	aggregate	ok
+firstDayOfMonth	scalar	ok
+firstDayOfQuarter	scalar	ok
+firstDayOfWeek	scalar	DISAGREES with the oracle
+firstDayOfWeek	scalar	ok
+firstDayOfYear	scalar	ok
+firstHourOfDay	scalar	ok
+firstMillisecondOfSecond	scalar	ok
+firstMinuteOfHour	scalar	ok
+firstSecondOfMinute	scalar	ok
+floor	scalar	ok
+formatDate	scalar	ok
+greaterThan	scalar	ok
+greaterThanEqual	scalar	ok
+greatest	scalar	ok
+groupBy	relation	ok
+hour	scalar	ok
+indexOf	scalar	ok
+isAlphaNumeric	scalar	ok
+isDistinct	aggregate	ok
+isEmpty	collection	ok
+isNotEmpty	collection	ok
+isNotNull	scalar	ok
+isNull	scalar	ok
+join	relation	ok
+last	aggregate	ok
+least	scalar	ok
+left	scalar	ok
+length	scalar	ok
+lessThan	scalar	ok
+lessThanEqual	scalar	ok
+levenshteinDistance	scalar	ok
+limit	relation	ok
+log	scalar	ok
+log10	scalar	ok
+lpad	scalar	ok
+ltrim	scalar	ok
+max	aggregate	ok
+median	aggregate	ok
+min	aggregate	ok
+minus	scalar	ok
+minute	scalar	ok
+mod	scalar	ok
+mode	aggregate	ok
+month	scalar	ok
+monthNumber	scalar	ok
+mostRecentDayOfWeek	scalar	REFUSED: not supported yet
+not	scalar	ok
+nth	relation	ok
+ntile	relation	ok
+or	scalar	ok
+parseBoolean	scalar	REFUSED: not supported yet
+parseDecimal	scalar	ok
+parseFloat	scalar	ok
+parseInteger	scalar	ok
+percentRank	relation	ok
+percentile	aggregate	ok
+plus	scalar	ok
+pow	scalar	ok
+previousDayOfWeek	scalar	REFUSED: not supported yet
+project	relation	ok
+quarterNumber	scalar	ok
+rank	relation	ok
+rem	scalar	ok
+rename	relation	ok
+repeatString	scalar	ok
+replace	scalar	ok
+reverseString	scalar	ok
+right	scalar	ok
+round	scalar	ok
+rowNumber	relation	ok
+rpad	scalar	ok
+rtrim	scalar	ok
+second	scalar	ok
+select	relation	ok
+sign	scalar	ok
+sin	scalar	ok
+sinh	scalar	ok
+size	aggregate	ok
+slice	relation	ok
+sort	relation	ok
+splitPart	scalar	ok
+sqrt	scalar	ok
+startsWith	scalar	ok
+stdDevPopulation	aggregate	ok
+stdDevSample	aggregate	ok
+substring	scalar	DISAGREES with the oracle
+substring	scalar	ok
+sum	aggregate	ok
+take	relation	ok
+tan	scalar	ok
+tanh	scalar	ok
+times	scalar	ok
+toDecimal	scalar	ok
+toFloat	scalar	ok
+toLower	scalar	ok
+toString	scalar	ok
+toUpper	scalar	ok
+trim	scalar	ok
+variancePopulation	aggregate	ok
+varianceSample	aggregate	ok
+weekOfYear	scalar	ok
+year	scalar	ok

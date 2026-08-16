@@ -281,6 +281,13 @@ def attempt(cases) -> tuple[str, str]:
     m = re.search(r"actual\s*:\s*(.*)", out)
     if m:
         return "ok", m.group(1)
+    # A function can be in getSupportedFunctions() and missing from the DynaFunctionRegistry
+    # the lowering actually consults -- two registries, one function, two answers (F36). The
+    # message is buried inside a quoted assert failure, so it needs its own pattern or the
+    # bisect files it as unattributed.
+    m = re.search(r"dyna function \[(\w+)\] is not registered", out)
+    if m:
+        return m.group(1), "not in the DynaFunctionRegistry"
     # Compilation errors name the function they could not match, which is as good as a
     # refusal for the purpose of dropping it.
     m = re.search(r"Can't find a match for function '([\w:]+)", out)
@@ -391,6 +398,30 @@ def compare(cases, actual: str) -> list:
 EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
 
 
+def merge_evidence(probe: str, agreeing, failing=()) -> None:
+    """Record this probe's verdicts, replacing only ITS OWN rows.
+
+    The file was keyed by bare function name and every probe rewrote the names it knew, so
+    the collection probe's `size` -- which fails over a to-many -- silently retracted the
+    relation probe's `size`, which passes. The scoreboard fell by fourteen functions and the
+    cause was bookkeeping, not the engine.
+
+    Keying by (probe, function) fixes that, and keeps the two facts separate: `size` executes
+    as a relation operation AND fails as a collection one, which is exactly the kind of
+    per-family distinction the function families exist to express.
+    """
+    f = EVIDENCE
+    rows = []
+    if f.exists():
+        rows = [tuple(line.split("\t")) for line in f.read_text().splitlines()[1:]
+                if line.count("\t") == 2]
+    rows = [r for r in rows if r[1] != probe]
+    rows += [(n, probe, "ok") for n in agreeing]
+    rows += [(n, probe, why) for n, why in failing]
+    f.write_text("\n".join(["function\tprobe\tverdict"]
+                            + ["\t".join(r) for r in sorted(set(rows))]) + "\n")
+
+
 def record(ran, rejected, differ=()) -> None:
     """Write the evidence file the function scoreboard reads.
 
@@ -405,23 +436,16 @@ def record(ran, rejected, differ=()) -> None:
     """
     import combos
 
-    rows = {name: "probe" for name, _r, _e, _a in ran}
+    names = {name for name, _r, _e, _a in ran} - set(differ)
     for x in set(combos._UNARY.values()) | set(combos._BINARY.values()):
-        rows.setdefault(x, "matrix")
+        names.add(x)
     for fn, _lit in combos._LITERAL_ARG.values():
-        rows.setdefault(fn, "matrix")
-    for name, why in rejected:
-        rows[name] = f"REFUSED-BY-ENGINE ({why})"
-    # A function that ran and produced the WRONG answer is not evidence of anything working.
-    # It is recorded, because "we looked and it disagreed" is worth more than silence, but it
-    # is not counted as executed -- otherwise the scoreboard would improve by finding bugs.
-    for name in differ:
-        rows[name] = "DISAGREES-WITH-ORACLE"
-    lines = ["function\tevidence"] + [f"{k}\t{v}" for k, v in sorted(rows.items())]
-    EVIDENCE.write_text("\n".join(lines) + "\n")
-    ok = sum(1 for v in rows.values() if v in ("probe", "matrix"))
-    print(f"\n  wrote {EVIDENCE.name}: {ok} functions executed and agreeing, "
-          f"{len(rows) - ok} recorded as refused or disagreeing")
+        names.add(fn)
+    fails = [(n, f"REFUSED: {why}") for n, why in rejected]
+    fails += [(n, "DISAGREES with the oracle") for n in differ]
+    merge_evidence("scalar", sorted(names), fails)
+    print(f"\n  {len(names)} functions executed and agreeing, "
+          f"{len(fails)} refused or disagreeing")
 
 
 def main() -> None:
@@ -441,9 +465,18 @@ def main() -> None:
         if outcome == "ERROR":
             print(f"  unattributed failure, bisecting: {detail[:110]}", flush=True)
             cases, dropped = bisect_error(cases)
+            # Re-run each dropped case ALONE to get its own message. The bisect only knows
+            # that a set failed, so recording "fails with no message naming it" throws away a
+            # diagnosis the engine is perfectly willing to give -- `eq` and `parseBoolean`
+            # were filed under that phrase for a while when their real messages, once asked
+            # for individually, named the exact registry that had never heard of them.
             for c in dropped:
-                rejected.append((c[0], "fails with no message naming it"))
-                print(f"  REJECTED  {c[0]:<22} fails with no message naming it", flush=True)
+                _out, why = attempt([c])
+                why = why if _out != "ok" else "fails only in company"
+                if _out == "ERROR":
+                    why = f"unattributed: {why[:70]}"
+                rejected.append((c[0], why))
+                print(f"  REJECTED  {c[0]:<22} {why}", flush=True)
             if not cases:
                 break
             continue

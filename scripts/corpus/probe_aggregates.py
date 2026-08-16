@@ -276,24 +276,9 @@ def main() -> None:
 
 
 def _merge_evidence(names) -> None:
-    """Add to the same evidence file the scalar probe writes, without clobbering it.
-
-    Merged rather than replaced because the two probes cover disjoint halves of the registry
-    and each knows only its own. A probe that rewrote the file would silently retract the
-    other's evidence, and the scoreboard would swing by a hundred functions depending on
-    which one ran last.
-    """
     import probe_functions
 
-    f = probe_functions.EVIDENCE
-    rows = {}
-    if f.exists():
-        rows = dict(line.split("\t", 1)
-                    for line in f.read_text().splitlines()[1:] if "\t" in line)
-    for n in names:
-        rows[n] = "aggregate-probe"
-    f.write_text("\n".join(["function\tevidence"]
-                           + [f"{k}\t{v}" for k, v in sorted(rows.items())]) + "\n")
+    probe_functions.merge_evidence("aggregate", sorted(set(names)))
 
 
 if __name__ == "__main__":

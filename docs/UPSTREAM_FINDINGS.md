@@ -1347,7 +1347,58 @@ relation anyone would write.
 Unlike F41 this one is loud, but the diagnostic comes from the database and names neither
 `last` nor the query that produced it.
 
+`first()` behaves the same way over a to-many NAVIGATION, where the consequence is different
+and worse. Projecting `k` and `$x.kids->map(c|$c.v)->first()` over three parents owning 3, 2
+and 0 children returns **six rows** — one per child — instead of three:
+
+    engine   P1/3  P1/1  P1/2  P2/5  P2/5  P3/null
+    oracle   P1/3  P2/5  P3/null
+
+So the operation that was supposed to reduce each parent's collection to one value leaves the
+join un-reduced, and the result has the wrong CARDINALITY rather than merely the wrong
+content. A caller projecting one row per parent gets one row per child, and every value in it
+is a real value from a real child, so nothing about the data looks wrong.
+
+Worth recording how nearly this was misreported. Compared row by row against a three-row
+expectation, the six-row result reads as P1→3, P2→1, P3→2 — values apparently leaking from
+one parent to another, which would be a far more dramatic and completely fictional finding.
+The shape has to be checked before the cells; `probe_collection.py` now stops at a row-count
+mismatch for that reason.
+
 Both were found by `scripts/corpus/probe_relation.py`. Neither operation had ever been
 executed by this corpus: the density scoreboard counted "relation operations" as a single
 construct which `project` satisfied, so sixteen operations and seven window functions were
 reported covered on the strength of one.
+
+## F43 — Most collection functions do not work over a to-many end
+
+Twenty-three collection functions projected over `$x.kids`, for parents owning 3, 2 and 0
+children. Three work: `isEmpty`, `isNotEmpty`, `exists`.
+
+The rest fail in four distinct ways, and the largest group fails with a message that is not
+merely unhelpful but self-contradictory. `distinct`, `removeDuplicates`, `take`, `drop`,
+`slice`, `size`, `filter`, `init`, `tail` and `add` all produce:
+
+    NODE VALIDATION ERROR: positionBeforeLastApplyJoinTreeNode
+    root
+    DOESN'T CONTAIN:
+    root
+
+`root` does not contain `root`. Whatever internal invariant this is checking, the text names
+no function, no property and no mapping, and its single concrete assertion is a contradiction.
+An author who writes `$x.kids->take(2)` — an entirely ordinary thing to write — gets this.
+
+`first`, `last`, `sort`, `sortBy` and `reverse` are silently not applied (F41). `contains` is
+rejected with *"Parameter to IN operation isn't a literal!"* and `concatenate` with *"Cannot
+cast a collection of size 2 to multiplicity [1]"* — diagnosable, at least.
+
+`count`, `map` and `joinStrings` are correct over a populated collection and wrong over an
+empty one, returning 1 and NULL and NULL where the answers are 0, 0 and `''`. That is F6,
+already quarantined across six services; the probe finding it independently is evidence the
+probe works rather than a new defect.
+
+The seed's third parent owns no children for exactly that reason. Every aggregate-shaped
+collection function differs between an empty and a populated collection, and F6 lives only
+there — a probe with three well-populated parents would have found none of it.
+
+`repro/collection-over-tomany/`.
