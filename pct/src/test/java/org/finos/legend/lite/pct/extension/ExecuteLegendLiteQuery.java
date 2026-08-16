@@ -154,7 +154,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         boolean h2 = "h2".equalsIgnoreCase(
                 String.valueOf(System.getenv("LEGENDLITE_PCT_BACKEND")));
         try (Connection connection = DriverManager.getConnection(h2
-                ? "jdbc:h2:mem:" + com.legend.harness.H2Verify.SETTINGS
+                ? "jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS
                 : "jdbc:duckdb:", h2 ? "sa" : null, h2 ? "" : null)) {
             // DuckDB pins the session to UTC (its driver's Timestamps are
             // wall-preserving under it). H2 must NOT: its driver funnels

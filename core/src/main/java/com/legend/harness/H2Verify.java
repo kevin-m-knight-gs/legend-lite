@@ -146,20 +146,11 @@ public final class H2Verify {
         return r.length() > 70 ? r.substring(0, 70) : r;
     }
 
-    /** The engine's H2 session settings (H2Manager parity) — shared with
-     * the {@code -Drcorpus.backend=h2} portability sweep so the replay
-     * oracle and the real backend open IDENTICAL sessions. */
-    public static final String SETTINGS =
-            // CASE_INSENSITIVE_IDENTIFIERS mirrors DuckDB's matching —
-            // the SAME recorded statements already ran there; quoted
-            // model-DDL case vs unquoted corpus-INSERT case must not
-            // diverge between the two targets
-            ";MODE=LEGACY;DATABASE_TO_UPPER=false"
-            + ";CASE_INSENSITIVE_IDENTIFIERS=TRUE;NON_KEYWORDS=ANY,"
-            + "ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,"
-            + "DAY,DEFAULT,ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,"
-            + "SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,"
-            + "USER,VALUE,WHEN,YEAR";
+    /** The engine's H2 session settings — the OWNER is
+     * {@link com.legend.exec.H2Settings} (F1.1: nothing outside the
+     * harness depends on the harness); this alias keeps in-package
+     * readers stable. */
+    public static final String SETTINGS = com.legend.exec.H2Settings.SETTINGS;
 
     /**
      * Replay {@code seeds} on a fresh H2, run {@code goldenSql}, compare

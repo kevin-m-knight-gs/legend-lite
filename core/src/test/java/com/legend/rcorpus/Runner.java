@@ -65,7 +65,7 @@ public final class Runner {
             if (H2_BACKEND) {
                 return DriverManager.getConnection("jdbc:h2:mem:rcorpus"
                         + SESSION_IDS.getAndIncrement()
-                        + com.legend.harness.H2Verify.SETTINGS, "sa", "");
+                        + com.legend.exec.H2Settings.SETTINGS, "sa", "");
             }
             // NOTE (2026-08-15 perf program): txn-batching the seed
             // writes was BUILT AND MEASURED at zero savings — DuckDB's
@@ -1855,7 +1855,7 @@ public final class Runner {
         if (!H2_BACKEND && com.legend.harness.H2Verify.ready()) {
             mirrorConn = DriverManager.getConnection(
                     "jdbc:h2:mem:famMirror" + SESSION_IDS.getAndIncrement()
-                            + com.legend.harness.H2Verify.SETTINGS, "sa", "");
+                            + com.legend.exec.H2Settings.SETTINGS, "sa", "");
             com.legend.harness.H2Verify.mirrorBegin(mirrorConn);
         }
     }
