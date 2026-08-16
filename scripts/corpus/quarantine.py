@@ -33,6 +33,32 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
     )
 }
 
+# F35 -- `dayOfYear` lowers to DuckDB's `day()`, so it answers the day of the MONTH. The
+# service asserts 155 for 2024-06-03, which is right, and fails. Kept rather than corrected:
+# an expectation adjusted to 3 would make the suite green by recording the defect as the
+# specification, and this one is invisible without an independently computed expectation.
+# F37 -- `substring` is 0-based with an exclusive end in memory and 1-based with a LENGTH in
+# SQL. The two services run the identical call on the identical string; the in-memory one
+# PASSES, which is what makes the relational one a defect rather than a corpus assumption.
+ENGINE_QUARANTINE["stress::F37_SubstringSql"] = (
+    "F37", "substring in SQL is 1-based and takes a length, not a 0-based exclusive end")
+
+# F39 -- startsWith/endsWith/contains compile the PATTERN operand as literal text, so a
+# column pattern yields `S like 'root.P%'` and is false for every row. Row 3 of the service
+# has both operands present and genuinely matching, so the failure cannot be read as a NULL
+# question -- 'alpha' starts with 'a' and the engine says false.
+ENGINE_QUARANTINE["stress::F39_NullBoolean"] = (
+    "F39", "startsWith/endsWith/contains with a column pattern are false for every row")
+
+# F38 -- four properties declared StrictDate; `firstDayOfWeek` alone renders as a DateTime.
+# The other three are asserted in the same row and pass, so the file fails on exactly the
+# one column that is wrong.
+ENGINE_QUARANTINE["stress::F38_FirstDayTypes"] = (
+    "F38", "firstDayOfWeek renders a StrictDate property as a DateTime")
+
+ENGINE_QUARANTINE["stress::F35_DayOfYear"] = (
+    "F35", "dayOfYear lowers to DuckDB day(), returning the day of the month")
+
 # F24 -- a DateTime serializes WITH a UTC offset through TDS projection and WITHOUT one
 # through graph fetch. Same column, same mapping, same row, two execution paths.
 #

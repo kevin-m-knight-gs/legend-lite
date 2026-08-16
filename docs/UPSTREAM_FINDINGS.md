@@ -1112,3 +1112,157 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
 
   `repro/execenv-mixed-npe/` carries the two working forms as controls with the mixed ones
   commented out.
+
+## F35 — DuckDB lowers `dayOfYear` to `day()`, which is the day of the MONTH
+
+`dayOfYear` on 2024-06-03 returns **3**. The answer is 155.
+
+The cause is one line, and it is visible next to the line it was copied from:
+
+    218:  dynaFnToSql('dayOfMonth',  $allStates,  ^ToSql(format='day(%s)')),
+    221:  dynaFnToSql('dayOfYear',   $allStates,  ^ToSql(format='day(%s)')),
+
+in `duckdbExtension.pure`. The two entries are byte-identical, so `dayOfYear` and
+`dayOfMonth` compile to the same SQL and `dayOfYear` silently answers the other question.
+DuckDB has `dayofyear(...)`, and every other dialect in the tree gets it right —
+Postgres and Redshift `date_part('doy', %s)`, ClickHouse `toDayOfYear`, SQL Server and
+Databricks and Sybase and MemSQL `dayofyear`, Spanner `extract(dayofyear from %s)`. DuckDB
+is alone.
+
+What makes this one worth reporting is that it cannot fail loudly. There is no error and no
+type mismatch: both functions return an Integer, and for the first twelve days of any month
+the two answers are both plausible small numbers. A test written on 2024-06-03 that asserts
+`3` locks the bug in. It is only detectable by computing the expected value from the input
+date independently of the engine, which is what this corpus does.
+
+`repro/dayofyear-is-dayofmonth/` asserts 155 and currently fails.
+
+## F36 — Two functions are in `getSupportedFunctions()` and refuse to execute
+
+`previousDayOfWeek` and `mostRecentDayOfWeek` are both registered, and using either fails at
+execution:
+
+    [unsupported-api] The function 'previousDayOfWeek' (state: [Select, false])
+    is not supported yet
+
+`getSupportedFunctions()` is the map the engine consults before reporting "No SQL translation
+exists for the PURE function", so it reads as the authoritative list of what a query may
+contain. Here it routes to a handler that then refuses, which makes the registry an
+over-report rather than a contract.
+
+That distinction matters beyond the two names. Anything deciding *in advance* whether a query
+is expressible — a planner choosing between relational and in-memory execution, an editor
+graying out unavailable functions, a generator building queries from the registry — will
+consult this map and be told yes. The refusal arrives after the query is built and dispatched.
+
+Found by `scripts/corpus/probe_functions.py`, which runs one column per registered function
+and drops whatever the engine names, so a refusal identifies itself instead of failing a
+980-cell matrix with no indication of which cell was at fault.
+
+## F37 — `substring` computes a different answer in SQL than in Pure
+
+`substring('alpha', 2, 4)` returns **`ph`** evaluated in memory and **`lpha`** pushed into
+SQL. Both run in this engine, on the same string, with the same arguments.
+
+`repro/substring-two-answers/` runs each path as its own service. The in-memory one PASSES,
+which is what makes this a defect and not a corpus assumption: the corpus and the engine's
+own evaluator agree, and only the relational lowering dissents.
+
+The two conventions:
+
+| | start | third argument |
+| --- | --- | --- |
+| Pure, in memory | 0-based | end index, exclusive |
+| Relational, DuckDB | 1-based | **length** |
+
+Pure's semantics are Java's `String.substring(begin, end)`, which the platform's own code
+relies on — `dataquality_test_utils.pure` writes `$innerStr->substring(0, $paramEndIdx + 1)`,
+a zero start and a `+1` to make the end exclusive. Neither is compatible with a length.
+
+The lowering is a pass-through with a comment already on it:
+
+    dynaFnToSql('substring', $allStates, ^ToSql(format='substring%s', ...)),
+    // TODO - pure uses 0-based indexing, duck db returns location with 1-based index,
+    // keeping this as H2 also returns 1-based currently, many user tests need to be fixed
+
+So the index base is known. The third argument does not appear to be: passing Pure's
+`(start, end)` straight into SQL's `substring(string, start, length)` reinterprets the third
+argument as a length, which is a second and independent divergence. On `('alpha', 2, 4)` the
+base costs one character of offset and the length costs two more.
+
+The TODO also records why it stands — "many user tests need to be fixed". Those tests were
+presumably written by running the query and recording the result, which is exactly how a
+defect becomes a specification. It is worth separating the two questions: whether to change
+the behaviour is a compatibility decision, but the current state is that one function name
+means two different things depending on where the planner decides to evaluate it, and
+nothing in the model says which one a given query will get.
+
+## F38 — `firstDayOfWeek` returns a DateTime through a StrictDate property
+
+Four properties, all declared `StrictDate[0..1]`, all computed from one DATE column by the
+same family of functions:
+
+    "mon" : "2024-06-01"
+    "qtr" : "2024-04-01"
+    "yr"  : "2024-01-01"
+    "wk"  : "2024-06-03T00:00:00.000000000+0000"
+
+The seed date is itself a Monday, so `firstDayOfWeek` returns the input unchanged and the
+only difference between the fourth column and the other three is how it is rendered.
+
+The cause is in the lowerings. Three use `date_trunc`, which leaves a DATE a DATE; the fourth
+uses date arithmetic, which promotes to TIMESTAMP:
+
+    firstDayOfMonth    date_trunc('month', %s)
+    firstDayOfQuarter  date_trunc('quarter', %s)
+    firstDayOfYear     date_trunc('year', %s)
+    firstDayOfWeek     date_add(%s, to_days(cast(-(isodow(%s)-1) as integer)))
+
+What the row demonstrates is not the promotion itself but that the promotion survives the
+model. The property says `StrictDate`, and the declared type does not narrow the value on the
+way out — the SQL expression's result type wins. A consumer reading this column gets a
+different string shape depending on which function produced it, and the model gives no
+warning because all four properties have the same declared type.
+
+Related to F24, where the same DateTime differs between TDS projection and graph fetch. Both
+say the same thing: serialization follows the execution path, not the declared type.
+
+## F39 — `startsWith`/`endsWith`/`contains` are false for every row when the pattern is a column
+
+    startsWith(S, P)   with S = 'alpha', P = 'a'   ->   false
+
+No error, no warning, no refusal. The predicate is simply always false.
+
+`repro/like-pattern-from-column/` runs each of the three predicates twice, once with a literal
+pattern and once with a column pattern, over four rows covering every NULL combination. The
+literal form is correct in all four. The column form is `false` wherever the subject is
+non-NULL — including the row where both operands are present and genuinely match.
+
+The cause is that the pattern operand is assumed to be a literal:
+
+    function transformLikeParamsDefault(params: String[2]):String[*]
+    {
+       let likeExpression = $params->at(1)->removeQuotes()->escapeLikeExprDefault();
+
+Its quotes are stripped and it is interpolated into the quoted LIKE pattern, so a column
+reference becomes literal text:
+
+    "root".S like 'root.P%'
+
+That one mechanism explains every cell of the table: false where the subject is non-NULL,
+NULL where it is NULL (`NULL like '...'` being NULL).
+
+Three functions share the helper, and the helper lives in `extensionDefaults.pure` rather than
+in a dialect, so this is unlikely to be DuckDB-specific — DuckDB is simply what this corpus
+executes.
+
+The shape is worth noting separately from the defect. Everything about this query is legal:
+it compiles, it plans, it executes, it returns the right number of rows with the right types.
+A `filter` built on it returns an empty result, which is a perfectly plausible answer. Any
+test written by running the query and recording the output would have enshrined `false` as
+correct — which is precisely why the expectation here is computed from the inputs instead.
+
+Found by the combination matrix rather than by looking: the cell
+`col_bool_starts_nullable_embedded` disagreed with the oracle, and the disagreement survived
+narrowing from "embedded property" to "nullable operand" to the actual variable, which was
+that the matrix passes a second COLUMN where a hand-written test would have typed a literal.

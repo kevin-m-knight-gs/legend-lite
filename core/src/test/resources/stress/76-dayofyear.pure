@@ -1,0 +1,100 @@
+// F35 -- `dayOfYear` lowers to DuckDB's `day()`, which answers the day of the MONTH.
+//
+// This file exists to keep the wrong answer visible. It asserts 155 for 2024-06-03, which
+// is the correct day of the year, and it therefore FAILS today and is quarantined. When the
+// one-line lowering is fixed it starts passing and run.py reports the quarantine as stale --
+// which is how the corpus learns the defect is gone without anyone remembering to look.
+//
+// The three sibling columns are the controls. `dayOfMonth` (3) is what dayOfYear currently
+// returns, `monthNumber` (6) and `weekOfYear` (23) are the neighbouring date parts. Without
+// them a failure here could be a bad seed date or a timezone shift; with them, the seed is
+// demonstrably a June 3rd that every other date function reads correctly.
+###Pure
+Class doy::Day
+{
+   k: String[1];
+   dayOfYear: Integer[0..1];
+   dayOfMonth: Integer[0..1];
+   monthNumber: Integer[0..1];
+   weekOfYear: Integer[0..1];
+}
+
+###Relational
+Database doy::DB
+(
+   Table DAYS ( K VARCHAR(10) PRIMARY KEY, D DATE )
+)
+
+###Mapping
+Mapping doy::M
+(
+   doy::Day: Relational
+   {
+      ~primaryKey ( [doy::DB]DAYS.K )
+      ~mainTable [doy::DB]DAYS
+      k: [doy::DB]DAYS.K,
+      dayOfYear: dayOfYear([doy::DB]DAYS.D),
+      dayOfMonth: dayOfMonth([doy::DB]DAYS.D),
+      monthNumber: monthNumber([doy::DB]DAYS.D),
+      weekOfYear: weekOfYear([doy::DB]DAYS.D)
+   }
+)
+
+###Connection
+RelationalDatabaseConnection doy::Conn
+{ store: doy::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime doy::RT
+{ mappings: [ doy::M ]; connections: [ doy::DB: [ env: doy::Conn ] ]; }
+
+###Data
+Data doy::Seed
+{
+  Relational
+  #{
+    default.DAYS:
+      'K,D\n' +
+      'R1,2024-06-03\n';
+  }#
+}
+
+###Service
+Service stress::F35_DayOfYear
+{
+   pattern: '/stress/f35';
+   documentation: 'dayOfYear over a known date, with the neighbouring date parts as controls.';
+   execution: Single
+   {
+      query: |doy::Day.all()->project(
+                 ~[ doy:x|$x.dayOfYear, dom:x|$x.dayOfMonth,
+                    mon:x|$x.monthNumber, wk:x|$x.weekOfYear ]);
+      mapping: doy::M;
+      runtime: doy::RT;
+   }
+   testSuites:
+   [
+      F35_DayOfYear_suite:
+      {
+         data: [ connections: [ env: Reference #{ doy::Seed }# ] ]
+         tests:
+         [
+            june_third:
+            {
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  a: EqualToJson
+                     #{
+                        expected: ExternalFormat
+                          #{
+                            contentType: 'application/json';
+                            data: '[ { "doy" : 155, "dom" : 3, "mon" : 6, "wk" : 23 } ]';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

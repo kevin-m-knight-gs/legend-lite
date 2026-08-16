@@ -131,24 +131,42 @@ WRITTEN = ("plain", "scope")
 # generation with an error far from the mapping. `plus`/`minus`/`times` in particular are
 # binary here, which was a guess worth checking rather than assuming from Pure's list form.
 XFORM = {
-    "string": ("none", "up", "cat", "nest"),
-    "char": ("none", "up"),
-    "int": ("none", "abs", "plus", "times"),
-    "bigint": ("none", "plus"),
-    "smallint": ("none", "abs"),
-    "float": ("none", "abs", "sqrt", "times"),
-    "decimal": ("none", "abs"),
+    # No `sub`: relational `substring` disagrees with the in-memory one (F37), and a matrix
+    # cell asserting either answer would be asserting a defect. It has its own pair of
+    # services in 77-substring-paths.pure, where the disagreement is the point rather than
+    # noise across sixteen classes.
+    "string": ("none", "up", "low", "trim", "rev", "cat", "nest", "coal",
+               "lpad", "repl", "split", "left"),
+    "char": ("none", "up", "trim"),
+    "int": ("none", "abs", "sign", "plus", "minus", "times", "mod", "band", "bxor"),
+    "bigint": ("none", "plus", "abs", "shl"),
+    "smallint": ("none", "abs", "sign"),
+    "float": ("none", "abs", "sqrt", "times", "plus", "minus", "div", "log", "cbrt",
+              "sin"),
+    "decimal": ("none", "abs", "times", "todec"),
     # isNull/isNotNull are the only transforms whose RESULT type is fixed rather than
     # inherited, and Boolean is the one type where that is not a mismatch.
-    "bool": ("none", "isnull", "isnotnull"),
+    # The boolean transforms read a STRING column and answer a Boolean, so they are the one
+    # place a cell's source type differs from its own type -- see READS.
+    "bool": ("none", "isnull", "isnotnull", "not", "starts", "ends", "has", "alnum"),
     # No transform over a date or a timestamp. The oracle implements no date function, and
     # adding one would be a bet about calendar semantics rather than a fact -- the same trap
     # concat set. What these cells test is the round trip and the RENDERING, which is where
     # F24 lives: a DateTime serializes with a UTC offset through one path and without it
     # through another.
-    "date": ("none",),
-    "timestamp": ("none",),
+    # No `previousDayOfWeek`/`mostRecentDayOfWeek`: both are in getSupportedFunctions() and
+    # both fail at execution with "not supported yet" (F36). See probe_functions.py.
+    # No `fdweek`: it returns a DateTime through a StrictDate property (F38). Covered by
+    # 78-firstday-types.pure alongside the three siblings that behave.
+    "date": ("none", "dpart", "fdmonth", "fdyear", "fdquarter"),
+    "timestamp": ("none", "fhday", "fminhour", "fsecmin"),
 }
+
+# The source column type a transform READS, where it differs from the cell's own type. A
+# boolean cell computed by `startsWith` reads a string; without this the generator would ask
+# for a BIT column and hand it to a string function.
+READS = {"not": "bool", "isnull": "string", "isnotnull": "string",
+         "starts": "string", "ends": "string", "has": "string", "alnum": "string"}
 
 TYPE_SQL = {"string": "VARCHAR(200)", "char": "CHAR(12)", "int": "INTEGER",
             "bigint": "BIGINT", "smallint": "SMALLINT", "float": "DOUBLE",
@@ -235,9 +253,27 @@ def _ref(reach: str, col: str) -> str:
     return f"[{DB}]{chain} | [{DB}]{table}.{col}"
 
 
-_UNARY = {"up": "toUpper", "abs": "abs", "sqrt": "sqrt",
-          "isnull": "isNull", "isnotnull": "isNotNull"}
-_BINARY = {"cat": "concat", "plus": "plus", "times": "times"}
+_UNARY = {"up": "toUpper", "low": "toLower", "trim": "trim", "rev": "reverseString",
+          "abs": "abs", "sign": "sign", "sqrt": "sqrt", "log": "log", "cbrt": "cbrt",
+          "sin": "sin", "todec": "toDecimal", "not": "not", "alnum": "isAlphaNumeric",
+          "isnull": "isNull", "isnotnull": "isNotNull",
+          "dpart": "datePart", "fdmonth": "firstDayOfMonth", "fdyear": "firstDayOfYear",
+          "fdquarter": "firstDayOfQuarter", "fdweek": "firstDayOfWeek",
+          "fhday": "firstHourOfDay", "fminhour": "firstMinuteOfHour",
+          "fsecmin": "firstSecondOfMinute"}
+_BINARY = {"cat": "concat", "plus": "plus", "times": "times", "minus": "minus",
+           "div": "divide", "mod": "mod", "band": "bitAnd", "bxor": "bitXor",
+           "coal": "coalesce", "starts": "startsWith",
+           }
+# Transforms whose second argument is a LITERAL rather than a second column.
+_LITERAL_ARG = {"sub": ("substring", "2, 4"), "lpad": ("lpad", "12, 'x'"),
+                "repl": ("replace", "'A', 'z'"), "split": ("splitPart", "'-', 1"),
+                "left": ("left", "3"), "shl": ("bitShiftLeft", "1"),
+                # LITERAL patterns. With a COLUMN as the second argument these three are
+                # false for every row (F39), so a matrix cell using the column form would
+                # assert a defect across sixteen classes instead of testing the function.
+                "starts": ("startsWith", "'A'"), "ends": ("endsWith", "'1'"),
+                "has": ("contains", "'-'")}
 
 
 def expression(cell, bare: bool = False) -> str:
@@ -249,11 +285,15 @@ def expression(cell, bare: bool = False) -> str:
     """
     reach, type_, xform, nulls, _host = cell
     table = _TABLE_FOR[reach]
+    src = READS.get(xform, type_)
     if bare:
-        ra, rb = (column(table, type_, nulls, 1), column(table, type_, nulls, 2))
+        ra, rb = (column(table, src, nulls, 1), column(table, src, nulls, 2))
     else:
-        ra = _ref(reach, column(table, type_, nulls, 1))
-        rb = _ref(reach, column(table, type_, nulls, 2))
+        ra = _ref(reach, column(table, src, nulls, 1))
+        rb = _ref(reach, column(table, src, nulls, 2))
+    if xform in _LITERAL_ARG:
+        fn, lit = _LITERAL_ARG[xform]
+        return f"{fn}({ra}, {lit})"
     if xform == "none":
         return ra
     if xform in _UNARY:

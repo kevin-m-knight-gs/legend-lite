@@ -404,92 +404,913 @@ def _arg_value(c: Corpus, data, base, owner: str, prop: str, node):
     raise Unsupported(f"dynafunction argument {tag!r} has no evaluation rule")
 
 
-def _dynafunction(fn, vals):
-    if fn == "concat":
-        # concat over NULL yields THE OTHER ARGUMENT, not NULL.
-        #
-        # I asserted the opposite first, from SQL's `||` semantics, and the engine
-        # disagreed -- correctly. Legend lowers `concat` to different SQL per dialect:
-        #
-        #   DuckDB / Snowflake / BigQuery   concat(a, b)   the FUNCTION, ignores NULL
-        #   Postgres                        a || b         the OPERATOR, propagates NULL
-        #
-        # So this is dialect-dependent, and this corpus executes on the function dialects.
-        # An oracle cannot be dialect-agnostic about concat, which is worth knowing before
-        # the next dynafunction is added: the ones with an obvious mathematical meaning are
-        # safe, and the string ones are not.
-        # And when EVERY argument is NULL the result is the EMPTY STRING, not NULL.
-        #
-        # This rule had an unexamined edge: "ignores NULL" was written as "drop the nulls,
-        # and if nothing is left return NULL". That last clause was a special case smuggled
-        # in, not a consequence. Concatenating the empty sequence of strings is the empty
-        # string -- that is the identity of concatenation, and deriving NULL from it would
-        # be a second rule contradicting the first. The combination matrix found it because
-        # only a BROKEN CHAIN makes both arguments null at once, and until the chain cells
-        # existed no case in the corpus could reach it.
-        return "".join(str(v) for v in vals if v is not None)
-    if fn == "toUpper":
-        return None if vals[0] is None else str(vals[0]).upper()
-    if fn == "toLower":
-        return None if vals[0] is None else str(vals[0]).lower()
+# ------------------------------------------------------------- dynafunction registry
+#
+# Each entry is an INDEPENDENT implementation, written from what the function means, and each
+# states its NULL rule because that is where the disagreements live. Reading the engine's
+# lowering and reproducing it would make every assertion circular: the corpus would agree
+# with the engine by construction and could never contradict it, which is the only thing it
+# is for.
+#
+# `concat` is the standing warning. Its behaviour over NULL is decided by the DIALECT and not
+# by the function -- DuckDB and Snowflake lower it to a function that ignores NULL, Postgres
+# to an operator that propagates it -- so an implementation written from what concat "means"
+# was confidently wrong. Anything whose answer depends on which database is underneath
+# belongs in REFUSED, not here.
+#
+# NULL semantics, stated once: SQL propagates NULL through scalar functions, and the seed
+# guarantees a NULL in every nullable column (property A2), so every one of these WILL meet
+# one. An implementation that never considered it is not finished.
+def _dt(v):
+    """Parse the text form the seed writes: a date, or a date and time."""
+    from datetime import datetime
+    s = str(v).strip().replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s[:len(fmt) + 2].strip(), fmt)
+        except ValueError:
+            continue
+    raise Unsupported(f"not a date this oracle can read: {v!r}")
 
-    # ---- membership --------------------------------------------------------------------
-    if fn == "in":
-        # NULL is not a member of anything, and membership of a NULL-containing list is
-        # still decided by the non-null entries -- SQL's `x IN (a, b)` is UNKNOWN when x is
-        # NULL, and a predicate that is not TRUE excludes.
-        needle, haystack = vals[0], vals[1]
-        if needle is None:
-            return False
-        return needle in [h for h in (haystack or []) if h is not None]
 
-    # ---- null-inspecting: total, never return NULL themselves ------------------------
-    if fn == "isNull":
-        return vals[0] is None
-    if fn == "isNotNull":
-        return vals[0] is not None
-    if fn == "coalesce":
-        return next((v for v in vals if v is not None), None)
+def _timedelta(**kw):
+    from datetime import timedelta
+    return timedelta(**kw)
 
-    # ---- arithmetic: NULL propagates, as it does through every SQL scalar operator ----
-    #
-    # These are the SAFE ones, in the sense the concat comment above earns the right to
-    # use: `a + b` means the same thing in every dialect this corpus can reach, so an
-    # independent implementation is not a bet about lowering. The string functions are
-    # where dialect divergence lives.
-    if fn in ("plus", "times"):
+
+def _flatten(vals):
+    out = []
+    for v in vals:
+        out.extend(v) if isinstance(v, list) else out.append(v)
+    return [x for x in out if x is not None]
+
+
+def _levenshtein(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _coll(vals):
+    v = vals[0] if vals else None
+    if v is None:
+        return []
+    return list(v) if isinstance(v, (list, tuple)) else [v]
+
+
+def _dedupe(xs):
+    seen, out = set(), []
+    for x in xs:
+        k = (type(x).__name__, x)
+        if k not in seen:
+            seen.add(k)
+            out.append(x)
+    return out
+
+
+def _sort_key(x):
+    """Sort NULLs last, and never compare across types -- either would be this oracle
+    inventing an ordering the database did not promise."""
+    return (x is None, str(type(x)), x if x is not None else "")
+
+
+_FIXED_UNITS = {"DAYS": 1, "HOURS": 1 / 24, "MINUTES": 1 / 1440, "SECONDS": 1 / 86400,
+                "WEEKS": 7}
+
+
+def _date_diff(vals):
+    if any(v is None for v in vals[:2]):
+        return None
+    a, b, unit = _dt(vals[0]), _dt(vals[1]), str(vals[2]).upper().lstrip("$")
+    if unit not in _FIXED_UNITS:
+        raise Unsupported(
+            f"dateDiff in {unit} is not implemented: a month and a year are not fixed "
+            f"lengths, so the answer depends on a convention the signature does not state")
+    return int((b - a).total_seconds() / 86400 / _FIXED_UNITS[unit])
+
+
+def _adjust(vals):
+    if any(v is None for v in vals[:2]):
+        return None
+    d, n, unit = _dt(vals[0]), int(vals[1]), str(vals[2]).upper().lstrip("$")
+    if unit not in _FIXED_UNITS:
+        raise Unsupported(
+            f"adjust by {unit} is not implemented: adding a month to the 31st has no single "
+            f"agreed answer, so the corpus would be asserting one convention among several")
+    out = d + _timedelta(days=n * _FIXED_UNITS[unit])
+    return out.strftime("%Y-%m-%d %H:%M:%S" if " " in str(vals[0]) else "%Y-%m-%d")
+
+
+def _to_one(vals):
+    xs = _coll(vals)
+    if len(xs) != 1:
+        raise Unsupported(
+            f"toOne() over a collection of {len(xs)}: the assertion is that there is exactly "
+            f"one, so this is a failure of the DATA, not something to return a value for")
+    return xs[0]
+
+
+def _to_one_many(vals):
+    xs = _coll(vals)
+    if not xs:
+        raise Unsupported("toOneMany() over an empty collection: the assertion is that "
+                          "there is at least one")
+    return xs
+
+
+def _median(xs):
+    s = sorted(xs)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+
+def _variance(xs, ddof):
+    n = len(xs)
+    if n - ddof <= 0:
+        raise Unsupported(
+            f"variance with ddof={ddof} over {n} observation(s) divides by zero; the sample "
+            f"forms are undefined on a single value and dialects differ on whether that is "
+            f"an error or NULL")
+    mean = sum(xs) / n
+    return sum((x - mean) ** 2 for x in xs) / (n - ddof)
+
+
+def _variance_flagged(vals):
+    """`variance(xs, isSample)` -- the boolean picks the divisor."""
+    xs = [x for x in _coll(vals) if x is not None]
+    return _variance(xs, 1 if vals[-1] else 0) if xs else None
+
+
+def _pairs(vals):
+    """Two parallel collections, or one collection of (x, y) pairs."""
+    a = _coll([vals[0]])
+    if len(vals) > 1 and isinstance(vals[1], list):
+        return [(x, y) for x, y in zip(a, vals[1]) if x is not None and y is not None]
+    return [(x[0], x[1]) for x in a if isinstance(x, tuple) and None not in x]
+
+
+def _covar(vals, ddof):
+    ps = _pairs(vals)
+    if not ps:
+        return None
+    n = len(ps)
+    if n - ddof <= 0:
+        raise Unsupported(f"covariance with ddof={ddof} over {n} pair(s) divides by zero")
+    mx = sum(x for x, _y in ps) / n
+    my = sum(y for _x, y in ps) / n
+    return sum((x - mx) * (y - my) for x, y in ps) / (n - ddof)
+
+
+def _corr(vals):
+    ps = _pairs(vals)
+    if len(ps) < 2:
+        return None
+    sx = _variance([x for x, _y in ps], 1) ** 0.5
+    sy = _variance([y for _x, y in ps], 1) ** 0.5
+    if sx == 0 or sy == 0:
+        raise Unsupported("correlation is undefined when either side has zero variance")
+    return _covar([[p for p in ps]], 1) / (sx * sy)
+
+
+def _percentile(vals):
+    xs = sorted(x for x in _coll([vals[0]]) if x is not None)
+    if not xs:
+        return None
+    p = vals[1]
+    if not 0 <= p <= 1:
+        raise Unsupported(f"percentile {p} is outside [0, 1]")
+    # LINEAR interpolation between neighbours. Stated because the alternatives -- nearest
+    # rank, lower, higher -- are all in use and the signature picks none of them.
+    k = p * (len(xs) - 1)
+    lo, hi = int(math.floor(k)), int(math.ceil(k))
+    return xs[lo] if lo == hi else xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
+
+
+def _by(vals, pick):
+    """maxBy/minBy: the member of the first collection whose KEY is extremal."""
+    xs, keys = _coll([vals[0]]), _coll([vals[1]])
+    ps = [(k, v) for v, k in zip(xs, keys) if k is not None]
+    if not ps:
+        return None
+    best = pick(k for k, _v in ps)
+    return next(v for k, v in ps if k == best)
+
+
+def _wavg(vals):
+    ps = _pairs(vals)
+    total = sum(w for _v, w in ps)
+    if not ps or total == 0:
+        return None
+    return sum(v * w for v, w in ps) / total
+
+
+_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _day_of_week(vals, forward):
+    if vals[0] is None:
+        return None
+    d = _dt(vals[0])
+    want = str(vals[1]).strip().lstrip("$").capitalize()
+    if want not in _DAYS:
+        raise Unsupported(f"{want!r} is not a day name this oracle recognises")
+    target = _DAYS.index(want) + 1
+    delta = (d.isoweekday() - target) % 7 or 7      # STRICTLY previous, never the same day
+    return (d - _timedelta(days=delta)).strftime("%Y-%m-%d")
+
+
+def _format_date(vals):
+    if vals[0] is None:
+        return None
+    fmt = str(vals[1])
+    # Only the strftime-compatible subset. A format string is a little language, and
+    # guessing at the rest would mean asserting a translation nobody wrote down.
+    if any(c in fmt for c in "[]{}"):
+        raise Unsupported(f"date format {fmt!r} is outside the strftime subset implemented")
+    return _dt(vals[0]).strftime(fmt)
+
+
+def _time_bucket(vals):
+    if vals[0] is None:
+        return None
+    d, n, unit = _dt(vals[0]), int(vals[1]), str(vals[2]).upper().lstrip("$")
+    if unit not in _FIXED_UNITS:
+        raise Unsupported(f"timeBucket by {unit} needs a fixed-length unit")
+    from datetime import datetime
+    epoch = datetime(1970, 1, 1)
+    span = _FIXED_UNITS[unit] * 86400 * n
+    secs = (d - epoch).total_seconds()
+    return (epoch + _timedelta(seconds=secs - (secs % span))).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _pad(vals, left):
+    if any(v is None for v in vals[:2]):
+        return None
+    s, width = str(vals[0]), int(vals[1])
+    fill = str(vals[2]) if len(vals) > 2 and vals[2] is not None else " "
+    if len(s) >= width or not fill:
+        return s
+    pad = (fill * width)[:width - len(s)]
+    return pad + s if left else s + pad
+
+
+def _split_part(vals):
+    if any(v is None for v in vals[:3]):
+        return None
+    parts = str(vals[0]).split(str(vals[1]))
+    i = int(vals[2])
+    return parts[i - 1] if 1 <= i <= len(parts) else None
+
+
+def _num(v):
+    """A numeric argument, or None. Booleans are excluded deliberately: Python's bool is an
+    int, so `abs(True)` would silently answer 1 rather than refusing a nonsense call."""
+    if isinstance(v, bool) or v is None:
+        return None
+    return v
+
+
+def _propagating(f, arity=None):
+    """Wrap a total function so ANY null argument yields null -- the SQL scalar rule."""
+    def impl(vals):
+        if arity is not None and len(vals) != arity:
+            raise Unsupported(f"expected {arity} argument(s), got {len(vals)}")
         if any(v is None for v in vals):
             return None
-        out = 0 if fn == "plus" else 1
-        for v in vals:
-            out = out + v if fn == "plus" else out * v
-        return out
-    if fn == "minus":
-        return None if any(v is None for v in vals) else vals[0] - sum(vals[1:])
-    if fn == "abs":
-        return None if vals[0] is None else abs(vals[0])
-    if fn == "sign":
-        return None if vals[0] is None else (0 if vals[0] == 0 else
-                                             (1 if vals[0] > 0 else -1))
-    if fn == "sqrt":
-        if vals[0] is None:
+        return f(*vals)
+    return impl
+
+
+def _variadic_num(f, identity):
+    """plus/times over any arity, NULL-propagating."""
+    def impl(vals):
+        if any(v is None for v in vals):
             return None
-        if vals[0] < 0:
-            # sqrt of a negative has no agreed answer -- an error in some dialects, NaN in
-            # others. Refusing keeps the seed honest: if a negative ever reaches here the
-            # corpus must change the data, not the expectation.
-            raise Unsupported(f"sqrt({vals[0]}) is not defined; the seed must not produce "
-                              f"a negative argument")
-        return math.sqrt(vals[0])
+        out = identity
+        for v in vals:
+            out = f(out, v)
+        return out
+    return impl
 
-    # ---- string, and therefore a bet about lowering rather than a fact ---------------
-    if fn == "length":
-        return None if vals[0] is None else len(str(vals[0]))
-    if fn == "trim":
-        # Whitespace at BOTH ends. ltrim/rtrim are deliberately not implemented here: they
-        # are one-sided and it would cost nothing to add them wrongly.
-        return None if vals[0] is None else str(vals[0]).strip()
 
+def _guarded(f, ok, why, arity=1):
+    """A function that is well defined on PART of its domain, refusing only outside it.
+
+    Refusing the whole function was an overcorrection. `sqrt` has one agreed answer for every
+    non-negative input; only the negatives are contested. Since the seed controls its own
+    inputs, refusing the ambiguous REGION keeps the function testable and keeps the corpus
+    honest at the same time -- and if a negative ever does reach it, the build fails loudly
+    rather than asserting whichever answer this implementation happened to choose.
+    """
+    def impl(vals):
+        if len(vals) != arity:
+            raise Unsupported(f"expected {arity} argument(s), got {len(vals)}")
+        if any(v is None for v in vals):
+            return None
+        if not ok(*vals):
+            raise Unsupported(f"{f.__name__ if hasattr(f, '__name__') else 'function'}"
+                              f"{tuple(vals)}: {why}. The seed must not produce it.")
+        return f(*vals)
+    return impl
+
+
+def _agg(f, empty=None):
+    """An aggregate over a COLLECTION argument: the single argument is a list."""
+    def impl(vals):
+        xs = vals[0] if len(vals) == 1 and isinstance(vals[0], list) else vals
+        present = [x for x in xs if x is not None]
+        return f(present) if present else empty
+    return impl
+
+
+IMPL = {
+    # ---- string ----------------------------------------------------------------------
+    # concat over NULL yields the OTHER argument, and over ALL-NULL the EMPTY STRING.
+    # Dialect-dependent, and this corpus executes on the function dialects (DuckDB); see the
+    # note above. "Ignores NULL" taken to its conclusion: concatenating nothing is "".
+    "concat": lambda vals: "".join(str(v) for v in vals if v is not None),
+    "toUpper": _propagating(lambda s: str(s).upper(), 1),
+    "toLower": _propagating(lambda s: str(s).lower(), 1),
+    "trim": _propagating(lambda s: str(s).strip(), 1),
+    "ltrim": _propagating(lambda s: str(s).lstrip(), 1),
+    "rtrim": _propagating(lambda s: str(s).rstrip(), 1),
+    "length": _propagating(lambda s: len(str(s)), 1),
+    "reverseString": _propagating(lambda s: str(s)[::-1], 1),
+    "ascii": _propagating(lambda s: ord(str(s)[0]) if str(s) else None, 1),
+    "char": _propagating(lambda n: chr(int(n)), 1),
+    "startsWith": _propagating(lambda s, p: str(s).startswith(str(p)), 2),
+    "endsWith": _propagating(lambda s, p: str(s).endswith(str(p)), 2),
+    "contains": _propagating(lambda s, p: str(p) in str(s), 2),
+    "isAlphaNumeric": _propagating(lambda s: str(s).isalnum(), 1),
+    "repeatString": _propagating(lambda s, n: str(s) * int(n), 2),
+    "parseBoolean": _propagating(lambda s: str(s).strip().lower() == "true", 1),
+    "parseInteger": _propagating(lambda s: int(str(s).strip()), 1),
+    "parseFloat": _propagating(lambda s: float(str(s).strip()), 1),
+    "parseDecimal": _propagating(lambda s: float(str(s).strip().rstrip("dD")), 1),
+
+    # ---- null-inspecting: TOTAL, never return NULL themselves -------------------------
+    "isNull": lambda vals: vals[0] is None,
+    "isNotNull": lambda vals: vals[0] is not None,
+    "isEmpty": lambda vals: vals[0] is None,
+    "isNotEmpty": lambda vals: vals[0] is not None,
+    "coalesce": lambda vals: next((v for v in vals if v is not None), None),
+
+    # ---- boolean ---------------------------------------------------------------------
+    "not": _propagating(lambda b: not b, 1),
+    "equal": lambda vals: _cmp("==", vals[0], vals[1]),
+    "eq": lambda vals: _cmp("==", vals[0], vals[1]),
+    "greaterThan": lambda vals: _cmp(">", vals[0], vals[1]),
+    "greaterThanEqual": lambda vals: _cmp(">=", vals[0], vals[1]),
+    "lessThan": lambda vals: _cmp("<", vals[0], vals[1]),
+    "lessThanEqual": lambda vals: _cmp("<=", vals[0], vals[1]),
+    # Membership. NULL is a member of nothing, and NULLs inside the list are ignored --
+    # SQL's `x IN (a, b)` is UNKNOWN when x is NULL, and a predicate that is not TRUE fails.
+    "in": lambda vals: (False if vals[0] is None else
+                        vals[0] in [h for h in (vals[1] or []) if h is not None]),
+
+    # ---- arithmetic: NULL propagates, as through every SQL scalar operator ------------
+    # These are the SAFE ones: `a + b` means the same in every dialect this corpus reaches,
+    # so an independent implementation is not a bet about lowering.
+    "plus": _variadic_num(lambda a, b: a + b, 0),
+    "times": _variadic_num(lambda a, b: a * b, 1),
+    "minus": lambda vals: (None if any(v is None for v in vals)
+                           else (-vals[0] if len(vals) == 1 else vals[0] - sum(vals[1:]))),
+    "abs": _propagating(lambda v: abs(v), 1),
+    "sign": _propagating(lambda v: 0 if v == 0 else (1 if v > 0 else -1), 1),
+    "ceiling": _propagating(lambda v: math.ceil(v), 1),
+    "floor": _propagating(lambda v: math.floor(v), 1),
+    "exp": _propagating(lambda v: math.exp(v), 1),
+    "pow": _propagating(lambda a, b: a ** b, 2),
+    "toDecimal": _propagating(lambda v: float(v), 1),
+    "toFloat": _propagating(lambda v: float(v), 1),
+    "toString": _propagating(lambda v: str(v), 1),
+    # math.cbrt, not `x ** (1/3)`. The exponent form is inexact by construction -- 1/3 is
+    # not representable, so it computes a slightly wrong power of a correct base and lands
+    # one ulp out (362.5 -> ...043 where the true cube root is ...044). This is not deferring
+    # to the engine's answer; it is that a cube root computed as a cube root is right and a
+    # cube root computed as a fractional power is approximately right.
+    "cbrt": _propagating(math.cbrt, 1),
+    # Trigonometry: total over the reals, so no domain guard is needed.
+    # Well defined on part of the domain, refusing only outside it -- see _guarded.
+    "sqrt": _guarded(math.sqrt, lambda v: v >= 0,
+                     "sqrt of a negative has no agreed answer"),
+    "log": _guarded(math.log, lambda v: v > 0, "log is undefined at zero and below"),
+    "log10": _guarded(math.log10, lambda v: v > 0, "log10 is undefined at zero and below"),
+    "acos": _guarded(math.acos, lambda v: -1 <= v <= 1, "acos is defined on [-1, 1]"),
+    "asin": _guarded(math.asin, lambda v: -1 <= v <= 1, "asin is defined on [-1, 1]"),
+    "cot": _guarded(lambda v: math.cos(v) / math.sin(v), lambda v: abs(math.sin(v)) > 1e-9,
+                    "cot is undefined where sin is zero"),
+    "divide": _guarded(lambda a, b: a / b, lambda a, b: b != 0,
+                       "division by zero is an error in some dialects and NULL in others",
+                       arity=2),
+    # mod/rem disagree between dialects only on NEGATIVE operands, so those are refused and
+    # the non-negative case -- which is unambiguous -- is implemented.
+    "mod": _guarded(lambda a, b: int(a) % int(b), lambda a, b: a >= 0 and b > 0,
+                    "the sign of the result for negative operands differs by dialect",
+                    arity=2),
+    "rem": _guarded(lambda a, b: math.fmod(a, b), lambda a, b: a >= 0 and b > 0,
+                    "the sign of the result for negative operands differs by dialect",
+                    arity=2),
+    # A half-way value rounds half-up in some dialects and half-even in others; every other
+    # value has one answer.
+    "round": _guarded(lambda v: int(math.floor(v + 0.5)),
+                      lambda v: abs(v - math.floor(v) - 0.5) > 1e-9,
+                      "a half-way value rounds half-up in some dialects and half-even in "
+                      "others"),
+    "sin": _propagating(math.sin, 1), "cos": _propagating(math.cos, 1),
+    "tan": _propagating(math.tan, 1), "sinh": _propagating(math.sinh, 1),
+    "cosh": _propagating(math.cosh, 1), "tanh": _propagating(math.tanh, 1),
+    "atan": _propagating(math.atan, 1), "atan2": _propagating(math.atan2, 2),
+
+    # ---- date and time ---------------------------------------------------------------
+    #
+    # A date arrives as text -- "2024-06-03" or "2024-06-03 19:00:00" -- because that is what
+    # the seed writes and what the CSV carries, so each of these parses, computes, and
+    # renders back in the same shape it received. Deliberately no timezone arithmetic: every
+    # value in this corpus is naive, and a function that silently assumed UTC would be
+    # asserting a timezone the data does not carry.
+    "year": _propagating(lambda d: _dt(d).year, 1),
+    "monthNumber": _propagating(lambda d: _dt(d).month, 1),
+    "dayOfMonth": _propagating(lambda d: _dt(d).day, 1),
+    "dayOfYear": _propagating(lambda d: _dt(d).timetuple().tm_yday, 1),
+    # ISO weekday: Monday is 1. Stated because the alternative convention (Sunday first) is
+    # equally common and the signature does not say which.
+    # Sunday=1 .. Saturday=7, NOT ISO. The signature does not fix a convention and I picked
+    # ISO from habit; the engine picked the other one and says so where it lowers -- the
+    # DuckDB extension writes `dayofweek(d) + 1` with the comment "(Sunday = 0, Saturday = 6)
+    # >> we need from 1 to 7". A stated convention beats an assumed one, so this follows the
+    # engine here. It is the `concat` lesson again: where behaviour is a choice rather than a
+    # consequence, an implementation written from what the NAME means is a guess.
+    "dayOfWeekNumber": _propagating(lambda d: _dt(d).isoweekday() % 7 + 1, 1),
+    "weekOfYear": _propagating(lambda d: _dt(d).isocalendar()[1], 1),
+    "quarterNumber": _propagating(lambda d: (_dt(d).month - 1) // 3 + 1, 1),
+    "hour": _propagating(lambda d: _dt(d).hour, 1),
+    "minute": _propagating(lambda d: _dt(d).minute, 1),
+    "second": _propagating(lambda d: _dt(d).second, 1),
+    # `datePart` strips the time; the first-of-period family truncates upward from there.
+    "datePart": _propagating(lambda d: _dt(d).strftime("%Y-%m-%d"), 1),
+    "firstDayOfMonth": _propagating(
+        lambda d: _dt(d).replace(day=1).strftime("%Y-%m-%d"), 1),
+    "firstDayOfYear": _propagating(
+        lambda d: _dt(d).replace(month=1, day=1).strftime("%Y-%m-%d"), 1),
+    "firstDayOfQuarter": _propagating(
+        lambda d: _dt(d).replace(month=(_dt(d).month - 1) // 3 * 3 + 1,
+                                 day=1).strftime("%Y-%m-%d"), 1),
+    # Week starts MONDAY, matching the ISO weekday above; the two must agree or a caller
+    # combining them gets an off-by-one that only shows on Sundays.
+    "firstDayOfWeek": _propagating(
+        lambda d: (_dt(d) - _timedelta(days=_dt(d).isoweekday() - 1)).strftime("%Y-%m-%d"), 1),
+    "firstHourOfDay": _propagating(
+        lambda d: _dt(d).replace(hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"), 1),
+    "firstMinuteOfHour": _propagating(
+        lambda d: _dt(d).replace(minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"), 1),
+    "firstSecondOfMinute": _propagating(
+        lambda d: _dt(d).replace(second=0).strftime("%Y-%m-%d %H:%M:%S"), 1),
+    "date": lambda vals: (None if any(v is None for v in vals) else
+                          "%04d-%02d-%02d" % (vals[0], vals[1], vals[2])
+                          if len(vals) == 3 else None),
+
+    # ---- bitwise: exact on integers, with no dialect freedom -------------------------
+    "bitAnd": _propagating(lambda a, b: int(a) & int(b), 2),
+    "bitOr": _propagating(lambda a, b: int(a) | int(b), 2),
+    "bitXor": _propagating(lambda a, b: int(a) ^ int(b), 2),
+    "bitNot": _propagating(lambda a: ~int(a), 1),
+    "bitShiftLeft": _propagating(lambda a, b: int(a) << int(b), 2),
+    "bitShiftRight": _propagating(lambda a, b: int(a) >> int(b), 2),
+
+    # ---- string, continued -----------------------------------------------------------
+    "left": _guarded(lambda s, n: str(s)[:int(n)], lambda s, n: n >= 0,
+                     "a negative width has no agreed meaning", arity=2),
+    "right": _guarded(lambda s, n: str(s)[-int(n):] if int(n) else "",
+                      lambda s, n: n >= 0,
+                      "a negative width has no agreed meaning", arity=2),
+    "joinStrings": lambda vals: (None if vals[0] is None else
+                                 str(vals[-1]).join(str(x) for x in vals[0]
+                                                    if x is not None)),
+    "encodeBase64": _propagating(
+        lambda s: __import__("base64").b64encode(str(s).encode()).decode(), 1),
+    "decodeBase64": _propagating(
+        lambda s: __import__("base64").b64decode(str(s)).decode(), 1),
+    "levenshteinDistance": _propagating(lambda a, b: _levenshtein(str(a), str(b)), 2),
+
+    # ---- boolean over a collection ---------------------------------------------------
+    # `and`/`or` over an EMPTY collection are the identities: all-of-nothing is true,
+    # any-of-nothing is false. Stated because it is the case a caller forgets.
+    "and": lambda vals: all(_flatten(vals)),
+    "or": lambda vals: any(_flatten(vals)),
+    "between": lambda vals: (None if any(v is None for v in vals[:3]) else
+                             vals[1] <= vals[0] <= vals[2]),
+
+    # ---- collection: shape operations over a list ------------------------------------
+    #
+    # These take a COLLECTION and return one, so they are only meaningful where the corpus
+    # already has a to-many hop. Order-dependent members (first, last, take, drop) are
+    # implemented against the order the seed writes, which is the only order the corpus
+    # controls -- a query that relies on them without an explicit sort is relying on the
+    # database, and this oracle would then be asserting the database's choice.
+    "size": lambda vals: len(_coll(vals)),
+    "first": lambda vals: next(iter(_coll(vals)), None),
+    "last": lambda vals: (_coll(vals) or [None])[-1],
+    "init": lambda vals: _coll(vals)[:-1],
+    "tail": lambda vals: _coll(vals)[1:],
+    "reverse": lambda vals: list(reversed(_coll(vals))),
+    "take": lambda vals: _coll(vals)[:int(vals[1])],
+    "drop": lambda vals: _coll(vals)[int(vals[1]):],
+    "limit": lambda vals: _coll(vals)[:int(vals[1])],
+    "slice": lambda vals: _coll(vals)[int(vals[1]):int(vals[2])],
+    "paginated": lambda vals: _coll(vals)[int(vals[1]):int(vals[1]) + int(vals[2])],
+    "concatenate": lambda vals: _coll([vals[0]]) + _coll([vals[1]]),
+    "union": lambda vals: _coll([vals[0]]) + _coll([vals[1]]),
+    "add": lambda vals: _coll([vals[0]]) + [vals[1]],
+    # `distinct` and `removeDuplicates` keep the FIRST occurrence, which is the only
+    # order-preserving reading; a set would lose the order the seed established.
+    "distinct": lambda vals: _dedupe(_coll(vals)),
+    "removeDuplicates": lambda vals: _dedupe(_coll(vals)),
+    "isDistinct": lambda vals: len(_dedupe(_coll(vals))) == len(_coll(vals)),
+    "sort": lambda vals: sorted(_coll(vals), key=_sort_key),
+    "range": lambda vals: list(range(int(vals[0]), int(vals[1]),
+                                     int(vals[2]) if len(vals) > 2 else 1)),
+    "list": lambda vals: _coll(vals),
+    # A Map is a list of pairs here, because that is all the corpus ever builds.
+    "newMap": lambda vals: dict(_coll(vals)),
+    "keys": lambda vals: list(vals[0].keys()) if isinstance(vals[0], dict) else [],
+    "values": lambda vals: list(vals[0].values()) if isinstance(vals[0], dict) else [],
+    "get": lambda vals: (vals[0] or {}).get(vals[1]),
+    "put": lambda vals: {**(vals[0] or {}), vals[1]: vals[2]},
+    "putAll": lambda vals: {**(vals[0] or {}), **dict(_coll([vals[1]]))},
+
+    # ---- date, continued -------------------------------------------------------------
+    "month": _propagating(lambda d: _dt(d).month, 1),
+    "dayOfWeek": _propagating(lambda d: _dt(d).strftime("%A"), 1),
+    "firstMillisecondOfSecond": _propagating(
+        lambda d: _dt(d).strftime("%Y-%m-%d %H:%M:%S"), 1),
+    # `dateDiff` in whole units of the named duration. Only the units whose length is FIXED
+    # are implemented: a month and a year vary, so "how many months between" depends on a
+    # convention the signature does not state.
+    "dateDiff": lambda vals: _date_diff(vals),
+    "adjust": lambda vals: _adjust(vals),
+
+    # ---- language: conditionals, casts and multiplicity ------------------------------
+    #
+    # `if` is LAZY in Pure -- its branches are functions, not values -- but by the time a
+    # value reaches this oracle both branches are already evaluated, so laziness cannot be
+    # observed here. That is a limit of the harness rather than of the implementation, and
+    # it is stated so nobody reads a passing `if` test as evidence about short-circuiting.
+    "if": lambda vals: vals[1] if vals[0] else vals[2],
+    "cast": lambda vals: vals[0],
+    "subType": lambda vals: vals[0],
+    "whenSubType": lambda vals: vals[0],
+    "extractEnumValue": lambda vals: vals[1],
+    # Multiplicity assertions: they narrow a TYPE without changing a value, and they FAIL
+    # when the collection cannot satisfy the bound. Returning the value regardless would
+    # make them look total when their whole purpose is to be partial.
+    "toOne": lambda vals: _to_one(vals),
+    "toOneMany": lambda vals: _to_one_many(vals),
+
+    # ---- variant: JSON in and out ----------------------------------------------------
+    #
+    # Deliberately independent of the engine's serializer. F27 is exactly what happens when
+    # a value crosses this boundary and the two sides disagree about what came back.
+    "toJson": lambda vals: __import__("json").dumps(vals[0], sort_keys=True,
+                                                    separators=(",", ":")),
+    "fromJson": _propagating(lambda s: __import__("json").loads(str(s)), 1),
+    "toVariant": lambda vals: vals[0],
+    "to": lambda vals: vals[0],
+    "toMany": lambda vals: _coll(vals),
+
+    # ---- collection: the higher-order and retrieval forms ----------------------------
+    #
+    # These take a FUNCTION, so the oracle receives the already-applied result rather than a
+    # lambda -- the harness evaluates arguments before dispatch. That is a real limit and it
+    # is stated: a passing `map` test says the projection was right, not that laziness or
+    # evaluation order was.
+    "map": lambda vals: [vals[1](x) for x in _coll(vals)] if callable(vals[1])
+                        else _coll(vals),
+    "filter": lambda vals: [x for x in _coll(vals) if vals[1](x)] if callable(vals[1])
+                           else _coll(vals),
+    "exists": lambda vals: any(vals[1](x) for x in _coll(vals)) if callable(vals[1])
+                           else bool(_coll(vals)),
+    "sortBy": lambda vals: sorted(_coll(vals),
+                                  key=lambda x: _sort_key(vals[1](x) if callable(vals[1])
+                                                          else x)),
+    "sortByReversed": lambda vals: sorted(
+        _coll(vals), key=lambda x: _sort_key(vals[1](x) if callable(vals[1]) else x),
+        reverse=True),
+    # `getAll` and its milestoned variants are RETRIEVAL, not computation: they name the row
+    # set a query starts from. The oracle already builds that set in _rows_for, so these are
+    # identity over it rather than a second implementation that could disagree with the
+    # first.
+    "getAll": lambda vals: _coll(vals),
+    "getAllVersions": lambda vals: _coll(vals),
+    "getAllVersionsInRange": lambda vals: _coll(vals),
+    "getAllForEachDate": lambda vals: _coll(vals),
+    "objectReferenceIn": lambda vals: (False if vals[0] is None
+                                       else vals[0] in _coll([vals[1]])),
+
+    # ---- statistics over a collection ------------------------------------------------
+    #
+    # The POPULATION and SAMPLE forms differ only in the divisor -- n against n-1 -- and that
+    # is exactly the kind of difference a corpus using one of them can never catch in the
+    # other. Both are implemented, and the sample forms refuse a single observation rather
+    # than dividing by zero.
+    "median": _agg(lambda xs: _median(xs)),
+    "mode": _agg(lambda xs: max(set(xs), key=xs.count)),
+    "variancePopulation": _agg(lambda xs: _variance(xs, 0)),
+    "varianceSample": _agg(lambda xs: _variance(xs, 1)),
+    "variance": lambda vals: _variance_flagged(vals),
+    "stdDevPopulation": _agg(lambda xs: _variance(xs, 0) ** 0.5),
+    "stdDevSample": _agg(lambda xs: _variance(xs, 1) ** 0.5),
+    "covarPopulation": lambda vals: _covar(vals, 0),
+    "covarSample": lambda vals: _covar(vals, 1),
+    "corr": lambda vals: _corr(vals),
+    "percentile": lambda vals: _percentile(vals),
+    # maxBy/minBy: the extremum of one collection SELECTED BY another. A tie takes the
+    # FIRST, which is a choice -- stated because the alternative (last) is equally defensible
+    # and the signature settles neither.
+    "maxBy": lambda vals: _by(vals, max),
+    "minBy": lambda vals: _by(vals, min),
+    "wavg": lambda vals: _wavg(vals),
+    # Pair constructors for the aggregate forms above: they carry a value and its weight.
+    "rowMapper": lambda vals: (vals[0], vals[1]),
+    "wavgRowMapper": lambda vals: (vals[0], vals[1]),
+    "flatten": lambda vals: [x for v in _coll(vals) for x in (v if isinstance(v, list)
+                                                              else [v])],
+
+    # ---- date, the remaining forms ---------------------------------------------------
+    # `firstDayOfThis*` read a clock, so they are refused below rather than implemented; the
+    # DAY-OF-WEEK navigation is pure arithmetic and is implemented here.
+    "previousDayOfWeek": lambda vals: _day_of_week(vals, forward=False),
+    "mostRecentDayOfWeek": lambda vals: _day_of_week(vals, forward=False),
+    "formatDate": lambda vals: _format_date(vals),
+    "timeBucket": lambda vals: _time_bucket(vals),
+
+    # ---- conventions STATED rather than refused ---------------------------------------
+    #
+    # These were refused because the signature does not fix a convention -- where a string
+    # index starts, what happens when a pad width is shorter than the input, how NULL behaves
+    # in greatest/least. Refusing was the wrong call: a convention I can WRITE DOWN and then
+    # TEST is not a guess, because the corpus executes it and a wrong choice shows up as a
+    # failing service rather than as a silent agreement.
+    #
+    # That is exactly how `concat` was corrected: an implementation stated from meaning, a
+    # test that disagreed, and a rule sharpened as a result. Refusing would have left the
+    # behaviour unknown instead.
+    #
+    # Each states its convention, so a failure says WHICH assumption was wrong.
+    #
+    # substring/indexOf are ONE-BASED and the end index is EXCLUSIVE.
+    "substring": lambda vals: (None if vals[0] is None else
+                               str(vals[0])[int(vals[1]) - 1:
+                                            int(vals[2]) - 1 if len(vals) > 2 else None]),
+    "indexOf": lambda vals: (None if any(v is None for v in vals[:2]) else
+                             str(vals[0]).find(str(vals[1])) + 1),
+    # Pad to the width; a string ALREADY at least that long is returned unchanged rather
+    # than truncated.
+    "lpad": lambda vals: _pad(vals, left=True),
+    "rpad": lambda vals: _pad(vals, left=False),
+    # splitPart is ONE-BASED; an out-of-range part is NULL rather than the empty string.
+    "splitPart": lambda vals: _split_part(vals),
+    # replace is non-overlapping, left to right -- Python's str.replace, which is also what
+    # every SQL REPLACE does.
+    "replace": _propagating(lambda s, a, b: str(s).replace(str(a), str(b)), 3),
+    # greatest/least IGNORE nulls and return null only when everything is null, matching the
+    # aggregate convention already used by max/min above. Stated because the propagating
+    # reading is equally common.
+    "greatest": _agg(max), "least": _agg(min),
+
+    # ---- aggregates over a collection ------------------------------------------------
+    # The EMPTY case is stated, not left to fall out: sum of nothing is 0, but max of
+    # nothing is absent rather than 0, and conflating the two is how an empty group starts
+    # reporting a value it does not have.
+    "sum": _agg(sum, empty=0),
+    "max": _agg(max), "min": _agg(min),
+    "average": _agg(lambda xs: sum(xs) / len(xs)),
+    "count": lambda vals: len([v for v in (vals[0] if isinstance(vals[0], list) else vals)]),
+}
+
+# Deliberately NOT implemented, each with the reason. A refusal is an answer: it says the
+# corpus looked at the function and decided it could not asserted honestly, which is
+# different from nobody having looked.
+REFUSED = {
+    # ---- calendar aggregations (30) --------------------------------------------------
+    # Every one takes (date, String, Date, Number) and answers a question about a BUSINESS
+    # calendar: year-to-date, prior week, 52-week average. None of it is derivable from the
+    # arguments alone -- what a week starts on, whether a period is inclusive at both ends,
+    # which days are holidays, and where the fiscal year begins are all conventions supplied
+    # by the deployment, not by the function.
+    #
+    # Implementing them would mean inventing a calendar and then asserting it. They are
+    # refused as a family, and if this corpus ever needs them the right move is to define
+    # the calendar EXPLICITLY in the fixture and assert against that, not to guess here.
+    # TWO unknowns, not one, and the second is the harder. The calendar itself -- week
+    # start, holidays, fiscal year, inclusivity -- is deployment-supplied, and could be
+    # stated in a fixture the way the string conventions above are stated. But the signature
+    # `(Date[0..1], String[1], Date[1], Number[0..1]) : Number[0..1]` also does not say what
+    # the function DOES with the value: whether `ytd` sums the year to date, averages it, or
+    # merely selects the rows in range for an aggregation applied elsewhere. The `wa` and
+    # `td` suffixes hint at weekly-average and to-date, and a hint is not a specification.
+    #
+    # So this is not the substring case. There I could state a convention and let a failing
+    # test correct it; here I would be inventing the operation as well as the calendar, and a
+    # passing test would then confirm my invention rather than the engine's behaviour.
+    **{n: "needs both a business calendar the signature does not supply AND an aggregation "
+          "the signature does not name"
+       for n in ("annualized cme cw cw_fm CYMinus2 CYMinus3 mtd p12mtd p12wa p12wtd p4wa "
+                 "p4wtd p52wa p52wtd pma pmtd pqtd priorDay priorYear pw pw_fm pwa pwtd "
+                 "pymtd pyqtd pytd pywa pywtd qtd reportEndDay wtd ytd").split()},
+    # ---- not computations ------------------------------------------------------------
+    "graphFetch": "a retrieval SHAPE, not a value: it says which tree to build, and the "
+                  "oracle asserts the built tree in evaluate_graph rather than the call",
+    "graphFetchChecked": "as graphFetch, plus a defect envelope this corpus does not model",
+    "save": "mutates a store; this corpus asserts reads",
+    "eval": "applies a function supplied by the caller, so there is nothing "
+            "function-specific to assert -- the assertion belongs to whatever was passed",
+    "typeName": "reflection over the model, not a value computed from data",
+    # Clock-reading: the answer changes between the oracle's call and the engine's.
+    "firstDayOfThisMonth": "reads the current date, so no fixed value can be asserted",
+    "firstDayOfThisQuarter": "reads the current date, as firstDayOfThisMonth",
+    "firstDayOfThisYear": "reads the current date, as firstDayOfThisMonth",
+    "convertTimeZone": "every value in this corpus is naive, so a conversion would be "
+                       "asserting a timezone the data does not carry",
+    "parseDate": "the accepted input formats are not fixed by the signature",
+    "jaroWinklerSimilarity": "the prefix scale and threshold are parameters of the metric "
+                             "that the signature does not state",
+    "columnProjectionsFromRoot": "a planner-internal projection helper, not a query form",
+    "instanceOf": "reflection over the model, not a value computed from data",
+    "new": "constructs an instance; this corpus asserts values read from a store",
+    "matches": "regex DIALECT is the database's, not a fixed one",
+    "regexpLike": "regex dialect, as matches",
+    "regexpExtract": "regex dialect, as matches",
+    "regexpReplace": "regex dialect, as matches",
+    "regexpCount": "regex dialect, as matches",
+    "regexpIndexOf": "regex dialect, as matches",
+    "hash": "digest algorithm selection and encoding are not fixed by the signature",
+    "hashCode": "hashing is implementation-defined by design",
+    "generateGuid": "non-deterministic",
+    "now": "non-deterministic",
+    "today": "non-deterministic",
+    "currentUserId": "environment-dependent",
+}
+
+# ------------------------------------------------------- relation / TDS operations
+#
+# A SEPARATE registry, because these take a ROW SET and return one, where everything in IMPL
+# takes values and returns a value. Keeping them apart matters for more than tidiness: the
+# registry is keyed by NAME, and `filter`, `sort`, `distinct` and `size` exist in BOTH
+# families with different signatures. One dict would let an implementation of the collection
+# form silently mark the relation form done -- the exact flattering the scoreboards keep
+# having to be rescued from.
+#
+# Rows are lists of dicts, which is what the oracle already carries everywhere else.
+def _rows(x):
+    return list(x or [])
+
+
+def _rel_sort(rows, keys):
+    """Sort by named columns. NULLs last, and no cross-type comparison -- the same rule the
+    collection sort uses, for the same reason: any other choice is this oracle inventing an
+    ordering the database never promised."""
+    for k in reversed(list(keys)):
+        rows = sorted(rows, key=lambda r: _sort_key(r.get(k)))
+    return rows
+
+
+def _rel_group(rows, keys, aggs):
+    """GROUP BY over named columns. An empty input yields NO groups, not one empty group --
+    the distinction that decides whether a report shows a zero row or no row."""
+    out, seen = [], {}
+    for r in rows:
+        k = tuple(r.get(c) for c in keys)
+        seen.setdefault(k, []).append(r)
+    for k, members in seen.items():
+        row = dict(zip(keys, k))
+        for name, col, fn in aggs:
+            vals = [m.get(col) for m in members if m.get(col) is not None]
+            row[name] = _dynafunction(fn, [vals])
+        out.append(row)
+    return out
+
+
+def _rel_join(left, right, kind, on):
+    """INNER and LEFT joins over a predicate. A LEFT join keeps the unmatched row with the
+    right-hand columns absent -- which is the semantic the whole corpus turns on, since a
+    to-one navigation compiles to exactly this."""
+    out = []
+    rcols = {c for r in right for c in r}
+    for l in left:
+        matches = [r for r in right if on(l, r)]
+        if matches:
+            out += [{**l, **m} for m in matches]
+        elif kind.upper() in ("LEFT", "LEFT_OUTER"):
+            out.append({**l, **{c: None for c in rcols}})
+    return out
+
+
+def _window(rows, order, fn):
+    """Ranking functions over an ordered partition. Ties are what separate these: rank
+    leaves gaps after a tie, denseRank does not, and rowNumber ignores ties entirely. A
+    corpus that only ever ranked distinct values could not tell the three apart."""
+    ordered = _rel_sort(rows, order)
+    out, prev, rank, dense = [], object(), 0, 0
+    for i, r in enumerate(ordered, 1):
+        key = tuple(r.get(c) for c in order)
+        if key != prev:
+            rank, dense, prev = i, dense + 1, key
+        out.append({**r, "_rank": rank, "_denseRank": dense, "_rowNumber": i})
+    if fn == "rank":
+        return [r["_rank"] for r in out]
+    if fn == "denseRank":
+        return [r["_denseRank"] for r in out]
+    if fn == "rowNumber":
+        return [r["_rowNumber"] for r in out]
+    if fn == "percentRank":
+        n = len(out)
+        return [(r["_rank"] - 1) / (n - 1) if n > 1 else 0.0 for r in out]
+    if fn == "cumulativeDistribution":
+        n = len(out)
+        return [sum(1 for x in out if x["_rank"] <= r["_rank"]) / n for r in out]
+    raise Unsupported(f"window function {fn!r} is not implemented")
+
+
+RELATION_IMPL = {
+    "project": lambda rows, cols: [{a: r.get(c) for a, c in cols} for r in _rows(rows)],
+    "select": lambda rows, cols: [{c: r.get(c) for c in cols} for r in _rows(rows)],
+    "restrict": lambda rows, cols: [{c: r.get(c) for c in cols} for r in _rows(rows)],
+    "rename": lambda rows, a, b: [{(b if k == a else k): v for k, v in r.items()}
+                                  for r in _rows(rows)],
+    "extend": lambda rows, name, f: [{**r, name: f(r)} for r in _rows(rows)],
+    "filter": lambda rows, pred: [r for r in _rows(rows) if pred(r)],
+    "sort": _rel_sort,
+    "distinct": lambda rows: _dedupe([tuple(sorted(r.items())) for r in _rows(rows)])
+                             and [dict(t) for t in _dedupe(
+                                 [tuple(sorted(r.items())) for r in _rows(rows)])],
+    "limit": lambda rows, n: _rows(rows)[:int(n)],
+    "take": lambda rows, n: _rows(rows)[:int(n)],
+    "drop": lambda rows, n: _rows(rows)[int(n):],
+    "slice": lambda rows, a, b: _rows(rows)[int(a):int(b)],
+    "paginated": lambda rows, a, b: _rows(rows)[int(a):int(a) + int(b)],
+    "concatenate": lambda a, b: _rows(a) + _rows(b),
+    "size": lambda rows: len(_rows(rows)),
+    "first": lambda rows: next(iter(_rows(rows)), None),
+    "last": lambda rows: (_rows(rows) or [None])[-1],
+    "groupBy": _rel_group,
+    "aggregate": _rel_group,
+    "join": _rel_join,
+    "rank": lambda rows, order: _window(rows, order, "rank"),
+    "denseRank": lambda rows, order: _window(rows, order, "denseRank"),
+    "rowNumber": lambda rows, order: _window(rows, order, "rowNumber"),
+    "percentRank": lambda rows, order: _window(rows, order, "percentRank"),
+    "cumulativeDistribution": lambda rows, order: _window(rows, order,
+                                                          "cumulativeDistribution"),
+    "ntile": lambda rows, n: [i * int(n) // max(1, len(_rows(rows))) + 1
+                              for i in range(len(_rows(rows)))],
+    "nth": lambda rows, n: (_rows(rows)[int(n) - 1] if 0 < int(n) <= len(_rows(rows))
+                            else None),
+    "offset": lambda rows, n: _rows(rows)[int(n):],
+    "tdsRows": lambda rows: _rows(rows),
+    "tableToTDS": lambda rows: _rows(rows),
+    "viewToTDS": lambda rows: _rows(rows),
+    "tdsContains": lambda rows, r: r in _rows(rows),
+    "olapGroupBy": _rel_group,
+    "groupByWithWindowSubset": _rel_group,
+    "projectWithColumnSubset": lambda rows, cols: [{a: r.get(c) for a, c in cols}
+                                                   for r in _rows(rows)],
+    "renameColumns": lambda rows, a, b: [{(b if k == a else k): v for k, v in r.items()}
+                                         for r in _rows(rows)],
+    "firstNotNull": lambda xs: next((x for x in _rows(xs) if x is not None), None),
+}
+
+RELATION_REFUSED = {
+    "pivot": "the COLUMN NAMES of the result depend on the data, so the shape is not "
+             "knowable from the query alone",
+    "asOfJoin": "the tie rule at an exact timestamp match is not fixed by the signature",
+    "lateral": "evaluation order of the correlated side is not observable from a row set",
+    "reduce": "the fold's seed and associativity are supplied by the caller, so there is "
+              "nothing function-specific to assert",
+    "write": "mutates a store; this corpus asserts reads",
+    "columnProjectionsFromRoot": "a planner-internal projection helper, not a query form",
+}
+
+RELATION_IMPLEMENTED = set(RELATION_IMPL)
+
+
+IMPLEMENTED = set(IMPL)
+
+
+def _dynafunction(fn, vals):
+    impl = IMPL.get(fn)
+    if impl is not None:
+        return impl(vals)
+    why = REFUSED.get(fn)
+    if why is not None:
+        raise Unsupported(
+            f"dynafunction {fn!r} is deliberately NOT implemented: {why}. Implementing it "
+            f"would mean choosing a behaviour the signature does not fix, and the corpus "
+            f"would then assert that choice as though it were the meaning.")
     raise Unsupported(
         f"dynafunction {fn!r} has no independent implementation in the oracle. Add one "
         f"deliberately -- do NOT read the expected value from the engine, which would make "

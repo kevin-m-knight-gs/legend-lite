@@ -1557,6 +1557,27 @@ def check(c: Corpus) -> list[str]:
     """Facts that must hold for the oracle to be trustworthy. Returned, not raised, so
     the caller can print all of them at once."""
     bad = []
+    # A file that opens WITHOUT a `###Section` header inherits the section the PREVIOUS file
+    # left active, because the runner parses the corpus as one concatenated unit. Twenty of
+    # these files legitimately open with a bare `Class` -- they are pure domain models and
+    # they follow other pure domain models, so the inherited section is `###Pure` and the
+    # default is what they wanted anyway.
+    #
+    # It stops being harmless the moment such a file lands after one ending in `###Mapping`.
+    # Then a `Class` is handed to the mapping parser, and the whole corpus fails with
+    # "Unexpected token" naming no file, no line and no construct. Each file still parses
+    # perfectly ALONE, so bisecting file-by-file reports every one of them healthy -- the
+    # defect exists only in the ordering, which is exactly what this checks.
+    prev = "###Pure"
+    for f in sorted(STRESS.glob("*.pure")):
+        txt = f.read_text()
+        first = next((ln for ln in txt.splitlines()
+                      if ln.strip() and not ln.lstrip().startswith("//")), "")
+        secs = re.findall(r"^###\w+", txt, re.M)
+        if not first.startswith("###") and prev != "###Pure":
+            bad.append(f"{f.name} opens with {first.strip()[:32]!r} and no ###Section header, "
+                       f"but the previous file ends in {prev} -- it will be parsed as {prev}")
+        prev = secs[-1] if secs else prev
     if not c.tables:
         bad.append("no tables parsed")
     if len(c.joins) < 100:
