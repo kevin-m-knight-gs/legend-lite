@@ -9,5 +9,15 @@ import com.legend.compiler.element.type.Type;
  * sniffs sqlType() at two sites (audit P2/T5) until F5.1 lands. F5.2
  * adds the multiplicity the bridge currently drops.
  */
-public record Column(String name, @com.legend.Nullable String sqlType, Type pureType) {
+public record Column(String name, @com.legend.Nullable String sqlType,
+        Type pureType,
+        com.legend.compiler.element.type.@com.legend.Nullable Multiplicity
+                multiplicity) {
+
+    /** Pre-F5.2 arity — multiplicity unknown at this construction site
+     * (scalar envelopes, pivot-rebuilt schemas). */
+    public Column(String name, @com.legend.Nullable String sqlType,
+            Type pureType) {
+        this(name, sqlType, pureType, null);
+    }
 }

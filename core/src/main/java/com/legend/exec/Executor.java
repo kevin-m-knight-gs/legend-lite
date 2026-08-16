@@ -545,7 +545,8 @@ public final class Executor {
             for (int i = 1; i <= n; i++) {
                 Type.Column sc = schema.columns().get(i - 1);
                 columns.add(new Column(sc.name(),
-                        rs.getMetaData().getColumnTypeName(i), sc.type()));
+                        rs.getMetaData().getColumnTypeName(i), sc.type(),
+                        sc.multiplicity()));
             }
         } else if (hasPivot(plan)) {
             // DYNAMIC PIVOT: one result column per pivoted VALUE — the static
