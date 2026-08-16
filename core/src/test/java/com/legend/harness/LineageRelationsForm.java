@@ -50,7 +50,8 @@ final class LineageRelationsForm {
                     && "letFunction".equals(lf.function())
                     && lf.parameters().size() == 2
                     && lf.parameters().get(0) instanceof CString ln) {
-                lets.put(ln.value(), lf.parameters().get(1));
+                lets.put(ln.value(), HarnessSubstitution.subst(
+                        lf.parameters().get(1), lets));   // F3.2a
                 AppliedFunction scan = findCall(lf.parameters().get(1),
                         "scanRelations");
                 if (scan != null) {

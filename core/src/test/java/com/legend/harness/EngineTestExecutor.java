@@ -487,7 +487,8 @@ public final class EngineTestExecutor {
                 for (ValueSpecification csvExpr : csvs) {
                     seedInlineCsv(csvExpr, ctx, conn);
                 }
-                lets.put(name.value(), purifiedSetup(rhs, ctx));
+                lets.put(name.value(),
+                        subst(purifiedSetup(rhs, ctx), lets));   // F3.2a
                 continue;
             }
             // The per-driver golden idiom:
@@ -1427,7 +1428,7 @@ public final class EngineTestExecutor {
             // wrapper-only tests that never read the plan keep their
             // engine-parity pass
             planText.add(name.value());
-            lets.put(name.value(), rhs);
+            lets.put(name.value(), subst(rhs, lets));   // F3.2a
             return new TdgLet(null, null, true);
         }
         if (TestDataGenForm.hasSeedDataString(rhs)) {
