@@ -282,8 +282,16 @@ final class CorrelatedSubselects {
         // their own names), LEFT-joined back on key equality. One
         // row per matching target instance — the row explosion of
         // the flat join, with the pred resolvable.
-        List<String> keyCols = parentEquiKeys(aj.condition(),
-                aj.prefix());
+        // Re-key by the PARENT's PK (engine #69 goldens: 'root'.ID =
+        // sub.ID) — the assoc-FK equi keys collapse same-FK parents into
+        // each other's correlation scope (testVariableReferenceWith-
+        // NestedFilterMultiple: 15 rows for 7 people). FK keys stay the
+        // fallback for PK-less parents.
+        List<String> pkKeys = RelationalRootForm.primaryKeyColumns(
+                cs.classFqn(), cs.pipeline(), cs.mappingFqn(),
+                sources.ctx());
+        List<String> keyCols = !pkKeys.isEmpty() ? pkKeys
+                : parentEquiKeys(aj.condition(), aj.prefix());
         ParentCopy pc = java.util.Objects.requireNonNull(
                 parentCopyFor(cs, aj.corrSubPred()));
         Type.RelationType pcRow = (Type.RelationType)
