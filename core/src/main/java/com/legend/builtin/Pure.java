@@ -773,6 +773,13 @@ public final class Pure {
         public static final String CONVERT_DATE_FORMAT = PKG + "convertDateFormat";
         public static final String CONVERT_DATE_TIME_FORMAT = PKG + "convertDateTimeFormat";
         public static final String CONVERT_TIME_ZONE_FORMAT = PKG + "convertTimeZoneFormat";
+        /** date::adjust semantics; the FQN marks the LEGACY-print channel:
+         *  engine legacy H2 prints the dateadd unit UPPERCASE
+         *  (extensionDefaults.pure mapToDBUnitType) while the new
+         *  sqlDialectTranslation defaults print lowercase — TemporalFrame
+         *  stamps this on milestoning window-condition dates so
+         *  EngineStyleH2 can render the channel it is quoting. */
+        public static final String ADJUST_TEMPORAL = PKG + "adjustTemporal";
         /** The #TDS literal's desugar target (SpecParser spells this
          *  FQN literally — the parser stays free of this class). */
         public static final String TDS = PKG + "tds";
@@ -822,7 +829,8 @@ public final class Pure {
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.PARSE_DATE_FORMAT,
                     Lite.CONVERT_DATE_FORMAT, Lite.CONVERT_DATE_TIME_FORMAT,
-                    Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS)
+                    Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS,
+                    Lite.ADJUST_TEMPORAL)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -1112,6 +1120,10 @@ public final class Pure {
     public static final NativeFunctionDefinition CAL_WTD = signature("native function meta::pure::functions::date::calendar::wtd(date:meta::pure::metamodel::type::Date[0..1], calendarType:meta::pure::metamodel::type::String[1], endDate:meta::pure::metamodel::type::Date[1], value:meta::pure::metamodel::type::Number[0..1]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition CAL_YTD = signature("native function meta::pure::functions::date::calendar::ytd(date:meta::pure::metamodel::type::Date[0..1], calendarType:meta::pure::metamodel::type::String[1], endDate:meta::pure::metamodel::type::Date[1], value:meta::pure::metamodel::type::Number[0..1]):meta::pure::metamodel::type::Number[0..1];");
     public static final NativeFunctionDefinition ADJUST__DATE_1__INTEGER_1__DURATION_UNIT_1 = signature("native function meta::pure::functions::date::adjust(d:meta::pure::metamodel::type::Date[1], amount:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::Date[1];");
+    // adjustTemporal: identical shape to adjust — the internal legacy-print
+    // channel marker (Pure.Lite.ADJUST_TEMPORAL javadoc has the two-channel
+    // engine evidence).
+    public static final NativeFunctionDefinition ADJUST_TEMPORAL__DATE_1__INTEGER_1__DURATION_UNIT_1 = signature("native function meta::legend::lite::adjustTemporal(d:meta::pure::metamodel::type::Date[1], amount:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::Date[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AND__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::and(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");

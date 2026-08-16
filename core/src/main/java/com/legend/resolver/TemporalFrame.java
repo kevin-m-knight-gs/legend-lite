@@ -844,6 +844,23 @@ final class TemporalFrame {
                 cond.info());
     }
 
+    /** Window dates print through the engine's LEGACY channel (uppercase
+     * dateadd units — {@code Pure.Lite.ADJUST_TEMPORAL} javadoc): every
+     * adjust call inside the date expression swaps to the channel-marked
+     * twin (same shape, same execution; only the golden spelling moves). */
+    private TypedSpec stampTemporalAdjust(TypedSpec d) {
+        TypedSpec r = d.mapChildren(this::stampTemporalAdjust);
+        if (r instanceof TypedNativeCall c && "meta::pure::functions::date::adjust"
+                .equals(c.callee().qualifiedName())) {
+            var fns = ctx.findFunction(
+                    com.legend.builtin.Pure.Lite.ADJUST_TEMPORAL);
+            if (fns.size() == 1) {
+                return new TypedNativeCall(fns.get(0), c.args(), c.info());
+            }
+        }
+        return r;
+    }
+
     /** {@code from <= d AND thru > d} (inclusive flips the pair). */
     private TypedSpec windowPair(TypedSpec fromRead, TypedSpec thruRead,
             TypedSpec d, boolean inclusive, ExprType boolT) {
@@ -2732,6 +2749,9 @@ final class TemporalFrame {
      */
     private TypedSpec dateCmpCall(String fqn, TypedSpec a, TypedSpec b,
             ExprType out) {
+        // every temporal window comparison passes here — the single
+        // stamping choke for the date operand's print channel
+        b = stampTemporalAdjust(b);
         var fn = ctx.findFunction(fqn).stream()
                 .filter(f -> f.parameters().size() == 2
                         && f.parameters().stream().allMatch(p ->

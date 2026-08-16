@@ -494,65 +494,9 @@ final class Scalars {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.DATE_TRUNC,
                     new SqlExpr.StringLit("week"),
                     dateArg(n.args().get(0), args.get(0))));
-        }        for (String f : Pure.nativeKeysAt("adjust")) {
-            RULES.put(f, (n, args) -> {
-                SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                        new SqlExpr.StringLit(DateShifts.intervalFn(enumName(n.args().get(2)))),
-                        args.get(1), dateArg(n.args().get(0), args.get(0))));
-                // A PARTIAL-date operand keeps its precision: pad in (dateArg),
-                // adjust, then truncate BACK to the written form —
-                // adjust(%2016, 1, YEARS) is %2017, not 2017-01-01.
-                Integer pp = partialPrecision(n.args().get(0));
-                if (pp != null) {
-                    // The result's precision is the FINER of the written
-                    // precision and the unit (real pure GROWS precision:
-                    // adjust(%2020, 1, MONTHS) is 2020-02; a coarse unit
-                    // keeps the written form: adjust(%2016, 1, YEARS) is
-                    // 2017; a day-or-finer unit yields the full-precision
-                    // carrier — the audit's truncate-everything write-back
-                    // silently erased finer adjustments).
-                    java.util.List<com.legend.sql.DateFmt> fmt =
-                            switch (enumName(n.args().get(2))) {
-                        case "YEARS" -> pp == 1
-                                ? java.util.List.of((com.legend.sql.DateFmt)
-                                        com.legend.sql.DateFmt.Part.YEAR4)
-                                : com.legend.sql.DateFmt.YEAR_MONTH;
-                        case "MONTHS" -> com.legend.sql.DateFmt.YEAR_MONTH;
-                        default -> null;
-                    };
-                    return fmt == null ? added
-                            : SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.FormatLit(fmt));
-                }
-                // A source written with MORE subsecond digits than the
-                // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
-                // digit count (real pure preserves subsecond print
-                // precision), and digits beyond microseconds are the
-                // source's own — static text an interval can never touch.
-                // Emitted as the precision-faithful STRING (the wire's date
-                // convention, same as timeBucket).
-                if (n.args().get(0) instanceof TypedCDate cd
-                        && cd.value() instanceof
-                                PureDateLiteral.DateWithSubsecond sub
-                        && sub.subsecond().length() > 6) {
-                    return SqlExpr.Call.of(SqlFn.CONCAT,
-                            SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
-                            new SqlExpr.StringLit(sub.subsecond().substring(6)));
-                }
-                // SQL date+interval widens to TIMESTAMP; a StrictDate input
-                // adjusted by a DAY-or-coarser unit stays a StrictDate.
-                boolean strictIn = n.args().get(0).info().type()
-                        == Type.Primitive.STRICT_DATE;
-                boolean coarse = switch (enumName(n.args().get(2))) {
-                    case "YEARS", "MONTHS", "WEEKS", "DAYS" -> true;
-                    default -> false;
-                };
-                return strictIn && coarse
-                        ? new SqlExpr.Cast(added, SqlType.Scalar.DATE)
-                        : added;
-            });
-        }
+        }        // adjust + its TEMPORAL channel twin live with the date-shift
+        // machinery (DateShifts) — the 3500-line split seam.
+        DateShifts.registerAdjustRules(RULES);
         // datePart of a PARTIAL literal is the IDENTITY (a year has no finer
         // date part); full-precision values truncate to the day.
         for (String f : Pure.nativeKeysAt("datePart")) {
@@ -2989,7 +2933,7 @@ final class Scalars {
      * — globally string-typed for the pinned string-comparison semantics)
      * pad to the first of their period as real DATE literals.
      */
-    private static SqlExpr dateArg(TypedSpec typed,
+    static SqlExpr dateArg(TypedSpec typed,
                                    SqlExpr lowered) {
         if (typed instanceof TypedCDate d) {
             if (d.value() instanceof PureDateLiteral.Year y) {
@@ -3403,7 +3347,7 @@ final class Scalars {
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
     /** Split-part FIELD COUNT of a partial (year / year-month) literal —
      * derived from the one precision ladder, not a second scale. */
-    private static @com.legend.Nullable Integer partialPrecision(TypedSpec t) {
+    static @com.legend.Nullable Integer partialPrecision(TypedSpec t) {
         if (t instanceof TypedCDate d) {
             return switch (d.value().precision()) {
                 case YEAR -> 1;

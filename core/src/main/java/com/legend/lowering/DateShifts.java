@@ -3,8 +3,12 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCDate;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlType;
+import com.legend.values.PureDateLiteral;
 
 import java.util.List;
 
@@ -93,4 +97,93 @@ static String intervalFn(String unitName) {
                 args.size() == 2 ? args.get(1) : new SqlExpr.NullLit());
     }
 
+
+    /** The adjust lowering family — the plain rule for every catalog
+     * spelling, plus the {@code Pure.Lite.ADJUST_TEMPORAL} twin
+     * ({@code TemporalFrame}-stamped milestoning window dates): the same
+     * lowering with its interval calls retagged to the TEMPORAL spelling
+     * fn (engine legacy mapToDBUnitType prints dateadd units UPPERCASE;
+     * the new sqlDialectTranslation defaults print lowercase). */
+    static void registerAdjustRules(java.util.Map<String, Scalars.Rule> rules) {
+        for (String f : com.legend.builtin.Pure.nativeKeysAt("adjust")) {
+            rules.put(f, (n, args) -> {
+                SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
+                        new SqlExpr.StringLit(intervalFn(Scalars.enumName(n.args().get(2)))),
+                        args.get(1), Scalars.dateArg(n.args().get(0), args.get(0))));
+                // A PARTIAL-date operand keeps its precision: pad in (dateArg),
+                // adjust, then truncate BACK to the written form —
+                // adjust(%2016, 1, YEARS) is %2017, not 2017-01-01.
+                Integer pp = Scalars.partialPrecision(n.args().get(0));
+                if (pp != null) {
+                    // The result's precision is the FINER of the written
+                    // precision and the unit (real pure GROWS precision:
+                    // adjust(%2020, 1, MONTHS) is 2020-02; a coarse unit
+                    // keeps the written form: adjust(%2016, 1, YEARS) is
+                    // 2017; a day-or-finer unit yields the full-precision
+                    // carrier — the audit's truncate-everything write-back
+                    // silently erased finer adjustments).
+                    java.util.List<com.legend.sql.DateFmt> fmt =
+                            switch (Scalars.enumName(n.args().get(2))) {
+                        case "YEARS" -> pp == 1
+                                ? java.util.List.of((com.legend.sql.DateFmt)
+                                        com.legend.sql.DateFmt.Part.YEAR4)
+                                : com.legend.sql.DateFmt.YEAR_MONTH;
+                        case "MONTHS" -> com.legend.sql.DateFmt.YEAR_MONTH;
+                        default -> null;
+                    };
+                    return fmt == null ? added
+                            : SqlExpr.Call.of(SqlFn.STRFTIME, added,
+                                    new SqlExpr.FormatLit(fmt));
+                }
+                // A source written with MORE subsecond digits than the
+                // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
+                // digit count (real pure preserves subsecond print
+                // precision), and digits beyond microseconds are the
+                // source's own — static text an interval can never touch.
+                // Emitted as the precision-faithful STRING (the wire's date
+                // convention, same as timeBucket).
+                if (n.args().get(0) instanceof TypedCDate cd
+                        && cd.value() instanceof
+                                PureDateLiteral.DateWithSubsecond sub
+                        && sub.subsecond().length() > 6) {
+                    return SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.STRFTIME, added,
+                                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
+                            new SqlExpr.StringLit(sub.subsecond().substring(6)));
+                }
+                // SQL date+interval widens to TIMESTAMP; a StrictDate input
+                // adjusted by a DAY-or-coarser unit stays a StrictDate.
+                boolean strictIn = n.args().get(0).info().type()
+                        == Type.Primitive.STRICT_DATE;
+                boolean coarse = switch (Scalars.enumName(n.args().get(2))) {
+                    case "YEARS", "MONTHS", "WEEKS", "DAYS" -> true;
+                    default -> false;
+                };
+                return strictIn && coarse
+                        ? new SqlExpr.Cast(added, SqlType.Scalar.DATE)
+                        : added;
+            });
+        }
+        // the TemporalFrame-stamped legacy-print channel twin (Pure.Lite
+        // .ADJUST_TEMPORAL javadoc: engine mapToDBUnitType uppercase vs
+        // sqlDialectTranslation lowercase): the plain adjust lowering with
+        // its interval calls retagged to the TEMPORAL spelling fn.
+        String adjustKey = com.legend.builtin.Pure.nativeKeysAt("adjust").get(0);
+        for (String f : com.legend.builtin.Pure.nativeKeysAt(
+                com.legend.builtin.Pure.Lite.ADJUST_TEMPORAL)) {
+            rules.put(f, (n, args) -> retagTemporal(
+                    java.util.Objects.requireNonNull(rules.get(adjustKey))
+                            .apply(n, args)));
+        }
+    }
+
+    /** Every interval call inside one adjust lowering retagged to the
+     * TEMPORAL spelling — the whole expression came from that adjust,
+     * so the scope is exact (never a blanket fold). */
+    private static SqlExpr retagTemporal(SqlExpr e) {
+        SqlExpr r = e.mapChildren(DateShifts::retagTemporal);
+        return r instanceof SqlExpr.Call c && c.fn() == SqlFn.ADD_INTERVAL
+                ? new SqlExpr.Call(SqlFn.ADD_INTERVAL_TEMPORAL, c.args())
+                : r;
+    }
 }
