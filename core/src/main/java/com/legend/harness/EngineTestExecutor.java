@@ -16,6 +16,7 @@ import com.legend.parser.SpecParser;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.NewInstance;
@@ -152,24 +153,45 @@ public final class EngineTestExecutor {
         };
     }
 
-    /** BARE {@code $result.values} = the engine Result envelope's values:
-     * a TDS is ONE object (carrier); instance/scalar collections SPLAT to
-     * their element count (the router composition goldens pin both). */
-    private static @com.legend.Nullable String carrierSizeCheck(Object n, ValueSpecification arg,
-            Map<String, ValueSpecification> lets,
+    private static final String NOT_ENVELOPE = "\u0000notEnvelope";
+
+    /** {@code assertSize($r.values[->at(0)/toOne()/first()], n)}: a TDS
+     * is ONE carrier even through a 0-pick (engine parity, cluster 34);
+     * an INSTANCE-rooted 0-pick is a REAL element pick — generic path.
+     * No-.rows-traversal gated; instance collections SPLAT. */
+    @SuppressWarnings("StringEquality")
+    private static @com.legend.Nullable String envelopeSizeCheck(Object n,
+            ValueSpecification arg, Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
             ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        Eval av = eval(arg, lets, execStmts, execVars, execChains, ctx,
+        ValueSpecification subst0 = subst(arg, lets), peel0 = subst0;
+        while (peel0 instanceof AppliedFunction pf0
+                && !pf0.parameters().isEmpty()
+                && (simpleName(pf0.function()).equals("toOne")
+                    || simpleName(pf0.function()).equals("first")
+                    || (simpleName(pf0.function()).equals("at")
+                        && pf0.parameters().size() == 2
+                        && pf0.parameters().get(1) instanceof CInteger pi0
+                        && pi0.value().longValue() == 0))) {
+            peel0 = pf0.parameters().get(0);
+        }
+        if (!(peel0 instanceof AppliedProperty vp
+                && vp.property().equals("values")
+                && vp.receiver() instanceof Variable rv
+                && execChains.containsKey(rv.name()))) {
+            return NOT_ENVELOPE;
+        }
+        Eval av = eval(peel0, lets, execStmts, execVars, execChains, ctx,
                 imports, runtimeFqn, conn);
-        boolean tdsCarrier = av.result()
+        boolean tds = av.result()
                 instanceof com.legend.exec.ExecutionResult.Tabular tb
                 && (tb.returnType() instanceof com.legend.compiler.element
-                        .type.Type.RelationType
-                        || com.legend.compiler.element.type.PlatformTypes
-                                .isTdsType(tb.returnType()));
-        long carriers = tdsCarrier ? 1L : av.size();
+                        .type.Type.RelationType || com.legend.compiler
+                        .element.type.PlatformTypes.isTdsType(tb.returnType()));
+        if (peel0 != subst0 && !tds) { return NOT_ENVELOPE; }
+        long carriers = tds ? 1L : av.size();
         return (n instanceof Number cn && cn.longValue() == carriers) ? null
                 : "assertSize(result.values): expected " + n + ", got "
                         + carriers + " (TDS = one carrier; collections splat)";
@@ -1964,12 +1986,11 @@ public final class EngineTestExecutor {
                 }
                 Object n = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
-                if (args.get(0) instanceof AppliedProperty vp
-                        && vp.property().equals("values")
-                        && vp.receiver() instanceof Variable rv
-                        && execChains.containsKey(rv.name())) {
-                    return carrierSizeCheck(n, args.get(0), lets, execStmts,
-                            execVars, execChains, ctx, imports, runtimeFqn, conn);
+                String env0 = envelopeSizeCheck(n, args.get(0), lets,
+                        execStmts, execVars, execChains, ctx, imports,
+                        runtimeFqn, conn);
+                if (env0 != NOT_ENVELOPE) {
+                    return env0;
                 }
                 if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
                     return UNSUPPORTED_MARKER;

@@ -725,9 +725,7 @@ final class StatementExecutor {
             String aSql = prevVar == null ? aEs.sql()
                     : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
                             prevVar, planDialect(dbType, quote, tz));
-            if (aSql == null) {
-                return null;
-            }
+            if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
             allocs.add(com.legend.plan.PlanText.allocation(var,
@@ -1837,6 +1835,7 @@ final class StatementExecutor {
                 case "executionNodes" ->
                         new java.util.ArrayList<Object>(pn.children());
                 case "sqlQuery" -> pn.sqlQuery();
+                case "sqlComment" -> pn.sqlComment();
                 case "functionParameters" ->
                         new java.util.ArrayList<Object>(
                                 pn.functionParameters());
@@ -2011,7 +2010,8 @@ final class StatementExecutor {
                         tz), params, mapperRenames);
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
-                java.util.List.of());
+                java.util.List.of(),
+                com.legend.plan.PlanNode.EXEC_TRACE_COMMENT);
         com.legend.plan.PlanNode rel = new com.legend.plan.PlanNode(
                 "RelationalInstantiationExecutionNode",
                 java.util.List.of(sqlNode), null, java.util.List.of());

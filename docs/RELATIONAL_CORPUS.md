@@ -37,10 +37,10 @@ shared source registered by several families cannot double-count. Run with
 | aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 108 | 68 | 16 | 6 | 18 | 0 |
+| executionPlan/tests | 108 | 69 | 15 | 6 | 18 | 0 |
 | functions/tests | 259 | 237 | 6 | 10 | 6 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 143 | 4 | 7 | 1 | 1 |
+| functions/tests/projection | 155 | 144 | 3 | 7 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
-| tds/tests | 266 | 250 | 3 | 6 | 7 | 6 |
+| tds/tests | 266 | 251 | 2 | 6 | 7 | 6 |
 | testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
 | tests | 39 | 31 | 2 | 0 | 6 | 0 |
 | tests/advanced | 68 | 60 | 4 | 4 | 0 | 21 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2323** | 79 | 83 | 90 | 245 |
+| **total** | 2575 | **2326** | 76 | 83 | 90 | 245 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1154,7 +1154,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'connection' [surfaced via assert form 'assertEquals/2']
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: plan wall: unknown class 'Service' in ^Service(…) [surfaced via assert form 'assertEquals/2']
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: plan wall: unknown class 'Service' in ^Service(…) [surfaced via assert form 'assertEquals/2']
-- FAIL testSQLCommentsInPlan [executionPlan/tests]: assertEquals: expected -- "executionTraceID" : "${execID}", got []
 - SHAPE inheritance [executionPlan/tests]: plan wall: plan: no class mapping for 'meta::relational::tests::model::inheritance::RoadVehicle' under 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB' [surfaced via assert form 'assertEquals/2']
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - ERROR tdsTwoJoinThreeDB [executionPlan/tests]: No value present
@@ -1221,7 +1220,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
-- FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testGraphFetch [graphFetch/domain]: plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::function::FunctionDefinition has no property 'expressionSequence' [surfaced via assert form 'assertEquals/2']
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
@@ -1301,7 +1299,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
 - SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
-- FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
 - ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable_d#6_d#3_m3" on ("firmTable_d#6_d#3_m3".ID = "root".FIRMID), got select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)
@@ -1396,6 +1393,6 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testNullSafeEqualityForOptionalProperties [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name", "root".AGE is not distinct from "personTable_d#5_d#2_m1_d_m2".AGE as "match" from personTable as "root" left outer join personTable as "personTable_d#5_d#2_m1_d_m2" on ("root".MANAGERID = "personTable_d#5_d#2_m1_d_m2".ID), got select "root".FIRSTNAME as "name", "root".AGE = "persontable_1".AGE as "match" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID)
 - FAIL testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-text: expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trade_id as trade_id, max("root".eventDate) as maxTradeEventDate from tradeEventTable as "root" group by "root".trade_id) as "tradeEventViewMaxTradeEventDate_d#4_d#4_m5" on ("root".ID = "tradeEventViewMaxTradeEventDate_d#4_d#4_m5".trade_id) where "root".ID = 2, got select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" where "root".ID = 2
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".LEGALNAME as "legalName", string_agg("persontable_0".FIRSTNAME, '*' ORDER BY "persontable_0".rowid ASC) as "employeesFirstName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "legalName"
-- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
-- SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::tests::functions::sqlstring] — wall: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
+- SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::tests::functions::sqlstring] — wall: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

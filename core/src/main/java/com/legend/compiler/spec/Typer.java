@@ -965,6 +965,31 @@ final class Typer {
             return null;
         }
         TypedSpec pick = synth(vp.receiver(), env);
+        // WHOLE-RELATION receiver ($tds.rows.values->at(k)): row-major
+        // cell k = row k/C, column k%C (ledger cluster 33 — the .rows
+        // marker keeps identity typing, so at(k) was a ROW slice). The
+        // bare flatten (no ->at) stays identity; size() stays null here
+        // (rows*cols is not statically known — never lie).
+        if (pick instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess rm
+                && rm.property().equals(com.legend.compiler.element.type
+                        .PlatformTypes.ROWS_MARKER)
+                && pick.info().type() instanceof Type.RelationType wrt
+                && isAt
+                && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof CInteger wk) {
+            int cc = wrt.columns().size();
+            long k = wk.value().longValue();
+            if (cc > 0 && k >= 0) {
+                return synth(new AppliedFunction("toOne", List.of(
+                        new AppliedProperty(
+                                new AppliedFunction("at", List.of(
+                                        vp.receiver(),
+                                        new CInteger(k / cc))),
+                                wrt.columns().get((int) (k % cc)).name()))),
+                        env);
+            }
+        }
         if (!(pick.info().type() instanceof Type.RelationType prt)
                 || !(pick instanceof TypedNativeCall pc)
                 || !ROW_PICK_FQNS.contains(pc.callee().qualifiedName())) {
@@ -2246,23 +2271,24 @@ final class Typer {
         // uniform function-value story, no new node kind. Only an
         // UNAMBIGUOUS (single-overload) target expands.
         List<TypedFunction> fns = functionCandidates(ref.fullPath());
-        if (fns.size() > 1) {
-            // a MANGLED id names ONE overload — the signature tail's
-            // segment count (params + return) disambiguates (the corpus's
-            // generateUsageFor metadata: groupBy_TabularDataSet_1__…_)
-            int arity = SignatureMangle.tailArity(ref.fullPath());
-            if (arity >= 0) {
-                List<TypedFunction> byArity = fns.stream()
-                        .filter(f2 -> f2.parameters().size() == arity)
-                        .toList();
-                if (byArity.size() == 1) {
-                    fns = byArity;
-                } else {
-                    // a mangled id naming an overload we don't carry
-                    // standalone (the legacy TDS groupBy the checker
-                    // desugars at call sites): the REFERENCE is an opaque
-                    // Function<Any> value — metadata like generateUsageFor
-                    // holds it, invocation stays loud at its own site
+        // a MANGLED id names ONE overload — the signature tail's segment
+        // count disambiguates. The handling runs for ZERO candidates too
+        // (ledger cluster 26: the size>1 gate made the zero-candidate
+        // fallback dead — a mangled id naming a function this platform
+        // spells differently, e.g. the TDS groupBy the checker desugars
+        // at call sites, must still reference as an opaque Function).
+        int arity = SignatureMangle.tailArity(ref.fullPath());
+        if (arity >= 0 && fns.size() != 1) {
+            List<TypedFunction> byArity = fns.stream()
+                    .filter(f2 -> f2.parameters().size() == arity)
+                    .toList();
+            if (byArity.size() == 1) {
+                fns = byArity;
+            } else {
+                // BASE-EXISTS is the safety property: a misspelled or
+                // absent base still fails the lookup and throws below.
+                String base = SignatureMangle.stripTail(ref.fullPath());
+                if (base != null && !ctx.findFunction(base).isEmpty()) {
                     return new TypedPackageableRef(ref.fullPath(),
                             ExprType.one(new Type.GenericType(
                                     "meta::pure::metamodel::function::Function",
