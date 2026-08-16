@@ -1065,3 +1065,27 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   Recorded together they say something stronger than any of them alone -- the two execution
   paths do not share a semantics, and which one a service gets is decided by its query shape.
   `repro/constraint-tds-vs-graphfetch/` carries both services over the same rows.
+- **The relational store grammar declares a documentation string on six rules and rejects it
+  in all six.** `RelationalParserGrammar.g4` gives `documentation?` to `database`, `schema`,
+  `table`, `columnDefinition`, `view` and `filter`, and `documentation: STRING`. A leading
+  string in any of those positions fails with *"Unexpected token"* -- as a single-quoted
+  string and as a text block alike.
+
+  The control is what makes it specific rather than a syntax mistake on my part: the same
+  elements without the leading string parse, and **stereotypes and tagged values in the
+  adjacent slot parse**, including on the same element. So the elements, the section and the
+  surrounding syntax are all fine; it is the documentation slot itself.
+  `repro/relational-documentation/` carries the rejected forms commented out beside the
+  accepted control.
+
+  Corroborating but not conclusive: the engine's own relational round-trip tests never write
+  a documented table, view, schema, column or filter -- consistent with the slot never
+  having worked.
+
+  The practical impact is small but the shape is the interesting part. A grammar that
+  advertises a construct it cannot accept is the same class of problem as `EqualToTDS`
+  (a complete grammar pair with no registered parser) and the walker-rejected
+  type-parameter forms: the .g4 is not a reliable description of what the engine takes, so
+  any tool generating Legend source from the grammar -- or any human reading it -- will
+  produce input the parser refuses. Documentation on a table has to be written as a
+  `doc.doc` tagged value instead.

@@ -1,0 +1,101 @@
+// Store-DSL constructs the corpus never wrote, burned down against docs/ENGINE_SURFACE.tsv.
+//
+// The tables here carry COMPOSITE primary keys deliberately. That keeps them out of the
+// seeder -- which only fills single-key tables -- so column types the oracle has no
+// rendering for (BINARY, ARRAY, SEMISTRUCTURED) can be DECLARED without inventing an
+// expectation for them. Types the oracle can render are exercised for real in the
+// combination matrix instead; this file is about what the grammar admits.
+//
+// REAL is here for the same reason it is absent from the matrix: it compiles and then fails
+// at execution on DuckDB (F31), so it can be written but never read.
+###Relational
+// Documentation strings are NOT usable here -- the grammar declares the slot on six
+// rules and rejects it in all six (see repro/relational-documentation/). A tagged
+// value is the working alternative.
+Database <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'surface coverage'} surface::SurfaceDB
+(
+   include store::DB
+
+   Schema "quoted schema"
+   (
+      Table "quoted table"
+      (
+         "quoted key" VARCHAR(64) PRIMARY KEY,
+         "second key" VARCHAR(64) PRIMARY KEY,
+         "first name" VARCHAR(100)
+      )
+   )
+
+   Table SURFACE_TYPES
+   (
+      TK VARCHAR(64) PRIMARY KEY,
+      TK2 VARCHAR(64) PRIMARY KEY,
+      C_CHAR CHAR(10),
+      C_VARCHAR VARCHAR(200),
+      C_BINARY BINARY(16),
+      C_VARBINARY VARBINARY(1024),
+      C_BIT BIT,
+      C_INT INT,
+      C_INTEGER INTEGER,
+      C_BIGINT BIGINT,
+      C_SMALLINT SMALLINT,
+      C_TINYINT TINYINT,
+      C_TIMESTAMP TIMESTAMP,
+      C_DATE DATE,
+      C_NUMERIC NUMERIC(10,4),
+      C_DECIMAL DECIMAL(18,4),
+      C_FLOAT FLOAT,
+      C_DOUBLE DOUBLE,
+      C_REAL REAL,
+      C_ARRAY ARRAY,
+      C_OTHER OTHER,
+      C_SEMI SEMISTRUCTURED,
+      C_JSON JSON
+   )
+
+   // MILESTONING options the corpus never used: inclusive bounds, and the SNAPSHOT forms
+   // (a single as-of column rather than a from/thru pair).
+   // The milestoning block comes FIRST, before the columns, with no comma between it and
+   // them: `table: PAREN_OPEN milestoneSpec? (columnDefinition (COMMA columnDefinition)*)?`.
+   Table SURFACE_BITEMP
+   (
+      milestoning
+      (
+         business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, THRU_IS_INCLUSIVE = true, INFINITY_DATE = %9999-12-31),
+         processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, OUT_IS_INCLUSIVE = true)
+      )
+      ID VARCHAR(64) PRIMARY KEY,
+      SEQ INTEGER PRIMARY KEY,
+      VAL VARCHAR(64),
+      FROM_Z DATE,
+      THRU_Z DATE,
+      IN_Z DATE,
+      OUT_Z DATE
+   )
+
+   Table SURFACE_SNAPSHOT
+   (
+      milestoning
+      (
+         business(BUS_SNAPSHOT_DATE = SNAP_DATE),
+         processing(PROCESSING_SNAPSHOT_DATE = PROC_DATE)
+      )
+      ID VARCHAR(64) PRIMARY KEY,
+      SEQ INTEGER PRIMARY KEY,
+      SNAP_DATE DATE,
+      PROC_DATE DATE,
+      VAL VARCHAR(64)
+   )
+
+   // JOIN operators the corpus never wrote: != (test not-equal) and <> (ANSI not-equal),
+   // and a condition whose operands are both dynafunctions over a grouped disjunction.
+   Join surface_TestNotEqual(SURFACE_TYPES.C_VARCHAR != SURFACE_BITEMP.VAL)
+   Join surface_AnsiNotEqual(SURFACE_TYPES.C_VARCHAR <> SURFACE_SNAPSHOT.VAL)
+
+   View SURFACE_VIEW
+   (
+      ~distinct
+      key: SURFACE_TYPES.TK PRIMARY KEY,
+      total: sum(SURFACE_TYPES.C_INTEGER)
+   )
+)

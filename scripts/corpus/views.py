@@ -17,8 +17,11 @@ import model
 
 def build(c: model.Corpus, view: model.View,
           tables: dict[str, list[dict]]) -> list[dict]:
+    # A view over an UNSEEDED base is empty, not an error. Surface-coverage tables carry
+    # composite keys precisely so the seeder skips them, and a view declared over one is a
+    # declaration being exercised for its grammar rather than its rows.
     groups: dict[tuple, list[dict]] = {}
-    for r in tables[view.base]:
+    for r in tables.get(view.base) or []:
         key = tuple(r.get(g) for g in view.group_by)
         groups.setdefault(key, []).append(r)
 

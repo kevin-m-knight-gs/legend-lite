@@ -51,7 +51,7 @@ _TOKEN = re.compile(r"""
       | (?P<str>'(?:[^']|'')*')
       | (?P<num>-?\d+\.\d+|-?\d+)
       | (?P<ident>[A-Za-z_]\w*)
-      | (?P<punct>[@|,().><=])
+      | (?P<punct>[@|,().><=!])
       )""", re.X)
 
 
@@ -290,14 +290,20 @@ class _CondParser(_Parser):
         # rather than lexed: a lexer that produced `<` then `=` for `<=` would otherwise
         # parse it as a comparison against an empty right-hand side.
         op = self.take()[1]
-        if op not in ("<", ">", "=", "<>") and op is not None:
+        if op not in ("<", ">", "=", "!") and op is not None:
             raise ParseError(f"expected a comparison operator, found {op!r}")
-        if self.peek()[1] == "=" and op in ("<", ">"):
+        # The relational grammar has TWO not-equals: `!=` (testNotEqual) and `<>`
+        # (notEqualAnsi). Both are lexed here as two tokens and reassembled, because a lexer
+        # emitting `<` then `=` for `<=` would otherwise leave the parser reading a
+        # comparison against an empty right-hand side.
+        if self.peek()[1] == "=" and op in ("<", ">", "!"):
             self.take()
-            op += "="
+            op = "<>" if op == "!" else op + "="
         elif op == "<" and self.peek()[1] == ">":
             self.take()
             op = "<>"
+        elif op == "!":
+            raise ParseError("'!' must be followed by '='")
         return ("cmp", (left, op, self.expr()))
 
 

@@ -1,0 +1,42 @@
+// The relational store grammar declares an optional documentation string on six rules and
+// rejects one in every position.
+//
+//     database:         documentation? DATABASE ...
+//     schema:           documentation? SCHEMA ...
+//     table:            documentation? TABLE ...
+//     columnDefinition: documentation? relationalIdentifier ...
+//     view:             documentation? VIEW ...
+//     filter:           documentation? FILTER ...
+//
+// Each block below is that form and each is rejected with "Unexpected token". Uncomment any
+// one to reproduce. The control is at the bottom: the identical declarations WITHOUT the
+// leading string parse, and so do stereotypes and tagged values in the same position -- so
+// it is the documentation slot specifically, not the elements or the surrounding syntax.
+//
+// Both string forms were tried: a single-quoted string and a text block ('''...''').
+//
+// The engine's own relational round-trip tests never write a documented table, which is
+// consistent with the slot never having worked, though it is not proof of it.
+###Relational
+Database demo::Rejected
+(
+   // 'a table'                 Table T1 ( K VARCHAR(9) PRIMARY KEY )
+   // Table T2 ( 'the key'      K VARCHAR(9) PRIMARY KEY )
+   // 'a schema'                Schema S ( Table T3 ( K VARCHAR(9) PRIMARY KEY ) )
+   // 'a view'                  View V1 ( key: T1.K PRIMARY KEY )
+   // 'a filter'                Filter F1 ( T1.K = 'x' )
+   Table T1 ( K VARCHAR(9) PRIMARY KEY )
+)
+
+// CONTROL -- the same elements, no documentation slot, plus stereotypes and tagged values in
+// the position the grammar puts them. This parses.
+Database <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'via a tagged value'} demo::Accepted
+(
+   Schema "quoted schema"
+   (
+      Table "quoted table" ( "quoted key" VARCHAR(9) PRIMARY KEY, "first name" VARCHAR(9) )
+   )
+   Table T ( K VARCHAR(9) PRIMARY KEY, N INTEGER )
+   View V ( ~distinct key: T.K PRIMARY KEY, total: sum(T.N) )
+   Filter F ( T.K = 'x' )
+)

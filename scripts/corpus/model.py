@@ -66,6 +66,12 @@ class Column:
         # this corpus shipped 194 unparseable columns.
         if base in ("BIT", "BOOLEAN"):
             return "bool"
+        # Declared by the grammar and carried by the surface tables. They have no seeded
+        # value and no rendering: the tables holding them have COMPOSITE keys, which the
+        # seeder skips, so a kind is needed to READ the schema and never to produce a row.
+        # Returning a plausible-looking kind instead would invite exactly that.
+        if base in ("BINARY", "VARBINARY", "ARRAY", "OTHER", "SEMISTRUCTURED", "JSON"):
+            return "unseedable"
         if base == "DATE":
             return "date"
         if base in ("TIMESTAMP", "DATETIME"):
@@ -100,6 +106,12 @@ class Milestoning:
     # Required for %latest. Absent, dated queries still work and only %latest fails —
     # at plan generation, not at compile.
     infinity: str | None = None
+    # THRU_IS_INCLUSIVE / OUT_IS_INCLUSIVE. Changes which rows a dated query selects at the
+    # boundary, so it is read rather than ignored.
+    inclusive: bool = False
+    # A SNAPSHOT spec carries one as-of column instead of a from/thru pair; `frm` and `thru`
+    # hold the same column and this flag is what distinguishes it from a degenerate range.
+    snapshot: bool = False
 
 
 @dataclass
@@ -486,6 +498,9 @@ _JOIN = re.compile(
 # PARSED, because the condition can nest and a regex that tried to span it would match the
 # wrong extent rather than fail.
 _JOIN_HEAD = re.compile(r"^\s*Join\s+(\w+)\s*\((.*)\)\s*$")
+# `[doc] NAME TYPE[(n[,m])] [PRIMARY KEY|NOT NULL]`, where NAME may be quoted.
+_COLDEF = re.compile(r'^(\w+|"[^"]+")\s+(\w+(?:\(\d+(?:\s*,\s*\d+)?\))?)'
+                     r'(?:\s+(?:PRIMARY KEY|NOT NULL))?$', re.I)
 _FILTER_DECL = re.compile(
     r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*"
     r"(?:(=|<>|<=|>=|<|>)\s*(.+?)|(is\s+not\s+null|is\s+null))\s*\)\s*$")
@@ -630,11 +645,21 @@ def _mult(s: str) -> tuple[int, int | None]:
 
 
 _MILESTONING_BLOCK = re.compile(r"milestoning\s*\((.*?)\)\s*\)\s*$", re.S)
+# The FROM/THRU form, with its two optional trailing parameters in either order:
+# INFINITY_DATE and the inclusivity flag (THRU_IS_INCLUSIVE / OUT_IS_INCLUSIVE). The pattern
+# admitted INFINITY_DATE alone and in one position, so a table declaring inclusivity -- which
+# CHANGES which rows a dated query selects -- failed to parse rather than being read.
 _MILESTONING_ONE = re.compile(
     r"(business|processing)\s*\("
     r"\s*(?:BUS_FROM|PROCESSING_IN)\s*=\s*(\w+)\s*,"
     r"\s*(?:BUS_THRU|PROCESSING_OUT)\s*=\s*(\w+)\s*"
-    r"(?:,\s*INFINITY_DATE\s*=\s*%([\d:.T-]+)\s*)?\)", re.S)
+    r"(?:,\s*(?:INFINITY_DATE\s*=\s*%(?P<inf>[\d:.T+-]+)"
+    r"|(?:THRU_IS_INCLUSIVE|OUT_IS_INCLUSIVE)\s*=\s*(?P<inc>true|false))\s*)*\)", re.S)
+# The SNAPSHOT form: a single as-of column instead of a from/thru pair. Not modelled before,
+# so a snapshot-milestoned table could not be declared at all.
+_MILESTONING_SNAP = re.compile(
+    r"(business|processing)\s*\("
+    r"\s*(?:BUS_SNAPSHOT_DATE|PROCESSING_SNAPSHOT_DATE)\s*=\s*(\w+)\s*\)", re.S)
 
 
 def _parse_milestoning(body: str):
@@ -651,8 +676,14 @@ def _parse_milestoning(body: str):
             depth -= 1
         j += 1
     inner = body[body.index("(", i) + 1:j - 1]
-    specs = [Milestoning(m.group(1), m.group(2), m.group(3), m.group(4))
+    specs = [Milestoning(m.group(1), m.group(2), m.group(3), m.group("inf"),
+                         inclusive=m.group("inc") == "true")
              for m in _MILESTONING_ONE.finditer(inner)]
+    # A snapshot spec has ONE column, so `frm` and `thru` are the same and there is no
+    # infinity date -- the shape is recorded rather than flattened, so a consumer can tell
+    # the two apart instead of seeing a degenerate range.
+    specs += [Milestoning(m.group(1), m.group(2), m.group(2), None, snapshot=True)
+              for m in _MILESTONING_SNAP.finditer(inner)]
     if not specs:
         raise ValueError(f"unparseable milestoning block: {inner!r}")
     return specs, body[:i] + body[j:]
@@ -666,7 +697,9 @@ def _table_bodies(text: str) -> list[tuple[str, str, int]]:
     ahead of the columns.
     """
     out = []
-    for m in re.finditer(r"\bTable\s+(\w+)\s*\(", text):
+    # A table name may be QUOTED, which admits spaces and reserved words. `\w+` skipped such
+    # a declaration entirely -- the table did not exist, and neither did any mapping over it.
+    for m in re.finditer(r'\bTable\s+(\w+|"[^"]+")\s*\(', text):
         i, depth = m.end(), 1
         while depth and i < len(text):
             if text[i] == "(":
@@ -674,7 +707,7 @@ def _table_bodies(text: str) -> list[tuple[str, str, int]]:
             elif text[i] == ")":
                 depth -= 1
             i += 1
-        out.append((m.group(1), text[m.end():i - 1], m.start()))
+        out.append((m.group(1).strip('"'), text[m.end():i - 1], m.start()))
     return out
 
 
@@ -800,11 +833,19 @@ def _parse_store(text: str, c: Corpus) -> None:
             spec = " ".join(spec.split())
             if not spec:
                 continue
-            parts = spec.split()
+            # A column may be QUOTED (spaces, reserved words) and its TYPE may carry a
+            # precision. Splitting on whitespace took `"first name" VARCHAR(100)` as name
+            # `"first` and type `name"`, so a quoted column silently became a wrong one --
+            # worse than being skipped, because the table still existed with a fabricated
+            # column.
+            m_col = _COLDEF.match(spec)
+            if m_col is None:
+                raise ValueError(
+                    f"table {t.name}: column form not modelled by this reader -- {spec!r}")
+            name, ctype = m_col.group(1).strip('"'), m_col.group(2)
             u = spec.upper()
-            t.columns[parts[0]] = Column(parts[0], parts[1],
-                                         u.endswith("PRIMARY KEY"),
-                                         "NOT NULL" in u)
+            t.columns[name] = Column(name, ctype, u.endswith("PRIMARY KEY"),
+                                     "NOT NULL" in u)
         c.tables[t.name] = t
 
     for raw in text.splitlines():
