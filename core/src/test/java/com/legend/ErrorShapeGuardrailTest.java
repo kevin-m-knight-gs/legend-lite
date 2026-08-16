@@ -177,6 +177,29 @@ class ErrorShapeGuardrailTest {
     }
 
     /** Identify elements by EXACT FQN, never suffix match. */
+    /** F1.11: the reflection ENTRY SPELLINGS the ArchUnit package rule
+     *  cannot see (calls on java.lang.Class/ClassLoader carry no
+     *  java.lang.reflect dependency until the result is USED). Zero in
+     *  production; stays zero. */
+    @Test
+    void reflectionSpellingsStayAtZero() throws IOException {
+        List<String> bad = new ArrayList<>();
+        Pattern p1 = Pattern.compile("Class\\.forName\\(|\\.setAccessible\\("
+                + "|getDeclaredMethod\\(|getDeclaredField\\("
+                + "|getDeclaredConstructor\\(|loadClass\\(");
+        for (Path p : mainSources()) {
+            String src = Files.readString(p);
+            Matcher m = p1.matcher(src);
+            while (m.find()) {
+                bad.add(p.getFileName() + ":" + lineOf(src, m.start()));
+            }
+        }
+        assertTrue(bad.isEmpty(),
+                "reflection entry spellings in production: " + bad
+                + " — reflection bypasses every dependency rule and is"
+                + " banned (F1.11)");
+    }
+
     @Test
     void defaultLiteralFallbacksOnlyShrink() throws IOException {
         int n = 0;

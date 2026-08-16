@@ -29,36 +29,53 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class HarnessDisciplineTest {
 
-    /** The audited sites, each two-sided (BOTH expected and actual
-     *  transformed identically = judging, never repairing arity/order):
-     *  EngineTestExecutor 4 — the makeString split-multiset order
-     *  policy (2 sorts, one per side) and the TDS-text unordered
-     *  compare (2 sorts, `ordered`-gated);
+    /** The audited sites (F1.11 re-enumeration — the first census
+     *  missed the {@code List.sort(cmp)} spelling, and audit A7's own
+     *  site was among the escapees):
+     *  EngineTestExecutor 5 — makeString split-multiset order policy
+     *  (2, two-sided), TDS-text unordered compare (2, `ordered`-gated),
+     *  and the graph-triples canonicalization at :1720 (two-sided);
      *  H2Verify 2 — the replay oracle's order-insensitive row multiset
-     *  (2 sorts, one per side; the oracle discards row order by DESIGN,
-     *  counted by F2.4's leniency census). */
+     *  (two-sided BY DESIGN, counted by F2.4);
+     *  JsonAssertCanon 1 — **audit A7, a LEDGERED VIOLATION** (lexical
+     *  row sort, both sides canonicalized independently): stays listed
+     *  so it cannot multiply, dies in Phase 6 — listing is not license;
+     *  LineageForm 1 — want.sort on the property-name existence check
+     *  (two-sided: both lists sorted before compare);
+     *  Runner 2 / RelationalCorpusRunner 14 — rcorpus orchestration and
+     *  scoreboard-RENDER ordering (deterministic output, not result
+     *  comparison) — in scope so comparison sorts cannot hide here. */
     private static final Map<String, Integer> ALLOWED = Map.of(
-            "EngineTestExecutor.java", 4,
-            "H2Verify.java", 2);
+            "EngineTestExecutor.java", 5,
+            "H2Verify.java", 2,
+            "JsonAssertCanon.java", 1,
+            "LineageForm.java", 1,
+            "Runner.java", 2,
+            "RelationalCorpusRunner.java", 14);
 
     private static final Pattern SITE = Pattern.compile(
-            "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)");
+            "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)"
+            + "|\\.sort\\(");
 
     @Test
     void resultReorderingIsEnumeratedComparisonPolicyOnly()
             throws IOException {
         Map<String, Integer> found = new TreeMap<>();
-        Path root = Path.of("src/test/java/com/legend/harness");
-        try (Stream<Path> files = Files.walk(root)) {
-            for (Path f : files.filter(p -> p.toString().endsWith(".java"))
-                    .toList()) {
-                Matcher m = SITE.matcher(Files.readString(f));
-                int n = 0;
-                while (m.find()) {
-                    n++;
-                }
-                if (n > 0) {
-                    found.put(f.getFileName().toString(), n);
+        for (Path root : new Path[] {
+                Path.of("src/test/java/com/legend/harness"),
+                Path.of("src/test/java/com/legend/rcorpus")}) {
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : files
+                        .filter(p -> p.toString().endsWith(".java"))
+                        .toList()) {
+                    Matcher m = SITE.matcher(Files.readString(f));
+                    int n = 0;
+                    while (m.find()) {
+                        n++;
+                    }
+                    if (n > 0) {
+                        found.put(f.getFileName().toString(), n);
+                    }
                 }
             }
         }

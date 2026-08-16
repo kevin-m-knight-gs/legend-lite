@@ -1126,6 +1126,14 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 - **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
   exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
   rather than class-list-pinned. Deferred — not pause work.
+- **Reflection removal (F1.11 residue):** the bytecode ban found three
+  pre-existing production reflection sites the source census missed —
+  DbMetaData's java.sql.Types field iteration (replace with a literal
+  type-name map), ScanColumns:311's reflective record-tree walker
+  (replace with the TypedSpec children() spine or per-record accessors),
+  server/Json's generic Array.get serialization (replace with typed
+  array arms). Frozen shrink-only in ArchitectureTest; no new
+  reflection compiles.
 - **CorpusDifferentialTest gate wiring (F1.9 residue):** run
   `scripts/corpus/differential.py` as a gate step so the Assumptions-skip
   stops firing — a python + oracle-checkout moving part deliberately not

@@ -47,7 +47,7 @@ class RawSqlLedgerTest {
             "Runner.java", 1);
 
     private static final Pattern SITE =
-            Pattern.compile("RawSqlBoundary\\.h2ToDuckDb\\(");
+            Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");
 
     @Test
     void rawSqlTranslationCallersAreLedgered() throws IOException {
@@ -60,7 +60,9 @@ class RawSqlLedgerTest {
                         .filter(p -> !p.getFileName().toString()
                                 .equals("RawSqlLedgerTest.java"))
                         .toList()) {
-                    Matcher m = SITE.matcher(Files.readString(f));
+                    Matcher m = SITE.matcher(Files.readString(f)
+                            .replaceAll("//.*", "")
+                            .replaceAll("(?s)/\\*.*?\\*/", ""));
                     int n = 0;
                     while (m.find()) {
                         n++;

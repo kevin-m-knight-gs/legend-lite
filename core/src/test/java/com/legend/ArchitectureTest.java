@@ -509,9 +509,46 @@ final class ArchitectureTest {
                     "com.legend")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat()
-            .resideInAPackage("java.sql..")
-            .as("F1.3: java.sql is funnelled to {exec, server, root,"
-                    + " testdatagen} — Charter clauses C1/C2")
+            // F1.11: driver-NATIVE APIs ride with java.sql — importing
+            // org.duckdb/org.h2 types was a funnel bypass (the audit
+            // framed the boundary as java.sql only)
+            .resideInAnyPackage("java.sql..", "javax.sql..",
+                    "org.duckdb..", "org.h2..")
+            .as("F1.3: java.sql AND the driver-native APIs are funnelled"
+                    + " to {exec, server, root, testdatagen} — Charter"
+                    + " clauses C1/C2")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>F1.11 — reflection is BANNED in production.</strong>
+     * Reflection is the one mechanism that bypasses every dependency
+     * rule in this file (a {@code Class.forName("java.sql...")} carries
+     * no bytecode dependency ArchUnit can see). The bytecode rule found
+     * what the source census missed — THREE pre-existing sites
+     * (DbMetaData's java.sql.Types field iteration, ScanColumns'
+     * reflective record-tree walker, server/Json's generic Array
+     * serialization), frozen here shrink-only with removal backlogged
+     * (FOUNDATIONS_PLAN §9). NO NEW reflection: a fourth class fails.
+     * JDBC drivers load via ServiceLoader, never {@code Class.forName}.
+     * Tests keep reflection (the guardrails themselves need it).
+     */
+    @Test
+    void reflectionIsBannedInProduction() {
+        noClasses()
+            .that().resideInAPackage("com.legend..")
+            // the frozen pre-existing three (nested classes ride along)
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.exec\\.DbMetaData(\\$.*)?")
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.lineage\\.ScanColumns(\\$.*)?")
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.server\\.Json(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
+            .as("F1.11: no NEW reflection in production — it bypasses"
+                    + " every dependency rule; the frozen three shrink"
+                    + " only")
             .check(CORE_PROD_CLASSES);
     }
 

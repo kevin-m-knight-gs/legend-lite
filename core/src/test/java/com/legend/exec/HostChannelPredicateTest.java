@@ -67,6 +67,24 @@ class HostChannelPredicateTest {
                         + " channel's typeInference vocabulary");
     }
 
+    @Test
+    void curatedConstructionSetIsPinned() {
+        // F1.11: the ADMISSION SET itself is pinned — widening it routes
+        // new shapes host-side with no behavioral pin tripping (the
+        // "any native class stole 21 constructions" incident). Growing
+        // this set is a Charter clause-3/4 decision, not an edit.
+        org.junit.jupiter.api.Assertions.assertEquals(
+                java.util.Set.of(
+                        "meta::relational::metamodel::DynaFunction",
+                        "meta::relational::metamodel::Literal",
+                        "meta::relational::metamodel::Alias",
+                        "meta::relational::functions::pureToSqlQuery"
+                                + "::metamodel::FreeMarkerOperationHolder",
+                        "meta::relational::functions::pureToSqlQuery"
+                                + "::metamodel::VarPlaceHolder"),
+                HostEval.HOST_CONSTRUCTION_CLASSES);
+    }
+
     // ---- refused shapes (must NEVER route host) -------------------------
 
     @Test
