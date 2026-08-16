@@ -1094,3 +1094,21 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   any tool generating Legend source from the grammar -- or any human reading it -- will
   produce input the parser refuses. Documentation on a table has to be written as a
   `doc.doc` tagged value instead.
+- **An `ExecutionEnvironment` that mixes a nested entry with a single one crashes the parser
+  with a `NullPointerException`.** The grammar puts both under one `executions` list --
+  `executions: (singleExecEnv | multiExecEnv)*` -- so an environment holding
+
+      PROD: [ primary: { mapping: m::M; runtime: r::R; } ],
+      UAT:  { mapping: m::M; runtime: r::R; }
+
+  is a combination it accepts. It throws, in either order. Each form on its own parses
+  cleanly, which is what identifies the mixture rather than either construct.
+
+  The failure mode is the point. An NPE is not a diagnostic: it names no element, no line
+  and no construct, so an author who writes the two forms in one environment -- which is the
+  natural thing to do the moment one environment needs two datasets and another needs one --
+  is told only that something was null. Every other rejection in this corpus's experience
+  names what it did not like.
+
+  `repro/execenv-mixed-npe/` carries the two working forms as controls with the mixed ones
+  commented out.

@@ -645,7 +645,12 @@ _LEFTOVER_PROP = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*\S", re.M)
 _ENUMCOLMAP = re.compile(
     r"(\w+)\s*:\s*EnumerationMapping\s+(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
 _ENUMMAP_HEAD = re.compile(r"^\s*([\w:]+)\s*:\s*EnumerationMapping\s+(\w+)\s*$")
-_ENUMMAP_ROW = re.compile(r"^\s*(\w+)\s*:\s*\[([^\]]*)\]\s*,?\s*$")
+# An enum value maps from a BRACKETED list of source values or from a SINGLE one, and a
+# source value may be a string, an integer or a reference to another enum. Only the
+# bracketed form was admitted, so `ALPHA: 1` raised -- correctly, since the guard is there,
+# but the form is perfectly ordinary and the corpus simply had never written it.
+_ENUMMAP_ROW = re.compile(
+    r"^\s*(\w+)\s*:\s*(?:\[([^\]]*)\]|([^,\n]+?))\s*,?\s*$")
 # An association end may name its SOURCE and TARGET set ids -- `end[srcId, tgtId]:` --
 # which the pattern did not admit, so such an end bound to no join at all. The end
 # still existed (it comes from the Association declaration), so the symptom was not a
@@ -1118,7 +1123,8 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
             m = _ENUMMAP_ROW.match(line)
             if m:
                 value = m.group(1)
-                for code in m.group(2).split(","):
+                # group(2) is the bracketed list, group(3) the single value.
+                for code in (m.group(2) if m.group(2) is not None else m.group(3)).split(","):
                     code = code.strip().strip("'")
                     if code:
                         if code in c.enum_maps[enum_map]:
@@ -1156,7 +1162,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         m = _CLSMAP.match(line)
         if m and "AssociationMapping" not in line:
             cur, in_assoc, cur_id = m.group(1), False, m.group(2)
-            embedded, pending_embed, scope_tbl = None, None, None
+            embedded, pending_embed, scope_tbl = [], None, None
             if cur_id:
                 c.setid_class[cur_id] = cur
             # `extends [parentSetId]` INHERITS the parent set's main table and property
@@ -1252,37 +1258,50 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 continue
             m_emb = _EMBED_OPEN.match(line)
             if m_emb:
-                embedded = m_emb.group(1)
+                embedded.append(m_emb.group(1))
                 continue
             if pending_embed and line.strip() == "(":
-                embedded, pending_embed = pending_embed, None
+                embedded.append(pending_embed)
+                pending_embed = None
                 continue
             m_name = _EMBED_NAME.match(line)
             pending_embed = m_name.group(1) if m_name else None
             if m_name:
                 continue
-            if embedded is not None:
+            if embedded:
                 if line.strip().startswith(")"):
-                    embedded, pending_embed = None, None
+                    # POP one level, not all of them. `embedded` used to be a single name,
+                    # so a block nested inside another replaced its parent rather than
+                    # descending -- the inner mappings were then attributed to the OUTER
+                    # class, where they resolved against nothing and landed in `unparsed`.
+                    embedded.pop()
+                    pending_embed = None
                     continue
                 # An embedded property's sub-mappings read columns of the SAME row -- no
                 # join, no association. So the embedded CLASS is given the parent's table
                 # and its own columns, and the hop from parent to child is recorded as
                 # embedded so navigation knows to stay on the row rather than look for an
                 # association that does not exist.
+                #
+                # The OWNER is whatever class the enclosing blocks have descended to, so a
+                # nested block hangs off its immediate parent rather than off the root.
+                owner = cur
+                for step in embedded[:-1]:
+                    owner = c.embedded.get((owner, step), owner)
+                name = embedded[-1]
                 child = None
-                kl = c.classes.get(cur)
-                if kl is not None and embedded in kl.props:
-                    child = kl.props[embedded].type
+                kl = c.classes.get(owner)
+                if kl is not None and name in kl.props:
+                    child = kl.props[name].type
                 if child is None:
                     for sub in _LEFTOVER_PROP.findall(line):
-                        c.unparsed.append((cur, f"{embedded}.{sub}"))
+                        c.unparsed.append((cur, f"{name}.{sub}"))
                     continue
                 # The hop is recorded from the BLOCK, not from the first column mapping
                 # inside it. Recording it per-column meant a block whose every entry was a
                 # dynafunction registered no embedded hop at all, so the property looked
                 # absent rather than unmodelled.
-                c.embedded[(cur, embedded)] = child
+                c.embedded[(owner, name)] = child
                 c.main_table.setdefault(child, tbl)
                 rest = _value_forms(line, c, child, tbl)
                 for sub, _sc_tbl, sc_col in _COLMAP.findall(rest):
@@ -1291,7 +1310,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     if (sub not in c.columns.get(child, {})
                             and (child, sub) not in c.chains
                             and (child, sub) not in c.dyna):
-                        c.unparsed.append((cur, f"{embedded}.{sub}"))
+                        c.unparsed.append((cur, f"{name}.{sub}"))
                 continue
             for prop, mapping, t, col in _ENUMCOLMAP.findall(line):
                 if t != tbl:

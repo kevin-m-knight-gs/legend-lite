@@ -1,0 +1,42 @@
+// An ExecutionEnvironment mixing a NESTED entry with a SINGLE one crashes the parser with a
+// NullPointerException, in either order. Each form ALONE parses.
+//
+//   E1  nested only            -> OK
+//   E2  single only            -> OK
+//   E3  nested, then single    -> NullPointerException
+//   E4  single, then nested    -> NullPointerException
+//
+// The grammar admits both under one `executions` list -- `executions: (singleExecEnv |
+// multiExecEnv)*` -- so this is a combination it accepts and the walker cannot handle. An
+// NPE is not a diagnostic: it names no element, no line and no construct, so a model author
+// hitting it is told only that something was null.
+//
+// Uncomment E3 or E4 to reproduce; E1 and E2 are the controls.
+###Service
+ExecutionEnvironment demo::E1
+{
+   executions:
+   [
+      PROD:
+      [
+         primary: { mapping: demo::M; runtime: demo::RT; }
+      ]
+   ];
+}
+
+ExecutionEnvironment demo::E2
+{
+   executions:
+   [
+      UAT: { mapping: demo::M; runtime: demo::RT; }
+   ];
+}
+
+// ExecutionEnvironment demo::E3
+// {
+//    executions:
+//    [
+//       PROD: [ primary: { mapping: demo::M; runtime: demo::RT; } ],
+//       UAT: { mapping: demo::M; runtime: demo::RT; }
+//    ];
+// }

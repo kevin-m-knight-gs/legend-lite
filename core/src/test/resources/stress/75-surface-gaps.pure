@@ -1,0 +1,140 @@
+// The last constructs on the scoreboard that this corpus can write, plus the ones whose
+// presence a regex cannot decide and which are therefore made unambiguous here.
+###Pure
+Class surface::GapSrc { k: String[1]; v: String[0..1]; n: Integer[0..1]; }
+Class surface::GapTgt { k: String[1]; v: String[0..1]; localTag: String[0..1]; }
+Class surface::GapCmp { k: String[1]; sameVals: Boolean[0..1]; bothSet: Boolean[0..1]; }
+Class surface::GapLeft { k: String[1]; }
+Class surface::GapRight { k: String[1]; }
+
+// An ASSOCIATION carrying a QUALIFIED PROPERTY alongside its two ends.
+Association surface::GapLink
+{
+   lefts: surface::GapLeft[*];
+   rights: surface::GapRight[*];
+   leftsNamed(prefix: String[1])
+   {
+      $this.lefts->filter(l | $l.k->startsWith($prefix))
+   }: surface::GapLeft[*];
+}
+
+###Relational
+Database surface::GapDB
+(
+   Table GAP ( K VARCHAR(64) PRIMARY KEY, A VARCHAR(64), B VARCHAR(64), N INTEGER )
+)
+
+###Mapping
+Mapping surface::GapSurface
+(
+   surface::GapCmp: Relational
+   {
+      ~mainTable [surface::GapDB]GAP
+      k: [surface::GapDB]GAP.K,
+      // A COMPARISON as the mapped value of a Boolean property, and a BOOLEAN COMBINATION
+      // of two of them. Both are values here, not filters.
+      sameVals: [surface::GapDB]GAP.A = [surface::GapDB]GAP.B,
+      bothSet: [surface::GapDB]GAP.A is not null and [surface::GapDB]GAP.B is not null
+   }
+)
+
+Mapping surface::GapPureSurface
+(
+   surface::GapTgt: Pure
+   {
+      ~src surface::GapSrc
+      k: $src.k,
+      v: $src.v,
+      // A LOCAL property on a Pure mapping: declared by the mapping, not by the class.
+      +localTag: String[0..1]: 'from-m2m'
+   }
+)
+
+###Service
+// A NESTED multi-environment entry: one environment name holding SEVERAL named parameter
+// sets, rather than a single mapping/runtime pair.
+ExecutionEnvironment surface::NestedEnvironments
+{
+   executions:
+   [
+      PROD:
+      [
+         primary:
+         {
+            mapping: combo::ComboMapping;
+            runtime: combo::ComboRT;
+         },
+         secondary:
+         {
+            mapping: surface::GapSurface;
+            runtime: surface::SingleRT;
+         }
+      ]
+      // NO single-form entry beside the nested one: mixing the two forms in one
+      // ExecutionEnvironment crashes the parser with a NullPointerException, in either
+      // order (F34). Each form alone is fine, so the nested one stands alone here and the
+      // single form is covered by surface::Environments in 67-routing-surface.pure.
+   ];
+}
+
+###Pure
+Enum surface::GapKind { ALPHA, BETA, GAMMA }
+Enum surface::SrcKind { A_SRC, B_SRC, G_SRC }
+
+Class surface::EnumHolder { k: String[1]; byInt: surface::GapKind[0..1]; byRef: surface::GapKind[0..1]; }
+Class surface::DeepOuter { k: String[1]; mid: surface::DeepMid[0..1]; }
+Class surface::DeepMid { midK: String[1]; inner: surface::DeepInner[0..1]; }
+Class surface::DeepInner { innerK: String[1]; innerV: String[0..1]; }
+
+###Relational
+Database surface::EnumDB
+(
+   Table ENUM_T ( K VARCHAR(64) PRIMARY KEY, KIND_INT INTEGER, KIND_REF VARCHAR(16) )
+   Table DEEP_T ( K VARCHAR(64) PRIMARY KEY, MID_K VARCHAR(64), INNER_K VARCHAR(64), INNER_V VARCHAR(64) )
+)
+
+###Mapping
+Mapping surface::EnumSurface
+(
+   // Enumeration mappings whose SOURCE VALUES are integers and enum references, where the
+   // corpus had only strings. The source spelling is what the store column holds, so an
+   // integer-coded column and a string-coded one need different mappings for the same enum.
+   surface::GapKind: EnumerationMapping ByInt
+   {
+      ALPHA: 1,
+      BETA: 2,
+      GAMMA: [3, 4]
+   }
+
+   surface::GapKind: EnumerationMapping ByRef
+   {
+      ALPHA: surface::SrcKind.A_SRC,
+      BETA: surface::SrcKind.B_SRC,
+      GAMMA: surface::SrcKind.G_SRC
+   }
+
+   surface::EnumHolder: Relational
+   {
+      ~mainTable [surface::EnumDB]ENUM_T
+      k: [surface::EnumDB]ENUM_T.K,
+      byInt: EnumerationMapping ByInt: [surface::EnumDB]ENUM_T.KIND_INT,
+      byRef: EnumerationMapping ByRef: [surface::EnumDB]ENUM_T.KIND_REF
+   }
+
+   // A NESTED embedded property mapping: an embedded block inside an embedded block. The
+   // corpus's embedded mappings were all one level deep.
+   surface::DeepOuter: Relational
+   {
+      ~mainTable [surface::EnumDB]DEEP_T
+      k: [surface::EnumDB]DEEP_T.K,
+      mid
+      (
+         midK: [surface::EnumDB]DEEP_T.MID_K,
+         inner
+         (
+            innerK: [surface::EnumDB]DEEP_T.INNER_K,
+            innerV: [surface::EnumDB]DEEP_T.INNER_V
+         )
+      )
+   }
+)

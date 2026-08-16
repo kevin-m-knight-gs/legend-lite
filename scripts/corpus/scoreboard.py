@@ -59,6 +59,75 @@ def corpus_text() -> str:
     return re.sub(r"//[^\n]*", " ", src)
 
 
+# Constructs a regex over the sources cannot decide, answered from the RESOLVED MODEL
+# instead. Leaving them UNKNOWN was honest but useless: fourteen rows reported neither
+# present nor absent, so the total could never close and nobody could tell which of the two
+# they were. A predicate over what the reader actually built is the right instrument -- it
+# knows an embedded hop from a property called `client`, which text cannot.
+def _model_checks(c) -> dict:
+    embedded = {k: v for k, v in c.embedded.items() if v not in c.json_backed}
+    nested = [k for k, child in embedded.items()
+              if any(o == child for o, _p in embedded)]
+    return {
+        "PM-27": bool(embedded),
+        "PM-28": bool(nested),
+        # An embedded block declaring its own ~primaryKey: the child class carries a main
+        # table AND the parent does too, which only an embedded block with a key produces.
+        "PM-29": any("~primaryKey" in b for b in _embedded_bodies()),
+        "PM-02": bool(c.scope_columns) if hasattr(c, "scope_columns") else
+                 any("scope(" in b for b in _class_bodies()),
+        "PM-17": any("=" in b and ":" in b for b in _value_comparisons()),
+        "PM-19": any(" and " in b or " or " in b for b in _value_comparisons()),
+        "PUR-05": any(re.search(r"^\s*\+\w+\s*:\s*[\w:]+\s*\[[^\]]+\]\s*:", b, re.M)
+                      for b in _pure_bodies()),
+        "ENM-03": any(isinstance(v, str) for m in c.enum_maps.values() for v in m),
+        # Source codes are stored as TEXT by the reader, so "is it an integer" is a
+        # question about the SPELLING in the source, not about the Python type.
+        "ENM-04": any(str(v).strip().lstrip("-").isdigit()
+                      for m in c.enum_maps.values() for v in m),
+        "ENM-05": any("::" in str(v) for m in c.enum_maps.values() for v in m),
+        "ENM-06": any(len([x for x in m if x]) > 1 for m in c.enum_maps.values()),
+        "P50": any(k.derived for fqn, k in c.classes.items() if False) or _assoc_qualified(),
+        "SV-34": _nested_exec_env(),
+        "P12": False,   # see BLOCKED: the documentation slot is rejected (F33)
+    }
+
+
+def _sections(pattern):
+    import model
+    for f in sorted(model.STRESS.glob("*.pure")):
+        txt = re.sub(r"//[^\n]*", " ", f.read_text())
+        for m in re.finditer(pattern, txt, re.S | re.M):
+            yield m.group(0)
+
+
+def _class_bodies():
+    return _sections(r"^\s*\*?[\w:]+(?:\[\w+\])?\s*:\s*Relational\s*\{.*?\n\s*\}")
+
+
+def _pure_bodies():
+    return _sections(r"^\s*\*?[\w:]+(?:\[\w+\])?\s*:\s*Pure\s*\{.*?\n\s*\}")
+
+
+def _embedded_bodies():
+    return _sections(r"^\s*[a-z]\w*\s*\n\s*\(.*?\n\s*\)")
+
+
+def _value_comparisons():
+    """Property-mapping right-hand sides that are a COMPARISON rather than a column."""
+    return _sections(r"^\s*\w+\s*:\s*\[[\w:]+\][\w.]+\s*(?:=|is\s+not\s+null|is\s+null)[^,\n]*")
+
+
+def _assoc_qualified():
+    return any(re.search(r"^\s*\w+\s*\([^)]*\)\s*$", b, re.M)
+               for b in _sections(r"^Association\s+[\w:]+\s*\n\s*\{.*?\n\}"))
+
+
+def _nested_exec_env():
+    return any(re.search(r"^\s*\w+\s*:\s*\[\s*\n\s*\w+\s*:\s*\{", b, re.M)
+               for b in _sections(r"ExecutionEnvironment[\s\S]*?\n\}"))
+
+
 def score():
     import executed
     import model
@@ -75,9 +144,19 @@ def score():
     executed_names = {f for feats in prof.values() for f in feats}
     stacked_names = {f for feats in prof.values() if len(feats) > 1 for f in feats}
 
+    checks = _model_checks(c)
+
     def status(row):
         if not row["detect"]:
-            return "UNKNOWN"
+            got = checks.get(row["id"])
+            if got is None:
+                return "UNKNOWN"
+            if not got:
+                return "absent"
+            key = row["name"].lower()
+            hit = next((f for f in executed_names
+                        if f.split("  ")[-1].lower() in key), None)
+            return ("stacked" if hit in stacked_names else "executed") if hit else "present"
         if not re.search(row["detect"], text, re.M):
             return "absent"
         key = row["name"].lower()

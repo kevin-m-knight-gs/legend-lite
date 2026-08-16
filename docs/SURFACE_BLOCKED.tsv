@@ -33,3 +33,9 @@ RT-14	Runtime includes: token does not exist
 SV-12	extensionExec: zero registered handlers in this repo
 TST-15	EqualToTDS: complete grammar pair, NO registered parser
 P03	documentation slot declared on classDefinition and rejected in both string forms (F33)
+TA-01	EqualTo asserts a primitive; a relational service returns a result envelope carrying a per-run UUID, so the two cannot meet
+P12	property documentation: same slot as P03, rejected (F33)
+PP-02	relationalMapper reference does not resolve in the full model (open, not isolated)
+REL-02	~src inline relation expr: reachable only through a Relation mapping whose ~func does not resolve
+REL-03	Relation ~primaryKey single: same
+REL-04	Relation ~primaryKey multi: same

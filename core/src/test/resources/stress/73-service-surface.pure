@@ -203,3 +203,15 @@ Service surface::PostValidatedService
       }
    ]
 }
+
+// TA-01, the EqualTo assertion, is NOT here and cannot be.
+//
+// EqualTo asserts a PRIMITIVE. A relational service execution returns a result ENVELOPE --
+// `{"builder": {...}, "activities": [...], "result": {"columns": [...], "rows": [...]}}` --
+// so a service returning `->size()` is compared against that whole document, not against 5,
+// and EqualTo fails with `expected:5, Found : {"builder": ...}`.
+//
+// The envelope also carries an executionTraceID, a fresh UUID per run, so asserting it
+// whole is not merely wrong in spirit but impossible in practice. Recorded rather than
+// worked around: asserting the envelope would be asserting engine output, which is the one
+// thing this corpus refuses to do.
