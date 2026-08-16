@@ -429,9 +429,20 @@ public final class H2Verify {
                     }
                     mine.add(row.toString());
                 }
+                List<String> theirsRaw = new ArrayList<>(theirs);
+                List<String> mineRaw = new ArrayList<>(mine);
                 Collections.sort(theirs);
                 Collections.sort(mine);
                 if (theirs.equals(mine)) {
+                    // F2.4: the oracle discards row order BY DESIGN but
+                    // never counted it — emit under the same instrument
+                    // so census numbers stop being floors (strict
+                    // recheck = pre-sort order)
+                    if (System.getenv("LL_ORD_COUNT") != null
+                            && !theirsRaw.equals(mineRaw)) {
+                        System.err.println(
+                                "[ord] h2-oracle order-leniency pass");
+                    }
                     return null;
                 }
                 return "h2-advisory divergence: golden SQL on H2 gave "

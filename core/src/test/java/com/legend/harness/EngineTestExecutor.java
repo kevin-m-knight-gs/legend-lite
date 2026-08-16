@@ -2968,6 +2968,17 @@ public final class EngineTestExecutor {
                 }
                 ap.remove(hit);
             }
+            // F2.4: row-tuple multiset — one of the four previously
+            // UNINSTRUMENTED leniency paths (every LL_ORD_COUNT number
+            // was a floor)
+            ordLeniency(() -> {
+                for (int i = 0; i < e.size(); i++) {
+                    if (!wireEquals(e.get(i), a.get(i))) {
+                        return false;
+                    }
+                }
+                return true;
+            });
             return true;
         }
         List<Object> pool = new ArrayList<>(a);
@@ -2991,6 +3002,15 @@ public final class EngineTestExecutor {
             }
             pool.remove(hit);
         }
+        // F2.4: loose-pool cell multiset — previously uninstrumented
+        ordLeniency(() -> {
+            for (int i = 0; i < e.size(); i++) {
+                if (!wireEquals(e.get(i), a.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        });
         return true;
     }
 
@@ -3132,6 +3152,16 @@ public final class EngineTestExecutor {
             }
             pool.remove(hit);
         }
+        // F2.4: csvJoinedEquals row multiset — the audit's fourth
+        // uninstrumented path
+        ordLeniency(() -> {
+            for (int i = 0; i < expRows.size(); i++) {
+                if (!csvRowEquals(expRows.get(i), actRows.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        });
         return true;
     }
 
@@ -3356,7 +3386,12 @@ public final class EngineTestExecutor {
         List<String> as = new ArrayList<>(ar);
         java.util.Collections.sort(es);
         java.util.Collections.sort(as);
-        return es.equals(as);
+        boolean eq = es.equals(as);
+        if (eq) {
+            // F2.4: previously uninstrumented unordered TDS-text compare
+            ordLeniency(() -> er.equals(ar));
+        }
+        return eq;
     }
 
     private static boolean wireEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
