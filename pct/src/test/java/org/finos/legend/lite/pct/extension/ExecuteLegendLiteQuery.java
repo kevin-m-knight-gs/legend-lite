@@ -70,7 +70,10 @@ import java.util.regex.Pattern;
  * Pure expressions are re-escaped, executed via QueryService (compile → SQL → DuckDB),
  * and the typed ExecutionResult is converted back to Pure CoreInstances.
  *
- * All type information flows from Type on ExecutionResult — no SQL type inspection.
+ * Type information MOSTLY flows from Type on ExecutionResult — with two
+ * SQL-type-name sniffs (pureTypeName(col.sqlType()), audit P2) that F5.1
+ * replaces with col.pureType(), and a declared-header overlay (audit
+ * §4.1) that F5.3 converts to compare-and-fail.
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 

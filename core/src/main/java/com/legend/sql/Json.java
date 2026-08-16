@@ -8,9 +8,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** THE minimal JSON reader (one for the platform): the harness's graph
- * result envelope AND the resolver's JsonModelConnection source frames
- * parse through it. Integers read as Long, decimals as BigDecimal
+/** A minimal JSON reader — DESIGNED as the platform's one, which is
+ * not yet true (audit F3.1: five readers coexist — server/Json with the
+ * decimal->double bug audit 18 fixed HERE, TdsChecker's validator,
+ * MongoDB section grammar, Executor's string decoder). F3.1 collapses
+ * them onto this one. Integers read as Long, decimals as BigDecimal
  * (audit 18: double rounding made distinct Decimals compare equal). */
 public final class Json {
     private final String s;

@@ -18,9 +18,11 @@ import java.util.regex.Pattern;
  * data (docs/LEGEND_ENGINE_TEST_PORTING.md): each {@code <<test.Test>>}
  * function is a query + mapping + expected rows (+ golden SQL). This class
  * owns file access and MODEL ASSEMBLY — turning the corpus's shared
- * {@code .pure} sources into the single model string legend-lite compiles:
- * section markers dropped, function bodies stripped (they are engine-runtime
- * helpers: executeInDb seeds, test bodies), a Runtime synthesized.
+ * {@code .pure} sources into the single model string legend-lite
+ * compiles: section markers dropped, a Runtime synthesized. (Function
+ * bodies are NOT stripped anymore — the platform compiles and executes
+ * them; the old strip was retired with the harness-runs-through-the-
+ * platform rule. This header previously still advertised it.)
  */
 public final class Corpus {
 

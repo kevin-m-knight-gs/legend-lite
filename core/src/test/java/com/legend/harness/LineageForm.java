@@ -41,8 +41,9 @@ import java.util.List;
  * consumer is the terminal formatting — hollow vocabulary, a worse fake
  * than this explicit bridge. Here the ANALYSIS is real core code over
  * the real pipeline's lowered SQL plan ({@link ScanColumns}); the bridge
- * replaces only the reflection plumbing, requires the VERBATIM canonical
- * form (format lambda included — anything else stays SHAPE/loud), and
+ * replaces only the reflection plumbing, recognizes the canonical form
+ * by an UNORDERED existence check on three property names (walkProps —
+ * NOT a verbatim-form gate; tightening it is harness-shrink work), and
  * every string divergence is an honest FAIL pinning our emission against
  * the engine's golden.
  */

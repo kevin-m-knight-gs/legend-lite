@@ -40,9 +40,12 @@ import java.util.TreeSet;
  * order-insensitive, type-normalized row-set contract). Row values only
  * cross into Java as display strings for the CSV text.
  *
- * <p>Walls are LOUD ({@link NotImplementedException} naming the pending
- * shape): view-backed relations, hashStrings, temporal milestoning
- * dates, join conditions outside the two-table vocabulary.
+ * <p>Walls are LOUD ({@link NotImplementedException} naming the
+ * pending shape) — but the previously-listed examples (view-backed
+ * relations, hashStrings, temporal milestoning dates) are IMPLEMENTED
+ * now; hashStrings via a Java SHA-256 over rs.getString, which is
+ * audit A5, the tenet's oldest open breach — the Phase-8 expression
+ * channel deletes it. Only genuinely unhandled shapes throw today.
  */
 public final class TestDataGenerator {
 

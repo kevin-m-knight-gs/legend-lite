@@ -314,12 +314,16 @@ public final class Executor {
     }
 
     /**
-     * LATTICE-typed roots recover their values' own kinds FROM SELF-
-     * DESCRIBING WIRE ENCODINGS ONLY — the identity channel's print forms
-     * (computed by the database) and the TIMESTAMP-carried midnight
-     * StrictDate. Value-consulting heuristics (integral-double narrowing,
-     * scale-0 decimal narrowing) were audited out: the kind must travel
-     * FROM SQL, never be guessed after it.
+     * LATTICE-typed roots recover their values' own kinds from the
+     * identity channel's print forms (computed by the database) — plus
+     * ONE remaining value-consulting heuristic this header previously
+     * mislabeled an encoding: the TIMESTAMP-carried midnight StrictDate
+     * reads the cell's MAGNITUDE (00:00 => date), audit A10 — a genuine
+     * DateTime at exactly midnight is misread. Root cause is
+     * PureSql's DATE/DATE_TIME collapse to TIMESTAMP; F5.4 carries the
+     * kind as a typed fact and deletes the heuristic. The other
+     * value-consulting heuristics (integral-double narrowing, scale-0
+     * decimal narrowing) WERE audited out.
      */
     private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v, Type rootType,
             SqlQuery plan) {
