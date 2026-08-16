@@ -31,75 +31,77 @@ Counted by the discovery path (`Runner.discoverTests`), keyed by test FQN so a
 shared source registered by several families cannot double-count. Run with
 `-Drcorpus.includeExcluded` to run the excluded ones too.
 
-| family | tests | pass | fail | error | shape | sqldiff-pass |
-|---|---|---|---|---|---|---|
-| aggregationAware/test/rewrite | 13 | 13 | 0 | 0 | 0 | 0 |
-| aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 |
-| autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
-| calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 108 | 70 | 14 | 5 | 19 | 0 |
-| functions/tests | 259 | 239 | 6 | 9 | 5 | 67 |
-| functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 145 | 3 | 6 | 1 | 1 |
-| graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
-| graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 |
-| graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 |
-| helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
-| lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
-| lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 |
-| milestoning/tests | 228 | 216 | 8 | 1 | 3 | 34 |
-| modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
-| modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
-| modelToModelToRelational/milestoned | 7 | 5 | 0 | 0 | 2 | 0 |
-| postprocessor | 7 | 0 | 0 | 7 | 0 | 0 |
-| postprocessor/tests | 30 | 23 | 2 | 1 | 4 | 1 |
-| pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 |
-| router/tests | 26 | 20 | 0 | 3 | 3 | 3 |
-| sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 |
-| sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 |
-| sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 |
-| sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
-| sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
-| tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
-| tds/tests | 266 | 253 | 2 | 4 | 7 | 6 |
-| testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 |
-| tests | 39 | 33 | 2 | 0 | 4 | 0 |
-| tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 |
-| tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 |
-| tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
-| tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 |
-| tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 |
-| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
-| tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
-| tests/mapping/embedded | 63 | 62 | 1 | 0 | 0 | 0 |
-| tests/mapping/enumeration | 26 | 19 | 3 | 1 | 3 | 0 |
-| tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
-| tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
-| tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 |
-| tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 4 |
-| tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 |
-| tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 |
-| tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
-| tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 9 |
-| tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 48 | 44 | 1 | 3 | 0 | 11 |
-| tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
-| tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 |
-| tests/mapping/relation | 109 | 104 | 4 | 0 | 1 | 0 |
-| tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
-| tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 |
-| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 |
-| tests/mapping/union | 127 | 120 | 0 | 6 | 1 | 8 |
-| tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
-| tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 79 | 3 | 5 | 0 | 37 |
-| transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
-| validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
-| validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2347** | 73 | 69 | 86 | 247 |
+| family | tests | pass | fail | error | shape | sqldiff-pass | adv-pass | 0-asserts | rescued |
+|---|---|---|---|---|---|---|---|---|---|
+| aggregationAware/test/rewrite | 13 | 13 | 0 | 0 | 0 | 0 | 0 | 0 | 13 |
+| aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
+| executionPlan/tests | 108 | 70 | 14 | 5 | 19 | 0 | 0 | 1 | 0 |
+| functions/tests | 259 | 239 | 6 | 9 | 5 | 67 | 80 | 1 | 34 |
+| functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| functions/tests/projection | 155 | 145 | 3 | 6 | 1 | 1 | 4 | 0 | 72 |
+| graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 | 0 | 0 | 0 |
+| graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| milestoning/tests | 228 | 216 | 8 | 1 | 3 | 34 | 34 | 0 | 98 |
+| modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
+| modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| modelToModelToRelational/milestoned | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
+| postprocessor/tests | 30 | 23 | 2 | 1 | 4 | 1 | 1 | 0 | 20 |
+| pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 | 0 | 0 | 1 |
+| router/tests | 26 | 20 | 0 | 3 | 3 | 3 | 3 | 0 | 2 |
+| sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| tds/relation | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
+| tds/tests | 266 | 253 | 2 | 4 | 7 | 6 | 12 | 0 | 85 |
+| testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
+| tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
+| tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 | 21 | 0 | 32 |
+| tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 | 12 | 0 | 17 |
+| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 | 7 | 0 | 11 |
+| tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 | 2 | 0 | 1 |
+| tests/mapping/embedded | 63 | 62 | 1 | 0 | 0 | 0 | 0 | 1 | 32 |
+| tests/mapping/enumeration | 26 | 19 | 3 | 1 | 3 | 0 | 0 | 0 | 3 |
+| tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 | 12 | 0 | 0 |
+| tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 | 7 | 0 | 1 |
+| tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 | 3 | 0 | 1 |
+| tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 4 | 4 | 0 | 6 |
+| tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 9 | 9 | 0 | 5 |
+| tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/modelJoin | 48 | 44 | 1 | 3 | 0 | 11 | 11 | 0 | 30 |
+| tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 2 |
+| tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/relation | 109 | 104 | 4 | 0 | 1 | 0 | 0 | 0 | 0 |
+| tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 | 0 | 0 | 23 |
+| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 | 2 | 0 | 6 |
+| tests/mapping/union | 127 | 120 | 0 | 6 | 1 | 8 | 12 | 0 | 62 |
+| tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| tests/query | 87 | 79 | 3 | 5 | 0 | 37 | 40 | 0 | 5 |
+| transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
+| validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
+| **total** | 2575 | **2347** | 73 | 69 | 86 | 247 | 293 | 27 | 617 |
+
+SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 617; flags overlap — the union is 929).
 
 ### mapping walls (dropped at assembly)
 

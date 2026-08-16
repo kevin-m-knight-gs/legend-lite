@@ -88,10 +88,16 @@ public final class Runner {
     public java.util.function.Function<String, java.nio.file.Path> classLookup;
 
     public record Outcome(String test, Status status, String detail,
-            int sqlDiffs) {
+            int sqlDiffs, int advisory, int rescued) {
         /** Non-PASS / non-Ran outcomes carry no SQL-diff channel. */
         public Outcome(String test, Status status, String detail) {
-            this(test, status, detail, 0);
+            this(test, status, detail, 0, 0, 0);
+        }
+
+        /** Pre-F2.1 arity (sqlDiffs only). */
+        public Outcome(String test, Status status, String detail,
+                int sqlDiffs) {
+            this(test, status, detail, sqlDiffs, 0, 0);
         }
     }
 
@@ -1144,7 +1150,7 @@ public final class Runner {
                     System.err.println("[try-run-ledger] " + t.fqn() + ": "
                             + ledger);
                 }
-                Outcome scored = score(t.fqn(), o);
+                Outcome scored = score(t.fqn(), o, 0);
                 if (System.getenv("LL_TMP_DEBUG") != null) {
                     System.err.println("[try-run] " + t.fqn() + " -> "
                             + scored.status() + ": " + scored.detail());
@@ -1390,13 +1396,15 @@ public final class Runner {
                     // prints that follow belong to THIS test
                     System.err.println("[run] " + t.fqn());
                 }
+                long rescued0 = com.legend.harness.H2Verify.M1_RESCUED.sum();
                 com.legend.harness.EngineTestExecutor.Outcome o = com.legend.harness.EngineTestExecutor.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
                 // body-time setup failures (added via the sink DURING the
                 // run) join the run-wide report too (audit 17)
                 seedFailures.addAll(failedSeeds);
-                return score(t.fqn(), o);
+                return score(t.fqn(), o, (int) (com.legend.harness.H2Verify
+                        .M1_RESCUED.sum() - rescued0));
             } finally {
                 com.legend.harness.H2Verify.mirrorSuspend(false);
                 if (shared) {
@@ -1444,7 +1452,8 @@ public final class Runner {
                 .replace("\n", " | ");
     }
 
-    private static Outcome score(String fqn, com.legend.harness.EngineTestExecutor.Outcome o) {
+    private static Outcome score(String fqn,
+            com.legend.harness.EngineTestExecutor.Outcome o, int rescued) {
         return switch (o) {
             case com.legend.harness.EngineTestExecutor.Outcome.Unsupported u ->
                     new Outcome(fqn, Status.SHAPE, u.reason());
@@ -1481,7 +1490,7 @@ public final class Runner {
                                 + (r.sqlDiffs().isEmpty() ? ""
                                         : ", " + r.sqlDiffs().size()
                                                 + " advisory sql diff(s)"),
-                        r.sqlDiffs().size());
+                        r.sqlDiffs().size(), r.advisory(), rescued);
             }
         };
     }
@@ -2310,21 +2319,40 @@ public final class Runner {
         int shape = 0;
         Map<String, Integer> buckets = new LinkedHashMap<>();
         int diffPass = 0;
+        int advPass = 0;
+        int zeroAsserts = 0;
+        int rescuedPass = 0;
         // sqldiff-pass column sits LAST: the regression gate's baseline
         // parser reads the pass column POSITIONALLY (cells[3])
-        sb.append("\n| family | tests | pass | fail | error | shape | sqldiff-pass |\n|---|---|---|---|---|---|---|\n");
+        // F2.1 soft-pass columns (adv-pass / 0-asserts / rescued) sit
+        // AFTER sqldiff-pass: the baseline parser reads pass at cells[3]
+        sb.append("\n| family | tests | pass | fail | error | shape |"
+                + " sqldiff-pass | adv-pass | 0-asserts | rescued |"
+                + "\n|---|---|---|---|---|---|---|---|---|---|\n");
         for (var e : byFamily.entrySet()) {
             int p = 0;
             int f = 0;
             int er = 0;
             int sh = 0;
             int dp = 0;
+            int ap = 0;
+            int za = 0;
+            int rc = 0;
             for (Outcome o : e.getValue()) {
                 switch (o.status()) {
                     case PASS -> {
                         p++;
                         if (o.sqlDiffs() > 0) {
                             dp++;
+                        }
+                        if (o.advisory() > 0) {
+                            ap++;
+                        }
+                        if (o.detail().startsWith("0 asserts")) {
+                            za++;
+                        }
+                        if (o.rescued() > 0) {
+                            rc++;
                         }
                     }
                     case FAIL -> f++;
@@ -2343,15 +2371,41 @@ public final class Runner {
             error += er;
             shape += sh;
             diffPass += dp;
+            advPass += ap;
+            zeroAsserts += za;
+            rescuedPass += rc;
             sb.append("| ").append(e.getKey()).append(" | ").append(e.getValue().size())
                     .append(" | ").append(p).append(" | ").append(f).append(" | ")
                     .append(er).append(" | ").append(sh).append(" | ").append(dp)
+                    .append(" | ").append(ap).append(" | ").append(za)
+                    .append(" | ").append(rc)
                     .append(" |\n");
         }
         sb.append("| **total** | ").append(pass + fail + error + shape).append(" | **")
                 .append(pass).append("** | ").append(fail).append(" | ")
                 .append(error).append(" | ").append(shape).append(" | ")
-                .append(diffPass).append(" |\n");
+                .append(diffPass).append(" | ").append(advPass).append(" | ")
+                .append(zeroAsserts).append(" | ").append(rescuedPass)
+                .append(" |\n");
+        // F2.1 reconciliation: a PASS is CLEAN only when it carries none
+        // of the four softness flags — the burn-down's left term,
+        // finally visible (audit §5.1: "the scoreboard cannot see its
+        // own softness")
+        long soft = byFamily.values().stream().flatMap(List::stream)
+                .filter(o -> o.status() == Status.PASS)
+                .filter(o -> o.sqlDiffs() > 0 || o.advisory() > 0
+                        || o.rescued() > 0
+                        || o.detail().startsWith("0 asserts"))
+                .count();
+        sb.append("\nSOFT-PASS RECONCILIATION (F2.1): ").append(pass)
+                .append(" PASS = ").append(pass - soft)
+                .append(" clean + ").append(soft)
+                .append(" carrying softness (sqldiff ").append(diffPass)
+                .append(", advisory ").append(advPass)
+                .append(", 0-asserts ").append(zeroAsserts)
+                .append(", text-rescued ").append(rescuedPass)
+                .append("; flags overlap — the union is ").append(soft)
+                .append(").\n");
         sb.append("\n### mapping walls (dropped at assembly)\n\n");
         for (String w : walls) {
             sb.append("- ").append(w).append('\n');
