@@ -28,6 +28,7 @@ ceiling	scalar	ok
 char	scalar	ok
 cme	scalar	REFUSED: not in the DynaFunctionRegistry
 coalesce	scalar	ok
+columnProjectionsFromRoot	remaining	refused: the function does not exist: meta::relational::func
 concat	scalar	ok
 concatenate	collection	Caused by: Execution error at (resource:/core_relational/rel
 concatenate	relation	ok

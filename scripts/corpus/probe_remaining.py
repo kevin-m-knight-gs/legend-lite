@@ -230,6 +230,12 @@ CASES = [
     ("graphFetch", "|rem::P.all()->graphFetch(#{rem::P{g}}#)->serialize(#{rem::P{g}}#)", []),
     ("graphFetchChecked",
      "|rem::P.all()->graphFetchChecked(#{rem::P{g}}#)->serialize(#{rem::P{g}}#)", []),
+    # The last name in the registry to be put in front of the engine. It is a store-contract
+    # helper rather than a query form, so a refusal is the expected answer -- but expected is
+    # not the same as known, and the burndown's rule is that every name gets asked.
+    ("columnProjectionsFromRoot",
+     "|meta::relational::functions::columnProjectionsFromRoot("
+     "rem::P.all(), 'T', ['G'], false, 10)", []),
     ("objectReferenceIn", "|rem::P.all()->project(~[g:x|$x.g, "
                           "n:x|$x->objectReferenceIn(['a'])])->sort(~g->ascending())", []),
 ]
@@ -257,7 +263,7 @@ def run_one(case) -> tuple[str, str]:
     if re.search(rf"PASS\s+S_{case[0]}_suite", out):
         return "ok", "agrees with the oracle"
     for pat, why in (
-            (r"Function does not exist '(\w+)", "the function does not exist"),
+            (r"Function does not exist '([\w:]+)", "the function does not exist"),
             (r"The function '(\w+)'.{0,80}?is not supported yet", "not supported yet"),
             (r"dyna function \[(\w+)\] is not registered", "not in the DynaFunctionRegistry"),
             (r"No SQL translation exists for the PURE function '([\w:]+)'", "no SQL translation"),

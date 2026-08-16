@@ -237,6 +237,27 @@ def report():
                 for i in range(0, len(missing), 6):
                     print("    " + "  ".join(f"{m:<20}" for m in missing[i:i + 6]))
 
+    if "--overloads" in sys.argv:
+        ok, total, thin = overloads()
+        print(f"\nOVERLOADS: {sum(c for _p, _n, c in rows)} registry entries over "
+              f"{len(distinct)} names; {total} names carry more than one.")
+        print(f"  {ok} of {total} are served at two or more argument shapes.")
+        # The synthetic shapes are a COARSE check and this says so. An operation with a
+        # specific signature -- groupBy(rows, cols, aggs) -- will not be satisfied by a
+        # generic probe shape, and counting that as thin measures the audit. The real
+        # evidence is the probes, which call these at their true signatures, so the two are
+        # reported side by side and only the residue is a genuine question.
+        import functions as _self
+        ev_ok = {n for n, _pr, v in _self.evidence_rows() if v == "ok"}
+        real = [n for n, _k in thin if n in ev_ok]
+        rest = [n for n, _k in thin if n not in ev_ok]
+        if real:
+            print(f"  {len(real)} of those are exercised at their REAL signature by a probe, "
+                  f"which the\n  synthetic shapes cannot reach: " + ", ".join(real))
+        if rest:
+            print(f"  {len(rest)} are served at one shape and not probed at another: "
+                  + ", ".join(rest))
+
     if "--unexecuted" in sys.argv:
         # Split, because the two halves are not the same kind of work. A function the engine
         # REFUSED or that DISAGREED has been run and written up; a function nobody has tried
@@ -261,6 +282,53 @@ def report():
         allrefu = {**refused(), **refused("relation")}
         for name, why in sorted(allrefu.items()):
             print(f"  {name:<24} {why}")
+
+
+def overloads() -> tuple[int, int, list]:
+    """How many multi-overload names the oracle serves at more than one shape.
+
+    The registry has 427 entries over 262 names, and most of the difference is TYPE overloads
+    -- six spellings of `max`, four of `abs` -- which a Python implementation serves with one
+    body because it dispatches on the value. The ones that matter are ARITY overloads, where
+    a trailing optional argument changes the answer: `variance(xs, isSample)`, `between` with
+    and without its bounds, `timeBucket`'s unit.
+
+    So this feeds each implementation several shapes and counts how many it answers, where a
+    STATED refusal of an input region counts as an answer -- refusing `sqrt` of a negative is
+    serving the call, not failing it. Relation and TDS names get row sets; everything else
+    gets scalars, because handing a string to `groupBy` measures the probe rather than the
+    function, and the first version of this audit did exactly that and reported seventeen
+    healthy implementations as thin.
+    """
+    import oracle
+
+    rows = inventory()
+    fam_of: dict[str, set] = {}
+    for pkg, name, _c in rows:
+        fam_of.setdefault(name, set()).add(family(pkg))
+    multi = sorted({n for _p, n, c in rows if c > 1})
+
+    scalar_shapes = [["alpha"], [7, 3], ["2024-06-03", "x"], [7, 3, 1], [[1, 2, 3]]]
+    table = [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+    rel_shapes = [(table,), (table, 1), (table, ["a"]), (table, "a", "b")]
+
+    served, thin = [], []
+    for n in multi:
+        is_rel = bool(fam_of[n] & {"relation", "tds"})
+        reg = oracle.RELATION_IMPL if is_rel else oracle.IMPL
+        if n not in reg:
+            continue
+        ok = 0
+        for shape in (rel_shapes if is_rel else scalar_shapes):
+            try:
+                reg[n](*shape) if is_rel else reg[n](shape)
+                ok += 1
+            except oracle.Unsupported:
+                ok += 1
+            except Exception:
+                pass
+        (served if ok >= 2 else thin).append((n, ok))
+    return len(served), len(served) + len(thin), thin
 
 
 def never_run() -> list[str]:

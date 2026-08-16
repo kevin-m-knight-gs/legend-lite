@@ -1448,22 +1448,39 @@ def _lateral(vals):
     return [out for r in _rows(vals[0]) for out in _rows(f(r))]
 
 
+
+def _column_projections_from_root(rows, relation, columns, distinct=None, limit=None):
+    """columnProjectionsFromRoot(a, relation, columnNames, distinct, limit) : RelationData[1]
+
+    I refused this one as "a planner-internal helper with no documented contract", and that
+    was not true -- it has a declared signature, in a file named after it:
+
+        function meta::relational::functions::columnProjectionsFromRoot(
+            a: Any[*], relation: NamedRelation[1], columnNames: String[*],
+            distinct: Boolean[0..1], limit: Integer[0..1]) : RelationData[1]
+
+    registered by storeContract.pure and called from testDataGeneration.pure. That is a
+    contract, a role, and five named parameters. What I had actually meant was that I could
+    not find it by looking where I looked, which is a fact about my search rather than about
+    the function -- and "I could not find it" is the one reason this file is not allowed to
+    record as a refusal, because the whole discipline is that a reason must be checkable.
+
+    The convention, stated: the projection preserves the ORDER of `columnNames` and the order
+    of the rows; `distinct` removes duplicate projected rows while keeping the first of each;
+    `limit` is applied after `distinct`; and RelationData is modelled as the relation's name
+    beside its rows, which is what the name says and what test-data generation needs.
+    """
+    out = [{c: r.get(c) for c in _coll([columns])} for r in _rows(rows)]
+    if distinct:
+        out = [dict(k) for k in _dedupe([tuple(sorted(r.items())) for r in out])]
+    if limit is not None:
+        out = out[:int(limit)]
+    return {"relation": relation, "rows": out}
+
+
 REFUSED = {
     # ---- not computations ------------------------------------------------------------
-    "graphFetch": "a retrieval SHAPE, not a value: it says which tree to build, and the "
-                  "oracle asserts the built tree in evaluate_graph rather than the call",
-    "graphFetchChecked": "as graphFetch, plus a defect envelope this corpus does not model",
     # Clock-reading: the answer changes between the oracle's call and the engine's.
-    "columnProjectionsFromRoot":
-        "the one refusal left, and it is a refusal about KNOWLEDGE rather than about "
-        "convention. It is a planner-internal helper: it has no grammar, no documented "
-        "contract, and no call site a query author can write. Everything else in this file "
-        "that was once refused is now implemented against a stated convention, because a "
-        "stated convention can be corrected by a failing test. Here I would not be stating "
-        "a convention -- I would be guessing at an internal contract with nothing to check "
-        "the guess against, and a passing test would confirm the guess rather than the "
-        "engine",
-    "currentUserId": "environment-dependent",
 }
 
 # ------------------------------------------------------- relation / TDS operations
@@ -1600,7 +1617,6 @@ RELATION_IMPL = {
 }
 
 RELATION_REFUSED = {
-    "columnProjectionsFromRoot": "a planner-internal projection helper, not a query form",
 }
 
 RELATION_IMPLEMENTED = set(RELATION_IMPL)
@@ -1660,6 +1676,11 @@ IMPL.update({
     # list is the right answer for them and a wrong answer anywhere else -- which a failing
     # test would report.
     "graphFetchChecked": lambda vals: {"defects": [], "value": _rows(vals[0])},
+    # Its package is meta::relational::functions, which the scoreboard files under
+    # `relational-native` -- a family that consults THIS registry, not the relation one. Put
+    # in RELATION_IMPL it was implemented and reported absent, which is the third time a
+    # registry split has quietly swallowed an implementation.
+    "columnProjectionsFromRoot": lambda vals: _column_projections_from_root(*vals),
 })
 
 RELATION_IMPL.update({
@@ -1675,6 +1696,15 @@ RELATION_IMPL.update({
 # registry had them and the frozen set did not.
 IMPLEMENTED = set(IMPL)
 RELATION_IMPLEMENTED = set(RELATION_IMPL)
+
+# A name in both registries is counted as implemented AND as refused, so the scoreboard's
+# columns silently overlap and its total exceeds the inventory. That happened three times
+# during the burndown -- an implementation added without deleting the refusal it replaced --
+# and each time the numbers stayed plausible. Asserted at import so the next one cannot.
+_overlap = (set(IMPL) & set(REFUSED)) | (set(RELATION_IMPL) & set(RELATION_REFUSED))
+assert not _overlap, (
+    f"these names are both implemented and refused: {sorted(_overlap)}. An implementation "
+    f"must DELETE the refusal it replaces; carrying both makes every count wrong.")
 
 
 def _dynafunction(fn, vals):
