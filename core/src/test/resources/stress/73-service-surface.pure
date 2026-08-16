@@ -15,6 +15,29 @@ Data surface::ModelData
    }#
 }
 
+// A Relation (TDS literal) data element. Its table delimiter is a COLON -- `TABLE_START:
+// (COLON WHITESPACE*)` -- and its terminator a semicolon; the path segments are separated by
+// `.`, not `::`, so a package path does not parse there.
+Data surface::RelationLiteralData
+{
+   Relation
+   #{
+     default.MG_A:
+       K,A,B
+       k1,a1,b1
+       k2,a2,b2;
+   }#
+}
+
+// A Data element carrying per-connection RESOLVERS. The flat test form requires one: a
+// plain Data element referenced there fails with "must define dataResolvers".
+Data surface::FlatData
+{
+   // Keyed by STORE, not by connection: a connection there is rejected with
+   // "Unsupported type for data resolution".
+   combo::ComboDB: Reference #{ combo::ComboData }#;
+}
+
 ###Service
 Service surface::ParameterisedService
 {
@@ -95,6 +118,88 @@ Service surface::ParameterisedService
                ]
             }
          ]
+      }
+   ]
+}
+
+// ALL VERSIONS over a milestoned class, and the two remaining assertion / test spellings.
+//
+// `.all()` on a milestoned class returns the CURRENT version; `.allVersions()` returns every
+// row including superseded ones. The corpus queried milestoned classes only through the
+// dated forms, so the version history itself was never read.
+Service surface::AllVersionsService
+{
+   pattern: '/surface/allVersions';
+   documentation: 'Every version of a milestoned class, not just the current one.';
+   execution: Single
+   {
+      query: |counterparty::RatingVersion.allVersions()->project(~[agency: x|$x.agency])
+                ->sort(~agency->ascending());
+      mapping: stress::AllMapping;
+      runtime: stress::RT;
+   }
+}
+
+// The FLAT test spelling, as an alternative to the nested block form above.
+//
+// Its `=>` takes EMBEDDED DATA, not an assertion: `serviceAtomicTest: ... EQUAL GREATER_THAN
+// embeddedData SEMI_COLON`. So the flat form asserts by equality with data rather than by
+// naming an assertion kind, and writing `=> EqualToJson #{...}#` there fails with "Unknown
+// embedded data type: EqualToJson".
+Service surface::FlatTestService
+{
+   pattern: '/surface/flatTest';
+   documentation: 'The flat atomic-test spelling, and an EqualTo assertion over a scalar.';
+   execution: Single
+   {
+      query: |combo::Scoped.all()->project(~[rootId: x|$x.rootId])->sort(~rootId->ascending());
+      mapping: combo::ComboMapping;
+      runtime: combo::ComboRT;
+   }
+   testSuites:
+   [
+      FlatTestService_suite
+      (
+         // The flat form takes a bare ELEMENT REFERENCE -- `referenceDataResolver:
+         // qualifiedName` -- not a keyed entry. The nested form above keys by
+         // identified-connection ID; neither the id nor the connection element works
+         // here ("Can't find the packageable element 'comboEnv'", then "Unsupported
+         // type for data resolution"). The two spellings of one idea take different
+         // shapes entirely.
+         surface::FlatData;
+         expected_rows : PURE_TDSOBJECT => ExternalFormat #{ contentType: 'application/json'; data: '[{"rootId":"CR-0001"},{"rootId":"CR-0002"},{"rootId":"CR-0003"},{"rootId":"CR-0004"},{"rootId":"CR-0005"}]'; }#;
+      )
+   ]
+}
+
+// POST VALIDATIONS: assertions over the RESULT of the service rather than over a fixture.
+// They carry their own lambda and run after execution, so they say something about every
+// call rather than about one seeded row set.
+Service surface::PostValidatedService
+{
+   pattern: '/surface/postValidated';
+   documentation: 'Carries post-validations over its own result.';
+   execution: Single
+   {
+      // The two-list project form, which returns a TabularDataSet. The `~[...]` column
+      // form returns a Relation, and a post-validation's parameter type must MATCH the
+      // service's return type exactly -- "Post validation assertion function parameter
+      // type 'TabularDataSet[1]' does not match with service execution return type
+      // 'Relation<(rootId:String[1])>[1]'". Worth knowing that the two project spellings
+      // do not produce the same type.
+      query: |combo::Scoped.all()->project([x|$x.rootId], ['rootId']);
+      mapping: combo::ComboMapping;
+      runtime: combo::ComboRT;
+   }
+   postValidations:
+   [
+      {
+         description: 'the result must not be empty';
+         params: [];
+         assertions:
+         [
+            notEmpty: {rows: meta::pure::tds::TabularDataSet[1]|$rows->meta::pure::tds::tdsRows()->isNotEmpty()}
+         ];
       }
    ]
 }

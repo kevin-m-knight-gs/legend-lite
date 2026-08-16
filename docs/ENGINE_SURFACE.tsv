@@ -9,7 +9,7 @@ SET-01	mapping	Relational class mapping	: Relational {	:\s*Relational\s*\{
 SET-02	mapping	Relational association mapping	AssociationMapping ( ... )	AssociationMapping
 SET-03	mapping	Pure / M2M class mapping	: Pure { ~src S }	:\s*Pure\s*\{
 SET-04	mapping	Operation class mapping	: Operation { fn(p1,p2) }	:\s*Operation\s*\{
-SET-05	mapping	Merge operation	merge_...([p1,p2],{...})	merge_[\w:]*\(
+SET-05	mapping	Merge operation	merge_...([p1,p2],{...})	merge_OperationSetImplementation
 SET-06	mapping	XStore association mapping	: XStore { p: $this.x==$that.y }	:\s*XStore\s*\{
 SET-07	mapping	ModelJoin association mapping	: ModelJoin { {e,p|...} }	:\s*ModelJoin\s*\{
 SET-08	mapping	AggregationAware class mapping	: AggregationAware { Views: [...] }	:\s*AggregationAware\s*\{
@@ -190,7 +190,7 @@ P62	model	function test suite block	function f(): Integer[1] { 1 } { t1 | f() =>
 P68	model	Profile declaration	Profile my::P { stereotypes: [s1]; tags: [t1]; }	^\s*Profile\s+
 P77	model	navigation path island	#/my::Person/name#	#/
 P78	model	relation column builder ~	->project(~[name, id])	~\[
-P79	model	allVersions / allVersionsInRange	.allVersions()	->allVersions
+P79	model	allVersions / allVersionsInRange	.allVersions()	\.allVersions(?:InRange)?\s*\(
 P80	model	String primitive	name: String[1];	:\s*String\[
 P81	model	Integer primitive	age: Integer[1];	:\s*Integer\[
 P82	model	Float primitive	rate: Float[1];	:\s*Float\[
@@ -249,7 +249,7 @@ SV-14	service	embedded runtime on a service	runtime: #{ ... }#;	runtime\s*:\s*#\
 SV-20	service	test parameters	parameters: [ p1 = 'v' ]	parameters\s*:\s*\[
 SV-21	service	serializationFormat	serializationFormat: PURE_TDSOBJECT;	serializationFormat
 SV-22	service	assert keys (multi-exec)	keys: ['PROD','UAT'];	^\s*keys\s*:
-SV-27	service	flat atomic test form	test1 (p='v') ['PROD'] : F => EqualToJson #{}#;	=>\s*EqualTo
+SV-27	service	flat atomic test form	test1 (p='v') ['PROD'] : F => EqualToJson #{}#;	^\s*\w+\s*:\s*\w+\s*=>\s*\w+\s*#\{
 SV-28	service	postValidations	postValidations: [ { description: 'd'; } ]	postValidations
 SV-32	service	ExecutionEnvironment element	ExecutionEnvironment e::E { executions: [...]; }	ExecutionEnvironment
 SV-34	service	nested multi exec env	PROD: [ ds1: { mapping: m; runtime: r; } ]	

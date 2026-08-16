@@ -15,6 +15,9 @@
 Database <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'surface coverage'} surface::SurfaceDB
 (
    include store::DB
+   // A TYPED store include. The keyword names the store KIND, which is how a Database can
+   // include something that is not another Database.
+   include ServiceStore surface::NoSuchServiceStore
 
    Schema "quoted schema"
    (
