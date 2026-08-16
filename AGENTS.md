@@ -7,6 +7,12 @@
 > bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs
 > eager?" decision.
 >
+> **Execution tenet:** *Java orchestrates, the DATABASE executes.* The
+> adjudication authority is `docs/TENET_CHARTER.md` (clauses C1-C5: what
+> orchestration may do, what execution may not, the host-channel provenance
+> rule, the LiteralFold literal exception, the ingress mirror). Consult it
+> before any "may Java compute this?" decision.
+>
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
 > contracts, open decisions. This file is the short form.
 >

@@ -1,0 +1,116 @@
+# The Tenet Charter — "Java orchestrates, the DATABASE executes"
+
+> **F0.2 of `docs/FOUNDATIONS_PLAN.md`** (2026-08-16). This document is the adjudication
+> authority for every tenet question: the `java.sql` funnel's exemption list (F1.3), the
+> host-channel invariant (F1.5), the tenet ratchet's licensed seam (F1.10), and Phase 4's
+> Java residue each cite a clause here. It restores the two charter clauses audit round 1
+> demanded (V0.2 model-space vs data-space, V0.6 the host channel) and round 2 re-demanded
+> (`docs/TENET_AUDIT_2026_08_16.md` §8) — the reason finding A9 was "adjudicable only by
+> hand" is that this document did not exist.
+>
+> A clause is cited by rule ID (C1.3 = clause 1, item 3). Changing a clause is a reviewed
+> design decision, not an edit-in-passing.
+
+## Clause 1 — Orchestration: what Java MAY do
+
+Java is the driver, the transport, and the boundary. It MAY:
+
+- **C1.1 — JDBC transport and session management.** Open/close connections, manage
+  transactions and savepoints, submit statements, stream results, bound the driver
+  (fetch size, timeouts).
+- **C1.2 — Typed value CARRIAGE.** Move a value from a `ResultSet` to a consumer without
+  computing from it: no arithmetic, no comparison that decides a result, no reformatting
+  beyond what the JDBC accessor itself returns for the column's declared type.
+- **C1.3 — Compile-time-fact emission ("types drive construction").** Emit envelopes,
+  headers, and schemas from the COMPILED PLAN's facts — column names, Pure types,
+  multiplicities — never from inspecting values. The CSV header row, the JSON envelope,
+  the TDS schema line are model-space artifacts.
+- **C1.4 — Control flow.** Statement ordering, phase sequencing, per-statement error
+  routing, retry/refusal policy — over OPAQUE results, without reading into them.
+- **C1.5 — Byte transport.** Carrying DB-rendered artifacts (a rendered CSV line, a
+  DB-built JSON document) to sockets, files, and asserts untouched.
+- **C1.6 — Model-space computation.** Anything computed over the MODEL — types, mappings,
+  metamodel navigation, plan text, declared column precision lattices — is compilation,
+  not execution. `MetamodelWalk` and `GraphEmission` are the certified examples
+  (audit §9). The test: could this run with no database attached and no data loaded?
+
+## Clause 2 — Execution: what Java MAY NOT do
+
+Any of the following over a value that crossed (or will cross) a `ResultSet` is execution,
+and belongs in the database:
+
+- **C2.1 — Deriving values.** No arithmetic, hashing, string transformation, concatenation,
+  or any computation whose input is a result value and whose output reaches a consumer.
+- **C2.2 — Deciding types from values.** No type, kind, or multiplicity chosen by
+  inspecting a value's magnitude, text shape, or precision (the audit's §6-Q5(b): "reads
+  magnitude"). The type is a fact the compiler already owns; ask the plan, never the cell.
+- **C2.3 — Reshaping results.** No sorting, filtering, deduplicating, aggregating,
+  grouping, slicing, or unnesting of result rows. Row order is the database's; a
+  comparison POLICY that tolerates unordered results is legitimate (it judges, it does
+  not repair), but it must be gated on a compile-time fact (`sortedChain()`), counted,
+  and one-sided.
+- **C2.4 — Fabricating values.** No value a consumer can observe that the platform never
+  computed: no manufactured UUIDs, no empty collections standing in for unrecorded data,
+  no `get(0)` fallbacks, no defaults that lose a type (`default -> "String"`). Absence is
+  a loud `NotImplementedException`, never a plausible value.
+- **C2.5 — Rendering ruled representations.** No Java rendering of a value whose print
+  form has a REPRESENTATION RULE (float repr, date/subsecond forms, decimal scale). Those
+  rules live in the SQL emission path (`Scalars.floatRepr`, `DateFmt`) and render in the
+  database (Phase 4). The only exception is Clause 4.
+
+## Clause 3 — Provenance, not arms (the host channel)
+
+**No `ResultSet`-derived value may reach `HostEval.eval()`.** The invariant is on the
+PROVENANCE of the value, never on the interpreter's arm list: audit §8 proved a ~6-line
+dispatch edge reclassified all 47 existing arms at once — 18 are dual-use (`fold`, `map`,
+`at`, `size`, `eq`, `in`, `filter`…) and become execution the moment a data-space value
+flows through them. An arm charter would not have caught it; the provenance rule does.
+`HostEval` exists for ORCHESTRATION VALUES (config, test scaffolding, model-space reads)
+and its production reach is measured by the F0.3 census. Enforcement: F1.5's
+`HostChannelPredicateTest`.
+
+## Clause 4 — The literal exception, once (the LiteralFold rule)
+
+Java may answer without the database ONLY for a value that satisfies both conditions:
+
+1. **Syntactic value, zero computation** — the value appears VERBATIM in the typed AST
+   (a bare literal node), never a composite, variable, or call.
+2. **Representation-trivial round trip** — no coercion, width, scale, or format rule would
+   be applied on the SQL path. If a rule exists, answering in Java duplicates the rule in
+   a second place, and the answer belongs to the database even for a literal.
+
+The canonical instance is `LiteralFold.ADMITTED = {String, Boolean}` — Integer fails
+(driver width + lattice promotion), Float/Decimal fail (scale/format), Date fails
+(partial-date carriers). The admitted set is pinned differentially by
+`ConstantPlanParityTest`: **admitting a kind is a green differential, not an argument.**
+
+The SAME rule with the SAME pinning mechanism governs every other Java-answers-locally
+site: Phase 4's literal identity-render arm, and any future fold. One rule, N
+applications, zero new judgment calls. A site that wants a wider set must first widen
+`LiteralFold` behind a green differential — there are no site-local admission rules.
+
+## Clause 5 — The ingress mirror
+
+Ingress obeys the same split in reverse:
+
+- **C5.1** — Values entering the database (CSV seeds, JSON payloads, generated data) are
+  bound as literals/parameters and the DATABASE casts them to the model's column types —
+  "uniform policy, no host-side type dispatch" (`TestDataGenerator.loadSide` is the
+  certified instance). Java never types an ingress token by regexing its text while the
+  resolved column type is in scope (the typed-fact test).
+- **C5.2** — Model-derived SQL is spelled correctly the FIRST time from the type in hand.
+  Java never emits text it must then rewrite (`RawSqlBoundary` is for corpus-AUTHORED
+  text only — text whose origin is another dialect).
+
+## Enforcement map
+
+| Clause | Mechanical enforcement |
+|---|---|
+| C1/C2 boundary | F1.3 `java.sql` funnel (+ F1.3b root class-list pin); F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
+| C2.3 | F1.4 positive harness rule (`sortedChain()`-gated, enumerated allowlist) |
+| Clause 3 | F1.5 `HostChannelPredicateTest` |
+| Clause 4 | `ConstantPlanParityTest` (exists); Phase 4 render arm cites it |
+| C5.2 | F1.6 R0 ledger (shrink-only) → F7.4 makes the contract true |
+
+Until a clause's enforcement lands, the clause still governs adjudication — "the guard is
+not built yet" is a schedule fact, not a license.
