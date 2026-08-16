@@ -484,23 +484,43 @@ public final class UserCallInliner {
         Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
         var fnType = (com.legend.compiler.element.type.Type.FunctionType) l.info().type();
         List<String> params = new ArrayList<>(l.parameters().size());
+        // binder bookkeeping runs in BOTH branches (ledger cluster 16:
+        // recording binders only under an empty env left spliceHook's
+        // shadow guard inert inside inlined bodies — the exec frame
+        // captured the map lambda's own row var); ORIGINAL and renamed
+        // names both guard, since the hook fires on nodes before and
+        // after env substitution.
+        List<String> guard = new ArrayList<>();
         for (int i = 0; i < l.parameters().size(); i++) {
             var p = fnType.params().get(i);
-            params.add(bind(l.parameters().get(i), inner,
+            String renamed = bind(l.parameters().get(i), inner,
                     new com.legend.compiler.element.type.ExprType(
-                            p.type(), p.multiplicity())));
+                            p.type(), p.multiplicity()));
+            params.add(renamed);
+            guard.add(l.parameters().get(i));
+            guard.add(renamed);
         }
-        List<TypedSpec> body = new ArrayList<>(l.body().size());
-        for (TypedSpec stmt : l.body()) {
-            if (stmt instanceof TypedLet let) {
-                TypedSpec value = rewrite(let.value(), inner);
-                String renamed = bind(let.name(), inner, let.value().info());
-                body.add(new TypedLet(renamed, value, let.info()));
-                continue;
+        guard.forEach(g -> bound.merge(g, 1, Integer::sum));
+        try {
+            List<TypedSpec> body = new ArrayList<>(l.body().size());
+            for (TypedSpec stmt : l.body()) {
+                if (stmt instanceof TypedLet let) {
+                    TypedSpec value = rewrite(let.value(), inner);
+                    String renamed = bind(let.name(), inner, let.value().info());
+                    bound.merge(let.name(), 1, Integer::sum);
+                    bound.merge(renamed, 1, Integer::sum);
+                    guard.add(let.name());
+                    guard.add(renamed);
+                    body.add(new TypedLet(renamed, value, let.info()));
+                    continue;
+                }
+                body.add(rewrite(stmt, inner));
             }
-            body.add(rewrite(stmt, inner));
+            return new TypedLambda(params, body, l.info());
+        } finally {
+            guard.forEach(g -> bound.compute(g,
+                    (k, c) -> c == null || c <= 1 ? null : c - 1));
         }
-        return new TypedLambda(params, body, l.info());
     }
 
     /** Fresh-bind {@code name} into {@code scope}; returns the fresh name. */

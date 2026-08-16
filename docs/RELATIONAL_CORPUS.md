@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
-| tds/tests | 266 | 248 | 2 | 9 | 7 | 6 |
+| tds/tests | 266 | 249 | 3 | 7 | 7 | 6 |
 | testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
 | tests | 39 | 31 | 2 | 0 | 6 | 0 |
 | tests/advanced | 68 | 60 | 4 | 4 | 0 | 21 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2313** | 81 | 89 | 92 | 244 |
+| **total** | 2575 | **2314** | 82 | 87 | 92 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1115,7 +1115,6 @@ shared source registered by several families cannot double-count. Run with
 ### top error buckets
 
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]], multiplicity=Bounded[lower=1, upper=1]]]
-- 3x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - 2x Binder Error: subqueries in lambda expressions are not supported
@@ -1143,6 +1142,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x project expects ~[…] column specifications
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
 - 1x derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
+- 1x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 
 ### per-test outcomes (non-passing)
@@ -1295,8 +1295,7 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR columnValueDifferenceTest [tds/tests]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
-- ERROR columnValueDifferenceWithoutPrevalTest [tds/tests]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
+- FAIL columnValueDifferenceWithoutPrevalTest [tds/tests]: assertEquals: expected 2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2|3|-1;2014-12-03T00:00:00.000000000+0000|true|71.0|55.0|16.0|2|2|0;2014-12-04T00:00:00.000000000+0000|true|105.0|71.0|34.0|3|2|1;2014-12-05T00:00:00.000000000+0000|true|5.0|105.0|-100.0|1|3|-2;2014-12-06T00:00:00.000000000+0000|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1, got 2014-12-01|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02|true|55.0|356.0|-301.0|2|3|-1;2014-12-03|true|71.0|55.0|16.0|2|2|0;2014-12-04|true|105.0|71.0|34.0|3|2|1;2014-12-05|true|5.0|105.0|-100.0|1|3|-2;2014-12-06|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call — wall: unknown function 'getNumber' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR rowValueDifferenceTest [tds/tests]: cannot access 'name' on String
 - SHAPE testExtendDigest_InMemory [tds/tests]: no execute(|...) call — wall: cannot access 'name' on String
