@@ -1,0 +1,138 @@
+// Connection-DSL constructs the corpus never wrote. It had four connections, all DuckDB or
+// H2 with `auth: Test`, and nothing else the grammar offers.
+//
+// These are DECLARATIONS. A connection naming a warehouse this machine cannot reach still
+// exercises the parser, the compiler and the protocol -- which is where a connection is most
+// likely to be wrong -- and no service routes to one, so nothing here tries to open a socket.
+// The connections that DO execute are the DuckDB ones the rest of the corpus uses.
+// The section is ###QueryPostProcessor, not ###RelationalMapper -- the element is named
+// RelationalMapper but its SECTION PARSER is registered under POSTPROCESSOR_NAME.
+###QueryPostProcessor
+// Rewrites database, schema and table names on the way to SQL. This is how one model targets
+// a differently-named physical layout per environment, and it is the alternative to the
+// key-based routing in 67-routing-surface.pure: routing picks a RUNTIME, this rewrites the
+// NAMES a single runtime emits.
+RelationalMapper surface::ProdMapper
+(
+   // A DatabaseMapper's brackets hold SCHEMA references (`database DOT schema`), not bare
+   // databases -- `databaseMapper: BRACKET_OPEN (schemaReference ...)? BRACKET_CLOSE ARROW
+   // STRING`. Several schemas can be redirected to one physical database.
+   DatabaseMappers:
+   [
+      [combo::ComboDB.analytics, combo::ComboDB.default] -> 'PROD_WAREHOUSE'
+   ];
+   SchemaMappers:
+   [
+      combo::ComboDB.analytics -> 'PROD_ANALYTICS'
+   ];
+   TableMappers:
+   [
+      combo::ComboDB.analytics.COMBO_SUMMARY -> 'PROD_SUMMARY'
+   ];
+)
+
+###Connection
+// Every remaining connection-body property, plus the post-processors.
+RelationalDatabaseConnection surface::TunedConn
+{
+   store: combo::ComboDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+   queryTimeOutInSeconds: 60;
+   quoteIdentifiers: true;
+   postProcessors:
+   [
+      // Inline name rewriting, and the element-based form declared above.
+      mapper
+      {
+         mappers:
+         [
+            schema { from: 'analytics'; to: 'PROD_ANALYTICS'; },
+            table { from: 'COMBO_SUMMARY'; to: 'PROD_SUMMARY'; schemaFrom: 'analytics'; schemaTo: 'PROD_ANALYTICS'; }
+         ];
+      },
+      relationalMapper
+      {
+         surface::ProdMapper
+      },
+      ExtractSubQueriesAsCTEsPostProcessor
+   ];
+}
+
+// The datasource specifications that need no credentials.
+RelationalDatabaseConnection surface::LocalH2Conn
+{
+   store: combo::ComboDB;
+   type: H2;
+   specification: LocalH2
+   {
+      testDataSetupSqls: [ 'create schema if not exists surface;' ];
+   };
+   auth: DefaultH2;
+}
+
+RelationalDatabaseConnection surface::StaticConn
+{
+   store: combo::ComboDB;
+   type: Postgres;
+   specification: Static
+   {
+      name: 'surfacedb';
+      host: 'localhost';
+      port: 5432;
+   };
+   auth: UserNamePassword
+   {
+      baseVaultReference: 'surface-base';
+      userNameVaultReference: 'surface-user';
+      passwordVaultReference: 'surface-pass';
+   };
+}
+
+RelationalDatabaseConnection surface::EmbeddedH2Conn
+{
+   store: combo::ComboDB;
+   type: H2;
+   specification: EmbeddedH2
+   {
+      name: 'surfacedb';
+      directory: '/tmp/surface';
+      autoServerMode: true;
+   };
+   auth: DelegatedKerberos
+   {
+      serverPrincipal: 'HTTP/surface';
+   };
+}
+
+RelationalDatabaseConnection surface::TokenConn
+{
+   store: combo::ComboDB;
+   type: Databricks;
+   specification: Databricks
+   {
+      hostname: 'surface.cloud';
+      port: '443';
+      protocol: 'https';
+      httpPath: '/sql/1.0/endpoints/surface';
+   };
+   auth: ApiToken
+   {
+      apiToken: 'surface-token-ref';
+   };
+}
+
+// The MODEL connections: a class fed from a literal payload rather than from a store, and
+// the chain form that feeds one mapping from another's output.
+JsonModelConnection surface::JsonConn
+{
+   class: combo::Scoped;
+   url: 'data:application/json,{"rootId":"CR-0001"}';
+}
+
+XmlModelConnection surface::XmlConn
+{
+   class: combo::Scoped;
+   url: 'data:application/xml,<Scoped><rootId>CR-0001</rootId></Scoped>';
+}
