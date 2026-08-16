@@ -438,10 +438,7 @@ public class RelationalCorpusRunner {
                     "Duplicate column name", 11,
                     // engine plan-level temp-table for IN lists — a
                     // machinery gap, not a rendering one
-                    "tempTableForIn", 6,
-                    // engine Java-extension UDFs, a route we ban (no
-                    // CREATE ALIAS) — today only base64 surfaces
-                    "legend_h2_extension_", 1);
+                    "tempTableForIn", 6);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()

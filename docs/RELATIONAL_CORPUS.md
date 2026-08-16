@@ -28,9 +28,9 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 62 | 20 | 6 | 20 | 0 |
-| functions/tests | 259 | 235 | 8 | 10 | 6 | 66 |
+| functions/tests | 259 | 236 | 7 | 10 | 6 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 137 | 6 | 11 | 1 | 1 |
+| functions/tests/projection | 155 | 138 | 5 | 11 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
@@ -89,7 +89,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2299** | 89 | 94 | 93 | 244 |
+| **total** | 2575 | **2301** | 87 | 94 | 93 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1198,7 +1198,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testBuildFilterWithValueThatCanBeNullPlanSql [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testAssociationWithProjectionHandlingDups [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - SHAPE testComplexOrExistsToManyProperty [functions/tests]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- FAIL testDupsFilterProject [functions/tests]: assertEquals: expected Firm X, got [Firm X, Yes]
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: exists/forAll predicate references column 'firm_employees', unresolvable even after isolation [param=t_n; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::exists, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=value, type=Type
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: emptiness check over a toOne()-pierced navigation through the ~filter-mapped set of 'firm' needs the strict-read filter hoist — not supported yet
@@ -1224,7 +1223,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - FAIL testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: h2-advisory divergence: golden SQL on H2 gave 7 row(s) [Allen|<null>, Harris|<null>, Hill|<null>, Hill|<null>, Johnson|<null>], our pipeline gave 15 row(s) [Allen|New York, Allen|New York, Allen|New York, Harris|<null>, Hill|<null>]
-- FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testGraphFetch [graphFetch/domain]: plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::function::FunctionDefinition has no property 'expressionSequence' [surfaced via assert form 'assertEquals/2']

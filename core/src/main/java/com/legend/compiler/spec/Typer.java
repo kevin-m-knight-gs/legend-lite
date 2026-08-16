@@ -393,6 +393,10 @@ final class Typer {
                         new AppliedProperty(af.parameters().get(0), gcol.value()))), env);
             }
         }
+        TypedSpec rowCell = tdsRowCellIndexRead(af, env);
+        if (rowCell != null) {
+            return rowCell;
+        }
         // restrict(['c1','c2']) — the legacy TDS column-subset select
         if ((af.function().equals("restrict") || af.function().equals("restrictDistinct"))
                 && af.parameters().size() == 2) {
@@ -931,6 +935,59 @@ final class Typer {
     private static final java.util.Set<String> TDS_ROW_GETTERS = java.util.Set.of(
             "getString", "getInteger", "getFloat", "getDecimal", "getNumber",
             "getBoolean", "getDate", "getDateTime", "getStrictDate", "getEnum");
+
+    /** The single-row PICKS whose result a `.values` read treats as ONE
+     * TDSRow (cells in column order), not a relation to flatten. */
+    private static final java.util.Set<String> ROW_PICK_FQNS = java.util.Set.of(
+            "meta::pure::functions::collection::at",
+            "meta::pure::functions::collection::first",
+            "meta::pure::functions::collection::last",
+            "meta::pure::functions::multiplicity::toOne");
+
+    private static final java.util.Set<String> ROW_CELL_AT_FNS = java.util.Set.of(
+            "at", "meta::pure::functions::collection::at");
+    private static final java.util.Set<String> ROW_CELL_SIZE_FNS = java.util.Set.of(
+            "size", "meta::pure::functions::collection::size");
+
+    /** TDSRow cells by INDEX: {@code rows->at(i).values->at(k)} is CELL k
+     * of the picked row — the k-th COLUMN read (engine tds.pure TDSRow
+     * .values: Any[*] in column order), NOT a row slice; {@code ->size()}
+     * over the same read is the column count. Only a single-row PICK
+     * receiver diverts here — the bare {@code .values} flatten (whole-row
+     * list compares) keeps its identity in the property arm. */
+    private @com.legend.Nullable TypedSpec tdsRowCellIndexRead(
+            AppliedFunction af, Env env) {
+        boolean isAt = ROW_CELL_AT_FNS.contains(af.function());
+        if ((!isAt && !ROW_CELL_SIZE_FNS.contains(af.function()))
+                || af.parameters().size() != (isAt ? 2 : 1)
+                || !(af.parameters().get(0) instanceof AppliedProperty vp)
+                || !vp.property().equals("values")) {
+            return null;
+        }
+        TypedSpec pick = synth(vp.receiver(), env);
+        if (!(pick.info().type() instanceof Type.RelationType prt)
+                || !(pick instanceof TypedNativeCall pc)
+                || !ROW_PICK_FQNS.contains(pc.callee().qualifiedName())) {
+            return null;
+        }
+        if (!isAt) {
+            return new TypedCInteger((long) prt.columns().size(),
+                    ExprType.one(Type.Primitive.INTEGER));
+        }
+        if (!(af.parameters().get(1) instanceof CInteger ki)) {
+            return null;
+        }
+        int k = ki.value().intValue();
+        if (k < 0 || k >= prt.columns().size()) {
+            throw new IllegalStateException(
+                    "The system is trying to get an element at offset " + k
+                    + " where the collection is of size "
+                    + prt.columns().size());
+        }
+        return synth(new AppliedFunction("toOne", List.of(
+                new AppliedProperty(vp.receiver(),
+                        prt.columns().get(k).name()))), env);
+    }
 
     /** Segment-aware legacy tds.pure vocabulary match: the BARE simple
      * name or the exact {@code meta::pure::tds::} FQN — never a SUFFIX of
