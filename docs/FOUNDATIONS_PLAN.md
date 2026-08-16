@@ -551,6 +551,21 @@ diff. An empty diff retires the urgency; a non-empty diff names the bug and its 
 (which hard-codes `Dialect.LEGEND_ENGINE`, something `SourceSubst:66-70` **explicitly refuses**
 with a stated reason) is deleted, not ported.
 
+> **RE-SCOPED after a reverted first attempt (2026-08-16).** The full swap+delete
+> was tried and REVERTED under §0.3 rule 3: red exceeded the declaration —
+> tds/tests fell 253→237 and M1 text-matches 325→291, because
+> HarnessSubstitution is TWO things fused: the substitution ENGINE (duplicated,
+> killable — F3.2a already killed its dynamic scoping at the binding sites) and
+> a FOLD PASS (pair `.first/.second` projections + the late quote-fold) that
+> ~16 tds tests and ~34 golden-text extractions genuinely consume. The plan's
+> "deleted, not ported" underestimated the folds' blast radius. New sequence:
+> (b1) extract the folds into an explicitly-chartered `HarnessFolds`
+> post-substitution step (S1-residue; dies when the platform covers
+> pair/late-quote folding), (b2) swap the substitution half onto SourceSubst
+> and delete the engine, (b3) fold retirement as its OWN task with per-family
+> expected-red. Same end state for the duplication; the folds get honest
+> adjudication instead of collateral damage.
+
 ### F3.3 — Multiplicity: delete the second engine
 
 **Files:** `core/src/main/java/com/legend/harness/ReflectAsserts.java:89-204`
