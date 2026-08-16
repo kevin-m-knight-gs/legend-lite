@@ -541,7 +541,10 @@ _FUNC_PARAM = re.compile(r"(\w+)\s*:\s*([\w:]+)\s*\[[^\]]+\]")
 _PROP = re.compile(
     r"^\s*(?:'[^']*'\s*)?(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?"
     r"(?:\(\s*(?:composite|shared|none)\s*\)\s*)?"
-    r"(\w+)\s*:\s*([\w:]+(?:~\w+)?(?:\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)"
+    # A type may carry TYPE PARAMETERS (`Relation<Any>`), a UNIT (`Money~USD`) or type
+    # VARIABLE VALUES (`Varchar(200)`). Each was added after a property carrying it was
+    # silently dropped -- or, once the guard existed, after it raised.
+    r"(\w+)\s*:\s*([\w:]+(?:~\w+)?(?:<[^>]*>)?(?:\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)"
     r"\s*\[([^\]]+)\]\s*(?:=\s*[^;]+)?;\s*$")
 # `name() { expr } : T[m];` and the qualified form `name(p: T[1], ...) { expr } : T[m];`
 _DERIVED = re.compile(

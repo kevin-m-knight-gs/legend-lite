@@ -1,0 +1,97 @@
+// The last of the declarative surface: model forms, a three-link chain, and the remaining
+// connection and runtime spellings.
+###Pure
+Class surface::Timed
+{
+   k: String[1];
+   // The one primitive still unwritten. A StrictTime is not a DateTime with the date
+   // ignored; it is its own type with its own literal form.
+   at: StrictTime[0..1];
+   // A RELATION type as a property type: a named, typed column list rather than a class.
+   r: meta::pure::metamodel::relation::Relation<Any>[0..1];
+}
+
+###Relational
+Database surface::ChainDB
+(
+   Table C1 ( K VARCHAR(64) PRIMARY KEY, N2 VARCHAR(64) )
+   Table C2 ( K VARCHAR(64) PRIMARY KEY, N3 VARCHAR(64) )
+   Table C3 ( K VARCHAR(64) PRIMARY KEY, N4 VARCHAR(64) )
+   Table C4 ( K VARCHAR(64) PRIMARY KEY, LABEL VARCHAR(64) )
+   Join c1_c2(C1.N2 = C2.K)
+   Join c2_c3(C2.N3 = C3.K)
+   Join c3_c4(C3.N4 = C4.K)
+)
+
+###Pure
+Class surface::ChainHead { k: String[1]; farLabel: String[0..1]; nullCheck: String[0..1]; }
+
+###Mapping
+Mapping surface::ChainSurface
+(
+   surface::ChainHead: Relational
+   {
+      ~mainTable [surface::ChainDB]C1
+      k: [surface::ChainDB]C1.K,
+      // A THREE-LINK join chain. The corpus's deepest was two.
+      farLabel: [surface::ChainDB]@c1_c2 > @c2_c3 > @c3_c4 | [surface::ChainDB]C4.LABEL,
+      // A NULL TEST as the mapped value of a property.
+      nullCheck: [surface::ChainDB]C1.N2 is null
+   }
+)
+
+###Connection
+RelationalDatabaseConnection surface::LocalModeConn
+{
+   store: surface::ChainDB;
+   type: Snowflake;
+   // `mode: local` replaces the specification and auth entirely: the connection names a
+   // warehouse type and is then satisfied locally. Only Snowflake and DuckDB implement it.
+   mode: local;
+}
+
+RelationalDatabaseConnection surface::GenConfigConn
+{
+   store: surface::ChainDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+   queryGenerationConfigs:
+   [
+      // The feature names are VALIDATED against a closed list, which currently holds
+      // exactly one: "Unknown relational generation feature: GROUP_BY_PUSHDOWN. Known
+      // features are: [REMOVE_UNION_OR_JOINS]".
+      GenerationFeaturesConfig
+      {
+         enabled: [ 'REMOVE_UNION_OR_JOINS' ];
+      }
+   ];
+}
+
+###Runtime
+Runtime surface::MultiMappingRT
+{
+   // SEVERAL mappings in one runtime, and a connection written INLINE as an island rather
+   // than named.
+   mappings:
+   [
+      surface::ChainSurface,
+      combo::ComboMapping
+   ];
+   connections:
+   [
+      surface::ChainDB:
+      [
+         chainEnv:
+         #{
+            RelationalDatabaseConnection
+            {
+               store: surface::ChainDB;
+               type: DuckDB;
+               specification: DuckDB { };
+               auth: Test;
+            }
+         }#
+      ]
+   ];
+}
