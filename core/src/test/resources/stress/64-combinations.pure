@@ -23,25 +23,38 @@ Class combo::C0
    col_string_none_notnull_top: String[0..1];
    chain1_string_none_notnull_top: String[0..1];
    chain2_string_none_notnull_top: String[0..1];
+   col_bigint_none_notnull_top: Integer[0..1];
    col_bool_none_notnull_top: Boolean[0..1];
+   col_date_none_notnull_top: StrictDate[0..1];
+   col_decimal_none_notnull_top: Float[0..1];
    col_float_none_notnull_top: Float[0..1];
+   col_int_none_notnull_top: Integer[0..1];
+   col_smallint_none_notnull_top: Integer[0..1];
+   col_timestamp_none_notnull_top: DateTime[0..1];
    col_bool_isnotnull_notnull_top: Boolean[0..1];
-   col_int_plus_notnull_top: Integer[0..1];
    col_float_sqrt_notnull_top: Float[0..1];
    col_int_times_notnull_top: Integer[0..1];
-   dyna1_string_none_nullable_top: String[0..1];
-   dyna1_bool_none_notnull_top: Boolean[0..1];
-   dyna2_int_abs_nullable_top: Integer[0..1];
-   ineq_string_up_nullable_top: String[0..1];
-   multicol_string_none_notnull_top: String[0..1];
-   multicol_bool_none_nullable_top: Boolean[0..1];
-   ormix_bool_none_notnull_top: Boolean[0..1];
+   chain2_decimal_none_nullable_top: Float[0..1];
+   chain2_timestamp_none_nullable_top: DateTime[0..1];
+   dyna1_int_abs_nullable_top: Integer[0..1];
+   dyna1_decimal_none_notnull_top: Float[0..1];
+   dyna2_string_none_nullable_top: String[0..1];
+   dyna2_smallint_none_notnull_top: Integer[0..1];
+   dyna2_date_none_notnull_top: StrictDate[0..1];
+   ineq_bigint_none_notnull_top: Integer[0..1];
+   ineq_bool_none_notnull_top: Boolean[0..1];
+   multicol_int_none_notnull_top: Integer[0..1];
+   multicol_decimal_none_notnull_top: Float[0..1];
+   ormix_char_none_notnull_top: String[0..1];
+   ormix_float_none_notnull_top: Float[0..1];
    nested: combo::E0[0..1];
 }
 
 Class combo::E0
 {
    col_string_none_notnull_embedded: String[0..1];
+   chain2_float_abs_nullable_embedded: Float[0..1];
+   chain2_bool_isnull_notnull_embedded: Boolean[0..1];
 }
 
 // filter=none  extends=no
@@ -49,13 +62,20 @@ Class combo::C1
 {
    rootId: String[1];
    col_string_cat_nullable_top: String[0..1];
-   col_int_none_notnull_top: Integer[0..1];
+   col_char_none_notnull_top: String[0..1];
    chain1_string_nest_notnull_top: String[0..1];
-   dyna2_float_none_notnull_top: Float[0..1];
-   ineq_int_none_notnull_top: Integer[0..1];
-   multicol_string_none_nullable_top: String[0..1];
-   multicol_bool_isnull_notnull_top: Boolean[0..1];
-   ormix_bool_none_nullable_top: Boolean[0..1];
+   chain2_bool_isnull_nullable_top: Boolean[0..1];
+   dyna1_bigint_none_notnull_top: Integer[0..1];
+   dyna1_decimal_none_nullable_top: Float[0..1];
+   dyna2_string_up_notnull_top: String[0..1];
+   dyna2_smallint_none_nullable_top: Integer[0..1];
+   dyna2_date_none_nullable_top: StrictDate[0..1];
+   ineq_bigint_none_nullable_top: Integer[0..1];
+   ineq_bool_none_nullable_top: Boolean[0..1];
+   multicol_int_none_nullable_top: Integer[0..1];
+   multicol_decimal_none_nullable_top: Float[0..1];
+   ormix_char_none_nullable_top: String[0..1];
+   ormix_float_none_nullable_top: Float[0..1];
    nested: combo::E1[0..1];
 }
 
@@ -64,12 +84,18 @@ Class combo::E1
    col_string_cat_nullable_embedded: String[0..1];
    chain1_string_up_notnull_embedded: String[0..1];
    chain2_string_up_notnull_embedded: String[0..1];
+   col_bigint_plus_notnull_embedded: Integer[0..1];
    col_bool_isnull_notnull_embedded: Boolean[0..1];
+   chain1_date_none_notnull_embedded: StrictDate[0..1];
+   col_decimal_abs_notnull_embedded: Float[0..1];
    col_float_abs_notnull_embedded: Float[0..1];
+   col_int_abs_notnull_embedded: Integer[0..1];
+   col_smallint_abs_notnull_embedded: Integer[0..1];
+   chain1_timestamp_none_notnull_embedded: DateTime[0..1];
    chain1_bool_isnotnull_notnull_embedded: Boolean[0..1];
-   chain1_int_plus_notnull_embedded: Integer[0..1];
    chain1_float_sqrt_notnull_embedded: Float[0..1];
    col_float_times_notnull_embedded: Float[0..1];
+   chain2_timestamp_none_nullable_embedded: DateTime[0..1];
 }
 
 // filter=none  extends=yes
@@ -77,10 +103,18 @@ Class combo::C2 extends combo::Base
 {
    col_string_none_nullable_top: String[0..1];
    col_string_nest_notnull_top: String[0..1];
+   col_int_abs_nullable_top: Integer[0..1];
    chain1_string_cat_notnull_top: String[0..1];
    col_bool_isnull_nullable_top: Boolean[0..1];
-   chain1_string_up_nullable_top: String[0..1];
-   ormix_bool_isnull_notnull_top: Boolean[0..1];
+   col_int_plus_notnull_top: Integer[0..1];
+   dyna2_smallint_abs_notnull_top: Integer[0..1];
+   dyna2_timestamp_none_notnull_top: DateTime[0..1];
+   ineq_bigint_plus_notnull_top: Integer[0..1];
+   ineq_bool_isnull_notnull_top: Boolean[0..1];
+   multicol_int_abs_notnull_top: Integer[0..1];
+   multicol_decimal_abs_notnull_top: Float[0..1];
+   ormix_char_up_notnull_top: String[0..1];
+   ormix_float_abs_notnull_top: Float[0..1];
    nested: combo::E2[0..1];
 }
 
@@ -89,41 +123,59 @@ Class combo::E2
    col_string_none_nullable_embedded: String[0..1];
    chain1_string_none_notnull_embedded: String[0..1];
    chain2_string_none_notnull_embedded: String[0..1];
+   col_bigint_none_notnull_embedded: Integer[0..1];
    col_bool_none_notnull_embedded: Boolean[0..1];
+   col_char_none_notnull_embedded: String[0..1];
+   col_date_none_notnull_embedded: StrictDate[0..1];
+   col_decimal_none_notnull_embedded: Float[0..1];
    col_float_none_notnull_embedded: Float[0..1];
    col_int_none_notnull_embedded: Integer[0..1];
-   col_int_abs_notnull_embedded: Integer[0..1];
+   col_smallint_none_notnull_embedded: Integer[0..1];
+   col_timestamp_none_notnull_embedded: DateTime[0..1];
    col_bool_isnotnull_notnull_embedded: Boolean[0..1];
-   col_int_plus_notnull_embedded: Integer[0..1];
    col_float_sqrt_notnull_embedded: Float[0..1];
    col_int_times_notnull_embedded: Integer[0..1];
+   col_char_up_notnull_embedded: String[0..1];
 }
 
 // filter=none  extends=yes
 Class combo::C3 extends combo::Base
 {
-   col_float_abs_nullable_top: Float[0..1];
-   chain1_int_none_nullable_top: Integer[0..1];
+   col_char_up_nullable_top: String[0..1];
+   col_decimal_abs_nullable_top: Float[0..1];
+   chain1_char_none_nullable_top: String[0..1];
+   chain1_int_abs_notnull_top: Integer[0..1];
    chain1_int_times_nullable_top: Integer[0..1];
-   chain1_float_sqrt_nullable_top: Float[0..1];
-   dyna1_string_up_notnull_top: String[0..1];
-   dyna1_bool_none_nullable_top: Boolean[0..1];
-   dyna2_float_none_nullable_top: Float[0..1];
-   ineq_int_none_nullable_top: Integer[0..1];
-   multicol_string_up_notnull_top: String[0..1];
-   multicol_bool_isnull_nullable_top: Boolean[0..1];
-   ormix_bool_isnull_nullable_top: Boolean[0..1];
+   chain1_smallint_none_notnull_top: Integer[0..1];
+   chain1_float_none_nullable_top: Float[0..1];
+   chain1_float_times_nullable_top: Float[0..1];
+   chain1_bool_none_notnull_top: Boolean[0..1];
+   chain2_float_sqrt_notnull_top: Float[0..1];
+   dyna1_string_none_notnull_top: String[0..1];
+   dyna1_bigint_none_nullable_top: Integer[0..1];
+   dyna1_decimal_abs_notnull_top: Float[0..1];
+   dyna2_string_up_nullable_top: String[0..1];
+   dyna2_smallint_abs_nullable_top: Integer[0..1];
+   dyna2_timestamp_none_nullable_top: DateTime[0..1];
+   ineq_bigint_plus_nullable_top: Integer[0..1];
+   ineq_bool_isnull_nullable_top: Boolean[0..1];
+   multicol_int_abs_nullable_top: Integer[0..1];
+   multicol_decimal_abs_nullable_top: Float[0..1];
+   ormix_char_up_nullable_top: String[0..1];
+   ormix_float_abs_nullable_top: Float[0..1];
    nested: combo::E3[0..1];
 }
 
 Class combo::E3
 {
-   chain1_bool_isnull_notnull_embedded: Boolean[0..1];
-   chain2_string_cat_nullable_embedded: String[0..1];
-   chain2_int_abs_notnull_embedded: Integer[0..1];
-   chain2_int_times_nullable_embedded: Integer[0..1];
-   chain2_float_sqrt_notnull_embedded: Float[0..1];
-   chain2_bool_none_nullable_embedded: Boolean[0..1];
+   chain1_date_none_nullable_embedded: StrictDate[0..1];
+   chain2_string_nest_notnull_embedded: String[0..1];
+   chain2_char_up_nullable_embedded: String[0..1];
+   chain2_int_plus_notnull_embedded: Integer[0..1];
+   chain2_bigint_none_nullable_embedded: Integer[0..1];
+   chain2_smallint_abs_notnull_embedded: Integer[0..1];
+   chain2_decimal_none_nullable_embedded: Float[0..1];
+   chain2_bool_isnull_nullable_embedded: Boolean[0..1];
 }
 
 // filter=direct  extends=no
@@ -131,9 +183,19 @@ Class combo::C4
 {
    rootId: String[1];
    col_string_up_nullable_top: String[0..1];
+   col_smallint_abs_nullable_top: Integer[0..1];
    chain1_string_cat_nullable_top: String[0..1];
    chain1_bool_isnull_notnull_top: Boolean[0..1];
-   ormix_string_none_notnull_top: String[0..1];
+   col_int_plus_nullable_top: Integer[0..1];
+   dyna2_char_none_notnull_top: String[0..1];
+   dyna2_float_none_notnull_top: Float[0..1];
+   ineq_string_none_notnull_top: String[0..1];
+   ineq_smallint_none_notnull_top: Integer[0..1];
+   ineq_date_none_notnull_top: StrictDate[0..1];
+   multicol_bigint_none_notnull_top: Integer[0..1];
+   multicol_bool_none_notnull_top: Boolean[0..1];
+   ormix_int_none_notnull_top: Integer[0..1];
+   ormix_decimal_none_notnull_top: Float[0..1];
    nested: combo::E4[0..1];
 }
 
@@ -143,12 +205,16 @@ Class combo::E4
    col_string_nest_notnull_embedded: String[0..1];
    chain1_string_none_nullable_embedded: String[0..1];
    chain2_string_none_nullable_embedded: String[0..1];
+   col_bigint_none_nullable_embedded: Integer[0..1];
    col_bool_none_nullable_embedded: Boolean[0..1];
+   col_char_none_nullable_embedded: String[0..1];
+   col_date_none_nullable_embedded: StrictDate[0..1];
+   col_decimal_none_nullable_embedded: Float[0..1];
    col_float_none_nullable_embedded: Float[0..1];
    col_int_none_nullable_embedded: Integer[0..1];
-   col_int_abs_nullable_embedded: Integer[0..1];
+   col_smallint_none_nullable_embedded: Integer[0..1];
+   col_timestamp_none_nullable_embedded: DateTime[0..1];
    col_bool_isnotnull_nullable_embedded: Boolean[0..1];
-   col_int_plus_nullable_embedded: Integer[0..1];
    col_float_sqrt_nullable_embedded: Float[0..1];
    col_int_times_nullable_embedded: Integer[0..1];
 }
@@ -157,79 +223,121 @@ Class combo::E4
 Class combo::C5
 {
    rootId: String[1];
-   chain1_bool_isnull_nullable_top: Boolean[0..1];
-   chain2_string_nest_notnull_top: String[0..1];
-   chain2_int_abs_nullable_top: Integer[0..1];
-   chain2_float_none_notnull_top: Float[0..1];
-   chain2_float_sqrt_nullable_top: Float[0..1];
-   chain2_bool_isnull_notnull_top: Boolean[0..1];
-   dyna1_string_up_nullable_top: String[0..1];
-   dyna1_bool_isnull_notnull_top: Boolean[0..1];
-   dyna2_float_abs_notnull_top: Float[0..1];
-   ineq_int_abs_notnull_top: Integer[0..1];
-   multicol_string_up_nullable_top: String[0..1];
-   ormix_string_none_nullable_top: String[0..1];
+   chain1_timestamp_none_nullable_top: DateTime[0..1];
+   chain2_string_nest_nullable_top: String[0..1];
+   chain2_int_none_notnull_top: Integer[0..1];
+   chain2_int_plus_nullable_top: Integer[0..1];
+   chain2_bigint_plus_notnull_top: Integer[0..1];
+   chain2_smallint_abs_nullable_top: Integer[0..1];
+   chain2_decimal_abs_notnull_top: Float[0..1];
+   chain2_bool_isnotnull_notnull_top: Boolean[0..1];
+   dyna1_string_none_nullable_top: String[0..1];
+   dyna1_bigint_plus_notnull_top: Integer[0..1];
+   dyna1_decimal_abs_nullable_top: Float[0..1];
+   dyna2_char_none_nullable_top: String[0..1];
+   dyna2_float_none_nullable_top: Float[0..1];
+   ineq_string_none_nullable_top: String[0..1];
+   ineq_smallint_none_nullable_top: Integer[0..1];
+   ineq_date_none_nullable_top: StrictDate[0..1];
+   multicol_bigint_none_nullable_top: Integer[0..1];
+   multicol_bool_none_nullable_top: Boolean[0..1];
+   ormix_int_none_nullable_top: Integer[0..1];
+   ormix_decimal_none_nullable_top: Float[0..1];
    nested: combo::E5[0..1];
 }
 
 Class combo::E5
 {
-   col_float_abs_nullable_embedded: Float[0..1];
-   chain1_int_none_nullable_embedded: Integer[0..1];
+   col_char_up_nullable_embedded: String[0..1];
+   col_decimal_abs_nullable_embedded: Float[0..1];
+   chain1_char_none_nullable_embedded: String[0..1];
+   chain1_int_abs_notnull_embedded: Integer[0..1];
    chain1_int_times_nullable_embedded: Integer[0..1];
-   chain1_float_sqrt_nullable_embedded: Float[0..1];
+   chain1_smallint_none_notnull_embedded: Integer[0..1];
+   chain1_float_none_nullable_embedded: Float[0..1];
+   chain1_float_times_nullable_embedded: Float[0..1];
+   chain1_bool_none_notnull_embedded: Boolean[0..1];
+   chain2_float_sqrt_notnull_embedded: Float[0..1];
 }
 
 // filter=direct  extends=yes
 Class combo::C6 extends combo::Base
 {
-   col_float_times_nullable_top: Float[0..1];
-   chain1_int_abs_notnull_top: Integer[0..1];
-   chain1_float_none_notnull_top: Float[0..1];
-   chain1_float_times_notnull_top: Float[0..1];
-   dyna1_int_none_notnull_top: Integer[0..1];
-   dyna1_bool_isnull_nullable_top: Boolean[0..1];
-   dyna2_float_abs_nullable_top: Float[0..1];
-   ineq_int_abs_nullable_top: Integer[0..1];
-   multicol_int_none_notnull_top: Integer[0..1];
-   ormix_string_up_notnull_top: String[0..1];
+   chain1_string_up_nullable_top: String[0..1];
+   chain1_char_up_notnull_top: String[0..1];
+   chain1_int_abs_nullable_top: Integer[0..1];
+   chain1_bigint_none_notnull_top: Integer[0..1];
+   chain1_smallint_none_nullable_top: Integer[0..1];
+   chain1_float_abs_notnull_top: Float[0..1];
+   chain1_decimal_none_notnull_top: Float[0..1];
+   chain1_bool_none_nullable_top: Boolean[0..1];
+   chain2_float_sqrt_nullable_top: Float[0..1];
+   dyna1_string_up_notnull_top: String[0..1];
+   dyna1_bigint_plus_nullable_top: Integer[0..1];
+   dyna1_bool_none_notnull_top: Boolean[0..1];
+   dyna2_char_up_notnull_top: String[0..1];
+   dyna2_float_abs_notnull_top: Float[0..1];
+   ineq_string_up_notnull_top: String[0..1];
+   ineq_smallint_abs_notnull_top: Integer[0..1];
+   ineq_timestamp_none_notnull_top: DateTime[0..1];
+   multicol_bigint_plus_notnull_top: Integer[0..1];
+   multicol_bool_isnull_notnull_top: Boolean[0..1];
+   ormix_int_abs_notnull_top: Integer[0..1];
+   ormix_decimal_abs_notnull_top: Float[0..1];
    nested: combo::E6[0..1];
 }
 
 Class combo::E6
 {
-   chain1_bool_isnull_nullable_embedded: Boolean[0..1];
-   chain2_string_nest_notnull_embedded: String[0..1];
-   chain2_int_abs_nullable_embedded: Integer[0..1];
-   chain2_float_none_notnull_embedded: Float[0..1];
-   chain2_float_sqrt_nullable_embedded: Float[0..1];
-   chain2_bool_isnull_notnull_embedded: Boolean[0..1];
+   col_int_plus_nullable_embedded: Integer[0..1];
+   chain1_timestamp_none_nullable_embedded: DateTime[0..1];
+   chain2_string_nest_nullable_embedded: String[0..1];
+   chain2_int_none_notnull_embedded: Integer[0..1];
+   chain2_int_plus_nullable_embedded: Integer[0..1];
+   chain2_bigint_plus_notnull_embedded: Integer[0..1];
+   chain2_smallint_abs_nullable_embedded: Integer[0..1];
+   chain2_decimal_abs_notnull_embedded: Float[0..1];
+   chain2_bool_isnotnull_notnull_embedded: Boolean[0..1];
 }
 
 // filter=direct  extends=yes
 Class combo::C7 extends combo::Base
 {
-   chain1_bool_isnotnull_nullable_top: Boolean[0..1];
-   chain2_string_nest_nullable_top: String[0..1];
-   chain2_int_plus_notnull_top: Integer[0..1];
-   chain2_float_none_nullable_top: Float[0..1];
-   chain2_float_times_notnull_top: Float[0..1];
-   chain2_bool_isnull_nullable_top: Boolean[0..1];
-   dyna1_int_none_nullable_top: Integer[0..1];
-   dyna2_string_none_notnull_top: String[0..1];
-   dyna2_bool_none_notnull_top: Boolean[0..1];
-   ineq_float_none_notnull_top: Float[0..1];
-   multicol_int_none_nullable_top: Integer[0..1];
-   ormix_string_up_nullable_top: String[0..1];
+   col_bigint_plus_nullable_top: Integer[0..1];
+   chain2_string_up_nullable_top: String[0..1];
+   chain2_char_none_notnull_top: String[0..1];
+   chain2_int_none_nullable_top: Integer[0..1];
+   chain2_int_times_notnull_top: Integer[0..1];
+   chain2_bigint_plus_nullable_top: Integer[0..1];
+   chain2_float_none_notnull_top: Float[0..1];
+   chain2_decimal_abs_nullable_top: Float[0..1];
+   chain2_bool_isnotnull_nullable_top: Boolean[0..1];
+   dyna1_string_up_nullable_top: String[0..1];
+   dyna1_smallint_none_notnull_top: Integer[0..1];
+   dyna1_bool_none_nullable_top: Boolean[0..1];
+   dyna2_char_up_nullable_top: String[0..1];
+   dyna2_float_abs_nullable_top: Float[0..1];
+   ineq_string_up_nullable_top: String[0..1];
+   ineq_smallint_abs_nullable_top: Integer[0..1];
+   ineq_timestamp_none_nullable_top: DateTime[0..1];
+   multicol_bigint_plus_nullable_top: Integer[0..1];
+   multicol_bool_isnull_nullable_top: Boolean[0..1];
+   ormix_int_abs_nullable_top: Integer[0..1];
+   ormix_decimal_abs_nullable_top: Float[0..1];
    nested: combo::E7[0..1];
 }
 
 Class combo::E7
 {
-   col_float_times_nullable_embedded: Float[0..1];
-   chain1_int_abs_notnull_embedded: Integer[0..1];
-   chain1_float_none_notnull_embedded: Float[0..1];
-   chain1_float_times_notnull_embedded: Float[0..1];
+   chain1_string_up_nullable_embedded: String[0..1];
+   chain1_char_up_notnull_embedded: String[0..1];
+   chain1_int_abs_nullable_embedded: Integer[0..1];
+   chain1_bigint_none_notnull_embedded: Integer[0..1];
+   chain1_smallint_none_nullable_embedded: Integer[0..1];
+   chain1_float_abs_notnull_embedded: Float[0..1];
+   chain1_decimal_none_notnull_embedded: Float[0..1];
+   chain1_bool_none_nullable_embedded: Boolean[0..1];
+   chain2_float_sqrt_nullable_embedded: Float[0..1];
 }
 
 // filter=chain  extends=no
@@ -240,102 +348,158 @@ Class combo::C8
    col_string_nest_nullable_top: String[0..1];
    chain1_string_none_nullable_top: String[0..1];
    chain2_string_none_nullable_top: String[0..1];
+   col_bigint_none_nullable_top: Integer[0..1];
    col_bool_none_nullable_top: Boolean[0..1];
+   col_char_none_nullable_top: String[0..1];
+   col_date_none_nullable_top: StrictDate[0..1];
+   col_decimal_none_nullable_top: Float[0..1];
    col_float_none_nullable_top: Float[0..1];
    col_int_none_nullable_top: Integer[0..1];
-   col_int_abs_nullable_top: Integer[0..1];
+   col_smallint_none_nullable_top: Integer[0..1];
+   col_timestamp_none_nullable_top: DateTime[0..1];
    col_bool_isnotnull_nullable_top: Boolean[0..1];
-   col_int_plus_nullable_top: Integer[0..1];
    col_float_sqrt_nullable_top: Float[0..1];
    col_int_times_nullable_top: Integer[0..1];
-   ormix_int_none_notnull_top: Integer[0..1];
+   dyna2_int_none_notnull_top: Integer[0..1];
+   dyna2_decimal_none_notnull_top: Float[0..1];
+   ineq_char_none_notnull_top: String[0..1];
+   ineq_float_none_notnull_top: Float[0..1];
+   multicol_string_none_notnull_top: String[0..1];
+   multicol_smallint_none_notnull_top: Integer[0..1];
+   multicol_date_none_notnull_top: StrictDate[0..1];
+   ormix_bigint_none_notnull_top: Integer[0..1];
+   ormix_bool_none_notnull_top: Boolean[0..1];
    nested: combo::E8[0..1];
 }
 
 Class combo::E8
 {
    col_string_up_notnull_embedded: String[0..1];
+   col_int_abs_nullable_embedded: Integer[0..1];
    chain1_string_cat_notnull_embedded: String[0..1];
    col_bool_isnull_nullable_embedded: Boolean[0..1];
+   col_int_plus_notnull_embedded: Integer[0..1];
 }
 
 // filter=chain  extends=no
 Class combo::C9
 {
    rootId: String[1];
-   chain1_int_abs_nullable_top: Integer[0..1];
-   chain1_float_none_nullable_top: Float[0..1];
-   chain1_float_times_nullable_top: Float[0..1];
-   dyna1_int_abs_notnull_top: Integer[0..1];
-   dyna2_string_none_nullable_top: String[0..1];
-   dyna2_bool_none_nullable_top: Boolean[0..1];
+   chain1_char_up_nullable_top: String[0..1];
+   chain1_int_plus_notnull_top: Integer[0..1];
+   chain1_bigint_none_nullable_top: Integer[0..1];
+   chain1_smallint_abs_notnull_top: Integer[0..1];
+   chain1_float_abs_nullable_top: Float[0..1];
+   chain1_decimal_none_nullable_top: Float[0..1];
+   chain2_float_times_notnull_top: Float[0..1];
+   dyna1_char_none_notnull_top: String[0..1];
+   dyna1_smallint_none_nullable_top: Integer[0..1];
+   dyna1_bool_isnull_notnull_top: Boolean[0..1];
+   dyna2_int_none_nullable_top: Integer[0..1];
+   dyna2_decimal_none_nullable_top: Float[0..1];
+   ineq_char_none_nullable_top: String[0..1];
    ineq_float_none_nullable_top: Float[0..1];
-   multicol_int_abs_notnull_top: Integer[0..1];
-   ormix_int_none_nullable_top: Integer[0..1];
+   multicol_string_none_nullable_top: String[0..1];
+   multicol_smallint_none_nullable_top: Integer[0..1];
+   multicol_date_none_nullable_top: StrictDate[0..1];
+   ormix_bigint_none_nullable_top: Integer[0..1];
+   ormix_bool_none_nullable_top: Boolean[0..1];
    nested: combo::E9[0..1];
 }
 
 Class combo::E9
 {
-   chain1_string_up_nullable_embedded: String[0..1];
-   chain1_bool_isnotnull_nullable_embedded: Boolean[0..1];
-   chain2_string_nest_nullable_embedded: String[0..1];
-   chain2_int_plus_notnull_embedded: Integer[0..1];
-   chain2_float_none_nullable_embedded: Float[0..1];
-   chain2_float_times_notnull_embedded: Float[0..1];
-   chain2_bool_isnull_nullable_embedded: Boolean[0..1];
+   col_bigint_plus_nullable_embedded: Integer[0..1];
+   chain1_string_cat_nullable_embedded: String[0..1];
+   chain1_bool_isnull_notnull_embedded: Boolean[0..1];
+   chain2_string_up_nullable_embedded: String[0..1];
+   chain2_char_none_notnull_embedded: String[0..1];
+   chain2_int_none_nullable_embedded: Integer[0..1];
+   chain2_int_times_notnull_embedded: Integer[0..1];
+   chain2_bigint_plus_nullable_embedded: Integer[0..1];
+   chain2_float_none_notnull_embedded: Float[0..1];
+   chain2_decimal_abs_nullable_embedded: Float[0..1];
+   chain2_bool_isnotnull_nullable_embedded: Boolean[0..1];
 }
 
 // filter=chain  extends=yes
 Class combo::C10 extends combo::Base
 {
-   chain2_string_up_nullable_top: String[0..1];
-   chain2_int_none_notnull_top: Integer[0..1];
-   chain2_int_plus_nullable_top: Integer[0..1];
-   chain2_float_abs_notnull_top: Float[0..1];
-   chain2_float_times_nullable_top: Float[0..1];
-   chain2_bool_isnotnull_notnull_top: Boolean[0..1];
-   dyna1_int_abs_nullable_top: Integer[0..1];
-   dyna2_string_up_notnull_top: String[0..1];
-   dyna2_bool_isnull_notnull_top: Boolean[0..1];
+   chain1_bool_isnull_nullable_top: Boolean[0..1];
+   chain2_string_cat_notnull_top: String[0..1];
+   chain2_char_none_nullable_top: String[0..1];
+   chain2_int_abs_notnull_top: Integer[0..1];
+   chain2_int_times_nullable_top: Integer[0..1];
+   chain2_smallint_none_notnull_top: Integer[0..1];
+   chain2_float_none_nullable_top: Float[0..1];
+   chain2_bool_none_notnull_top: Boolean[0..1];
+   chain2_date_none_notnull_top: StrictDate[0..1];
+   dyna1_char_none_nullable_top: String[0..1];
+   dyna1_smallint_abs_notnull_top: Integer[0..1];
+   dyna1_bool_isnull_nullable_top: Boolean[0..1];
+   dyna2_int_abs_notnull_top: Integer[0..1];
+   dyna2_decimal_abs_notnull_top: Float[0..1];
+   ineq_char_up_notnull_top: String[0..1];
    ineq_float_abs_notnull_top: Float[0..1];
-   multicol_int_abs_nullable_top: Integer[0..1];
-   ormix_int_abs_notnull_top: Integer[0..1];
+   multicol_string_up_notnull_top: String[0..1];
+   multicol_smallint_abs_notnull_top: Integer[0..1];
+   multicol_timestamp_none_notnull_top: DateTime[0..1];
+   ormix_bigint_plus_notnull_top: Integer[0..1];
+   ormix_bool_isnull_notnull_top: Boolean[0..1];
    nested: combo::E10[0..1];
 }
 
 Class combo::E10
 {
-   chain1_string_cat_nullable_embedded: String[0..1];
-   chain1_int_abs_nullable_embedded: Integer[0..1];
-   chain1_float_none_nullable_embedded: Float[0..1];
-   chain1_float_times_nullable_embedded: Float[0..1];
+   col_smallint_abs_nullable_embedded: Integer[0..1];
+   chain1_string_nest_notnull_embedded: String[0..1];
+   chain1_char_up_nullable_embedded: String[0..1];
+   chain1_int_plus_notnull_embedded: Integer[0..1];
+   chain1_bigint_none_nullable_embedded: Integer[0..1];
+   chain1_smallint_abs_notnull_embedded: Integer[0..1];
+   chain1_float_abs_nullable_embedded: Float[0..1];
+   chain1_decimal_none_nullable_embedded: Float[0..1];
+   chain2_float_times_notnull_embedded: Float[0..1];
 }
 
 // filter=chain  extends=yes
 Class combo::C11 extends combo::Base
 {
+   col_float_abs_nullable_top: Float[0..1];
+   chain1_string_nest_nullable_top: String[0..1];
+   chain1_int_none_notnull_top: Integer[0..1];
    chain1_int_plus_nullable_top: Integer[0..1];
-   chain1_float_abs_notnull_top: Float[0..1];
-   chain1_bool_none_notnull_top: Boolean[0..1];
-   dyna1_float_none_notnull_top: Float[0..1];
-   dyna2_string_up_nullable_top: String[0..1];
-   dyna2_bool_isnull_nullable_top: Boolean[0..1];
+   chain1_bigint_plus_notnull_top: Integer[0..1];
+   chain1_smallint_abs_nullable_top: Integer[0..1];
+   chain1_float_sqrt_nullable_top: Float[0..1];
+   chain1_decimal_abs_notnull_top: Float[0..1];
+   chain2_float_times_nullable_top: Float[0..1];
+   dyna1_char_up_notnull_top: String[0..1];
+   dyna1_smallint_abs_nullable_top: Integer[0..1];
+   dyna1_date_none_notnull_top: StrictDate[0..1];
+   dyna2_int_abs_nullable_top: Integer[0..1];
+   dyna2_decimal_abs_nullable_top: Float[0..1];
+   ineq_char_up_nullable_top: String[0..1];
    ineq_float_abs_nullable_top: Float[0..1];
-   multicol_float_none_notnull_top: Float[0..1];
-   ormix_int_abs_nullable_top: Integer[0..1];
+   multicol_string_up_nullable_top: String[0..1];
+   multicol_smallint_abs_nullable_top: Integer[0..1];
+   multicol_timestamp_none_nullable_top: DateTime[0..1];
+   ormix_bigint_plus_nullable_top: Integer[0..1];
+   ormix_bool_isnull_nullable_top: Boolean[0..1];
    nested: combo::E11[0..1];
 }
 
 Class combo::E11
 {
-   chain1_string_nest_notnull_embedded: String[0..1];
-   chain2_string_up_nullable_embedded: String[0..1];
-   chain2_int_none_notnull_embedded: Integer[0..1];
-   chain2_int_plus_nullable_embedded: Integer[0..1];
-   chain2_float_abs_notnull_embedded: Float[0..1];
-   chain2_float_times_nullable_embedded: Float[0..1];
-   chain2_bool_isnotnull_notnull_embedded: Boolean[0..1];
+   chain1_bool_isnull_nullable_embedded: Boolean[0..1];
+   chain2_string_cat_notnull_embedded: String[0..1];
+   chain2_char_none_nullable_embedded: String[0..1];
+   chain2_int_abs_notnull_embedded: Integer[0..1];
+   chain2_int_times_nullable_embedded: Integer[0..1];
+   chain2_smallint_none_notnull_embedded: Integer[0..1];
+   chain2_float_none_nullable_embedded: Float[0..1];
+   chain2_bool_none_notnull_embedded: Boolean[0..1];
+   chain2_date_none_notnull_embedded: StrictDate[0..1];
 }
 
 // filter=multigrain  extends=no
@@ -345,17 +509,31 @@ Class combo::C12
    col_string_cat_notnull_top: String[0..1];
    chain1_string_up_notnull_top: String[0..1];
    chain2_string_up_notnull_top: String[0..1];
+   col_bigint_plus_notnull_top: Integer[0..1];
    col_bool_isnull_notnull_top: Boolean[0..1];
+   col_char_up_notnull_top: String[0..1];
+   chain1_date_none_notnull_top: StrictDate[0..1];
+   col_decimal_abs_notnull_top: Float[0..1];
    col_float_abs_notnull_top: Float[0..1];
    col_int_abs_notnull_top: Integer[0..1];
+   col_smallint_abs_notnull_top: Integer[0..1];
+   chain1_timestamp_none_notnull_top: DateTime[0..1];
    chain1_bool_isnotnull_notnull_top: Boolean[0..1];
-   chain1_int_none_notnull_top: Integer[0..1];
-   chain1_int_plus_notnull_top: Integer[0..1];
    chain1_float_sqrt_notnull_top: Float[0..1];
    col_float_times_notnull_top: Float[0..1];
-   ineq_bool_none_notnull_top: Boolean[0..1];
-   multicol_float_none_nullable_top: Float[0..1];
-   ormix_float_none_notnull_top: Float[0..1];
+   chain2_date_none_nullable_top: StrictDate[0..1];
+   dyna1_char_up_nullable_top: String[0..1];
+   dyna1_float_none_notnull_top: Float[0..1];
+   dyna1_date_none_nullable_top: StrictDate[0..1];
+   dyna2_bigint_none_notnull_top: Integer[0..1];
+   dyna2_bool_none_notnull_top: Boolean[0..1];
+   ineq_int_none_notnull_top: Integer[0..1];
+   ineq_decimal_none_notnull_top: Float[0..1];
+   multicol_char_none_notnull_top: String[0..1];
+   multicol_float_none_notnull_top: Float[0..1];
+   ormix_string_none_notnull_top: String[0..1];
+   ormix_smallint_none_notnull_top: Integer[0..1];
+   ormix_date_none_notnull_top: StrictDate[0..1];
    nested: combo::E12[0..1];
 }
 
@@ -369,79 +547,121 @@ Class combo::E12
 Class combo::C13
 {
    rootId: String[1];
-   chain1_string_nest_nullable_top: String[0..1];
-   chain2_string_cat_notnull_top: String[0..1];
-   chain2_int_none_nullable_top: Integer[0..1];
-   chain2_int_times_notnull_top: Integer[0..1];
-   chain2_float_abs_nullable_top: Float[0..1];
-   chain2_bool_none_notnull_top: Boolean[0..1];
-   chain2_bool_isnotnull_nullable_top: Boolean[0..1];
+   chain1_bool_isnotnull_nullable_top: Boolean[0..1];
+   chain2_string_cat_nullable_top: String[0..1];
+   chain2_char_up_notnull_top: String[0..1];
+   chain2_int_abs_nullable_top: Integer[0..1];
+   chain2_bigint_none_notnull_top: Integer[0..1];
+   chain2_smallint_none_nullable_top: Integer[0..1];
+   chain2_float_abs_notnull_top: Float[0..1];
+   chain2_bool_none_nullable_top: Boolean[0..1];
+   dyna1_int_none_notnull_top: Integer[0..1];
    dyna1_float_none_nullable_top: Float[0..1];
-   dyna2_int_none_notnull_top: Integer[0..1];
-   ineq_string_none_notnull_top: String[0..1];
-   ineq_bool_none_nullable_top: Boolean[0..1];
-   multicol_float_abs_notnull_top: Float[0..1];
-   ormix_float_none_nullable_top: Float[0..1];
+   dyna1_timestamp_none_notnull_top: DateTime[0..1];
+   dyna2_bigint_none_nullable_top: Integer[0..1];
+   dyna2_bool_none_nullable_top: Boolean[0..1];
+   ineq_int_none_nullable_top: Integer[0..1];
+   ineq_decimal_none_nullable_top: Float[0..1];
+   multicol_char_none_nullable_top: String[0..1];
+   multicol_float_none_nullable_top: Float[0..1];
+   ormix_string_none_nullable_top: String[0..1];
+   ormix_smallint_none_nullable_top: Integer[0..1];
+   ormix_date_none_nullable_top: StrictDate[0..1];
    nested: combo::E13[0..1];
 }
 
 Class combo::E13
 {
+   col_float_abs_nullable_embedded: Float[0..1];
+   chain1_string_nest_nullable_embedded: String[0..1];
+   chain1_int_none_notnull_embedded: Integer[0..1];
    chain1_int_plus_nullable_embedded: Integer[0..1];
-   chain1_float_abs_notnull_embedded: Float[0..1];
-   chain1_bool_none_notnull_embedded: Boolean[0..1];
+   chain1_bigint_plus_notnull_embedded: Integer[0..1];
+   chain1_smallint_abs_nullable_embedded: Integer[0..1];
+   chain1_float_sqrt_nullable_embedded: Float[0..1];
+   chain1_decimal_abs_notnull_embedded: Float[0..1];
+   chain2_float_times_nullable_embedded: Float[0..1];
+   chain2_date_none_nullable_embedded: StrictDate[0..1];
 }
 
 // filter=multigrain  extends=yes
 Class combo::C14 extends combo::Base
 {
+   col_float_times_nullable_top: Float[0..1];
+   chain1_char_none_notnull_top: String[0..1];
+   chain1_int_none_nullable_top: Integer[0..1];
    chain1_int_times_notnull_top: Integer[0..1];
-   chain1_float_abs_nullable_top: Float[0..1];
-   chain1_bool_none_nullable_top: Boolean[0..1];
+   chain1_bigint_plus_nullable_top: Integer[0..1];
+   chain1_float_none_notnull_top: Float[0..1];
+   chain1_float_times_notnull_top: Float[0..1];
+   chain1_decimal_abs_nullable_top: Float[0..1];
+   chain2_decimal_none_notnull_top: Float[0..1];
+   chain2_timestamp_none_notnull_top: DateTime[0..1];
+   dyna1_int_none_nullable_top: Integer[0..1];
    dyna1_float_abs_notnull_top: Float[0..1];
-   dyna2_int_none_nullable_top: Integer[0..1];
-   ineq_string_none_nullable_top: String[0..1];
-   ineq_bool_isnull_notnull_top: Boolean[0..1];
-   multicol_float_abs_nullable_top: Float[0..1];
-   ormix_float_abs_notnull_top: Float[0..1];
+   dyna1_timestamp_none_nullable_top: DateTime[0..1];
+   dyna2_bigint_plus_notnull_top: Integer[0..1];
+   dyna2_bool_isnull_notnull_top: Boolean[0..1];
+   ineq_int_abs_notnull_top: Integer[0..1];
+   ineq_decimal_abs_notnull_top: Float[0..1];
+   multicol_char_up_notnull_top: String[0..1];
+   multicol_float_abs_notnull_top: Float[0..1];
+   ormix_string_up_notnull_top: String[0..1];
+   ormix_smallint_abs_notnull_top: Integer[0..1];
+   ormix_timestamp_none_notnull_top: DateTime[0..1];
    nested: combo::E14[0..1];
 }
 
 Class combo::E14
 {
-   chain1_string_nest_nullable_embedded: String[0..1];
-   chain2_string_cat_notnull_embedded: String[0..1];
-   chain2_int_none_nullable_embedded: Integer[0..1];
-   chain2_int_times_notnull_embedded: Integer[0..1];
-   chain2_float_abs_nullable_embedded: Float[0..1];
-   chain2_bool_none_notnull_embedded: Boolean[0..1];
-   chain2_bool_isnotnull_nullable_embedded: Boolean[0..1];
+   chain1_bool_isnotnull_nullable_embedded: Boolean[0..1];
+   chain2_string_cat_nullable_embedded: String[0..1];
+   chain2_char_up_notnull_embedded: String[0..1];
+   chain2_int_abs_nullable_embedded: Integer[0..1];
+   chain2_bigint_none_notnull_embedded: Integer[0..1];
+   chain2_smallint_none_nullable_embedded: Integer[0..1];
+   chain2_float_abs_notnull_embedded: Float[0..1];
+   chain2_bool_none_nullable_embedded: Boolean[0..1];
 }
 
 // filter=multigrain  extends=yes
 Class combo::C15 extends combo::Base
 {
-   chain2_string_cat_nullable_top: String[0..1];
-   chain2_int_abs_notnull_top: Integer[0..1];
-   chain2_int_times_nullable_top: Integer[0..1];
-   chain2_float_sqrt_notnull_top: Float[0..1];
-   chain2_bool_none_nullable_top: Boolean[0..1];
-   dyna1_string_none_notnull_top: String[0..1];
+   chain1_date_none_nullable_top: StrictDate[0..1];
+   chain2_string_nest_notnull_top: String[0..1];
+   chain2_char_up_nullable_top: String[0..1];
+   chain2_int_plus_notnull_top: Integer[0..1];
+   chain2_bigint_none_nullable_top: Integer[0..1];
+   chain2_smallint_abs_notnull_top: Integer[0..1];
+   chain2_float_abs_nullable_top: Float[0..1];
+   chain2_bool_isnull_notnull_top: Boolean[0..1];
+   dyna1_int_abs_notnull_top: Integer[0..1];
    dyna1_float_abs_nullable_top: Float[0..1];
-   dyna2_int_abs_notnull_top: Integer[0..1];
-   ineq_string_up_notnull_top: String[0..1];
-   ineq_bool_isnull_nullable_top: Boolean[0..1];
-   multicol_bool_none_notnull_top: Boolean[0..1];
-   ormix_float_abs_nullable_top: Float[0..1];
+   dyna2_string_none_notnull_top: String[0..1];
+   dyna2_bigint_plus_nullable_top: Integer[0..1];
+   dyna2_bool_isnull_nullable_top: Boolean[0..1];
+   ineq_int_abs_nullable_top: Integer[0..1];
+   ineq_decimal_abs_nullable_top: Float[0..1];
+   multicol_char_up_nullable_top: String[0..1];
+   multicol_float_abs_nullable_top: Float[0..1];
+   ormix_string_up_nullable_top: String[0..1];
+   ormix_smallint_abs_nullable_top: Integer[0..1];
+   ormix_timestamp_none_nullable_top: DateTime[0..1];
    nested: combo::E15[0..1];
 }
 
 Class combo::E15
 {
-   chain1_int_none_notnull_embedded: Integer[0..1];
+   col_float_times_nullable_embedded: Float[0..1];
+   chain1_char_none_notnull_embedded: String[0..1];
+   chain1_int_none_nullable_embedded: Integer[0..1];
    chain1_int_times_notnull_embedded: Integer[0..1];
-   chain1_float_abs_nullable_embedded: Float[0..1];
-   chain1_bool_none_nullable_embedded: Boolean[0..1];
+   chain1_bigint_plus_nullable_embedded: Integer[0..1];
+   chain1_float_none_notnull_embedded: Float[0..1];
+   chain1_float_times_notnull_embedded: Float[0..1];
+   chain1_decimal_abs_nullable_embedded: Float[0..1];
+   chain2_decimal_none_notnull_embedded: Float[0..1];
+   chain2_timestamp_none_notnull_embedded: DateTime[0..1];
 }
 
 // Carries an embedded property with an `Otherwise` fallback. Its inline columns
@@ -468,12 +688,24 @@ Class combo::Scoped
    rootId: String[1];
    r_s_nn1: String[0..1];
    r_s_nl1: String[0..1];
+   r_c_nn1: String[0..1];
+   r_c_nl1: String[0..1];
    r_i_nn1: Integer[0..1];
    r_i_nl1: Integer[0..1];
+   r_bi_nn1: Integer[0..1];
+   r_bi_nl1: Integer[0..1];
+   r_si_nn1: Integer[0..1];
+   r_si_nl1: Integer[0..1];
    r_f_nn1: Float[0..1];
    r_f_nl1: Float[0..1];
+   r_de_nn1: Float[0..1];
+   r_de_nl1: Float[0..1];
    r_b_nn1: Boolean[0..1];
    r_b_nl1: Boolean[0..1];
+   r_dt_nn1: StrictDate[0..1];
+   r_dt_nl1: StrictDate[0..1];
+   r_ts_nn1: DateTime[0..1];
+   r_ts_nl1: DateTime[0..1];
 }
 
 // Reached from a root class by an association whose ends name BOTH set ids.
@@ -482,12 +714,24 @@ Class combo::Hop
    hopCode: String[1];
    h1_s_nn1: String[0..1];
    h1_s_nl1: String[0..1];
+   h1_c_nn1: String[0..1];
+   h1_c_nl1: String[0..1];
    h1_i_nn1: Integer[0..1];
    h1_i_nl1: Integer[0..1];
+   h1_bi_nn1: Integer[0..1];
+   h1_bi_nl1: Integer[0..1];
+   h1_si_nn1: Integer[0..1];
+   h1_si_nl1: Integer[0..1];
    h1_f_nn1: Float[0..1];
    h1_f_nl1: Float[0..1];
+   h1_de_nn1: Float[0..1];
+   h1_de_nl1: Float[0..1];
    h1_b_nn1: Boolean[0..1];
    h1_b_nl1: Boolean[0..1];
+   h1_dt_nn1: StrictDate[0..1];
+   h1_dt_nl1: StrictDate[0..1];
+   h1_ts_nn1: DateTime[0..1];
+   h1_ts_nl1: DateTime[0..1];
 }
 
 Association combo::RootHop
@@ -502,12 +746,24 @@ Class combo::Summary
    summaryId: String[1];
    sm_s_nn1: String[0..1];
    sm_s_nl1: String[0..1];
+   sm_c_nn1: String[0..1];
+   sm_c_nl1: String[0..1];
    sm_i_nn1: Integer[0..1];
    sm_i_nl1: Integer[0..1];
+   sm_bi_nn1: Integer[0..1];
+   sm_bi_nl1: Integer[0..1];
+   sm_si_nn1: Integer[0..1];
+   sm_si_nl1: Integer[0..1];
    sm_f_nn1: Float[0..1];
    sm_f_nl1: Float[0..1];
+   sm_de_nn1: Float[0..1];
+   sm_de_nl1: Float[0..1];
    sm_b_nn1: Boolean[0..1];
    sm_b_nl1: Boolean[0..1];
+   sm_dt_nn1: StrictDate[0..1];
+   sm_dt_nl1: StrictDate[0..1];
+   sm_ts_nn1: DateTime[0..1];
+   sm_ts_nl1: DateTime[0..1];
 }
 
 ###Relational
@@ -520,18 +776,42 @@ Database combo::ComboDB
       R_S_NN2 VARCHAR(200) NOT NULL,
       R_S_NL1 VARCHAR(200),
       R_S_NL2 VARCHAR(200),
+      R_C_NN1 CHAR(12) NOT NULL,
+      R_C_NN2 CHAR(12) NOT NULL,
+      R_C_NL1 CHAR(12),
+      R_C_NL2 CHAR(12),
       R_I_NN1 INTEGER NOT NULL,
       R_I_NN2 INTEGER NOT NULL,
       R_I_NL1 INTEGER,
       R_I_NL2 INTEGER,
+      R_BI_NN1 BIGINT NOT NULL,
+      R_BI_NN2 BIGINT NOT NULL,
+      R_BI_NL1 BIGINT,
+      R_BI_NL2 BIGINT,
+      R_SI_NN1 SMALLINT NOT NULL,
+      R_SI_NN2 SMALLINT NOT NULL,
+      R_SI_NL1 SMALLINT,
+      R_SI_NL2 SMALLINT,
       R_F_NN1 DOUBLE NOT NULL,
       R_F_NN2 DOUBLE NOT NULL,
       R_F_NL1 DOUBLE,
       R_F_NL2 DOUBLE,
+      R_DE_NN1 DECIMAL(18,4) NOT NULL,
+      R_DE_NN2 DECIMAL(18,4) NOT NULL,
+      R_DE_NL1 DECIMAL(18,4),
+      R_DE_NL2 DECIMAL(18,4),
       R_B_NN1 BIT NOT NULL,
       R_B_NN2 BIT NOT NULL,
       R_B_NL1 BIT,
       R_B_NL2 BIT,
+      R_DT_NN1 DATE NOT NULL,
+      R_DT_NN2 DATE NOT NULL,
+      R_DT_NL1 DATE,
+      R_DT_NL2 DATE,
+      R_TS_NN1 TIMESTAMP NOT NULL,
+      R_TS_NN2 TIMESTAMP NOT NULL,
+      R_TS_NL1 TIMESTAMP,
+      R_TS_NL2 TIMESTAMP,
       OTW_CODE VARCHAR(200) NOT NULL,
       OTW_LABEL VARCHAR(200) NOT NULL,
       HOP1_CODE VARCHAR(64)
@@ -543,18 +823,42 @@ Database combo::ComboDB
       H1_S_NN2 VARCHAR(200) NOT NULL,
       H1_S_NL1 VARCHAR(200),
       H1_S_NL2 VARCHAR(200),
+      H1_C_NN1 CHAR(12) NOT NULL,
+      H1_C_NN2 CHAR(12) NOT NULL,
+      H1_C_NL1 CHAR(12),
+      H1_C_NL2 CHAR(12),
       H1_I_NN1 INTEGER NOT NULL,
       H1_I_NN2 INTEGER NOT NULL,
       H1_I_NL1 INTEGER,
       H1_I_NL2 INTEGER,
+      H1_BI_NN1 BIGINT NOT NULL,
+      H1_BI_NN2 BIGINT NOT NULL,
+      H1_BI_NL1 BIGINT,
+      H1_BI_NL2 BIGINT,
+      H1_SI_NN1 SMALLINT NOT NULL,
+      H1_SI_NN2 SMALLINT NOT NULL,
+      H1_SI_NL1 SMALLINT,
+      H1_SI_NL2 SMALLINT,
       H1_F_NN1 DOUBLE NOT NULL,
       H1_F_NN2 DOUBLE NOT NULL,
       H1_F_NL1 DOUBLE,
       H1_F_NL2 DOUBLE,
+      H1_DE_NN1 DECIMAL(18,4) NOT NULL,
+      H1_DE_NN2 DECIMAL(18,4) NOT NULL,
+      H1_DE_NL1 DECIMAL(18,4),
+      H1_DE_NL2 DECIMAL(18,4),
       H1_B_NN1 BIT NOT NULL,
       H1_B_NN2 BIT NOT NULL,
       H1_B_NL1 BIT,
       H1_B_NL2 BIT,
+      H1_DT_NN1 DATE NOT NULL,
+      H1_DT_NN2 DATE NOT NULL,
+      H1_DT_NL1 DATE,
+      H1_DT_NL2 DATE,
+      H1_TS_NN1 TIMESTAMP NOT NULL,
+      H1_TS_NN2 TIMESTAMP NOT NULL,
+      H1_TS_NL1 TIMESTAMP,
+      H1_TS_NL2 TIMESTAMP,
       OTW_CODE VARCHAR(200) NOT NULL,
       OTW_LABEL VARCHAR(200) NOT NULL,
       HOP2_CODE VARCHAR(64)
@@ -566,18 +870,42 @@ Database combo::ComboDB
       H2_S_NN2 VARCHAR(200) NOT NULL,
       H2_S_NL1 VARCHAR(200),
       H2_S_NL2 VARCHAR(200),
+      H2_C_NN1 CHAR(12) NOT NULL,
+      H2_C_NN2 CHAR(12) NOT NULL,
+      H2_C_NL1 CHAR(12),
+      H2_C_NL2 CHAR(12),
       H2_I_NN1 INTEGER NOT NULL,
       H2_I_NN2 INTEGER NOT NULL,
       H2_I_NL1 INTEGER,
       H2_I_NL2 INTEGER,
+      H2_BI_NN1 BIGINT NOT NULL,
+      H2_BI_NN2 BIGINT NOT NULL,
+      H2_BI_NL1 BIGINT,
+      H2_BI_NL2 BIGINT,
+      H2_SI_NN1 SMALLINT NOT NULL,
+      H2_SI_NN2 SMALLINT NOT NULL,
+      H2_SI_NL1 SMALLINT,
+      H2_SI_NL2 SMALLINT,
       H2_F_NN1 DOUBLE NOT NULL,
       H2_F_NN2 DOUBLE NOT NULL,
       H2_F_NL1 DOUBLE,
       H2_F_NL2 DOUBLE,
+      H2_DE_NN1 DECIMAL(18,4) NOT NULL,
+      H2_DE_NN2 DECIMAL(18,4) NOT NULL,
+      H2_DE_NL1 DECIMAL(18,4),
+      H2_DE_NL2 DECIMAL(18,4),
       H2_B_NN1 BIT NOT NULL,
       H2_B_NN2 BIT NOT NULL,
       H2_B_NL1 BIT,
-      H2_B_NL2 BIT
+      H2_B_NL2 BIT,
+      H2_DT_NN1 DATE NOT NULL,
+      H2_DT_NN2 DATE NOT NULL,
+      H2_DT_NL1 DATE,
+      H2_DT_NL2 DATE,
+      H2_TS_NN1 TIMESTAMP NOT NULL,
+      H2_TS_NN2 TIMESTAMP NOT NULL,
+      H2_TS_NL1 TIMESTAMP,
+      H2_TS_NL2 TIMESTAMP
    )
 
    // Reached by the JOIN FORMS below rather than by a foreign key. Its rows are
@@ -595,18 +923,42 @@ Database combo::ComboDB
       A_S_NN2 VARCHAR(200) NOT NULL,
       A_S_NL1 VARCHAR(200),
       A_S_NL2 VARCHAR(200),
+      A_C_NN1 CHAR(12) NOT NULL,
+      A_C_NN2 CHAR(12) NOT NULL,
+      A_C_NL1 CHAR(12),
+      A_C_NL2 CHAR(12),
       A_I_NN1 INTEGER NOT NULL,
       A_I_NN2 INTEGER NOT NULL,
       A_I_NL1 INTEGER,
       A_I_NL2 INTEGER,
+      A_BI_NN1 BIGINT NOT NULL,
+      A_BI_NN2 BIGINT NOT NULL,
+      A_BI_NL1 BIGINT,
+      A_BI_NL2 BIGINT,
+      A_SI_NN1 SMALLINT NOT NULL,
+      A_SI_NN2 SMALLINT NOT NULL,
+      A_SI_NL1 SMALLINT,
+      A_SI_NL2 SMALLINT,
       A_F_NN1 DOUBLE NOT NULL,
       A_F_NN2 DOUBLE NOT NULL,
       A_F_NL1 DOUBLE,
       A_F_NL2 DOUBLE,
+      A_DE_NN1 DECIMAL(18,4) NOT NULL,
+      A_DE_NN2 DECIMAL(18,4) NOT NULL,
+      A_DE_NL1 DECIMAL(18,4),
+      A_DE_NL2 DECIMAL(18,4),
       A_B_NN1 BIT NOT NULL,
       A_B_NN2 BIT NOT NULL,
       A_B_NL1 BIT,
-      A_B_NL2 BIT
+      A_B_NL2 BIT,
+      A_DT_NN1 DATE NOT NULL,
+      A_DT_NN2 DATE NOT NULL,
+      A_DT_NL1 DATE,
+      A_DT_NL2 DATE,
+      A_TS_NN1 TIMESTAMP NOT NULL,
+      A_TS_NN2 TIMESTAMP NOT NULL,
+      A_TS_NL1 TIMESTAMP,
+      A_TS_NL2 TIMESTAMP
    )
 
    // A SCHEMA. Every other table in this corpus sits in the default schema, so a
@@ -624,18 +976,42 @@ Database combo::ComboDB
          SM_S_NN2 VARCHAR(200) NOT NULL,
          SM_S_NL1 VARCHAR(200),
          SM_S_NL2 VARCHAR(200),
+         SM_C_NN1 CHAR(12) NOT NULL,
+         SM_C_NN2 CHAR(12) NOT NULL,
+         SM_C_NL1 CHAR(12),
+         SM_C_NL2 CHAR(12),
          SM_I_NN1 INTEGER NOT NULL,
          SM_I_NN2 INTEGER NOT NULL,
          SM_I_NL1 INTEGER,
          SM_I_NL2 INTEGER,
+         SM_BI_NN1 BIGINT NOT NULL,
+         SM_BI_NN2 BIGINT NOT NULL,
+         SM_BI_NL1 BIGINT,
+         SM_BI_NL2 BIGINT,
+         SM_SI_NN1 SMALLINT NOT NULL,
+         SM_SI_NN2 SMALLINT NOT NULL,
+         SM_SI_NL1 SMALLINT,
+         SM_SI_NL2 SMALLINT,
          SM_F_NN1 DOUBLE NOT NULL,
          SM_F_NN2 DOUBLE NOT NULL,
          SM_F_NL1 DOUBLE,
          SM_F_NL2 DOUBLE,
+         SM_DE_NN1 DECIMAL(18,4) NOT NULL,
+         SM_DE_NN2 DECIMAL(18,4) NOT NULL,
+         SM_DE_NL1 DECIMAL(18,4),
+         SM_DE_NL2 DECIMAL(18,4),
          SM_B_NN1 BIT NOT NULL,
          SM_B_NN2 BIT NOT NULL,
          SM_B_NL1 BIT,
-         SM_B_NL2 BIT
+         SM_B_NL2 BIT,
+         SM_DT_NN1 DATE NOT NULL,
+         SM_DT_NN2 DATE NOT NULL,
+         SM_DT_NL1 DATE,
+         SM_DT_NL2 DATE,
+         SM_TS_NN1 TIMESTAMP NOT NULL,
+         SM_TS_NN2 TIMESTAMP NOT NULL,
+         SM_TS_NL1 TIMESTAMP,
+         SM_TS_NL2 TIMESTAMP
       )
    )
 
@@ -696,7 +1072,7 @@ Mapping combo::ComboMapping
       rootId: [combo::ComboDB]COMBO_ROOT.ROOT_ID
    }
 
-   // filter=none  extends=no  (16 top-level, 1 embedded)
+   // filter=none  extends=no  (27 top-level, 3 embedded)
    combo::C0[c0]: Relational
    {
       ~primaryKey ( [combo::ComboDB]COMBO_ROOT.ROOT_ID )
@@ -705,26 +1081,39 @@ Mapping combo::ComboMapping
       col_string_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_S_NN1,
       chain1_string_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1,
       chain2_string_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1,
+      col_bigint_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_BI_NN1,
       col_bool_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_B_NN1,
+      col_date_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_DT_NN1,
+      col_decimal_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_DE_NN1,
       col_float_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_F_NN1,
+      col_int_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_I_NN1,
+      col_smallint_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_SI_NN1,
+      col_timestamp_none_notnull_top: [combo::ComboDB]COMBO_ROOT.R_TS_NN1,
       col_bool_isnotnull_notnull_top: isNotNull([combo::ComboDB]COMBO_ROOT.R_B_NN1),
-      col_int_plus_notnull_top: plus([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2),
       col_float_sqrt_notnull_top: sqrt([combo::ComboDB]COMBO_ROOT.R_F_NN1),
       col_int_times_notnull_top: times([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2),
-      dyna1_string_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NL1,
-      dyna1_bool_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NN1,
-      dyna2_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NL1),
-      ineq_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NL1),
-      multicol_string_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NN1,
-      multicol_bool_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NL1,
-      ormix_bool_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NN1,
+      chain2_decimal_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NL1,
+      chain2_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_TS_NL1,
+      dyna1_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NL1),
+      dyna1_decimal_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_DE_NN1,
+      dyna2_string_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NL1,
+      dyna2_smallint_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_SI_NN1,
+      dyna2_date_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_DT_NN1,
+      ineq_bigint_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_BI_NN1,
+      ineq_bool_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NN1,
+      multicol_int_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NN1,
+      multicol_decimal_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_DE_NN1,
+      ormix_char_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_C_NN1,
+      ormix_float_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NN1,
       nested
       (
-         col_string_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_S_NN1
+         col_string_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_S_NN1,
+         chain2_float_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
+         chain2_bool_isnull_notnull_embedded: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1)
       )
    }
 
-   // filter=none  extends=no  (8 top-level, 9 embedded)
+   // filter=none  extends=no  (15 top-level, 15 embedded)
    combo::C1[c1]: Relational
    {
       ~primaryKey ( [combo::ComboDB]COMBO_ROOT.ROOT_ID )
@@ -733,82 +1122,121 @@ Mapping combo::ComboMapping
       scope([combo::ComboDB]COMBO_ROOT)
       (
          col_string_cat_nullable_top: concat(R_S_NL1, R_S_NL2),
-         col_int_none_notnull_top: R_I_NN1
+         col_char_none_notnull_top: R_C_NN1
       ),
       chain1_string_nest_notnull_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN2)),
-      dyna2_float_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NN1,
-      ineq_int_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NN1,
-      multicol_string_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NL1,
-      multicol_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NN1),
-      ormix_bool_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NL1,
+      chain2_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1),
+      dyna1_bigint_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_BI_NN1,
+      dyna1_decimal_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_DE_NL1,
+      dyna2_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NN1),
+      dyna2_smallint_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_SI_NL1,
+      dyna2_date_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_DT_NL1,
+      ineq_bigint_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_BI_NL1,
+      ineq_bool_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NL1,
+      multicol_int_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NL1,
+      multicol_decimal_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_DE_NL1,
+      ormix_char_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_C_NL1,
+      ormix_float_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NL1,
       nested
       (
          col_string_cat_nullable_embedded: concat([combo::ComboDB]COMBO_ROOT.R_S_NL1, [combo::ComboDB]COMBO_ROOT.R_S_NL2),
          chain1_string_up_notnull_embedded: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1),
          chain2_string_up_notnull_embedded: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1),
+         col_bigint_plus_notnull_embedded: plus([combo::ComboDB]COMBO_ROOT.R_BI_NN1, [combo::ComboDB]COMBO_ROOT.R_BI_NN2),
          col_bool_isnull_notnull_embedded: isNull([combo::ComboDB]COMBO_ROOT.R_B_NN1),
+         chain1_date_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DT_NN1,
+         col_decimal_abs_notnull_embedded: abs([combo::ComboDB]COMBO_ROOT.R_DE_NN1),
          col_float_abs_notnull_embedded: abs([combo::ComboDB]COMBO_ROOT.R_F_NN1),
+         col_int_abs_notnull_embedded: abs([combo::ComboDB]COMBO_ROOT.R_I_NN1),
+         col_smallint_abs_notnull_embedded: abs([combo::ComboDB]COMBO_ROOT.R_SI_NN1),
+         chain1_timestamp_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_TS_NN1,
          chain1_bool_isnotnull_notnull_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1),
-         chain1_int_plus_notnull_embedded: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN2),
          chain1_float_sqrt_notnull_embedded: sqrt([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1),
-         col_float_times_notnull_embedded: times([combo::ComboDB]COMBO_ROOT.R_F_NN1, [combo::ComboDB]COMBO_ROOT.R_F_NN2)
+         col_float_times_notnull_embedded: times([combo::ComboDB]COMBO_ROOT.R_F_NN1, [combo::ComboDB]COMBO_ROOT.R_F_NN2),
+         chain2_timestamp_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_TS_NL1
       )
    }
 
-   // filter=none  extends=yes  (6 top-level, 11 embedded)
+   // filter=none  extends=yes  (14 top-level, 16 embedded)
    combo::C2[c2] extends [base]: Relational
    {
       col_string_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_S_NL1,
       col_string_nest_notnull_top: toUpper(concat([combo::ComboDB]COMBO_ROOT.R_S_NN1, [combo::ComboDB]COMBO_ROOT.R_S_NN2)),
+      col_int_abs_nullable_top: abs([combo::ComboDB]COMBO_ROOT.R_I_NL1),
       chain1_string_cat_notnull_top: concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN2),
       col_bool_isnull_nullable_top: isNull([combo::ComboDB]COMBO_ROOT.R_B_NL1),
-      chain1_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1),
-      ormix_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NN1),
+      col_int_plus_notnull_top: plus([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2),
+      dyna2_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_SI_NN1),
+      dyna2_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_TS_NN1,
+      ineq_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_BI_NN1, [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_BI_NN2),
+      ineq_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NN1),
+      multicol_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NN1),
+      multicol_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_DE_NN1),
+      ormix_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_C_NN1),
+      ormix_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NN1),
       nested
       (
          col_string_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_S_NL1,
          chain1_string_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1,
          chain2_string_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1,
+         col_bigint_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_BI_NN1,
          col_bool_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_B_NN1,
+         col_char_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_C_NN1,
+         col_date_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_DT_NN1,
+         col_decimal_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_DE_NN1,
          col_float_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_F_NN1,
          col_int_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_I_NN1,
-         col_int_abs_notnull_embedded: abs([combo::ComboDB]COMBO_ROOT.R_I_NN1),
+         col_smallint_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_SI_NN1,
+         col_timestamp_none_notnull_embedded: [combo::ComboDB]COMBO_ROOT.R_TS_NN1,
          col_bool_isnotnull_notnull_embedded: isNotNull([combo::ComboDB]COMBO_ROOT.R_B_NN1),
-         col_int_plus_notnull_embedded: plus([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2),
          col_float_sqrt_notnull_embedded: sqrt([combo::ComboDB]COMBO_ROOT.R_F_NN1),
-         col_int_times_notnull_embedded: times([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2)
+         col_int_times_notnull_embedded: times([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2),
+         col_char_up_notnull_embedded: toUpper([combo::ComboDB]COMBO_ROOT.R_C_NN1)
       )
    }
 
-   // filter=none  extends=yes  (11 top-level, 6 embedded)
+   // filter=none  extends=yes  (22 top-level, 8 embedded)
    combo::C3[c3] extends [base]: Relational
    {
       scope([combo::ComboDB]COMBO_ROOT)
       (
-         col_float_abs_nullable_top: abs(R_F_NL1)
+         col_char_up_nullable_top: toUpper(R_C_NL1),
+         col_decimal_abs_nullable_top: abs(R_DE_NL1)
       ),
-      chain1_int_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1,
+      chain1_char_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NL1,
+      chain1_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1),
       chain1_int_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL2),
-      chain1_float_sqrt_nullable_top: sqrt([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
-      dyna1_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NN1),
-      dyna1_bool_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NL1,
-      dyna2_float_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NL1,
-      ineq_int_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NL1,
-      multicol_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NN1),
-      multicol_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NL1),
-      ormix_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NL1),
+      chain1_smallint_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NN1,
+      chain1_float_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1,
+      chain1_float_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL2),
+      chain1_bool_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1,
+      chain2_float_sqrt_notnull_top: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
+      dyna1_string_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      dyna1_bigint_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_BI_NL1,
+      dyna1_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_DE_NN1),
+      dyna2_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NL1),
+      dyna2_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_SI_NL1),
+      dyna2_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_TS_NL1,
+      ineq_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_BI_NL1, [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_BI_NL2),
+      ineq_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NL1),
+      multicol_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NL1),
+      multicol_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_DE_NL1),
+      ormix_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_C_NL1),
+      ormix_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NL1),
       nested
       (
-         chain1_bool_isnull_notnull_embedded: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1),
-         chain2_string_cat_nullable_embedded: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2),
-         chain2_int_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1),
-         chain2_int_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
-         chain2_float_sqrt_notnull_embedded: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
-         chain2_bool_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1
+         chain1_date_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DT_NL1,
+         chain2_string_nest_notnull_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2)),
+         chain2_char_up_nullable_embedded: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NL1),
+         chain2_int_plus_notnull_embedded: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
+         chain2_bigint_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NL1,
+         chain2_smallint_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NN1),
+         chain2_decimal_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NL1,
+         chain2_bool_isnull_nullable_embedded: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1)
       )
    }
 
-   // filter=direct  extends=no  (4 top-level, 12 embedded)
+   // filter=direct  extends=no  (14 top-level, 16 embedded)
    combo::C4[c4]: Relational
    {
       ~filter [combo::ComboDB]ComboLinked
@@ -816,105 +1244,164 @@ Mapping combo::ComboMapping
       ~mainTable [combo::ComboDB]COMBO_ROOT
       rootId: [combo::ComboDB]COMBO_ROOT.ROOT_ID,
       col_string_up_nullable_top: toUpper([combo::ComboDB]COMBO_ROOT.R_S_NL1),
+      col_smallint_abs_nullable_top: abs([combo::ComboDB]COMBO_ROOT.R_SI_NL1),
       chain1_string_cat_nullable_top: concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2),
       chain1_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1),
-      ormix_string_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      col_int_plus_nullable_top: plus([combo::ComboDB]COMBO_ROOT.R_I_NL1, [combo::ComboDB]COMBO_ROOT.R_I_NL2),
+      dyna2_char_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_C_NN1,
+      dyna2_float_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NN1,
+      ineq_string_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      ineq_smallint_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_SI_NN1,
+      ineq_date_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_DT_NN1,
+      multicol_bigint_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_BI_NN1,
+      multicol_bool_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NN1,
+      ormix_int_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NN1,
+      ormix_decimal_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_DE_NN1,
       nested
       (
          col_string_up_nullable_embedded: toUpper([combo::ComboDB]COMBO_ROOT.R_S_NL1),
          col_string_nest_notnull_embedded: toUpper(concat([combo::ComboDB]COMBO_ROOT.R_S_NN1, [combo::ComboDB]COMBO_ROOT.R_S_NN2)),
          chain1_string_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1,
          chain2_string_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1,
+         col_bigint_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_BI_NL1,
          col_bool_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_B_NL1,
+         col_char_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_C_NL1,
+         col_date_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_DT_NL1,
+         col_decimal_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_DE_NL1,
          col_float_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_F_NL1,
          col_int_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_I_NL1,
-         col_int_abs_nullable_embedded: abs([combo::ComboDB]COMBO_ROOT.R_I_NL1),
+         col_smallint_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_SI_NL1,
+         col_timestamp_none_nullable_embedded: [combo::ComboDB]COMBO_ROOT.R_TS_NL1,
          col_bool_isnotnull_nullable_embedded: isNotNull([combo::ComboDB]COMBO_ROOT.R_B_NL1),
-         col_int_plus_nullable_embedded: plus([combo::ComboDB]COMBO_ROOT.R_I_NL1, [combo::ComboDB]COMBO_ROOT.R_I_NL2),
          col_float_sqrt_nullable_embedded: sqrt([combo::ComboDB]COMBO_ROOT.R_F_NL1),
          col_int_times_nullable_embedded: times([combo::ComboDB]COMBO_ROOT.R_I_NL1, [combo::ComboDB]COMBO_ROOT.R_I_NL2)
       )
    }
 
-   // filter=direct  extends=no  (12 top-level, 4 embedded)
+   // filter=direct  extends=no  (20 top-level, 10 embedded)
    combo::C5[c5]: Relational
    {
       ~filter [combo::ComboDB]ComboLinked
       ~primaryKey ( [combo::ComboDB]COMBO_ROOT.ROOT_ID )
       ~mainTable [combo::ComboDB]COMBO_ROOT
       rootId: [combo::ComboDB]COMBO_ROOT.ROOT_ID,
-      chain1_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
-      chain2_string_nest_notnull_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2)),
-      chain2_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1),
-      chain2_float_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1,
-      chain2_float_sqrt_nullable_top: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
-      chain2_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1),
-      dyna1_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NL1),
-      dyna1_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NN1),
-      dyna2_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NN1),
-      ineq_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NN1),
-      multicol_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NL1),
-      ormix_string_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NL1,
+      chain1_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_TS_NL1,
+      chain2_string_nest_nullable_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2)),
+      chain2_int_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1,
+      chain2_int_plus_nullable_top: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
+      chain2_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NN2),
+      chain2_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NL1),
+      chain2_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NN1),
+      chain2_bool_isnotnull_notnull_top: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1),
+      dyna1_string_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NL1,
+      dyna1_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_BI_NN1, [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_BI_NN2),
+      dyna1_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_DE_NL1),
+      dyna2_char_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_C_NL1,
+      dyna2_float_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NL1,
+      ineq_string_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NL1,
+      ineq_smallint_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_SI_NL1,
+      ineq_date_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_DT_NL1,
+      multicol_bigint_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_BI_NL1,
+      multicol_bool_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NL1,
+      ormix_int_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NL1,
+      ormix_decimal_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_DE_NL1,
       nested
       (
-         col_float_abs_nullable_embedded: abs([combo::ComboDB]COMBO_ROOT.R_F_NL1),
-         chain1_int_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1,
+         col_char_up_nullable_embedded: toUpper([combo::ComboDB]COMBO_ROOT.R_C_NL1),
+         col_decimal_abs_nullable_embedded: abs([combo::ComboDB]COMBO_ROOT.R_DE_NL1),
+         chain1_char_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NL1,
+         chain1_int_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1),
          chain1_int_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL2),
-         chain1_float_sqrt_nullable_embedded: sqrt([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1)
+         chain1_smallint_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NN1,
+         chain1_float_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1,
+         chain1_float_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL2),
+         chain1_bool_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1,
+         chain2_float_sqrt_notnull_embedded: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1)
       )
    }
 
-   // filter=direct  extends=yes  (10 top-level, 6 embedded)
+   // filter=direct  extends=yes  (21 top-level, 9 embedded)
    combo::C6[c6] extends [base]: Relational
    {
       ~filter [combo::ComboDB]ComboLinked
-      col_float_times_nullable_top: times([combo::ComboDB]COMBO_ROOT.R_F_NL1, [combo::ComboDB]COMBO_ROOT.R_F_NL2),
-      chain1_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1),
-      chain1_float_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1,
-      chain1_float_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN2),
-      dyna1_int_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NN1,
-      dyna1_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NL1),
-      dyna2_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NL1),
-      ineq_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NL1),
-      multicol_int_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NN1,
-      ormix_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NN1),
+      chain1_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1),
+      chain1_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NN1),
+      chain1_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1),
+      chain1_bigint_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NN1,
+      chain1_smallint_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NL1,
+      chain1_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1),
+      chain1_decimal_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NN1,
+      chain1_bool_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1,
+      chain2_float_sqrt_nullable_top: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
+      dyna1_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NN1),
+      dyna1_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_BI_NL1, [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_BI_NL2),
+      dyna1_bool_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NN1,
+      dyna2_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_C_NN1),
+      dyna2_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NN1),
+      ineq_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NN1),
+      ineq_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_SI_NN1),
+      ineq_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_TS_NN1,
+      multicol_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_BI_NN1, [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_BI_NN2),
+      multicol_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NN1),
+      ormix_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NN1),
+      ormix_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_DE_NN1),
       nested
       (
-         chain1_bool_isnull_nullable_embedded: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
-         chain2_string_nest_notnull_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2)),
-         chain2_int_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1),
-         chain2_float_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1,
-         chain2_float_sqrt_nullable_embedded: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
-         chain2_bool_isnull_notnull_embedded: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1)
+         col_int_plus_nullable_embedded: plus([combo::ComboDB]COMBO_ROOT.R_I_NL1, [combo::ComboDB]COMBO_ROOT.R_I_NL2),
+         chain1_timestamp_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_TS_NL1,
+         chain2_string_nest_nullable_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2)),
+         chain2_int_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1,
+         chain2_int_plus_nullable_embedded: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
+         chain2_bigint_plus_notnull_embedded: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NN2),
+         chain2_smallint_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NL1),
+         chain2_decimal_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NN1),
+         chain2_bool_isnotnull_notnull_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1)
       )
    }
 
-   // filter=direct  extends=yes  (12 top-level, 4 embedded)
+   // filter=direct  extends=yes  (21 top-level, 9 embedded)
    combo::C7[c7] extends [base]: Relational
    {
       ~filter [combo::ComboDB]ComboLinked
-      chain1_bool_isnotnull_nullable_top: isNotNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
-      chain2_string_nest_nullable_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2)),
-      chain2_int_plus_notnull_top: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
-      chain2_float_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1,
-      chain2_float_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN2),
-      chain2_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1),
-      dyna1_int_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NL1,
-      dyna2_string_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NN1,
-      dyna2_bool_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NN1,
-      ineq_float_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_F_NN1,
-      multicol_int_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NL1,
-      ormix_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NL1),
+      scope([combo::ComboDB]COMBO_ROOT)
+      (
+         col_bigint_plus_nullable_top: plus(R_BI_NL1, R_BI_NL2)
+      ),
+      chain2_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1),
+      chain2_char_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NN1,
+      chain2_int_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1,
+      chain2_int_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
+      chain2_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NL2),
+      chain2_float_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1,
+      chain2_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NL1),
+      chain2_bool_isnotnull_nullable_top: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1),
+      dyna1_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NL1),
+      dyna1_smallint_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_SI_NN1,
+      dyna1_bool_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NL1,
+      dyna2_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_C_NL1),
+      dyna2_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_F_NL1),
+      ineq_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NL1),
+      ineq_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_SI_NL1),
+      ineq_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_TS_NL1,
+      multicol_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_BI_NL1, [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_BI_NL2),
+      multicol_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NL1),
+      ormix_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NL1),
+      ormix_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_DE_NL1),
       nested
       (
-         col_float_times_nullable_embedded: times([combo::ComboDB]COMBO_ROOT.R_F_NL1, [combo::ComboDB]COMBO_ROOT.R_F_NL2),
-         chain1_int_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1),
-         chain1_float_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1,
-         chain1_float_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN2)
+         chain1_string_up_nullable_embedded: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1),
+         chain1_char_up_notnull_embedded: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NN1),
+         chain1_int_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1),
+         chain1_bigint_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NN1,
+         chain1_smallint_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NL1,
+         chain1_float_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1),
+         chain1_decimal_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NN1,
+         chain1_bool_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1,
+         chain2_float_sqrt_nullable_embedded: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1)
       )
    }
 
-   // filter=chain  extends=no  (13 top-level, 3 embedded)
+   // filter=chain  extends=no  (25 top-level, 5 embedded)
    combo::C8[c8]: Relational
    {
       ~filter [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]ComboNamedHop2
@@ -925,102 +1412,161 @@ Mapping combo::ComboMapping
       col_string_nest_nullable_top: toUpper(concat([combo::ComboDB]COMBO_ROOT.R_S_NL1, [combo::ComboDB]COMBO_ROOT.R_S_NL2)),
       chain1_string_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1,
       chain2_string_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1,
+      col_bigint_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_BI_NL1,
       col_bool_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_B_NL1,
+      col_char_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_C_NL1,
+      col_date_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_DT_NL1,
+      col_decimal_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_DE_NL1,
       col_float_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_F_NL1,
       col_int_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_I_NL1,
-      col_int_abs_nullable_top: abs([combo::ComboDB]COMBO_ROOT.R_I_NL1),
+      col_smallint_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_SI_NL1,
+      col_timestamp_none_nullable_top: [combo::ComboDB]COMBO_ROOT.R_TS_NL1,
       col_bool_isnotnull_nullable_top: isNotNull([combo::ComboDB]COMBO_ROOT.R_B_NL1),
-      col_int_plus_nullable_top: plus([combo::ComboDB]COMBO_ROOT.R_I_NL1, [combo::ComboDB]COMBO_ROOT.R_I_NL2),
       col_float_sqrt_nullable_top: sqrt([combo::ComboDB]COMBO_ROOT.R_F_NL1),
       col_int_times_nullable_top: times([combo::ComboDB]COMBO_ROOT.R_I_NL1, [combo::ComboDB]COMBO_ROOT.R_I_NL2),
-      ormix_int_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NN1,
+      dyna2_int_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NN1,
+      dyna2_decimal_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_DE_NN1,
+      ineq_char_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_C_NN1,
+      ineq_float_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_F_NN1,
+      multicol_string_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      multicol_smallint_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_SI_NN1,
+      multicol_date_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_DT_NN1,
+      ormix_bigint_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_BI_NN1,
+      ormix_bool_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NN1,
       nested
       (
          col_string_up_notnull_embedded: toUpper([combo::ComboDB]COMBO_ROOT.R_S_NN1),
+         col_int_abs_nullable_embedded: abs([combo::ComboDB]COMBO_ROOT.R_I_NL1),
          chain1_string_cat_notnull_embedded: concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN2),
-         col_bool_isnull_nullable_embedded: isNull([combo::ComboDB]COMBO_ROOT.R_B_NL1)
+         col_bool_isnull_nullable_embedded: isNull([combo::ComboDB]COMBO_ROOT.R_B_NL1),
+         col_int_plus_notnull_embedded: plus([combo::ComboDB]COMBO_ROOT.R_I_NN1, [combo::ComboDB]COMBO_ROOT.R_I_NN2)
       )
    }
 
-   // filter=chain  extends=no  (9 top-level, 7 embedded)
+   // filter=chain  extends=no  (19 top-level, 11 embedded)
    combo::C9[c9]: Relational
    {
       ~filter [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]ComboNamedHop2
       ~primaryKey ( [combo::ComboDB]COMBO_ROOT.ROOT_ID )
       ~mainTable [combo::ComboDB]COMBO_ROOT
       rootId: [combo::ComboDB]COMBO_ROOT.ROOT_ID,
-      chain1_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1),
-      chain1_float_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1,
-      chain1_float_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL2),
-      dyna1_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NN1),
-      dyna2_string_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NL1,
-      dyna2_bool_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NL1,
+      chain1_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NL1),
+      chain1_int_plus_notnull_top: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN2),
+      chain1_bigint_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NL1,
+      chain1_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NN1),
+      chain1_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
+      chain1_decimal_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NL1,
+      chain2_float_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN2),
+      dyna1_char_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_C_NN1,
+      dyna1_smallint_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_SI_NL1,
+      dyna1_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NN1),
+      dyna2_int_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NL1,
+      dyna2_decimal_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_DE_NL1,
+      ineq_char_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_C_NL1,
       ineq_float_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_F_NL1,
-      multicol_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NN1),
-      ormix_int_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NL1,
+      multicol_string_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NL1,
+      multicol_smallint_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_SI_NL1,
+      multicol_date_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_DT_NL1,
+      ormix_bigint_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_BI_NL1,
+      ormix_bool_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NL1,
       nested
       (
-         chain1_string_up_nullable_embedded: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1),
-         chain1_bool_isnotnull_nullable_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
-         chain2_string_nest_nullable_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2)),
-         chain2_int_plus_notnull_embedded: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
-         chain2_float_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1,
-         chain2_float_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN2),
-         chain2_bool_isnull_nullable_embedded: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1)
+         col_bigint_plus_nullable_embedded: plus([combo::ComboDB]COMBO_ROOT.R_BI_NL1, [combo::ComboDB]COMBO_ROOT.R_BI_NL2),
+         chain1_string_cat_nullable_embedded: concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2),
+         chain1_bool_isnull_notnull_embedded: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1),
+         chain2_string_up_nullable_embedded: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1),
+         chain2_char_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NN1,
+         chain2_int_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1,
+         chain2_int_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
+         chain2_bigint_plus_nullable_embedded: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NL2),
+         chain2_float_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1,
+         chain2_decimal_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NL1),
+         chain2_bool_isnotnull_nullable_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1)
       )
    }
 
-   // filter=chain  extends=yes  (12 top-level, 4 embedded)
+   // filter=chain  extends=yes  (21 top-level, 9 embedded)
    combo::C10[c10] extends [base]: Relational
    {
       ~filter [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]ComboNamedHop2
-      chain2_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1),
-      chain2_int_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1,
-      chain2_int_plus_nullable_top: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
-      chain2_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
-      chain2_float_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL2),
-      chain2_bool_isnotnull_notnull_top: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1),
-      dyna1_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NL1),
-      dyna2_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NN1),
-      dyna2_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NN1),
+      chain1_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
+      chain2_string_cat_notnull_top: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2),
+      chain2_char_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NL1,
+      chain2_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1),
+      chain2_int_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
+      chain2_smallint_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NN1,
+      chain2_float_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1,
+      chain2_bool_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1,
+      chain2_date_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DT_NN1,
+      dyna1_char_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_C_NL1,
+      dyna1_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_SI_NN1),
+      dyna1_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_B_NL1),
+      dyna2_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NN1),
+      dyna2_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_DE_NN1),
+      ineq_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_C_NN1),
       ineq_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_F_NN1),
-      multicol_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_I_NL1),
-      ormix_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NN1),
+      multicol_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NN1),
+      multicol_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_SI_NN1),
+      multicol_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_TS_NN1,
+      ormix_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_BI_NN1, [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_BI_NN2),
+      ormix_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NN1),
       nested
       (
-         chain1_string_cat_nullable_embedded: concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2),
-         chain1_int_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1),
-         chain1_float_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1,
-         chain1_float_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL2)
+         col_smallint_abs_nullable_embedded: abs([combo::ComboDB]COMBO_ROOT.R_SI_NL1),
+         chain1_string_nest_notnull_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN2)),
+         chain1_char_up_nullable_embedded: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NL1),
+         chain1_int_plus_notnull_embedded: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN2),
+         chain1_bigint_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NL1,
+         chain1_smallint_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NN1),
+         chain1_float_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
+         chain1_decimal_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NL1,
+         chain2_float_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN2)
       )
    }
 
-   // filter=chain  extends=yes  (9 top-level, 7 embedded)
+   // filter=chain  extends=yes  (21 top-level, 9 embedded)
    combo::C11[c11] extends [base]: Relational
    {
       ~filter [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]ComboNamedHop2
+      scope([combo::ComboDB]COMBO_ROOT)
+      (
+         col_float_abs_nullable_top: abs(R_F_NL1)
+      ),
+      chain1_string_nest_nullable_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2)),
+      chain1_int_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1,
       chain1_int_plus_nullable_top: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL2),
-      chain1_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1),
-      chain1_bool_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1,
-      dyna1_float_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_F_NN1,
-      dyna2_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NL1),
-      dyna2_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NL1),
+      chain1_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NN2),
+      chain1_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NL1),
+      chain1_float_sqrt_nullable_top: sqrt([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
+      chain1_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NN1),
+      chain2_float_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL2),
+      dyna1_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_C_NN1),
+      dyna1_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_SI_NL1),
+      dyna1_date_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_DT_NN1,
+      dyna2_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NL1),
+      dyna2_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_DE_NL1),
+      ineq_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_C_NL1),
       ineq_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_F_NL1),
-      multicol_float_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NN1,
-      ormix_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_I_NL1),
+      multicol_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_S_NL1),
+      multicol_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_SI_NL1),
+      multicol_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_TS_NL1,
+      ormix_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_BI_NL1, [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_BI_NL2),
+      ormix_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_B_NL1),
       nested
       (
-         chain1_string_nest_notnull_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN2)),
-         chain2_string_up_nullable_embedded: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1),
-         chain2_int_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1,
-         chain2_int_plus_nullable_embedded: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
-         chain2_float_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
-         chain2_float_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL2),
-         chain2_bool_isnotnull_notnull_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1)
+         chain1_bool_isnull_nullable_embedded: isNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
+         chain2_string_cat_notnull_embedded: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2),
+         chain2_char_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NL1,
+         chain2_int_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1),
+         chain2_int_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
+         chain2_smallint_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NN1,
+         chain2_float_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1,
+         chain2_bool_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1,
+         chain2_date_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DT_NN1
       )
    }
 
-   // filter=multigrain  extends=no  (14 top-level, 2 embedded)
+   // filter=multigrain  extends=no  (28 top-level, 2 embedded)
    combo::C12[c12]: Relational
    {
       ~filter [combo::ComboDB]ComboGrain
@@ -1030,17 +1576,31 @@ Mapping combo::ComboMapping
       col_string_cat_notnull_top: concat([combo::ComboDB]COMBO_ROOT.R_S_NN1, [combo::ComboDB]COMBO_ROOT.R_S_NN2),
       chain1_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NN1),
       chain2_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1),
+      col_bigint_plus_notnull_top: plus([combo::ComboDB]COMBO_ROOT.R_BI_NN1, [combo::ComboDB]COMBO_ROOT.R_BI_NN2),
       col_bool_isnull_notnull_top: isNull([combo::ComboDB]COMBO_ROOT.R_B_NN1),
+      col_char_up_notnull_top: toUpper([combo::ComboDB]COMBO_ROOT.R_C_NN1),
+      chain1_date_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DT_NN1,
+      col_decimal_abs_notnull_top: abs([combo::ComboDB]COMBO_ROOT.R_DE_NN1),
       col_float_abs_notnull_top: abs([combo::ComboDB]COMBO_ROOT.R_F_NN1),
       col_int_abs_notnull_top: abs([combo::ComboDB]COMBO_ROOT.R_I_NN1),
+      col_smallint_abs_notnull_top: abs([combo::ComboDB]COMBO_ROOT.R_SI_NN1),
+      chain1_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_TS_NN1,
       chain1_bool_isnotnull_notnull_top: isNotNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1),
-      chain1_int_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1,
-      chain1_int_plus_notnull_top: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN2),
       chain1_float_sqrt_notnull_top: sqrt([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1),
       col_float_times_notnull_top: times([combo::ComboDB]COMBO_ROOT.R_F_NN1, [combo::ComboDB]COMBO_ROOT.R_F_NN2),
-      ineq_bool_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NN1,
-      multicol_float_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NL1,
-      ormix_float_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NN1,
+      chain2_date_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DT_NL1,
+      dyna1_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_C_NL1),
+      dyna1_float_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_F_NN1,
+      dyna1_date_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_DT_NL1,
+      dyna2_bigint_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_BI_NN1,
+      dyna2_bool_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NN1,
+      ineq_int_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NN1,
+      ineq_decimal_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_DE_NN1,
+      multicol_char_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_C_NN1,
+      multicol_float_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NN1,
+      ormix_string_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      ormix_smallint_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_SI_NN1,
+      ormix_date_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_DT_NN1,
       nested
       (
          col_string_cat_notnull_embedded: concat([combo::ComboDB]COMBO_ROOT.R_S_NN1, [combo::ComboDB]COMBO_ROOT.R_S_NN2),
@@ -1048,81 +1608,123 @@ Mapping combo::ComboMapping
       )
    }
 
-   // filter=multigrain  extends=no  (13 top-level, 3 embedded)
+   // filter=multigrain  extends=no  (20 top-level, 10 embedded)
    combo::C13[c13]: Relational
    {
       ~filter [combo::ComboDB]ComboGrain
       ~primaryKey ( [combo::ComboDB]COMBO_ROOT.ROOT_ID )
       ~mainTable [combo::ComboDB]COMBO_ROOT
       rootId: [combo::ComboDB]COMBO_ROOT.ROOT_ID,
-      chain1_string_nest_nullable_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2)),
-      chain2_string_cat_notnull_top: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2),
-      chain2_int_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1,
-      chain2_int_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
-      chain2_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
-      chain2_bool_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1,
-      chain2_bool_isnotnull_nullable_top: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1),
+      chain1_bool_isnotnull_nullable_top: isNotNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
+      chain2_string_cat_nullable_top: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2),
+      chain2_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NN1),
+      chain2_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1),
+      chain2_bigint_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NN1,
+      chain2_smallint_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NL1,
+      chain2_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
+      chain2_bool_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1,
+      dyna1_int_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NN1,
       dyna1_float_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_F_NL1,
-      dyna2_int_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NN1,
-      ineq_string_none_notnull_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NN1,
-      ineq_bool_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NL1,
-      multicol_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NN1),
-      ormix_float_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NL1,
+      dyna1_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_TS_NN1,
+      dyna2_bigint_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_BI_NL1,
+      dyna2_bool_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NL1,
+      ineq_int_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NL1,
+      ineq_decimal_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_DE_NL1,
+      multicol_char_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_C_NL1,
+      multicol_float_none_nullable_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NL1,
+      ormix_string_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NL1,
+      ormix_smallint_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_SI_NL1,
+      ormix_date_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_DT_NL1,
       nested
       (
+         col_float_abs_nullable_embedded: abs([combo::ComboDB]COMBO_ROOT.R_F_NL1),
+         chain1_string_nest_nullable_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2)),
+         chain1_int_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1,
          chain1_int_plus_nullable_embedded: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL2),
-         chain1_float_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1),
-         chain1_bool_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NN1
+         chain1_bigint_plus_notnull_embedded: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NN2),
+         chain1_smallint_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_SI_NL1),
+         chain1_float_sqrt_nullable_embedded: sqrt([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
+         chain1_decimal_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NN1),
+         chain2_float_times_nullable_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL2),
+         chain2_date_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DT_NL1
       )
    }
 
-   // filter=multigrain  extends=yes  (9 top-level, 7 embedded)
+   // filter=multigrain  extends=yes  (22 top-level, 8 embedded)
    combo::C14[c14] extends [base]: Relational
    {
       ~filter [combo::ComboDB]ComboGrain
+      col_float_times_nullable_top: times([combo::ComboDB]COMBO_ROOT.R_F_NL1, [combo::ComboDB]COMBO_ROOT.R_F_NL2),
+      chain1_char_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NN1,
+      chain1_int_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1,
       chain1_int_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN2),
-      chain1_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
-      chain1_bool_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1,
+      chain1_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NL2),
+      chain1_float_none_notnull_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1,
+      chain1_float_times_notnull_top: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN2),
+      chain1_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NL1),
+      chain2_decimal_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NN1,
+      chain2_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_TS_NN1,
+      dyna1_int_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NL1,
       dyna1_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_F_NN1),
-      dyna2_int_none_nullable_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NL1,
-      ineq_string_none_nullable_top: [combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NL1,
-      ineq_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NN1),
-      multicol_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NL1),
-      ormix_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NN1),
+      dyna1_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_TS_NL1,
+      dyna2_bigint_plus_notnull_top: plus([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_BI_NN1, [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_BI_NN2),
+      dyna2_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NN1),
+      ineq_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NN1),
+      ineq_decimal_abs_notnull_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_DE_NN1),
+      multicol_char_up_notnull_top: toUpper([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_C_NN1),
+      multicol_float_abs_notnull_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NN1),
+      ormix_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NN1),
+      ormix_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_SI_NN1),
+      ormix_timestamp_none_notnull_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_TS_NN1,
       nested
       (
-         chain1_string_nest_nullable_embedded: toUpper(concat([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_S_NL2)),
-         chain2_string_cat_notnull_embedded: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2),
-         chain2_int_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1,
-         chain2_int_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
-         chain2_float_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
-         chain2_bool_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1,
-         chain2_bool_isnotnull_nullable_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1)
+         chain1_bool_isnotnull_nullable_embedded: isNotNull([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1),
+         chain2_string_cat_nullable_embedded: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2),
+         chain2_char_up_notnull_embedded: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NN1),
+         chain2_int_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1),
+         chain2_bigint_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NN1,
+         chain2_smallint_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NL1,
+         chain2_float_abs_notnull_embedded: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
+         chain2_bool_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1
       )
    }
 
-   // filter=multigrain  extends=yes  (12 top-level, 4 embedded)
+   // filter=multigrain  extends=yes  (20 top-level, 10 embedded)
    combo::C15[c15] extends [base]: Relational
    {
       ~filter [combo::ComboDB]ComboGrain
-      chain2_string_cat_nullable_top: concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NL2),
-      chain2_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1),
-      chain2_int_times_nullable_top: times([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NL2),
-      chain2_float_sqrt_notnull_top: sqrt([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NN1),
-      chain2_bool_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NL1,
-      dyna1_string_none_notnull_top: [combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      chain1_date_none_nullable_top: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DT_NL1,
+      chain2_string_nest_notnull_top: toUpper(concat([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_S_NN2)),
+      chain2_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_C_NL1),
+      chain2_int_plus_notnull_top: plus([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN1, [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_I_NN2),
+      chain2_bigint_none_nullable_top: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_BI_NL1,
+      chain2_smallint_abs_notnull_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_SI_NN1),
+      chain2_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_F_NL1),
+      chain2_bool_isnull_notnull_top: isNull([combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_B_NN1),
+      dyna1_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_I_NN1),
       dyna1_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Dyna1 | [combo::ComboDB]COMBO_ALT.A_F_NL1),
-      dyna2_int_abs_notnull_top: abs([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_I_NN1),
-      ineq_string_up_notnull_top: toUpper([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_S_NN1),
-      ineq_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_B_NL1),
-      multicol_bool_none_notnull_top: [combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_B_NN1,
-      ormix_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_F_NL1),
+      dyna2_string_none_notnull_top: [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_S_NN1,
+      dyna2_bigint_plus_nullable_top: plus([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_BI_NL1, [combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_BI_NL2),
+      dyna2_bool_isnull_nullable_top: isNull([combo::ComboDB]@Combo_Dyna2 | [combo::ComboDB]COMBO_ALT.A_B_NL1),
+      ineq_int_abs_nullable_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_I_NL1),
+      ineq_decimal_abs_nullable_top: abs([combo::ComboDB]@Combo_Ineq | [combo::ComboDB]COMBO_ALT.A_DE_NL1),
+      multicol_char_up_nullable_top: toUpper([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_C_NL1),
+      multicol_float_abs_nullable_top: abs([combo::ComboDB]@Combo_Multi | [combo::ComboDB]COMBO_ALT.A_F_NL1),
+      ormix_string_up_nullable_top: toUpper([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_S_NL1),
+      ormix_smallint_abs_nullable_top: abs([combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_SI_NL1),
+      ormix_timestamp_none_nullable_top: [combo::ComboDB]@Combo_Or | [combo::ComboDB]COMBO_ALT.A_TS_NL1,
       nested
       (
-         chain1_int_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1,
+         col_float_times_nullable_embedded: times([combo::ComboDB]COMBO_ROOT.R_F_NL1, [combo::ComboDB]COMBO_ROOT.R_F_NL2),
+         chain1_char_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_C_NN1,
+         chain1_int_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NL1,
          chain1_int_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_I_NN2),
-         chain1_float_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NL1),
-         chain1_bool_none_nullable_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_B_NL1
+         chain1_bigint_plus_nullable_embedded: plus([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NL1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_BI_NL2),
+         chain1_float_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1,
+         chain1_float_times_notnull_embedded: times([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN1, [combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_F_NN2),
+         chain1_decimal_abs_nullable_embedded: abs([combo::ComboDB]@Combo_Hop1 | [combo::ComboDB]COMBO_HOP1.H1_DE_NL1),
+         chain2_decimal_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_DE_NN1,
+         chain2_timestamp_none_notnull_embedded: [combo::ComboDB]@Combo_Hop1 > @Combo_Hop2 | [combo::ComboDB]COMBO_HOP2.H2_TS_NN1
       )
    }
 
@@ -1163,12 +1765,24 @@ Mapping combo::ComboMapping
          rootId: ROOT_ID,
          r_s_nn1: R_S_NN1,
          r_s_nl1: R_S_NL1,
+         r_c_nn1: R_C_NN1,
+         r_c_nl1: R_C_NL1,
          r_i_nn1: R_I_NN1,
          r_i_nl1: R_I_NL1,
+         r_bi_nn1: R_BI_NN1,
+         r_bi_nl1: R_BI_NL1,
+         r_si_nn1: R_SI_NN1,
+         r_si_nl1: R_SI_NL1,
          r_f_nn1: R_F_NN1,
          r_f_nl1: R_F_NL1,
+         r_de_nn1: R_DE_NN1,
+         r_de_nl1: R_DE_NL1,
          r_b_nn1: R_B_NN1,
-         r_b_nl1: R_B_NL1
+         r_b_nl1: R_B_NL1,
+         r_dt_nn1: R_DT_NN1,
+         r_dt_nl1: R_DT_NL1,
+         r_ts_nn1: R_TS_NN1,
+         r_ts_nl1: R_TS_NL1
       )
    }
 
@@ -1179,12 +1793,24 @@ Mapping combo::ComboMapping
       hopCode: [combo::ComboDB]COMBO_HOP1.HOP1_CODE,
       h1_s_nn1: [combo::ComboDB]COMBO_HOP1.H1_S_NN1,
       h1_s_nl1: [combo::ComboDB]COMBO_HOP1.H1_S_NL1,
+      h1_c_nn1: [combo::ComboDB]COMBO_HOP1.H1_C_NN1,
+      h1_c_nl1: [combo::ComboDB]COMBO_HOP1.H1_C_NL1,
       h1_i_nn1: [combo::ComboDB]COMBO_HOP1.H1_I_NN1,
       h1_i_nl1: [combo::ComboDB]COMBO_HOP1.H1_I_NL1,
+      h1_bi_nn1: [combo::ComboDB]COMBO_HOP1.H1_BI_NN1,
+      h1_bi_nl1: [combo::ComboDB]COMBO_HOP1.H1_BI_NL1,
+      h1_si_nn1: [combo::ComboDB]COMBO_HOP1.H1_SI_NN1,
+      h1_si_nl1: [combo::ComboDB]COMBO_HOP1.H1_SI_NL1,
       h1_f_nn1: [combo::ComboDB]COMBO_HOP1.H1_F_NN1,
       h1_f_nl1: [combo::ComboDB]COMBO_HOP1.H1_F_NL1,
+      h1_de_nn1: [combo::ComboDB]COMBO_HOP1.H1_DE_NN1,
+      h1_de_nl1: [combo::ComboDB]COMBO_HOP1.H1_DE_NL1,
       h1_b_nn1: [combo::ComboDB]COMBO_HOP1.H1_B_NN1,
-      h1_b_nl1: [combo::ComboDB]COMBO_HOP1.H1_B_NL1
+      h1_b_nl1: [combo::ComboDB]COMBO_HOP1.H1_B_NL1,
+      h1_dt_nn1: [combo::ComboDB]COMBO_HOP1.H1_DT_NN1,
+      h1_dt_nl1: [combo::ComboDB]COMBO_HOP1.H1_DT_NL1,
+      h1_ts_nn1: [combo::ComboDB]COMBO_HOP1.H1_TS_NN1,
+      h1_ts_nl1: [combo::ComboDB]COMBO_HOP1.H1_TS_NL1
    }
 
    // ASSOCIATION ENDS WITH EXPLICIT SOURCE AND TARGET SET IDS. The ids are load-
@@ -1207,12 +1833,24 @@ Mapping combo::ComboMapping
       summaryId: [combo::ComboDB]analytics.COMBO_SUMMARY.SUMMARY_ID,
       sm_s_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_S_NN1,
       sm_s_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_S_NL1,
+      sm_c_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_C_NN1,
+      sm_c_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_C_NL1,
       sm_i_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_I_NN1,
       sm_i_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_I_NL1,
+      sm_bi_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_BI_NN1,
+      sm_bi_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_BI_NL1,
+      sm_si_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_SI_NN1,
+      sm_si_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_SI_NL1,
       sm_f_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_F_NN1,
       sm_f_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_F_NL1,
+      sm_de_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_DE_NN1,
+      sm_de_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_DE_NL1,
       sm_b_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_B_NN1,
-      sm_b_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_B_NL1
+      sm_b_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_B_NL1,
+      sm_dt_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_DT_NN1,
+      sm_dt_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_DT_NL1,
+      sm_ts_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_TS_NN1,
+      sm_ts_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_TS_NL1
    }
 
 )

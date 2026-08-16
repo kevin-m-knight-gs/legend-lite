@@ -50,21 +50,25 @@ class Column:
     def kind(self) -> str:
         """Coarse class used by the seeder and by JSON rendering."""
         t = self.type.upper()
-        if t.startswith("VARCHAR") or t.startswith("CHAR"):
+        # A parameterised type carries its precision -- DECIMAL(18,4), CHAR(12). The exact
+        # membership tests below were written when VARCHAR was the only such type and
+        # matched it by prefix, so every other parameterised type fell through to the raise.
+        base = t.split("(")[0]
+        if base in ("VARCHAR", "CHAR", "NVARCHAR", "TEXT"):
             return "string"
-        if t in ("INTEGER", "INT", "BIGINT", "SMALLINT"):
+        if base in ("INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT"):
             return "int"
-        if t in ("DOUBLE", "FLOAT", "REAL", "DECIMAL", "NUMERIC"):
+        if base in ("DOUBLE", "FLOAT", "REAL", "DECIMAL", "NUMERIC"):
             return "float"
         # BIT is the boolean type in Legend's relational grammar. BOOLEAN is NOT in
         # RelationalDataType and legend-engine rejects it at parse time with
         # "Unsupported column data type 'BOOLEAN'" — legend-lite accepts it, which is how
         # this corpus shipped 194 unparseable columns.
-        if t in ("BIT", "BOOLEAN"):
+        if base in ("BIT", "BOOLEAN"):
             return "bool"
-        if t == "DATE":
+        if base == "DATE":
             return "date"
-        if t in ("TIMESTAMP", "DATETIME"):
+        if base in ("TIMESTAMP", "DATETIME"):
             return "timestamp"
         raise ValueError(f"unhandled SQL type {self.type!r}")
 

@@ -96,7 +96,16 @@ OTW_COLS = ("OTW_CODE", "OTW_LABEL")
 
 # ---------------------------------------------------------------- the axes
 REACH = ("col", "chain1", "chain2")
-TYPES = ("string", "int", "float", "bool")
+# Pure type per axis value, and the SQL type behind it. Several values share a Pure type on
+# purpose: DECIMAL and DOUBLE are both Float[0..1] to the model, and whether they behave the
+# same through a transform is exactly the question -- a corpus using only DOUBLE cannot ask
+# it. DATE and TIMESTAMP earn their place separately: their RENDERING is where F24 lives.
+# REAL is ABSENT deliberately. It parses, compiles, and then fails at execution on DuckDB
+# with "Match failure: RealObject instanceOf Real" in the connector's type conversion -- see
+# F31. Every other type here round-trips, which is what identifies REAL rather than the
+# probe being wrong: scripts/corpus/repro/real-type-unconvertible/ runs all eleven.
+TYPES = ("string", "char", "int", "bigint", "smallint",
+         "float", "decimal", "bool", "date", "timestamp")
 NULLS = ("notnull", "nullable")
 HOST = ("top", "embedded")
 
@@ -123,20 +132,39 @@ WRITTEN = ("plain", "scope")
 # binary here, which was a guess worth checking rather than assuming from Pure's list form.
 XFORM = {
     "string": ("none", "up", "cat", "nest"),
+    "char": ("none", "up"),
     "int": ("none", "abs", "plus", "times"),
+    "bigint": ("none", "plus"),
+    "smallint": ("none", "abs"),
     "float": ("none", "abs", "sqrt", "times"),
+    "decimal": ("none", "abs"),
     # isNull/isNotNull are the only transforms whose RESULT type is fixed rather than
     # inherited, and Boolean is the one type where that is not a mismatch.
     "bool": ("none", "isnull", "isnotnull"),
+    # No transform over a date or a timestamp. The oracle implements no date function, and
+    # adding one would be a bet about calendar semantics rather than a fact -- the same trap
+    # concat set. What these cells test is the round trip and the RENDERING, which is where
+    # F24 lives: a DateTime serializes with a UTC offset through one path and without it
+    # through another.
+    "date": ("none",),
+    "timestamp": ("none",),
 }
 
-TYPE_SQL = {"string": "VARCHAR(200)", "int": "INTEGER", "float": "DOUBLE", "bool": "BIT"}
-TYPE_PURE = {"string": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
+TYPE_SQL = {"string": "VARCHAR(200)", "char": "CHAR(12)", "int": "INTEGER",
+            "bigint": "BIGINT", "smallint": "SMALLINT", "float": "DOUBLE",
+            "decimal": "DECIMAL(18,4)", "bool": "BIT",
+            "date": "DATE", "timestamp": "TIMESTAMP"}
+TYPE_PURE = {"string": "String", "char": "String", "int": "Integer",
+             "bigint": "Integer", "smallint": "Integer", "float": "Float",
+             "decimal": "Float", "bool": "Boolean",
+             "date": "StrictDate", "timestamp": "DateTime"}
 
 # Two columns of every (type, nullability) per table, because a two-argument transform whose
 # arguments are the same column cannot detect an argument-order defect.
 _PREFIX = {ROOT: "R", HOP1: "H1", HOP2: "H2", ALT: "A", "COMBO_SUMMARY": "SM"}
-_SHORT = {"string": "S", "int": "I", "float": "F", "bool": "B"}
+_SHORT = {"string": "S", "char": "C", "int": "I", "bigint": "BI",
+          "smallint": "SI", "float": "F", "decimal": "DE",
+          "bool": "B", "date": "DT", "timestamp": "TS"}
 
 
 def column(table: str, type_: str, nulls: str, which: int) -> str:

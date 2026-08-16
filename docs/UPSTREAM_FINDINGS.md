@@ -1029,3 +1029,17 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   Pinned by `repro/exists-empty-tomany/`, which projects `exists` and `isEmpty` beside it
   over a firm with two employees and a firm with none; those PASS, and are what identify
   `forAll` as the odd one.
+- **A `REAL` column parses, compiles, and cannot be executed on DuckDB.** A class mapped to a
+  `REAL` column fails at execution with *"Match failure: RealObject instanceOf Real"* at
+  `core_relational_duckdb/relational/typeConversion.pure`. The grammar accepts the type and
+  the compiler accepts the mapping; only the connector's type conversion does not handle it.
+
+  Ten other SQL types were probed the same way, one column each, same mapping shape, same
+  connection: `VARCHAR`, `CHAR`, `INTEGER`, `BIGINT`, `SMALLINT`, `DOUBLE`, `DECIMAL(18,4)`,
+  `BIT`, `DATE` and `TIMESTAMP` all round-trip correctly. That is what identifies `REAL`
+  rather than the probe -- `repro/real-type-unconvertible/` carries the failing case and the
+  `DOUBLE` control beside it.
+
+  Worth noting `DECIMAL(18,4)` returns `2.5000` rather than `2.5`: the declared scale is
+  preserved in the serialized form, which is defensible but is a difference a consumer
+  comparing text rather than parsed numbers would trip on.
