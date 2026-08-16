@@ -935,7 +935,12 @@ hit on a side that came from an `execute()` binding is a masked typing bug — l
 **`hostEquals(1.5, 1)` is `true`** — on the live assert path (`EngineTestExecutor:3316`). Use
 `BigDecimal.compareTo` or exact comparison. Audit §5 A4.
 
-### F6.5 — Fix `csvRowEquals`'s cross-kind collapse
+### F6.5 — Fix `csvRowEquals`'s cross-kind collapse — and A7, assigned here
+
+> **A7 assignment (2026-08-16, deferral review):** JsonAssertCanon's lexical
+> row sort was in the Phase-8 tail with no owner; it is the same
+> comparator-quality class and dies with this task. Its F1.4 allowlist row
+> deletes with the fix.
 
 **Files:** `EngineTestExecutor.java:3093-3095`; also `H2Verify.java:568`, `TdsEquivalence.java:71`
 
@@ -1126,6 +1131,16 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 - **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
   exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
   rather than class-list-pinned. Deferred — not pause work.
+- **The 56 counted sql-text-side gaps need an OWNER (frozen leniency,
+  found by the user's deferral review):** F2.3's registry ceiling counts
+  56 real renderer/recognizer gaps in the golden-SQL side channel
+  (EngineStyleH2 list/array encodings: LIST_GET/LIST_CONCAT/STRING_AGG/
+  array literals; toSQLString argument shapes; banker's ROUND;
+  object-space TypedFilter substitution). Ceiling'd but assigned to no
+  phase. Owner: the renderer-encoding buckets ride with Phase 4's
+  render-lowering work (same dialect surface); the toSQLString/
+  recognizer buckets are burn-resume fuel. Burn the ceiling down with
+  dated justifications as each bucket closes.
 - **Phase-1/2 deep-audit residue (2026-08-16):** (a) F1.7's ratchet misses
   `default -> CONSTANT` and old-style `default: return "x"` spellings — a
   tripwire, not a wall; (b) the float-ROUNDING leniency count (norm's

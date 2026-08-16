@@ -39,7 +39,11 @@ class HarnessDisciplineTest {
      *  (two-sided BY DESIGN, counted by F2.4);
      *  JsonAssertCanon 1 — **audit A7, a LEDGERED VIOLATION** (lexical
      *  row sort, both sides canonicalized independently): stays listed
-     *  so it cannot multiply, dies in Phase 6 — listing is not license;
+     *  so it cannot multiply — listing is not license. Phase pointer
+     *  corrected (user deferral review): the plan's Phase 6 tasks do
+     *  NOT include A7 (it sat in the Phase-8 tail); it is hereby
+     *  ASSIGNED to Phase 6 — it is harness compensation of exactly the
+     *  F6 class and dies with F6.5's comparator-collapse batch;
      *  LineageForm 1 — want.sort on the property-name existence check
      *  (two-sided: both lists sorted before compare);
      *  Runner 2 / RelationalCorpusRunner 14 — rcorpus orchestration and
