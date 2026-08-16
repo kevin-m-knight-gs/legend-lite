@@ -1043,3 +1043,25 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   Worth noting `DECIMAL(18,4)` returns `2.5000` rather than `2.5`: the declared scale is
   preserved in the serialized form, which is defensible but is a difference a consumer
   comparing text rather than parsed numbers would trip on.
+- **A model constraint is ENFORCED through graph fetch and IGNORED through TDS projection.**
+  One class, one constraint (`nonNegative: $this.balance >= 0.0`), one mapping, two seeded
+  rows of which one violates it. Two query shapes over exactly that:
+
+      ->project(~[id, balance])                    returns BOTH rows, violation included
+      ->graphFetch(#{...}#)->serialize(#{...}#)    ERRORS: "Constraint :[nonNegative]
+                                                   violated in the Class Acct"
+
+  So whether a constraint means anything depends on the shape of the query that reads the
+  data. A team relying on constraints for data quality gets enforcement from one access path
+  and silence from the other, and the silent path is the one most services use.
+
+  Neither behaviour is obviously the wrong one in isolation -- there is a defensible reading
+  where a projection is a relational query that never materializes an instance, and another
+  where a constraint is part of what the class MEANS. What is not defensible is that the two
+  disagree, because a model cannot be validated by testing one path.
+
+  This is the third divergence of the same family: F10 (graph fetch raises on an unmapped
+  enum code where TDS returns null) and F24 (graph fetch drops the UTC offset TDS includes).
+  Recorded together they say something stronger than any of them alone -- the two execution
+  paths do not share a semantics, and which one a service gets is decided by its query shape.
+  `repro/constraint-tds-vs-graphfetch/` carries both services over the same rows.
