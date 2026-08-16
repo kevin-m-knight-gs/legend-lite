@@ -450,7 +450,17 @@ public class RelationalCorpusRunner {
                     "Duplicate column name", 11,
                     // engine plan-level temp-table for IN lists — a
                     // machinery gap, not a rendering one
-                    "tempTableForIn", 6);
+                    "tempTableForIn", 6,
+                    // F2.3 seed (2026-08-16): the golden-SQL side
+                    // channel's catch-and-null, now counted — 56 declines
+                    // (the printed census truncates its bucket list; this
+                    // ceiling is the assert's own full sum). Dominant
+                    // buckets: array/list encodings in the golden-text
+                    // dialect, toSQLString shapes, banker's ROUND,
+                    // object-space TypedFilter. Shrink-only; each bucket
+                    // is a REAL renderer/recognizer gap — adjudicate
+                    // before raising.
+                    "sql-text side", 56);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()
