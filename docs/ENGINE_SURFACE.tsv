@@ -1,0 +1,264 @@
+id	dsl	name	syntax	detect
+MAP-04	mapping	include mapping (bare)	include my::base	^\s*include\s+[\w:]+\s*$
+MAP-05	mapping	include mapping (typed)	include mapping my::base	^\s*include\s+mapping\s+[\w:]+
+MAP-06	mapping	include with store substitution	include mapping m[dbA->dbB]	include\s+(?:mapping\s+)?[\w:]+\s*\[[\w:]+\s*->
+MAP-08	mapping	root set-implementation marker	*test::C[id]: Relational	^\s*\*[\w:]+
+MAP-09	mapping	explicit set id	test::C[id1]: Relational	^\s*\*?[\w:]+\[\w+\]\s*(?:extends|\:)
+MAP-10	mapping	class-mapping extends [id]	C[id1] extends [id2]: Relational	extends\s*\[\w+\]
+SET-01	mapping	Relational class mapping	: Relational {	:\s*Relational\s*\{
+SET-02	mapping	Relational association mapping	AssociationMapping ( ... )	AssociationMapping
+SET-03	mapping	Pure / M2M class mapping	: Pure { ~src S }	:\s*Pure\s*\{
+SET-04	mapping	Operation class mapping	: Operation { fn(p1,p2) }	:\s*Operation\s*\{
+SET-05	mapping	Merge operation	merge_...([p1,p2],{...})	merge_[\w:]*\(
+SET-06	mapping	XStore association mapping	: XStore { p: $this.x==$that.y }	:\s*XStore\s*\{
+SET-07	mapping	ModelJoin association mapping	: ModelJoin { {e,p|...} }	:\s*ModelJoin\s*\{
+SET-08	mapping	AggregationAware class mapping	: AggregationAware { Views: [...] }	:\s*AggregationAware\s*\{
+SET-10	mapping	Relation (function-based) mapping	: Relation { ~func f():Any[1] }	:\s*Relation\s*\{
+SET-11	mapping	EnumerationMapping element	E: EnumerationMapping M { A: 1 }	EnumerationMapping\s+\w+\s*$|EnumerationMapping\s*\{
+DIR-01	mapping	~filter (plain)	~filter [db]f1	~filter\s*\[[\w:]+\]\s*\w+\s*$
+DIR-02	mapping	~filter via join	~filter [db]@J | [db]F	~filter\s*(?:\[[\w:]+\]\s*)?(?:\(\w+\)\s*)?@
+DIR-03	mapping	~distinct	~distinct	^\s*~distinct
+DIR-04	mapping	~groupBy	~groupBy ( [db]t.c )	^\s*~groupBy
+DIR-05	mapping	~primaryKey	~primaryKey ( [db]t.id )	~primaryKey
+DIR-06	mapping	~mainTable	~mainTable [db]T	~mainTable
+DIR-07	mapping	~mainTable with schema	~mainTable [db]sch.T	~mainTable\s*\[[\w:]+\]\s*\w+\.\w+
+DIR-09	mapping	quoted relational identifier	~mainTable [db]"My Table"	~mainTable\s*\[[\w:]+\]\s*"
+PM-01	mapping	direct column	c: [db]t.COL	:\s*\[[\w:]+\]\s*\w+\.\w+
+PM-02	mapping	bare column (in scope)	name: COL	
+PM-03	mapping	schema-qualified column	c: [db]sch.t.col	:\s*\[[\w:]+\]\s*\w+\.\w+\.\w+
+PM-04	mapping	{target} column ref	c: {target}.ID	\{target\}
+PM-05	mapping	join reference	emps: [db]@J	:\s*(?:\[[\w:]+\]\s*)?@\w+\s*$
+PM-06	mapping	join chain	p: [db]@A > @B	@\w+\s*>\s*(?:\[[\w:]+\]\s*)?@\w+
+PM-07	mapping	join chain ending in column	p: @A > @B | [db]t.c	@\w+[^|\n]*\|\s*(?:\[[\w:]+\]\s*)?\w+\.\w+
+PM-08	mapping	join chain ending in expression	p: @A > @B | equal(a,b)	@\w+[^|\n]*\|\s*\w+\(
+PM-09	mapping	typed join in chain	> (OUTER) [db]@J	>\s*\(\s*(?:INNER|OUTER)\s*\)
+PM-10	mapping	typed leading join	~filter [db] (INNER) @J	\[\s*[\w:]+\s*\]\s*\(\s*(?:INNER|OUTER)\s*\)\s*@
+PM-11	mapping	dynafunction call	c: concat(a, b)	:\s*\w+\s*\(\s*\[
+PM-12	mapping	dynafunction array argument	c: coalesce([a, b])	:\s*\w+\s*\(\s*\[\s*\[
+PM-13	mapping	db-scoped dynafunction	c: [db2]case(...)	:\s*\[[\w:]+\]\s*\w+\s*\(
+PM-14	mapping	literal string value	c: 'STATE'	:\s*'[^']*'\s*[,\n]
+PM-15	mapping	literal integer value	c: 1	:\s*-?\d+\s*[,\n]
+PM-16	mapping	literal float value	c: 0.0	:\s*-?\d+\.\d+\s*[,\n]
+PM-17	mapping	comparison operator in mapping	c: a = b	
+PM-18	mapping	null test in mapping	c: [db]t.col is null	:\s*\[[\w:]+\][\w.]+\s+is\s+(?:not\s+)?null
+PM-19	mapping	boolean and/or in mapping	c: a = 1 and b = 2	
+PM-21	mapping	property with target set id	emps[model_Person]: [db]@J	\w+\[\s*\w+\s*\]\s*:\s*(?:\[[\w:]+\]\s*)?@
+PM-22	mapping	property with source+target ids	p[src,tgt]: [db]@J	\w+\[\s*\w+\s*,\s*\w+\s*\]\s*:
+PM-23	mapping	local (+) property mapping	+p: T[*]: [db]t.c	^\s*\+\w+\s*:
+PM-25	mapping	enumeration transformer	p: EnumerationMapping m: [db]t.c	EnumerationMapping\s+\w+\s*:
+PM-26	mapping	binding transformer	p: Binding b : [db]t.json	:\s*Binding\s+[\w:]+\s*:
+PM-27	mapping	embedded property mapping	client ( id: [db]t.C )	
+PM-28	mapping	nested embedded (depth 2+)	a ( b ( c: 1 ) )	
+PM-29	mapping	embedded with own ~primaryKey	addr ( ~primaryKey (...) ... )	
+PM-31	mapping	inline embedded	address () Inline [set]	\(\s*\)\s*Inline\s*\[
+PM-32	mapping	otherwise embedded	firm ( ... ) Otherwise ([id]: @J)	\)\s*Otherwise\s*\(
+PM-33	mapping	otherwise target with join chain	) Otherwise ([id]: @A > @B)	Otherwise\s*\(\s*\[\w+\]\s*:[^)]*@\w+\s*>
+PM-34	mapping	scope block (table scope)	scope([db]T) ( c: COL )	scope\s*\(\s*\[[\w:]+\]\s*\w+
+PM-35	mapping	scope block (db only)	scope([db]) ( c: [db]t.c )	scope\s*\(\s*\[[\w:]+\]\s*\)
+PUR-01	mapping	Pure ~src source class	~src test::Src	~src\s
+PUR-02	mapping	Pure ~filter lambda	~filter $src.x->startsWith('J')	~filter\s*\$
+PUR-05	mapping	Pure local (+) property	+firmId: Integer[1]: 1	
+PUR-06	mapping	explode property marker	prop*: $src.values	^\s*\w+\*\s*:
+OPR-01	mapping	store union operation	union_...(p1,p2)	union_\w*\(
+OPR-02	mapping	router special_union	special_union_...(p1,p2)	special_union
+OPR-03	mapping	inheritance operation	inheritance_...(p1,p2)	inheritance_\w*\(
+XST-01	mapping	xstore property mapping	employer: $this.x == $that.y	\$this\.\w+\s*==\s*\$that
+MJN-01	mapping	model join condition	{e:F[1],p:P[1]|$e.id==$p.fid}	\|\s*\$\w+\.\w+\s*==\s*\$\w+\.\w+
+AGG-03	mapping	~canAggregate	~canAggregate true	~canAggregate
+AGG-04	mapping	~groupByFunctions	~groupByFunctions ( $this.id )	~groupByFunctions
+AGG-05	mapping	~aggregateValues ~mapFn/~aggregateFn	~mapFn / ~aggregateFn	~aggregateFn
+AGG-06	mapping	~aggregateMapping	~aggregateMapping: Pure { }	~aggregateMapping
+AGG-07	mapping	~mainMapping	~mainMapping: Relational { }	~mainMapping
+REL-01	mapping	~func relation function	~func my::f():Any[1]	~func\s
+REL-02	mapping	~src inline relation expr	~src my::db->table('t')	~src\s+[\w:]+->
+REL-03	mapping	Relation ~primaryKey single	~primaryKey: firstName	~primaryKey\s*:\s*\w+
+REL-04	mapping	Relation ~primaryKey multi	~primaryKey: [a, b]	~primaryKey\s*:\s*\[
+ENM-03	mapping	enum string source value	CITY: 'c'	
+ENM-04	mapping	enum integer source value	CITY: 1	
+ENM-05	mapping	enum reference source value	CITY: src::E.CITY	
+ENM-06	mapping	enum multiple source values	CITY: [1, 2, 'c']	
+TST-08	mapping	mapping testSuites block	testSuites: [ s: { } ]	testSuites\s*:
+TST-14	mapping	relational embedded data island	db: Relational #{ ... }#	Relational\s*#\{
+TST-15	mapping	EqualToTDS assertion	EqualToTDS #{ ... }#	EqualToTDS
+R03	store	Database stereotypes	Database <<p.s>> my::Db ( )	Database\s*<<
+R04	store	Database tagged values	Database {doc.doc='x'} my::Db ( )	Database\s*\{
+R05	store	include another Database	include other::Db	^\s*include\s+[\w:]+\s*$
+R06	store	include store (typed)	include ServiceStore my::S	include\s+\w+Store\s+
+R07	store	Schema	Schema s ( Table T(...) )	^\s*Schema\s+
+R09	store	quoted schema name	Schema "my schema" ( )	Schema\s+"
+R11	store	Table doc/stereotypes/tags	'doc' Table <<p.s>> T ( )	Table\s*<<|Table\s*\{
+R12	store	quoted table name	Table "person table" ( )	Table\s+"
+R15	store	column documentation	'the id' id INTEGER	^\s*'[^']*'\s*\w+\s+[A-Z]
+R16	store	column stereotypes	id <<p.s>> INTEGER	^\s*\w+\s*<<
+R18	store	quoted column name	"first name" VARCHAR(100)	^\s*"[^"]+"\s+[A-Z]
+R19	store	PRIMARY KEY modifier	id INTEGER PRIMARY KEY	PRIMARY KEY
+R20	store	NOT NULL modifier	name VARCHAR(20) NOT NULL	NOT NULL
+R22	store	type with precision+scale	amt DECIMAL(10,4)	\w+\s+\w+\(\d+\s*,\s*\d+\)
+R23	store	CHAR(n)	c CHAR(10)	\bCHAR\(
+R24	store	VARCHAR(n)	s VARCHAR(200)	\bVARCHAR\(
+R25	store	BINARY(n)	b BINARY(16)	\bBINARY\(
+R26	store	VARBINARY(n)	b VARBINARY(1024)	\bVARBINARY\(
+R27	store	BIT	flag BIT	\bBIT\b
+R28	store	INT	i INT	\s+INT\s*[,\)\n]
+R29	store	INTEGER	i INTEGER	\bINTEGER\b
+R30	store	BIGINT	i BIGINT	\bBIGINT\b
+R31	store	SMALLINT	i SMALLINT	\bSMALLINT\b
+R32	store	TINYINT	i TINYINT	\bTINYINT\b
+R33	store	TIMESTAMP	t TIMESTAMP	\bTIMESTAMP\b
+R34	store	DATE	d DATE	\bDATE\b
+R35	store	NUMERIC(p,s)	n NUMERIC(10,4)	\bNUMERIC\(
+R36	store	DECIMAL(p,s)	n DECIMAL(10,4)	\bDECIMAL\(
+R37	store	FLOAT	f FLOAT	\bFLOAT\b
+R38	store	DOUBLE	f DOUBLE	\bDOUBLE\b
+R39	store	REAL	f REAL	\bREAL\b
+R40	store	ARRAY	a ARRAY	\bARRAY\b
+R41	store	OTHER	o OTHER	\bOTHER\b
+R42	store	SEMISTRUCTURED	j SEMISTRUCTURED	\bSEMISTRUCTURED\b
+R43	store	JSON column type	j JSON	\s+JSON\s*[,\)\n]
+R44	store	milestoning block	milestoning( business(...) )	milestoning\s*\(
+R45	store	multiple milestoning specs	business(...), processing(...)	business\s*\([^)]*\)\s*,\s*processing
+R47	store	business from/thru	business(BUS_FROM=f, BUS_THRU=t)	BUS_FROM
+R48	store	business THRU_IS_INCLUSIVE	THRU_IS_INCLUSIVE=true	THRU_IS_INCLUSIVE
+R49	store	business INFINITY_DATE	INFINITY_DATE=%9999-12-31	INFINITY_DATE
+R50	store	business snapshot	business(BUS_SNAPSHOT_DATE=d)	BUS_SNAPSHOT_DATE
+R51	store	processing in/out	processing(PROCESSING_IN=i, PROCESSING_OUT=o)	PROCESSING_IN
+R52	store	processing OUT_IS_INCLUSIVE	OUT_IS_INCLUSIVE=true	OUT_IS_INCLUSIVE
+R54	store	processing snapshot	processing(PROCESSING_SNAPSHOT_DATE=d)	PROCESSING_SNAPSHOT_DATE
+R55	store	View	View v ( id: t.id )	^\s*View\s+
+R58	store	View ~filter	View v ( ~filter f id: t.id )	View[\s\S]{0,200}?~filter
+R60	store	View ~filter over a join	~filter [db]@j1 > @j2 | [db]f	~filter\s*\[[\w:]+\]@
+R61	store	View ~groupBy	~groupBy (t.id)	~groupBy
+R62	store	View ~distinct	View v ( ~distinct id: t.id )	View[\s\S]{0,200}?~distinct
+R64	store	View column PRIMARY KEY	id: t.ID PRIMARY KEY	:\s*\w+\.\w+\s+PRIMARY KEY
+R67	store	TabularFunction	TabularFunction f ( id INTEGER )	TabularFunction
+R71	store	MultiGrainFilter	MultiGrainFilter f ( t.ID = 1 )	MultiGrainFilter
+R74	store	join != (test not-equal)	a.ID != b.ID	Join\s+\w+\s*\([^)]*!=
+R75	store	join <> (ANSI not-equal)	a.ID <> b.ID	Join\s+\w+\s*\([^)]*<>
+R76	store	join >	a.QTY > b.QTY	Join\s+\w+\s*\([^)]*>[^=]
+R78	store	join >=	a.QTY >= b.QTY	Join\s+\w+\s*\([^)]*>=
+R80	store	join is null	a.ID is null	Join\s+\w+\s*\([^)]*\bis null
+R81	store	join is not null	a.ID is not null	Join\s+\w+\s*\([^)]*is not null
+R82	store	join and (multi-column)	a.ID=b.ID and a.T=b.T	Join\s+\w+\s*\([^)]*\band\b
+R83	store	join or	a.ID=b.ID or a.ALT=b.ID	Join\s+\w+\s*\([^)]*\bor\b
+R84	store	join grouping parentheses	(a=b or c=d) and e=f	Join\s+\w+\s*\(\s*\(
+R85	store	{target} self-join	t.ID = {target}.MGRID	\{target\}
+R86	store	dynafunction operand in join	toUpper(a.NAME) = b.NAME	Join\s+\w+\s*\(\s*\w+\(
+R87	store	join dynafunction array arg	a.ID in [1,2,3]	Join\s+\w+\s*\([^)]*\[\s*\d
+R88	store	nested dynafunctions in join	concat(toUpper(a),b) = c	Join\s+\w+\s*\(\s*\w+\(\s*\w+\(
+R90	store	string constant in filter/join	t.NAME = 'abc'	(?:Filter|Join)\s+\w+\s*\([^)]*'
+R91	store	numeric constant in filter/join	t.QTY = -5	(?:Filter|Join)\s+\w+\s*\([^)]*[=<>]\s*-?\d
+R95	store	schema.table.column ref	mySchema.t.ID	\b\w+\.\w+\.\w+\b
+R96	store	cross-database column ref	[other::Db]s.t.ID = t.ID	Join\s+\w+\s*\(\s*\[[\w:]+\][\w.]+\s*=\s*\[[\w:]+\]
+R99	store	join sequence chaining	@jA > @jB > @jC	@\w+\s*>\s*@\w+\s*>\s*@\w+
+R100	store	join sequence with start alias	(personTable)@joinA	\(\s*\w+\s*\)\s*@\w+
+R102	store	cross-database join in chain	@jA > [other::Db]@jB	@\w+\s*>\s*\[[\w:]+\]\s*@
+P03	model	Class documentation	'a person' Class my::P { }	^\s*'[^']*'\s*Class\s
+P04	model	Class stereotypes	Class <<access.private>> my::P { }	Class\s*<<
+P05	model	Class tagged values	Class {doc.doc='x'} my::P { }	Class\s*\{
+P06	model	Class extends (single)	Class my::P extends my::B { }	Class\s+[\w:]+\s+extends\s+[\w:]+\s*$
+P07	model	Class multiple inheritance	Class my::C extends my::A, my::B	Class\s+[\w:]+\s+extends\s+[\w:]+\s*,
+P12	model	property documentation	'the name' name: String[1];	
+P13	model	property stereotypes	<<p.s>> name: String[1];	^\s*<<[\w.]+>>\s*\w+\s*:
+P14	model	property tagged values	{doc.doc='x'} name: String[1];	^\s*\{[\w.]+\s*=\s*'[^']*'\}\s*\w+\s*:
+P15	model	property default value	active: Boolean[1] = true;	:\s*\w+\[[^\]]+\]\s*=\s*
+P19	model	aggregation kind composite	(composite) children: N[*];	^\s*\(composite\)
+P20	model	aggregation kind shared	(shared) refs: N[*];	^\s*\(shared\)
+P22	model	derived property (no params)	f() { $this.x }: String[1];	^\s*\w+\s*\(\s*\)\s*\{
+P23	model	qualified property (params)	f(t: String[1]) { ... }: String[1];	^\s*\w+\s*\(\s*\w+\s*:\s*[\w:]+\[
+P26	model	multiplicity [0..1]	nick: String[0..1];	\[0\.\.1\]
+P27	model	multiplicity [*]	tags: String[*];	\[\*\]
+P28	model	multiplicity [1..*]	xs: String[1..*];	\[1\.\.\*\]
+P29	model	multiplicity [m..n]	xs: String[2..5];	\[\d+\.\.\d+\]
+P31	model	generic/parameterised type	box: my::Box<String>[1];	:\s*[\w:]+<[\w:]+>\[
+P33	model	Relation type	r: (name: String, id: Integer[1])[1];	:\s*\(\s*\w+\s*:\s*\w+\s*,
+P35	model	unit-qualified type	d: my::Mass~Kilogram[1];	:\s*[\w:]+~\w+\[
+P36	model	constraints block	Class my::P [ $this.age > 0 ] { }	^\s*\[\s*$|Class[^\n]*\n\s*\[
+P38	model	named simple constraint	[ nameLen: $this.n->length() < 10 ]	^\s*\w+\s*:\s*\$this
+P40	model	complex constraint ~function	[ c1( ~function: $this.a > 0 ) ]	~function\s*:
+P41	model	constraint ~owner	~owner: Finance	~owner\s*:
+P42	model	constraint ~externalId	~externalId: 'ext-1'	~externalId\s*:
+P43	model	constraint ~enforcementLevel Error	~enforcementLevel: Error	~enforcementLevel\s*:\s*Error
+P44	model	constraint ~enforcementLevel Warn	~enforcementLevel: Warn	~enforcementLevel\s*:\s*Warn
+P45	model	constraint ~message	~message: 'a must be positive'	~message\s*:
+P50	model	association with qualified property	Association A { ... f(){...}: T[1]; }	
+P52	model	Enumeration	Enum my::Color { RED, GREEN }	^\s*Enum\s+
+P54	model	enum value doc/stereotypes	Enum C { 'the red' <<p.s>> RED }	Enum[\s\S]{0,120}?<<
+P55	model	Measure with canonical unit	Measure m { *Gram: x -> $x; }	^\s*Measure\s+
+P56	model	Measure non-convertible units	Measure Cur { USD; EUR; }	Measure[\s\S]{0,120}?\w+;\s*\n\s*\w+;
+P58	model	function definition	function my::f(a: String[1]): Integer[1] { }	^\s*function\s+
+P62	model	function test suite block	function f(): Integer[1] { 1 } { t1 | f() => 1; }	=>\s*
+P68	model	Profile declaration	Profile my::P { stereotypes: [s1]; tags: [t1]; }	^\s*Profile\s+
+P77	model	navigation path island	#/my::Person/name#	#/
+P78	model	relation column builder ~	->project(~[name, id])	~\[
+P79	model	allVersions / allVersionsInRange	.allVersions()	->allVersions
+P80	model	String primitive	name: String[1];	:\s*String\[
+P81	model	Integer primitive	age: Integer[1];	:\s*Integer\[
+P82	model	Float primitive	rate: Float[1];	:\s*Float\[
+P83	model	Decimal primitive	amt: Decimal[1];	:\s*Decimal\[
+P84	model	Number primitive (abstract)	n: Number[1];	:\s*Number\[
+P85	model	Boolean primitive	active: Boolean[1];	:\s*Boolean\[
+P86	model	Date primitive	d: Date[1];	:\s*Date\[
+P87	model	StrictDate primitive	d: StrictDate[1];	:\s*StrictDate\[
+P88	model	DateTime primitive	d: DateTime[1];	:\s*DateTime\[
+P90	model	StrictTime primitive	t: StrictTime[1];	:\s*StrictTime\[
+P91	model	Byte primitive	b: Byte[*];	:\s*Byte\[
+P92	model	precise primitives	v: precisePrimitives::Varchar(200)[1];	precisePrimitives::
+CT-01	conn	JsonModelConnection	JsonModelConnection { class: m::F; url: '...'; }	JsonModelConnection
+CT-02	conn	XmlModelConnection	XmlModelConnection { class: m::F; }	XmlModelConnection
+CT-03	conn	ModelChainConnection	ModelChainConnection { mappings: [m::M]; }	ModelChainConnection
+CT-04	conn	RelationalDatabaseConnection	RelationalDatabaseConnection { store: db::D; }	RelationalDatabaseConnection
+RC-01	conn	connection store	store: db::MyDB;	^\s*store\s*:
+RC-03	conn	queryTimeOutInSeconds	queryTimeOutInSeconds: 60;	queryTimeOutInSeconds
+RC-04	conn	mode: local	mode: local;	^\s*mode\s*:\s*local
+RC-05	conn	timezone	timezone: +0500;	^\s*timezone\s*:
+RC-06	conn	quoteIdentifiers	quoteIdentifiers: true;	quoteIdentifiers
+RC-09	conn	postProcessors	postProcessors: [ mapper { } ];	postProcessors
+RC-10	conn	queryGenerationConfigs	queryGenerationConfigs: [ ... ];	queryGenerationConfigs
+DS-01	conn	LocalH2 spec	LocalH2 { testDataSetupSqls: [...]; }	LocalH2
+DS-02	conn	Static spec	Static { name:'db'; host:'h'; port:1; }	specification\s*:\s*Static
+DS-03	conn	EmbeddedH2 spec	EmbeddedH2 { name:'db'; directory:'/tmp'; }	EmbeddedH2
+DS-07	conn	DuckDB spec	DuckDB { path: '/tmp/d.db'; }	DuckDB\s*\{
+AU-01	conn	auth DefaultH2	auth: DefaultH2;	auth\s*:\s*DefaultH2
+AU-02	conn	auth Test	auth: Test;	auth\s*:\s*Test
+AU-03	conn	auth DelegatedKerberos	auth: DelegatedKerberos;	DelegatedKerberos
+AU-05	conn	auth UserNamePassword	auth: UserNamePassword { ... };	UserNamePassword
+AU-06	conn	auth ApiToken	auth: ApiToken { apiToken:'t'; };	ApiToken
+PP-01	conn	mapper post-processor	mapper { mappers: [ schema {...} ]; }	mapper\s*\{
+PP-02	conn	relationalMapper post-processor	relationalMapper { m::A }	relationalMapper
+PP-03	conn	ExtractSubQueriesAsCTEs	ExtractSubQueriesAsCTEsPostProcessor	ExtractSubQueriesAsCTEs
+RM-01	conn	RelationalMapper element	RelationalMapper m::M ( ... )	RelationalMapper\s
+RM-02	conn	DatabaseMappers	DatabaseMappers: [ [db::D.s] -> 'PROD' ];	DatabaseMappers
+RM-03	conn	SchemaMappers	SchemaMappers: [ db::D.s -> 'PROD' ];	SchemaMappers
+RM-04	conn	TableMappers	TableMappers: [ db::D.s.t -> 'PROD' ];	TableMappers
+RT-01	runtime	Runtime element	Runtime r::R { }	^\s*Runtime\s+
+RT-02	runtime	SingleConnectionRuntime	SingleConnectionRuntime r::R { connection: c::C; }	SingleConnectionRuntime
+RT-04	runtime	multiple mappings in a runtime	mappings: [ m::M1, m::M2 ];	mappings\s*:\s*\[[^\]]*,[^\]]*\]
+RT-05	runtime	connections by store	connections: [ db::D: [ id: c::C ] ];	connections\s*:
+RT-07	runtime	embedded connection island	id1: #{ RelationalDatabaseConnection { } }#	:\s*#\{\s*\w*Connection
+RT-08	runtime	connectionStores	connectionStores: [ c::C: [ db::D1 ] ];	connectionStores
+RT-10	runtime	embedded runtime island	runtime: #{ mappings: [...]; }#	runtime\s*:\s*#\{
+SV-02	service	service pattern	pattern: '/svc/{p}';	^\s*pattern\s*:
+SV-03	service	service title	title: 'My Service';	^\s*title\s*:
+SV-04	service	service owners	owners: ['u1'];	^\s*owners\s*:
+SV-05	service	ownership DID	ownership: DID { identifier: '1'; };	ownership\s*:\s*DID
+SV-06	service	ownership UserList	ownership: UserList { users: ['u']; };	ownership\s*:\s*UserList
+SV-08	service	autoActivateUpdates	autoActivateUpdates: true;	autoActivateUpdates
+SV-10	service	Single execution	execution: Single { }	execution\s*:\s*Single
+SV-11	service	MULTI execution (key routing)	execution: Multi { key:'env'; executions['PROD']: {} }	execution\s*:\s*Multi
+SV-14	service	embedded runtime on a service	runtime: #{ ... }#;	runtime\s*:\s*#\{
+SV-20	service	test parameters	parameters: [ p1 = 'v' ]	parameters\s*:\s*\[
+SV-21	service	serializationFormat	serializationFormat: PURE_TDSOBJECT;	serializationFormat
+SV-22	service	assert keys (multi-exec)	keys: ['PROD','UAT'];	^\s*keys\s*:
+SV-27	service	flat atomic test form	test1 (p='v') ['PROD'] : F => EqualToJson #{}#;	=>\s*EqualTo
+SV-28	service	postValidations	postValidations: [ { description: 'd'; } ]	postValidations
+SV-32	service	ExecutionEnvironment element	ExecutionEnvironment e::E { executions: [...]; }	ExecutionEnvironment
+SV-34	service	nested multi exec env	PROD: [ ds1: { mapping: m; runtime: r; } ]	
+SV-35	service	RuntimeComponents	runtimeComponents: { runtime: r; class: c; }	runtimeComponents
+D-01	data	Data element	Data d::D { ExternalFormat #{ }# }	^\s*Data\s+[\w:]+
+ED-01	data	ExternalFormat embedded data	ExternalFormat #{ contentType: '...'; }#	ExternalFormat\s*#\{
+ED-02	data	ModelStore embedded data	ModelStore #{ m::F: [ ^m::F(n='x') ] }#	ModelStore\s*#\{
+ED-03	data	Reference embedded data	Reference #{ d::MyData }#	Reference\s*#\{
+ED-04	data	Relational CSV embedded data	Relational #{ default.T: 'a,b\n1,2\n' }#	Relational\s*#\{
+ED-05	data	Relation (TDS literal) data	Relation #{ #TDS a,b\n1,2\n# }#	Relation\s*#\{
+TA-01	data	EqualTo assertion	EqualTo #{ expected: 1; }#	EqualTo\s*#\{
+TA-02	data	EqualToJson assertion	EqualToJson #{ expected: ... }#	EqualToJson
