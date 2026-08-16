@@ -315,11 +315,11 @@ public final class Ddl {
             case RelationalDataType.SmallInt ignored -> "SMALLINT";
             case RelationalDataType.TinyInt ignored -> "TINYINT";
             case RelationalDataType.Integer_ ignored -> "INTEGER";
-            // H2-FLAVORED on purpose: this DDL text flows through the
-            // RawSqlBoundary like every hand-written
-            // statement — ONE adaptation path (FLOAT->DOUBLE, BIT->BOOLEAN
-            // live in DuckDb.quoteCreateColumns; audit 19 restored the
-            // contract this file's header states).
+            // H2-FLAVORED on purpose so RawSqlBoundary can rewrite it
+            // (FLOAT->DOUBLE etc. live in RawSqlBoundary.mapColumnTypes,
+            // NOT DuckDb) — this is audit S4's self-inflicted rewrite
+            // loop: model-derived DDL should be spelled correctly the
+            // FIRST time; F7.4 deletes this arm and the rewrite with it.
             case RelationalDataType.Float_ ignored -> "FLOAT";
             case RelationalDataType.Double_ ignored -> "DOUBLE";
             case RelationalDataType.Real ignored -> "REAL";

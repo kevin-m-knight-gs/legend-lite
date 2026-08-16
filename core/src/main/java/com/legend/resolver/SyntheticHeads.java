@@ -350,6 +350,10 @@ final class SyntheticHeads {
                 return liftFilteredHeads(folded, enabled);
             }
         }
+        TypedSpec betaLeaf = enabled ? liftMapWrappedFilterLeaf(n) : null;
+        if (betaLeaf != null) {
+            return betaLeaf;
+        }
         if (enabled
                 && n instanceof TypedPropertyAccess pa
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f
@@ -432,24 +436,9 @@ final class SyntheticHeads {
                 return lifted;
             }
         }
-        // CONCATENATED navigation streams read as a bare collection —
-        // $p.head->filter(f1).leaf spelled over concatenate(...): every
-        // branch is a (possibly filtered) navigation of the SAME head
-        // property; the union lifts into ONE synthetic head #cN whose
-        // join target is the UNION ALL of the branch pipelines (engine:
-        // one unionalias subselect, LEFT-joined, row-exploding).
-        if (enabled && n instanceof TypedPropertyAccess pa2
-                && pa2.source() instanceof TypedNativeCall cc
-                && cc.callee().qualifiedName()
-                        .equals("meta::pure::functions::collection::concatenate")
-                && cc.info().type() instanceof Type.ClassType
-                && !(pa2.info().multiplicity()
-                        instanceof Multiplicity.Bounded b2
-                        && Integer.valueOf(1).equals(b2.upper()))) {
-            TypedSpec lifted = liftConcatStreams(cc, pa2);
-            if (lifted != null) {
-                return lifted;
-            }
+        TypedSpec ccLift = enabled ? liftConcatArm(n) : null;
+        if (ccLift != null) {
+            return ccLift;
         }
         return switch (n) {
             case TypedProject p ->
@@ -801,6 +790,53 @@ final class SyntheticHeads {
 
     /** The filter's source is a navigation hop whose receiver chain bottoms
      * at a lambda variable — the shape the lift can rename. */
+    /** MAP-WRAPPED filtered nav over a TO-ONE receiver
+     * ({@code $p.firm->map(f|$f.address->filter(corr)).name}): map over
+     * [0..1]/[1] IS direct application with empty propagation (pure), and
+     * a navigation body propagates null — β-inline the mapper so the leaf
+     * read lands on the filter and the leaf-read arm lifts the DIRECT
+     * spelling (the exploding-sub machinery). Null when not this shape. */
+    private @com.legend.Nullable TypedSpec liftMapWrappedFilterLeaf(
+            TypedSpec n) {
+        if (n instanceof TypedPropertyAccess paM
+                && paM.source() instanceof TypedMap mw
+                && mw.source().info().type() instanceof Type.ClassType
+                && mw.source().info().multiplicity()
+                        instanceof Multiplicity.Bounded mwb
+                && Integer.valueOf(1).equals(mwb.upper())
+                && mw.mapper().parameters().size() == 1
+                && mw.mapper().body().size() == 1
+                && mw.mapper().body().get(0) instanceof TypedFilter) {
+            TypedSpec inlined = Substitution.inlineParam(
+                    mw.mapper().body().get(0),
+                    mw.mapper().parameters().get(0), mw.source());
+            return liftFilteredHeads(new TypedPropertyAccess(
+                    inlined, paM.property(), paM.info()), true);
+        }
+        return null;
+    }
+
+    /** CONCATENATED navigation streams read as a bare collection —
+     * {@code $p.head->filter(f1).leaf} spelled over concatenate(...):
+     * every branch is a (possibly filtered) navigation of the SAME head
+     * property; the union lifts into ONE synthetic head #cN whose join
+     * target is the UNION ALL of the branch pipelines (engine: one
+     * unionalias subselect, LEFT-joined, row-exploding). Null = not
+     * this shape. */
+    private @com.legend.Nullable TypedSpec liftConcatArm(TypedSpec n) {
+        if (n instanceof TypedPropertyAccess pa2
+                && pa2.source() instanceof TypedNativeCall cc
+                && cc.callee().qualifiedName()
+                        .equals("meta::pure::functions::collection::concatenate")
+                && cc.info().type() instanceof Type.ClassType
+                && !(pa2.info().multiplicity()
+                        instanceof Multiplicity.Bounded b2
+                        && Integer.valueOf(1).equals(b2.upper()))) {
+            return liftConcatStreams(cc, pa2);
+        }
+        return null;
+    }
+
     private static boolean isLiftableNav(TypedSpec n) {
         if (n instanceof TypedPropertyAccess pa) {
             return navBottomsAtVar(pa.source());

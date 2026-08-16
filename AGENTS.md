@@ -7,6 +7,19 @@
 > bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs
 > eager?" decision.
 >
+> **Guard files are load-bearing.** The ArchUnit rules, ratchet
+> constants, allowlists, and ledgers under `core/src/test` (and
+> `PctDisciplineTest`) are the mechanical form of this file's rules. A
+> ceiling, pin, or allowlist entry moves ONLY with a dated justification
+> comment naming the task/incident — never as an edit-in-passing to make
+> a build green (docs/FOUNDATIONS_PLAN.md §0.4).
+>
+> **Execution tenet:** *Java orchestrates, the DATABASE executes.* The
+> adjudication authority is `docs/TENET_CHARTER.md` (clauses C1-C5: what
+> orchestration may do, what execution may not, the host-channel provenance
+> rule, the LiteralFold literal exception, the ingress mirror). Consult it
+> before any "may Java compute this?" decision.
+>
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
 > contracts, open decisions. This file is the short form.
 >

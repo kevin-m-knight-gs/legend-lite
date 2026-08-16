@@ -542,3 +542,28 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation3 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation5 | other | row-assert+constraints | Test | object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[sou |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation6 | resolve | row-assert+constraints | Test | filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::comple |
+
+## Declared platform gaps (@Disabled("GAP:") census — F2.6, hand-maintained)
+
+15 disabled integration tests declare platform gaps invisible to the corpus
+scoreboard (all in RelationalMappingIntegrationTest). Two more were RETIRED
+2026-08-16 — 'XStore not in grammar' and 'AggregationAware not in grammar'
+were stale (both implemented; the un-disabled tests pass). NOTE: this file's
+generated body is script-owned; this section is appended by hand until the
+generator learns it (FOUNDATIONS_PLAN §9 script backlog).
+
+- GAP: AggregationAware + join
+- GAP: Database filter + mapping filter stacking
+- GAP: Database filters not extracted
+- GAP: Extends + filter inheritance
+- GAP: Local property + join + filter
+- GAP: Local property + prefix semantics lost
+- GAP: Mapping include + join navigation
+- GAP: Relation class mapping not in grammar
+- GAP: Scope block + embedded + filter
+- GAP: Set IDs + filter disambiguation
+- GAP: Store substitution + query
+- GAP: View + join + filter
+- GAP: extends clause ignored by builder
+- GAP: scope keyword in lexer but no grammar rule
+- GAP: store substitution not visited by builder

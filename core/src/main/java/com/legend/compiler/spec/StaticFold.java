@@ -275,6 +275,31 @@ final class StaticFold {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 return a instanceof Boolean b ? !b : null;
             }
+            // ledger cluster 19 part (1) — the cheap-probe slice of the
+            // NormalizeRequired fold vocabulary:
+            case "toOneMany" -> {
+                // identity on the evaluated list (multiplicity assertion)
+                Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
+                return a instanceof List<?> l && !l.isEmpty() ? a : null;
+            }
+            case "toString" -> {
+                Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
+                return a instanceof String || a instanceof Long
+                        || a instanceof Boolean || a instanceof Double
+                        ? String.valueOf(a) : null;
+            }
+            // isEmpty/isNotEmpty over a foldable value: an if() whose
+            // condition is isEmpty([]) must fold so the DEAD branch never
+            // reaches the Typer (adjudication ledger cluster 2 — joinWith-
+            // OptionalColumns' else-branch is ill-typed when $cols is []).
+            case "isEmpty", "isNotEmpty" -> {
+                Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
+                if (a == null) {
+                    return null;
+                }
+                boolean empty = a instanceof List<?> l && l.isEmpty();
+                return af.function().equals("isEmpty") ? empty : !empty;
+            }
             case "in" -> {
                 if (ps.size() != 2) {
                     return null;
@@ -422,6 +447,15 @@ final class StaticFold {
                 if (af.function().equals("toOne") && ps.size() == 1) {
                     Object a = eval(ps.get(0), scope);
                     return a instanceof List<?> l && l.size() == 1 ? l.get(0) : a;
+                }
+                // toOne(value, message): the ASSERTING spelling unwraps
+                // when statically singular (ledger cluster 19 part 1)
+                if (af.function().equals("toOne") && ps.size() == 2) {
+                    Object a = eval(ps.get(0), scope);
+                    if (a instanceof List<?> l) {
+                        return l.size() == 1 ? l.get(0) : null;
+                    }
+                    return a;
                 }
                 if (ps.size() == 2 && eval(ps.get(1), scope) instanceof Long ix) {
                     List<Object> coll = evalList(ps.get(0), scope);

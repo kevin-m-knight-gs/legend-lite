@@ -895,6 +895,7 @@ public final class ClassSources {
                     composedPipeline.info());
         }
         Map<String, TypedSpec> composed = new LinkedHashMap<>();
+        Map<String, String> deferred = new LinkedHashMap<>();
         for (Map.Entry<String, TypedSpec> e : ctor.properties().entrySet()) {
             // a key that is NOT a class property is a mapping-LOCAL (+prop)
             // binding (the XStore assoc-key idiom): the normalizer emits it
@@ -902,15 +903,24 @@ public final class ClassSources {
             // own value — unknown NON-local keys were already rejected at
             // NORMALIZE (synthM2M's deep property check), so it composes
             // as an extra binding column here.
-            composed.put(e.getKey(), substituteSourceReads(e.getValue(), srcVar,
-                    inner, classFqn, mappingFqn));
+            try {
+                composed.put(e.getKey(), substituteSourceReads(e.getValue(),
+                        srcVar, inner, classFqn, mappingFqn));
+            } catch (NotImplementedException wall) {
+                // PER-KEY deferral (ledger cluster 21): the wall throws at
+                // READ time via ClassSource.throwIfDeferred — a query that
+                // never demands this property composes cleanly (the H5b
+                // eager loop sank whole class mappings for bindings no
+                // query read).
+                deferred.put(e.getKey(), wall.getMessage());
+            }
         }
         // audit 24 F4: the composition's FRAME IDENTITY — the deep source
         // class (jsonSources key); two sets sharing it share the frame
         return new ClassSource(mappingFqn, classFqn, binding.setId(),
                 composedPipeline, inner.rowVar(), composed, inner.rowType(),
                 inner.sourceClass() != null ? inner.sourceClass()
-                        : inner.classFqn());
+                        : inner.classFqn(), deferred);
     }
 
     /**

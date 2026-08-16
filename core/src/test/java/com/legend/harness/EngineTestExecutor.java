@@ -16,6 +16,7 @@ import com.legend.parser.SpecParser;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.NewInstance;
@@ -152,24 +153,45 @@ public final class EngineTestExecutor {
         };
     }
 
-    /** BARE {@code $result.values} = the engine Result envelope's values:
-     * a TDS is ONE object (carrier); instance/scalar collections SPLAT to
-     * their element count (the router composition goldens pin both). */
-    private static @com.legend.Nullable String carrierSizeCheck(Object n, ValueSpecification arg,
-            Map<String, ValueSpecification> lets,
+    private static final String NOT_ENVELOPE = "\u0000notEnvelope";
+
+    /** {@code assertSize($r.values[->at(0)/toOne()/first()], n)}: a TDS
+     * is ONE carrier even through a 0-pick (engine parity, cluster 34);
+     * an INSTANCE-rooted 0-pick is a REAL element pick — generic path.
+     * No-.rows-traversal gated; instance collections SPLAT. */
+    @SuppressWarnings("StringEquality")
+    private static @com.legend.Nullable String envelopeSizeCheck(Object n,
+            ValueSpecification arg, Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
             ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        Eval av = eval(arg, lets, execStmts, execVars, execChains, ctx,
+        ValueSpecification subst0 = subst(arg, lets), peel0 = subst0;
+        while (peel0 instanceof AppliedFunction pf0
+                && !pf0.parameters().isEmpty()
+                && (simpleName(pf0.function()).equals("toOne")
+                    || simpleName(pf0.function()).equals("first")
+                    || (simpleName(pf0.function()).equals("at")
+                        && pf0.parameters().size() == 2
+                        && pf0.parameters().get(1) instanceof CInteger pi0
+                        && pi0.value().longValue() == 0))) {
+            peel0 = pf0.parameters().get(0);
+        }
+        if (!(peel0 instanceof AppliedProperty vp
+                && vp.property().equals("values")
+                && vp.receiver() instanceof Variable rv
+                && execChains.containsKey(rv.name()))) {
+            return NOT_ENVELOPE;
+        }
+        Eval av = eval(peel0, lets, execStmts, execVars, execChains, ctx,
                 imports, runtimeFqn, conn);
-        boolean tdsCarrier = av.result()
+        boolean tds = av.result()
                 instanceof com.legend.exec.ExecutionResult.Tabular tb
                 && (tb.returnType() instanceof com.legend.compiler.element
-                        .type.Type.RelationType
-                        || com.legend.compiler.element.type.PlatformTypes
-                                .isTdsType(tb.returnType()));
-        long carriers = tdsCarrier ? 1L : av.size();
+                        .type.Type.RelationType || com.legend.compiler
+                        .element.type.PlatformTypes.isTdsType(tb.returnType()));
+        if (peel0 != subst0 && !tds) { return NOT_ENVELOPE; }
+        long carriers = tds ? 1L : av.size();
         return (n instanceof Number cn && cn.longValue() == carriers) ? null
                 : "assertSize(result.values): expected " + n + ", got "
                         + carriers + " (TDS = one carrier; collections splat)";
@@ -521,6 +543,14 @@ public final class EngineTestExecutor {
             if (RuntimeIfForm.splice(subst(stmt, lets), lets, execStmts,
                     execVars, execChains, ctx, imports, runtimeFqn, conn,
                     work)) {
+                executed++;
+                continue;
+            }
+            // assert loop over materialised values — AssertLoopForm
+            if (stmt instanceof AppliedFunction mapAf
+                    && AssertLoopForm.consume(mapAf, work, lets, execStmts,
+                            execVars, execChains, ctx, imports,
+                            runtimeFqn, conn)) {
                 executed++;
                 continue;
             }
@@ -1004,10 +1034,15 @@ public final class EngineTestExecutor {
                 return "h2-exec: OUR byte-matched SQL on H2 diverged"
                         + " from our DuckDB rows — " + h2rows;
             }
-            // divergent text: execution-equivalence may still verify
+            // divergent text: execution-equivalence may still verify —
+            // and a null return here is the RESCUE (rows matched despite
+            // divergent text): counted (F2.2), never silent
             String rows = h2Upgrade(args, lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn);
             if (rows != ADVISORY_MARKER) {
+                if (rows == null) {
+                    H2Verify.M1_RESCUED.increment();
+                }
                 return rows;
             }
             return "sql-text: expected " + golden + ", got " + sql;
@@ -1803,6 +1838,30 @@ public final class EngineTestExecutor {
                     // enough that blanket-unsupported stays honest
                     return UNSUPPORTED_MARKER;
                 }
+                // forAll-contains SUBSET assert (functionvariables idiom
+                // assert($expected->forAll(e|$results->contains($e)),|m)):
+                // both sides evaluate through the pipeline; the forAll
+                // fold is assert-level logic — DuckDB cannot host a
+                // subquery inside a SQL lambda (Binder), and pure's own
+                // evaluation of this shape is in-memory too.
+                ValueSpecification[] fc = AssertLoopForm.forAllContains(
+                        subst(args.get(0), lets));
+                if (fc != null) {
+                    Eval need = eval(fc[0], lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
+                    Eval have = eval(fc[1], lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
+                    List<Object> missing = need.values().stream()
+                            .filter(n2 -> have.values().stream()
+                                    .noneMatch(h -> wireEquals(n2, h)))
+                            .toList();
+                    boolean holds = missing.isEmpty();
+                    boolean want = af.function().equals("assert");
+                    return holds == want ? null
+                            : "assert" + (want ? "" : "False")
+                                    + " (forAll-contains subset): missing "
+                                    + missing + " from " + have.render();
+                }
                 // connection-equality contract folds HOST-side (ConnEquality)
                 Object v = ConnEquality.tryEval(subst(args.get(0), lets), ctx, imports);
                 v = v != null ? v : evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
@@ -1941,12 +2000,11 @@ public final class EngineTestExecutor {
                 }
                 Object n = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
-                if (args.get(0) instanceof AppliedProperty vp
-                        && vp.property().equals("values")
-                        && vp.receiver() instanceof Variable rv
-                        && execChains.containsKey(rv.name())) {
-                    return carrierSizeCheck(n, args.get(0), lets, execStmts,
-                            execVars, execChains, ctx, imports, runtimeFqn, conn);
+                String env0 = envelopeSizeCheck(n, args.get(0), lets,
+                        execStmts, execVars, execChains, ctx, imports,
+                        runtimeFqn, conn);
+                if (env0 != NOT_ENVELOPE) {
+                    return env0;
                 }
                 if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
                     return UNSUPPORTED_MARKER;
@@ -2910,6 +2968,17 @@ public final class EngineTestExecutor {
                 }
                 ap.remove(hit);
             }
+            // F2.4: row-tuple multiset — one of the four previously
+            // UNINSTRUMENTED leniency paths (every LL_ORD_COUNT number
+            // was a floor)
+            ordLeniency(() -> {
+                for (int i = 0; i < e.size(); i++) {
+                    if (!wireEquals(e.get(i), a.get(i))) {
+                        return false;
+                    }
+                }
+                return true;
+            });
             return true;
         }
         List<Object> pool = new ArrayList<>(a);
@@ -2933,6 +3002,15 @@ public final class EngineTestExecutor {
             }
             pool.remove(hit);
         }
+        // F2.4: loose-pool cell multiset — previously uninstrumented
+        ordLeniency(() -> {
+            for (int i = 0; i < e.size(); i++) {
+                if (!wireEquals(e.get(i), a.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        });
         return true;
     }
 
@@ -3074,6 +3152,16 @@ public final class EngineTestExecutor {
             }
             pool.remove(hit);
         }
+        // F2.4: csvJoinedEquals row multiset — the audit's fourth
+        // uninstrumented path
+        ordLeniency(() -> {
+            for (int i = 0; i < expRows.size(); i++) {
+                if (!csvRowEquals(expRows.get(i), actRows.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        });
         return true;
     }
 
@@ -3298,7 +3386,12 @@ public final class EngineTestExecutor {
         List<String> as = new ArrayList<>(ar);
         java.util.Collections.sort(es);
         java.util.Collections.sort(as);
-        return es.equals(as);
+        boolean eq = es.equals(as);
+        if (eq) {
+            // F2.4: previously uninstrumented unordered TDS-text compare
+            ordLeniency(() -> er.equals(ar));
+        }
+        return eq;
     }
 
     private static boolean wireEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {

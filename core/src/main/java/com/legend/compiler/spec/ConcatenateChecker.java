@@ -22,6 +22,29 @@ final class ConcatenateChecker {
                 instanceof com.legend.compiler.element.type.Type.RelationType)) {
             return Typer.emitCall(a.chosen(), a.args(), a.out());
         }
+        // n-ary TDS concatenate (ledger cluster 22): p1->concatenate(
+        // [p2, p3, p4]) binds the collection overload with a relation-
+        // typed TypedCollection RHS — fold it into a LEFT-ASSOCIATIVE
+        // TypedConcatenate chain (engine tds.pure:480-496 returns
+        // TabularDataSet[1], hence multiplicity ONE on the fold). Guard
+        // on ALL elements relation-typed so a genuine scalar-collection
+        // concatenate is never captured.
+        if (a.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCollection tc
+                && !tc.elements().isEmpty()
+                && tc.elements().stream().allMatch(e -> e.info().type()
+                        instanceof com.legend.compiler.element.type
+                                .Type.RelationType)) {
+            var one = new com.legend.compiler.element.type.ExprType(
+                    a.out().type(),
+                    com.legend.compiler.element.type.Multiplicity
+                            .Bounded.ONE);
+            TypedSpec acc = a.args().get(0);
+            for (TypedSpec e : tc.elements()) {
+                acc = new TypedConcatenate(acc, e, one);
+            }
+            return acc;
+        }
         return new TypedConcatenate(a.args().get(0), a.args().get(1), a.out());
     }
 }

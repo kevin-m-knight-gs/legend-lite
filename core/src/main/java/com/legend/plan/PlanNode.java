@@ -18,7 +18,20 @@ import java.util.List;
  *             {@code SQLExecutionNode}
  */
 public record PlanNode(String kind, List<PlanNode> children,
-                       @com.legend.Nullable String sqlQuery, List<Param> functionParameters) {
+                       @com.legend.Nullable String sqlQuery, List<Param> functionParameters,
+                       @com.legend.Nullable String sqlComment) {
+
+    /** The engine's default post-processor stamps EVERY SelectSQLQuery
+     * with this comment and generateSQLExecutionNode copies it
+     * (defaultPostProcessor.pure:71) — a constant, never gated. */
+    public static final String EXEC_TRACE_COMMENT =
+            "-- \"executionTraceID\" : \"${execID}\"";
+
+    public PlanNode(String kind, List<PlanNode> children,
+            @com.legend.Nullable String sqlQuery,
+            List<Param> functionParameters) {
+        this(kind, children, sqlQuery, functionParameters, null);
+    }
 
     public PlanNode {
         children = children == null ? List.of() : List.copyOf(children);

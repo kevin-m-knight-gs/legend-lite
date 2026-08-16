@@ -120,6 +120,31 @@ final class RelationReads {
                             c.expr(), rowByVar.get(var.name()));
                 }
             }
+            // DERIVED (qualified) property read in a join condition
+            // (ledger cluster 51): the engine inlines the qualifier body
+            // into the condition — beta-inline the zero-arg Inline body
+            // with $this bound to the receiver, then rewrite the result
+            // so its leaf reads take the plain-column arm above.
+            // Depth-guarded: a self-referential derived property falls
+            // through to the loud wall below.
+            if (model != null && DERIVED_DEPTH.get() < 16) {
+                ClassDefinition dcd =
+                        model.findClass(rf.className()).orElse(null);
+                com.legend.protocol.DerivedPropertyDefinition dp =
+                        findDerivedInline(dcd, ap.property(), model);
+                if (dp != null) {
+                    DERIVED_DEPTH.set(DERIVED_DEPTH.get() + 1);
+                    try {
+                        return rewrite(
+                                substVars(dp.expression().get(0),
+                                        Map.of("this", var)),
+                                rowByVar, rfByVar, assocName, md,
+                                nestedCols, model);
+                    } finally {
+                        DERIVED_DEPTH.set(DERIVED_DEPTH.get() - 1);
+                    }
+                }
+            }
             throw new NotImplementedException(
                     "association '" + assocName + "': $" + var.name() + "."
                     + ap.property() + " has no column binding on the Relation"
@@ -145,6 +170,50 @@ final class RelationReads {
             default -> v.mapChildren(x -> rewrite(x, rowByVar, rfByVar,
                     assocName, md, nestedCols, model));
         };
+    }
+
+    private static final ThreadLocal<Integer> DERIVED_DEPTH =
+            ThreadLocal.withInitial(() -> 0);
+
+    /** The owner's (or a superclass's) zero-arg derived property with a
+     * single-expression Inline body — the only shape the join-condition
+     * inliner serves; anything else stays loud at the caller's wall. */
+    private static com.legend.protocol.@com.legend.Nullable DerivedPropertyDefinition
+            findDerivedInline(@com.legend.Nullable ClassDefinition owner,
+                    String prop, ModelBuilder model) {
+        if (owner == null) {
+            return null;
+        }
+        for (com.legend.protocol.DerivedPropertyDefinition dp
+                : owner.derivedProperties()) {
+            if (dp.name().equals(prop) && dp.parameters().isEmpty()
+                    && dp.realization() instanceof
+                            com.legend.protocol.Realization.Inline inl
+                    && inl.body().size() == 1) {
+                return dp;
+            }
+        }
+        for (TypeExpression sup : owner.superClasses()) {
+            if (sup instanceof TypeExpression.NameRef nr) {
+                var r = findDerivedInline(
+                        model.findClass(nr.name()).orElse(null), prop, model);
+                if (r != null) {
+                    return r;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Name-keyed binder substitution — the same map-keyed idiom the
+     * xstore/rewrite entry points use for {@code this}/{@code that}. */
+    private static ValueSpecification substVars(ValueSpecification v,
+            Map<String, ? extends ValueSpecification> binds) {
+        if (v instanceof Variable vv) {
+            ValueSpecification r = binds.get(vv.name());
+            return r != null ? r : vv;
+        }
+        return v.mapChildren(x -> substVars(x, binds));
     }
 
     static @com.legend.Nullable Multiplicity findPropertyDeclared(

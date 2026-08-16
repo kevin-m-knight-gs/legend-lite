@@ -965,6 +965,31 @@ final class Typer {
             return null;
         }
         TypedSpec pick = synth(vp.receiver(), env);
+        // WHOLE-RELATION receiver ($tds.rows.values->at(k)): row-major
+        // cell k = row k/C, column k%C (ledger cluster 33 — the .rows
+        // marker keeps identity typing, so at(k) was a ROW slice). The
+        // bare flatten (no ->at) stays identity; size() stays null here
+        // (rows*cols is not statically known — never lie).
+        if (pick instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess rm
+                && rm.property().equals(com.legend.compiler.element.type
+                        .PlatformTypes.ROWS_MARKER)
+                && pick.info().type() instanceof Type.RelationType wrt
+                && isAt
+                && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof CInteger wk) {
+            int cc = wrt.columns().size();
+            long k = wk.value().longValue();
+            if (cc > 0 && k >= 0) {
+                return synth(new AppliedFunction("toOne", List.of(
+                        new AppliedProperty(
+                                new AppliedFunction("at", List.of(
+                                        vp.receiver(),
+                                        new CInteger(k / cc))),
+                                wrt.columns().get((int) (k % cc)).name()))),
+                        env);
+            }
+        }
         if (!(pick.info().type() instanceof Type.RelationType prt)
                 || !(pick instanceof TypedNativeCall pc)
                 || !ROW_PICK_FQNS.contains(pc.callee().qualifiedName())) {
@@ -2246,23 +2271,24 @@ final class Typer {
         // uniform function-value story, no new node kind. Only an
         // UNAMBIGUOUS (single-overload) target expands.
         List<TypedFunction> fns = functionCandidates(ref.fullPath());
-        if (fns.size() > 1) {
-            // a MANGLED id names ONE overload — the signature tail's
-            // segment count (params + return) disambiguates (the corpus's
-            // generateUsageFor metadata: groupBy_TabularDataSet_1__…_)
-            int arity = SignatureMangle.tailArity(ref.fullPath());
-            if (arity >= 0) {
-                List<TypedFunction> byArity = fns.stream()
-                        .filter(f2 -> f2.parameters().size() == arity)
-                        .toList();
-                if (byArity.size() == 1) {
-                    fns = byArity;
-                } else {
-                    // a mangled id naming an overload we don't carry
-                    // standalone (the legacy TDS groupBy the checker
-                    // desugars at call sites): the REFERENCE is an opaque
-                    // Function<Any> value — metadata like generateUsageFor
-                    // holds it, invocation stays loud at its own site
+        // a MANGLED id names ONE overload — the signature tail's segment
+        // count disambiguates. The handling runs for ZERO candidates too
+        // (ledger cluster 26: the size>1 gate made the zero-candidate
+        // fallback dead — a mangled id naming a function this platform
+        // spells differently, e.g. the TDS groupBy the checker desugars
+        // at call sites, must still reference as an opaque Function).
+        int arity = SignatureMangle.tailArity(ref.fullPath());
+        if (arity >= 0 && fns.size() != 1) {
+            List<TypedFunction> byArity = fns.stream()
+                    .filter(f2 -> f2.parameters().size() == arity)
+                    .toList();
+            if (byArity.size() == 1) {
+                fns = byArity;
+            } else {
+                // BASE-EXISTS is the safety property: a misspelled or
+                // absent base still fails the lookup and throws below.
+                String base = SignatureMangle.stripTail(ref.fullPath());
+                if (base != null && !ctx.findFunction(base).isEmpty()) {
                     return new TypedPackageableRef(ref.fullPath(),
                             ExprType.one(new Type.GenericType(
                                     "meta::pure::metamodel::function::Function",
@@ -2492,25 +2518,14 @@ final class Typer {
                                         new Variable("_am0"), ap.property()))))),
                         env);
             }
-            if (!exactlyOne) {
-                // [0..1] receiver: β-inline ONLY when the derived body is
-                // provably STRICT in $this (SQL null propagation then
-                // equals pure's auto-map — audit 22a H2). A body outside
-                // the strict whitelist would manufacture a value over an
-                // empty receiver — loud wall. (A presence-guarded
-                // if/isEmpty spelling was tried and REVERTED: its
-                // emptiness test materialized through a DIFFERENT join
-                // instance than the value read — wrong values,
-                // testQualifierWithInThroughJoin.)
-                if (!derivedBodyStrictInThis(d)) {
-                    throw new TypeInferenceException("derived property '"
-                            + ap.property() + "' over a [0..1] receiver has"
-                            + " a body outside the null-strict whitelist —"
-                            + " empty-receiver semantics needs the"
-                            + " presence-guarded emission (roadmap)");
-                }
-                // strict body: fall through to the β-inline below
-            }
+            // [0..1] receivers β-inline like [1] (ledger cluster 48):
+            // engine processQualifiedProperty runs the qualifier body
+            // against the cursor with NO presence guard — an absent
+            // LEFT-joined receiver evaluates the body over NULL columns,
+            // and the corpus pins the MANUFACTURED value
+            // (testQualifierWithInThroughJoin: cat='B' for a trade whose
+            // account row is absent). The null-strict whitelist encoded
+            // the opposite belief and is deleted with its helpers.
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                     List.of(ap.receiver())), env);
         }
@@ -2712,63 +2727,9 @@ final class Typer {
      * pure's auto-map result. A literal-only body has no $this read and
      * fails the sawThis requirement (the manufactured-constant case,
      * audit 22a H2). Unknown node kinds are conservatively non-strict. */
-    private static final java.util.Set<String> EMPTY_MANUFACTURING_FNS =
-            java.util.Set.of("if", "match", "isEmpty", "isNotEmpty",
-                    "coalesce", "orElse", "defaultIfEmpty", "size", "count",
-                    "sum", "average", "mean", "min", "max", "joinStrings",
-                    "makeString", "isDistinct", "exists", "forAll",
-                    // in() lowers COALESCE(..., false) — total like pure's,
-                    // so it is strict-safe for the derived [0..1] inline
-                    "contains");
 
-    private boolean derivedBodyStrictInThis(Property.Derived d) {
-        var fns = ctx.findFunction(d.bodyFunctionFqn());
-        if (fns.size() != 1 || fns.get(0).body().isEmpty()
-                || fns.get(0).body().get().size() != 1) {
-            return false;
-        }
-        int flags = strictScan(fns.get(0).body().get().get(0));
-        return (flags & 1) != 0 && (flags & 2) == 0;   // sawThis && !nonStrict
-    }
 
     /** bit 0 = saw a $this read; bit 1 = saw a non-strict construct. */
-    private static int strictScan(ValueSpecification n) {
-        return switch (n) {
-            case Variable v -> "this".equals(v.name()) ? 1 : 0;
-            case AppliedProperty ap2 -> strictScan(ap2.receiver());
-            case AppliedFunction af2 -> {
-                String simple = af2.function()
-                        .substring(af2.function().lastIndexOf(':') + 1);
-                int acc = EMPTY_MANUFACTURING_FNS.contains(simple) ? 2 : 0;
-                for (ValueSpecification p2 : af2.parameters()) {
-                    acc |= strictScan(p2);
-                }
-                yield acc;
-            }
-            case LambdaFunction lf2 -> {
-                int acc = 0;
-                for (ValueSpecification b2 : lf2.body()) {
-                    acc |= strictScan(b2);
-                }
-                yield acc;
-            }
-            case PureCollection pc2 -> {
-                int acc = 0;
-                for (ValueSpecification e2 : pc2.values()) {
-                    acc |= strictScan(e2);
-                }
-                yield acc;
-            }
-            case com.legend.protocol.spec.PackageableElementPtr ignored -> 0;
-            case com.legend.protocol.spec.EnumValue ignored -> 0;
-            case CString ignored -> 0;
-            case com.legend.protocol.spec.CInteger ignored -> 0;
-            case com.legend.protocol.spec.CFloat ignored -> 0;
-            case com.legend.protocol.spec.CDecimal ignored -> 0;
-            case com.legend.protocol.spec.CBoolean ignored -> 0;
-            default -> 2;   // unknown construct: conservatively non-strict
-        };
-    }
 
     Type namedType(TypeExpression te) {
         // GENERIC annotations (@Pair<String, Integer>): the base resolves

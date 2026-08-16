@@ -194,18 +194,79 @@ final class UnionSynthesis {
      *       ledger; demanding it fails loudly.</li>
      * </ul>
      */
+    /** Routed (set-pinned) Join PMs, DESCENDING into embedded bodies with
+     * the owner class threaded (ledger cluster 66 — the flat scan left
+     * unionRoutes blind to bridge(employees[set1], employees[set2])
+     * declared inside an embedded block). Owner recorded per property so
+     * the route's target class resolves against the EMBEDDED class. */
+    private static void collectRoutedJoins(List<PropertyMapping> pms,
+            String ownerCls, LegacyMappingDefinition md, ModelBuilder model,
+            Map<String, List<PropertyMapping.Join>> routedByProp,
+            Map<String, String> ownerByProp) {
+        for (PropertyMapping pm : pms) {
+            switch (pm) {
+                case PropertyMapping.Join j when j.targetSetId() != null -> {
+                    routedByProp.computeIfAbsent(j.propertyName(),
+                            k -> new ArrayList<>()).add(j);
+                    ownerByProp.putIfAbsent(j.propertyName(), ownerCls);
+                }
+                case PropertyMapping.Embedded emb -> {
+                    String inner = embeddedOwner(ownerCls,
+                            emb.propertyName(), model);
+                    if (inner != null) {
+                        collectRoutedJoins(emb.propertyMappings(), inner,
+                                md, model, routedByProp, ownerByProp);
+                    }
+                }
+                case PropertyMapping.OtherwiseEmbedded oe -> {
+                    String inner = embeddedOwner(ownerCls,
+                            oe.propertyName(), model);
+                    if (inner != null) {
+                        collectRoutedJoins(oe.embedded(), inner, md, model,
+                                routedByProp, ownerByProp);
+                    }
+                }
+                case PropertyMapping.InlineEmbedded ie -> {
+                    for (ClassMapping cm : md.classMappings()) {
+                        if (cm instanceof ClassMapping.Relational r2
+                                && java.util.Objects.equals(
+                                        MappingNormalizer.setIdOf(r2),
+                                        ie.setId())) {
+                            collectRoutedJoins(r2.propertyMappings(),
+                                    r2.className(), md, model,
+                                    routedByProp, ownerByProp);
+                            break;
+                        }
+                    }
+                }
+                case PropertyMapping.LocalProperty lp ->
+                        collectRoutedJoins(List.of(lp.body()), ownerCls,
+                                md, model, routedByProp, ownerByProp);
+                default -> {
+                }
+            }
+        }
+    }
+
+    private static @com.legend.Nullable String embeddedOwner(String ownerCls,
+            String prop, ModelBuilder model) {
+        ClassDefinition oc = model.findClass(ownerCls).orElse(null);
+        TypeExpression pt = oc == null ? null
+                : MappingNormalizer.findPropertyTypeDeep(oc, prop, model);
+        return pt instanceof TypeExpression.NameRef nr
+                && model.findClass(nr.name()).isPresent() ? nr.name() : null;
+    }
+
     static void classifyUnionRoutes(LegacyMappingDefinition md,
             ClassMapping.Relational rcm, ModelBuilder model, Pipeline p) {
         Map<String, List<PropertyMapping.Join>> routedByProp = new LinkedHashMap<>();
-        for (PropertyMapping pm : rcm.propertyMappings()) {
-            if (pm instanceof PropertyMapping.Join j && j.targetSetId() != null) {
-                routedByProp.computeIfAbsent(j.propertyName(),
-                        k -> new ArrayList<>()).add(j);
-            }
-        }
+        Map<String, String> ownerByProp = new LinkedHashMap<>();
+        collectRoutedJoins(rcm.propertyMappings(), rcm.className(), md,
+                model, routedByProp, ownerByProp);
         for (var e : routedByProp.entrySet()) {
             String prop = e.getKey();
-            ClassDefinition owner = model.findClass(rcm.className()).orElse(null);
+            ClassDefinition owner = model.findClass(ownerByProp
+                    .getOrDefault(prop, rcm.className())).orElse(null);
             TypeExpression pt = owner == null ? null
                     : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
             String targetClass = pt instanceof TypeExpression.NameRef nr

@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
  * which speak only the SQL IR, and never against platform-GENERATED SQL,
  * which is IR-rendered and must not pass through this class.
  *
- * <p>CONTRACT: text-level translation of corpus-authored statements only.
+ * <p>CONTRACT (aspirational until F7.4): text-level translation of
+ * corpus-authored statements only — TODAY Java-generated DDL
+ * (Ddl.setUpDataSqlsText, spelled H2-style on purpose) also routes
+ * through here; RawSqlLedgerTest pins the caller set shrink-only.
  * This is the one sanctioned home for pattern-based SQL rewriting; adding a
  * recognizer anywhere else is an architecture violation (RUNNABILITY_PLAN
  * R0 rule). The designed replacement is the parser leg — raw statements

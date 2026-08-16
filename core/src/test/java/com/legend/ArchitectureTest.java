@@ -123,23 +123,22 @@ final class ArchitectureTest {
      * <strong>Invariant 4c — the root package is the TOP layer.</strong>
      * The acyclic-slices matcher {@code com.legend.(*)..} skips root
      * classes, so nothing structural prevented a phase from importing the
-     * driver (Compiler/StatementExecutor) or the harness bridge (EngineTestExecutor)
-     * — audit 19's blind spot. Phases never call up into orchestration.
+     * driver (Compiler/StatementExecutor) — audit 19's blind spot. Phases
+     * never call up into orchestration. (The harness bridge left
+     * production in F1.2 — no exemption remains.)
      */
     @Test
     void phasesNeverDependOnTheDriverLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
-            .and().resideOutsideOfPackage("com.legend.harness")
             // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
-            // of Compiler) — same standing as the harness, not a phase
+            // of Compiler) — a top-layer sibling, not a phase
             .and().resideOutsideOfPackage("com.legend.server..")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.StatementExecutor.class,
-                    com.legend.harness.EngineTestExecutor.class)
-            .as("Invariant 4c: the com.legend root (driver/harness) is the top"
+                    com.legend.StatementExecutor.class)
+            .as("Invariant 4c: the com.legend root (driver) is the top"
                     + " layer — audit 19")
             .check(CORE_PROD_CLASSES);
     }
@@ -155,7 +154,6 @@ final class ArchitectureTest {
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
-            .and().resideOutsideOfPackage("com.legend.harness")
             .and().resideInAPackage("com.legend..")
             // the engine-style FAMILY (H2 + DB2 golden-text renderers)
             // may compose internally; the quarantine is against the
@@ -492,6 +490,92 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /**
+     * <strong>F1.3 — the {@code java.sql} funnel (Charter C1/C2
+     * boundary).</strong> "Java orchestrates, the DATABASE executes"
+     * becomes MECHANICAL: only the chartered egress/ingress packages may
+     * touch JDBC. Every other allowlist in this file admits {@code java..}
+     * (which includes {@code java.sql}) — this rule is the narrow pin
+     * that made the tenet enforceable (docs/TENET_CHARTER.md, enforcement
+     * map). The audit's proof it matters: round 1's worked example
+     * (hashString over rs.getString) survived 691 commits because no
+     * rule forbade it.
+     */
+    @Test
+    void javaSqlIsFunnelledToTheCharteredSeam() {
+        noClasses()
+            .that().resideOutsideOfPackages("com.legend.exec",
+                    "com.legend.server..", "com.legend.testdatagen",
+                    "com.legend")
+            .and().resideInAPackage("com.legend..")
+            .should().dependOnClassesThat()
+            // F1.11: driver-NATIVE APIs ride with java.sql — importing
+            // org.duckdb/org.h2 types was a funnel bypass (the audit
+            // framed the boundary as java.sql only)
+            .resideInAnyPackage("java.sql..", "javax.sql..",
+                    "org.duckdb..", "org.h2..")
+            .as("F1.3: java.sql AND the driver-native APIs are funnelled"
+                    + " to {exec, server, root, testdatagen} — Charter"
+                    + " clauses C1/C2")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>F1.11 — reflection is BANNED in production.</strong>
+     * Reflection is the one mechanism that bypasses every dependency
+     * rule in this file (a {@code Class.forName("java.sql...")} carries
+     * no bytecode dependency ArchUnit can see). The bytecode rule found
+     * what the source census missed — THREE pre-existing sites
+     * (DbMetaData's java.sql.Types field iteration, ScanColumns'
+     * reflective record-tree walker, server/Json's generic Array
+     * serialization), frozen here shrink-only with removal backlogged
+     * (FOUNDATIONS_PLAN §9). NO NEW reflection: a fourth class fails.
+     * JDBC drivers load via ServiceLoader, never {@code Class.forName}.
+     * Tests keep reflection (the guardrails themselves need it).
+     */
+    @Test
+    void reflectionIsBannedInProduction() {
+        noClasses()
+            .that().resideInAPackage("com.legend..")
+            // the frozen pre-existing three (nested classes ride along)
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.exec\\.DbMetaData(\\$.*)?")
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.lineage\\.ScanColumns(\\$.*)?")
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.server\\.Json(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
+            .as("F1.11: no NEW reflection in production — it bypasses"
+                    + " every dependency rule; the frozen three shrink"
+                    + " only")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>F1.3b — the root package's {@code java.sql} class-list
+     * pin.</strong> The funnel licenses {@code com.legend} ROOT, which
+     * contains StatementExecutor — the audit's S1 dispatcher. Until the
+     * orchestration/exec-seam split (backlogged), root's JDBC surface is
+     * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
+     * {@code java.sql} fails this rule.
+     */
+    @Test
+    void rootJavaSqlSurfaceIsPinned() {
+        noClasses()
+            .that().resideInAPackage("com.legend")
+            // nested classes (StatementExecutor$ExecEnv, ...) ride with
+            // their owner — the pin is per top-level class
+            .and().haveNameNotMatching("com\\.legend\\.(Compiler"
+                    + "|StatementExecutor|SeedSqlForms)(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAPackage("java.sql..")
+            .as("F1.3b: root's java.sql surface is pinned to"
+                    + " {Compiler, StatementExecutor, SeedSqlForms} —"
+                    + " shrink-only; the split is backlogged")
+            .check(CORE_PROD_CLASSES);
+    }
+
     /** Grammar cursors and section parsers are parse-time machinery. */
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {
@@ -499,9 +583,6 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackages(
                     "com.legend.parser..", "com.legend.ide..",
                     "com.legend.builtin", "com.legend",
-                    // the harness bridge sits WITH the driver at the top
-                    // layer (EngineTestExecutor.run's string entry parses test bodies)
-                    "com.legend.harness",
                     // the server shell receives RAW PURE TEXT over HTTP —
                     // a parse ENTRY like the driver (LSP diagnostics,
                     // diagram extraction, runtime->connection resolution)

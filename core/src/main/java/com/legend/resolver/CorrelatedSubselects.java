@@ -282,10 +282,28 @@ final class CorrelatedSubselects {
         // their own names), LEFT-joined back on key equality. One
         // row per matching target instance — the row explosion of
         // the flat join, with the pred resolvable.
-        List<String> keyCols = parentEquiKeys(aj.condition(),
-                aj.prefix());
+        // Re-key by the PARENT's PK (engine #69 goldens: 'root'.ID =
+        // sub.ID) — the assoc-FK equi keys collapse same-FK parents into
+        // each other's correlation scope (testVariableReferenceWith-
+        // NestedFilterMultiple: 15 rows for 7 people). FK keys stay the
+        // fallback for PK-less parents.
+        List<String> pkKeys = RelationalRootForm.primaryKeyColumns(
+                cs.classFqn(), cs.pipeline(), cs.mappingFqn(),
+                sources.ctx());
+        List<String> keyCols = !pkKeys.isEmpty() ? pkKeys
+                : parentEquiKeys(aj.condition(), aj.prefix());
+        List<TypedLambda> allCorrs = new ArrayList<>();
+        if (aj.corrSubPred() != null) {
+            allCorrs.add(aj.corrSubPred());
+        }
+        for (String snHead0 : aj.targetSubNavs().keySet()) {
+            TypedLambda tp0 = assocMaterial.synthetics().correlatedPred(snHead0);
+            if (tp0 != null) {
+                allCorrs.add(tp0);
+            }
+        }
         ParentCopy pc = java.util.Objects.requireNonNull(
-                parentCopyFor(cs, aj.corrSubPred()));
+                parentCopyFor(cs, allCorrs));
         Type.RelationType pcRow = (Type.RelationType)
                 pc.mat().pipeline().info().type();
         String corrTp = aj.prefix() + "t_";
@@ -312,12 +330,34 @@ final class CorrelatedSubselects {
         while (cjTaken2.contains(cjVar)) {
             cjVar = "_cj" + cjOrd2++;
         }
-        TypedLambda where = assocMaterial.corrPredOnJoinedRow(
-                aj.corrSubPred(), cs, aj.target(), corrTp,
-                aj.targetSlotPrefixes(), aj.targetSubNavs(),
-                pc.mat().slotPrefixes(), pc.subNavs(),
-                cjVar, jRow);
-        TypedSpec filtered = new TypedFilter(joinedSub, where, jInfo);
+        // a HEAD-pred-less reroute (only TAIL-hop preds correlate) skips
+        // the head WHERE; the tail loop below is the sub's only filter
+        TypedSpec filtered = joinedSub;
+        if (aj.corrSubPred() != null) {
+            TypedLambda where = assocMaterial.corrPredOnJoinedRow(
+                    aj.corrSubPred(), cs, aj.target(), corrTp,
+                    aj.targetSlotPrefixes(), aj.targetSubNavs(),
+                    pc.mat().slotPrefixes(), pc.subNavs(),
+                    cjVar, jRow);
+            filtered = new TypedFilter(joinedSub, where, jInfo);
+        }
+        // TAIL-hop parked CORRELATED preds (#69 second filter — the
+        // firm#f0.address#f1 chain): a target sub-nav head carrying a
+        // parked pred ANDs into this sub's WHERE — both sides already
+        // ride the joined row (the target's sub-nav slot columns and the
+        // parentCopy's own materialized demand columns). The engine nests
+        // a second subselect; the row set is identical for [0..1] hops.
+        for (var snE : aj.targetSubNavs().entrySet()) {
+            TypedLambda parked =
+                    assocMaterial.synthetics().correlatedPred(snE.getKey());
+            if (parked == null) {
+                continue;
+            }
+            TypedLambda w2 = assocMaterial.corrPredOnJoinedRowForSubNav(
+                    parked, cs, aj.target(), corrTp, snE.getValue(),
+                    pc.mat().slotPrefixes(), pc.subNavs(), cjVar, jRow);
+            filtered = new TypedFilter(filtered, w2, jInfo);
+        }
         var cjInfo = new ExprType(jRow,
                 com.legend.compiler.element.type.Multiplicity
                         .Bounded.ONE);
@@ -414,17 +454,26 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
      * aggregate): no outer reads, the plain parent pipeline materializes. */
     @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
             @com.legend.Nullable TypedLambda corr) {
-        Set<String> names = new LinkedHashSet<>();
-        if (corr != null) {
+        return parentCopyFor(cs,
+                corr == null ? List.of() : List.of(corr));
+    }
+
+    /** Parent copy demanded by SEVERAL correlated preds (a head pred
+     * plus tail-hop preds — the exploding sub's whole pred set): every
+     * pred's OUTER reads join the copy's demand. */
+    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
+            List<TypedLambda> corrs) {
+        Set<List<String>> outerPaths = new LinkedHashSet<>();
+        for (TypedLambda corr : corrs) {
+            Set<String> names = new LinkedHashSet<>();
             for (TypedSpec b : corr.body()) {
                 collectVarNamesInto(b, names);
             }
             names.removeAll(corr.parameters());
-        }
-        Set<List<String>> outerPaths = new LinkedHashSet<>();
-        for (String v : names) {
-            for (TypedSpec b : java.util.Objects.requireNonNull(corr).body()) {
-                StoreResolver.consumedPaths(b, v, outerPaths);
+            for (String v : names) {
+                for (TypedSpec b : corr.body()) {
+                    StoreResolver.consumedPaths(b, v, outerPaths);
+                }
             }
         }
         Set<String> slots = Pipelines.slotAliases(cs.pipeline());
@@ -1762,6 +1811,42 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      */
     TypedSpec subTypeNavCastCanon(TypedSpec n,
             Function<String, String> mappingOf, TypedFunction isNotEmpty) {
+        // FLATTENED-EMBEDDED leaf (ledger cluster 45): union synthesis
+        // publishes an embedded subtype property ONLY as flat per-leaf
+        // columns (stc_..._prop__leaf, addStcEmbeddedLeaf) — no plain
+        // stc_..._prop exists by construction. The canonicalizer runs
+        // top-down, so (subType($v,@Sub).prop).leaf is visited before its
+        // child: fold the trailing hop into the flat column name. Both
+        // guards are load-bearing — !plain keeps the existing route for
+        // genuinely class-typed stc navigations; flat fires only where
+        // union synthesis flattened.
+        if (n instanceof TypedPropertyAccess outer
+                && outer.source() instanceof TypedPropertyAccess mid
+                && mid.source() instanceof TypedNativeCall msc
+                && msc.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                && !msc.args().isEmpty()
+                && msc.info().type() instanceof Type.ClassType msct
+                && msc.args().get(0).info().type()
+                        instanceof Type.ClassType mnavCt) {
+            ClassSource mt = castTarget(mappingOf, mnavCt);
+            String mwKey = com.legend.model.ClassMapping.subTypeColumn(
+                    msct.fqn(), com.legend.model.ClassMapping.memberWitness());
+            String plain = com.legend.model.ClassMapping.subTypeColumn(
+                    msct.fqn(), mid.property());
+            String flat = com.legend.model.ClassMapping.subTypeColumn(
+                    msct.fqn(), mid.property() + "__" + outer.property());
+            if (mt != null && mt.bindings().containsKey(mwKey)
+                    && !mt.bindings().containsKey(plain)
+                    && mt.bindings().containsKey(flat)) {
+                TypedSpec mnav = msc.args().get(0);
+                return new TypedPropertyAccess(
+                        new TypedFilter(mnav,
+                                witnessPred(mnavCt, mwKey, isNotEmpty),
+                                mnav.info()),
+                        flat, outer.info());
+            }
+        }
         // EMPTINESS over the bare cast (exists(nav->subType(@Car), pred)):
         // same routing rule, no leaf — the cast canonicalizes to the
         // filtered-nav head and the PREDICATE's depth-1 subtype reads

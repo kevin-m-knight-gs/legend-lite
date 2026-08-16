@@ -104,6 +104,14 @@ final class SortChecker {
 
     /** {@code asc(~col)} / {@code desc(~col)}: checked generically against its registered signature. */
     static TypedSpec sortInfo(Typer t, AppliedFunction af, Env env, boolean ascending) {
+        // a SINGLETON collection collapses to its element in pure
+        // (desc(['X']) binds desc(String[1]) — ledger cluster 44: the
+        // multiplicity rule was encoded as an AST-shape rule)
+        if (af.parameters().size() == 1
+                && af.parameters().get(0) instanceof PureCollection pc1
+                && pc1.values().size() == 1) {
+            af = af.withParameters(List.of(pc1.values().get(0)));
+        }
         // legacy TDS string key: asc('COL') -> asc(~COL)
         if (af.parameters().size() == 1 && af.parameters().get(0) instanceof CString c) {
             af = af.withParameters(List.of(new ColSpec(c.value())));
@@ -123,7 +131,10 @@ final class SortChecker {
             case AppliedFunction f -> isSortDirection(f)
                     && f.parameters().size() == 1
                     && (f.parameters().get(0) instanceof ColSpec
-                            || f.parameters().get(0) instanceof CString);
+                            || f.parameters().get(0) instanceof CString
+                            || (f.parameters().get(0)
+                                    instanceof PureCollection pc1
+                                    && pc1.values().size() == 1));
             case PureCollection c -> !c.values().isEmpty()
                     && c.values().stream().allMatch(SortChecker::carriesColSpec);
             default -> false;

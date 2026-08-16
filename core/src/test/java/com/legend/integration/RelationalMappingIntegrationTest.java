@@ -3312,7 +3312,7 @@ class RelationalMappingIntegrationTest {
 
         // --- XStore ---
 
-        @Test @Disabled("GAP: XStore not in grammar")
+        @Test  // F2.6: un-disabled — the audit flagged this GAP stale (XStore IS in the grammar)
         @DisplayName("GAP: XStore cross-store mapping")
         void testXStore() throws SQLException {
             // PersonFirm: XStore { persons: $this.firmId == $that.id }
@@ -3320,7 +3320,7 @@ class RelationalMappingIntegrationTest {
 
         // --- AggregationAware ---
 
-        @Test @Disabled("GAP: AggregationAware not in grammar")
+        @Test  // F2.6: un-disabled — the audit flagged this GAP stale (aggregationAware family scores 13/13)
         @DisplayName("GAP: AggregationAware mapping")
         void testAggregationAware() throws SQLException {
             // Class: AggregationAware { Views: [...], ~mainMapping: ... }

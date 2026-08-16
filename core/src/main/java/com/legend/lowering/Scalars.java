@@ -6,10 +6,12 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
@@ -103,15 +105,20 @@ final class Scalars {
                             return new SqlExpr.BoolLit(false);
                         }
                     }
+                    List<SqlExpr> cargs = List.of(
+                            CastPolicy.comparisonWireOperand(n.args().get(0),
+                                    args.get(0), n.args().get(1)),
+                            CastPolicy.comparisonWireOperand(n.args().get(1),
+                                    args.get(1), n.args().get(0)));
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
-                            args.get(0), args.get(1));
+                            cargs.get(0), cargs.get(1));
                     if (inv != null) {
                         return inv;
                     }
                     // nullable col-vs-col equality is NULL-SAFE (engine
                     // isEqualsFromFilter; task #62's equal-side arm)
-                    return NullSemantics.equalNullArms(n, args);
+                    return NullSemantics.equalNullArms(n, cargs);
                 });
             }
         }
@@ -121,7 +128,14 @@ final class Scalars {
         for (var cmp : Map.of("lessThan", SqlFn.LESS, "lessThanEqual", SqlFn.LESS_EQUAL,
                 "greaterThan", SqlFn.GREATER, "greaterThanEqual", SqlFn.GREATER_EQUAL)
                 .entrySet()) {
-            for (String f : Pure.nativeKeysAt(cmp.getKey())) {
+            // the Any-typed Lite ordering shims (DynaFunc conditions,
+            // ledger cluster 18) register by FQN — the bare-name index
+            // deliberately excludes the lite package
+            List<String> cmpKeys = new ArrayList<>(
+                    Pure.nativeKeysAt(cmp.getKey()));
+            cmpKeys.addAll(Pure.nativeKeysAt(
+                    Pure.Lite.PKG + cmp.getKey()));
+            for (String f : cmpKeys) {
                 RULES.put(f, (n, args) -> {
                     List<SqlExpr> padded = new ArrayList<>(args.size());
                     for (int i = 0; i < args.size(); i++) {
@@ -406,6 +420,7 @@ final class Scalars {
                         dateArg(n.args().get(0), args.get(0)))));
             }
         }
+        DateShifts.registerDayOfWeekNumber2(RULES);
         // Calendar-enum extractions: names match the Pure enum values
         // (Monday…, January… — the corpus's enum-by-name convention).
         // dayOfWeek()/month(): real pure returns calendar ENUMS (Monday…,
@@ -494,65 +509,9 @@ final class Scalars {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.DATE_TRUNC,
                     new SqlExpr.StringLit("week"),
                     dateArg(n.args().get(0), args.get(0))));
-        }        for (String f : Pure.nativeKeysAt("adjust")) {
-            RULES.put(f, (n, args) -> {
-                SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                        new SqlExpr.StringLit(DateShifts.intervalFn(enumName(n.args().get(2)))),
-                        args.get(1), dateArg(n.args().get(0), args.get(0))));
-                // A PARTIAL-date operand keeps its precision: pad in (dateArg),
-                // adjust, then truncate BACK to the written form —
-                // adjust(%2016, 1, YEARS) is %2017, not 2017-01-01.
-                Integer pp = partialPrecision(n.args().get(0));
-                if (pp != null) {
-                    // The result's precision is the FINER of the written
-                    // precision and the unit (real pure GROWS precision:
-                    // adjust(%2020, 1, MONTHS) is 2020-02; a coarse unit
-                    // keeps the written form: adjust(%2016, 1, YEARS) is
-                    // 2017; a day-or-finer unit yields the full-precision
-                    // carrier — the audit's truncate-everything write-back
-                    // silently erased finer adjustments).
-                    java.util.List<com.legend.sql.DateFmt> fmt =
-                            switch (enumName(n.args().get(2))) {
-                        case "YEARS" -> pp == 1
-                                ? java.util.List.of((com.legend.sql.DateFmt)
-                                        com.legend.sql.DateFmt.Part.YEAR4)
-                                : com.legend.sql.DateFmt.YEAR_MONTH;
-                        case "MONTHS" -> com.legend.sql.DateFmt.YEAR_MONTH;
-                        default -> null;
-                    };
-                    return fmt == null ? added
-                            : SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.FormatLit(fmt));
-                }
-                // A source written with MORE subsecond digits than the
-                // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
-                // digit count (real pure preserves subsecond print
-                // precision), and digits beyond microseconds are the
-                // source's own — static text an interval can never touch.
-                // Emitted as the precision-faithful STRING (the wire's date
-                // convention, same as timeBucket).
-                if (n.args().get(0) instanceof TypedCDate cd
-                        && cd.value() instanceof
-                                PureDateLiteral.DateWithSubsecond sub
-                        && sub.subsecond().length() > 6) {
-                    return SqlExpr.Call.of(SqlFn.CONCAT,
-                            SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
-                            new SqlExpr.StringLit(sub.subsecond().substring(6)));
-                }
-                // SQL date+interval widens to TIMESTAMP; a StrictDate input
-                // adjusted by a DAY-or-coarser unit stays a StrictDate.
-                boolean strictIn = n.args().get(0).info().type()
-                        == Type.Primitive.STRICT_DATE;
-                boolean coarse = switch (enumName(n.args().get(2))) {
-                    case "YEARS", "MONTHS", "WEEKS", "DAYS" -> true;
-                    default -> false;
-                };
-                return strictIn && coarse
-                        ? new SqlExpr.Cast(added, SqlType.Scalar.DATE)
-                        : added;
-            });
-        }
+        }        // adjust + its TEMPORAL channel twin live with the date-shift
+        // machinery (DateShifts) — the 3500-line split seam.
+        DateShifts.registerAdjustRules(RULES);
         // datePart of a PARTIAL literal is the IDENTITY (a year has no finer
         // date part); full-precision values truncate to the day.
         for (String f : Pure.nativeKeysAt("datePart")) {
@@ -1172,7 +1131,12 @@ final class Scalars {
         }
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
-                RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                // a to-one value is its own mean but the KIND is Float
+                // (pure average: Float[1]) — the bare identity kept the
+                // column's INTEGER and wireEquals refuses int-vs-float
+                // (adjudication ledger cluster 10)
+                RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                        ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
                         : SqlExpr.Call.of(SqlFn.LIST_AVG, numList(args.get(0))));
             }
         }
@@ -2260,12 +2224,25 @@ final class Scalars {
                             && al.elements().stream().noneMatch(e ->
                                     e instanceof SqlExpr.Call c2
                                             && c2.fn() == SqlFn.TO_VARIANT));
-            SqlExpr needle = collVariant ? SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                    args.get(0)) : args.get(0);
+            SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
+                    n.args().get(1));
+            SqlExpr needle = collVariant
+                    ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
             // A RELATION-shaped collection = LIST-aggregated subquery;
             // membership is list containment (NULL list = empty = FALSE).
             if (n.args().get(1).info().type()
                     instanceof Type.RelationType) {
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Membership(needle, args.get(1)),
+                        new SqlExpr.BoolLit(false));
+            }
+            // a COLLECTION-VALUED expression RHS (split(...) etc.) is
+            // MEMBERSHIP, never a 2-element literal list — the flat IN
+            // collapsed to '=' downstream (ledger cluster 35: silent
+            // wrong rows, 'LEGALNAME = string_split(...)')
+            if (!(args.get(1) instanceof SqlExpr.ArrayLit)
+                    && !(args.get(1) instanceof SqlExpr.PlanParam)
+                    && n.args().get(1).info().multiplicity().isMany()) {
                 return SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Membership(needle, args.get(1)),
                         new SqlExpr.BoolLit(false));
@@ -2951,6 +2928,14 @@ final class Scalars {
             if (frac.find()) {
                 v = v.substring(0, frac.start()) + "." + frac.group(1).substring(0, 6);
             }
+            // pure Date is VALUE-polymorphic (cluster 40 companion): a
+            // date-only cell stays a DATE literal — without this a
+            // Date[1] column of date-only cells would render
+            // '2014-12-04 00:00:00' in toString compares
+            if (type == Type.Primitive.DATE
+                    && v.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                return new SqlExpr.DateLit(v);
+            }
             return new SqlExpr.TimestampLit(v);
         }
         if (type == Type.Primitive.STRING) {
@@ -2989,7 +2974,7 @@ final class Scalars {
      * — globally string-typed for the pinned string-comparison semantics)
      * pad to the first of their period as real DATE literals.
      */
-    private static SqlExpr dateArg(TypedSpec typed,
+    static SqlExpr dateArg(TypedSpec typed,
                                    SqlExpr lowered) {
         if (typed instanceof TypedCDate d) {
             if (d.value() instanceof PureDateLiteral.Year y) {
@@ -3403,7 +3388,7 @@ final class Scalars {
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
     /** Split-part FIELD COUNT of a partial (year / year-month) literal —
      * derived from the one precision ladder, not a second scale. */
-    private static @com.legend.Nullable Integer partialPrecision(TypedSpec t) {
+    static @com.legend.Nullable Integer partialPrecision(TypedSpec t) {
         if (t instanceof TypedCDate d) {
             return switch (d.value().precision()) {
                 case YEAR -> 1;
@@ -3496,5 +3481,16 @@ final class Scalars {
                 + " abstract Date type is not statically decidable — declare"
                 + " the value StrictDate or DateTime");
     }
+
+
+    /** A STRING-target WIRE conformance cast ({@code castAsDeclared}) at
+     * a projected CELL ROOT unwraps — the engine's TDS cell keeps the RAW
+     * column value there (tree.pure asserts Long over a String-declared
+     * property; the goldens never spell wire casts). Non-String targets
+     * keep the cast (boolean.pure asserts true over a 'true'/'false'
+     * STRING mapping — the engine converts TOWARD Boolean, referee-
+     * proven: unscoped unwrap regressed tests/mapping 9->7). CONSUMED
+     * positions keep the cast always (audit 19 F7: DuckDB does not
+     * wire-convert where H2 does). */
 
 }

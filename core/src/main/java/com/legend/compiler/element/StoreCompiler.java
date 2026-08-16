@@ -93,8 +93,15 @@ final class StoreCompiler {
             if (td.isEmpty()) {
                 return Optional.empty();
             }
+            // a ColumnRef keeps its wire QUOTES (RelOpFromProtocol passes
+            // the column verbatim) while the declaration stores the name
+            // BARE + quoted flag — match both spellings (the sibling
+            // tableSchema's quote-bearing identity; ledger cluster 7)
             var col = td.get().columns().stream()
-                    .filter(c -> c.name().equals(cr.column())).findFirst();
+                    .filter(c -> c.name().equals(cr.column())
+                            || (c.quoted() && ("\"" + c.name() + "\"")
+                                    .equals(cr.column())))
+                    .findFirst();
             if (col.isEmpty()) {
                 return Optional.empty();
             }

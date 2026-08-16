@@ -84,11 +84,17 @@ class ErrorShapeGuardrailTest {
     /** Designed catch-return sentinels at review time: harness
      * Unsupported buckets, UnfoldableRef isolation, overflow to
      * BigInteger, join-side search. Shrink-only. */
-    private static final int CATCH_RETURNS_VALUE = 20;
+    private static final int CATCH_RETURNS_VALUE = 13;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 20)
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */
-    private static final int ENDS_WITH_FQN = 23;
+    private static final int ENDS_WITH_FQN = 18;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 23)
+
+    // F1.7 (Charter C2.4): a `default -> "<literal>"` in a type/name
+    // mapping switch silently LOSES the unmatched kind — the exact
+    // defect audit 15 removed from Executor.pureOfSqlType and PCT
+    // reintroduced. Shrink-only; a new site must throw instead.
+    private static final int DEFAULT_LITERAL_FALLBACKS = 5;
 
     @Test
     void noReturnOrThrowInsideFinally() throws IOException {
@@ -171,6 +177,49 @@ class ErrorShapeGuardrailTest {
     }
 
     /** Identify elements by EXACT FQN, never suffix match. */
+    /** F1.11: the reflection ENTRY SPELLINGS the ArchUnit package rule
+     *  cannot see (calls on java.lang.Class/ClassLoader carry no
+     *  java.lang.reflect dependency until the result is USED). Zero in
+     *  production; stays zero. */
+    @Test
+    void reflectionSpellingsStayAtZero() throws IOException {
+        List<String> bad = new ArrayList<>();
+        Pattern p1 = Pattern.compile("Class\\.forName\\(|\\.setAccessible\\("
+                + "|getDeclaredMethod\\(|getDeclaredField\\("
+                + "|getDeclaredConstructor\\(|loadClass\\("
+                // PX.1: subprocess escape — the remaining way to compute
+                // outside every dependency rule (zero uses; stays zero)
+                + "|new ProcessBuilder|Runtime\\.getRuntime\\(\\)\\.exec");
+        for (Path p : mainSources()) {
+            String src = Files.readString(p);
+            Matcher m = p1.matcher(src);
+            while (m.find()) {
+                bad.add(p.getFileName() + ":" + lineOf(src, m.start()));
+            }
+        }
+        assertTrue(bad.isEmpty(),
+                "reflection entry spellings in production: " + bad
+                + " — reflection bypasses every dependency rule and is"
+                + " banned (F1.11)");
+    }
+
+    @Test
+    void defaultLiteralFallbacksOnlyShrink() throws IOException {
+        int n = 0;
+        for (Path p : mainSources()) {
+            Matcher m = Pattern.compile("default -> \"")
+                    .matcher(Files.readString(p));
+            while (m.find()) {
+                n++;
+            }
+        }
+        assertTrue(n <= DEFAULT_LITERAL_FALLBACKS,
+                "type-losing default->literal sites grew to " + n
+                + " (pinned at " + DEFAULT_LITERAL_FALLBACKS
+                + ") — an unmatched kind must THROW, never become a"
+                + " plausible literal (Charter C2.4)");
+    }
+
     @Test
     void fqnSuffixMatchingOnlyShrinks() throws IOException {
         int n = 0;

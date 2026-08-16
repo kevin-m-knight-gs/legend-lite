@@ -91,6 +91,25 @@ final class SubQueryLift {
                 ? cur : null;
     }
 
+    /** Resolve SELF-CONTAINED sub-queries under a DATA lambda: a
+     * {@code TypedFrom}-wrapped chain that reads no lambda-bound
+     * variable carries its own mapping+runtime and has no other
+     * resolution owner (the assert-splice shape — forAll/contains over
+     * a spliced execute() frame). Shadow-aware via {@link #uncorrelated}. */
+    static TypedSpec resolveClosed(TypedSpec n, java.util.Set<String> bound,
+            java.util.function.UnaryOperator<TypedSpec> resolveFrom) {
+        if (n instanceof TypedLambda inner) {
+            java.util.Set<String> b2 = new java.util.LinkedHashSet<>(bound);
+            b2.addAll(inner.parameters());
+            return inner.mapChildren(c -> resolveClosed(c, b2, resolveFrom));
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedFrom
+                && uncorrelated(n, bound)) {
+            return resolveFrom.apply(n);
+        }
+        return n.mapChildren(c -> resolveClosed(c, bound, resolveFrom));
+    }
+
     /** UNCORRELATED check, SHADOW-AWARE: every variable read is either
      * bound by a lambda INSIDE the chain (a filter predicate's own
      * parameter — {@code FiscalCalendarDate.all()->filter(d|$d.date ==
@@ -98,7 +117,7 @@ final class SubQueryLift {
      * resolution serves through {@code letBindings}. Any other read means
      * the chain reads the enclosing row — a correlated class subquery,
      * its own rung, loud downstream. */
-    private static boolean uncorrelated(TypedSpec n,
+    static boolean uncorrelated(TypedSpec n,
             java.util.Set<String> bound) {
         if (n instanceof TypedVariable v) {
             return bound.contains(v.name());

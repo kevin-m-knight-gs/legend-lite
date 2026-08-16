@@ -54,6 +54,19 @@ public final class PlanText {
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             @com.legend.Nullable String connectionName,
             java.util.List<String> chainMappings) {
+        return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
+                connectionName, chainMappings, plan);
+    }
+
+    /** {@code colsPlan}: the plan resultColumns types against — the
+     * cross-store splice passes the placeholder-bearing IR here (engine:
+     * the placeholder relation IS in the query when resultColumns is
+     * computed) while typeBlock/tdsTuples keep the pre-splice plan. */
+    public static String single(ModelContext ctx, String rootClassFqn,
+            String mappingFqn, SqlQuery plan, String sql,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+            @com.legend.Nullable String connectionName,
+            java.util.List<String> chainMappings, SqlQuery colsPlan) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
         com.legend.compiler.element.type.Type.RelationType rrt =
@@ -73,7 +86,7 @@ public final class PlanText {
                             sql.indexOf(" from ")) : sql;
             cols = "(" + item + ", \"\")";
         } else {
-            cols = resultColumns(ctx, impl[2], plan, rrt);
+            cols = resultColumns(ctx, impl[2], colsPlan, rrt);
         }
         return "Relational\n(\n"
                 + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
@@ -492,6 +505,24 @@ public final class PlanText {
     public static @com.legend.Nullable String spliceLeftVar(
             com.legend.sql.SqlQuery plan, String var,
             com.legend.sql.dialect.AnsiSqlRenderer renderer) {
+        SqlSelect spliced = spliceLeftVarQuery(plan, var);
+        return spliced == null ? null : renderer.render(spliced);
+    }
+
+    /** The colsPlan for a maybe-spliced plan: the placeholder-bearing
+     * IR when the splice applies, else the plan itself. */
+    public static com.legend.sql.SqlQuery colsPlanFor(
+            com.legend.sql.SqlQuery plan, @com.legend.Nullable String var) {
+        if (var == null) {
+            return plan;
+        }
+        SqlSelect s = spliceLeftVarQuery(plan, var);
+        return s == null ? plan : s;
+    }
+
+    /** The spliced IR itself (the cross-store colsPlan). */
+    public static @com.legend.Nullable SqlSelect spliceLeftVarQuery(
+            com.legend.sql.SqlQuery plan, String var) {
         if (!(plan instanceof SqlSelect top)
                 || !(top.from() instanceof SqlSource.Join jn)) {
             return null;
@@ -506,10 +537,10 @@ public final class PlanText {
         SqlSource swapped = swapLeftmost(jn,
                 new SqlSource.VarSetPlaceholder(var, ls.alias(),
                         ls.outputs()));
-        return renderer.render(new SqlSelect(top.projections(),
+        return new SqlSelect(top.projections(),
                 top.distinct(), swapped, top.where(), top.groupBy(),
                 top.having(), top.qualify(), top.orderBy(), top.limit(),
-                top.offset(), top.outputs()));
+                top.offset(), top.outputs());
     }
 
     private static SqlSource swapLeftmost(SqlSource src, SqlSource repl) {
@@ -551,13 +582,28 @@ public final class PlanText {
                     star.append(", ");
                 }
                 String name = strip(col.name());
-                String[] pc = resolveStarColumn(ctx, dbFqn, s.from(), name);
-                var td = ctx.findTableDefinition(dbFqn, pc[0]).orElseThrow();
+                String[] pc;
+                try {
+                    pc = resolveStarColumn(ctx, dbFqn, s.from(), name);
+                } catch (NotImplementedException e) {
+                    // a column resolvable through NO physical branch of a
+                    // placeholder-bearing tree is VAR-SOURCED — the
+                    // engine types every VarSetPlaceHolder column INT
+                    // (cluster 20 follow-up: the 3-db chain's placeholder
+                    // carries empty outputs)
+                    if (!containsVarSet(s.from())) {
+                        throw e;
+                    }
+                    pc = new String[]{VAR_SET_SENTINEL, name};
+                }
+                final String[] pcf = pc;
+                String spelled = VAR_SET_SENTINEL.equals(pcf[0]) ? "INT"
+                        : spell(ctx.findTableDefinition(dbFqn, pcf[0])
+                                .orElseThrow().columns().stream()
+                                .filter(x -> x.name().equalsIgnoreCase(pcf[1]))
+                                .findFirst().orElseThrow().dataType());
                 star.append("(\"").append(name).append("\", ")
-                        .append(spell(td.columns().stream()
-                                .filter(x -> x.name().equalsIgnoreCase(pc[1]))
-                                .findFirst().orElseThrow().dataType()))
-                        .append(')');
+                        .append(spelled).append(')');
             }
             return star.toString();
         }
@@ -689,6 +735,16 @@ public final class PlanText {
                     return resolveStarColumn(ctx, dbFqn, j.right(), col);
                 }
             }
+            case SqlSource.VarSetPlaceholder vp -> {
+                // engine pureToSQLQuery.pure:583 hard-types EVERY
+                // VarSetPlaceHolder column ^Integer() — a tdsVar-sourced
+                // column prints INT regardless of its physical origin
+                // (ledger cluster 20)
+                if (vp.outputs().stream().anyMatch(o ->
+                        col.equalsIgnoreCase(strip(o.name())))) {
+                    return new String[]{VAR_SET_SENTINEL, col};
+                }
+            }
             case SqlSource.Subselect ss -> {
                 // a PROJECTED subselect (the tdsJoin shape: star top over
                 // joined projection subselects): the named projection
@@ -700,8 +756,19 @@ public final class PlanText {
                         if (p2.outputName() != null
                                 && col.equalsIgnoreCase(strip(p2.outputName()))
                                 && p2.expr() instanceof SqlExpr.Column c2) {
-                            return resolvePhysical(is.from(), c2.table(),
-                                    strip(c2.name()));
+                            String[] phys = resolvePhysical(is.from(),
+                                    c2.table(), strip(c2.name()));
+                            // a FOREIGN-db physical table (the cross-db
+                            // splice put another allocation's subtree in
+                            // this from-tree) declines — the search
+                            // continues by name (cluster 20 follow-up:
+                            // tdsTwoJoinThreeDB's 3-db chain)
+                            if (VAR_SET_SENTINEL.equals(phys[0])
+                                    || ctx.findTableDefinition(dbFqn,
+                                            phys[0]).isPresent()) {
+                                return phys;
+                            }
+                            break;
                         }
                     }
                     return resolveStarColumn(ctx, dbFqn, is.from(), col);
@@ -715,9 +782,31 @@ public final class PlanText {
                 + col + "' resolves through no FROM-tree table");
     }
 
+    /** Private star-top sentinel: a VarSetPlaceholder-sourced column has
+     * no physical table — resultColumns spells the engine's hard INT.
+     * Never a legal table name, never reachable from tdsTuples. */
+    private static final String VAR_SET_SENTINEL = "\u0000varset";
+
+    private static boolean containsVarSet(SqlSource src) {
+        return switch (src) {
+            case SqlSource.VarSetPlaceholder ignored -> true;
+            case SqlSource.Join j ->
+                    containsVarSet(j.left()) || containsVarSet(j.right());
+            case SqlSource.Subselect ss ->
+                    ss.inner() instanceof SqlSelect is
+                            && containsVarSet(is.from());
+            default -> false;
+        };
+    }
+
     private static String[] resolvePhysical(SqlSource src, @com.legend.Nullable String alias,
             @com.legend.Nullable String col) {
         switch (src) {
+            case SqlSource.VarSetPlaceholder vp -> {
+                if (vp.alias().equals(alias)) {
+                    return new String[]{VAR_SET_SENTINEL, col};
+                }
+            }
             case SqlSource.Table t -> {
                 if (t.alias().equals(alias)) {
                     return new String[]{t.name(), col};

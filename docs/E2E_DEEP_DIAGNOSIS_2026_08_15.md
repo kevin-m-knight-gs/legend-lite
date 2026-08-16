@@ -17,6 +17,46 @@
 
 ---
 
+## RECONCILIATION at `a491a194` (2026-08-16, goal #18 batch 26)
+
+This document was produced at `9d1f2cd0`. Six goal-#18 batches landed since
+(`c56938f3` adjustTemporal print-channel, `4a60b246` String-target wire-cast
+unwrap, `20f1df87` comparison-position unwrap, `5d7dc0ec` exploding-sub PK
+re-keying, `91b60e84` tail-hop parked corr preds, `a491a194` tail-seg reroute).
+Diffing `diagnoses.csv` against the `a491a194` scoreboard:
+
+- **4 rows RETIRED** (all REAL_DEFECT, all fixed by the parallel batches, and
+  all four fixes landed on the exact mechanisms this document names —
+  independent convergence): `testInWithDynaFunction`,
+  `testJoinIsolationDeeper_LeftOuterLeftOuterThenInner`,
+  `testTemporalDateVariableInFunctionExpression`,
+  `testVariableReferenceWithNestedFilterMultiple`.
+- **0 rows appeared.** The live denominator is 267 distinct non-passing tests
+  (270 rows, 3 double-family), split: 103 REAL_DEFECT, 92 MISSING_FEATURE,
+  27 TESTS_ENGINE_INTERNALS, 21 GOLDEN_TEXT_ONLY, 14 EXECUTION_TARGET_ARTIFACT,
+  8 HARNESS_GAP, 2 NEEDS_PROBE.
+- Two of the still-live diagnoses have MOVED walls since `9d1f2cd0` (both
+  forward): `testVariableReferenceInMapWithNestedFilter` (multi-hop wall →
+  assert-splice wall; its main query now lowers and executes) and
+  `isolationTest` (multi-hop wall → honest row-diff FAIL).
+
+**Experiment log** (2026-08-16): cluster 1's proposed
+`SET disabled_optimizers='build_side_probe_side'` pin was RUN and
+REFEREE-REJECTED — it regressed 5 families net −9 (functions/tests −1,
+projection −5, tds −1, tree −1, union −1): more currently-passing tests
+sat on the swapped order by luck than the 14 artifact rows it could fix,
+exactly the risk the cluster named. The FIX disposition is retired; the
+14 rows keep their EXECUTION_TARGET_ARTIFACT verdict (ledgered,
+order-dependent-vacuous on DuckDB).
+
+**Standing role**: `diagnoses.csv` in the evidence dir is the per-row
+adjudication ledger for goal #18 — every non-passing `core_relational` row
+carries an evidence-backed verdict, effort, confidence, and falsifier there.
+Retirements are recorded here (shrink-only); verdict changes require the row's
+own falsifier to fire.
+
+---
+
 ## 0. Why this document exists
 
 The 2026-08-14 burn-down is a good census. It is not a diagnosis. Measured against

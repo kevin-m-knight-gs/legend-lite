@@ -35,6 +35,24 @@ final class ObjectRefs {
 
     static @com.legend.Nullable ValueSpecification build(
             ValueSpecification rhs, ModelContext ctx) {
+        // a COLLECTION of generateObjectReferences calls folds element-
+        // wise — each element yields a JSON array; concatenate them
+        // (adjudication ledger cluster 5: the bracketed
+        // [generateObjectReferences(...), generateObjectReferences(...)]
+        // binding was declined whole, leaving the raw calls for the
+        // typer, which has no such native)
+        if (rhs instanceof PureCollection pc && !pc.values().isEmpty()) {
+            StringBuilder all = new StringBuilder("[");
+            for (int i = 0; i < pc.values().size(); i++) {
+                if (!(build(pc.values().get(i), ctx) instanceof CString cs)) {
+                    return null;
+                }
+                String body = cs.value();
+                all.append(i > 0 ? "," : "")
+                        .append(body, 1, body.length() - 1);
+            }
+            return new CString(all.append("]").toString());
+        }
         if (!(rhs instanceof AppliedFunction af)) {
             return null;
         }

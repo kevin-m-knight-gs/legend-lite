@@ -53,7 +53,9 @@ final class FromChecker {
             if (a.args().get(i).info().type()
                     instanceof com.legend.compiler.element.type.Type
                             .ClassType ct
-                    && ct.fqn().equals("meta::core::runtime::Runtime")) {
+                    && (ct.fqn().equals("meta::core::runtime::Runtime")
+                            || t.model().isSubtype(ct.fqn(),
+                                    "meta::core::runtime::Runtime"))) {
                 chainMappings.addAll(TypedFrom.chainMappingsIn(
                         a.args().get(i)));
                 jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i),

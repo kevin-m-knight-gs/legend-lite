@@ -83,6 +83,11 @@ skipped() {
        END { exit(found ? 0 : 1) }' "$1" 2>/dev/null
 }
 
+# PX.1 (WZ incident): snapshot the tree — an EXTERNAL writer mutated a
+# source file mid-chain and the chain certified the poisoned state.
+# Only docs/RELATIONAL_CORPUS.md may change during a chain (G4 writes it).
+TREE0=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
+
 if want 1; then
   g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
   g "       so a warm target/ silently no-ops the null gate)"
@@ -174,7 +179,7 @@ if want 8; then
   # compiled against the PREVIOUS core jar (stale-class NoSuchMethodError,
   # or worse, stale tests silently passing old behavior)
   mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am clean test \
-      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest' \
+      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest,GrammarCoverageCensusTest,GenerativeDualParseTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?
   # RENAME-GOES-RED (deep-audit M1/§5): failIfNoSpecifiedTests=false is
@@ -188,7 +193,8 @@ if want 8; then
       SurfaceCensusTest \
       FixtureCorpusParityTest \
       MutationFuzzTest \
-      MessageParityTest OwnCorpusConformanceTest OwnDialectCensusTest; do
+      MessageParityTest OwnCorpusConformanceTest OwnDialectCensusTest \
+      GrammarCoverageCensusTest GenerativeDualParseTest; do
     if ! grep -q "in com.legend.equivalence.$tc" "$OUT/g8.out"; then
       echo "G8 MISSING TEST CLASS: $tc did not run — rename/delete goes RED." >> "$L"; G8=1
     fi
@@ -205,6 +211,12 @@ if want 8; then
 fi
 
 if [ ${#FAILED[@]} -eq 0 ]; then
+  TREE1=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
+  if [ "$TREE0" != "$TREE1" ]; then
+    echo "ALLGATES_DONE — FAILED: TREE MUTATED MID-CHAIN (PX.1 tripwire)"
+    diff <(echo "$TREE0") <(echo "$TREE1") | head -10
+    exit 0
+  fi
   echo "ALLGATES_DONE — GREEN (gates: $WANT)" >> "$L"
   echo "ALLGATES_DONE — GREEN (gates: $WANT)"
   exit 0

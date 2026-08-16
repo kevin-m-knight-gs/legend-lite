@@ -60,9 +60,21 @@ final class SubselectPrune {
     }
 
     static SqlQuery prune(SqlQuery q) {
-        Refs refs = new Refs();
-        collectQuery(q, refs);
-        return rewriteQuery(q, refs);
+        // FIXPOINT: dropping a projection can strand references one
+        // level deeper (an isolation frame's pruned column was the only
+        // reader of a union output — ledger cluster 57), and the
+        // reference census is taken once per pass. Terminates: each
+        // round strictly removes projections or changes nothing.
+        for (int round = 0; round < 16; round++) {
+            Refs refs = new Refs();
+            collectQuery(q, refs);
+            SqlQuery next = rewriteQuery(q, refs);
+            if (next.equals(q)) {
+                return q;
+            }
+            q = next;
+        }
+        return q;
     }
 
     // ===== reference collection (exhaustive — a new variant must be
@@ -281,8 +293,16 @@ final class SubselectPrune {
                     yield pruned == sel && inner == sub.inner() ? sub
                             : new SqlSource.Subselect(pruned, sub.alias(), sub.frameName());
                 }
-                // set-operation inner: branches are positional — never
-                // pruned themselves (their nested subselects already were)
+                // set-operation inner (ledger cluster 57): arms are
+                // POSITIONAL, so pruning happens by position from the
+                // union's own output names — never per-arm (that would
+                // desynchronise the branches)
+                if (inner instanceof SqlUnion u) {
+                    SqlSource.Subselect pu = pruneUnion(u, sub, r);
+                    if (pu != null) {
+                        yield pu;
+                    }
+                }
                 yield inner == sub.inner() ? sub
                         : new SqlSource.Subselect(inner, sub.alias(), sub.frameName());
             }
@@ -300,6 +320,91 @@ final class SubselectPrune {
             }
             case SqlSource.Values v -> v;
         };
+    }
+
+    /** UNION inner: positions unreferenced under the subselect's alias
+     * dropped from EVERY branch and from the union's outputs — a
+     * position drops regardless of expression kind (an arm slot may be
+     * {@code NULL AS ID_1}; the per-arm plain-Column rule would
+     * desynchronise the arms). Null when not prunable: a starred alias,
+     * a nested set-op / distinct / grouped / having / qualified branch,
+     * an arity mismatch, or nothing to drop. At least one position is
+     * kept. */
+    private static SqlSource.@com.legend.Nullable Subselect pruneUnion(
+            SqlUnion u, SqlSource.Subselect sub, Refs r) {
+        // a USER-projected TDS union keeps its projected columns even
+        // when the outer never reads them (engine testUnionWithGroupBy
+        // golden pins firstName in both arms) — only SYNTHESIS unions
+        // (class-mapping union extents) prune
+        if ("unionAlias".equals(sub.frameName())) {
+            return null;
+        }
+        if (r.starred().contains("*") || r.starred().contains(sub.alias())
+                || u.outputs().isEmpty()) {
+            return null;
+        }
+        int n = u.outputs().size();
+        if (!unionArmsPrunable(u, n)) {
+            return null;
+        }
+        Set<String> used = r.cols().getOrDefault(sub.alias(), Set.of());
+        List<Integer> keep = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (used.contains(u.outputs().get(i).name())
+                    || r.unqualified().contains(u.outputs().get(i).name())) {
+                keep.add(i);
+            }
+        }
+        if (keep.isEmpty() || keep.size() == n) {
+            return null;
+        }
+        return new SqlSource.Subselect(pruneUnionByPosition(u, keep, n),
+                sub.alias(), sub.frameName());
+    }
+
+    /** Every (transitive) arm is a plain same-arity SqlSelect — nested
+     * set-ops share the positional schema, so they prune recursively. */
+    private static boolean unionArmsPrunable(SqlUnion u, int n) {
+        for (SqlQuery b : u.branches()) {
+            if (b instanceof SqlUnion nu) {
+                if (nu.outputs().size() != n || !unionArmsPrunable(nu, n)) {
+                    return false;
+                }
+            } else if (!(b instanceof SqlSelect bs) || bs.distinct()
+                    || !bs.groupBy().isEmpty() || bs.having() != null
+                    || bs.qualify() != null
+                    || bs.projections().size() != n) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static SqlUnion pruneUnionByPosition(SqlUnion u,
+            List<Integer> keep, int n) {
+        List<SqlQuery> nb = new ArrayList<>();
+        for (SqlQuery b : u.branches()) {
+            if (b instanceof SqlUnion nu) {
+                nb.add(pruneUnionByPosition(nu, keep, n));
+                continue;
+            }
+            SqlSelect bs = (SqlSelect) b;
+            List<SqlSelect.Projection> ps = new ArrayList<>();
+            List<OutputCol> os = new ArrayList<>();
+            for (int i : keep) {
+                ps.add(bs.projections().get(i));
+                if (bs.outputs().size() == n) {
+                    os.add(bs.outputs().get(i));
+                }
+            }
+            nb.add(bs.withProjections(ps,
+                    bs.outputs().size() == n ? os : bs.outputs()));
+        }
+        List<OutputCol> uo = new ArrayList<>();
+        for (int i : keep) {
+            uo.add(u.outputs().get(i));
+        }
+        return new SqlUnion(nb, u.all(), uo);
     }
 
     /** The inner select of an aliased subselect, plain-column projections

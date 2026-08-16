@@ -1581,4 +1581,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return "cast(" + expr(c.value(), 0) + " as " + t + ")";
     }
 
+
+    @Override
+    protected String membership(SqlExpr.Membership m) {
+        // engine golden spelling for expression membership:
+        // x in (<collection expr>) — ledger cluster 35
+        return expr(m.needle(), 4) + " in (" + expr(m.collection(), 0) + ")";
+    }
 }

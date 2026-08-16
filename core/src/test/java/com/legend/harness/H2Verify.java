@@ -70,6 +70,13 @@ public final class H2Verify {
             new java.util.concurrent.atomic.LongAdder();
     public static final java.util.concurrent.atomic.LongAdder M1_DIVERGED =
             new java.util.concurrent.atomic.LongAdder();
+    /** F2.2: text-DIVERGENT golden asserts rescued into row-verified
+     * PASS by the H2 replay — before this counter the divergence was
+     * never recorded, so the committed sqldiff count (244 at the F0.1
+     * baseline) counted only the divergences the oracle FAILED to
+     * rescue; the true rate is sqldiff + THIS. */
+    public static final java.util.concurrent.atomic.LongAdder M1_RESCUED =
+            new java.util.concurrent.atomic.LongAdder();
     public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
             new java.util.concurrent.atomic.LongAdder();
 
@@ -146,20 +153,11 @@ public final class H2Verify {
         return r.length() > 70 ? r.substring(0, 70) : r;
     }
 
-    /** The engine's H2 session settings (H2Manager parity) — shared with
-     * the {@code -Drcorpus.backend=h2} portability sweep so the replay
-     * oracle and the real backend open IDENTICAL sessions. */
-    public static final String SETTINGS =
-            // CASE_INSENSITIVE_IDENTIFIERS mirrors DuckDB's matching —
-            // the SAME recorded statements already ran there; quoted
-            // model-DDL case vs unquoted corpus-INSERT case must not
-            // diverge between the two targets
-            ";MODE=LEGACY;DATABASE_TO_UPPER=false"
-            + ";CASE_INSENSITIVE_IDENTIFIERS=TRUE;NON_KEYWORDS=ANY,"
-            + "ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,"
-            + "DAY,DEFAULT,ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,"
-            + "SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,"
-            + "USER,VALUE,WHEN,YEAR";
+    /** The engine's H2 session settings — the OWNER is
+     * {@link com.legend.exec.H2Settings} (F1.1: nothing outside the
+     * harness depends on the harness); this alias keeps in-package
+     * readers stable. */
+    public static final String SETTINGS = com.legend.exec.H2Settings.SETTINGS;
 
     /**
      * Replay {@code seeds} on a fresh H2, run {@code goldenSql}, compare
@@ -431,9 +429,20 @@ public final class H2Verify {
                     }
                     mine.add(row.toString());
                 }
+                List<String> theirsRaw = new ArrayList<>(theirs);
+                List<String> mineRaw = new ArrayList<>(mine);
                 Collections.sort(theirs);
                 Collections.sort(mine);
                 if (theirs.equals(mine)) {
+                    // F2.4: the oracle discards row order BY DESIGN but
+                    // never counted it — emit under the same instrument
+                    // so census numbers stop being floors (strict
+                    // recheck = pre-sort order)
+                    if (System.getenv("LL_ORD_COUNT") != null
+                            && !theirsRaw.equals(mineRaw)) {
+                        System.err.println(
+                                "[ord] h2-oracle order-leniency pass");
+                    }
                     return null;
                 }
                 return "h2-advisory divergence: golden SQL on H2 gave "

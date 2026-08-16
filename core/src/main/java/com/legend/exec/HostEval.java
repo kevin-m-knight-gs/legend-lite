@@ -100,7 +100,7 @@ public final class HostEval {
      * set that grows deliberately per slice ("any native class" stole
      * sqlDialectTranslation's 21 previously-passing constructions from
      * the K path — the gate caught it). */
-    private static final java.util.Set<String> HOST_CONSTRUCTION_CLASSES =
+    static final java.util.Set<String> HOST_CONSTRUCTION_CLASSES =   // F1.11: pinned by HostChannelPredicateTest
             java.util.Set.of(
                     "meta::relational::metamodel::DynaFunction",
                     "meta::relational::metamodel::Literal",

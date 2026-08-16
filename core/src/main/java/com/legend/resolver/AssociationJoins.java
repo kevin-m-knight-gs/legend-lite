@@ -34,6 +34,30 @@ final class AssociationJoins {
     private final SpecCompiler specs;
     private final SyntheticHeads synthetics;
 
+    SyntheticHeads synthetics() {
+        return synthetics;
+    }
+
+    /** The #69 exploding-reroute trigger for a nav-slot chain: the
+     * head's OWN correlated pred (mid==1), or a TAIL seg's — a sub-hop
+     * pred applies in the exploding sub's WHERE (the tail-pred loop)
+     * and can never compose on the flat step's ON. Null when the chain
+     * composes on the slot spine. */
+    @com.legend.Nullable TypedLambda explodingReroutePred(
+            List<String> path, int mid) {
+        if (mid != 1) {
+            return null;
+        }
+        TypedLambda cp = synthetics.correlatedPred(path.get(0));
+        if (cp == null) {
+            cp = path.subList(mid, path.size()).stream()
+                    .map(synthetics::correlatedPred)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst().orElse(null);
+        }
+        return cp != null && corrPredDemandsParentNav(cp) ? cp : null;
+    }
+
     AssociationJoins(ModelContext ctx, ClassSources sources,
             SpecCompiler specs, SyntheticHeads synthetics) {
         this.ctx = ctx;
@@ -1614,6 +1638,45 @@ final class AssociationJoins {
             String rowVar, Type.RelationType rowType) {
         java.util.Objects.requireNonNull(pred,
                 "corrPredOnJoinedRow requires a predicate");
+        return corrPredOnJoinedRowCore(pred, parent, target, targetPrefix,
+                targetSlotPrefixes, targetSubNavs, parentCopySlotPrefixes,
+                parentCopySubNavs, rowVar, rowType,
+                target.classFqn(), target.rowVar(), target.bindings(),
+                targetPrefix);
+    }
+
+    /** {@link #corrPredOnJoinedRow} for a pred whose PARAM binds a target
+     * SUB-NAVIGATION row (#69 tail filter, firm#f0.address#f1): the
+     * param's reads land under {@code targetPrefix + the sub-nav's own
+     * prefix}; OUTER reads ride the parent-copy channel unchanged. */
+    TypedLambda corrPredOnJoinedRowForSubNav(TypedLambda pred,
+            ClassSource parent, ClassSource target, String targetPrefix,
+            Substitution.SubNav sn,
+            Map<String, String> parentCopySlotPrefixes,
+            Map<String, Substitution.SubNav> parentCopySubNavs,
+            String rowVar, Type.RelationType rowType) {
+        String paramClass = pred.info().type()
+                instanceof Type.FunctionType ft
+                && ft.params().get(0).type()
+                        instanceof Type.ClassType pc
+                ? pc.fqn() : target.classFqn();
+        return corrPredOnJoinedRowCore(pred, parent, target, targetPrefix,
+                Map.of(), sn.children(), parentCopySlotPrefixes,
+                parentCopySubNavs, rowVar, rowType,
+                paramClass, sn.rowVar(), sn.bindings(),
+                targetPrefix + sn.prefix());
+    }
+
+    private TypedLambda corrPredOnJoinedRowCore(TypedLambda pred,
+            ClassSource parent,
+            ClassSource target, String targetPrefix,
+            Map<String, String> targetSlotPrefixes,
+            Map<String, Substitution.SubNav> targetSubNavs,
+            Map<String, String> parentCopySlotPrefixes,
+            Map<String, Substitution.SubNav> parentCopySubNavs,
+            String rowVar, Type.RelationType rowType,
+            String paramClassFqn, String paramRowVar,
+            Map<String, TypedSpec> paramBindings, String landPrefix) {
         Set<String> taken = new LinkedHashSet<>(pred.parameters());
         for (TypedSpec b : pred.body()) {
             collectVarNames(b, taken);
@@ -1641,8 +1704,8 @@ final class AssociationJoins {
         }
         Substitution tgtSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(pred.parameters().get(0), ct,
-                        target.classFqn(), target.mappingFqn(),
-                        target.rowVar(), target.bindings(), rowType,
+                        paramClassFqn, target.mappingFqn(),
+                        paramRowVar, paramBindings, rowType,
                         unconvertedTgt, targetSlotPrefixes, Map.of()),
                 new Substitution.Registries(tgtAssocs, java.util.Set.of(),
                         Map.of(), Map.of(), null, null),
@@ -1677,7 +1740,7 @@ final class AssociationJoins {
         }
         // land both sides on the ONE joined row: target reads prefix,
         // parent-copy reads rename (parent columns ride unprefixed)
-        body = Pipelines.prefixColumns(body, ct, targetPrefix,
+        body = Pipelines.prefixColumns(body, ct, landPrefix,
                 v -> new com.legend.compiler.spec.typed.TypedVariable(
                         rowVar, rowInfo));
         body = Pipelines.rewriteRowReads(body, csv, Map.of(), java.util.Set.of(),

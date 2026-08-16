@@ -214,29 +214,9 @@ public final class StoreResolver {
         return fns.get(0);
     }
 
-    /** POST-CONDITION (core/README rule 9): no {@code TypedGetAll} or
-     *  {@code TypedUserCall} survives store resolution — a RESOLVER-phase
-     *  gap named as such, with its ancestry path. */
+    /** POST-CONDITION (core/README rule 9) — {@link StoreEscapees}. */
     static void assertNoStoreOnlyEscapees(TypedSpec n) {
-        assertNoStoreOnlyEscapees(n, "root");
-    }
-    private static void assertNoStoreOnlyEscapees(TypedSpec n, String path) {
-        if (n instanceof TypedGetAll ga) {
-            throw new com.legend.error.NotImplementedException(
-                    "store resolution left getAll(" + ga.classFqn()
-                    + ") unresolved — the query shape around it is not"
-                    + " supported by the resolver yet [at " + path + "]");
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            throw new com.legend.error.NotImplementedException(
-                    "store resolution left user call '" + uc.callee().qualifiedName()
-                    + "' uninlined — the call shape is not supported by the"
-                    + " resolver yet [at " + path + "]");
-        }
-        String next = path + " > " + n.getClass().getSimpleName();
-        for (TypedSpec c : n.children()) {
-            assertNoStoreOnlyEscapees(c, next);
-        }
+        StoreEscapees.check(n);
     }
 
     /**
@@ -500,8 +480,13 @@ public final class StoreResolver {
                 }
                 yield resolveNode(am, context);
             }
-            // a BARE lambda VALUE is DATA — its consumer owns resolution
-            case com.legend.compiler.spec.typed.TypedLambda l -> l;
+            // a BARE lambda VALUE is DATA — but a SELF-CONTAINED query
+            // beneath it has no other owner (SubQueryLift.resolveClosed
+            // javadoc): resolve those, leave param-dependent reads as data
+            case com.legend.compiler.spec.typed.TypedLambda l ->
+                    l.mapChildren(b -> SubQueryLift.resolveClosed(b,
+                            new java.util.LinkedHashSet<>(l.parameters()),
+                            r -> resolveNode(r, context)));
             // The NAMED wall: an ANCHORED variant with no arm — loud,
             // never a silent pass-through (the old default's silent
             // 'yield n' path is now the INERT level).
@@ -1286,6 +1271,31 @@ public final class StoreResolver {
         }
     }
 
+    /** OTHERWISE per-leaf dispatch (V1 §D.5): an embedded-partial leaf
+     * reads the PARENT row — {@code null} means no join demand (the
+     * caller skips the path). KIND-aware (ledger cluster 50): membership
+     * in the partial proves same-row ONLY for a genuine column read; a
+     * CLASS-TYPED navigate-slot member (structural Join sub-PM) returns
+     * the PARTIAL so the ctor drill descends and registers the dotted
+     * AssocSub (the partial's own mapping wins over the otherwise
+     * target's); any other leaf demands the FALLBACK's navigate slot. */
+    private static @com.legend.Nullable TypedSpec otherwiseNavRead(
+            TypedSpec headBinding, List<String> path, ClassSource cs,
+            Set<String> navStepKeys) {
+        var ow = Substitution.otherwiseOf(headBinding);
+        if (ow == null) {
+            return headBinding;
+        }
+        var partial = (TypedNewInstance) ow.args().get(0);
+        TypedSpec pb = partial.properties().get(
+                SyntheticHeads.realHead(path.get(1)));
+        if (pb == null) {
+            return ow.args().get(1);
+        }
+        return InnerDemand.navSlotAlias(pb, cs.rowVar(), navStepKeys) == null
+                ? null : partial;
+    }
+
     private NavPlan registerNavigations(ClassSource cs,
             Set<List<String>> paths, Set<String> splitChains) {
         // Slot demand (heads whose bindings read join slots).
@@ -1337,19 +1347,10 @@ public final class StoreResolver {
             if (headBinding == null) {
                 continue;   // association heads (below)
             }
-            // OTHERWISE per-leaf dispatch (V1 §D.5): an embedded-partial
-            // leaf reads the PARENT row (no demand); any other leaf demands
-            // the FALLBACK's navigate slot — same head can go both ways.
-            // Canonical emission: otherwise(^Inner(...), $row.<slot>).
-            TypedSpec navRead = headBinding;
-            var ow = Substitution.otherwiseOf(headBinding);
-            if (ow != null) {
-                var partial = (TypedNewInstance)
-                        ow.args().get(0);
-                if (partial.properties().containsKey(path.get(1))) {
-                    continue;   // embedded leaf: parent-alias read, no join
-                }
-                navRead = ow.args().get(1);
+            TypedSpec navRead = otherwiseNavRead(headBinding, path, cs,
+                    navSteps.keySet());
+            if (navRead == null) {
+                continue;   // embedded leaf: parent-alias read, no join
             }
             // EMBEDDED head: the path walks INTO the ^Inner ctor — the
             // navigate-slot demand comes from the ctor's MID property expr
@@ -1422,9 +1423,7 @@ public final class StoreResolver {
             // navigate step's ON — the head leaves the slot spine (the
             // slot stays unmaterialized) and joins as an AssocJoin whose
             // target is the parent-copy subselect (fold 2b).
-            TypedLambda cpH = mid == 1
-                    ? synthetics.correlatedPred(path.get(0)) : null;
-            if (cpH != null && assocMaterial.corrPredDemandsParentNav(cpH)
+            if (assocMaterial.explodingReroutePred(path, mid) != null
                     && !demandedNavs.contains(alias)) {
                 corrNavHeads.putIfAbsent(headKey, alias);
                 continue;
@@ -1943,7 +1942,9 @@ public final class StoreResolver {
                 joinTarget = aj.onForm().pipeline();
                 joinCond = aj.onForm().condition();
             }
-            if (aj.corrSubPred() != null) {
+            if (aj.corrSubPred() != null
+                    || aj.targetSubNavs().keySet().stream().anyMatch(k ->
+                            synthetics.correlatedPred(k) != null)) {
                 CorrelatedSubselects.ExplodingSub ex =
                         corrSubs.explodingSubselect(cs, aj,
                                 (Type.RelationType) withJoins.info().type());
@@ -2735,7 +2736,6 @@ public final class StoreResolver {
         return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
                 flattenAssocs);
     }
-
 
     /** Milestoned property functions: each head's temporal arguments,
      * chain-keyed (conflicting dates for one chain are loud — the date

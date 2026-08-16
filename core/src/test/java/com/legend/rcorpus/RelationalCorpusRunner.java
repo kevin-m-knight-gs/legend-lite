@@ -282,6 +282,15 @@ public class RelationalCorpusRunner {
                 + (Runner.INCLUDE_EXCLUDED
                         ? " — BUT THIS RUN INCLUDED THEM\n(-Drcorpus.includeExcluded).\n"
                         : ".\n")
+                + "\nADJUDICATION LEDGER: every non-passing row carries a per-test\n"
+                + "evidence-backed verdict (REAL_DEFECT / MISSING_FEATURE /\n"
+                + "TESTS_ENGINE_INTERNALS / GOLDEN_TEXT_ONLY /\n"
+                + "EXECUTION_TARGET_ARTIFACT / HARNESS_GAP / NEEDS_PROBE), effort,\n"
+                + "confidence and falsifier in\n"
+                + "docs/e2e-diagnosis-2026-08-15/diagnoses.csv (keyed by test name;\n"
+                + "reconciliation log in docs/E2E_DEEP_DIAGNOSIS_2026_08_15.md —\n"
+                + "retirements are shrink-only, verdict changes need the row's own\n"
+                + "falsifier to fire).\n"
                 + census;
         List<String> seedFails = runner.seedFailures();
         if (!seedFails.isEmpty()) {
@@ -404,7 +413,10 @@ public class RelationalCorpusRunner {
         // OUR byte-matched SQL, held to our DuckDB rows — additive
         // instrumentation; a diverged count > 0 surfaces as test FAILs.
         System.out.println("[rcorpus] h2-exec (our SQL on H2): "
-                + com.legend.harness.H2Verify.M1_VERIFIED.sum() + " verified, "
+                + com.legend.harness.H2Verify.M1_VERIFIED.sum()
+                + " text-matched + "
+                + com.legend.harness.H2Verify.M1_RESCUED.sum()
+                + " text-divergent-rescued row-verified, "
                 + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
                 + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
                 + " unverifiable");
@@ -438,7 +450,17 @@ public class RelationalCorpusRunner {
                     "Duplicate column name", 11,
                     // engine plan-level temp-table for IN lists — a
                     // machinery gap, not a rendering one
-                    "tempTableForIn", 6);
+                    "tempTableForIn", 6,
+                    // F2.3 seed (2026-08-16): the golden-SQL side
+                    // channel's catch-and-null, now counted — 56 declines
+                    // (the printed census truncates its bucket list; this
+                    // ceiling is the assert's own full sum). Dominant
+                    // buckets: array/list encodings in the golden-text
+                    // dialect, toSQLString shapes, banker's ROUND,
+                    // object-space TypedFilter. Shrink-only; each bucket
+                    // is a REAL renderer/recognizer gap — adjudicate
+                    // before raising.
+                    "sql-text side", 56);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()
@@ -510,7 +532,16 @@ public class RelationalCorpusRunner {
             int advisorySqlDiffs = byFamily.values().stream()
                     .flatMap(List::stream)
                     .mapToInt(Runner.Outcome::sqlDiffs).sum();
-            int maxAdvisorySqlDiffs = 297;   // measured 2026-08-12 (the deep-audit's 246 counted TESTS, not diffs)
+            // measured 2026-08-12 (the deep-audit's 246 counted TESTS,
+            // not diffs); +1 2026-08-16: ledger clusters 35/40 changed
+            // advisory SQL shape on row-verified tests (expression
+            // membership 'in (<expr>)', value-polymorphic Date literals)
+            // — rows are the contract, both changes make rows RIGHT.
+            // +1 2026-08-16 (batch c45/c51/c52/c53): a newly-flipped
+            // row-verified pass carries divergent advisory SQL text
+            // (net: pass 2336->2341, sqldiff-pass 246->247, zero
+            // pass-count regressions).
+            int maxAdvisorySqlDiffs = 299;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs
@@ -561,12 +592,15 @@ public class RelationalCorpusRunner {
                 }
             }
             if (passCol < 0) {
-                System.out.println("[rcorpus] baseline has no 'pass' header"
-                        + " — regression gate SKIPPED");
+                throw new IllegalStateException("baseline has no 'pass'"
+                        + " header — the regression gate would fail OPEN"
+                        + " and the sweep would still WRITE (PX.1; audit"
+                        + " §5.1). Fix docs/RELATIONAL_CORPUS.md.");
             }
-        } catch (Exception e) {
-            System.out.println("[rcorpus] baseline unreadable (" + e
-                    + ") — regression gate SKIPPED");
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("baseline unreadable — the"
+                    + " regression gate would fail OPEN and the sweep"
+                    + " would still WRITE (PX.1; audit §5.1): " + e, e);
         }
         return m;
     }

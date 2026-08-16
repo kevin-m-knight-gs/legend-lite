@@ -103,7 +103,9 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
-                                        j.propertyName(), model) != null) {
+                                        j.propertyName(), model) != null
+                                && !nr.name().equals(
+                                        p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
                                     "Otherwise-embedded sub-PM '"
                                   + j.propertyName()
@@ -111,6 +113,7 @@ final class JoinChainEmission {
                                   + " of the same name. Mapping="
                                   + md.qualifiedName());
                         }
+                        recordNavSlotOwner(p, sub, nr.name(), model);
                         emitHopsForStructuralPm(p, sub, nr.name(), mainDb,
                                 mainTable, rowBind, model, md);
                     }
@@ -128,7 +131,9 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(nr.name(),
-                                        j.propertyName(), model) != null) {
+                                        j.propertyName(), model) != null
+                                && !nr.name().equals(
+                                        p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
                                     "Embedded sub-PM '" + j.propertyName()
                                   + "' collides with an existing pipeline slot"
@@ -137,6 +142,7 @@ final class JoinChainEmission {
                                   + " are a roadmap feature. Mapping="
                                   + md.qualifiedName());
                         }
+                        recordNavSlotOwner(p, sub, nr.name(), model);
                         emitHopsForStructuralPm(p, sub, nr.name(), mainDb,
                                 mainTable, rowBind, model, md);
                     }
@@ -171,13 +177,16 @@ final class JoinChainEmission {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
                                 && classTypedTargetIfMapped(inlCls,
-                                        j.propertyName(), model) != null) {
+                                        j.propertyName(), model) != null
+                                && !inlCls.equals(
+                                        p.navSlotOwner.get(j.propertyName()))) {
                             throw new NotImplementedException(
                                     "Inline-embedded sub-PM '" + j.propertyName()
                                   + "' collides with an existing pipeline slot"
                                   + " of the same name. Mapping="
                                   + md.qualifiedName());
                         }
+                        recordNavSlotOwner(p, sub, inlCls, model);
                         emitHopsForStructuralPm(p, sub, inlCls, mainDb,
                                 mainTable, rowBind, model, md);
                     }
@@ -546,6 +555,19 @@ final class JoinChainEmission {
      * checker rightly rejects the duplicate). Deterministic and recorded so
      * the binding read uses the same name.
      */
+    /** Record which class OWNS a class-typed sub-PM's nav slot (keyed by
+     * property name — the slot alias space) so the collision guards can
+     * distinguish a same-owner routed SIBLING (dedups into one routed
+     * navigate) from a genuine cross-level clash (ledger cluster 66). */
+    private static void recordNavSlotOwner(Pipeline p, PropertyMapping sub,
+            String ownerCls, ModelBuilder model) {
+        if (sub instanceof PropertyMapping.Join j
+                && classTypedTargetIfMapped(ownerCls, j.propertyName(),
+                        model) != null) {
+            p.navSlotOwner.putIfAbsent(j.propertyName(), ownerCls);
+        }
+    }
+
     static String mintNavSlotAlias(Pipeline p, ModelBuilder model,
             String mainDb, String mainTable, String propName) {
         String known = p.navSlotByProp.get(propName);

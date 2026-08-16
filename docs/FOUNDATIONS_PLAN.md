@@ -44,6 +44,18 @@ the **left** term trustworthy before we drive the right term to zero.
 
 ### 0.3 Operating rules for the implementing session
 
+0. **The S1 endgame is platform-executed tests — do not polish what that deletes.** The
+   harness's architecture (name-match a test-body construct, rewrite it before compilation,
+   reimplement its semantics in Java — audit §3 S1) has a charted destination this plan must
+   not fight: the platform executes the whole test function, asserts included, and the
+   harness only reports — the model PCT already lives in (audit §4.3.1) and the direction
+   `docs/DEFERRED_TEST_EXECUTION.md` already chartered for mapping/service suites when the
+   invented engine-lite runners were deleted rather than ported. Practical consequences now:
+   (a) Phase 4/6 work SHRINKS harness arms, never generalizes them; (b) standing rule for
+   the burn-down when it resumes: **prefer teaching the platform to execute the assert over
+   adding a harness arm** — the F0.1 audit delta documents that the paused burn regrew
+   S1-shaped surface in exactly this way (AssertLoopForm, envelope peels, splice arms).
+
 1. **One task per commit.** Task ID in the subject line (`F1.2: …`). No task bundling.
 2. **Run the referee after every task**, not every phase. Record the four numbers
    (pass / fail / error / shape) plus family deltas in the commit body.
@@ -60,7 +72,27 @@ the **left** term trustworthy before we drive the right term to zero.
 7. **Before any task that touches `core/`, `mvn -pl core install -DskipTests`** — downstream
    modules resolve from `~/.m2`, not the reactor (`AGENTS.md` common mistake #11).
 
-### 0.4 Gate commands
+### 0.4 Expected-red and the referee baseline (policy)
+
+The corpus runner **fails the build** when a family drops below the baseline committed in
+`docs/RELATIONAL_CORPUS.md`, and the PCT exclusion ledger fails when pins go stale in either
+direction. Expected-red tasks therefore need an explicit blessing mechanism or the line stops
+at the first one (F6.1's 71 reds would make G4 permanently red):
+
+1. **A red-landing task commits its re-frozen scoreboard in the same commit.** The sweep
+   rewrites `docs/RELATIONAL_CORPUS.md`; the commit body lists every family delta and matches
+   it row-for-row against the task's declared expected-red. A delta the declaration does not
+   cover = revert (rule 3 of §0.3), never a baseline bless.
+2. **The referee's DOWN-only ratchets (advisory ceiling, decline buckets) move only with a
+   dated justification comment at the constant**, naming the task ID. Same discipline the
+   burn-down used.
+3. **PCT reds enter the exclusion ledger as adjudicated pins in the same commit** — each pin
+   carries the task ID and the platform-gap verdict. The ledger's stale-pin assert stays; a
+   pin that starts passing later fails the build exactly as today.
+4. **`BURNDOWN_EXPLANATIONS.md` verdicts are written in the same commit** (per §0.1) — the
+   scoreboard row moves from false-PASS to explained in one atomic step, never two.
+
+### 0.5 Gate commands
 
 ```bash
 # referee (run after EVERY task)
@@ -83,6 +115,16 @@ before reading any number.
 
 ### F0.1 — Capture the honest baseline
 
+**First, two corrections this plan needs at execution time (2026-08-16):**
+
+- **Re-verify every line anchor on contact.** This plan and the audit were written against
+  `f6a50a7d`; main has moved past it (the burn's closing batches extracted `MetamodelSteps.java`
+  and `PlanAllocations.java` out of `StatementExecutor`, reworked `SubselectPrune`, and touched
+  `UnionSynthesis`/`JoinChainEmission`). Cited line numbers are hints, not addresses — the
+  audit's own "do not cite round 1's line numbers" warning applies to round 2 already.
+- **The baseline is captured at CURRENT HEAD**, not at the audit's HEAD — otherwise every
+  expected-red is measured against numbers that no longer exist.
+
 **Do:** run the full referee plus PCT and record, in a new `docs/FOUNDATIONS_BASELINE.md`:
 
 - corpus: total / runnable / pass / fail / error / shape / sqldiff-pass, **per family**
@@ -93,10 +135,73 @@ before reading any number.
 
 **Why:** every "expected red" below is measured against this. Without it, task 3 is unfalsifiable.
 
+**Also do (audit delta):** append to `FOUNDATIONS_BASELINE.md` an audit-delta section covering
+the commits landed after the audit's HEAD (`f6a50a7d..HEAD` — the burn's closing batches).
+The audit has not seen them; some added S1-shaped harness surface (assert-loop lifting,
+envelope peels, splice arms, identity-hook recognition), some are clean typed-fact reasoning,
+and one (the metamodel-walk unification with its honest-failure sentinel) partially addresses
+a §9 note. One paragraph per commit: which audit shape it matches, or "clean", so the ledger
+stays complete without re-running the eleven auditors.
+
 **Acceptance:** the file exists, committed, and every number is dated and reproducible by a
-named command.
+named command; the audit-delta section covers every commit in `f6a50a7d..HEAD`.
 
 **Expected red:** none.
+
+### F0.2 — Write the tenet charter (the audit's two missing clauses, plus the positive definition)
+
+**Files:** new `docs/TENET_CHARTER.md`; referenced from `AGENTS.md`
+
+**Why:** audit §8 says "Do V0 first: correct the nine falsified self-claims **and write the
+two missing charter clauses**" — round 1's V0.2 (model-space vs data-space) and V0.6 (the
+host channel's charter). This plan's first draft silently dropped the charter half; without
+it, every adjudication below is judgment-by-vibes, and A9-class findings stay "adjudicable
+only by hand." The funnel's exemption list (F1.3) is itself a charter decision and should be
+derived from this document, not improvised in an ArchUnit rule.
+
+**Content, at minimum:**
+1. **Orchestration (Java MAY):** JDBC transport and connection/transaction management; typed
+   value CARRIAGE (moving a value without computing from it); emitting envelopes/headers from
+   COMPILE-TIME plan facts (column names/types/multiplicities — "types drive construction");
+   control flow over statements; byte transport of DB-rendered artifacts.
+2. **Execution (Java MAY NOT):** computing a derived value from a ResultSet-crossed value;
+   deciding a TYPE from a value's magnitude or text; reordering/filtering/aggregating/
+   deduplicating result rows; fabricating values the platform never computed; rendering a
+   value's print form when a representation RULE exists (see clause 4).
+3. **Provenance, not arms (V0.6):** no ResultSet-derived value may reach `HostEval.eval()`.
+   The audit proved a ~6-line dispatch edge reclassified all 47 arms at once — the charter
+   forbids the provenance; F1.5 is its enforcement.
+4. **The literal exception, once (the LiteralFold rule):** Java may answer without the DB
+   only for values that are (a) syntactically verbatim in the typed AST and (b)
+   representation-trivial (no coercion/format rule to duplicate). `LiteralFold.ADMITTED =
+   {String, Boolean}` is the canonical instance, pinned by `ConstantPlanParityTest` —
+   "admitting a kind is a green differential, not an argument." The SAME admission rule and
+   the SAME differential-pinning mechanism govern any Java-side literal RENDERING (Phase 4)
+   and any future fold. One rule, N applications, zero new judgment calls.
+
+**Acceptance:** the charter exists; F1.3's exemption list and F1.5's invariant each cite the
+clause they enforce; Phase 4's Java residue cites clause 4.
+
+**Expected red:** none.
+
+### F0.3 — HostEval arm census (classify the interpreter before pinning it)
+
+**Files:** read-only census over `exec/HostEval.java`'s 47 arms + its two consumers
+(`StatementExecutor`, `harness/EngineTestExecutor`); output appended to
+`docs/FOUNDATIONS_BASELINE.md`
+
+**Why:** F1.5 PINS the interpreter (provenance invariant) but the plan otherwise leaves an
+894-line, 47-arm evaluator on a production path. The tenet's strict form says most of those
+arms should not exist in production. Before Phase 1 locks the walls in place, measure: which
+arms are reachable from production `StatementExecutor` paths vs only from the harness? The
+harness-only set moves out with F1.2's spirit (follow-up task, sized by this census); the
+production-reachable set gets chartered per F0.2 clause 3-4 or ledgered as gaps.
+
+**Acceptance:** every arm classified {production-reachable, harness-only, dead}; the
+harness-only and dead counts become a follow-up task in §9 Backlog with the census as its
+work list.
+
+**Expected red:** none (read-only).
 
 ---
 
@@ -160,6 +265,16 @@ precisely because nothing forbade it. Audit §7 T1.
 **Acceptance:** the rule exists, passes, and costs ≤5 exemptions; deliberately adding
 `import java.sql.ResultSet;` to `com/legend/lowering/Scalars.java` **fails the build** (verify
 this, then revert the probe).
+
+**Known limitation the rule must name (F1.3b, same task):** the funnel licenses the
+`com.legend` ROOT package — which contains `StatementExecutor`, the audit's own S1 dispatcher
+("21 name-matched dispatch arms before anything reaches the Lowerer"). The funnel constrains
+the harness and the compiler but leaves the biggest offender structurally free. Mitigate now,
+fix later: (a) pin root's `java.sql` usage to an **enumerated, shrink-only class list**
+(seeded at the current consumers) so a NEW root class touching `java.sql` fails the build;
+(b) record in §9 Backlog the real fix — split root into orchestration (unlicensed) and a
+named exec seam (licensed). Do not attempt the split during this pause; the class-list pin is
+the guard.
 
 **Expected red:** none. **Gate:** full referee.
 
@@ -238,6 +353,22 @@ and that PCT reintroduced. Audit §4.2 P2.
 **Why:** ~89 dead lines in `EngineTestExecutor` alone (`csvText`, `constantStrings`,
 `jsonDeepEquals`), plus `inlineFunctionLiterals` in PCT firing 0 of 2,473 times. Nothing catches
 this.
+
+### F1.10 — The tenet ratchet (a direct metric, not a proxy)
+
+**Files:** `ArchitectureTest` or a new `TenetRatchetTest`
+
+**Change:** a shrink-only count of ResultSet-cell CONSUMPTION sites outside the seam the
+F0.2 charter licenses (egress transport, the LiteralFold-admitted arm). Seeded at the
+current count; every decrease is recorded, every increase fails the build with the charter
+clause it violates.
+
+**Why:** the §0.2 metrics are all proxies (funnel coverage, duplicate counts, claim counts).
+None of them measures the tenet itself. "Java orchestrates, the DB executes" needs a number
+that must go down — otherwise progress is inferred from guard coverage rather than measured.
+
+**Acceptance:** the ratchet exists, is seeded, and its seed value is recorded in
+`FOUNDATIONS_BASELINE.md`.
 
 ### F1.9 — Wire the orphans into the gate
 
@@ -497,26 +628,57 @@ or wire it.
 
 > **One missing pipeline phase generates the largest class of violations in the tree.** Do this
 > after Phases 1–3 so the guards and the single JSON writer are already in place.
+>
+> **DESIGN DECISION (2026-08-16, supersedes the first draft): rendering EXECUTES IN THE
+> DATABASE.** The first draft's `com/legend/exec/render/` Java renderer would have
+> consolidated five print-form copies into two and then needed a permanent differential test
+> to bind them — recreating the §2 disease at smaller scale. The DB-side design consolidates
+> to ONE. The precedent is already certified in this tree: audit §4.3.6 — "*Graph results
+> pass through untouched — the JSON is built by the database*" (the M2M/graph-fetch design:
+> the Lowerer emits SQL that CONSTRUCTS the serialized artifact; Java carries bytes). This
+> phase generalizes that to CSV/TDS/Pure-print. It also dissolves A15's class outright: a
+> DECIMAL(38,10) rendered by `to_json` in the DB cannot be destroyed by `Double.toString`,
+> because Java never touches the value.
 
-### F4.1 — Add result rendering to the platform
+### F4.1 — RENDER = render lowerings + a plan-wrapping step (DB executes)
 
-**Files:** new `com/legend/exec/render/` (or equivalent); `error/LegendCompileException.java:27`
+**Files:** render rules in `lowering/` (beside `Scalars.floatRepr`, where the print forms
+already live); a plan-wrapping step at the orchestration seam; `error/LegendCompileException.java:27`
 
-**Change:** give `ExecutionResult` a renderer per format — Pure print form, CSV, TDS, JSON —
-owned by the platform. Add `RENDER` to `Phase`.
+**Change:** `RENDER` is a PLAN-CONSTRUCTION phase: when a format is requested (HTTP param,
+assert spelling, `toCSV` in query position), the orchestrator wraps the compiled plan with a
+render projection — row-wise `concat_ws` for CSV lines (streaming-friendly: one VARCHAR
+column, `Executor.stream` finally matters), `to_json`/`json_object` shapes for JSON (the
+graph-fetch machinery, generalized), the existing `floatRepr`/`DateFmt` emissions for the
+Pure print form. Add `RENDER` to `Phase` as a plan phase.
 
-**Why:** the pipeline is A→K ending at `ExecutionResult`, and
-`Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE }` has **no `RENDER`**
-(verified at HEAD). So the Pure print form of a value is implemented **five times** by parties
-that do not know about each other, with two measurable consequences: the same result serializes
-under different value policies depending on the format requested (a `DECIMAL(38,10)` survives CSV
-and is destroyed by JSON), and **the platform's own float printer is untested by all 1,109 PCT
-tests** because `formatValue` uses a *more correct* Java path. Audit §2.
+**The Java residue, chartered (F0.2 clauses 1 and 4):**
+1. **Envelope + headers from typed plan facts** — CSV header row, JSON envelope brackets,
+   TDS schema line: emitted from the compiled plan's column names/types (model-space,
+   "types drive construction"), never from values.
+2. **The LiteralFold-admitted identity render** — Java may render ONLY literal kinds with no
+   representation rule (`ADMITTED = {String, Boolean}` today). Integer/Float/Decimal/Date
+   render in the DB even as literals, because their representation rules live in the SQL
+   path — the exact reason `LiteralFold` rejects them ("folding those would duplicate a
+   coercion rule in a second place"). Widening = a green differential in the
+   `ConstantPlanParityTest` pattern, never an argument.
+3. **Byte transport.**
 
 **Reuse, do not invent:** `Scalars.floatRepr:3170-3209` and `DateFmt.ISO_PURE_UTC` are the
 correct print forms and already exist — in SQL. `Lowerer.java:2674-2688` already flattens the
-relation shape; `Scalars.java:2645-2660` builds a nested-`CONCAT` render; a CSV render is
-`string_agg` over row-wise `concat_ws`.
+relation shape; `Scalars.java:2645-2660` builds a nested-`CONCAT` render; graph fetch already
+builds JSON DB-side end-to-end.
+
+**Why (unchanged from the audit):** `Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING,
+LOWER, EXECUTE }` has no `RENDER`, so the Pure print form of a value is implemented five
+times by parties that do not know about each other; a `DECIMAL(38,10)` survives CSV and is
+destroyed by JSON; the platform's float printer is untested by all 1,109 PCT tests. Audit §2.
+
+**Sequencing note:** this design is MORE disruptive up front than a Java renderer — every
+egress consumer changes its consumption model in one arc rather than swapping a formatter
+behind an interface. That is why F4.2b (compare-and-log) is mandatory before F4.3, and why
+Phase 5 (type fidelity) stays a hard prerequisite: the render wrapper renders BY the plan's
+typed columns, so they must be right first.
 
 ### F4.2 — Register `toCSV` and relation `toString` as platform lowerings
 
@@ -609,7 +771,13 @@ the conflation to avoid, and it is why the 165 are recoverable rather than lost.
 `DateFmt.SUBSEC_MIN` is minimal; a hard-coded `"+0000"` on a zone-less `LocalDateTime`);
 `exec/ResultJson.java:87`; `server/serial/CsvSerializer.java:78-83`.
 
-**Acceptance:** one renderer per format, tree-wide. PCT exercises `floatRepr`.
+Under the DB-side design these are DELETIONS, not reroutes: PCT's `formatValue` consumes the
+DB-rendered text directly (so PCT finally exercises `floatRepr` with no adapter between);
+the server serializers become envelope-plus-byte-transport around DB-rendered columns. The
+permanent differential test shrinks to covering only the LiteralFold-admitted identity arm.
+
+**Acceptance:** ONE implementation of every value print form, and it runs in the database.
+PCT exercises `floatRepr`.
 
 ---
 
@@ -767,7 +935,12 @@ hit on a side that came from an `execute()` binding is a masked typing bug — l
 **`hostEquals(1.5, 1)` is `true`** — on the live assert path (`EngineTestExecutor:3316`). Use
 `BigDecimal.compareTo` or exact comparison. Audit §5 A4.
 
-### F6.5 — Fix `csvRowEquals`'s cross-kind collapse
+### F6.5 — Fix `csvRowEquals`'s cross-kind collapse — and A7, assigned here
+
+> **A7 assignment (2026-08-16, deferral review):** JsonAssertCanon's lexical
+> row sort was in the Phase-8 tail with no owner; it is the same
+> comparator-quality class and dies with this task. Its F1.4 allowlist row
+> deletes with the fix.
 
 **Files:** `EngineTestExecutor.java:3093-3095`; also `H2Verify.java:568`, `TdsEquivalence.java:71`
 
@@ -955,17 +1128,67 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
   Quant: 6).
 - `EngineSectionRosterTest:74` / `EngineElementRosterTest:58` use `>=`, so a roster that **grows**
   passes in exactly the silence the header says it should not.
+- **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
+  exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
+  rather than class-list-pinned. Deferred — not pause work.
+- **The 56 counted sql-text-side gaps need an OWNER (frozen leniency,
+  found by the user's deferral review):** F2.3's registry ceiling counts
+  56 real renderer/recognizer gaps in the golden-SQL side channel
+  (EngineStyleH2 list/array encodings: LIST_GET/LIST_CONCAT/STRING_AGG/
+  array literals; toSQLString argument shapes; banker's ROUND;
+  object-space TypedFilter substitution). Ceiling'd but assigned to no
+  phase. Owner: the renderer-encoding buckets ride with Phase 4's
+  render-lowering work (same dialect surface); the toSQLString/
+  recognizer buckets are burn-resume fuel. Burn the ceiling down with
+  dated justifications as each bucket closes.
+- **Phase-1/2 deep-audit residue (2026-08-16):** (a) F1.7's ratchet misses
+  `default -> CONSTANT` and old-style `default: return "x"` spellings — a
+  tripwire, not a wall; (b) the float-ROUNDING leniency count (norm's
+  10-significant-digit fold) needs a norm-free recheck; (c) ord-leniency
+  should graduate from LL_ORD_COUNT-gated stderr lines to ALWAYS-ON
+  census counters beside M1_RESCUED; (d) the `sql-text: ` message-prefix
+  protocol should become a typed outcome channel; (e) the per-family
+  regression gate compares pass COUNTS — a PASS→FAIL/FAIL→PASS swap is
+  invisible to the GATE (mitigated: the non-passing list is committed,
+  so swaps surface in the doc diff and §0.4 demands row-for-row
+  justification); (f) TreeMap/TreeSet implicit sorting is censused clean
+  in the harness but not pattern-guarded; (g) F2.3's decline total varied
+  51→56 between an exclusive sweep and the chain's G4 — ceiling held
+  since; if it flaps, diagnose the nondeterminism, never raise blind.
+- **Reflection removal (F1.11 residue):** the bytecode ban found three
+  pre-existing production reflection sites the source census missed —
+  DbMetaData's java.sql.Types field iteration (replace with a literal
+  type-name map), ScanColumns:311's reflective record-tree walker
+  (replace with the TypedSpec children() spine or per-record accessors),
+  server/Json's generic Array.get serialization (replace with typed
+  array arms). Frozen shrink-only in ArchitectureTest; no new
+  reflection compiles.
+- **CorpusDifferentialTest gate wiring (F1.9 residue):** run
+  `scripts/corpus/differential.py` as a gate step so the Assumptions-skip
+  stops firing — a python + oracle-checkout moving part deliberately not
+  added mid-pause; its javadoc now states the truth (dark in every build).
+  Also: the plan's "11 orphaned classes with real assertions" did not
+  reproduce at HEAD — the measured set was TWO (GrammarCoverageCensusTest,
+  GenerativeDualParseTest), both now gated; the other orphans are
+  zero-assertion report/census printers (ProbeWireShapes et al. are the
+  Phase-8 zero-assert item).
+- **HostEval eviction (F0.3 census result):** the channel's demand is 100% harness (all four
+  admission gates serve corpus vocabulary; no production entry point routes host today) —
+  after F1.2, move the host-channel dispatch behind a harness-installed seam so production
+  `StatementExecutor` carries no interpreter. Requires one referee cycle of arm-usage counter
+  data first (`LL_HOST_ARM_COUNT` pattern); rides only after F1.5's pin exists. Census:
+  `FOUNDATIONS_BASELINE.md` §7.
 
 ---
 
 ## 10. Dependency order
 
 ```
-F0.1  baseline
+F0.1  baseline  →  F0.2 CHARTER ★ (F1.3/F1.5/F1.10 and Phase 4 cite it)  →  F0.3 HostEval census
   │
   ├─ Phase 1 GUARDS ────────────────────────────────────  do first, in order
-  │    F1.1 → F1.2 → F1.3 ★     (extract → move → funnel)
-  │    F1.4, F1.5, F1.6, F1.7, F1.8, F1.9   (parallel)
+  │    F1.1 → F1.2 → F1.3 ★     (extract → move → funnel; exemptions from F0.2)
+  │    F1.4, F1.5, F1.6, F1.7, F1.8, F1.9, F1.10   (parallel)
   │
   ├─ Phase 2 MEASUREMENT ───────────────────────────────  needs nothing; do early
   │    F2.1 ★, F2.2, F2.3, F2.4, F2.5, F2.6   (parallel)
@@ -992,7 +1215,8 @@ F0.1  baseline
 
 **If you can only do three things:** `F1.3` (the funnel — makes the tenet mechanical),
 `F2.1` (soft-pass columns — makes the burn-down's left term visible), `F7.1` (transactions —
-deletes the downgrade apparatus and probably raises the honest pass count).
+deletes the downgrade apparatus and probably raises the honest pass count). If you can do
+four: `F0.2` first — the other three each cite it.
 
 **The two read-only probes — `F4.2b` and `F5.3 Stage A` — are the highest value-per-risk tasks
 in the plan.** Both are compare-and-*log* rather than compare-and-fail; neither can redden a row;

@@ -149,9 +149,16 @@ final class ExecCallFinder {
                     execChains, ctx, imports, runtimeFqn, conn)
                     instanceof String s ? s : null;
         } catch (RuntimeException | java.sql.SQLException e) {
-            if (System.getenv("LL_SQLTEXT_DEBUG") != null) {
-                System.err.println("[sql-text] side unverifiable: " + e);
-            }
+            // F2.3: this catch gates the ENTIRE golden-SQL channel — a
+            // renderer crash and "this test has no SQL side" were the
+            // same silent outcome, printed only under LL_SQLTEXT_DEBUG.
+            // Route through the ONE counted decline census (the audit's
+            // "this machinery is excellent and exists in exactly one
+            // place; generalise it").
+            H2Verify.decline("sql-text side: "
+                    + (e.getMessage() == null
+                            ? e.getClass().getSimpleName()
+                            : e.getMessage()));
             return null;
         }
     }

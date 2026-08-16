@@ -29,6 +29,12 @@ final class Pipeline {
      * when the property name collides with a physical main-table column
      * — the milestoningmap 'exchange' case). */
     final Map<String, String> navSlotByProp = new LinkedHashMap<>();
+
+    /** Nav-slot OWNER class (property name -> owning class FQN): the
+     * collision guards fire only across DIFFERENT owners — same-owner
+     * same-name routed siblings dedup into one routed navigate
+     * (ledger cluster 66). */
+    final Map<String, String> navSlotOwner = new LinkedHashMap<>();
     // Physical (non-class) target tables reached by MORE THAN ONE distinct
     // sub-row slot and which are NOT the main table. A bare column ref to
     // such a table (in a filter/expression/groupBy/column PM) cannot

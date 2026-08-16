@@ -149,7 +149,14 @@ class CodeShapeGuardrailTest {
             "EngineTestExecutor.i", "PureDateLiteral.pos");
 
     private static final Pattern SIG = Pattern.compile(
-            "^    (?! )(?:private |public |protected |static |final |synchronized )*"
+            // 4-space (top-level class members) OR 8-space (nested-class
+            // members — F1.7: the 4-space anchor left nested methods
+            // unscanned); statement keywords excluded so 8-space method
+            // BODY lines (multiline `return foo(...)` calls) cannot
+            // false-match as signatures
+            "^(?:    |        )(?! )(?!return |throw |if |while |for "
+            + "|switch |case |else |new |yield |assert )"
+            + "(?:private |public |protected |static |final |synchronized )*"
             + "[\\w.<>\\[\\], ?]+ (\\w+)\\(");
 
     /** Class-level non-final instance fields, ANY visibility — package-
@@ -211,6 +218,55 @@ class CodeShapeGuardrailTest {
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(".java")).toList();
         }
+    }
+
+    // F1.8: unreferenced private methods, seeded at the F0.1-baseline
+    // measurement (9 sites). Counting rule: a private method whose name
+    // is referenced no more often than it is DECLARED (call sites +
+    // method references `::name`, comments stripped) is dead — private
+    // scope makes the file the whole universe. Shrink-only.
+    private static final int DEAD_PRIVATE_METHODS = 9;
+
+    @Test
+    void deadPrivateMethodsOnlyShrink() throws IOException {
+        List<String> dead = new ArrayList<>();
+        for (Path p : mainSources()) {
+            String cls = p.getFileName().toString();
+            String code = Files.readString(p)
+                    .replaceAll("//.*", "")
+                    .replaceAll("(?s)/\\*.*?\\*/", "");
+            Matcher d = Pattern.compile(
+                    "(?m)^\\s*private\\s+(?:static\\s+|final\\s+"
+                    + "|synchronized\\s+|@[\\w.]+\\s+|<[^>]+>\\s+)*"
+                    + "[\\w.<>\\[\\], ?@]+\\s+(\\w+)\\(")
+                    .matcher(code);
+            java.util.Map<String, Integer> decls = new java.util.HashMap<>();
+            while (d.find()) {
+                decls.merge(d.group(1), 1, Integer::sum);
+            }
+            for (var e : decls.entrySet()) {
+                int uses = countMatches(code,
+                        "\\b" + Pattern.quote(e.getKey()) + "\\s*\\(");
+                int refs = countMatches(code,
+                        "::" + Pattern.quote(e.getKey()) + "\\b");
+                if (uses + refs <= e.getValue()) {
+                    dead.add(cls + "." + e.getKey());
+                }
+            }
+        }
+        assertTrue(dead.size() <= DEAD_PRIVATE_METHODS,
+                "unreferenced private methods grew to " + dead.size()
+                + " (pinned at " + DEAD_PRIVATE_METHODS + "): " + dead
+                + " — delete the dead code or reference it");
+    }
+
+    private static int countMatches(String code, String regex) {
+        Matcher m = Pattern.compile(regex).matcher(code);
+        int n = 0;
+        while (m.find()) {
+            n++;
+        }
+        return n;
     }
 
     @Test

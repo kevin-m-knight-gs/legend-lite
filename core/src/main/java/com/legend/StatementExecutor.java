@@ -345,9 +345,41 @@ final class StatementExecutor {
                 body = com.legend.validation.DriverPkAppend.apply(
                         body, env.ctx());
             }
-            result = executeTyped(body, env);
+            result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
+                    env));
         }
         return result;
+    }
+
+    /** The statement's env widened with the tableReplace maps of every
+     * exec frame the statement REFERENCES (union; conflicting renames
+     * throw — never a silent pick). The re-plan of a spliced chain is
+     * the architecture; the renames must ride with it (ledger cluster
+     * 59). */
+    private static ExecEnv frameReplaceEnv(TypedSpec stmt,
+            java.util.Map<String, ExecFrame> execFrames, ExecEnv env) {
+        java.util.Map<String, String> union = null;
+        for (var e : execFrames.entrySet()) {
+            if (e.getValue().tableReplace().isEmpty()
+                    || !referencesVar(stmt, e.getKey())) {
+                continue;
+            }
+            if (union == null) {
+                union = new java.util.LinkedHashMap<>(env.tableReplace());
+            }
+            for (var r : e.getValue().tableReplace().entrySet()) {
+                String prev = union.putIfAbsent(r.getKey(), r.getValue());
+                if (prev != null && !prev.equals(r.getValue())) {
+                    throw new IllegalStateException("conflicting table"
+                            + " renames for '" + r.getKey() + "': '" + prev
+                            + "' vs '" + r.getValue() + "'");
+                }
+            }
+        }
+        return union == null ? env
+                : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
+                        env.connection(), env.rawSqlFailureSink(),
+                        env.addDriverTablePk(), env.queryLets(), union);
     }
 
     /**
@@ -398,7 +430,7 @@ final class StatementExecutor {
     /** The engine-style SQL pipeline shared by toSQLString and the plan
      * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
      * form, I lower — IR plus rendered text. */
-    private record EngineSql(com.legend.sql.SqlQuery plan, String sql,
+    record EngineSql(com.legend.sql.SqlQuery plan, String sql,
             java.util.List<TypedSpec> body) {
     }
 
@@ -415,7 +447,7 @@ final class StatementExecutor {
     /** The body form, with plan-TEMPLATE parameters: each named free
      * variable lowers to the engine's {@code ${name}} placeholder
      * (value = string-typed, driving the freemarker quote template). */
-    private static EngineSql engineSql(java.util.List<TypedSpec> raw,
+    static EngineSql engineSql(java.util.List<TypedSpec> raw,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
             com.legend.sql.dialect.EngineStyleH2 renderer,
@@ -725,9 +757,7 @@ final class StatementExecutor {
             String aSql = prevVar == null ? aEs.sql()
                     : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
                             prevVar, planDialect(dbType, quote, tz));
-            if (aSql == null) {
-                return null;
-            }
+            if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
             allocs.add(com.legend.plan.PlanText.allocation(var,
@@ -745,12 +775,12 @@ final class StatementExecutor {
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
                 fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
                 planDialect(dbType, quote, tz));
-        if (splicedSql == null) {
-            return null;
-        }
+        if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
-                lam.body(), connName, chainMaps);
+                lam.body(), connName, chainMaps,
+                com.legend.plan.PlanText.colsPlanFor(
+                        fullEs.plan(), prevVar));
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -763,8 +793,6 @@ final class StatementExecutor {
                         children),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
-
-
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
@@ -868,13 +896,29 @@ final class StatementExecutor {
                 throw new com.legend.error.NotImplementedException(
                         "plan: non-let intermediate statement");
             }
-            children.add(allocationNode(let, mappingFqn, specs, env,
+            children.add(PlanAllocations.node(let, mappingFqn, specs, env,
                     params, quote, timeZone, dbType));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
+        if (term instanceof com.legend.compiler.spec.typed.TypedLet tlet) {
+            // TRAILING let = Allocation node (ledger cluster 36; engine
+            // processes a let cluster into AllocationExecutionNode and
+            // emits Sequence only when clusters != 1) — a lone let IS
+            // the plan, no Sequence envelope.
+            children.add(java.util.Objects.requireNonNull(PlanAllocations
+                    .node(tlet, mappingFqn, specs, env, params, quote,
+                            timeZone, dbType)));
+            if (children.size() != 1) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan: trailing let in a multi-node sequence"
+                        + " (envelope type block from the let pending)");
+            }
+            return new ExecutionResult.Scalar(children.get(0),
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
         String rootClass = rootGetAllClass(java.util.List.of(term));
         if (rootClass == null) {
             throw new com.legend.error.NotImplementedException(
@@ -897,89 +941,13 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
-    /** An Allocation child for one plan let: LITERAL values print as
-     * Constant nodes, scalar query values as SCALAR-projection
-     * Relational nodes (bare-typed, alias-less select), and CLASS query
-     * values as full Class-envelope Relational nodes — the engine's
-     * three Allocation value forms. */
-    private static @com.legend.Nullable String allocationNode(
-            com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
-            boolean quote, @com.legend.Nullable String timeZone, @com.legend.Nullable String dbType) {
-        String literal = switch (let.value()) {
-            case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
-            case com.legend.compiler.spec.typed.TypedCInteger ci ->
-                    String.valueOf(ci.value());
-            case com.legend.compiler.spec.typed.TypedCFloat cf ->
-                    String.valueOf(cf.value());
-            case com.legend.compiler.spec.typed.TypedCBoolean cb ->
-                    String.valueOf(cb.value());
-            case com.legend.compiler.spec.typed.TypedCDate cd ->
-                    cd.value().toEngineString();
-            default -> null;
-        };
-        if (literal != null) {
-            String typeName = com.legend.plan.PlanText
-                    .pureTypeName(let.info().type());
-            String size = sizeRange(let.info().multiplicity());
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
-                    com.legend.plan.PlanText.constant(typeName, literal));
-        }
-        String rootClass = rootGetAllClass(java.util.List.of(let.value()));
-        if (rootClass == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: Allocation value without a getAll root");
-        }
-        EngineSql es = engineSql(java.util.List.of(let.value()),
-                mappingFqn, specs, env,
-                planDialect(dbType, quote, timeZone), params,
-                java.util.function.UnaryOperator.identity());
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
-                env.ctx(), mappingFqn, rootClass);
-        if (let.info().type()
-                instanceof com.legend.compiler.element.type.Type.ClassType) {
-            // class-valued allocation: the full Class-envelope node, and
-            // the Allocation's own type block is the impls form
-            String inner = com.legend.plan.PlanText.single(env.ctx(),
-                    rootClass, mappingFqn, es.plan(), es.sql(),
-                    java.util.List.of(let.value()));
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
-                            impl, es.plan(), java.util.List.of(let.value())),
-                    inner);
-        }
-        String typeName = com.legend.plan.PlanText
-                .pureTypeName(let.info().type());
-        String size = sizeRange(let.info().multiplicity());
-        if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: Allocation value lowers to a non-select");
-        }
-        com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
-                sel.projections().stream().map(p ->
-                        new com.legend.sql.SqlSelect.Projection(
-                                p.expr(), null)).toList(),
-                sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
-                sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
-                sel.offset(), sel.outputs());
-        var renderer = planDialect(dbType, quote, timeZone);
-        String bareSql = renderer.render(bareSel);
-        String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
-                impl[2], sel, typeName, size, bareSql,
-                renderer::renderedAlias);
-        return com.legend.plan.PlanText.allocation(let.name(),
-                com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
-                inner);
-    }
 
     private static @com.legend.Nullable String multBracket(
             com.legend.compiler.element.type.Multiplicity m) {
         return "[" + sizeRange(m) + "]";
     }
 
-    private static @com.legend.Nullable String sizeRange(
+    static @com.legend.Nullable String sizeRange(
             com.legend.compiler.element.type.Multiplicity m) {
         if (m instanceof com.legend.compiler.element.type.Multiplicity
                 .Bounded b) {
@@ -1154,7 +1122,7 @@ final class StatementExecutor {
     /** The engine-style PLAN renderer for a connection DatabaseType —
      * the plan goldens pin Composite to the DB2-family spelling
      * (paren-wrapped conjunctions, quoted boolean placeholders). */
-    private static com.legend.sql.dialect.EngineStyleH2 planDialect(
+    static com.legend.sql.dialect.EngineStyleH2 planDialect(
             @com.legend.Nullable String dbType, boolean quote,
             @com.legend.Nullable String tz) {
         if (dbType == null) {
@@ -1174,7 +1142,7 @@ final class StatementExecutor {
      * executionPlan call; the value is the walked result (node, list,
      * param, scalar). Unknown steps return null — the chain falls back
      * to the ordinary pipeline and its own walls. */
-    private static @com.legend.Nullable Object planWalk(TypedSpec n,
+    static @com.legend.Nullable Object planWalk(TypedSpec n,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ep
                 && com.legend.compiler.element.type.PlatformTypes
@@ -1285,7 +1253,8 @@ final class StatementExecutor {
         if (n instanceof com.legend.compiler.spec.typed.TypedMap tm
                 && tm.mapper() instanceof com.legend.compiler.spec.typed
                         .TypedLambda tml) {
-            return walkMapOver(planWalk(tm.source(), specs, env), tml);
+            return MetamodelSteps.walkMapOver(
+                    planWalk(tm.source(), specs, env), tml, specs, env);
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && !c.args().isEmpty()) {
@@ -1295,128 +1264,9 @@ final class StatementExecutor {
             if (recv == null) {
                 return null;
             }
-            switch (simple) {
-                case "allNodes" -> {
-                    if (recv instanceof com.legend.plan.PlanNode pn) {
-                        return new java.util.ArrayList<Object>(pn.allNodes());
-                    }
-                }
-                case "filter" -> {
-                    if (recv instanceof java.util.List<?> l
-                            && c.args().get(1)
-                                    instanceof com.legend.compiler.spec.typed
-                                            .TypedLambda lam2) {
-                        return walkFilter(l, lam2);
-                    }
-                }
-                case "cast", "toOne", "toOneMany" -> {
-                    return recv;
-                }
-                case "at" -> {
-                    if (recv instanceof java.util.List<?> l
-                            && c.args().get(1)
-                                    instanceof com.legend.compiler.spec.typed
-                                            .TypedCInteger ix) {
-                        return l.get((int) (long) ix.value());
-                    }
-                }
-                case "first" -> {
-                    if (recv instanceof java.util.List<?> l) {
-                        return l.isEmpty() ? null : l.get(0);
-                    }
-                }
-                case "schema" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString sn9) {
-                        return com.legend.exec.MetamodelWalk.schema(recv,
-                                sn9.value());
-                    }
-                }
-                case "table" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString tn9) {
-                        return com.legend.exec.MetamodelWalk.table(recv,
-                                tn9.value());
-                    }
-                }
-                case "convertElement" -> {
-                    return com.legend.exec.MetamodelWalk
-                            .convertElement(recv);
-                }
-                case "convertSelectSqlQuery" -> {
-                    Object body = com.legend.exec.MetamodelWalk
-                            .convertElement(recv);
-                    return body == null ? null
-                            : com.legend.exec.MetamodelWalk.nodeOf("Query",
-                                    new java.util.TreeMap<>(java.util.Map
-                                            .of("queryBody", body)));
-                }
-                case "view" -> {
-                    if (c.args().size() == 2 && c.args().get(1)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString vn) {
-                        return com.legend.exec.MetamodelWalk.view(recv,
-                                vn.value());
-                    }
-                }
-                case "map" -> {
-                    if (recv instanceof java.util.List<?> l
-                            && c.args().get(1) instanceof
-                                    com.legend.compiler.spec.typed
-                                            .TypedLambda ml) {
-                        java.util.List<Object> out =
-                                new java.util.ArrayList<>();
-                        for (Object e : l) {
-                            Object v = walkMapBody(e, ml);
-                            if (v != null) {
-                                out.add(v);
-                            }
-                        }
-                        return out;
-                    }
-                }
-                case "_classMappingByClass" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedPackageableRef cref2) {
-                        return com.legend.exec.MetamodelWalk
-                                .classMappingsByClass(recv, cref2.fullPath());
-                    }
-                }
-                case "rootClassMappingByClass" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedPackageableRef cref) {
-                        return com.legend.exec.MetamodelWalk
-                                .rootClassMappingByClass(recv,
-                                        cref.fullPath());
-                    }
-                }
-                case "classMappingById", "superMapping",
-                        "allSuperSetImplementations", "mainTable",
-                        "resolvePrimaryKey" -> {
-                    return mappingNav(simple, recv, c, specs, env);
-                }
-                case "propertyMappingsByPropertyName" -> {
-                    if (c.args().size() == 2 && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed
-                                    .TypedCString pn) {
-                        return com.legend.exec.MetamodelWalk
-                                .propertyMappingsByName(recv, pn.value());
-                    }
-                }
-                case "inferRelationalType" -> {
-                    return com.legend.exec.MetamodelWalk.infer(recv);
-                }
-                case "dataTypeToSqlText" -> {
-                    return com.legend.exec.MetamodelWalk.sqlText(recv);
-                }
-                default -> {
-                    return null;
-                }
-            }
+            Object step = MetamodelSteps.metamodelStep(simple, recv, c,
+                    specs, env);
+            return step == MetamodelSteps.WALK_UNRECOGNIZED ? null : step;
         }
         return null;
     }
@@ -1735,84 +1585,6 @@ final class StatementExecutor {
                 ? r.op() : null;
     }
 
-    /** NARROW map-lambda body: one native call over the parameter
-     * ({@code x|$x->view('name')}) — evaluated per element; null on any
-     * other shape (the walk falls through to its walls). */
-    private static @com.legend.Nullable Object walkMapBody(Object e,
-            com.legend.compiler.spec.typed.TypedLambda ml) {
-        if (ml.body().size() != 1 || ml.parameters().isEmpty()
-                || !(ml.body().get(0) instanceof
-                        com.legend.compiler.spec.typed.TypedNativeCall mb)
-                || mb.args().isEmpty()
-                || !(mb.args().get(0) instanceof
-                        com.legend.compiler.spec.typed.TypedVariable mv)
-                || !mv.name().equals(ml.parameters().get(0))) {
-            return null;
-        }
-        String mfn = mb.callee().qualifiedName();
-        String msimple = mfn.substring(mfn.lastIndexOf(':') + 1);
-        return switch (msimple) {
-            case "view" -> mb.args().size() == 2
-                    && mb.args().get(1) instanceof
-                            com.legend.compiler.spec.typed.TypedCString mvn
-                    ? com.legend.exec.MetamodelWalk.view(e, mvn.value())
-                    : null;
-            case "mainTable" -> com.legend.exec.MetamodelWalk.mainTable(e);
-            case "resolvePrimaryKey" ->
-                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(e);
-            default -> null;
-        };
-    }
-
-    /** {@code ->map(x|...)} over walked handles; a single IS a [1]
-     * collection (pure semantics), so classMappingById's [0..1] result
-     * maps like the metamodel families' lists. */
-    private static @com.legend.Nullable Object walkMapOver(@com.legend.Nullable Object recvM,
-            com.legend.compiler.spec.typed.TypedLambda tml) {
-        if (recvM != null && !(recvM instanceof java.util.List)) {
-            recvM = java.util.List.of(recvM);
-        }
-        if (recvM instanceof java.util.List<?> lm) {
-            java.util.List<Object> outM = new java.util.ArrayList<>();
-            for (Object e : lm) {
-                Object v = walkMapBody(e, tml);
-                if (v != null) {
-                    outM.add(v);
-                }
-            }
-            return outM;
-        }
-        return null;
-    }
-
-    /** The extends-chain mapping-metamodel natives (classMappingById /
-     * superMapping / allSuperSetImplementations / mainTable /
-     * resolvePrimaryKey) — recv-dispatched to MetamodelWalk. */
-    private static @com.legend.Nullable Object mappingNav(String simple, Object recv,
-            com.legend.compiler.spec.typed.TypedNativeCall c,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return switch (simple) {
-            case "classMappingById" -> c.args().size() == 2
-                    && c.args().get(1) instanceof
-                            com.legend.compiler.spec.typed.TypedCString mid
-                    ? com.legend.exec.MetamodelWalk.classMappingById(recv,
-                            mid.value())
-                    : null;
-            case "superMapping" ->
-                    com.legend.exec.MetamodelWalk.superMapping(recv);
-            case "allSuperSetImplementations" -> c.args().size() == 2
-                    ? com.legend.exec.MetamodelWalk
-                            .allSuperSetImplementations(recv,
-                                    planWalk(c.args().get(1), specs, env))
-                    : null;
-            case "mainTable" ->
-                    com.legend.exec.MetamodelWalk.mainTable(recv);
-            case "resolvePrimaryKey" ->
-                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(recv);
-            default -> null;
-        };
-    }
-
     /** Property step, AUTO-MAPPING over lists (pure semantics). */
     private static @com.legend.Nullable Object walkProp(Object recv, String prop) {
         Object mm = com.legend.exec.MetamodelWalk.prop(recv, prop);
@@ -1837,6 +1609,7 @@ final class StatementExecutor {
                 case "executionNodes" ->
                         new java.util.ArrayList<Object>(pn.children());
                 case "sqlQuery" -> pn.sqlQuery();
+                case "sqlComment" -> pn.sqlComment();
                 case "functionParameters" ->
                         new java.util.ArrayList<Object>(
                                 pn.functionParameters());
@@ -1855,7 +1628,7 @@ final class StatementExecutor {
 
     /** filter lambda bodies the walk understands: instanceOf($n, X) and
      * {@code $p.name == 'lit'}. */
-    private static @com.legend.Nullable Object walkFilter(java.util.List<?> l,
+    static @com.legend.Nullable Object walkFilter(java.util.List<?> l,
             com.legend.compiler.spec.typed.TypedLambda lam) {
         TypedSpec body = lam.body().get(lam.body().size() - 1);
         if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall io
@@ -2011,7 +1784,8 @@ final class StatementExecutor {
                         tz), params, mapperRenames);
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
-                java.util.List.of());
+                java.util.List.of(),
+                com.legend.plan.PlanNode.EXEC_TRACE_COMMENT);
         com.legend.plan.PlanNode rel = new com.legend.plan.PlanNode(
                 "RelationalInstantiationExecutionNode",
                 java.util.List.of(sqlNode), null, java.util.List.of());
@@ -2025,7 +1799,7 @@ final class StatementExecutor {
                 java.util.List.of(fpvn, rel), null, java.util.List.of());
     }
 
-    private static @com.legend.Nullable String rootGetAllClass(java.util.List<TypedSpec> body) {
+    static @com.legend.Nullable String rootGetAllClass(java.util.List<TypedSpec> body) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec t = work.poll();
@@ -2051,7 +1825,8 @@ final class StatementExecutor {
      * {@code Result.values} for a TDS query holds ONE TDS; for a class or
      * scalar root, values IS the collection), and the eager run's result. */
     record ExecFrame(TypedSpec chain, boolean relationRooted,
-            @com.legend.Nullable ExecutionResult result) {
+            @com.legend.Nullable ExecutionResult result,
+            java.util.Map<String, String> tableReplace) {
     }
 
     /** Envelope-read recognizers — generic natives identified by EXACT FQN
@@ -2277,7 +2052,8 @@ final class StatementExecutor {
             }
             run = executeTyped(body, env);
         }
-        return new ExecFrame(chain, relationRooted, run);
+        return new ExecFrame(chain, relationRooted, run,
+                env.tableReplace());
     }
 
     /** Effectful user calls inside an execute() RUNTIME argument run once
@@ -2291,6 +2067,33 @@ final class StatementExecutor {
             if (containsEffect(uc, specs, new java.util.HashMap<>())) {
                 executeCallStatement(uc, letPrefix, specs, env,
                         new java.util.ArrayDeque<>());
+            }
+            return;
+        }
+        // post-processor CONFIG values never run as effects and must not
+        // be compiled by the effect scan (ledger cluster 63 — the same
+        // skip containsEffect applies, mirrored on this walk's own
+        // recursion)
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni8) {
+            for (var pe : ni8.properties().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                        .isPostProcessorConfigProperty(pe.getKey())) {
+                    runRuntimeArgEffects(pe.getValue(), letPrefix, specs,
+                            env);
+                }
+            }
+            return;
+        }
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedCopyInstance cp8) {
+            runRuntimeArgEffects(cp8.source(), letPrefix, specs, env);
+            for (var pe : cp8.overrides().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                        .isPostProcessorConfigProperty(pe.getKey())) {
+                    runRuntimeArgEffects(pe.getValue(), letPrefix, specs,
+                            env);
+                }
             }
             return;
         }
@@ -2543,6 +2346,32 @@ final class StatementExecutor {
                     && execFrames.get(sv.name()).relationRooted()) {
                 return new com.legend.compiler.spec.typed.TypedCInteger(1L,
                         sz.info());
+            }
+            // size(execute(...)) over an INLINE execute call (ledger
+            // cluster 52): the Result envelope is Result<T|m>[1] — size
+            // is 1, never the row count. eager MUST be true: nothing
+            // downstream consumes the chain, so a lazy frame would
+            // silently skip the query (Pure is strict). NOT gated on
+            // relationRooted() — the query may be class-rooted.
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall szi
+                    && SIZE_FQNS.contains(szi.callee().qualifiedName())
+                    && szi.args().size() == 1) {
+                TypedSpec earg = szi.args().get(0);
+                while (earg instanceof com.legend.compiler.spec.typed.TypedFrom ef) {
+                    earg = ef.source();
+                }
+                if (earg instanceof com.legend.compiler.spec.typed
+                                .TypedNativeCall ec2
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isExecuteFqn(ec2.callee().qualifiedName())) {
+                    try {
+                        buildFrame(ec2, letPrefix, true, specs, env);
+                    } catch (java.sql.SQLException e) {
+                        throw new IllegalStateException(e);
+                    }
+                    return new com.legend.compiler.spec.typed.TypedCInteger(
+                            1L, szi.info());
+                }
             }
             // $r.values->at(k) / ->toOne(): collapse (relation root) or a
             // REAL selection over the spliced chain (class/scalar root)
@@ -2933,6 +2762,35 @@ final class StatementExecutor {
             if (known) {
                 return true;
             }
+        }
+        // post-processor CONFIG properties carry plan-time SQL-rewrite
+        // hooks, never DDL/executeInDb effects — compiling them drags in
+        // relational-metamodel vocabulary the prelude does not declare
+        // (ledger cluster 63)
+        if (node instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni9) {
+            for (var pe : ni9.properties().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                                .isPostProcessorConfigProperty(pe.getKey())
+                        && containsEffect(pe.getValue(), specs, memo)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (node instanceof com.legend.compiler.spec.typed
+                .TypedCopyInstance cp9) {
+            if (containsEffect(cp9.source(), specs, memo)) {
+                return true;
+            }
+            for (var pe : cp9.overrides().entrySet()) {
+                if (!com.legend.compiler.element.type.PlatformTypes
+                                .isPostProcessorConfigProperty(pe.getKey())
+                        && containsEffect(pe.getValue(), specs, memo)) {
+                    return true;
+                }
+            }
+            return false;
         }
         for (TypedSpec c : node.children()) {
             if (containsEffect(c, specs, memo)) {

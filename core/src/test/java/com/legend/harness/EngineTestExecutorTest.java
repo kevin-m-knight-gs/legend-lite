@@ -137,7 +137,7 @@ class EngineTestExecutorTest {
         assertHeld(run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
-                assertSize($result.values->at(0), 3);
+                assertSize($result.values->at(0).rows, 3);
                 assertEmpty($result.values->at(0)->filter(r|$r.name == 'Nobody'));
                 assert($result.values->at(0)->filter(r|$r.name == 'Bob')->size() == 1);
                 assertFalse($result.values->at(0)->size() == 99);
@@ -160,7 +160,7 @@ class EngineTestExecutorTest {
                 let cutoff = 28;
                 let result = execute(|Person.all()->filter(p|$p.age > $cutoff)
                         ->project([p|$p.name], ['name']), test::M, r(), e());
-                assertSize($result.values->at(0), 2);
+                assertSize($result.values->at(0).rows, 2);
                 """), 1);
     }
 
@@ -171,8 +171,8 @@ class EngineTestExecutorTest {
                         ->project([p|$p.name], ['n']), test::M, r(), e());
                 let r2 = execute(|Person.all()->filter(p|$p.age <= 28)
                         ->project([p|$p.name], ['n']), test::M, r(), e());
-                assertSize($r1.values->at(0), 2);
-                assertSize($r2.values->at(0), 1);
+                assertSize($r1.values->at(0).rows, 2);
+                assertSize($r2.values->at(0).rows, 1);
                 assertEquals(['Alice'], $r2.values->at(0)->map(x|$x.n));
                 """), 3);
     }
@@ -188,7 +188,7 @@ class EngineTestExecutorTest {
                         test::M, r(), e());
                 assertEquals('select "root".NAME as "name" from PERSON as "root"',
                         $result->sqlRemoveFormatting());
-                assertSize($result.values->at(0), 3);
+                assertSize($result.values->at(0).rows, 3);
                 """);
         EngineTestExecutor.Outcome.Ran ran = (EngineTestExecutor.Outcome.Ran) ok;
         assertEquals(List.of(), ran.failures());
@@ -366,7 +366,7 @@ class EngineTestExecutorTest {
                         [f|$f.legal, f|$f.employees.age->max(),
                          f|$f.employees.name->joinStrings('*')],
                         ['legal', 'oldest', 'names']), test::M, r(), e());
-                assertSize($result.values->at(0), 3);
+                assertSize($result.values->at(0).rows, 3);
                 assertSameElements(['X|30|Bob*Alice', 'A|40|Cid', 'B|10|Dee'],
                         $result.values->at(0)->map(r|
                                 $r.legal + '|' + $r.oldest->toOne()->toString()
