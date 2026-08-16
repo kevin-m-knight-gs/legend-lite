@@ -1034,10 +1034,15 @@ public final class EngineTestExecutor {
                 return "h2-exec: OUR byte-matched SQL on H2 diverged"
                         + " from our DuckDB rows — " + h2rows;
             }
-            // divergent text: execution-equivalence may still verify
+            // divergent text: execution-equivalence may still verify —
+            // and a null return here is the RESCUE (rows matched despite
+            // divergent text): counted (F2.2), never silent
             String rows = h2Upgrade(args, lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn);
             if (rows != ADVISORY_MARKER) {
+                if (rows == null) {
+                    H2Verify.M1_RESCUED.increment();
+                }
                 return rows;
             }
             return "sql-text: expected " + golden + ", got " + sql;

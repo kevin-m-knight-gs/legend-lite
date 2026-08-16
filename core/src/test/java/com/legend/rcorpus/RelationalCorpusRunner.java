@@ -413,7 +413,9 @@ public class RelationalCorpusRunner {
         // OUR byte-matched SQL, held to our DuckDB rows — additive
         // instrumentation; a diverged count > 0 surfaces as test FAILs.
         System.out.println("[rcorpus] h2-exec (our SQL on H2): "
-                + com.legend.harness.H2Verify.M1_VERIFIED.sum() + " verified, "
+                + com.legend.harness.H2Verify.M1_VERIFIED.sum() + " verified ("
+                + com.legend.harness.H2Verify.M1_RESCUED.sum()
+                + " rescued from divergent text), "
                 + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
                 + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
                 + " unverifiable");

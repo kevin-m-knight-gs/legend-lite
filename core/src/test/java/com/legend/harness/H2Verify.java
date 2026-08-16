@@ -70,6 +70,13 @@ public final class H2Verify {
             new java.util.concurrent.atomic.LongAdder();
     public static final java.util.concurrent.atomic.LongAdder M1_DIVERGED =
             new java.util.concurrent.atomic.LongAdder();
+    /** F2.2: text-DIVERGENT golden asserts rescued into row-verified
+     * PASS by the H2 replay — before this counter the divergence was
+     * never recorded, so the committed sqldiff count (244 at the F0.1
+     * baseline) counted only the divergences the oracle FAILED to
+     * rescue; the true rate is sqldiff + THIS. */
+    public static final java.util.concurrent.atomic.LongAdder M1_RESCUED =
+            new java.util.concurrent.atomic.LongAdder();
     public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
             new java.util.concurrent.atomic.LongAdder();
 
