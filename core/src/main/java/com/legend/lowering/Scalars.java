@@ -1123,7 +1123,12 @@ final class Scalars {
         }
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
-                RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                // a to-one value is its own mean but the KIND is Float
+                // (pure average: Float[1]) — the bare identity kept the
+                // column's INTEGER and wireEquals refuses int-vs-float
+                // (adjudication ledger cluster 10)
+                RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                        ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
                         : SqlExpr.Call.of(SqlFn.LIST_AVG, numList(args.get(0))));
             }
         }

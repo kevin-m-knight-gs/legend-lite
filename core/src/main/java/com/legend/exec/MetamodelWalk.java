@@ -1312,9 +1312,24 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                 }
                 default -> null;
             };
-            case RelationalOperation.JoinNavigation j ->
-                    j.terminal() == null ? null
-                            : inferOp(env, j.terminal());
+            case RelationalOperation.JoinNavigation j -> {
+                if (j.terminal() == null) {
+                    yield null;
+                }
+                // the nav's own [DB] qualifier scopes its TERMINAL (the
+                // terminal ColumnRef is stored db-relative — adjudication
+                // ledger cluster 8: dropping it left the column untyped
+                // and concat inferred VARCHAR(n+0))
+                Rop sub = env;
+                if (j.databaseName() != null && env.ctx() != null) {
+                    var jdb = env.ctx().findDatabase(j.databaseName())
+                            .orElse(null);
+                    if (jdb != null) {
+                        sub = new Rop(jdb, env.ctx(), env.op());
+                    }
+                }
+                yield inferOp(sub, j.terminal());
+            }
             case RelationalOperation.Group g -> inferOp(env, g.inner());
             case RelationalOperation.Literal l -> switch (l.value()) {
                 case String str ->

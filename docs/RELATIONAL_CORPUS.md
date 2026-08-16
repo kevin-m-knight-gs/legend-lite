@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 63 | 19 | 6 | 20 | 0 |
-| functions/tests | 259 | 236 | 7 | 10 | 6 | 66 |
+| functions/tests | 259 | 236 | 6 | 11 | 6 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 143 | 4 | 7 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
@@ -63,7 +63,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
 | tds/tests | 266 | 248 | 2 | 9 | 7 | 6 |
 | testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
-| tests | 39 | 30 | 3 | 0 | 6 | 0 |
+| tests | 39 | 31 | 2 | 0 | 6 | 0 |
 | tests/advanced | 68 | 60 | 4 | 4 | 0 | 21 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2308** | 85 | 89 | 93 | 244 |
+| **total** | 2575 | **2309** | 83 | 90 | 93 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1131,6 +1131,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 1x unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- 1x Binder Error: UNNEST() can only be applied to lists, structs and NULL, not DOUBLE |  | LINE 1: SELECT UNNEST((SELECT AVG(t1.AGE) FROM firmTable AS t0 LEFT OUTER... |                ^
 - 1x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - 1x class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -1143,7 +1144,6 @@ shared source registered by several families cannot double-count. Run with
 - 1x project expects ~[…] column specifications
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
 - 1x derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
-- 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -1198,7 +1198,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testObjectReferneceInWithMilestonedRootClass [functions/tests]: unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME,"persontable_0".FIRSTNAME
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
-- FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
+- ERROR testSubAggregationMultiLevel [functions/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not DOUBLE |  | LINE 1: SELECT UNNEST((SELECT AVG(t1.AGE) FROM firmTable AS t0 LEFT OUTER... |                ^
 - ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -1328,7 +1328,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::pure::tds::TDSColumn' has no property 'type'
 - SHAPE testExtractDBsWithSubstituition [tests]: no execute(|...) call [calls meta::relational::runtime] — wall: in function 'meta::relational::runtime::extractDBs': class meta::pure::mapping::Mapping has no property 'includes'
-- FAIL testDynaComplexInference2 [tests]: assertEquals: expected VARCHAR(400), got VARCHAR(200)
 - SHAPE testJoinStringsTypeInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference] — wall: no scalar lowering registered for resolved overload 'meta::pure::mapping::rootClassMappingByClass' with 2 parameter(s)
 - SHAPE testSQLNullWithinCaseTypeInference1 [tests]: no execute(|...) call [calls meta::relational::functions::typeInference] — wall: no scalar lowering registered for resolved overload 'meta::pure::mapping::rootClassMappingByClass' with 2 parameter(s)
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
