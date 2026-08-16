@@ -139,6 +139,10 @@ PROBE_FAMILIES = {
     "relation": {"relation"},
     "tds": {"tds"},
     "collection": {"collection"},
+    # The long-tail probe reaches names scattered across every family, so it speaks for all
+    # of them -- it is defined by what the other probes cannot reach, not by a family.
+    "remaining": {"collection", "lang", "other", "tds", "variant", "scalar", "scalar-date",
+                  "relation"},
 }
 
 
@@ -207,8 +211,18 @@ def report():
     print(f"  {'':<18} {'-' * 5} {'-' * 8} {'-' * 7} {'-' * 6}")
     print(f"  {'DISTINCT NAMES':<18} {d_i:>5} {d_r:>8} "
           f"{len(distinct) - d_i - d_r:>7} {d_e:>6}   {len(distinct)}")
-    print(f"\n  {d_i - d_e} functions are implemented by the oracle and have never been "
-          f"run against\n  the engine. That gap, not the absent column, is the remaining work.")
+    # The burndown's real terminal condition. "Executed" cannot reach 205, because some
+    # functions the oracle implements are ones the ENGINE refuses -- and a refusal recorded
+    # with its message is a finished answer, not an outstanding task. What has to reach zero
+    # is the third number: names nobody has ever put in front of the engine.
+    ran = {n for n, _p, _v in evidence_rows()}
+    never = sorted(n for n in distinct
+                   if any(n in implemented(f) for f in fam_of[n]) and n not in ran)
+    print(f"\n  {d_e} executed and agreeing")
+    print(f"  {d_i - d_e - len(never)} run and refused or disagreeing -- each recorded with "
+          f"the engine's own message")
+    print(f"  {len(never)} never run against the engine"
+          + ("" if never else "   <- the burndown's terminal condition"))
 
     if "--absent" in sys.argv:
         fam_want = next((a.split("=")[1] for a in sys.argv if a.startswith("--family=")), None)
@@ -249,5 +263,28 @@ def report():
             print(f"  {name:<24} {why}")
 
 
+def never_run() -> list[str]:
+    """Implemented names with no evidence of ever having been run against the engine."""
+    rows = inventory()
+    distinct = {name for _p, name, _n in rows}
+    fam_of: dict[str, set] = {}
+    for pkg, name, _n in rows:
+        fam_of.setdefault(name, set()).add(family(pkg))
+    ran = {n for n, _p, _v in evidence_rows()}
+    return sorted(n for n in distinct
+                  if any(n in implemented(f) for f in fam_of[n]) and n not in ran)
+
+
 if __name__ == "__main__":
     report()
+    if "--gate" in sys.argv:
+        # The ratchet is "nothing implemented is unrun", not a count. A count can be held
+        # steady by running one function while another falls out, and the whole point of the
+        # inventory is that every name is answerable individually.
+        gone = never_run()
+        if gone:
+            raise SystemExit(
+                f"\n{len(gone)} implemented functions have never been run against the "
+                f"engine:\n  " + "\n  ".join(gone)
+                + "\n\nAdd a case to whichever probe can reach it. A refusal recorded with "
+                  "the engine's\nmessage counts; silence does not.")

@@ -63,6 +63,7 @@ exists	collection	ok
 exp	scalar	ok
 extend	relation	ok
 extend	tds	ok
+extractEnumValue	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 filter	collection	gine.plan.execution.stores.relational.result.SQ …
 filter	relation	ok
 filter	tds	ok
@@ -77,16 +78,24 @@ firstDayOfYear	scalar	ok
 firstHourOfDay	scalar	ok
 firstMillisecondOfSecond	scalar	ok
 firstMinuteOfHour	scalar	ok
+firstNotNull	remaining	ok
 firstSecondOfMinute	scalar	ok
+flatten	remaining	refused: Collection element must have a multiplicity [1] - C
 floor	scalar	ok
 formatDate	scalar	ok
 fromJson	scalar	REFUSED: not in the DynaFunctionRegistry
+get	remaining	ok
+getAll	remaining	refused: Can't find property 'getAll' in class 'meta::pure::
+getAllForEachDate	remaining	refused: Can't find property 'all' in class 'meta::pure::met
+getAllVersions	remaining	ok
+getAllVersionsInRange	remaining	refused: .allVersionsInRange(%2024-01-01,%2024-12-31) is not
 greaterThan	scalar	ok
 greaterThanEqual	scalar	ok
 greatest	collection	DISAGREES with the oracle
 greatest	scalar	ok
 groupBy	relation	ok
 groupBy	tds	ok
+groupByWithWindowSubset	remaining	refused: Error in 'rem::S_groupByWithWindowSubset': class or
 hour	scalar	ok
 if	scalar	ok
 in	collection	Caused by: Assert failure at (resource:/core_relational/rela
@@ -104,6 +113,7 @@ join	relation	ok
 join	tds	ok
 joinStrings	aggregate	ok
 joinStrings	collection	DISAGREES with the oracle
+keys	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 last	aggregate	ok
 last	collection	ct(STRUCT, BIGINT) -> ANY at org.finos.legend.e …
 last	relation	F42 -- generates SQL that builds a list of mixed types, whic
@@ -117,6 +127,7 @@ levenshteinDistance	scalar	ok
 limit	collection	Caused by: Assert failure at (resource:/core_relational/rela
 limit	relation	ok
 limit	tds	ok
+list	remaining	ok
 log	scalar	ok
 log10	scalar	ok
 lpad	scalar	ok
@@ -136,9 +147,11 @@ mode	aggregate	ok
 month	scalar	ok
 monthNumber	scalar	ok
 mostRecentDayOfWeek	scalar	REFUSED: not supported yet
+newMap	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 not	scalar	ok
 nth	relation	ok
 ntile	relation	ok
+objectReferenceIn	remaining	refused: Error initializing test suite session for 'S_object
 offset	relation	REFUSED: registered signature names a function that does not exist (F36)
 olapGroupBy	tds	ERROR
 or	collection	DISAGREES with the oracle
@@ -157,7 +170,10 @@ previousDayOfWeek	scalar	REFUSED: not supported yet
 project	relation	ok
 project	tds	ok
 projectWithColumnSubset	tds	ok
+put	remaining	refused: no matching signature: put
+putAll	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 quarterNumber	scalar	ok
+range	remaining	ok
 rank	relation	ok
 rem	scalar	ok
 removeDuplicates	aggregate	not in DynaFunctionRegistry
@@ -198,21 +214,27 @@ sqrt	scalar	ok
 startsWith	scalar	ok
 stdDevPopulation	aggregate	ok
 stdDevSample	aggregate	ok
+subType	remaining	refused: Error initializing test suite session for 'S_subTyp
 substring	scalar	DISAGREES with the oracle
 substring	scalar	ok
 sum	aggregate	ok
+tableToTDS	remaining	refused: no matching signature: tableToTDS
 tail	collection	 at org.finos.legend.engine.plan.execution.stor …
 take	collection	Caused by: Assert failure at (resource:/core_relational/rela
 take	relation	ok
 take	tds	ok
 tan	scalar	ok
 tanh	scalar	ok
+tdsContains	remaining	refused: Error in 'rem::S_tdsContains': Index: 4 Size: 4
+tdsRows	remaining	refused: java.lang.RuntimeException: java.lang.ClassCastExce
 timeBucket	scalar	ok
 times	scalar	ok
+to	remaining	ok
 toDecimal	scalar	ok
 toFloat	scalar	ok
 toJson	scalar	ok
 toLower	scalar	ok
+toMany	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 toOne	scalar	ok
 toOneMany	scalar	REFUSED: not in the DynaFunctionRegistry
 toString	scalar	ok
@@ -220,10 +242,13 @@ toUpper	scalar	ok
 toVariant	scalar	ok
 trim	scalar	ok
 union	collection	engine.plan.execution.stores.relational.result. …
+values	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 variance	scalar	REFUSED: lowers to a list function, invalid in a grouped select (F40)
 variancePopulation	aggregate	ok
 varianceSample	aggregate	ok
+viewToTDS	remaining	refused: no matching signature: viewToTDS
 wavg	aggregate	ok
 wavgRowMapper	aggregate	ok
 weekOfYear	scalar	ok
+whenSubType	remaining	refused: Error initializing test suite session for 'S_whenSu
 year	scalar	ok
