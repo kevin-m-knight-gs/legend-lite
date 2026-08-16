@@ -1271,6 +1271,31 @@ public final class StoreResolver {
         }
     }
 
+    /** OTHERWISE per-leaf dispatch (V1 §D.5): an embedded-partial leaf
+     * reads the PARENT row — {@code null} means no join demand (the
+     * caller skips the path). KIND-aware (ledger cluster 50): membership
+     * in the partial proves same-row ONLY for a genuine column read; a
+     * CLASS-TYPED navigate-slot member (structural Join sub-PM) returns
+     * the PARTIAL so the ctor drill descends and registers the dotted
+     * AssocSub (the partial's own mapping wins over the otherwise
+     * target's); any other leaf demands the FALLBACK's navigate slot. */
+    private static @com.legend.Nullable TypedSpec otherwiseNavRead(
+            TypedSpec headBinding, List<String> path, ClassSource cs,
+            Set<String> navStepKeys) {
+        var ow = Substitution.otherwiseOf(headBinding);
+        if (ow == null) {
+            return headBinding;
+        }
+        var partial = (TypedNewInstance) ow.args().get(0);
+        TypedSpec pb = partial.properties().get(
+                SyntheticHeads.realHead(path.get(1)));
+        if (pb == null) {
+            return ow.args().get(1);
+        }
+        return InnerDemand.navSlotAlias(pb, cs.rowVar(), navStepKeys) == null
+                ? null : partial;
+    }
+
     private NavPlan registerNavigations(ClassSource cs,
             Set<List<String>> paths, Set<String> splitChains) {
         // Slot demand (heads whose bindings read join slots).
@@ -1322,19 +1347,10 @@ public final class StoreResolver {
             if (headBinding == null) {
                 continue;   // association heads (below)
             }
-            // OTHERWISE per-leaf dispatch (V1 §D.5): an embedded-partial
-            // leaf reads the PARENT row (no demand); any other leaf demands
-            // the FALLBACK's navigate slot — same head can go both ways.
-            // Canonical emission: otherwise(^Inner(...), $row.<slot>).
-            TypedSpec navRead = headBinding;
-            var ow = Substitution.otherwiseOf(headBinding);
-            if (ow != null) {
-                var partial = (TypedNewInstance)
-                        ow.args().get(0);
-                if (partial.properties().containsKey(path.get(1))) {
-                    continue;   // embedded leaf: parent-alias read, no join
-                }
-                navRead = ow.args().get(1);
+            TypedSpec navRead = otherwiseNavRead(headBinding, path, cs,
+                    navSteps.keySet());
+            if (navRead == null) {
+                continue;   // embedded leaf: parent-alias read, no join
             }
             // EMBEDDED head: the path walks INTO the ^Inner ctor — the
             // navigate-slot demand comes from the ctor's MID property expr

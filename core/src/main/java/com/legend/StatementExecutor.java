@@ -398,7 +398,7 @@ final class StatementExecutor {
     /** The engine-style SQL pipeline shared by toSQLString and the plan
      * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
      * form, I lower — IR plus rendered text. */
-    private record EngineSql(com.legend.sql.SqlQuery plan, String sql,
+    record EngineSql(com.legend.sql.SqlQuery plan, String sql,
             java.util.List<TypedSpec> body) {
     }
 
@@ -415,7 +415,7 @@ final class StatementExecutor {
     /** The body form, with plan-TEMPLATE parameters: each named free
      * variable lowers to the engine's {@code ${name}} placeholder
      * (value = string-typed, driving the freemarker quote template). */
-    private static EngineSql engineSql(java.util.List<TypedSpec> raw,
+    static EngineSql engineSql(java.util.List<TypedSpec> raw,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
             com.legend.sql.dialect.EngineStyleH2 renderer,
@@ -864,13 +864,29 @@ final class StatementExecutor {
                 throw new com.legend.error.NotImplementedException(
                         "plan: non-let intermediate statement");
             }
-            children.add(allocationNode(let, mappingFqn, specs, env,
+            children.add(PlanAllocations.node(let, mappingFqn, specs, env,
                     params, quote, timeZone, dbType));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
+        if (term instanceof com.legend.compiler.spec.typed.TypedLet tlet) {
+            // TRAILING let = Allocation node (ledger cluster 36; engine
+            // processes a let cluster into AllocationExecutionNode and
+            // emits Sequence only when clusters != 1) — a lone let IS
+            // the plan, no Sequence envelope.
+            children.add(java.util.Objects.requireNonNull(PlanAllocations
+                    .node(tlet, mappingFqn, specs, env, params, quote,
+                            timeZone, dbType)));
+            if (children.size() != 1) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan: trailing let in a multi-node sequence"
+                        + " (envelope type block from the let pending)");
+            }
+            return new ExecutionResult.Scalar(children.get(0),
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
         String rootClass = rootGetAllClass(java.util.List.of(term));
         if (rootClass == null) {
             throw new com.legend.error.NotImplementedException(
@@ -893,89 +909,13 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
-    /** An Allocation child for one plan let: LITERAL values print as
-     * Constant nodes, scalar query values as SCALAR-projection
-     * Relational nodes (bare-typed, alias-less select), and CLASS query
-     * values as full Class-envelope Relational nodes — the engine's
-     * three Allocation value forms. */
-    private static @com.legend.Nullable String allocationNode(
-            com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
-            boolean quote, @com.legend.Nullable String timeZone, @com.legend.Nullable String dbType) {
-        String literal = switch (let.value()) {
-            case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
-            case com.legend.compiler.spec.typed.TypedCInteger ci ->
-                    String.valueOf(ci.value());
-            case com.legend.compiler.spec.typed.TypedCFloat cf ->
-                    String.valueOf(cf.value());
-            case com.legend.compiler.spec.typed.TypedCBoolean cb ->
-                    String.valueOf(cb.value());
-            case com.legend.compiler.spec.typed.TypedCDate cd ->
-                    cd.value().toEngineString();
-            default -> null;
-        };
-        if (literal != null) {
-            String typeName = com.legend.plan.PlanText
-                    .pureTypeName(let.info().type());
-            String size = sizeRange(let.info().multiplicity());
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
-                    com.legend.plan.PlanText.constant(typeName, literal));
-        }
-        String rootClass = rootGetAllClass(java.util.List.of(let.value()));
-        if (rootClass == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: Allocation value without a getAll root");
-        }
-        EngineSql es = engineSql(java.util.List.of(let.value()),
-                mappingFqn, specs, env,
-                planDialect(dbType, quote, timeZone), params,
-                java.util.function.UnaryOperator.identity());
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
-                env.ctx(), mappingFqn, rootClass);
-        if (let.info().type()
-                instanceof com.legend.compiler.element.type.Type.ClassType) {
-            // class-valued allocation: the full Class-envelope node, and
-            // the Allocation's own type block is the impls form
-            String inner = com.legend.plan.PlanText.single(env.ctx(),
-                    rootClass, mappingFqn, es.plan(), es.sql(),
-                    java.util.List.of(let.value()));
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
-                            impl, es.plan(), java.util.List.of(let.value())),
-                    inner);
-        }
-        String typeName = com.legend.plan.PlanText
-                .pureTypeName(let.info().type());
-        String size = sizeRange(let.info().multiplicity());
-        if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: Allocation value lowers to a non-select");
-        }
-        com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
-                sel.projections().stream().map(p ->
-                        new com.legend.sql.SqlSelect.Projection(
-                                p.expr(), null)).toList(),
-                sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
-                sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
-                sel.offset(), sel.outputs());
-        var renderer = planDialect(dbType, quote, timeZone);
-        String bareSql = renderer.render(bareSel);
-        String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
-                impl[2], sel, typeName, size, bareSql,
-                renderer::renderedAlias);
-        return com.legend.plan.PlanText.allocation(let.name(),
-                com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
-                inner);
-    }
 
     private static @com.legend.Nullable String multBracket(
             com.legend.compiler.element.type.Multiplicity m) {
         return "[" + sizeRange(m) + "]";
     }
 
-    private static @com.legend.Nullable String sizeRange(
+    static @com.legend.Nullable String sizeRange(
             com.legend.compiler.element.type.Multiplicity m) {
         if (m instanceof com.legend.compiler.element.type.Multiplicity
                 .Bounded b) {
@@ -1150,7 +1090,7 @@ final class StatementExecutor {
     /** The engine-style PLAN renderer for a connection DatabaseType —
      * the plan goldens pin Composite to the DB2-family spelling
      * (paren-wrapped conjunctions, quoted boolean placeholders). */
-    private static com.legend.sql.dialect.EngineStyleH2 planDialect(
+    static com.legend.sql.dialect.EngineStyleH2 planDialect(
             @com.legend.Nullable String dbType, boolean quote,
             @com.legend.Nullable String tz) {
         if (dbType == null) {
@@ -2023,7 +1963,7 @@ final class StatementExecutor {
                 java.util.List.of(fpvn, rel), null, java.util.List.of());
     }
 
-    private static @com.legend.Nullable String rootGetAllClass(java.util.List<TypedSpec> body) {
+    static @com.legend.Nullable String rootGetAllClass(java.util.List<TypedSpec> body) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec t = work.poll();

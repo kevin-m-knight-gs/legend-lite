@@ -2408,7 +2408,7 @@ final class Substitution {
             return false;
         }
         for (List<String> path : paths) {
-            if (path.size() != 1 || !partial.properties().containsKey(path.get(0))) {
+            if (partialLeaf(partial, path) == null) {
                 return false;
             }
         }
@@ -2420,6 +2420,7 @@ final class Substitution {
         List<String> p = pathOf(n, var);
         if (p != null) {
             out.add(p);
+            return;   // MAXIMAL path only — a prefix is not a leaf read
         }
         if (n instanceof TypedLambda l && l.parameters().contains(var)) {
             return;
@@ -2451,9 +2452,11 @@ final class Substitution {
     private TypedSpec substEmbeddedReads(TypedSpec n, String var,
             TypedNewInstance partial) {
         List<String> p = pathOf(n, var);
-        if (p != null && p.size() == 1) {
-            return renameRowVar(java.util.Objects.requireNonNull(
-                    partial.properties().get(p.get(0))));
+        if (p != null) {
+            TypedSpec lf = partialLeaf(partial, p);
+            if (lf != null) {
+                return renameRowVar(lf);
+            }
         }
         if (n instanceof TypedNativeCall c) {
             return new TypedNativeCall(c.callee(),
@@ -3092,8 +3095,23 @@ final class Substitution {
      * caller's loud wall stands. */
     private static @com.legend.Nullable TypedSpec ctorTailLeaf(SubNav sub, List<String> path,
             int hop) {
-        TypedSpec cur = sub.bindings().get(path.get(hop));
-        int h = hop + 1;
+        return descendLeaf(sub.bindings().get(path.get(hop)), path, hop + 1);
+    }
+
+    /** The embedded-partial twin of {@link #ctorTailLeaf}: descend the
+     * predicate path INSIDE the partial's ctor tree (ledger cluster 49 —
+     * the gate and the substitution share this ONE resolver so they
+     * cannot drift). A class-typed terminus is not a leaf: stays loud. */
+    private static @com.legend.Nullable TypedSpec partialLeaf(
+            TypedNewInstance partial, List<String> path) {
+        TypedSpec r = descendLeaf(
+                partial.properties().get(path.get(0)), path, 1);
+        return r instanceof TypedNewInstance ? null : r;
+    }
+
+    private static @com.legend.Nullable TypedSpec descendLeaf(
+            @com.legend.Nullable TypedSpec cur, List<String> path, int hop) {
+        int h = hop;
         while (cur != null && h < path.size()) {
             TypedSpec inner = cur;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
