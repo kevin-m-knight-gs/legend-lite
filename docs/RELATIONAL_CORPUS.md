@@ -1119,7 +1119,7 @@ shared source registered by several families cannot double-count. Run with
 - 2x in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
-- 2x cannot access 'name' on String
+- 2x unbound variable '$_nr2'
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
@@ -1293,8 +1293,8 @@ shared source registered by several families cannot double-count. Run with
 - FAIL columnValueDifferenceWithoutPrevalTest [tds/tests]: assertEquals: expected 2014-12-01T00:00:00.000000000+0000|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02T00:00:00.000000000+0000|true|55.0|356.0|-301.0|2|3|-1;2014-12-03T00:00:00.000000000+0000|true|71.0|55.0|16.0|2|2|0;2014-12-04T00:00:00.000000000+0000|true|105.0|71.0|34.0|3|2|1;2014-12-05T00:00:00.000000000+0000|true|5.0|105.0|-100.0|1|3|-2;2014-12-06T00:00:00.000000000+0000|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1, got 2014-12-01|true|356.0|TDSNull|356.0|3|TDSNull|3;2014-12-02|true|55.0|356.0|-301.0|2|3|-1;2014-12-03|true|71.0|55.0|16.0|2|2|0;2014-12-04|true|105.0|71.0|34.0|3|2|1;2014-12-05|true|5.0|105.0|-100.0|1|3|-2;2014-12-06|TDSNull|TDSNull|5.0|-5.0|TDSNull|1|-1
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call — wall: unknown function 'getNumber' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR rowValueDifferenceTest [tds/tests]: cannot access 'name' on String
-- SHAPE testExtendDigest_InMemory [tds/tests]: no execute(|...) call — wall: cannot access 'name' on String
-- ERROR testExtendDigest_Relational [tds/tests]: cannot access 'name' on String
+- SHAPE testExtendDigest_InMemory [tds/tests]: no execute(|...) call — wall: unbound variable '$_nr2'
+- ERROR testExtendDigest_Relational [tds/tests]: unbound variable '$_nr2'
 - SHAPE testFirstNotNull [tds/tests]: no execute(|...) call [calls meta::pure::tds::extensions] — wall: unresolved type variable T reached the lowering boundary
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call — wall: unknown function 'getNumber' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call [calls meta::relational::functions::database] — wall: assert form 'meta::pure::tds::schema::tests::assertSchemaRoundTripEquality/2' is not supported yet
