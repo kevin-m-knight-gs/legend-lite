@@ -282,6 +282,15 @@ public class RelationalCorpusRunner {
                 + (Runner.INCLUDE_EXCLUDED
                         ? " — BUT THIS RUN INCLUDED THEM\n(-Drcorpus.includeExcluded).\n"
                         : ".\n")
+                + "\nADJUDICATION LEDGER: every non-passing row carries a per-test\n"
+                + "evidence-backed verdict (REAL_DEFECT / MISSING_FEATURE /\n"
+                + "TESTS_ENGINE_INTERNALS / GOLDEN_TEXT_ONLY /\n"
+                + "EXECUTION_TARGET_ARTIFACT / HARNESS_GAP / NEEDS_PROBE), effort,\n"
+                + "confidence and falsifier in\n"
+                + "docs/e2e-diagnosis-2026-08-15/diagnoses.csv (keyed by test name;\n"
+                + "reconciliation log in docs/E2E_DEEP_DIAGNOSIS_2026_08_15.md —\n"
+                + "retirements are shrink-only, verdict changes need the row's own\n"
+                + "falsifier to fire).\n"
                 + census;
         List<String> seedFails = runner.seedFailures();
         if (!seedFails.isEmpty()) {

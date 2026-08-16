@@ -7,6 +7,16 @@ Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness
 parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the
 in-process Alloy-shaped path).
 
+ADJUDICATION LEDGER: every non-passing row carries a per-test
+evidence-backed verdict (REAL_DEFECT / MISSING_FEATURE /
+TESTS_ENGINE_INTERNALS / GOLDEN_TEXT_ONLY /
+EXECUTION_TARGET_ARTIFACT / HARNESS_GAP / NEEDS_PROBE), effort,
+confidence and falsifier in
+docs/e2e-diagnosis-2026-08-15/diagnoses.csv (keyed by test name;
+reconciliation log in docs/E2E_DEEP_DIAGNOSIS_2026_08_15.md —
+retirements are shrink-only, verdict changes need the row's own
+falsifier to fire).
+
 ## Census (core_relational)
 
 | | count |
