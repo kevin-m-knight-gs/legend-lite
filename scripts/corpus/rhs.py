@@ -302,6 +302,11 @@ class _CondParser(_Parser):
             return inner
         left = self.expr()
         kind, v = self.peek()
+        # A call may BE the predicate rather than one side of a comparison: `in(x, [1,2])`
+        # is boolean on its own. Requiring a comparison operator after every operand made
+        # such a condition a parse error rather than a condition.
+        if v in ("and", "or", ")", None):
+            return ("pred", left)
         if v == "is":
             self.take()
             negated = self.peek()[1] == "not"
@@ -341,6 +346,8 @@ def parse_condition(text: str):
 def condition_tables(node) -> set:
     """Every table the condition names, so a caller can tell which two sides it joins."""
     tag, body = node
+    if tag == "pred":
+        return set(t for t, _c in columns(body))
     if tag == "cmp":
         return set(t for t, _c in columns(body[0]) + columns(body[2]))
     if tag == "null":

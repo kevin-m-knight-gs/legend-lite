@@ -88,11 +88,18 @@ def _operand(c: Corpus, node, binding: dict):
     if tag == "call":
         fn, args = body
         return _dynafunction(fn, [_operand(c, a, binding) for a in args])
+    if tag == "array":
+        return [_operand(c, a, binding) for a in body]
     raise Unsupported(f"join operand {tag!r} has no evaluation rule")
 
 
 def _condition(c: Corpus, node, binding: dict) -> bool:
     tag, body = node
+    if tag == "pred":
+        # A boolean-valued call standing alone as the predicate. NULL is not true: the same
+        # three-valued rule the comparisons use, so a join keeps only pairs it is TRUE for.
+        v = _operand(c, body, binding)
+        return v is True
     if tag == "and":
         return _condition(c, body[0], binding) and _condition(c, body[1], binding)
     if tag == "or":
@@ -425,6 +432,16 @@ def _dynafunction(fn, vals):
         return None if vals[0] is None else str(vals[0]).upper()
     if fn == "toLower":
         return None if vals[0] is None else str(vals[0]).lower()
+
+    # ---- membership --------------------------------------------------------------------
+    if fn == "in":
+        # NULL is not a member of anything, and membership of a NULL-containing list is
+        # still decided by the non-null entries -- SQL's `x IN (a, b)` is UNKNOWN when x is
+        # NULL, and a predicate that is not TRUE excludes.
+        needle, haystack = vals[0], vals[1]
+        if needle is None:
+            return False
+        return needle in [h for h in (haystack or []) if h is not None]
 
     # ---- null-inspecting: total, never return NULL themselves ------------------------
     if fn == "isNull":

@@ -1078,6 +1078,11 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   `repro/relational-documentation/` carries the rejected forms commented out beside the
   accepted control.
 
+  It is not confined to the relational grammar. `DomainParserGrammar.g4` declares
+  `classDefinition: documentation? CLASS ...` in the same shape, and a leading string on a
+  Class is rejected there too, in both string forms. So the documentation slot is declared
+  across DSLs and writable in none of them.
+
   Corroborating but not conclusive: the engine's own relational round-trip tests never write
   a documented table, view, schema, column or filter -- consistent with the slot never
   having worked.

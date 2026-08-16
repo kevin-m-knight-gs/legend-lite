@@ -81,7 +81,7 @@ TST-08	mapping	mapping testSuites block	testSuites: [ s: { } ]	testSuites\s*:
 TST-14	mapping	relational embedded data island	db: Relational #{ ... }#	Relational\s*#\{
 TST-15	mapping	EqualToTDS assertion	EqualToTDS #{ ... }#	EqualToTDS
 R03	store	Database stereotypes	Database <<p.s>> my::Db ( )	Database\s*<<
-R04	store	Database tagged values	Database {doc.doc='x'} my::Db ( )	Database\s*\{
+R04	store	Database tagged values	Database {doc.doc='x'} my::Db ( )	Database\s*(?:<<[^>]*>>\s*)?\{[\w.:]+\s*=
 R05	store	include another Database	include other::Db	^\s*include\s+[\w:]+\s*$
 R06	store	include store (typed)	include ServiceStore my::S	include\s+\w+Store\s+
 R07	store	Schema	Schema s ( Table T(...) )	^\s*Schema\s+
@@ -134,32 +134,32 @@ R67	store	TabularFunction	TabularFunction f ( id INTEGER )	TabularFunction
 R71	store	MultiGrainFilter	MultiGrainFilter f ( t.ID = 1 )	MultiGrainFilter
 R74	store	join != (test not-equal)	a.ID != b.ID	Join\s+\w+\s*\([^)]*!=
 R75	store	join <> (ANSI not-equal)	a.ID <> b.ID	Join\s+\w+\s*\([^)]*<>
-R76	store	join >	a.QTY > b.QTY	Join\s+\w+\s*\([^)]*>[^=]
+R76	store	join >	a.QTY > b.QTY	Join\s+\w+\s*\([\s\S]{0,300}?[^<>=]>[^=]
 R78	store	join >=	a.QTY >= b.QTY	Join\s+\w+\s*\([^)]*>=
 R80	store	join is null	a.ID is null	Join\s+\w+\s*\([^)]*\bis null
 R81	store	join is not null	a.ID is not null	Join\s+\w+\s*\([^)]*is not null
-R82	store	join and (multi-column)	a.ID=b.ID and a.T=b.T	Join\s+\w+\s*\([^)]*\band\b
-R83	store	join or	a.ID=b.ID or a.ALT=b.ID	Join\s+\w+\s*\([^)]*\bor\b
+R82	store	join and (multi-column)	a.ID=b.ID and a.T=b.T	Join\s+\w+\s*\([\s\S]{0,300}?\band\b
+R83	store	join or	a.ID=b.ID or a.ALT=b.ID	Join\s+\w+\s*\([\s\S]{0,300}?\bor\b
 R84	store	join grouping parentheses	(a=b or c=d) and e=f	Join\s+\w+\s*\(\s*\(
 R85	store	{target} self-join	t.ID = {target}.MGRID	\{target\}
-R86	store	dynafunction operand in join	toUpper(a.NAME) = b.NAME	Join\s+\w+\s*\(\s*\w+\(
+R86	store	dynafunction operand in join	toUpper(a.NAME) = b.NAME	Join\s+\w+\s*\(\s*\w+\s*\(
 R87	store	join dynafunction array arg	a.ID in [1,2,3]	Join\s+\w+\s*\([^)]*\[\s*\d
 R88	store	nested dynafunctions in join	concat(toUpper(a),b) = c	Join\s+\w+\s*\(\s*\w+\(\s*\w+\(
-R90	store	string constant in filter/join	t.NAME = 'abc'	(?:Filter|Join)\s+\w+\s*\([^)]*'
-R91	store	numeric constant in filter/join	t.QTY = -5	(?:Filter|Join)\s+\w+\s*\([^)]*[=<>]\s*-?\d
+R90	store	string constant in filter/join	t.NAME = 'abc'	(?:Filter|Join)\s+\w+\s*\([\s\S]{0,300}?'
+R91	store	numeric constant in filter/join	t.QTY = -5	(?:Filter|Join)\s+\w+\s*\([\s\S]{0,300}?[=<>]\s*-?\d
 R95	store	schema.table.column ref	mySchema.t.ID	\b\w+\.\w+\.\w+\b
 R96	store	cross-database column ref	[other::Db]s.t.ID = t.ID	Join\s+\w+\s*\(\s*\[[\w:]+\][\w.]+\s*=\s*\[[\w:]+\]
-R99	store	join sequence chaining	@jA > @jB > @jC	@\w+\s*>\s*@\w+\s*>\s*@\w+
+R99	store	join sequence chaining	@jA > @jB > @jC	@\w+\s*>\s*(?:\[[\w:]+\]\s*)?@\w+\s*>\s*(?:\[[\w:]+\]\s*)?@\w+
 R100	store	join sequence with start alias	(personTable)@joinA	\(\s*\w+\s*\)\s*@\w+
-R102	store	cross-database join in chain	@jA > [other::Db]@jB	@\w+\s*>\s*\[[\w:]+\]\s*@
+R102	store	cross-database join in chain	@jA > [other::Db]@jB	@\w+\s*>\s*(?:\(\s*\w+\s*\)\s*)?\[[\w:]+\]\s*@
 P03	model	Class documentation	'a person' Class my::P { }	^\s*'[^']*'\s*Class\s
 P04	model	Class stereotypes	Class <<access.private>> my::P { }	Class\s*<<
-P05	model	Class tagged values	Class {doc.doc='x'} my::P { }	Class\s*\{
+P05	model	Class tagged values	Class {doc.doc='x'} my::P { }	Class\s*(?:<<[^>]*>>\s*)?\{[\w.:]+\s*=
 P06	model	Class extends (single)	Class my::P extends my::B { }	Class\s+[\w:]+\s+extends\s+[\w:]+\s*$
 P07	model	Class multiple inheritance	Class my::C extends my::A, my::B	Class\s+[\w:]+\s+extends\s+[\w:]+\s*,
 P12	model	property documentation	'the name' name: String[1];	
-P13	model	property stereotypes	<<p.s>> name: String[1];	^\s*<<[\w.]+>>\s*\w+\s*:
-P14	model	property tagged values	{doc.doc='x'} name: String[1];	^\s*\{[\w.]+\s*=\s*'[^']*'\}\s*\w+\s*:
+P13	model	property stereotypes	<<p.s>> name: String[1];	^\s*<<[\w.:]+>>\s*\w+\s*:
+P14	model	property tagged values	{doc.doc='x'} name: String[1];	^\s*\{[\w.:]+\s*=\s*'[^']*'\}\s*\w+\s*:
 P15	model	property default value	active: Boolean[1] = true;	:\s*\w+\[[^\]]+\]\s*=\s*
 P19	model	aggregation kind composite	(composite) children: N[*];	^\s*\(composite\)
 P20	model	aggregation kind shared	(shared) refs: N[*];	^\s*\(shared\)
