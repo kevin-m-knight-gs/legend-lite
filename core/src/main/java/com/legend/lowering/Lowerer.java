@@ -773,7 +773,6 @@ public final class Lowerer {
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
     }
 
-
     /** An INLINE (embedded) child's json object over the parent select:
      * leaves resolve strictly against the SAME base; inline children
      * recurse; correlated-inside-embedded keeps the subquery. */
@@ -1185,7 +1184,8 @@ public final class Lowerer {
             ps.addAll(starProjections(base));
         }
         for (TypedFuncCol c : columns) {
-            switch (attempt(() -> scalar(last(c.fn()), (v, name) -> resolveOrThrow(base, name)))) {
+            TypedSpec body = Scalars.cellRootUnwrapWire(last(c.fn()));
+            switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(base, name)))) {
                 case Resolution.Resolved r -> ps.add(new SqlSelect.Projection(r.expr(), c.name()));
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();

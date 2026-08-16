@@ -81,7 +81,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 |
-| tests/mapping/tree | 12 | 10 | 2 | 0 | 0 | 2 |
+| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 |
 | tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
@@ -89,7 +89,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2302** | 86 | 94 | 93 | 244 |
+| **total** | 2575 | **2303** | 85 | 94 | 93 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1374,7 +1374,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
-- FAIL testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, OrgName3], got [11, OrgName3] — renders equal, comparison differs: expected types=[Long, String] arity=2; got types=[String, String] arity=1
 - ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::PartyAccount': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE, mul
 - ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
 - ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,

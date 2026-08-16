@@ -10,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
@@ -3439,6 +3440,35 @@ final class Scalars {
         throw new IllegalStateException("a date-precision predicate over the"
                 + " abstract Date type is not statically decidable — declare"
                 + " the value StrictDate or DateTime");
+    }
+
+
+    /** A STRING-target WIRE conformance cast ({@code castAsDeclared}) at
+     * a projected CELL ROOT unwraps — the engine's TDS cell keeps the RAW
+     * column value there (tree.pure asserts Long over a String-declared
+     * property; the goldens never spell wire casts). Non-String targets
+     * keep the cast (boolean.pure asserts true over a 'true'/'false'
+     * STRING mapping — the engine converts TOWARD Boolean, referee-
+     * proven: unscoped unwrap regressed tests/mapping 9->7). CONSUMED
+     * positions keep the cast always (audit 19 F7: DuckDB does not
+     * wire-convert where H2 does). */
+    static TypedSpec cellRootUnwrapWire(TypedSpec b) {
+        if (b instanceof TypedCast tc && tc.wire()
+                && tc.target() == Type.Primitive.STRING) {
+            return cellRootUnwrapWire(tc.source());
+        }
+        if (b instanceof TypedNativeCall nc
+                && "meta::pure::functions::multiplicity::toOne"
+                        .equals(nc.callee().qualifiedName())
+                && !nc.args().isEmpty()) {
+            TypedSpec inner = cellRootUnwrapWire(nc.args().get(0));
+            if (inner != nc.args().get(0)) {
+                List<TypedSpec> na = new ArrayList<>(nc.args());
+                na.set(0, inner);
+                return new TypedNativeCall(nc.callee(), na, nc.info());
+            }
+        }
+        return b;
     }
 
 }
