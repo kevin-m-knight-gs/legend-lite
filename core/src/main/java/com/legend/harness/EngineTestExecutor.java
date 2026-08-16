@@ -546,6 +546,14 @@ public final class EngineTestExecutor {
                 executed++;
                 continue;
             }
+            // assert loop over materialised values — AssertLoopForm
+            if (stmt instanceof AppliedFunction mapAf
+                    && AssertLoopForm.consume(mapAf, work, lets, execStmts,
+                            execVars, execChains, ctx, imports,
+                            runtimeFqn, conn)) {
+                executed++;
+                continue;
+            }
             // K-natives arc (S4): any other EXPRESSION STATEMENT runs
             // through the platform (setup calls are ordinary pure code).
             // SQLExceptions propagate (honest ERROR); compile/type
@@ -1831,7 +1839,8 @@ public final class EngineTestExecutor {
                 // fold is assert-level logic — DuckDB cannot host a
                 // subquery inside a SQL lambda (Binder), and pure's own
                 // evaluation of this shape is in-memory too.
-                ValueSpecification[] fc = forAllContains(subst(args.get(0), lets));
+                ValueSpecification[] fc = AssertLoopForm.forAllContains(
+                        subst(args.get(0), lets));
                 if (fc != null) {
                     Eval need = eval(fc[0], lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
@@ -2453,29 +2462,6 @@ public final class EngineTestExecutor {
             return true;
         }
         return java.util.Objects.equals(e, a);
-    }
-
-    /** The {@code $exp->forAll(e|$act->contains($e))} SUBSET shape:
-     * returns {expected, actual} expressions, or null when the arg is
-     * not this idiom (the predicate must be a contains of the forAll
-     * binder itself). */
-    private static ValueSpecification @com.legend.Nullable [] forAllContains(
-            ValueSpecification a0) {
-        if (a0 instanceof AppliedFunction fa
-                && simpleName(fa.function()).equals("forAll")
-                && fa.parameters().size() == 2
-                && fa.parameters().get(1) instanceof LambdaFunction lam
-                && lam.parameters().size() == 1
-                && lam.body().size() == 1
-                && lam.body().get(0) instanceof AppliedFunction cont
-                && simpleName(cont.function()).equals("contains")
-                && cont.parameters().size() == 2
-                && cont.parameters().get(1) instanceof Variable ev
-                && ev.name().equals(lam.parameters().get(0).name())) {
-            return new ValueSpecification[] {
-                    fa.parameters().get(0), cont.parameters().get(0)};
-        }
-        return null;
     }
 
     static String simpleName(String fn) {

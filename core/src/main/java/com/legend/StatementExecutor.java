@@ -734,9 +734,7 @@ final class StatementExecutor {
                             mappingFqn),
                     com.legend.plan.PlanText.single(env.ctx(), aRoot,
                             mappingFqn, aEs.plan(), aSql,
-                            java.util.List.of(at), connName, chainMaps,
-                            com.legend.plan.PlanText.colsPlanFor(
-                                    aEs.plan(), prevVar))));
+                            java.util.List.of(at), connName, chainMaps)));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,

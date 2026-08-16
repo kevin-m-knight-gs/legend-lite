@@ -519,7 +519,12 @@ public class RelationalCorpusRunner {
             int advisorySqlDiffs = byFamily.values().stream()
                     .flatMap(List::stream)
                     .mapToInt(Runner.Outcome::sqlDiffs).sum();
-            int maxAdvisorySqlDiffs = 297;   // measured 2026-08-12 (the deep-audit's 246 counted TESTS, not diffs)
+            // measured 2026-08-12 (the deep-audit's 246 counted TESTS,
+            // not diffs); +1 2026-08-16: ledger clusters 35/40 changed
+            // advisory SQL shape on row-verified tests (expression
+            // membership 'in (<expr>)', value-polymorphic Date literals)
+            // — rows are the contract, both changes make rows RIGHT.
+            int maxAdvisorySqlDiffs = 298;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs

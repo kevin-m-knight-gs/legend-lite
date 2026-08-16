@@ -186,4 +186,33 @@ static String intervalFn(String unitName) {
                 ? new SqlExpr.Call(SqlFn.ADD_INTERVAL_TEMPORAL, c.args())
                 : r;
     }
+
+    /** 2-arg {@code dayOfWeekNumber(d, firstDay)} — see the in-block
+     * comment (ledger cluster 25; lives here with the date-shift
+     * machinery, Scalars is at its file guardrail). */
+    static void registerDayOfWeekNumber2(
+            java.util.Map<String, Scalars.Rule> rules) {
+        // 2-arg dayOfWeekNumber(d, firstDay) — engine dayOfWeekNumber.pure:
+        // Monday -> isodow, Sunday -> mod(isodow,7)+1; anything else is the
+        // engine's own firstDayMondayOrSundayOnly constraint (ledger
+        // cluster 25). Overrides the arity-blind extract key above.
+        for (String f : com.legend.builtin.Pure.nativeKeysAt("dayOfWeekNumber", 2)) {
+            rules.put(f, (n, args) -> {
+                SqlExpr iso = new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                        new SqlExpr.StringLit("isodow"),
+                        Scalars.dateArg(n.args().get(0), args.get(0))));
+                return switch (Scalars.enumName(n.args().get(1))) {
+                    case "Monday" -> iso;
+                    case "Sunday" -> SqlExpr.Call.of(SqlFn.PLUS,
+                            SqlExpr.Call.of(SqlFn.MOD, iso,
+                                    new SqlExpr.IntLit(7)),
+                            new SqlExpr.IntLit(1));
+                    default -> throw new com.legend.error
+                            .NotImplementedException("dayOfWeekNumber:"
+                            + " firstDayMondayOrSundayOnly (engine"
+                            + " constraint)");
+                };
+            });
+        }
+    }
 }

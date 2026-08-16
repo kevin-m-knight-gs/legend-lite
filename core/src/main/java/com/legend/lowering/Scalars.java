@@ -420,28 +420,7 @@ final class Scalars {
                         dateArg(n.args().get(0), args.get(0)))));
             }
         }
-        // 2-arg dayOfWeekNumber(d, firstDay) — engine dayOfWeekNumber.pure:
-        // Monday -> isodow, Sunday -> mod(isodow,7)+1; anything else is the
-        // engine's own firstDayMondayOrSundayOnly constraint (ledger
-        // cluster 25). Overrides the arity-blind extract key above.
-        for (String f : Pure.nativeKeysAt("dayOfWeekNumber", 2)) {
-            RULES.put(f, (n, args) -> {
-                SqlExpr iso = new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                        new SqlExpr.StringLit("isodow"),
-                        dateArg(n.args().get(0), args.get(0))));
-                return switch (enumName(n.args().get(1))) {
-                    case "Monday" -> iso;
-                    case "Sunday" -> SqlExpr.Call.of(SqlFn.PLUS,
-                            SqlExpr.Call.of(SqlFn.MOD, iso,
-                                    new SqlExpr.IntLit(7)),
-                            new SqlExpr.IntLit(1));
-                    default -> throw new com.legend.error
-                            .NotImplementedException("dayOfWeekNumber:"
-                            + " firstDayMondayOrSundayOnly (engine"
-                            + " constraint)");
-                };
-            });
-        }
+        DateShifts.registerDayOfWeekNumber2(RULES);
         // Calendar-enum extractions: names match the Pure enum values
         // (Monday…, January… — the corpus's enum-by-name convention).
         // dayOfWeek()/month(): real pure returns calendar ENUMS (Monday…,
@@ -2257,6 +2236,17 @@ final class Scalars {
                         new SqlExpr.Membership(needle, args.get(1)),
                         new SqlExpr.BoolLit(false));
             }
+            // a COLLECTION-VALUED expression RHS (split(...) etc.) is
+            // MEMBERSHIP, never a 2-element literal list — the flat IN
+            // collapsed to '=' downstream (ledger cluster 35: silent
+            // wrong rows, 'LEGALNAME = string_split(...)')
+            if (!(args.get(1) instanceof SqlExpr.ArrayLit)
+                    && !(args.get(1) instanceof SqlExpr.PlanParam)
+                    && n.args().get(1).info().multiplicity().isMany()) {
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Membership(needle, args.get(1)),
+                        new SqlExpr.BoolLit(false));
+            }
             List<SqlExpr> flat = new ArrayList<>();
             flat.add(needle);
             if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
@@ -2937,6 +2927,14 @@ final class Scalars {
                     .compile("\\.(\\d{7,9})$").matcher(v);
             if (frac.find()) {
                 v = v.substring(0, frac.start()) + "." + frac.group(1).substring(0, 6);
+            }
+            // pure Date is VALUE-polymorphic (cluster 40 companion): a
+            // date-only cell stays a DATE literal — without this a
+            // Date[1] column of date-only cells would render
+            // '2014-12-04 00:00:00' in toString compares
+            if (type == Type.Primitive.DATE
+                    && v.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                return new SqlExpr.DateLit(v);
             }
             return new SqlExpr.TimestampLit(v);
         }

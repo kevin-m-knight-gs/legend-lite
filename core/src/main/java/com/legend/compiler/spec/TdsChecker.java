@@ -145,7 +145,13 @@ final class TdsChecker {
             case "Decimal" -> new Type.PrecisionDecimal(Type.PrecisionDecimal.MAX_PRECISION, 0);
             case "Boolean" -> Type.Primitive.BOOLEAN;
             case "String" -> Type.Primitive.STRING;
-            case "Date", "StrictDate" -> Type.Primitive.STRICT_DATE;
+            case "StrictDate" -> Type.Primitive.STRICT_DATE;
+            // Pure Date is the ABSTRACT supertype — a Date column holds
+            // date-times too (ledger cluster 40; the INFERRED path
+            // already returns DATE for zone-suffixed cells — annotated
+            // directly contradicted it, truncating 21:00:00.123 to
+            // midnight through DuckDB's lenient DATE parse)
+            case "Date" -> Type.Primitive.DATE;
             case "DateTime" -> Type.Primitive.DATE_TIME;
             case "Variant", "meta::pure::metamodel::variant::Variant" ->
                     new Type.ClassType(Pure.VARIANT.qualifiedName());
