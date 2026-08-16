@@ -43,10 +43,32 @@ public record ClassSource(
         String rowVar,
         Map<String, TypedSpec> bindings,
         Type.RelationType rowType,
-        @com.legend.Nullable String sourceClass) {
+        @com.legend.Nullable String sourceClass,
+        Map<String, String> deferredWalls) {
 
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
+        deferredWalls = Collections.unmodifiableMap(
+                new LinkedHashMap<>(deferredWalls));
+    }
+
+    public ClassSource(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId, TypedSpec pipeline,
+            String rowVar, Map<String, TypedSpec> bindings,
+            Type.RelationType rowType,
+            @com.legend.Nullable String sourceClass) {
+        this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
+                rowType, sourceClass, Map.of());
+    }
+
+    /** A binding whose M2M composition walled PER KEY (ledger cluster
+     * 21): the wall throws at READ time — a query that never demands the
+     * property composes cleanly. Consult on a null bindings().get(). */
+    public void throwIfDeferred(String prop) {
+        String wall = deferredWalls.get(prop);
+        if (wall != null) {
+            throw new com.legend.error.NotImplementedException(wall);
+        }
     }
 
     /** No known upstream source class (relational sets, synthesized

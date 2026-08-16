@@ -121,6 +121,12 @@ final class GraphEmission {
      * of the bare-root envelope (plan §E10).
      */
     List<TypedGraphTree> synthesizeScalarTree(ClassSource cs) {
+        // the IMPLICIT envelope serializes every binding — a class with a
+        // deferred M2M wall (ledger cluster 21) must stay LOUD here, never
+        // silently omit the property from graph output
+        for (var dw : cs.deferredWalls().entrySet()) {
+            throw new com.legend.error.NotImplementedException(dw.getValue());
+        }
         List<TypedGraphTree> tree = new ArrayList<>();
         for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
             // subtype-dispatch pseudo-bindings are CAST machinery, not
