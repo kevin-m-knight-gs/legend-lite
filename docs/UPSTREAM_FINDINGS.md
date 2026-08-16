@@ -1436,3 +1436,30 @@ half of F37, which is supposed not to reach SQL.
 Found by `scripts/corpus/probe_tds.py`, where `concatenate` and `olapGroupBy` fail with H2
 syntax errors. A DuckDB-only corpus should not be able to produce an H2 diagnostic, and that
 is the whole reason this was looked at.
+
+## F45 — Two-argument `max`/`min` fail inside the string formatter
+
+    max(T.I, T.J)
+
+    Execution error: "Unused format args. [2] arguments provided"
+
+`max` and `min` are in `getSupportedFunctions()` and have two-argument Pure signatures, but
+their only relational lowering is the single-argument aggregate:
+
+    dynaFnToSql('max', $allStates, ^ToSql(format='max(%s)')),
+
+so a two-argument call supplies two arguments to a format string with one slot. What surfaces
+is not "this function is not supported here" but an internal complaint from the string
+formatter about unused arguments — a message about the engine's own templating, addressed to
+someone who wrote a query.
+
+`greatest` and `least` are the two-argument spellings that do work; both execute and agree
+with the oracle. So the capability exists and only this spelling of it fails, which makes the
+diagnostic the whole problem: an author who writes `max(a, b)` needs to be told to write
+`greatest(a, b)`, and is instead told about format args.
+
+Related, and the same shape as the `DurationUnit.DAYS` trap in F36: inside a relational
+mapping `@X` is a JOIN reference, so `cast(T.I, @Float)` is read as a join named `Float` —
+*"Can't find join 'Float' in database 'DB'"*. Relational mapping syntax claims the punctuation
+that these type-level operations need, and the resulting message describes the misreading
+rather than the mistake.

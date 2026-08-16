@@ -33,6 +33,7 @@ that IS asserted — but the corpus must never claim to test ordering through th
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 
@@ -989,7 +990,12 @@ IMPL = {
     "toJson": lambda vals: __import__("json").dumps(vals[0], sort_keys=True,
                                                     separators=(",", ":")),
     "fromJson": _propagating(lambda s: __import__("json").loads(str(s)), 1),
-    "toVariant": lambda vals: vals[0],
+    # A Variant is a JSON value, so converting a String produces the JSON TOKEN -- quotes
+    # included. `toVariant('alpha')` is `"alpha"`, five characters plus two. Passing the bare
+    # string through was treating a Variant as a synonym for its contents, which it is not:
+    # the same reasoning as F27, where a Binding returns the raw JSON token rather than the
+    # declared type.
+    "toVariant": lambda vals: (None if vals[0] is None else json.dumps(vals[0])),
     "to": lambda vals: vals[0],
     "toMany": lambda vals: _coll(vals),
 
@@ -1263,7 +1269,12 @@ RELATION_IMPL = {
     "take": lambda rows, n: _rows(rows)[:int(n)],
     "drop": lambda rows, n: _rows(rows)[int(n):],
     "slice": lambda rows, a, b: _rows(rows)[int(a):int(b)],
-    "paginated": lambda rows, a, b: _rows(rows)[int(a):int(a) + int(b)],
+    # paginated(pageNumber, pageSize), with the page number ONE-based -- page 1 is the first
+    # `pageSize` rows. I had read the first argument as an offset, which is what `drop` and
+    # `slice` take; but this function is not named after an offset. Where the signature does
+    # not fix the convention and one reading matches the NAME, that is the reading to take.
+    "paginated": lambda rows, page, size: _rows(rows)[(int(page) - 1) * int(size):
+                                                      int(page) * int(size)],
     "concatenate": lambda a, b: _rows(a) + _rows(b),
     "size": lambda rows: len(_rows(rows)),
     "first": lambda rows: next(iter(_rows(rows)), None),

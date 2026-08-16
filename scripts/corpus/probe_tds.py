@@ -38,6 +38,12 @@ BASE = ("|tds::P.all()->project([x|$x.g, x|$x.v, x|$x.w], ['g', 'v', 'w'])"
 ORDERED = sorted(SEED, key=lambda r: (r["v"], r["w"]))
 
 
+def _o(fn, *args):
+    """The oracle's own answer, so the expectation is ITS implementation under test."""
+    import oracle
+    return oracle.RELATION_IMPL[fn](*args)
+
+
 def cases() -> list[tuple[str, str, list]]:
     return [
         ("project", BASE, ORDERED),
@@ -67,6 +73,17 @@ def cases() -> list[tuple[str, str, list]]:
         ("olapGroupBy", BASE + "->olapGroupBy(['g'], func(y|$y->rank()), 'r')"
                                "->sort([asc('v'), asc('w')])",
          [{**r, "r": 1 if r["v"] == 1 else 2} for r in ORDERED]),
+        ("sort", BASE, ORDERED),
+        ("extend", BASE + "->extend([col(r|$r.getInteger('v') * 2, 'dbl')])",
+         [{**r, "dbl": r["v"] * 2} for r in ORDERED]),
+        ("paginated", BASE + "->paginated(1, 2)", _o("paginated", ORDERED, 1, 2)),
+        ("join", BASE + "->restrict(['g', 'v'])->join("
+                        "tds::P.all()->project([x|$x.g, x|$x.v], ['g2', 'v2']), "
+                        "JoinKind.INNER, {a, b| $a.getString('g') == $b.getString('g2') "
+                        "&& $a.getInteger('v') == $b.getInteger('v2')})"
+                        "->sort([asc('v'), asc('g')])",
+         [{"g": r["g"], "v": r["v"], "g2": r["g"], "v2": r["v"]}
+          for r in sorted(SEED, key=lambda r: (r["v"], r["g"]))]),
         ("projectWithColumnSubset",
          "|tds::P.all()->projectWithColumnSubset([col(x|$x.g, 'g'), col(x|$x.v, 'v')], ['g'])"
          "->sort([asc('g')])",

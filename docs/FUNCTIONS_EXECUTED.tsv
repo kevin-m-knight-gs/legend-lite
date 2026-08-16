@@ -1,7 +1,10 @@
 function	probe	verdict
 abs	scalar	ok
 acos	scalar	ok
+add	collection	an.execution.stores.relational.result.SQLExecut …
 adjust	scalar	DISAGREES with the oracle
+aggregate	relation	ok
+and	collection	DISAGREES with the oracle
 and	scalar	ok
 ascii	scalar	ok
 asin	scalar	ok
@@ -15,22 +18,27 @@ bitOr	scalar	ok
 bitShiftLeft	scalar	ok
 bitShiftRight	scalar	ok
 bitXor	scalar	ok
+cast	scalar	REFUSED: @Float is read as a join reference in a relational mapping (F45)
 cbrt	scalar	ok
 ceiling	scalar	ok
 char	scalar	ok
 coalesce	scalar	ok
 concat	scalar	ok
+concatenate	collection	Caused by: Execution error at (resource:/core_relational/rel
 concatenate	relation	ok
 concatenate	tds	ERROR
+contains	collection	Caused by: Assert failure at (resource:/core_relational/rela
 contains	scalar	ok
 corr	aggregate	ok
 cos	scalar	ok
 cosh	scalar	ok
 cot	scalar	ok
 count	aggregate	ok
+count	collection	DISAGREES with the oracle
 covarPopulation	aggregate	ok
 covarSample	aggregate	ok
 cumulativeDistribution	relation	ok
+date	scalar	ok
 dateDiff	scalar	ok
 datePart	scalar	ok
 dayOfMonth	scalar	ok
@@ -40,9 +48,11 @@ dayOfYear	scalar	DISAGREES with the oracle
 decodeBase64	scalar	ok
 denseRank	relation	ok
 distinct	aggregate	ok
+distinct	collection	Caused by: Assert failure at (resource:/core_relational/rela
 distinct	relation	ok
 distinct	tds	ok
 divide	scalar	ok
+drop	collection	Caused by: Assert failure at (resource:/core_relational/rela
 drop	relation	ok
 drop	tds	ok
 encodeBase64	scalar	ok
@@ -52,9 +62,13 @@ equal	scalar	ok
 exists	collection	ok
 exp	scalar	ok
 extend	relation	ok
+extend	tds	ok
+filter	collection	gine.plan.execution.stores.relational.result.SQ …
 filter	relation	ok
 filter	tds	ok
 first	aggregate	ok
+first	collection	DISAGREES with the oracle
+first	relation	F41 -- returns the whole relation instead of the first row
 firstDayOfMonth	scalar	ok
 firstDayOfQuarter	scalar	ok
 firstDayOfWeek	scalar	DISAGREES with the oracle
@@ -66,38 +80,54 @@ firstMinuteOfHour	scalar	ok
 firstSecondOfMinute	scalar	ok
 floor	scalar	ok
 formatDate	scalar	ok
+fromJson	scalar	REFUSED: not in the DynaFunctionRegistry
 greaterThan	scalar	ok
 greaterThanEqual	scalar	ok
+greatest	collection	DISAGREES with the oracle
 greatest	scalar	ok
 groupBy	relation	ok
 groupBy	tds	ok
 hour	scalar	ok
+if	scalar	ok
+in	collection	Caused by: Assert failure at (resource:/core_relational/rela
 indexOf	scalar	ok
+init	collection	d.engine.plan.execution.stores.relational.resul …
 isAlphaNumeric	scalar	ok
 isDistinct	aggregate	ok
 isEmpty	collection	ok
+isEmpty	scalar	REFUSED: aggregate position lowers to a per-row null test (F40)
 isNotEmpty	collection	ok
+isNotEmpty	scalar	REFUSED: aggregate position lowers to a per-row null test (F40)
 isNotNull	scalar	ok
 isNull	scalar	ok
 join	relation	ok
+join	tds	ok
 joinStrings	aggregate	ok
+joinStrings	collection	DISAGREES with the oracle
 last	aggregate	ok
+last	collection	ct(STRUCT, BIGINT) -> ANY at org.finos.legend.e …
+last	relation	F42 -- generates SQL that builds a list of mixed types, whic
+least	collection	DISAGREES with the oracle
 least	scalar	ok
 left	scalar	ok
 length	scalar	ok
 lessThan	scalar	ok
 lessThanEqual	scalar	ok
 levenshteinDistance	scalar	ok
+limit	collection	Caused by: Assert failure at (resource:/core_relational/rela
 limit	relation	ok
 limit	tds	ok
 log	scalar	ok
 log10	scalar	ok
 lpad	scalar	ok
 ltrim	scalar	ok
+map	collection	DISAGREES with the oracle
 max	aggregate	ok
+max	scalar	REFUSED: two-arg form has only the aggregate lowering (F45)
 maxBy	aggregate	ok
 median	aggregate	ok
 min	aggregate	ok
+min	scalar	REFUSED: two-arg form has only the aggregate lowering (F45)
 minBy	aggregate	ok
 minus	scalar	ok
 minute	scalar	ok
@@ -109,8 +139,12 @@ mostRecentDayOfWeek	scalar	REFUSED: not supported yet
 not	scalar	ok
 nth	relation	ok
 ntile	relation	ok
+offset	relation	REFUSED: registered signature names a function that does not exist (F36)
 olapGroupBy	tds	ERROR
+or	collection	DISAGREES with the oracle
 or	scalar	ok
+paginated	collection	Caused by: Assert failure at (resource:/platform/pure/essent
+paginated	tds	ok
 parseBoolean	scalar	REFUSED: not supported yet
 parseDecimal	scalar	ok
 parseFloat	scalar	ok
@@ -127,12 +161,14 @@ quarterNumber	scalar	ok
 rank	relation	ok
 rem	scalar	ok
 removeDuplicates	aggregate	not in DynaFunctionRegistry
+removeDuplicates	collection	inos.legend.engine.plan.execution.stores.relati …
 rename	relation	ok
 renameColumns	tds	ok
 repeatString	scalar	ok
 replace	scalar	ok
 restrict	tds	ok
 reverse	aggregate	not in DynaFunctionRegistry
+reverse	collection	 at org.finos.legend.engine.plan.execution.stor …
 reverseString	scalar	ok
 right	scalar	ok
 round	scalar	ok
@@ -146,10 +182,17 @@ sign	scalar	ok
 sin	scalar	ok
 sinh	scalar	ok
 size	aggregate	ok
+size	collection	gine.plan.execution.stores.relational.result.SQ …
+size	relation	REFUSED: a scalar-returning service cannot be asserted by the framework
+slice	collection	Caused by: Assert failure at (resource:/core_relational/rela
 slice	relation	ok
 slice	tds	ok
 sort	aggregate	not in DynaFunctionRegistry
+sort	collection	ort("c_0".V) as "f0" from P as "root" left oute …
 sort	relation	ok
+sort	tds	ok
+sortBy	collection	DISAGREES with the oracle
+sortByReversed	collection	EngineException: Error in 'col::Svc': Can't find variable cl
 splitPart	scalar	ok
 sqrt	scalar	ok
 startsWith	scalar	ok
@@ -158,17 +201,26 @@ stdDevSample	aggregate	ok
 substring	scalar	DISAGREES with the oracle
 substring	scalar	ok
 sum	aggregate	ok
+tail	collection	 at org.finos.legend.engine.plan.execution.stor …
+take	collection	Caused by: Assert failure at (resource:/core_relational/rela
 take	relation	ok
 take	tds	ok
 tan	scalar	ok
 tanh	scalar	ok
+timeBucket	scalar	ok
 times	scalar	ok
 toDecimal	scalar	ok
 toFloat	scalar	ok
+toJson	scalar	ok
 toLower	scalar	ok
+toOne	scalar	ok
+toOneMany	scalar	REFUSED: not in the DynaFunctionRegistry
 toString	scalar	ok
 toUpper	scalar	ok
+toVariant	scalar	ok
 trim	scalar	ok
+union	collection	engine.plan.execution.stores.relational.result. …
+variance	scalar	REFUSED: lowers to a list function, invalid in a grouped select (F40)
 variancePopulation	aggregate	ok
 varianceSample	aggregate	ok
 wavg	aggregate	ok

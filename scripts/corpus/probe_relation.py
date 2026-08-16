@@ -114,6 +114,17 @@ def cases() -> list[tuple[str, str, list]]:
         # -- second batch. Window functions that take an extra argument, the ordinal
         # operations, and the shapes that return a single row or a scalar rather than a
         # relation.
+        # No `offset`. getSupportedFunctions() carries it with a fully mangled signature --
+        # offset_Relation_1__T_1__Integer_1_ -- and the compiler answers
+        #
+        #     Function does not exist 'offset(Relation<(...)>[1],(...)[1],Integer[1])'
+        #
+        # to a call written to exactly that signature. This is the sharpest case of F36 yet:
+        # not a handler that refuses, nor a second registry that disagrees, but a registry
+        # entry naming a function that was never defined. Recorded in DIAGNOSED below.
+        ("aggregate", BASE + "->groupBy(~[g], ~[t: x|$x.v : a|$a->sum()])"
+                             "->sort(~g->ascending())",
+         [{"g": "a", "t": 4}, {"g": "b", "t": 5}]),
         ("nth", BASE + "->extend(over(~g, ~v->ascending()), ~[r: {p,w,r|$p->nth($w,$r,1).v}])"
                        "->sort([~g->ascending(), ~v->ascending()])",
          _nth()),
@@ -144,6 +155,18 @@ def cases() -> list[tuple[str, str, list]]:
                 "->sort([~v->ascending(), ~w->ascending()])",
          [{**r, "g2": r["g"], "v2": r["v"]} for r in _key(base)]),
     ]
+
+
+def _offset() -> list:
+    """The value one row AFTER the current one within the partition, ordered by v."""
+    out = []
+    for g in sorted({r["g"] for r in SEED}):
+        part = sorted([{"g": r["g"], "v": r["v"], "w": r["w"]} for r in SEED if r["g"] == g],
+                      key=lambda r: r["v"])
+        for i, row in enumerate(part):
+            nxt = part[i + 1]["v"] if i + 1 < len(part) else None
+            out.append({**row, "r": nxt})
+    return out
 
 
 def _nth() -> list:
@@ -284,6 +307,14 @@ KNOWN_BAD = {
 }
 
 
+# Run, diagnosed, and removed from the case list because they cannot compile. Recorded so
+# they are not reported as untouched.
+DIAGNOSED = {
+    "offset": "REFUSED: registered signature names a function that does not exist (F36)",
+    "size": "REFUSED: a scalar-returning service cannot be asserted by the framework",
+}
+
+
 def main() -> None:
     cs = cases()
     work = Path(tempfile.mkdtemp())
@@ -328,7 +359,8 @@ def main() -> None:
                   + ", ".join(unexplained))
         print(f"\n  source kept at {src}")
     _merge_evidence([n for n, _v in good],
-                    [(n, KNOWN_BAD.get(n, v)[:60]) for n, v in bad])
+                    [(n, KNOWN_BAD.get(n, v)[:60]) for n, v in bad]
+                    + sorted(DIAGNOSED.items()))
 
 
 def _merge_evidence(names, failing=()) -> None:

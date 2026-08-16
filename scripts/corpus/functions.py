@@ -135,7 +135,7 @@ EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
 # functions depending on which probe ran last.
 PROBE_FAMILIES = {
     "scalar": {"scalar", "scalar-date", "lang", "variant", "other", "calendar"},
-    "aggregate": {"scalar", "collection"},
+    "aggregate": {"scalar", "collection", "other"},
     "relation": {"relation"},
     "tds": {"tds"},
     "collection": {"collection"},

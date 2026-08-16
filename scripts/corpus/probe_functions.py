@@ -167,6 +167,38 @@ CASES = [
     # `yyyy-MM-dd` fails with "Unsupported DateFormat". Consistent across dialects, so it is
     # a limitation of the relational lowering rather than a defect in one of them.
     ("formatDate", "String", "formatDate(T.D, 'ISO8601')", ["2024-06-03", "ISO8601"]),
+    ("date", "StrictDate", "date(2024, 6, 3)", [2024, 6, 3]),
+    # No two-argument `max`/`min`: their only lowering is the single-argument AGGREGATE
+    # `max(%s)`, so a two-argument call dies inside the string formatter with "Unused format
+    # args. [2] arguments provided" (F45). `greatest` and `least` are the two-argument
+    # spellings that work, and both are probed above.
+
+    ("timeBucket", "DateTime", "timeBucket(T.TS, 1, 'DAYS')",
+     ["2024-06-03 19:15:00", 1, "DAYS"]),
+    # -- lang. These are the type- and control-flow operations, and it is not obvious any of
+    # them is reachable from a relational property mapping at all; that is the question.
+    ("if", "String", "if(T.I > 5, 'big', 'small')", [True, "big", "small"]),
+    # No `cast`: inside a relational mapping `@X` is a JOIN reference, so `cast(T.I, @Float)`
+    # is read as a join named Float -- "Can't find join 'Float' in database 'DB'". The same
+    # shape as DurationUnit.DAYS being read as a table: relational mapping syntax claims the
+    # punctuation these type-level operations need.
+
+    ("toOne", "Integer", "toOne(T.I)", [7]),
+    ("toOneMany", "Integer", "toOneMany(T.I)", [7]),
+    # -- variant. A JSON payload in a VARCHAR column, converted in and out.
+    ("toVariant", "String", "toVariant(T.S)", ["alpha"]),
+    # The JSON payload is a brace-free array. The model is built with str.format, so a `{`
+    # in the seed is read as a replacement field -- and the failure is an IndexError from
+    # format() rather than anything to do with JSON.
+    ("fromJson", "String", "fromJson(T.JS)", ["[1]"]),
+    # toJson over the JSON column, not the plain string one. Applied to 'alpha' the engine
+    # tries to PARSE it as JSON and fails with "Malformed JSON at byte 0" -- so toJson
+    # expects something already JSON-shaped rather than converting an arbitrary value.
+    # The oracle argument is the PARSED value, not the JSON text. The column holds the text
+    # `[1]`; the variant it denotes is the list [1]; toJson renders that back to `[1]`.
+    # Passing the text itself made the oracle encode a STRING and answer `"[1]"` -- quotes
+    # and all -- which is the right answer to the wrong question.
+    ("toJson", "String", "toJson(T.JS)", [[1]]),
     ("least", "Integer", "least(T.I, T.J)", [[7, 3]]),
 ]
 
@@ -180,7 +212,7 @@ MODEL = """Class probe::P
 Database probe::DB
 (
    Table T ( K VARCHAR(20) PRIMARY KEY, S VARCHAR(50), S2 VARCHAR(50), S64 VARCHAR(50),
-             N VARCHAR(20), NF VARCHAR(20), NB VARCHAR(20),
+             N VARCHAR(20), NF VARCHAR(20), NB VARCHAR(20), JS VARCHAR(40),
              I INTEGER, J INTEGER, F DOUBLE, G DOUBLE, H DOUBLE, B BIT,
              D DATE, D2 DATE, TS TIMESTAMP )
 )
@@ -209,8 +241,8 @@ Data probe::Seed
   Relational
   #{{
     default.T:
-      'K,S,S2,S64,N,NF,NB,I,J,F,G,H,B,D,D2,TS\\n' +
-      'R1,alpha,beta,YWxwaGE=,42,42.5,true,7,3,10.0,4.0,0.5,true,'
+      'K,S,S2,S64,N,NF,NB,JS,I,J,F,G,H,B,D,D2,TS\\n' +
+      'R1,alpha,beta,YWxwaGE=,42,42.5,true,[1],7,3,10.0,4.0,0.5,true,'
         + '2024-06-03,2024-06-13,2024-06-03 19:15:00\\n';
   }}#
 }}
@@ -397,6 +429,19 @@ def compare(cases, actual: str) -> list:
 
 EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
 
+# Functions that WERE run, diagnosed, written up, and then removed from the case list because
+# leaving them in fails the whole probe. Recorded here so they are not reported as untouched:
+# "we tried this and here is what happened" is a different state from "nobody has looked", and
+# the scoreboard has no business conflating them just because the case is no longer runnable.
+DIAGNOSED = {
+    "max": "REFUSED: two-arg form has only the aggregate lowering (F45)",
+    "min": "REFUSED: two-arg form has only the aggregate lowering (F45)",
+    "cast": "REFUSED: @Float is read as a join reference in a relational mapping (F45)",
+    "variance": "REFUSED: lowers to a list function, invalid in a grouped select (F40)",
+    "isEmpty": "REFUSED: aggregate position lowers to a per-row null test (F40)",
+    "isNotEmpty": "REFUSED: aggregate position lowers to a per-row null test (F40)",
+}
+
 
 def merge_evidence(probe: str, agreeing, failing=()) -> None:
     """Record this probe's verdicts, replacing only ITS OWN rows.
@@ -443,6 +488,7 @@ def record(ran, rejected, differ=()) -> None:
         names.add(fn)
     fails = [(n, f"REFUSED: {why}") for n, why in rejected]
     fails += [(n, "DISAGREES with the oracle") for n in differ]
+    fails += sorted(DIAGNOSED.items())
     merge_evidence("scalar", sorted(names), fails)
     print(f"\n  {len(names)} functions executed and agreeing, "
           f"{len(fails)} refused or disagreeing")
