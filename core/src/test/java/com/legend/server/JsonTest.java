@@ -1003,25 +1003,27 @@ class JsonTest {
         }
         @Test void numbers() { assertRoundTrip("[0,1,-1,42,-42,3.14,-2.5]"); }
 
-        @Test void integerValuedExponentLosesFloatFlavorButPreservesValue() {
-            // 1e5 parses as Num(100000.0, isInteger=false).  Compact serialization
-            // emits "100000" (writeDouble short-circuits for integer-valued doubles).
-            // Re-parse yields Num(100000, isInteger=true).  Value is preserved; the
-            // "this came from a float expression" flavor is not. This is intentional
-            // — writeDouble chooses the more compact representation. Document the
-            // expectation here rather than in RoundTrip so the distinction is visible.
+        @Test void integerValuedExponentPreservesExactToken() {
+            // F3.1a: 1e5 parses as Num carrying the EXACT BigDecimal (the
+            // old double channel collapsed it to "100000", losing the
+            // float flavor — the previous name of this pin documented
+            // that loss as intentional). With the exact-decimal channel
+            // the token round-trips value-identically as 1E+5
+            // (BigDecimal.toString), and the flavor survives too.
             Json.Arr first = (Json.Arr) Json.parse("[1e5]");
             Json.Num firstNum = (Json.Num) first.items().get(0);
             assertEquals(100000.0, firstNum.doubleValue(), 0.0);
             assertFalse(firstNum.isInteger());
 
             String compact = Json.toCompact(first);
-            assertEquals("[100000]", compact);
+            assertEquals("[1E+5]", compact);
 
             Json.Arr second = (Json.Arr) Json.parse(compact);
             Json.Num secondNum = (Json.Num) second.items().get(0);
-            assertEquals(100000L, secondNum.longValue());
-            assertTrue(secondNum.isInteger());
+            assertEquals(100000.0, secondNum.doubleValue(), 0.0);
+            assertFalse(secondNum.isInteger());
+            assertEquals(new java.math.BigDecimal("1E+5"),
+                    secondNum.decimalValue());
         }
         @Test void deepNesting() {
             assertRoundTrip("{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":1}}}}}");

@@ -186,13 +186,25 @@ public final class Json {
     }
 
     /** Number node — stored as long if integral, else double. */
-    public record Num(long longValue, double doubleValue, boolean isInteger) implements Node {
+    public record Num(long longValue, double doubleValue, boolean isInteger,
+            java.math.@com.legend.Nullable BigDecimal decimalValue) implements Node {
+        /** Pre-F3.1a arity — no exact decimal available. */
+        public Num(long longValue, double doubleValue, boolean isInteger) {
+            this(longValue, doubleValue, isInteger, null);
+        }
         public static Num ofLong(long v) { return new Num(v, (double) v, true); }
         public static Num ofDouble(double v) {
             if (Double.isNaN(v) || Double.isInfinite(v)) {
                 throw new IllegalArgumentException("JSON cannot represent NaN or Infinity");
             }
             return new Num((long) v, v, false);
+        }
+        /** F3.1a (audit A15/audit 18): the EXACT decimal token — two
+         * distinct Decimals beyond 17 significant digits round to the
+         * SAME double, so the double channel alone corrupts round trips.
+         * doubleValue stays populated for the informational getters. */
+        public static Num ofDecimal(java.math.BigDecimal v) {
+            return new Num(v.longValue(), v.doubleValue(), false, v);
         }
     }
 
@@ -244,6 +256,12 @@ public final class Json {
         if (v instanceof Number num) {
             if (num instanceof Long || num instanceof Integer || num instanceof Short || num instanceof Byte) {
                 return Num.ofLong(num.longValue());
+            }
+            if (num instanceof java.math.BigDecimal bd) {
+                return Num.ofDecimal(bd);   // F3.1a: never through double
+            }
+            if (num instanceof java.math.BigInteger bi) {
+                return Num.ofDecimal(new java.math.BigDecimal(bi));
             }
             return Num.ofDouble(num.doubleValue());
         }
@@ -302,6 +320,10 @@ public final class Json {
         if (v instanceof Number num) {
             if (num instanceof Long || num instanceof Integer || num instanceof Short || num instanceof Byte) {
                 w.writeLong(num.longValue());
+            } else if (num instanceof java.math.BigDecimal bd) {
+                w.writeDecimal(bd);   // F3.1a: never through double
+            } else if (num instanceof java.math.BigInteger bi) {
+                w.writeDecimal(new java.math.BigDecimal(bi));
             } else {
                 w.writeDouble(num.doubleValue());
             }
@@ -354,7 +376,11 @@ public final class Json {
             case Str s -> w.writeString(s.value());
             case Num num -> {
                 if (num.isInteger()) w.writeLong(num.longValue());
-                else w.writeDouble(num.doubleValue());
+                else if (num.decimalValue() != null) {
+                    w.writeDecimal(num.decimalValue());
+                } else {
+                    w.writeDouble(num.doubleValue());
+                }
             }
             case Bool b -> w.writeBool(b.value());
             case Null ignored -> w.writeNull();
@@ -503,6 +529,14 @@ public final class Json {
         }
 
         public Writer writeLong(long v) { preWrite(); append(Long.toString(v)); return this; }
+
+        /** F3.1a: the exact decimal token — BigDecimal.toString is a
+         * valid JSON number (may carry an exponent), and NEVER rounds. */
+        public Writer writeDecimal(java.math.BigDecimal v) {
+            preWrite();
+            append(v.toString());
+            return this;
+        }
 
         public Writer writeDouble(double v) {
             preWrite();
@@ -871,7 +905,7 @@ public final class Json {
             }
 
             String num = src.substring(start, pos);
-            if (isFloat) return Num.ofDouble(Double.parseDouble(num));
+            if (isFloat) return Num.ofDecimal(new java.math.BigDecimal(num));
             return Num.ofLong(Long.parseLong(num));
         }
 
