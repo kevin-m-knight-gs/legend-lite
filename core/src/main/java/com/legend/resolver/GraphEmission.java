@@ -148,12 +148,30 @@ final class GraphEmission {
         // each version row's own validity-start)
         MilestoningStrategy strat = temporal.temporalStrategy(cs.classFqn());
         if (strat != null) {
+            // engine getTemporalDateAlias: a %latest date on a relation
+            // that CANNOT support the strategy contributes NO alias — the
+            // generated column simply does not exist (ledger cluster 13;
+            // decided per axis — a bitemporal class over a business-only
+            // table keeps k_businessDate, drops k_processingDate). A
+            // CONCRETE date still projects (audit 14's ungate stands).
+            Map<String, String> mcols = temporal.milestoneColumnsOf(
+                    cs.pipeline(), cs.classFqn());
             if (strat != MilestoningStrategy.PROCESSING
-                    && !cs.bindings().containsKey("businessDate")) {
+                    && !cs.bindings().containsKey("businessDate")
+                    && !(temporal.root().business()
+                                instanceof com.legend.compiler.spec.typed
+                                        .TypedCLatestDate
+                            && mcols.get(TemporalFrame.GEN_BUSINESS_DATE)
+                                    == null)) {
                 tree.add(new TypedGraphTree("businessDate", List.of()));
             }
             if (strat != MilestoningStrategy.BUSINESS
-                    && !cs.bindings().containsKey("processingDate")) {
+                    && !cs.bindings().containsKey("processingDate")
+                    && !(temporal.root().processing()
+                                instanceof com.legend.compiler.spec.typed
+                                        .TypedCLatestDate
+                            && mcols.get(TemporalFrame.GEN_PROCESSING_DATE)
+                                    == null)) {
                 tree.add(new TypedGraphTree("processingDate", List.of()));
             }
         }
