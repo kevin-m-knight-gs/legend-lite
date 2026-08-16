@@ -350,8 +350,15 @@ def _cond_kind(j, kind: str) -> bool:
     return walk(j.condition)
 
 
-def all_specs(c: model.Corpus):
-    """Every spec the corpus emits, from every generator."""
+def base_specs(c: model.Corpus):
+    """Every spec except the coverage-directed ones.
+
+    Split out because spread.py needs a BASELINE to measure against, and that baseline has to
+    be identical in the two places it is computed -- build.py, which emits the services, and
+    all_specs, which the scoreboard reads. Computing it separately in each was the first
+    version, and the two disagreed: the generator selected against one set and the scoreboard
+    scored against another, so the file and the number described different corpora.
+    """
     import flat
     import aggregates
     import battery
@@ -368,6 +375,17 @@ def all_specs(c: model.Corpus):
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c)
             + tomany.build(c, seeded, tables))
+
+
+def all_specs(c: model.Corpus):
+    """Every spec the corpus emits, from every generator."""
+    import flat
+    import spread
+
+    base = base_specs(c)
+    tables = flat.all_tables(c)
+    seeded = {k for k, v in tables.items() if v}
+    return base + spread.build(c, seeded, base)
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.

@@ -124,6 +124,44 @@ def spec_features(c: model.Corpus, spec, byclass, bymapping, closure) -> set[str
     return feats
 
 
+def feasible_pairs(c: model.Corpus, universe) -> tuple[set, list]:
+    """Which pairs COULD co-occur, and which need two mappings that never meet.
+
+    The denominator was every pair of constructs, which quietly assumes any two can appear in
+    one service. Many cannot. A mapping-level construct is only reachable through the mapping
+    that declares it, so two of them can share a service only if some mapping's include
+    closure spans both -- and 148 of the 820 pairs are two constructs whose mappings never
+    meet anywhere in this corpus.
+
+    Reporting those as uncovered is not wrong, but it is unactionable in the way that matters:
+    they cannot be closed by writing a query, only by changing the MODEL so the constructs
+    live where one query reaches both. Splitting them out says which of the two jobs each
+    remaining pair is.
+    """
+    byclass = executed.class_features()
+    bymapping = executed.mapping_features()
+    closure = executed.include_closure()
+    host: dict[str, set] = {}
+    for m, feats in bymapping.items():
+        for f in feats:
+            host.setdefault(f, set()).add(m)
+    for (m, _k), feats in byclass.items():
+        for f in feats:
+            host.setdefault(f, set()).add(m)
+    for m, included in closure.items():
+        for m2 in included:
+            for f, ms in host.items():
+                if m2 in ms:
+                    ms.add(m)
+    ok, blocked = set(), []
+    for a, b in itertools.combinations(sorted(universe), 2):
+        if a in host and b in host and not (host[a] & host[b]):
+            blocked.append((a, b))
+        else:
+            ok.add((a, b))
+    return ok, blocked
+
+
 def profile(c: model.Corpus, specs, quarantined: set[str]):
     byclass = executed.class_features()
     bymapping = executed.mapping_features()
@@ -164,8 +202,27 @@ def main() -> None:
     universe = sorted({f for v in prof.values() for f in v})
     possible = list(itertools.combinations(universe, 2))
     covered = [p for p in possible if pairs[p]]
+    feasible, blocked = feasible_pairs(c, universe)
+    cov_f = [p for p in covered if p in feasible]
     print(f"\nPAIR COVERAGE  {len(covered)} of {len(possible)} "
           f"({len(covered) / len(possible):.0%}) feature pairs co-occur in a passing service")
+    print(f"  of the {len(feasible)} pairs a query COULD reach: {len(cov_f)} "
+          f"({len(cov_f) / len(feasible):.0%})")
+    print(f"  the other {len(blocked)} need two mapping constructs that never share a "
+          f"mapping --\n  a MODEL change, not a query")
+
+    # TRIPLES. The docstring has promised these since the file was written and the code only
+    # ever counted pairs, which is the sort of gap a scoreboard is supposed to expose rather
+    # than contain. They matter for the same reason pairs do, one level up: `concat` over a
+    # NULL through a join chain is not the union of three pairs, it is a third thing, and the
+    # combination matrix exists because that turned out to be where defects live.
+    triples = Counter()
+    for feats in prof.values():
+        for combo in itertools.combinations(sorted(feats), 3):
+            triples[combo] += 1
+    possible3 = len(universe) * (len(universe) - 1) * (len(universe) - 2) // 6
+    print(f"TRIPLE COVERAGE {len(triples)} of {possible3} "
+          f"({len(triples) / possible3:.0%}) feature triples co-occur in a passing service")
     print(f"  constructs in play: {len(universe)}")
 
     if "--gaps" in sys.argv:

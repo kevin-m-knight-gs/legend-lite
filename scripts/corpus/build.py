@@ -33,6 +33,7 @@ import graphs
 import combos
 import hier
 import quarantine
+import spread
 import stacks
 import tomany
 from model import STRESS
@@ -187,6 +188,13 @@ def generate() -> dict[Path, str]:
     # fails the whole service. isEmpty/isNotEmpty are correct there, so these reach the 105
     # ends that count() cannot -- and assert the empty case 299 times rather than avoiding it.
     generated += tomany.build(c, seeded_now, TABLES)
+    # Coverage-directed services: chosen by which feature COMBINATIONS they close rather
+    # than by walking the model, which is what every generator above does. Runs last
+    # because it needs to know what the others already cover.
+    # The SAME baseline the scoreboard uses, from one function, so the file and the number
+    # cannot describe different corpora. base_specs is everything except these.
+    import executed as _executed          # `executed` is a local further down this function
+    generated += spread.build(c, seeded_now, _executed.base_specs(c))
     fan = []
     for spec in list(battery.SPECS) + generated:
         expected = _expect(c, spec, TABLES)
