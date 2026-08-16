@@ -795,6 +795,16 @@ public final class Pure {
         public static final String AVG = PKG + "avg";
         public static final String DIVIDE_ROUND = PKG + "divideRound";
         public static final String NOT_EQUAL_ANSI = PKG + "notEqualAnsi";
+        /** Engine DynaFunc ORDERING comparisons in join/filter conditions:
+         *  the engine never type-checks these operands (untyped Literal in
+         *  a DynaFunc — RelationalParseTreeWalker), so the shim is
+         *  Any-typed like notEqualAnsi; a Date column vs a quoted string
+         *  literal must not die in pure overload resolution (ledger
+         *  cluster 18). */
+        public static final String LESS_THAN_ANY = PKG + "lessThan";
+        public static final String LESS_THAN_EQUAL_ANY = PKG + "lessThanEqual";
+        public static final String GREATER_THAN_ANY = PKG + "greaterThan";
+        public static final String GREATER_THAN_EQUAL_ANY = PKG + "greaterThanEqual";
         public static final String SUB = PKG + "sub";
         public static final String IS_NUMERIC = PKG + "isNumeric";
         public static final String HASH = PKG + "hash";
@@ -839,7 +849,9 @@ public final class Pure {
     public static final java.util.Set<String> ENGINE_VOCAB_SHIMS =
             java.util.stream.Stream.of(Lite.AVG, Lite.DIVIDE_ROUND,
                     Lite.NOT_EQUAL_ANSI, Lite.SUB, Lite.IS_NUMERIC,
-                    Lite.HASH, Lite.JOIN)
+                    Lite.HASH, Lite.JOIN, Lite.LESS_THAN_ANY,
+                    Lite.LESS_THAN_EQUAL_ANY, Lite.GREATER_THAN_ANY,
+                    Lite.GREATER_THAN_EQUAL_ANY)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -1829,6 +1841,12 @@ public final class Pure {
     public static final NativeFunctionDefinition MONTH__DATE_1 = signature("native function meta::pure::functions::date::month(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::Month[1];");
     public static final NativeFunctionDefinition NEW_TDS_RELATION_ACCESSOR__RELATION_1 = signature("native function meta::pure::metamodel::relation::newTDSRelationAccessor<T>(tds:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition NOT_EQUAL_ANSI__ANY_1__ANY_1 = signature("native function meta::legend::lite::notEqualAnsi(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // Any-typed ordering shims (ledger cluster 18 — DynaFunc join/filter
+    // conditions; the engine leaves these operands untyped).
+    public static final NativeFunctionDefinition LESS_THAN_ANY__ANY_1__ANY_1 = signature("native function meta::legend::lite::lessThan(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition LESS_THAN_EQUAL_ANY__ANY_1__ANY_1 = signature("native function meta::legend::lite::lessThanEqual(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition GREATER_THAN_ANY__ANY_1__ANY_1 = signature("native function meta::legend::lite::greaterThan(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1 = signature("native function meta::legend::lite::greaterThanEqual(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition NOT__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::not(value:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition NOW = signature("native function meta::pure::functions::date::now():meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition NTH__RELATION_1__WINDOW_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::nth<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");

@@ -128,7 +128,14 @@ final class Scalars {
         for (var cmp : Map.of("lessThan", SqlFn.LESS, "lessThanEqual", SqlFn.LESS_EQUAL,
                 "greaterThan", SqlFn.GREATER, "greaterThanEqual", SqlFn.GREATER_EQUAL)
                 .entrySet()) {
-            for (String f : Pure.nativeKeysAt(cmp.getKey())) {
+            // the Any-typed Lite ordering shims (DynaFunc conditions,
+            // ledger cluster 18) register by FQN — the bare-name index
+            // deliberately excludes the lite package
+            List<String> cmpKeys = new ArrayList<>(
+                    Pure.nativeKeysAt(cmp.getKey()));
+            cmpKeys.addAll(Pure.nativeKeysAt(
+                    Pure.Lite.PKG + cmp.getKey()));
+            for (String f : cmpKeys) {
                 RULES.put(f, (n, args) -> {
                     List<SqlExpr> padded = new ArrayList<>(args.size());
                     for (int i = 0; i < args.size(); i++) {

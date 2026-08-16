@@ -82,7 +82,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 |
 | tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
-| tests/mapping/join | 28 | 25 | 1 | 2 | 0 | 8 |
+| tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 9 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 48 | 43 | 1 | 4 | 0 | 11 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
@@ -92,14 +92,14 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 |
-| tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 8 |
+| tests/mapping/union | 127 | 118 | 0 | 8 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 77 | 3 | 7 | 0 | 36 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2314** | 82 | 87 | 92 | 244 |
+| **total** | 2575 | **2316** | 82 | 85 | 92 | 245 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1124,7 +1124,7 @@ shared source registered by several families cannot double-count. Run with
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- 2x in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE, multiplicity=Bounded[lower=0, upper=1]], ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]); [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=BOOLEAN, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=BOOLEAN, multiplicity=Bounded[lower=0, upper=1]]]
+- 2x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                                ^
 - 1x No value present
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
@@ -1354,7 +1354,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call — wall: assert form 'assertIs/2' is not supported yet
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'stc_meta__relational__tests__model__inheritance__Bicycle___person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' has no binding in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (unmapped, or routed to a non-root mapping s
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
-- ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types (ExprType[
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - FAIL testChainedTwoHops [tests/mapping/modelJoin]: assertEquals: expected [Apple, null, Apple, ProjectY, Apple, ProjectX, Google, ProjectZ], got [Apple, ProjectY, Apple, ProjectX, Apple, null, Google, ProjectZ]
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
@@ -1373,9 +1372,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
-- ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::PartyAccount': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE, mul
-- ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
-- ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
+- ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(
+- ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve

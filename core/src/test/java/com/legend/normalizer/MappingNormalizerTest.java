@@ -2779,7 +2779,7 @@ class MappingNormalizerTest {
         AppliedFunction lt = (AppliedFunction) andCall.parameters().get(1);
         assertEquals("equal", eq.function(),
                 "First conjunct keeps `==` operator from source");
-        assertEquals("lessThan", lt.function(),
+        assertEquals("meta::legend::lite::lessThan", lt.function(),
                 "Second conjunct keeps `<` operator from source (non-equality preserved)");
         assertEquals("s", recvOf(eq.parameters().get(0)), "source side reads $s");
         assertEquals("t", recvOf(lt.parameters().get(1)), "target side reads $t");

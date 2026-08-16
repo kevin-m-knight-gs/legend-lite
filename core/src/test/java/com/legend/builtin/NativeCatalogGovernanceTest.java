@@ -59,7 +59,13 @@ class NativeCatalogGovernanceTest {
         // docs/LITE_INVENTION_CENSUS.md).
         assertTrue(Pure.INTERNAL_DESUGAR.size() <= 12,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
-        assertTrue(Pure.ENGINE_VOCAB_SHIMS.size() <= 7,
+        // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
+        // greaterThanEqual Any-shims — engine DynaFunc ordering
+        // comparisons carry UNTYPED operands (RelationalParseTreeWalker
+        // Literal); routing them through pure's same-family ordering
+        // overloads killed whole class mappings (ledger cluster 18;
+        // notEqualAnsi precedent; census row updated).
+        assertTrue(Pure.ENGINE_VOCAB_SHIMS.size() <= 11,
                 "ENGINE_VOCAB_SHIMS grew: " + Pure.ENGINE_VOCAB_SHIMS);
         assertTrue(Pure.LITE_SURFACE.size() <= 2,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);

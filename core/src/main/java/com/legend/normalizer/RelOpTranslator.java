@@ -578,13 +578,18 @@ final class RelOpTranslator {
     }
 
     static String comparisonFn(ComparisonOp op) {
+        // ORDERING ops route the Any-typed Lite shims: the engine never
+        // type-checks DynaFunc condition operands (untyped Literal), so
+        // a Date column vs a quoted string literal must not die in
+        // pure's same-family overload table (ledger cluster 18;
+        // EQ/NEQ already route the Any-typed equal).
         return switch (op) {
             case EQ  -> "equal";
             case NEQ -> "equal";   // wrapped in not(...) at the call site
-            case LT  -> "lessThan";
-            case LTE -> "lessThanEqual";
-            case GT  -> "greaterThan";
-            case GTE -> "greaterThanEqual";
+            case LT  -> com.legend.builtin.Pure.Lite.LESS_THAN_ANY;
+            case LTE -> com.legend.builtin.Pure.Lite.LESS_THAN_EQUAL_ANY;
+            case GT  -> com.legend.builtin.Pure.Lite.GREATER_THAN_ANY;
+            case GTE -> com.legend.builtin.Pure.Lite.GREATER_THAN_EQUAL_ANY;
         };
     }
 }
