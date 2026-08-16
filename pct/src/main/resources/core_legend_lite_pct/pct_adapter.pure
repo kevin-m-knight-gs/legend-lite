@@ -287,6 +287,12 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                     | $tdsData,
                     | // Replace first line (compiler-inferred types) with Pure types from return type
                       let lines = $tdsData->split('\n');
+                      // F5.3 STAGE A (compare-and-log; overlay still applies):
+                      // every mismatch line is a wrong type/multiplicity/name
+                      // PCT currently cannot see — the concealment inventory.
+                      if($lines->size() > 0 && ($typedHeader->toOne() != $lines->at(0)),
+                        | println('[F5.3A] declared=' + $typedHeader->toOne() + ' | wire=' + $lines->at(0)),
+                        | true);
                       if($lines->size() > 1,
                         | $typedHeader->toOne() + '\n' + $lines->tail()->joinStrings('\n'),
                         | $typedHeader->toOne()
