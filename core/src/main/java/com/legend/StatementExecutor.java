@@ -2482,6 +2482,32 @@ final class StatementExecutor {
                 return new com.legend.compiler.spec.typed.TypedCInteger(1L,
                         sz.info());
             }
+            // size(execute(...)) over an INLINE execute call (ledger
+            // cluster 52): the Result envelope is Result<T|m>[1] — size
+            // is 1, never the row count. eager MUST be true: nothing
+            // downstream consumes the chain, so a lazy frame would
+            // silently skip the query (Pure is strict). NOT gated on
+            // relationRooted() — the query may be class-rooted.
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall szi
+                    && SIZE_FQNS.contains(szi.callee().qualifiedName())
+                    && szi.args().size() == 1) {
+                TypedSpec earg = szi.args().get(0);
+                while (earg instanceof com.legend.compiler.spec.typed.TypedFrom ef) {
+                    earg = ef.source();
+                }
+                if (earg instanceof com.legend.compiler.spec.typed
+                                .TypedNativeCall ec2
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isExecuteFqn(ec2.callee().qualifiedName())) {
+                    try {
+                        buildFrame(ec2, letPrefix, true, specs, env);
+                    } catch (java.sql.SQLException e) {
+                        throw new IllegalStateException(e);
+                    }
+                    return new com.legend.compiler.spec.typed.TypedCInteger(
+                            1L, szi.info());
+                }
+            }
             // $r.values->at(k) / ->toOne(): collapse (relation root) or a
             // REAL selection over the spliced chain (class/scalar root)
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall w

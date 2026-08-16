@@ -154,6 +154,27 @@ public final class ScanRelations {
             splitConcatenate(af.parameters().get(1), out);
             return;
         }
+        // DISTRIBUTE a join over a concatenate on its LEFT operand — the
+        // AST mirror of the engine's one-base-tree-per-UnionAll-query rule,
+        // each branch getting a copy of the join child (ledger cluster 53).
+        // join ONLY: the engine splits only where the union alias is a
+        // join operand, never generically over any wrapper.
+        if (v instanceof AppliedFunction jf
+                && "join".equals(jf.function()
+                        .substring(jf.function().lastIndexOf(':') + 1))
+                && jf.parameters().size() >= 3) {
+            List<ValueSpecification> lefts = new ArrayList<>();
+            splitConcatenate(jf.parameters().get(0), lefts);
+            if (lefts.size() > 1) {
+                for (ValueSpecification l : lefts) {
+                    List<ValueSpecification> ps =
+                            new ArrayList<>(jf.parameters());
+                    ps.set(0, l);
+                    splitConcatenate(jf.withParameters(ps), out);
+                }
+                return;
+            }
+        }
         out.add(v);
     }
 
@@ -237,9 +258,20 @@ public final class ScanRelations {
                     && containsCall(w.parameters().get(0), "join")) {
                 top = w.parameters().get(0);
             }
-            Map<String, String[]> aliases = new LinkedHashMap<>();
-            Map<String, Node> byTable = new LinkedHashMap<>();
-            parseTdsJoinChain(ctx, top, out, aliases, byTable);
+            // a concatenate under the join distributes first (ledger
+            // clusters 53/54: one base tree per UnionAll query) — each
+            // branch parses with its OWN alias/byTable maps, engine root
+            // order across branches is by table name
+            List<ValueSpecification> spines = new ArrayList<>();
+            splitConcatenate(top, spines);
+            for (ValueSpecification spine : spines) {
+                Map<String, String[]> aliases = new LinkedHashMap<>();
+                Map<String, Node> byTable = new LinkedHashMap<>();
+                parseTdsJoinChain(ctx, spine, out, aliases, byTable);
+            }
+            if (spines.size() > 1) {
+                out.sort(java.util.Comparator.comparing(nd -> nd.table));
+            }
             // chain nodes narrowed per-source in parseTdsSource (the
             // global string pool cross-matches other sources' aliases)
             return out;

@@ -121,7 +121,7 @@ final class ModelJoinNesting {
                     nmj.lambda().body().get(nmj.lambda().body().size() - 1),
                     Map.of(nPair[0], j0, nPair[1], j1),
                     Map.of(nPair[0], rf0, nPair[1], nRf),
-                    nmj.associationName(), md, Map.of());
+                    nmj.associationName(), md, Map.of(), model);
             ValueSpecification composite = new AppliedFunction(Pure.Lite.JOIN, List.of(
                     var.equals(aVar) ? pipeA : pipeB,
                     new com.legend.protocol.spec.ColSpec(prop,

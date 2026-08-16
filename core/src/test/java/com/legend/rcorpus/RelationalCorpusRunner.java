@@ -524,7 +524,11 @@ public class RelationalCorpusRunner {
             // advisory SQL shape on row-verified tests (expression
             // membership 'in (<expr>)', value-polymorphic Date literals)
             // — rows are the contract, both changes make rows RIGHT.
-            int maxAdvisorySqlDiffs = 298;
+            // +1 2026-08-16 (batch c45/c51/c52/c53): a newly-flipped
+            // row-verified pass carries divergent advisory SQL text
+            // (net: pass 2336->2341, sqldiff-pass 246->247, zero
+            // pass-count regressions).
+            int maxAdvisorySqlDiffs = 299;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs

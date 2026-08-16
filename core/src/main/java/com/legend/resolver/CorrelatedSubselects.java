@@ -1811,6 +1811,42 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      */
     TypedSpec subTypeNavCastCanon(TypedSpec n,
             Function<String, String> mappingOf, TypedFunction isNotEmpty) {
+        // FLATTENED-EMBEDDED leaf (ledger cluster 45): union synthesis
+        // publishes an embedded subtype property ONLY as flat per-leaf
+        // columns (stc_..._prop__leaf, addStcEmbeddedLeaf) — no plain
+        // stc_..._prop exists by construction. The canonicalizer runs
+        // top-down, so (subType($v,@Sub).prop).leaf is visited before its
+        // child: fold the trailing hop into the flat column name. Both
+        // guards are load-bearing — !plain keeps the existing route for
+        // genuinely class-typed stc navigations; flat fires only where
+        // union synthesis flattened.
+        if (n instanceof TypedPropertyAccess outer
+                && outer.source() instanceof TypedPropertyAccess mid
+                && mid.source() instanceof TypedNativeCall msc
+                && msc.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                && !msc.args().isEmpty()
+                && msc.info().type() instanceof Type.ClassType msct
+                && msc.args().get(0).info().type()
+                        instanceof Type.ClassType mnavCt) {
+            ClassSource mt = castTarget(mappingOf, mnavCt);
+            String mwKey = com.legend.model.ClassMapping.subTypeColumn(
+                    msct.fqn(), com.legend.model.ClassMapping.memberWitness());
+            String plain = com.legend.model.ClassMapping.subTypeColumn(
+                    msct.fqn(), mid.property());
+            String flat = com.legend.model.ClassMapping.subTypeColumn(
+                    msct.fqn(), mid.property() + "__" + outer.property());
+            if (mt != null && mt.bindings().containsKey(mwKey)
+                    && !mt.bindings().containsKey(plain)
+                    && mt.bindings().containsKey(flat)) {
+                TypedSpec mnav = msc.args().get(0);
+                return new TypedPropertyAccess(
+                        new TypedFilter(mnav,
+                                witnessPred(mnavCt, mwKey, isNotEmpty),
+                                mnav.info()),
+                        flat, outer.info());
+            }
+        }
         // EMPTINESS over the bare cast (exists(nav->subType(@Car), pred)):
         // same routing rule, no leaf — the cast canonicalizes to the
         // filtered-nav head and the PREDICATE's depth-1 subtype reads

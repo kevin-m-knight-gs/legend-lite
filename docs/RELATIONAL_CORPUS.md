@@ -46,7 +46,7 @@ shared source registered by several families cannot double-count. Run with
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
-| lineage/scanRelations | 49 | 46 | 0 | 0 | 3 | 0 |
+| lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 |
 | milestoning/tests | 228 | 216 | 8 | 1 | 3 | 34 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -62,7 +62,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
 | tds/tests | 266 | 252 | 2 | 5 | 7 | 6 |
-| testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
+| testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 |
 | tests | 39 | 31 | 2 | 0 | 6 | 0 |
 | tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 |
@@ -84,7 +84,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 9 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 48 | 43 | 1 | 4 | 0 | 11 |
+| tests/mapping/modelJoin | 48 | 44 | 1 | 3 | 0 | 11 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation | 109 | 104 | 4 | 0 | 1 | 0 |
@@ -92,14 +92,14 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 |
-| tests/mapping/union | 127 | 118 | 0 | 8 | 1 | 8 |
+| tests/mapping/union | 127 | 119 | 0 | 7 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 78 | 3 | 6 | 0 | 36 |
+| tests/query | 87 | 79 | 3 | 5 | 0 | 37 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2336** | 74 | 75 | 90 | 246 |
+| **total** | 2575 | **2341** | 74 | 72 | 88 | 247 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1232,7 +1232,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
-- SHAPE testTableToTdsWithJoinAndUnion [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension] — wall: Unknown type: 'Operation' is not a known primitive, class, or enum
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
@@ -1302,7 +1301,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: testDataGen: view-backed relation 'AltID_View' — view slice pending [surfaced via assert form 'assertEquals/2']
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: testDataGen plan: no row identifiers for root 'Person' [surfaced via assert form 'assertEquals/2']
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
-- SHAPE testTableToTdsWithJoinAndUnion [testDataGeneration/tests]: scanRelations: tableToTDS join side is not a single table source
 - ERROR testUnionToUnion [testDataGeneration/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", (select "t3".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t3" where "t3".ID is distinct from 1 and "t3".PRODID = "root".ID and "t3".TYPE = 'CUSIP') as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select distinct "synonymtablenew_1".PRODID from snDB.productSchemaNewDB.synonymTableNew as "synonymtablenew_1" where "synonymtablenew_1".ID is distinct from 1 and "synonymtablenew_1".TYPE = 'CUSIP' and "synonymtablenew_1".NAME = 'CUSIP1') as "synonymtablenew_0" on ("root".ID = "synonymtablenew_0".PRODID) where "synonymtablenew_0".PRODID is not null
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select (select "t2".NAME as "name" from snDBDefault.default.personTable as "t1" left outer join snDBDefault.default.addressTable as "t2" on ("t2".ID = "t1".ADDRESSID) where "root".ID = "t1".FIRMID and "t1".LASTNAME = 'Smith') as "address" from snDBDefault.default.firmTableNew as "root"
@@ -1341,7 +1339,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.fullName has no c
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
 - FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
@@ -1356,7 +1353,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(
 - ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
-- ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: expected at most one value, got many ([*])
@@ -1371,7 +1367,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - FAIL testDefaultProjectionIsNullSafe [tests/query]: assert did not hold (false)
 - FAIL testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert did not hold (false)
-- ERROR testWithParameterToClassNestedSelect [tests/query]: store resolution left getAll(meta::relational::tests::model::simple::Product) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedFilter]
 - FAIL testViewSimpleExists [tests/query]: sql-text: expected select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".orderDate as "date", "root".settlementDateTime as "settlementDateTime" from orderTable as "root" left outer join (select distinct "salespersontable_1".ACCOUNT_ID from (select "salespersontable_1".ACCOUNT_ID as ACCOUNT_ID, "personfirmview_0".firm_name as firm_name from salesPersonTable as "salespersontable_1" inner join (select "root".ID as PERSON_ID, "root".LASTNAME as lastName, "firmtable_0".LEGALNAME as firm_name from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)) as "personfirmview_0" on ("salespersontable_1".PERSON_ID = "personfirmview_0".PERSON_ID) where "personfirmview_0".firm_name = 'Johnson') as "salespersontable_1" where "salespersontable_1".firm_name = 'Johnson') as "salespersontable_0" on ("root".accountID = "salespersontable_0".ACCOUNT_ID) where "salespersontable_0".ACCOUNT_ID is not null, got select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".orderDate as "date", "root".settlementDateTime as "settlementDateTime" from orderTable as "root" left outer join (select distinct "salespersontable_0".ACCOUNT_ID from personTable as "persontable_1" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "persontable_1".FIRMID) left outer join salesPersonTable as "salespersontable_0" on ("salespersontable_0".PERSON_ID = "persontable_1".ID) where "firmtable_0".LEGALNAME = 'Johnson') as "persontable_0" on ("root".accountID = "persontable_0".ACCOUNT_ID) where "persontable_0".ACCOUNT_ID is not null
 - FAIL testEqualityInFilterOnOptionalProperties [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "personTable_d#6_d#3_m1_d#2_m1" on ("root".MANAGERID = "personTable_d#6_d#3_m1_d#2_m1".ID) where "root".AGE is not distinct from "personTable_d#6_d#3_m1_d#2_m1".AGE, got select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID) where "root".AGE is not distinct from "persontable_1".AGE
 - FAIL testEqualityInFilterOnOptionalPropertiesLegacy [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "personTable_d#6_d#3_m1_d#2_m1" on ("root".MANAGERID = "personTable_d#6_d#3_m1_d#2_m1".ID) where ("root".AGE = "personTable_d#6_d#3_m1_d#2_m1".AGE or ("root".AGE is null and "personTable_d#6_d#3_m1_d#2_m1".AGE is null)), got select "root".FIRSTNAME as "name" from personTable as "root" left outer join personTable as "persontable_1" on ("root".MANAGERID = "persontable_1".ID) where ("root".AGE = "persontable_1".AGE or ("root".AGE is null and "persontable_1".AGE is null))
