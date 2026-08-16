@@ -169,7 +169,53 @@ c35/c40 membership/date-literal shape, then the c45/c51/c52/c53 batch). Each car
 comment, but F2.1/F2.2 should treat the ceiling's direction of travel as part of the
 soft-pass story it makes visible.
 
-## 7. Reproduction quick-reference
+## 7. F0.3 — HostEval arm census (2026-08-16, at `f7628758`)
+
+**File:** `exec/HostEval.java`, 894 lines. **Consumers of `eval`/`evalToResult`:** exactly
+one production class — `StatementExecutor.hostChannel:540-543` and `:2876-2877` (both gated
+on `wantsHostEval`). The harness consumes only `hostEquals` (`EngineTestExecutor:3369`, a
+comparison helper, not evaluation). `HostEvalTest` is synthetic.
+
+**Arm inventory (~47, grouped):**
+
+| group | arms | count |
+|---|---|---:|
+| structural (eval switch on node type) | NativeCall, MatchRuntime, Map, NewInstance, CopyInstance, Cast, Fold, PropertyAccess, Variable, UserCall, Let, CString, CInteger, CBoolean, CFloat, CDecimal, If, Slice, Filter, Collection | 20 |
+| native-call (READ_CHAIN vocabulary) | fold, map, concatenate, at, first, size, and, or, not, eq/equal, in, isEmpty, isNotEmpty, slice, toLower, indexOf, instanceOf, toString, toOne | 19 |
+| grid property reads | rows, columnNames, values, parent | 4 |
+| K-native / store-nav handlers | fetch (fetchDb + the executeInDb READ path — **audit A9 lives here**, DbMetaData shadow replay), schemaNav (+ collectSchema include-closure), table nav | ~4 |
+
+**Admission gates (`wantsHostEval`) — every arm is reachable only through one of four
+gates, and every gate exists to serve corpus-harness vocabulary:**
+
+1. chain bottoms at `executeInDb` (engine test setups; grid reads),
+2. chain bottoms at a store-nav fn (`schema()`/`table()` — metamodel tests),
+3. `TypedNewInstance` of a CURATED 5-class set (`DynaFunction`, `Literal`, `Alias`,
+   `FreeMarkerOperationHolder`, `VarPlaceHolder` — the typeInference test vocabulary;
+   the set is deliberately narrow: "any native class" once stole 21 constructions from
+   the K path and the gate caught it),
+4. `containsFetchDb` anywhere (JDBC metadata grids — corpus only).
+
+**Classification:**
+
+- **Production-reachable (static):** all arms — `hostChannel` sits on the production
+  `executeStatements` path (server/LSP/QueryService share it with the harness).
+- **Production-demanded (actual):** **none found.** No server, LSP, QueryService, or NLQ
+  entry point constructs a query that passes any of the four admission gates today. The
+  channel is production-RESIDENT but harness-DEMANDED.
+- **Dead:** not statically decidable per-arm (the gates admit whole chains, not arms).
+  If eviction is pursued, wire an `LL_HOST_ARM_COUNT`-style counter for one full referee
+  cycle first — same instrument pattern as `LL_TOL_COUNT`.
+
+**Consequence (backlogged, not pause work):** since the demand is 100% harness, the
+eviction path after F1.2 is to move the host-channel DISPATCH behind a seam the harness
+installs, leaving production `StatementExecutor` with no host channel at all — at which
+point Charter clause 3's invariant becomes vacuously true in production rather than
+guarded. That is a design change with a real risk history (the admission predicate has
+collapsed the sweep twice), so it rides AFTER the F1.5 pin exists and only with the
+counter data. Recorded in `FOUNDATIONS_PLAN.md` §9 Backlog.
+
+## 8. Reproduction quick-reference
 
 ```bash
 # corpus referee (exclusive; nothing else running)

@@ -1126,6 +1126,12 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 - **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
   exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
   rather than class-list-pinned. Deferred — not pause work.
+- **HostEval eviction (F0.3 census result):** the channel's demand is 100% harness (all four
+  admission gates serve corpus vocabulary; no production entry point routes host today) —
+  after F1.2, move the host-channel dispatch behind a harness-installed seam so production
+  `StatementExecutor` carries no interpreter. Requires one referee cycle of arm-usage counter
+  data first (`LL_HOST_ARM_COUNT` pattern); rides only after F1.5's pin exists. Census:
+  `FOUNDATIONS_BASELINE.md` §7.
 
 ---
 
