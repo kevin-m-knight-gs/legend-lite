@@ -231,147 +231,24 @@ final class TdsChecker {
         return Type.Primitive.STRING;
     }
 
-    /** Strict RFC-8259 value check — the gate keeping non-JSON bracket text a String. */
+    /** F3.1b: the parser that decides the TYPE is the parser that reads
+     * the VALUE — the platform reader (sql/Json) replaces the private
+     * RFC-8259 validator (~145 lines) so the two can never disagree
+     * about what is JSON; a VARIANT decided here always parses at read
+     * time. Acceptance set = the READER's; its leniency residual vs
+     * DuckDB stays ledgered in sql/Json's header. Probe-verified: the
+     * gate's pinned case ('[tag]' bracket-shaped STRING data) still
+     * refuses, and the reader's leading-zero/trailing-dot number
+     * leniencies match what this validator already accepted. */
     private static boolean isValidJson(String s) {
-        int[] pos = {0};
-        boolean ok = jsonValue(s, pos);
-        skipWs(s, pos);
-        return ok && pos[0] == s.length();
-    }
-
-    private static boolean jsonValue(String s, int[] p) {
-        skipWs(s, p);
-        if (p[0] >= s.length()) {
-            return false;
-        }
-        char c = s.charAt(p[0]);
-        return switch (c) {
-            case '{' -> jsonObject(s, p);
-            case '[' -> jsonArray(s, p);
-            case '"' -> jsonString(s, p);
-            case 't' -> jsonLiteral(s, p, "true");
-            case 'f' -> jsonLiteral(s, p, "false");
-            case 'n' -> jsonLiteral(s, p, "null");
-            default -> jsonNumber(s, p);
-        };
-    }
-
-    private static boolean jsonObject(String s, int[] p) {
-        p[0]++;   // '{'
-        skipWs(s, p);
-        if (p[0] < s.length() && s.charAt(p[0]) == '}') {
-            p[0]++;
+        try {
+            com.legend.sql.Json.parse(s);
             return true;
-        }
-        while (true) {
-            skipWs(s, p);
-            if (!(p[0] < s.length() && s.charAt(p[0]) == '"' && jsonString(s, p))) {
-                return false;
-            }
-            skipWs(s, p);
-            if (!(p[0] < s.length() && s.charAt(p[0]) == ':')) {
-                return false;
-            }
-            p[0]++;
-            if (!jsonValue(s, p)) {
-                return false;
-            }
-            skipWs(s, p);
-            if (p[0] < s.length() && s.charAt(p[0]) == ',') {
-                p[0]++;
-                continue;
-            }
-            if (p[0] < s.length() && s.charAt(p[0]) == '}') {
-                p[0]++;
-                return true;
-            }
+        } catch (RuntimeException e) {
+            // DESIGNED total catch (BROAD_CATCH_COUNTS pin): any parse
+            // failure means not-JSON — the reader's throw set (ISE,
+            // SIOOBE, NFE on garbage) is its own business
             return false;
-        }
-    }
-
-    private static boolean jsonArray(String s, int[] p) {
-        p[0]++;   // '['
-        skipWs(s, p);
-        if (p[0] < s.length() && s.charAt(p[0]) == ']') {
-            p[0]++;
-            return true;
-        }
-        while (true) {
-            if (!jsonValue(s, p)) {
-                return false;
-            }
-            skipWs(s, p);
-            if (p[0] < s.length() && s.charAt(p[0]) == ',') {
-                p[0]++;
-                continue;
-            }
-            if (p[0] < s.length() && s.charAt(p[0]) == ']') {
-                p[0]++;
-                return true;
-            }
-            return false;
-        }
-    }
-
-    private static boolean jsonString(String s, int[] p) {
-        p[0]++;   // opening '"'
-        while (p[0] < s.length()) {
-            char c = s.charAt(p[0]);
-            if (c == '\\') {
-                p[0] += 2;
-                continue;
-            }
-            if (c == '"') {
-                p[0]++;
-                return true;
-            }
-            p[0]++;
-        }
-        return false;
-    }
-
-    private static boolean jsonLiteral(String s, int[] p, String lit) {
-        if (s.startsWith(lit, p[0])) {
-            p[0] += lit.length();
-            return true;
-        }
-        return false;
-    }
-
-    private static boolean jsonNumber(String s, int[] p) {
-        int start = p[0];
-        if (p[0] < s.length() && s.charAt(p[0]) == '-') {
-            p[0]++;
-        }
-        int digits = 0;
-        while (p[0] < s.length() && Character.isDigit(s.charAt(p[0]))) {
-            p[0]++;
-            digits++;
-        }
-        if (digits == 0) {
-            return false;
-        }
-        if (p[0] < s.length() && s.charAt(p[0]) == '.') {
-            p[0]++;
-            while (p[0] < s.length() && Character.isDigit(s.charAt(p[0]))) {
-                p[0]++;
-            }
-        }
-        if (p[0] < s.length() && (s.charAt(p[0]) == 'e' || s.charAt(p[0]) == 'E')) {
-            p[0]++;
-            if (p[0] < s.length() && (s.charAt(p[0]) == '+' || s.charAt(p[0]) == '-')) {
-                p[0]++;
-            }
-            while (p[0] < s.length() && Character.isDigit(s.charAt(p[0]))) {
-                p[0]++;
-            }
-        }
-        return true;
-    }
-
-    private static void skipWs(String s, int[] p) {
-        while (p[0] < s.length() && Character.isWhitespace(s.charAt(p[0]))) {
-            p[0]++;
         }
     }
 }
