@@ -507,37 +507,12 @@ final class InnerDemand {
                 com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver =
                 chain -> {
             try {
-                if (chain instanceof com.legend.compiler.spec.typed
-                        .TypedNativeCall dc
-                        && dc.args().size() == 1
-                        && com.legend.builtin.Pure.nativeNamed("distinct",
-                                dc.callee().signatureKey())) {
-                    com.legend.compiler.spec.typed.TypedSpec rel0 =
-                            rawResolver.apply(dc.args().get(0));
-                    return rel0 == null ? null
-                            : new com.legend.compiler.spec.typed
-                                    .TypedDistinct(rel0, java.util.List.of(),
-                                    rel0.info());
-                }
-                // trailing ->limit(n)/->take(n) (native-call spelling
-                // pre-substitution, like distinct above) wraps the
-                // resolved relation as a relation-level LIMIT (the
-                // tdsContains TDS chains — task #78)
-                if (chain instanceof com.legend.compiler.spec.typed
-                        .TypedNativeCall lc
-                        && lc.args().size() == 2
-                        && (com.legend.builtin.Pure.nativeNamed("limit",
-                                lc.callee().signatureKey())
-                            || com.legend.builtin.Pure.nativeNamed("take",
-                                lc.callee().signatureKey()))) {
-                    com.legend.compiler.spec.typed.TypedSpec rel0 =
-                            rawResolver.apply(lc.args().get(0));
-                    return rel0 == null ? null
-                            : new com.legend.compiler.spec.typed
-                                    .TypedLimit(rel0, lc.args().get(1),
-                                    rel0.info());
-                }
-                return rawResolver.apply(chain);
+                // RECURSIVE peel (ledger cluster 47): distinct arrives as
+                // a native call (DistinctChecker's non-relation overload)
+                // but take/limit ALWAYS emit TypedLimit (CoreFn owns both
+                // overloads — the old native-call take arm was dead), and
+                // peels must COMPOSE (->distinct()->take(n) both ways).
+                return peelInChain(chain, rawResolver);
             } catch (com.legend.error.NotImplementedException
                     | com.legend.error.LegendCompileException e) {
                 // EXPECTED walls only: this chain is not resolvable as an
@@ -550,6 +525,35 @@ final class InnerDemand {
             }
         };
         return inQueryReadsOver(roots, resolver);
+    }
+
+    /** Self-recursive in-chain peel — see the resolver lambda's comment. */
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
+            peelInChain(com.legend.compiler.spec.typed.TypedSpec chain,
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
+                    com.legend.compiler.spec.typed.@com.legend.Nullable
+                            TypedSpec> rawResolver) {
+        if (chain instanceof com.legend.compiler.spec.typed
+                        .TypedNativeCall dc
+                && dc.args().size() == 1
+                && com.legend.builtin.Pure.nativeNamed("distinct",
+                        dc.callee().signatureKey())) {
+            var rel0 = peelInChain(dc.args().get(0), rawResolver);
+            return rel0 == null || !(rel0.info().type()
+                            instanceof com.legend.compiler.element.type
+                                    .Type.RelationType) ? null
+                    : new com.legend.compiler.spec.typed.TypedDistinct(
+                            rel0, java.util.List.of(), rel0.info());
+        }
+        if (chain instanceof com.legend.compiler.spec.typed.TypedLimit tl) {
+            var rel0 = peelInChain(tl.source(), rawResolver);
+            return rel0 == null || !(rel0.info().type()
+                            instanceof com.legend.compiler.element.type
+                                    .Type.RelationType) ? null
+                    : new com.legend.compiler.spec.typed.TypedLimit(
+                            rel0, tl.count(), rel0.info());
+        }
+        return rawResolver.apply(chain);
     }
 
     /** The path scanner's shape: (node, userVar, out-path-set). */

@@ -2518,25 +2518,14 @@ final class Typer {
                                         new Variable("_am0"), ap.property()))))),
                         env);
             }
-            if (!exactlyOne) {
-                // [0..1] receiver: β-inline ONLY when the derived body is
-                // provably STRICT in $this (SQL null propagation then
-                // equals pure's auto-map — audit 22a H2). A body outside
-                // the strict whitelist would manufacture a value over an
-                // empty receiver — loud wall. (A presence-guarded
-                // if/isEmpty spelling was tried and REVERTED: its
-                // emptiness test materialized through a DIFFERENT join
-                // instance than the value read — wrong values,
-                // testQualifierWithInThroughJoin.)
-                if (!derivedBodyStrictInThis(d)) {
-                    throw new TypeInferenceException("derived property '"
-                            + ap.property() + "' over a [0..1] receiver has"
-                            + " a body outside the null-strict whitelist —"
-                            + " empty-receiver semantics needs the"
-                            + " presence-guarded emission (roadmap)");
-                }
-                // strict body: fall through to the β-inline below
-            }
+            // [0..1] receivers β-inline like [1] (ledger cluster 48):
+            // engine processQualifiedProperty runs the qualifier body
+            // against the cursor with NO presence guard — an absent
+            // LEFT-joined receiver evaluates the body over NULL columns,
+            // and the corpus pins the MANUFACTURED value
+            // (testQualifierWithInThroughJoin: cat='B' for a trade whose
+            // account row is absent). The null-strict whitelist encoded
+            // the opposite belief and is deleted with its helpers.
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                     List.of(ap.receiver())), env);
         }
@@ -2738,63 +2727,9 @@ final class Typer {
      * pure's auto-map result. A literal-only body has no $this read and
      * fails the sawThis requirement (the manufactured-constant case,
      * audit 22a H2). Unknown node kinds are conservatively non-strict. */
-    private static final java.util.Set<String> EMPTY_MANUFACTURING_FNS =
-            java.util.Set.of("if", "match", "isEmpty", "isNotEmpty",
-                    "coalesce", "orElse", "defaultIfEmpty", "size", "count",
-                    "sum", "average", "mean", "min", "max", "joinStrings",
-                    "makeString", "isDistinct", "exists", "forAll",
-                    // in() lowers COALESCE(..., false) — total like pure's,
-                    // so it is strict-safe for the derived [0..1] inline
-                    "contains");
 
-    private boolean derivedBodyStrictInThis(Property.Derived d) {
-        var fns = ctx.findFunction(d.bodyFunctionFqn());
-        if (fns.size() != 1 || fns.get(0).body().isEmpty()
-                || fns.get(0).body().get().size() != 1) {
-            return false;
-        }
-        int flags = strictScan(fns.get(0).body().get().get(0));
-        return (flags & 1) != 0 && (flags & 2) == 0;   // sawThis && !nonStrict
-    }
 
     /** bit 0 = saw a $this read; bit 1 = saw a non-strict construct. */
-    private static int strictScan(ValueSpecification n) {
-        return switch (n) {
-            case Variable v -> "this".equals(v.name()) ? 1 : 0;
-            case AppliedProperty ap2 -> strictScan(ap2.receiver());
-            case AppliedFunction af2 -> {
-                String simple = af2.function()
-                        .substring(af2.function().lastIndexOf(':') + 1);
-                int acc = EMPTY_MANUFACTURING_FNS.contains(simple) ? 2 : 0;
-                for (ValueSpecification p2 : af2.parameters()) {
-                    acc |= strictScan(p2);
-                }
-                yield acc;
-            }
-            case LambdaFunction lf2 -> {
-                int acc = 0;
-                for (ValueSpecification b2 : lf2.body()) {
-                    acc |= strictScan(b2);
-                }
-                yield acc;
-            }
-            case PureCollection pc2 -> {
-                int acc = 0;
-                for (ValueSpecification e2 : pc2.values()) {
-                    acc |= strictScan(e2);
-                }
-                yield acc;
-            }
-            case com.legend.protocol.spec.PackageableElementPtr ignored -> 0;
-            case com.legend.protocol.spec.EnumValue ignored -> 0;
-            case CString ignored -> 0;
-            case com.legend.protocol.spec.CInteger ignored -> 0;
-            case com.legend.protocol.spec.CFloat ignored -> 0;
-            case com.legend.protocol.spec.CDecimal ignored -> 0;
-            case com.legend.protocol.spec.CBoolean ignored -> 0;
-            default -> 2;   // unknown construct: conservatively non-strict
-        };
-    }
 
     Type namedType(TypeExpression te) {
         // GENERIC annotations (@Pair<String, Integer>): the base resolves

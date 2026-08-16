@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 69 | 15 | 5 | 19 | 0 |
 | functions/tests | 259 | 238 | 6 | 10 | 5 | 67 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 144 | 3 | 7 | 1 | 1 |
+| functions/tests/projection | 155 | 145 | 3 | 6 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 |
@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 252 | 2 | 5 | 7 | 6 |
 | testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
 | tests | 39 | 31 | 2 | 0 | 6 | 0 |
-| tests/advanced | 68 | 60 | 4 | 4 | 0 | 21 |
+| tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 |
@@ -72,7 +72,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
-| tests/mapping/embedded | 63 | 59 | 1 | 3 | 0 | 0 |
+| tests/mapping/embedded | 63 | 60 | 1 | 2 | 0 | 0 |
 | tests/mapping/enumeration | 26 | 19 | 3 | 1 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2330** | 75 | 80 | 90 | 246 |
+| **total** | 2575 | **2333** | 75 | 77 | 90 | 246 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1140,10 +1140,10 @@ shared source registered by several families cannot double-count. Run with
 - 1x no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - 1x project expects ~[…] column specifications
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
-- 1x derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - 1x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
+- 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
 
 ### per-test outcomes (non-passing)
 
@@ -1214,7 +1214,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as date)), got select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(DAY, case when 1 - date_part('isodow', cast(now() as date)) > 0 then 1 - date_part('isodow', cast(now() as date)) - 7 else 1 - date_part('isodow', cast(now() as date)) end, cast(now() as date))
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: Values of types "BOOLEAN" and "CHARACTER VARYING(5)" are not comparable; SQL statement: | SELECT case when false = 'false' then 'Ok' else 'Error' END as BooleanVarCharComparison [90110-214]
-- ERROR testQualifierWithInThroughJoin [functions/tests/projection]: derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -1317,7 +1316,6 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got [Firm X, Peter Smith, NICEngegement, Firm A, John Hill, null, Firm X, Peter Smith, NICEngegement, Firm X, David Scott, null, Firm X, Peter Smith, NICDev, Firm X, Peter Smith, NICDev, Firm C,  , null, Firm B,  , null]
-- ERROR relationalResultSourcingOfDateList [tests/advanced]: object-space expression node TypedLimit is not substitutable yet (H2 vocabulary): TypedLimit[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::distinct, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=s, type=TypeVar[name=T], 
 - ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
 - FAIL testForcedIsolationFilterOnTop [tests/advanced]: sql-text: expected select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) left outer join locationTable as "locationtable_0" on ("persontable_0".ID = "locationtable_0".PERSONID) where "locationtable_0".PLACE = 'lala', got select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select t1.*, "locationtable_0".PLACE as "locations_PLACE" from personTable as "root" left outer join locationTable as "locationtable_0" on ("root".ID = "locationtable_0".PERSONID)) as "persontable_0" on ("root".ID = "persontable_0".FIRMID) where "persontable_0"."locations_PLACE" = 'lala'
 - ERROR testQualifierWithIsolation [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
@@ -1328,7 +1326,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[bondDetails]; head subNavs=[holder]; head binding=TypedNativeCall]
-- ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: derived property 'isFirmX' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: assertEquals: expected name,firm\n\n, got []
 - ERROR testEnumInRelation [tests/mapping/enumeration]: class meta::pure::metamodel::relation::TDS has no property 'csv'
