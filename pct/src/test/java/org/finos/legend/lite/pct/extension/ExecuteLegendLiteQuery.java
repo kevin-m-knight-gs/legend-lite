@@ -635,7 +635,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     break;
                 }
             }
-            sb.append(colName).append(":").append(pureTypeName(col.sqlType()))
+            sb.append(colName).append(":").append(purePctName(col))
                     .append(hasNull ? "[0..1]" : "[1]");
         }
         for (var row : result.rows()) {
@@ -645,7 +645,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 if (i > 0) sb.append(",");
                 // Pure prints VARIANT cells ALWAYS quoted ("[]", "null"),
                 // comma or not.
-                boolean variant = "JSON".equalsIgnoreCase(columns.get(i).sqlType());
+                boolean variant = com.legend.compiler.element.type
+                        .PlatformTypes.isVariant(
+                                columns.get(i).pureType());
                 Object v = values.get(i);
                 if (variant && v != null) {
                     sb.append("\"").append(v.toString().replace("\"", "\"\"")).append("\"");
@@ -657,25 +659,27 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return sb.toString();
     }
 
-    private static String pureTypeName(String sqlType) {
-        String t = sqlType.toUpperCase();
-        int paren = t.indexOf('(');
-        if (paren > 0) {
-            t = t.substring(0, paren);
+    /** F5.1: the column's PURE type names the header — the SQL-type-name
+     * sniff (audit P2) reintroduced the silent-String-default defect core
+     * removed under audit 15, and DuckDB's DECIMAL spelling for
+     * Float-typed results was one source of the Stage-A
+     * Float-declared/Decimal-delivered rows. Two PCT-boundary
+     * constraints survive, now keyed on the PURE kind: the interpreted
+     * TestTDS cannot BUILD Date columns (getDataAsType: "Not supported
+     * data type") so temporals travel as STRINGS in print form (P-Step
+     * 6a probes lifting this); Variant cells travel as their JSON text. */
+    private static String purePctName(com.legend.exec.Column col) {
+        var t = col.pureType();
+        if (t instanceof com.legend.compiler.element.type.Type.Primitive p) {
+            if (p.isTemporal()) {
+                return "String";
+            }
+            return p.typeName();
         }
-        return switch (t) {
-            case "VARCHAR", "CHAR", "TEXT" -> "String";
-            case "INTEGER", "INT", "BIGINT", "HUGEINT", "SMALLINT", "TINYINT" -> "Integer";
-            case "DOUBLE", "FLOAT", "REAL" -> "Float";
-            case "DECIMAL", "NUMERIC" -> "Decimal";
-            case "BOOLEAN" -> "Boolean";
-            // The interpreted TestTDS cannot BUILD Date columns
-            // (getDataAsType: "Not supported data type") and PCT compares
-            // TDS results via toString() — dates travel as STRINGS spelled
-            // in pure's print form (formatValue below).
-            case "DATE", "TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE" -> "String";
-            default -> "String";
-        };
+        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
+            return "String";
+        }
+        return t.typeName();
     }
 
     private String formatValue(Object value) {

@@ -27,7 +27,24 @@ each class; do NOT fix by re-widening the overlay.
    Stage B's compare must normalize the FORM first or it drowns in noise —
    fix buildTypedHeader's spelling before flipping to compare-and-fail.
 
-## Raw inventory (count x pattern)
+## Post-F5.1 delta (same day)
+
+F5.1 (the sqlType-name sniff replaced by `col.pureType()`) re-measured:
+**class 2 is GONE — zero Decimal rows remain** (137 patterns, down from
+138 + the 5x Decimal class collapsed into matching Float rows). The
+audit's demonstrated concealment case was SELF-INFLICTED by the
+adapter's own sniff (DuckDB spells Float results DECIMAL; the
+name-table propagated it), exactly as F5.1's hypothesis stated —
+adjudicate the remaining classes knowing the biggest "platform defect"
+in the before-picture was the measurement instrument.
+
+Remaining for Stage B: dates-as-String (class 1, the real dominant),
+null-scan multiplicity widening (class 3, deleted by F5.3 Stage B +
+F5.2), Variant-as-String (class 4), supertype erasure (class 5,
+informational), and the buildTypedHeader [1]-spelling normalization
+(class 6, prerequisite to compare-and-fail).
+
+## Raw inventory (count x pattern — PRE-F5.1 baseline)
 
 ```
   32 '[F5.3A] declared=p:Integer,o:Date,i:Integer,newCol:Integer[1] | wire=p:Integer[1],o:String[1],i:Integer[1],newCol:Integer[1]'
