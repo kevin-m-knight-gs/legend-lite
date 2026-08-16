@@ -297,6 +297,35 @@ def _otherwise_specs():
 OTHERWISE = _otherwise_specs()
 
 
+def _confluence_spec():
+    """Otherwise AND scope on one class mapping -- see 82-confluence.pure.
+
+    The two constructs had never executed together, because each lived alone in its own
+    mapping and 148 of the stacking scoreboard's pairs are exactly that situation: two
+    mapping-level constructs whose mappings never meet. Closing one of them needs a model
+    change, not a query, which is what the confluence file is.
+
+    Mirrors the canonical Trade projection for the same reason O1 does: the claim is that a
+    trade read through a scope block with an Otherwise fallback equals the trade read
+    plainly, and deriving a second expectation would test the deriving rather than the claim.
+    """
+    canonical = Spec("stress::_ConfMirrorSource", "/stress/_confmirror", "", "trading::Trade")
+    canonical.projections = [Proj(a, p.split(".")) for a, p in _OTHERWISE_COLUMNS]
+
+    s = Spec("stress::CF_Confluence", "/stress/cf",
+             "Otherwise and scope on one class mapping: the embedded counterparty resolves "
+             "through its fallback join while notional and status come through a scope "
+             "block. Neither construct is new; their meeting is.",
+             "conf::ConfTrade")
+    s.projections = [Proj(a, p.split(".")) for a, p in _OTHERWISE_COLUMNS]
+    s.mapping, s.runtime = "conf::Confluence", "conf::ConfluenceRT"
+    s.mirrors = canonical
+    return s
+
+
+CONFLUENCE = _confluence_spec()
+
+
 def _m2m_enum_probe():
     """The same chain plus the enum-mapped property. Quarantined: F12."""
     s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
@@ -734,7 +763,7 @@ DERIVED = [
 
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE]) + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

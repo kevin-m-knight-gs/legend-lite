@@ -1,0 +1,83 @@
+###Pure
+// CONFLUENCE: mapping constructs that exist in this corpus only in isolation, put on one
+// class so a single query reaches all of them.
+//
+// The stacking scoreboard counts how many feature PAIRS co-occur in a passing service, and
+// 148 of the 820 are two mapping-level constructs whose mappings never meet anywhere in the
+// corpus. Those cannot be closed by writing a query -- only by changing the model so the
+// constructs live where one query reaches both. This file is that change, for two of them:
+//
+//   Otherwise   an embedded block with a fallback set     -- reporting::OtherwiseMapping
+//   scope       a block factoring the table prefix out    -- dense::Mapping
+//
+// Each was alone in its own mapping, so `Otherwise + scope` had never executed. Here they are
+// one class mapping, and spread.py generates the query shapes over it, so the pair also meets
+// `graph fetch`, `groupBy`, `query filter` and the rest.
+//
+// A NEW class rather than trading::Trade, which is what the first version used. The corpus
+// reader keys a property's column by CLASS rather than by (mapping, class), so mapping Trade
+// a second time onto a narrower table collapses its column resolution GLOBALLY -- thirteen
+// properties reported missing, and every Trade expectation in the corpus silently resolved
+// against the wrong table. A class mapped once cannot collide with anything.
+Class conf::ConfTrade
+{
+   tradeId: String[1];
+   notional: Float[0..1];
+   status: String[0..1];
+}
+
+// The relationship is an ASSOCIATION, not a property declared on the class. The reader
+// registers an embedded mapping context for an association END; a directly-declared property
+// falls through to plain column mapping, and the embedded block's CPTY_*_INLINE columns then
+// overwrite counterparty::Counterparty's global column map -- the same class-collision that
+// made the first version rewrite Trade's. 56-otherwise-store.pure reaches its embedded block
+// through an association for the same reason, which is why it has never had this problem.
+Association conf::ConfTradeCounterparty
+{
+   confTrade: conf::ConfTrade[0..*];
+   counterparty: counterparty::Counterparty[0..1];
+}
+
+###Mapping
+Mapping conf::Confluence
+(
+    // The fallback target. `Otherwise` names a ROOT set implementation of the property's
+    // type, so one has to exist for counterparty::Counterparty in this mapping.
+    counterparty::Counterparty[confCptyRoot]: Relational {
+        ~primaryKey ([store::DB] COUNTERPARTY.COUNTERPARTY_ID)
+        ~mainTable [store::DB] COUNTERPARTY
+        counterpartyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
+        legalName: [store::DB] COUNTERPARTY.LEGAL_NAME,
+        lei: [store::DB] COUNTERPARTY.LEI
+    }
+
+    conf::ConfTrade: Relational {
+        ~primaryKey ([store::DB] TRADE_FLAT_PARTIAL.TRADE_ID)
+        ~mainTable [store::DB] TRADE_FLAT_PARTIAL
+        tradeId: [store::DB] TRADE_FLAT_PARTIAL.TRADE_ID,
+        // The scope block: the table prefix factored out of the properties inside it. The
+        // same columns either way -- what differs is the SPELLING, and a spelling used in
+        // only one mapping is a spelling nothing had ever combined with anything.
+        scope([store::DB] TRADE_FLAT_PARTIAL)
+        (
+            notional: NOTIONAL,
+            status: STATUS
+        ),
+        // The embedded block with its fallback. When CPTY_ID_INLINE is present the inline
+        // columns answer; when it is not, the join to the root set does.
+        counterparty
+        (
+            ~primaryKey ([store::DB] TRADE_FLAT_PARTIAL.CPTY_ID_INLINE)
+            counterpartyId: [store::DB] TRADE_FLAT_PARTIAL.CPTY_ID_INLINE,
+            legalName: [store::DB] TRADE_FLAT_PARTIAL.CPTY_NAME_INLINE,
+            lei: [store::DB] TRADE_FLAT_PARTIAL.CPTY_LEI_INLINE
+        ) Otherwise ([confCptyRoot]: [store::DB] @TradeFlatPartial_Counterparty)
+    }
+)
+
+###Runtime
+Runtime conf::ConfluenceRT
+{
+    mappings: [ conf::Confluence ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}

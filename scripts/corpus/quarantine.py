@@ -46,6 +46,18 @@ ENGINE_QUARANTINE["stress::F37_SubstringSql"] = (
 # F41 -- `first()` on a relation returns the whole relation. The service sorts four rows
 # into a total order and asserts the first one; the engine returns all four. Nothing errors,
 # which is what makes it worth a permanent test rather than a note.
+# F13 again, reached a different way. CF_Confluence is the confluence mapping's service --
+# scope and Otherwise on one class, which is the point of 82-confluence.pure -- and its
+# Otherwise half fails exactly as O1 does: the fallback never fires under a TDS projection,
+# so the rows without an inline cache come back NULL. Same table, same join, same Otherwise
+# clause, a different owning class; the defect does not care.
+#
+# Quarantined rather than reworked, because the alternative is to stop projecting the
+# counterparty and keep only the scope half, which would make the service green by removing
+# the construct it was written to combine.
+ENGINE_QUARANTINE["stress::CF_Confluence"] = (
+    "F13", "Otherwise never falls back under TDS projection, as O1")
+
 ENGINE_QUARANTINE["stress::F41_RelationFirst"] = (
     "F41", "first() on a relation returns every row instead of the first")
 
