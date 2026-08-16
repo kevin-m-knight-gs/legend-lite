@@ -1126,6 +1126,15 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 - **F1.3b's real fix:** split `com.legend` root into orchestration (no `java.sql`) and a named
   exec seam (licensed), so `StatementExecutor`'s dispatcher role is structurally constrained
   rather than class-list-pinned. Deferred — not pause work.
+- **CorpusDifferentialTest gate wiring (F1.9 residue):** run
+  `scripts/corpus/differential.py` as a gate step so the Assumptions-skip
+  stops firing — a python + oracle-checkout moving part deliberately not
+  added mid-pause; its javadoc now states the truth (dark in every build).
+  Also: the plan's "11 orphaned classes with real assertions" did not
+  reproduce at HEAD — the measured set was TWO (GrammarCoverageCensusTest,
+  GenerativeDualParseTest), both now gated; the other orphans are
+  zero-assertion report/census printers (ProbeWireShapes et al. are the
+  Phase-8 zero-assert item).
 - **HostEval eviction (F0.3 census result):** the channel's demand is 100% harness (all four
   admission gates serve corpus vocabulary; no production entry point routes host today) —
   after F1.2, move the host-channel dispatch behind a harness-installed seam so production
