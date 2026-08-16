@@ -43,6 +43,12 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 ENGINE_QUARANTINE["stress::F37_SubstringSql"] = (
     "F37", "substring in SQL is 1-based and takes a length, not a 0-based exclusive end")
 
+# F41 -- `first()` on a relation returns the whole relation. The service sorts four rows
+# into a total order and asserts the first one; the engine returns all four. Nothing errors,
+# which is what makes it worth a permanent test rather than a note.
+ENGINE_QUARANTINE["stress::F41_RelationFirst"] = (
+    "F41", "first() on a relation returns every row instead of the first")
+
 # F39 -- startsWith/endsWith/contains compile the PATTERN operand as literal text, so a
 # column pattern yields `S like 'root.P%'` and is false for every row. Row 3 of the service
 # has both operands present and genuinely matching, so the failure cannot be read as a NULL

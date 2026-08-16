@@ -111,7 +111,59 @@ def cases() -> list[tuple[str, str, list]]:
                 "~[r: {p,w,r|$p->cumulativeDistribution($w,$r)}])"
                 "->sort([~g->ascending(), ~v->ascending()])",
          _window("cumulativeDistribution")),
+        # -- second batch. Window functions that take an extra argument, the ordinal
+        # operations, and the shapes that return a single row or a scalar rather than a
+        # relation.
+        ("nth", BASE + "->extend(over(~g, ~v->ascending()), ~[r: {p,w,r|$p->nth($w,$r,1).v}])"
+                       "->sort([~g->ascending(), ~v->ascending()])",
+         _nth()),
+        ("ntile", BASE + "->extend(over(~g, ~v->ascending()), ~[r: {p,w,r|$p->ntile($r,2)}])"
+                         "->sort([~g->ascending(), ~v->ascending()])",
+         _ntile()),
+        ("take", BASE + "->sort([~v->ascending(), ~w->ascending()])->take(2)",
+         _o("take", _key(base), 2)),
+        # No `size`: a service whose query returns an Integer rather than a relation cannot
+        # be asserted through this test framework at all -- the result builder is a
+        # DataTypeBuilder and the assertion casts it to a TDSBuilder, throwing
+        # ClassCastException before any comparison happens. Same shape as the EqualTo
+        # limitation already recorded in SURFACE_BLOCKED.tsv.
+
+        ("first", BASE + "->sort([~v->ascending(), ~w->ascending()])->first()",
+         [_o("first", _key(base))]),
+        ("last", BASE + "->sort([~v->ascending(), ~w->ascending()])->last()",
+         [_o("last", _key(base))]),
+        # No `restrict` here: it belongs to the TDS family and takes a TabularDataSet, so
+        # over a Relation the compiler reports no matching signature. The relation spelling
+        # of the same idea is `select`, which is probed above.
+        ("groupBy", BASE + "->groupBy(~[g], ~[t: x|$x.v : a|$a->sum()])"
+                           "->sort(~g->ascending())",
+         [{"g": "a", "t": 4}, {"g": "b", "t": 5}]),
+        ("join",
+         BASE + "->join(rel::P.all()->project(~[g2:x|$x.g, v2:x|$x.v]), JoinKind.INNER, "
+                "{a,b| $a.g == $b.g2 && $a.v == $b.v2})"
+                "->sort([~v->ascending(), ~w->ascending()])",
+         [{**r, "g2": r["g"], "v2": r["v"]} for r in _key(base)]),
     ]
+
+
+def _nth() -> list:
+    """The FIRST row of each partition, repeated across the partition (nth is 1-based here)."""
+    out = []
+    for g in sorted({r["g"] for r in SEED}):
+        part = sorted([{"g": r["g"], "v": r["v"], "w": r["w"]} for r in SEED if r["g"] == g],
+                      key=lambda r: r["v"])
+        out += [{**row, "r": part[0]["v"]} for row in part]
+    return out
+
+
+def _ntile() -> list:
+    """Two buckets over a two-row partition: one row each."""
+    out = []
+    for g in sorted({r["g"] for r in SEED}):
+        part = sorted([{"g": r["g"], "v": r["v"], "w": r["w"]} for r in SEED if r["g"] == g],
+                      key=lambda r: r["v"])
+        out += [{**row, "r": i + 1} for i, row in enumerate(part)]
+    return out
 
 
 def _key(rows) -> list:
@@ -223,6 +275,15 @@ def build(cs) -> str:
         for name, query, expected in cs)
 
 
+# Operations known to fail, with the finding that explains each. Kept in the case list rather
+# than deleted: a probe that drops what it cannot pass stops being a measurement. They are
+# reported, and excluded from the evidence file so the scoreboard does not count them.
+KNOWN_BAD = {
+    "first": "F41 -- returns the whole relation instead of the first row",
+    "last": "F42 -- generates SQL that builds a list of mixed types, which the database rejects",
+}
+
+
 def main() -> None:
     cs = cases()
     work = Path(tempfile.mkdtemp())
@@ -254,12 +315,17 @@ def main() -> None:
                                         and "FAIL" not in out else "?")
         (good if verdict == "PASS" else bad).append((name, verdict))
         if verdict != "PASS":
-            print(f"  {name:<24} {verdict}")
+            why = KNOWN_BAD.get(name, "")
+            print(f"  {name:<24} {verdict:<6} {why}")
     if not bad:
         print(out[-400:] if not good else "")
     print(f"\n{len(good)} of {len(cs)} relation operations execute and agree with the oracle")
     if bad:
+        unexplained = [n for n, _v in bad if n not in KNOWN_BAD]
         print(f"  {len(bad)} did not: " + ", ".join(n for n, _v in bad))
+        if unexplained:
+            print(f"  {len(unexplained)} of them with no recorded finding: "
+                  + ", ".join(unexplained))
         print(f"\n  source kept at {src}")
     _merge_evidence([n for n, _v in good])
 

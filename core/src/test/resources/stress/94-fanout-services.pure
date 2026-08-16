@@ -10871,7 +10871,7 @@ Service stress::GG_MTDPnLTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"mtdId":"MTD-0001","bestDay":1525.0,"mtdCommissions":1525.0,"mtdFees":1525.0,"ytdPnL":null},{"mtdId":"MTD-0002","bestDay":null,"mtdCommissions":1562.5,"mtdFees":1562.5,"ytdPnL":null},{"mtdId":"MTD-0003","bestDay":1600.0,"mtdCommissions":1600.0,"mtdFees":null,"ytdPnL":{"ytdId":"YL-0001","annualizedReturn":2425.0,"bestMonth":2425.0}},{"mtdId":"MTD-0004","bestDay":1637.5,"mtdCommissions":null,"mtdFees":1637.5,"ytdPnL":{"ytdId":"YL-0002","annualizedReturn":2462.5,"bestMonth":null}},{"mtdId":"MTD-0005","bestDay":1675.0,"mtdCommissions":1675.0,"mtdFees":1675.0,"ytdPnL":{"ytdId":"YL-0003","annualizedReturn":2500.0,"bestMonth":2500.0}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"mtdId":"MTD-0001","bestDay":1525.0,"mtdCommissions":1525.0,"mtdFees":1525.0,"ytdPnL":null},{"mtdId":"MTD-0002","bestDay":null,"mtdCommissions":1562.5,"mtdFees":1562.5,"ytdPnL":null},{"mtdId":"MTD-0003","bestDay":1600.0,"mtdCommissions":1600.0,"mtdFees":null,"ytdPnL":{"ytdId":"YL-0001","annualizedReturn":2462.5,"bestMonth":2462.5}},{"mtdId":"MTD-0004","bestDay":1637.5,"mtdCommissions":null,"mtdFees":1637.5,"ytdPnL":{"ytdId":"YL-0002","annualizedReturn":2500.0,"bestMonth":null}},{"mtdId":"MTD-0005","bestDay":1675.0,"mtdCommissions":1675.0,"mtdFees":1675.0,"ytdPnL":{"ytdId":"YL-0003","annualizedReturn":2537.5,"bestMonth":2537.5}}]}';
                   }#;
               }#
           ]

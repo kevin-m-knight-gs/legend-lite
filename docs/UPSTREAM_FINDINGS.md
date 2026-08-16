@@ -1317,3 +1317,37 @@ It names no function, no property and no mapping. An author is shown a database 
 about a GROUP BY they never wrote.
 
 `repro/isempty-aggregate-invalid-sql/`.
+
+## F41 — `first()` on a relation returns every row
+
+    ->project(~[g, v])->sort([~v->ascending(), ~g->ascending()])->first()
+
+over four rows returns four rows. The operation is not applied, and nothing says so.
+
+`core/src/test/resources/stress/80-relation-first.pure` asserts the single row `first` means
+and fails. The query sorts on two columns because one of them has a duplicate: without a total
+order the expectation would be unfalsifiable, which the relation probe learned the hard way.
+
+The shape of this defect is what makes it serious rather than annoying. The result is
+well-formed, correctly typed, and correctly ordered — the right answer to a different
+question. `first()` is normally written to avoid materialising a large result, so the failure
+mode is that a guard against a million rows returns a million rows, and every assertion about
+the CONTENT of those rows still passes.
+
+## F42 — `last()` generates SQL that mixes column types into one list
+
+    Binder Error: Cannot create a list of types VARCHAR and INTEGER -
+    an explicit cast is required
+    LINE 2: select (cast(list_valu...
+
+The lowering builds a SQL list from the row's columns, which requires every column to share a
+type. Any relation containing both a string and a number fails — which is nearly every
+relation anyone would write.
+
+Unlike F41 this one is loud, but the diagnostic comes from the database and names neither
+`last` nor the query that produced it.
+
+Both were found by `scripts/corpus/probe_relation.py`. Neither operation had ever been
+executed by this corpus: the density scoreboard counted "relation operations" as a single
+construct which `project` satisfied, so sixteen operations and seven window functions were
+reported covered on the strength of one.

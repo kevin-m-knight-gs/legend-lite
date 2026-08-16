@@ -59,12 +59,14 @@ formatDate	probe
 greaterThan	probe
 greaterThanEqual	probe
 greatest	probe
+groupBy	relation-probe
 hour	probe
 indexOf	probe
 isAlphaNumeric	probe
 isDistinct	aggregate-probe
 isNotNull	probe
 isNull	probe
+join	relation-probe
 last	aggregate-probe
 least	probe
 left	probe
@@ -88,6 +90,8 @@ month	probe
 monthNumber	probe
 mostRecentDayOfWeek	REFUSED-BY-ENGINE (not supported yet)
 not	probe
+nth	relation-probe
+ntile	relation-probe
 or	probe
 parseBoolean	REFUSED-BY-ENGINE (fails with no message naming it)
 parseDecimal	probe
@@ -126,6 +130,7 @@ stdDevPopulation	aggregate-probe
 stdDevSample	aggregate-probe
 substring	DISAGREES-WITH-ORACLE
 sum	aggregate-probe
+take	relation-probe
 tan	probe
 tanh	probe
 times	probe

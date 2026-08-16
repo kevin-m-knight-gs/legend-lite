@@ -1,0 +1,103 @@
+###Pure
+// F41 -- `first()` on a relation returns the WHOLE relation.
+//
+// The query sorts four rows into a total order and asks for the first one. It gets four rows
+// back. No error, no warning: the operation is simply not applied.
+//
+// This is the most dangerous shape a defect can take in a query engine. The result is
+// well-formed, correctly typed and correctly ordered -- it is the right answer to a different
+// question, and it is the answer a caller would get after writing `first()` to avoid loading
+// a large result. On a table of a million rows this returns a million rows.
+//
+// The sort is by two columns because `v` alone has a duplicate. Without a total order the
+// engine would be free to return any of several orderings and the expectation would be
+// unfalsifiable -- the corpus made that mistake once already in the relation probe.
+Class rf::P
+{
+   k: String[1];
+   g: String[1];
+   v: Integer[1];
+}
+
+###Relational
+Database rf::DB
+(
+   Table T ( K VARCHAR(10) PRIMARY KEY, G VARCHAR(10), V INTEGER )
+)
+
+###Mapping
+Mapping rf::M
+(
+   rf::P: Relational
+   {
+      ~primaryKey ( [rf::DB]T.K )
+      ~mainTable [rf::DB]T
+      k: [rf::DB]T.K,
+      g: [rf::DB]T.G,
+      v: [rf::DB]T.V
+   }
+)
+
+###Connection
+RelationalDatabaseConnection rf::Conn
+{ store: rf::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime rf::RT
+{ mappings: [ rf::M ]; connections: [ rf::DB: [ env: rf::Conn ] ]; }
+
+###Data
+Data rf::Seed
+{
+  Relational
+  #{
+    default.T:
+      'K,G,V\n' +
+      'R1,a,3\n' +
+      'R2,a,1\n' +
+      'R3,b,4\n' +
+      'R4,b,1\n';
+  }#
+}
+
+###Service
+Service stress::F41_RelationFirst
+{
+   pattern: '/stress/f41';
+   documentation: 'first() over a totally ordered relation of four rows.';
+   execution: Single
+   {
+      query: |rf::P.all()->project(~[g:x|$x.g, v:x|$x.v])
+                 ->sort([~v->ascending(), ~g->ascending()])
+                 ->first();
+      mapping: rf::M;
+      runtime: rf::RT;
+   }
+   testSuites:
+   [
+      F41_RelationFirst_suite:
+      {
+         data: [ connections: [ env: Reference #{ rf::Seed }# ] ]
+         tests:
+         [
+            one_row:
+            {
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  // Sorted by (v, g) the order is (1,a) (1,b) (3,a) (4,b), so the first row
+                  // is g=a v=1. One row, because that is what `first` means.
+                  a: EqualToJson
+                     #{
+                        expected: ExternalFormat
+                          #{
+                            contentType: 'application/json';
+                            data: '[ { "g" : "a", "v" : 1 } ]';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}
