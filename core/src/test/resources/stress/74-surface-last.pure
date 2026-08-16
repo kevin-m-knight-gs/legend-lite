@@ -1,0 +1,84 @@
+// The last of the closable surface: a merge Operation, an Otherwise reached by a join chain,
+// the inline Relation type, a navigation-path island, and the milestoned all() variants.
+###Pure
+Class surface::NavHost
+{
+   k: String[1];
+   // The INLINE relation type: a named, typed column list written in place, distinct from
+   // the parameterised `Relation<Any>` form already covered.
+   cols: (name: String, id: Integer[1])[0..1];
+}
+
+// The NAVIGATION PATH island: a reference to a property as a value, rather than a call.
+function surface::navPath(): meta::pure::metamodel::path::Path<surface::NavHost, String|1>[1]
+{
+   #/surface::NavHost/k#
+}
+
+Class surface::MergeTgt { k: String[1]; a: String[0..1]; b: String[0..1]; }
+Class surface::OtwHead { k: String[1]; leg: surface::OtwLeg[0..1]; }
+Class surface::OtwLeg { legK: String[1]; label: String[0..1]; }
+
+###Relational
+Database surface::LastDB
+(
+   // Both merge sides carry BOTH column names, and the Otherwise host carries the fallback
+   // table's names. This reader keys a property's column by CLASS rather than by (mapping,
+   // class), so two set implementations of one class collapse into a single view -- and a
+   // name present on only one side then resolves against the other's table and fails. Same
+   // shape as the workaround in the combination matrix.
+   Table MG_A ( K VARCHAR(64) PRIMARY KEY, A VARCHAR(64), B VARCHAR(64) )
+   Table MG_B ( K VARCHAR(64) PRIMARY KEY, A VARCHAR(64), B VARCHAR(64) )
+   Table OTW_H ( K VARCHAR(64) PRIMARY KEY, LID VARCHAR(64), LABEL VARCHAR(64), MID VARCHAR(64) )
+   Table OTW_M ( MID VARCHAR(64) PRIMARY KEY, LID VARCHAR(64) )
+   Table OTW_L ( LID VARCHAR(64) PRIMARY KEY, LABEL VARCHAR(64) )
+   Join h_m(OTW_H.MID = OTW_M.MID)
+   Join m_l(OTW_M.LID = OTW_L.LID)
+)
+
+###Mapping
+Mapping surface::LastSurface
+(
+   surface::MergeTgt[mgA]: Relational
+   {
+      ~mainTable [surface::LastDB]MG_A
+      k: [surface::LastDB]MG_A.K,
+      a: [surface::LastDB]MG_A.A
+   }
+   surface::MergeTgt[mgB]: Relational
+   {
+      ~mainTable [surface::LastDB]MG_B
+      k: [surface::LastDB]MG_B.K,
+      b: [surface::LastDB]MG_B.B
+   }
+   // The MERGE operation: unlike union, it takes a validation lambda saying which source
+   // rows correspond, so the two sides are joined rather than concatenated.
+   *surface::MergeTgt[mgRoot]: Operation
+   {
+      meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_
+      (
+         [mgA, mgB],
+         {s1: surface::MergeTgt[1], s2: surface::MergeTgt[1] | $s1.k == $s2.k}
+      )
+   }
+
+   surface::OtwLeg[otwLegSet]: Relational
+   {
+      ~mainTable [surface::LastDB]OTW_L
+      legK: [surface::LastDB]OTW_L.LID,
+      label: [surface::LastDB]OTW_L.LABEL
+   }
+
+   surface::OtwHead: Relational
+   {
+      ~mainTable [surface::LastDB]OTW_H
+      k: [surface::LastDB]OTW_H.K,
+      // An embedded inline branch whose OTHERWISE fallback is reached by a JOIN CHAIN
+      // rather than a single join.
+      leg
+      (
+         legK: [surface::LastDB]OTW_H.LID,
+         label: [surface::LastDB]OTW_H.LABEL
+      ) Otherwise ([otwLegSet]: [surface::LastDB]@h_m > @m_l)
+   }
+)

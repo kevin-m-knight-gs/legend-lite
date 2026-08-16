@@ -544,7 +544,10 @@ _PROP = re.compile(
     # A type may carry TYPE PARAMETERS (`Relation<Any>`), a UNIT (`Money~USD`) or type
     # VARIABLE VALUES (`Varchar(200)`). Each was added after a property carrying it was
     # silently dropped -- or, once the guard existed, after it raised.
-    r"(\w+)\s*:\s*([\w:]+(?:~\w+)?(?:<[^>]*>)?(?:\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)"
+    r"(\w+)\s*:\s*"
+    # An INLINE RELATION TYPE is a parenthesised column list -- `(name: String, id:
+    # Integer[1])` -- which is a type, not a call, and shares no shape with the others.
+    r"(\([^)]*\)|[\w:]+(?:~\w+)?(?:<[^>]*>)?(?:\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)"
     r"\s*\[([^\]]+)\]\s*(?:=\s*[^;]+)?;\s*$")
 # `name() { expr } : T[m];` and the qualified form `name(p: T[1], ...) { expr } : T[m];`
 _DERIVED = re.compile(
@@ -575,6 +578,10 @@ _OPMAP = re.compile(r"^\s*\*?([\w:]+)(?:\[\w+\])?\s*:\s*Operation\s*\{?\s*$")
 # named only the first, so the other two were not recorded as unions -- and, worse, their
 # body then fell through to the property parser, which read `meta::pure::router::...` as a
 # property called `meta`. A FABRICATED property, the same failure as `ProfileBinding`.
+# `merge_...([idA, idB], {lambda})` -- the set ids are a BRACKETED list and are followed by
+# a validation lambda, so the argument list cannot be read as a bare comma-separated set.
+_MERGE = re.compile(r"merge_OperationSetImplementation_1__SetImplementation_MANY_"
+                    r"\s*\(\s*(\[[^\]]*\])")
 _UNION = re.compile(r"(?:special_|)(?:union|inheritance)"
                     r"_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
@@ -947,7 +954,36 @@ def _split_cols(body: str) -> list[str]:
     return out
 
 
+# `Class my::C { a: String[1]; b: Integer[1]; }` written on ONE line. The header pattern
+# requires the declaration to end the line, so a one-liner matched nothing and the class
+# simply did not exist -- no properties, no mapping, no service, and nothing saying why. The
+# ninth silent drop of this shape in this reader.
+#
+# Split rather than matched with a second pattern: once the body is on its own lines every
+# existing rule applies to it unchanged, including the guard that catches an unmodelled
+# property form.
+_ONELINE = re.compile(r"^(\s*)((?:'[^']*'\s*)?(?:Class|Association|Enum)\s+[^{]*?)\s*\{(.*)\}\s*$")
+
+
+def _explode_oneliners(text: str) -> str:
+    out = []
+    for line in text.splitlines():
+        m = _ONELINE.match(line)
+        if m is None:
+            out.append(line)
+            continue
+        indent, head, body = m.groups()
+        out.append(f"{indent}{head}")
+        out.append(f"{indent}{{")
+        for part in body.split(";"):
+            if part.strip():
+                out.append(f"{indent}   {part.strip()};")
+        out.append(f"{indent}}}")
+    return "\n".join(out)
+
+
 def _parse_domain(text: str, c: Corpus) -> None:
+    text = _explode_oneliners(text)
     cur_class = cur_assoc = cur_enum = None
     cur_func = None
     ends: list[tuple[str, str, int, int | None]] = []
@@ -982,6 +1018,12 @@ def _parse_domain(text: str, c: Corpus) -> None:
                 continue
             cur_func.body += (" " if cur_func.body else "") + s
             continue
+        if (re.match(r"^\s*(?:'[^']*'\s*)?Class\s", line) and not _CLASS.match(line)
+                and cur_class is None):
+            raise ValueError(
+                f"Class declaration form not modelled by this reader -- {line.strip()!r}. "
+                f"A class the reader cannot see has no properties, no mapping and no "
+                f"service, and nothing reports why.")
         m = _ENUM.match(line)
         if m:
             cur_enum, cur_class, cur_assoc = m.group(1), None, None
@@ -1055,6 +1097,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
     cur = None
     cur_id = None
     cur_op = None
+    op_buf = ""
     set_tables: dict[str, str] = {}   # set-implementation id -> its ~mainTable
     in_assoc = False
     enum_map = None          # name of the EnumerationMapping currently being read
@@ -1091,15 +1134,24 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         if m:
             cur, in_assoc, cur_op = None, False, m.group(1)
             continue
-        if cur_op and "OperationSetImplementation" in line and not _UNION.search(line):
-            raise ValueError(
-                f"{cur_op}: Operation form not modelled by this reader -- {line.strip()!r}. "
-                f"An unrecognised operation body falls through to the property parser, "
-                f"which reads its qualified name as a property.")
-        if cur_op and _UNION.search(line):
-            ids = [i.strip() for i in _UNION.search(line).group(1).split(",") if i.strip()]
+        if cur_op and ("OperationSetImplementation" in line or op_buf):
+            # BUFFERED, not matched line by line. A merge operation carries a set-id list AND
+            # a validation lambda, so its call spans several lines; matching one line at a
+            # time saw only the qualified name and raised on a form that is perfectly valid.
+            op_buf += " " + line.strip()
+            # Keep buffering until the call is COMPLETE: either no `(` has been seen yet
+            # (the qualified name sits on its own line) or the parens are still open.
+            if "(" not in op_buf or op_buf.count("(") > op_buf.count(")"):
+                continue
+            m_op = _UNION.search(op_buf) or _MERGE.search(op_buf)
+            if m_op is None:
+                raise ValueError(
+                    f"{cur_op}: Operation form not modelled by this reader -- "
+                    f"{op_buf.strip()!r}. An unrecognised operation body falls through to "
+                    f"the property parser, which reads its qualified name as a property.")
+            ids = [i.strip(" []") for i in m_op.group(1).split(",") if i.strip(" []")]
             c.unions[cur_op] = [set_tables[i] for i in ids if i in set_tables]
-            cur_op = None
+            cur_op, op_buf = None, ""
             continue
         m = _CLSMAP.match(line)
         if m and "AssociationMapping" not in line:
