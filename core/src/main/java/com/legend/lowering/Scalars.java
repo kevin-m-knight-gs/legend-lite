@@ -420,6 +420,28 @@ final class Scalars {
                         dateArg(n.args().get(0), args.get(0)))));
             }
         }
+        // 2-arg dayOfWeekNumber(d, firstDay) — engine dayOfWeekNumber.pure:
+        // Monday -> isodow, Sunday -> mod(isodow,7)+1; anything else is the
+        // engine's own firstDayMondayOrSundayOnly constraint (ledger
+        // cluster 25). Overrides the arity-blind extract key above.
+        for (String f : Pure.nativeKeysAt("dayOfWeekNumber", 2)) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr iso = new SqlExpr.Call(SqlFn.EXTRACT, List.of(
+                        new SqlExpr.StringLit("isodow"),
+                        dateArg(n.args().get(0), args.get(0))));
+                return switch (enumName(n.args().get(1))) {
+                    case "Monday" -> iso;
+                    case "Sunday" -> SqlExpr.Call.of(SqlFn.PLUS,
+                            SqlExpr.Call.of(SqlFn.MOD, iso,
+                                    new SqlExpr.IntLit(7)),
+                            new SqlExpr.IntLit(1));
+                    default -> throw new com.legend.error
+                            .NotImplementedException("dayOfWeekNumber:"
+                            + " firstDayMondayOrSundayOnly (engine"
+                            + " constraint)");
+                };
+            });
+        }
         // Calendar-enum extractions: names match the Pure enum values
         // (Monday…, January… — the corpus's enum-by-name convention).
         // dayOfWeek()/month(): real pure returns calendar ENUMS (Monday…,

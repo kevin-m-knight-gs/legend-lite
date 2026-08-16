@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
-| tds/tests | 266 | 249 | 3 | 7 | 7 | 6 |
+| tds/tests | 266 | 250 | 3 | 6 | 7 | 6 |
 | testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
 | tests | 39 | 31 | 2 | 0 | 6 | 0 |
 | tests/advanced | 68 | 60 | 4 | 4 | 0 | 21 |
@@ -95,11 +95,11 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 118 | 0 | 8 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 77 | 3 | 7 | 0 | 36 |
+| tests/query | 87 | 78 | 3 | 6 | 0 | 36 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2321** | 79 | 85 | 90 | 245 |
+| **total** | 2575 | **2323** | 79 | 83 | 90 | 245 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1300,7 +1300,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call [calls meta::relational::functions::database] — wall: assert form 'meta::pure::tds::schema::tests::assertSchemaRoundTripEquality/2' is not supported yet
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
-- ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
 - SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
@@ -1382,7 +1381,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
-- ERROR testDayOfWeekNumberFunction [tests/query]: no overload of 'meta::pure::functions::date::dayOfWeekNumber' accepts 2 argument(s)
 - ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - FAIL testDefaultProjectionIsNullSafe [tests/query]: assert did not hold (false)
 - FAIL testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert did not hold (false)

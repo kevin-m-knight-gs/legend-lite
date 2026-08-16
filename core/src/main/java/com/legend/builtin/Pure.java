@@ -1215,6 +1215,9 @@ public final class Pure {
     public static final NativeFunctionDefinition DATE__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1__NUMBER_1 = signature("native function meta::pure::functions::date::date(year:meta::pure::metamodel::type::Integer[1], month:meta::pure::metamodel::type::Integer[1], day:meta::pure::metamodel::type::Integer[1], hour:meta::pure::metamodel::type::Integer[1], minute:meta::pure::metamodel::type::Integer[1], second:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition DAY_OF_MONTH__DATE_1 = signature("native function meta::pure::functions::date::dayOfMonth(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DAY_OF_WEEK_NUMBER__DATE_1 = signature("native function meta::pure::functions::date::dayOfWeekNumber(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
+    // 2-arg engine overload (dayOfWeekNumber.pure:15-24; the constraint is
+    // firstDayMondayOrSundayOnly — ledger cluster 25)
+    public static final NativeFunctionDefinition DAY_OF_WEEK_NUMBER__DATE_1__DAY_OF_WEEK_1 = signature("native function meta::pure::functions::date::dayOfWeekNumber(d:meta::pure::metamodel::type::Date[1], firstDay:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DAY_OF_WEEK__DATE_1 = signature("native function meta::pure::functions::date::dayOfWeek(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::DayOfWeek[1];");
     // day-of-week anchored shifts (engine pureToSQLQuery dyna pairs; the
     // H2 dialect emission is the semantic source — duckdbExtension has
