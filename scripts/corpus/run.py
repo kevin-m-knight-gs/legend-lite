@@ -36,12 +36,23 @@ def testables() -> list[str]:
     """Services, plus the FUNCTION testables — which are addressed by a mangled id
     encoding the signature, not by the function's path."""
     out = []
-    # 92 hand-written, 94 generated fan-out, 97 the hier:: feature domain. A GLOB rather
-    # than a list, and it has already been wrong once: it read "9[24]-*" while the hier
-    # services lived in 97, so two services passed when run by hand and were simply absent
-    # from the suite -- the total stayed at 182 and nothing said why.
-    for f in sorted(STRESS.glob("9[2478]-*.pure")):
-        out += re.findall(r"^Service (\S+)", f.read_text(), re.M)
+    # EVERY source file, not a numbered subset. The glob has been wrong twice now for the
+    # same reason: it read "9[24]-*" while the hier services lived in 97, and then
+    # "9[2478]-*" while the surface-burndown services lived in 67 and 73. Both times the
+    # services PARSED, COMPILED and were simply never run -- the total did not move and
+    # nothing said why, which is the quietest way a test can fail to exist.
+    #
+    # Scanning everything costs a directory read and removes the whole class of mistake.
+    for f in sorted(STRESS.glob("*.pure")):
+        text = f.read_text()
+        # A service with no testSuites is a DECLARATION, not a testable. Listing one makes
+        # it report MISSING for ever -- the runner asks for a result the service was never
+        # going to produce, which reads like a failure and is not one.
+        for m in re.finditer(r"^Service (\S+)", text, re.M):
+            body = text[m.end():]
+            nxt = re.search(r"^(?:Service|ExecutionEnvironment|###)", body, re.M)
+            if "testSuites" in (body[:nxt.start()] if nxt else body):
+                out.append(m.group(1))
     # Hanging cases are excluded from execution but still reported, so they cannot be
     # forgotten -- and so one non-returning test cannot block the whole suite.
     return [n for n in out if n not in HANGS] + functest.testables()

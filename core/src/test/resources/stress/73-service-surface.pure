@@ -1,0 +1,100 @@
+// The remaining SERVICE and DATA forms: a parameterised query with test parameters, the
+// flat test spelling, postValidations, and the embedded-data and assertion kinds the corpus
+// never used.
+###Data
+// A ModelStore element: instances written directly, with no store and no SQL behind them.
+Data surface::ModelData
+{
+   ModelStore
+   #{
+      surface::Primitives:
+        [
+          ^surface::Primitives(k = 'P-1', dec = 1.5D, num = 2, dt = %2024-06-03),
+          ^surface::Primitives(k = 'P-2')
+        ]
+   }#
+}
+
+###Service
+Service surface::ParameterisedService
+{
+   pattern: '/surface/parameterised/{wanted}';
+   documentation: 'A query taking a PARAMETER, so a test has to supply one.';
+   execution: Single
+   {
+      query: {wanted: String[1] | combo::Scoped.all()->filter(x | $x.rootId == $wanted)
+                ->project(~[rootId: x | $x.rootId])};
+      mapping: combo::ComboMapping;
+      runtime: combo::ComboRT;
+   }
+   testSuites:
+   [
+      // Named `<service>_suite`: run.py keys results on that suffix, so a differently
+      // named suite produces output the runner cannot attribute and reports MISSING.
+      ParameterisedService_suite:
+      {
+         data:
+         [
+            connections:
+            [
+               comboEnv:
+                  Reference
+                  #{
+                     combo::ComboData
+                  }#
+            ]
+         ]
+         tests:
+         [
+            // TEST PARAMETERS, and an EqualToJson assertion over the one matching row.
+            matchesOne:
+            {
+               // NO trailing semicolon: `serviceTestParameters: PARAMETERS COLON
+               // BRACKET_OPEN ... BRACKET_CLOSE`, unlike serializationFormat beside it,
+               // which does take one.
+               parameters:
+               [
+                  wanted = 'CR-0001'
+               ]
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  rows:
+                     EqualToJson
+                     #{
+                        expected:
+                          ExternalFormat
+                          #{
+                             contentType: 'application/json';
+                             data: '[{"rootId":"CR-0001"}]';
+                          }#;
+                     }#
+               ]
+            },
+            // The SAME query with a parameter matching nothing. An empty result is the case
+            // a parameterised service is most likely to get wrong, and the cheapest to skip.
+            matchesNone:
+            {
+               parameters:
+               [
+                  wanted = 'NO-SUCH-ROOT'
+               ]
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  rows:
+                     EqualToJson
+                     #{
+                        expected:
+                          ExternalFormat
+                          #{
+                             contentType: 'application/json';
+                             data: '[]';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}
