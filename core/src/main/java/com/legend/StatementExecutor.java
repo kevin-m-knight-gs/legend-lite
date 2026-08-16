@@ -345,9 +345,41 @@ final class StatementExecutor {
                 body = com.legend.validation.DriverPkAppend.apply(
                         body, env.ctx());
             }
-            result = executeTyped(body, env);
+            result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
+                    env));
         }
         return result;
+    }
+
+    /** The statement's env widened with the tableReplace maps of every
+     * exec frame the statement REFERENCES (union; conflicting renames
+     * throw — never a silent pick). The re-plan of a spliced chain is
+     * the architecture; the renames must ride with it (ledger cluster
+     * 59). */
+    private static ExecEnv frameReplaceEnv(TypedSpec stmt,
+            java.util.Map<String, ExecFrame> execFrames, ExecEnv env) {
+        java.util.Map<String, String> union = null;
+        for (var e : execFrames.entrySet()) {
+            if (e.getValue().tableReplace().isEmpty()
+                    || !referencesVar(stmt, e.getKey())) {
+                continue;
+            }
+            if (union == null) {
+                union = new java.util.LinkedHashMap<>(env.tableReplace());
+            }
+            for (var r : e.getValue().tableReplace().entrySet()) {
+                String prev = union.putIfAbsent(r.getKey(), r.getValue());
+                if (prev != null && !prev.equals(r.getValue())) {
+                    throw new IllegalStateException("conflicting table"
+                            + " renames for '" + r.getKey() + "': '" + prev
+                            + "' vs '" + r.getValue() + "'");
+                }
+            }
+        }
+        return union == null ? env
+                : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
+                        env.connection(), env.rawSqlFailureSink(),
+                        env.addDriverTablePk(), env.queryLets(), union);
     }
 
     /**
@@ -1793,7 +1825,8 @@ final class StatementExecutor {
      * {@code Result.values} for a TDS query holds ONE TDS; for a class or
      * scalar root, values IS the collection), and the eager run's result. */
     record ExecFrame(TypedSpec chain, boolean relationRooted,
-            @com.legend.Nullable ExecutionResult result) {
+            @com.legend.Nullable ExecutionResult result,
+            java.util.Map<String, String> tableReplace) {
     }
 
     /** Envelope-read recognizers — generic natives identified by EXACT FQN
@@ -2019,7 +2052,8 @@ final class StatementExecutor {
             }
             run = executeTyped(body, env);
         }
-        return new ExecFrame(chain, relationRooted, run);
+        return new ExecFrame(chain, relationRooted, run,
+                env.tableReplace());
     }
 
     /** Effectful user calls inside an execute() RUNTIME argument run once
