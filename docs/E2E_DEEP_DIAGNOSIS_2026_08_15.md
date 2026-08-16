@@ -40,6 +40,15 @@ Diffing `diagnoses.csv` against the `a491a194` scoreboard:
   assert-splice wall; its main query now lowers and executes) and
   `isolationTest` (multi-hop wall → honest row-diff FAIL).
 
+**Experiment log** (2026-08-16): cluster 1's proposed
+`SET disabled_optimizers='build_side_probe_side'` pin was RUN and
+REFEREE-REJECTED — it regressed 5 families net −9 (functions/tests −1,
+projection −5, tds −1, tree −1, union −1): more currently-passing tests
+sat on the swapped order by luck than the 14 artifact rows it could fix,
+exactly the risk the cluster named. The FIX disposition is retired; the
+14 rows keep their EXECUTION_TARGET_ARTIFACT verdict (ledgered,
+order-dependent-vacuous on DuckDB).
+
 **Standing role**: `diagnoses.csv` in the evidence dir is the per-row
 adjudication ledger for goal #18 — every non-passing `core_relational` row
 carries an evidence-backed verdict, effort, confidence, and falsifier there.

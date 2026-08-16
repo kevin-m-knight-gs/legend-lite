@@ -275,6 +275,18 @@ final class StaticFold {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 return a instanceof Boolean b ? !b : null;
             }
+            // isEmpty/isNotEmpty over a foldable value: an if() whose
+            // condition is isEmpty([]) must fold so the DEAD branch never
+            // reaches the Typer (adjudication ledger cluster 2 — joinWith-
+            // OptionalColumns' else-branch is ill-typed when $cols is []).
+            case "isEmpty", "isNotEmpty" -> {
+                Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
+                if (a == null) {
+                    return null;
+                }
+                boolean empty = a instanceof List<?> l && l.isEmpty();
+                return af.function().equals("isEmpty") ? empty : !empty;
+            }
             case "in" -> {
                 if (ps.size() != 2) {
                     return null;
