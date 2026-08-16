@@ -37,6 +37,14 @@ import run as runner  # noqa: E402
 V = [1, 2, 3, 4]
 W = [2.0, 5.0, 6.0, 11.0]
 
+# How a case's aggregate argument is built. The default pairs nothing -- `x|$x.v` -- and the
+# two-column aggregates need the columns paired into one value first.
+_RM = "meta::pure::functions::math::mathUtility::rowMapper($x.v, $x.w)"
+# The oracle's two-column aggregates take ONE argument that is a list of pairs, mirroring what
+# rowMapper builds on the Pure side -- not two parallel lists.
+PAIRS = list(zip(V, W))
+_WM = "meta::pure::functions::math::mathUtility::wavgRowMapper($x.v, $x.w)"
+
 # (name, Pure return type, the aggregate expression, oracle args[, post])
 #
 # `post` adjusts the ORACLE side when the Pure expression composes something onto the
@@ -67,6 +75,31 @@ CASES = [
     # the database rejects the statement (F40). They work in the to-many position, where the
     # corpus exercises them across 40 services.
     ("distinct", "Integer", "agg|$agg->distinct()->size()", [V], len),
+    # Two-column aggregates. They do not take two arguments -- they take ONE argument built
+    # by `rowMapper`, which pairs the columns. So probing corr also probes rowMapper, and
+    # probing wavg also probes wavgRowMapper; neither of those two has any other call site.
+    ("corr", "Float", "agg|$agg->corr()", [PAIRS], None, _RM),
+    ("covarSample", "Float", "agg|$agg->covarSample()", [PAIRS], None, _RM),
+    ("covarPopulation", "Float", "agg|$agg->covarPopulation()", [PAIRS], None, _RM),
+    ("wavg", "Float", "agg|$agg->wavg()", [PAIRS], None, _WM),
+    # `variance` is NOT probed as an aggregate. Its DuckDB lowering is
+    #     if(last == 'true', 'list_var_samp', 'list_var_pop') + '([' + args + '])'
+    # -- a LIST function over a per-row array, so in a grouped select the column arrives
+    # unaggregated and the database rejects the statement, exactly as in F40.
+    #
+    # Unlike F40 this is not filed as a defect. The lowering handles a list deliberately, so
+    # this spelling is for a collection VALUE, and the aggregate spellings are
+    # varianceSample and variancePopulation -- both of which are probed above and both of
+    # which pass. Where the corpus cannot tell a defect from its own misuse of a signature,
+    # it says so rather than picking the flattering reading.
+
+    # maxBy/minBy take two PARALLEL collections in the oracle -- values and keys -- while
+    # corr and friends take one list of pairs. Both are fed by the same rowMapper on the Pure
+    # side, so the shape difference lives entirely in the oracle's own signatures.
+    ("maxBy", "Integer", "agg|$agg->maxBy()", [V, W], None, _RM),
+    ("minBy", "Integer", "agg|$agg->minBy()", [V, W], None, _RM),
+    ("joinStrings", "String", "agg|$agg->joinStrings('-')",
+     [["p", "q", "r", "s"], "-"], None, "$x.s"),
     ("size", "Integer", "agg|$agg->size()", [V]),
     ("first", "Integer", "agg|$agg->first()", [V]),
     ("last", "Integer", "agg|$agg->last()", [V]),
@@ -79,6 +112,7 @@ MODEL = """Class agg::P
 {{
    k: String[1];
    g: String[1];
+   s: String[1];
    v: Integer[1];
    w: Float[1];
 }}
@@ -86,7 +120,7 @@ MODEL = """Class agg::P
 ###Relational
 Database agg::DB
 (
-   Table T ( K VARCHAR(10) PRIMARY KEY, G VARCHAR(10), V INTEGER, W DOUBLE )
+   Table T ( K VARCHAR(10) PRIMARY KEY, G VARCHAR(10), S VARCHAR(10), V INTEGER, W DOUBLE )
 )
 
 ###Mapping
@@ -98,6 +132,7 @@ Mapping agg::M
       ~mainTable [agg::DB]T
       k: [agg::DB]T.K,
       g: [agg::DB]T.G,
+      s: [agg::DB]T.S,
       v: [agg::DB]T.V,
       w: [agg::DB]T.W
    }}
@@ -115,11 +150,11 @@ Data agg::Seed
   Relational
   #{{
     default.T:
-      'K,G,V,W\\n' +
-      'R1,g,1,2.0\\n' +
-      'R2,g,2,5.0\\n' +
-      'R3,g,3,6.0\\n' +
-      'R4,g,4,11.0\\n';
+      'K,G,S,V,W\\n' +
+      'R1,g,p,1,2.0\\n' +
+      'R2,g,q,2,5.0\\n' +
+      'R3,g,r,3,6.0\\n' +
+      'R4,g,s,4,11.0\\n';
   }}#
 }}
 
@@ -130,7 +165,7 @@ Service agg::Svc
    documentation: 'One aggregate column per registered aggregate, over a single known group.';
    execution: Single
    {{
-      query: |agg::P.all()->project(~[g:x|$x.g, v:x|$x.v, w:x|$x.w])
+      query: |agg::P.all()->project(~[g:x|$x.g, s:x|$x.s, v:x|$x.v, w:x|$x.w])
                  ->groupBy(~[g], ~[
 {aggs}
                  ]);
@@ -158,8 +193,9 @@ Service agg::Svc
 
 
 def build(cases) -> str:
-    aggs = ",\n".join(f"                    f{i}: x|$x.v : {c[2]}"
-                      for i, c in enumerate(cases))
+    aggs = ",\n".join(
+        f"                    f{i}: x|{c[5] if len(c) > 5 else '$x.v'} : {c[2]}"
+        for i, c in enumerate(cases))
     return MODEL.format(aggs=aggs)
 
 
@@ -224,10 +260,14 @@ def compare(cases, actual: str) -> list:
     except (ValueError, IndexError, json.JSONDecodeError) as exc:
         print(f"  could not parse the engine result: {exc}")
         return []
-    agree, differ, nooracle = 0, [], []
+    agree, differ, nooracle = [], [], []
     for i, c in enumerate(cases):
         name, args = c[0], c[3]
-        post = c[4] if len(c) > 4 else (lambda x: x)
+        # `or` rather than a length check: the two-column cases carry an explicit None in
+        # this slot so the argument-builder can follow it, and calling None raised TypeError
+        # for every one of them -- which the probe then reported as "no oracle value",
+        # blaming the oracle for the probe's own tuple.
+        post = (c[4] if len(c) > 4 else None) or (lambda x: x)
         engine = row.get(f"f{i}")
         try:
             mine = post(oracle._dynafunction(name, args))
@@ -235,16 +275,19 @@ def compare(cases, actual: str) -> list:
             nooracle.append((name, type(exc).__name__))
             continue
         if _same(engine, mine):
-            agree += 1
+            agree.append(name)
         else:
             differ.append((name, engine, mine))
-    print(f"\n  oracle agrees with the engine on {agree} of {len(cases)}")
+    print(f"\n  oracle agrees with the engine on {len(agree)} of {len(cases)}")
     if nooracle:
         print(f"  no oracle value for {len(nooracle)}: "
               + ", ".join(f"{n} ({w})" for n, w in nooracle))
     for name, engine, mine in differ:
         print(f"    DISAGREE  {name:<22} engine={engine!r:<24} oracle={mine!r}")
-    return differ
+    # Returns BOTH the disagreements and the ones the oracle could not answer. A function the
+    # engine ran while the oracle raised is not evidence of agreement -- counting it as
+    # executed would let a broken oracle call improve the scoreboard.
+    return differ, [n for n, _w in nooracle]
 
 
 def main() -> None:
@@ -253,7 +296,8 @@ def main() -> None:
         outcome, detail = attempt(cases)
         if outcome == "ok":
             print(f"{len(cases)} aggregates EXECUTE in a relation groupBy.")
-            differ = [d[0] for d in compare(cases, detail)]
+            diffs, unanswered = compare(cases, detail)
+            differ = [d[0] for d in diffs] + unanswered
             break
         if outcome == "ERROR":
             print(f"  unattributed failure, bisecting: {detail[:110]}", flush=True)
@@ -270,15 +314,19 @@ def main() -> None:
 
     ok = [c[0] for c in cases] if cases else []
     ok = [n for n in ok if n not in differ]
-    _merge_evidence(ok)
+    # rowMapper and wavgRowMapper have no call site of their own -- they exist to pair the
+    # columns that corr/covar/wavg consume. If those passed, these ran.
+    paired = [n for n in ok if n in ("corr", "covarSample", "covarPopulation")]
+    extra = (["rowMapper"] if paired else []) + (["wavgRowMapper"] if "wavg" in ok else [])
+    _merge_evidence(ok + extra, [(n, w[:60]) for n, w in rejected])
     print(f"\n  {len(ok)} aggregates executed and agreeing; "
           f"{len(rejected)} rejected, {len(differ)} disagreeing")
 
 
-def _merge_evidence(names) -> None:
+def _merge_evidence(names, failing=()) -> None:
     import probe_functions
 
-    probe_functions.merge_evidence("aggregate", sorted(set(names)))
+    probe_functions.merge_evidence("aggregate", sorted(set(names)), failing)
 
 
 if __name__ == "__main__":

@@ -327,13 +327,14 @@ def main() -> None:
             print(f"  {len(unexplained)} of them with no recorded finding: "
                   + ", ".join(unexplained))
         print(f"\n  source kept at {src}")
-    _merge_evidence([n for n, _v in good])
+    _merge_evidence([n for n, _v in good],
+                    [(n, KNOWN_BAD.get(n, v)[:60]) for n, v in bad])
 
 
-def _merge_evidence(names) -> None:
+def _merge_evidence(names, failing=()) -> None:
     import probe_functions
 
-    probe_functions.merge_evidence("relation", sorted(set(names)))
+    probe_functions.merge_evidence("relation", sorted(set(names)), failing)
 
 
 if __name__ == "__main__":

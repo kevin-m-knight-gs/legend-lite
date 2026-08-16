@@ -1402,3 +1402,37 @@ collection function differs between an empty and a populated collection, and F6 
 there — a probe with three well-populated parents would have found none of it.
 
 `repro/collection-over-tomany/`.
+
+## F44 — The projection spelling decides which database the query runs on
+
+One model, one mapping, one seed, one date, one connection declaring `type: DuckDB`:
+
+    ->project(~[doy:x|$x.doy])         relation form  ->  3
+    ->project([x|$x.doy], ['doy'])     TDS form       ->  155
+
+`dayOfYear(2024-06-03)` is 155. The relation form returns 3 because DuckDB lowers `dayOfYear`
+to `day()` (F35). The TDS form returns the correct answer because it is not running on DuckDB.
+
+The direct evidence is not the arithmetic but the exceptions. TDS-form queries fail with **H2**
+diagnostics:
+
+    org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement
+    "RANK() OVER (PARTITION BY root.G ORDER BY NULL[*])"; expected "ORDER BY"
+
+from a file whose only connection is a DuckDB one and which never mentions H2.
+
+This matters more than any single lowering bug. A test suite exists to check behaviour against
+the database the system will use; if the projection spelling silently picks a different one,
+a TDS-form suite passes on H2 while production runs DuckDB, and every dialect-specific defect
+— F35, F37, F38, F39, all of them found through the relation form — is invisible to it. Two
+spellings of the same query give two answers with nothing in the model, the runtime or the
+connection to explain why.
+
+This corpus was lucky rather than careful: 185 of its 189 service queries use the relation
+form, so its DuckDB findings stand. The four that do not are named in
+`repro/projection-form-picks-the-database/`, and one of them is deliberate — the in-memory
+half of F37, which is supposed not to reach SQL.
+
+Found by `scripts/corpus/probe_tds.py`, where `concatenate` and `olapGroupBy` fail with H2
+syntax errors. A DuckDB-only corpus should not be able to produce an H2 diagnostic, and that
+is the whole reason this was looked at.

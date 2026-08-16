@@ -21,11 +21,15 @@ char	scalar	ok
 coalesce	scalar	ok
 concat	scalar	ok
 concatenate	relation	ok
+concatenate	tds	ERROR
 contains	scalar	ok
+corr	aggregate	ok
 cos	scalar	ok
 cosh	scalar	ok
 cot	scalar	ok
 count	aggregate	ok
+covarPopulation	aggregate	ok
+covarSample	aggregate	ok
 cumulativeDistribution	relation	ok
 dateDiff	scalar	ok
 datePart	scalar	ok
@@ -37,8 +41,10 @@ decodeBase64	scalar	ok
 denseRank	relation	ok
 distinct	aggregate	ok
 distinct	relation	ok
+distinct	tds	ok
 divide	scalar	ok
 drop	relation	ok
+drop	tds	ok
 encodeBase64	scalar	ok
 endsWith	scalar	ok
 eq	scalar	REFUSED: not in the DynaFunctionRegistry
@@ -47,6 +53,7 @@ exists	collection	ok
 exp	scalar	ok
 extend	relation	ok
 filter	relation	ok
+filter	tds	ok
 first	aggregate	ok
 firstDayOfMonth	scalar	ok
 firstDayOfQuarter	scalar	ok
@@ -63,6 +70,7 @@ greaterThan	scalar	ok
 greaterThanEqual	scalar	ok
 greatest	scalar	ok
 groupBy	relation	ok
+groupBy	tds	ok
 hour	scalar	ok
 indexOf	scalar	ok
 isAlphaNumeric	scalar	ok
@@ -72,6 +80,7 @@ isNotEmpty	collection	ok
 isNotNull	scalar	ok
 isNull	scalar	ok
 join	relation	ok
+joinStrings	aggregate	ok
 last	aggregate	ok
 least	scalar	ok
 left	scalar	ok
@@ -80,13 +89,16 @@ lessThan	scalar	ok
 lessThanEqual	scalar	ok
 levenshteinDistance	scalar	ok
 limit	relation	ok
+limit	tds	ok
 log	scalar	ok
 log10	scalar	ok
 lpad	scalar	ok
 ltrim	scalar	ok
 max	aggregate	ok
+maxBy	aggregate	ok
 median	aggregate	ok
 min	aggregate	ok
+minBy	aggregate	ok
 minus	scalar	ok
 minute	scalar	ok
 mod	scalar	ok
@@ -97,6 +109,7 @@ mostRecentDayOfWeek	scalar	REFUSED: not supported yet
 not	scalar	ok
 nth	relation	ok
 ntile	relation	ok
+olapGroupBy	tds	ERROR
 or	scalar	ok
 parseBoolean	scalar	REFUSED: not supported yet
 parseDecimal	scalar	ok
@@ -108,15 +121,22 @@ plus	scalar	ok
 pow	scalar	ok
 previousDayOfWeek	scalar	REFUSED: not supported yet
 project	relation	ok
+project	tds	ok
+projectWithColumnSubset	tds	ok
 quarterNumber	scalar	ok
 rank	relation	ok
 rem	scalar	ok
+removeDuplicates	aggregate	not in DynaFunctionRegistry
 rename	relation	ok
+renameColumns	tds	ok
 repeatString	scalar	ok
 replace	scalar	ok
+restrict	tds	ok
+reverse	aggregate	not in DynaFunctionRegistry
 reverseString	scalar	ok
 right	scalar	ok
 round	scalar	ok
+rowMapper	aggregate	ok
 rowNumber	relation	ok
 rpad	scalar	ok
 rtrim	scalar	ok
@@ -127,6 +147,8 @@ sin	scalar	ok
 sinh	scalar	ok
 size	aggregate	ok
 slice	relation	ok
+slice	tds	ok
+sort	aggregate	not in DynaFunctionRegistry
 sort	relation	ok
 splitPart	scalar	ok
 sqrt	scalar	ok
@@ -137,6 +159,7 @@ substring	scalar	DISAGREES with the oracle
 substring	scalar	ok
 sum	aggregate	ok
 take	relation	ok
+take	tds	ok
 tan	scalar	ok
 tanh	scalar	ok
 times	scalar	ok
@@ -148,5 +171,7 @@ toUpper	scalar	ok
 trim	scalar	ok
 variancePopulation	aggregate	ok
 varianceSample	aggregate	ok
+wavg	aggregate	ok
+wavgRowMapper	aggregate	ok
 weekOfYear	scalar	ok
 year	scalar	ok

@@ -293,7 +293,10 @@ def main() -> None:
         print(f"  REJECTED  {outcome:<20} {detail}", flush=True)
         cases = [c for c in cases if c[0] != outcome]
 
-    _merge_evidence([c[0] for c in cases])
+    # Failures are recorded too. A function the probe RAN and could not pass is a different
+    # thing from one nobody has tried, and leaving it out of the file made 20 documented
+    # failures reappear in the scoreboard's "never run" list.
+    _merge_evidence([c[0] for c in cases], rejected)
     print(f"\n  {len(cases)} executed and agreeing, {len(rejected)} rejected")
 
 
@@ -320,10 +323,11 @@ def _report_diff(cases, actual) -> None:
                       f"oracle={w.get(f'f{i}')!r} engine={g.get(f'f{i}')!r}")
 
 
-def _merge_evidence(names) -> None:
+def _merge_evidence(names, failing=()) -> None:
     import probe_functions
 
-    probe_functions.merge_evidence("collection", sorted(set(names)))
+    probe_functions.merge_evidence("collection", sorted(set(names)),
+                                   [(n, w[:60]) for n, w in failing])
 
 
 if __name__ == "__main__":
