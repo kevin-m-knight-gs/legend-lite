@@ -1,0 +1,103 @@
+// Model-DSL constructs the corpus never wrote. Burned down against
+// docs/ENGINE_SURFACE.tsv, which enumerates the surface from the ANTLR grammars rather
+// than from anyone's memory of it.
+//
+// These are declaration forms, not query forms: a tagged value, an aggregation kind and a
+// constraint's ~owner change what the MODEL says, and mostly nothing about what a query
+// returns. So the bar here is that they parse, compile, and coexist with everything else --
+// which is worth having, because every one of them is a way a real model can be written and
+// a way this corpus could not previously be read.
+//
+// Where a construct DOES change an answer -- a constraint's enforcement, a default value --
+// it is exercised by a service elsewhere rather than asserted here.
+###Pure
+Profile surface::ModelProfile
+{
+   stereotypes: [confidential, derived];
+   tags: [owner, sourceSystem, reviewed];
+}
+
+// Class documentation (a leading string), stereotypes AND tagged values together.
+Class <<surface::ModelProfile.confidential>> {surface::ModelProfile.owner = 'risk-team'} surface::Party
+{
+   partyId: String[1];
+   name: String[1];
+}
+
+// MULTIPLE INHERITANCE. The corpus had ten subclasses and every one had a single supertype.
+Class surface::Auditable
+{
+   lastReviewedBy: String[0..1];
+}
+
+Class surface::Counterparty extends surface::Party, surface::Auditable
+{
+   // property STEREOTYPES and TAGGED VALUES
+   <<surface::ModelProfile.confidential>> internalRating: String[0..1];
+   {surface::ModelProfile.sourceSystem = 'CRM'} crmId: String[0..1];
+   // DEFAULT VALUES -- scalar, boolean, and a list
+   active: Boolean[1] = true;
+   tier: Integer[1] = 3;
+   region: String[1] = 'EMEA';
+   aliases: String[*] = ['primary', 'secondary'];
+   // multiplicity [1..*], which nothing in 256 classes used
+   contacts: String[1..*];
+   // AGGREGATION KINDS
+   (composite) obligations: surface::Obligation[*];
+   (shared) watchers: surface::Party[*];
+}
+
+Class surface::Obligation
+{
+   obligationId: String[1];
+   amount: Float[1];
+}
+
+// CONSTRAINTS with every option the grammar admits: named simple, complex with ~function,
+// ~owner, ~externalId, ~enforcementLevel (both levels) and ~message.
+Class surface::Limit
+[
+   positiveAmount: $this.amount > 0.0,
+   bounded
+   (
+      ~owner: RiskControl
+      ~externalId: 'LIMIT-001'
+      ~function: $this.amount < 1000000.0
+      ~enforcementLevel: Error
+      ~message: 'limit above ceiling: ' + $this.amount->toString()
+   ),
+   softCheck
+   (
+      ~function: $this.currency != 'XXX'
+      ~enforcementLevel: Warn
+      ~message: 'placeholder currency'
+   )
+]
+{
+   limitId: String[1];
+   amount: Float[1];
+   currency: String[1];
+}
+
+// Enum value documentation and stereotypes.
+Enum surface::ReviewState
+{
+   {surface::ModelProfile.reviewed = 'yes'} APPROVED,
+   <<surface::ModelProfile.derived>> PENDING,
+   REJECTED
+}
+
+// MEASURE with a canonical unit and conversions, and a NON-CONVERTIBLE measure.
+Measure surface::Mass
+{
+   *Gram: x -> $x;
+   Kilogram: x -> $x * 1000;
+   Tonne: x -> $x * 1000000;
+}
+
+Measure surface::Currency
+{
+   USD;
+   EUR;
+   GBP;
+}

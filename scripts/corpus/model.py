@@ -500,13 +500,27 @@ _CLS_FILTER_CHAIN = re.compile(
 # corpus had no inheritance, so nothing ever noticed. Anything relying on a subclass would
 # have failed with "unknown class" pointing at the USE rather than at the declaration the
 # reader had quietly dropped.
+# A Class header may carry, in this order: a leading documentation string, stereotypes,
+# tagged values, and MULTIPLE supertypes. The pattern admitted only stereotypes and one
+# supertype, so `Class <<s>> {p.t='v'} my::C extends A, B` matched NOTHING and the class did
+# not exist -- the same silent skip that `extends` itself once caused. A class the reader
+# cannot see has no properties, no mapping and no service, and nothing reports why.
 _CLASS = re.compile(
-    r"^\s*Class\s+(?:<<([^>]*)>>\s*)?([\w:]+)(?:\s+extends\s+([\w:]+))?\s*$")
+    r"^\s*(?:'[^']*'\s*)?Class\s+(?:<<([^>]*)>>\s*)?(?:\{[^}]*\}\s*)?"
+    r"([\w:]+)(?:\s+extends\s+([\w:]+(?:\s*,\s*[\w:]+)*))?\s*$")
 _ASSOC = re.compile(r"^\s*Association\s+([\w:]+)\s*$")
 _ENUM = re.compile(r"^\s*Enum\s+([\w:]+)\s*$")
 _FUNC = re.compile(r"^\s*function\s+([\w:]+)\s*\(([^)]*)\)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*$")
 _FUNC_PARAM = re.compile(r"(\w+)\s*:\s*([\w:]+)\s*\[[^\]]+\]")
-_PROP = re.compile(r"^\s*(\w+)\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
+# A property may carry a documentation string, stereotypes, tagged values and an
+# AGGREGATION KIND before its name, and a DEFAULT VALUE after its multiplicity. None was
+# admitted, so `(composite) obligations: T[*];` and `active: Boolean[1] = true;` were both
+# dropped in silence -- present in the model, absent from the reader, and therefore absent
+# from every expectation computed over that class.
+_PROP = re.compile(
+    r"^\s*(?:'[^']*'\s*)?(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?"
+    r"(?:\(\s*(?:composite|shared|none)\s*\)\s*)?"
+    r"(\w+)\s*:\s*([\w:]+(?:~\w+)?)\s*\[([^\]]+)\]\s*(?:=\s*[^;]+)?;\s*$")
 # `name() { expr } : T[m];` and the qualified form `name(p: T[1], ...) { expr } : T[m];`
 _DERIVED = re.compile(
     r"^\s*(\w+)\s*\(([^)]*)\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
@@ -946,6 +960,22 @@ def _parse_domain(text: str, c: Corpus) -> None:
                 c.classes[cur_class].props[name] = Prop(name, typ, lo, hi)
             elif cur_assoc:
                 ends.append((name, typ, lo, hi))
+            continue
+        # A line inside a class body that ENDS LIKE A PROPERTY but matched neither _PROP nor
+        # _DERIVED is a declaration form this reader cannot see. Dropping it is the failure
+        # this file has now made six times -- `Class X extends Y`, `extends [id]`, join
+        # chains, dyna-over-chain, scope blocks, decorated properties -- and every time the
+        # symptom appeared somewhere far away, as a property that "did not exist".
+        #
+        # Constraint bodies are excluded by name: they sit between the class header and the
+        # body and end in a comma or bracket, not a semicolon.
+        if (cur_class and line.rstrip().endswith(";")
+                and ":" in line and not line.lstrip().startswith(("~", "//", "*"))):
+            raise ValueError(
+                f"{cur_class}: property form not modelled by this reader -- "
+                f"{line.strip()!r}. Extend it deliberately; a property the reader cannot "
+                f"see is absent from every expectation computed over this class, and "
+                f"nothing reports why.")
 
 
 def _split_mappings(body: str) -> list[str]:

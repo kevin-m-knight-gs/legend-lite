@@ -1,0 +1,34 @@
+id	reason
+AU-07	GCP ADC
+AU-08	GCP WIF
+AU-09	OAuth
+AU-10	SnowflakePublic
+AU-11	TrinoDelegatedKerberos
+CT-05	ServiceStoreConnection: different store
+CT-06	Elasticsearch
+CT-07	Deephaven
+CT-08	MongoDB
+DS-04	Snowflake: needs a live account
+DS-05	BigQuery: needs a project
+DS-06	Databricks: needs a workspace
+DS-08	Redshift
+DS-09	Athena
+DS-10	Aurora
+DS-11	GlobalAurora
+DS-12	MemSql
+DS-13	Oracle
+DS-14	Spanner
+DS-15	Trino
+P08	grammar parses, walker throws: type/multiplicity params not authorized
+P09	same as P08 (contravariance)
+P10	`projects` parses, walker has no branch
+P47	function constraints parse and are SILENTLY DISCARDED
+P51	association projection, same
+P60	same as P08 (function type params)
+P61	`native function` parses, walker throws Unsupported syntax
+P74	top-level ^instance parses, walker throws
+R67	TabularFunction: ###Data materializes Tables only (our F-series)
+RM-05	RelationalMapper include: rule unreachable from definition
+RT-14	Runtime includes: token does not exist
+SV-12	extensionExec: zero registered handlers in this repo
+TST-15	EqualToTDS: complete grammar pair, NO registered parser
