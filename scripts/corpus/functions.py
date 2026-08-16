@@ -128,8 +128,19 @@ def refused(fam: str | None = None) -> dict[str, str]:
 EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
 
 
+def _counts(evidence: str | None) -> bool:
+    """Whether an evidence value means the function ran AND agreed.
+
+    Defined by EXCLUSION -- anything that is not a recorded refusal or disagreement counts --
+    so a new probe contributes without editing this list. The whitelist version silently
+    ignored the aggregate probe's 17 functions because it named its evidence differently, and
+    a scoreboard that quietly drops evidence is worse than one that has none.
+    """
+    return bool(evidence) and not evidence.startswith(("REFUSED", "DISAGREES"))
+
+
 def executed() -> dict[str, str]:
-    """function -> evidence, from the probe's own output. Empty if it has never been run."""
+    """function -> evidence, from the probes' own output. Empty if none has ever been run."""
     if not EVIDENCE.exists():
         return {}
     return dict(line.split("\t", 1)
@@ -152,7 +163,7 @@ def report():
         impl, refu = implemented(fam), refused(fam)
         i = sum(1 for x in names if x in impl)
         r = sum(1 for x in names if x in refu)
-        e = sum(1 for x in names if ev.get(x) in ("probe", "matrix"))
+        e = sum(1 for x in names if _counts(ev.get(x)))
         tot_i += i
         tot_r += r
         tot_e += e
@@ -166,7 +177,7 @@ def report():
     d_r = sum(1 for n in distinct
               if not any(n in implemented(f) for f in fam_of[n])
               and any(n in refused(f) for f in fam_of[n]))
-    d_e = sum(1 for n in distinct if ev.get(n) in ("probe", "matrix"))
+    d_e = sum(1 for n in distinct if _counts(ev.get(n)))
     print(f"  {'':<18} {'-' * 5} {'-' * 8} {'-' * 7} {'-' * 6}")
     print(f"  {'DISTINCT NAMES':<18} {d_i:>5} {d_r:>8} "
           f"{len(distinct) - d_i - d_r:>7} {d_e:>6}   {len(distinct)}")
@@ -190,8 +201,7 @@ def report():
         print("\nIMPLEMENTED BUT NEVER EXECUTED:")
         for fam, names in sorted(by_family.items()):
             impl = implemented(fam)
-            gap = sorted(x for x in names
-                         if x in impl and ev.get(x) not in ("probe", "matrix"))
+            gap = sorted(x for x in names if x in impl and not _counts(ev.get(x)))
             if gap:
                 print(f"\n  [{fam}] {len(gap)}")
                 for i in range(0, len(gap), 6):

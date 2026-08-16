@@ -1148,13 +1148,15 @@ still cannot be used, in three distinct ways:
     parseBoolean
 
     eq                    dyna function [eq] is not registered in
-                          meta::relational::functions::sqlQueryToString::DynaFunctionRegistry
+    removeDuplicates      meta::relational::functions::sqlQueryToString::DynaFunctionRegistry
+    reverse
+    sort
 
-The second message is the more interesting one. `eq` is in `getSupportedFunctions()` and
-absent from the `DynaFunctionRegistry` that the lowering actually consults, so the two
+The second message is the more interesting one. These four are in `getSupportedFunctions()`
+and absent from the `DynaFunctionRegistry` that the lowering actually consults, so the two
 registries disagree with each other — the first says yes and the second has never heard of
-it. `between` and `parseBoolean` are not exotic; a query is likelier to contain them than
-most of the 292.
+them. None of these are exotic: `between`, `parseBoolean`, `sort` and `reverse` are likelier
+to appear in a real query than most of the 262.
 
 `getSupportedFunctions()` is the map the engine consults before reporting "No SQL translation
 exists for the PURE function", so it reads as the authoritative list of what a query may
@@ -1284,3 +1286,34 @@ Found by the combination matrix rather than by looking: the cell
 `col_bool_starts_nullable_embedded` disagreed with the oracle, and the disagreement survived
 narrowing from "embedded property" to "nullable operand" to the actual variable, which was
 that the matrix passes a second COLUMN where a hand-written test would have typed a literal.
+
+
+## F40 — `isEmpty` in an aggregate position generates invalid SQL
+
+    ->groupBy(~[g], ~[ f0: x|$x.v : agg|$agg->isEmpty() ])
+
+produces
+
+    select "root".G as "g", "root".V is null as "f0" from T as "root" group by 1
+
+which the database refuses: `"root".V` is in the select list neither aggregated nor grouped.
+
+`isEmpty` over a collection asks whether it has any elements, and the SQL for that is
+`count(...) = 0`. The lowering emits `V is null` instead — which is what `isEmpty` means for a
+single optional value, not for a group. The aggregate position is lost, so the statement comes
+out malformed rather than merely wrong. `isNotEmpty` is identical.
+
+Both functions are correct in the position this corpus normally uses them, over a to-many end,
+where they run across 40 services and 105 relationship ends. It is the aggregate position
+alone that mistranslates.
+
+The diagnostic is worth noting separately. The error is raised by the JDBC driver and quotes
+generated SQL:
+
+    Binder Error: column "V" must appear in the GROUP BY clause or be used in an
+    aggregate function ... LINE 2: select "root".G as "g", "root".V is null as "f0"
+
+It names no function, no property and no mapping. An author is shown a database complaining
+about a GROUP BY they never wrote.
+
+`repro/isempty-aggregate-invalid-sql/`.

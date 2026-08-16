@@ -7,6 +7,7 @@ ascii	probe
 asin	probe
 atan	probe
 atan2	probe
+average	aggregate-probe
 between	REFUSED-BY-ENGINE (not supported yet)
 bitAnd	probe
 bitNot	probe
@@ -23,6 +24,7 @@ contains	probe
 cos	probe
 cosh	probe
 cot	probe
+count	aggregate-probe
 dateDiff	probe
 datePart	probe
 dayOfMonth	probe
@@ -30,12 +32,14 @@ dayOfWeek	probe
 dayOfWeekNumber	probe
 dayOfYear	DISAGREES-WITH-ORACLE
 decodeBase64	probe
+distinct	aggregate-probe
 divide	probe
 encodeBase64	probe
 endsWith	probe
 eq	REFUSED-BY-ENGINE (fails with no message naming it)
 equal	probe
 exp	probe
+first	aggregate-probe
 firstDayOfMonth	probe
 firstDayOfQuarter	probe
 firstDayOfWeek	DISAGREES-WITH-ORACLE
@@ -52,8 +56,10 @@ greatest	probe
 hour	probe
 indexOf	probe
 isAlphaNumeric	probe
+isDistinct	aggregate-probe
 isNotNull	probe
 isNull	probe
+last	aggregate-probe
 least	probe
 left	probe
 length	probe
@@ -64,9 +70,13 @@ log	probe
 log10	probe
 lpad	probe
 ltrim	probe
+max	aggregate-probe
+median	aggregate-probe
+min	aggregate-probe
 minus	probe
 minute	probe
 mod	probe
+mode	aggregate-probe
 month	probe
 monthNumber	probe
 mostRecentDayOfWeek	REFUSED-BY-ENGINE (not supported yet)
@@ -76,6 +86,7 @@ parseBoolean	REFUSED-BY-ENGINE (fails with no message naming it)
 parseDecimal	probe
 parseFloat	probe
 parseInteger	probe
+percentile	aggregate-probe
 plus	probe
 pow	probe
 previousDayOfWeek	REFUSED-BY-ENGINE (not supported yet)
@@ -92,10 +103,14 @@ second	probe
 sign	probe
 sin	probe
 sinh	probe
+size	aggregate-probe
 splitPart	probe
 sqrt	probe
 startsWith	probe
+stdDevPopulation	aggregate-probe
+stdDevSample	aggregate-probe
 substring	DISAGREES-WITH-ORACLE
+sum	aggregate-probe
 tan	probe
 tanh	probe
 times	probe
@@ -105,5 +120,7 @@ toLower	probe
 toString	probe
 toUpper	probe
 trim	probe
+variancePopulation	aggregate-probe
+varianceSample	aggregate-probe
 weekOfYear	probe
 year	probe
