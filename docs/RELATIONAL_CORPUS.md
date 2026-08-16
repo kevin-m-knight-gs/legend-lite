@@ -30,7 +30,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 63 | 19 | 6 | 20 | 0 |
 | functions/tests | 259 | 236 | 7 | 10 | 6 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 139 | 5 | 10 | 1 | 1 |
+| functions/tests/projection | 155 | 140 | 4 | 10 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
@@ -89,7 +89,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2304** | 85 | 93 | 93 | 244 |
+| **total** | 2575 | **2305** | 84 | 93 | 93 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1220,7 +1220,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
-- FAIL testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: h2-advisory divergence: golden SQL on H2 gave 7 row(s) [Allen|<null>, Harris|<null>, Hill|<null>, Hill|<null>, Johnson|<null>], our pipeline gave 7 row(s) [Allen|New York, Harris|<null>, Hill|<null>, Hill|New York, Johnson|New York]
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testGraphFetch [graphFetch/domain]: plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::function::FunctionDefinition has no property 'expressionSequence' [surfaced via assert form 'assertEquals/2']

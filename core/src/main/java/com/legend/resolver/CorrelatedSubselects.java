@@ -326,6 +326,23 @@ final class CorrelatedSubselects {
                 pc.mat().slotPrefixes(), pc.subNavs(),
                 cjVar, jRow);
         TypedSpec filtered = new TypedFilter(joinedSub, where, jInfo);
+        // TAIL-hop parked CORRELATED preds (#69 second filter — the
+        // firm#f0.address#f1 chain): a target sub-nav head carrying a
+        // parked pred ANDs into this sub's WHERE — both sides already
+        // ride the joined row (the target's sub-nav slot columns and the
+        // parentCopy's own materialized demand columns). The engine nests
+        // a second subselect; the row set is identical for [0..1] hops.
+        for (var snE : aj.targetSubNavs().entrySet()) {
+            TypedLambda parked =
+                    assocMaterial.synthetics().correlatedPred(snE.getKey());
+            if (parked == null) {
+                continue;
+            }
+            TypedLambda w2 = assocMaterial.corrPredOnJoinedRowForSubNav(
+                    parked, cs, aj.target(), corrTp, snE.getValue(),
+                    pc.mat().slotPrefixes(), pc.subNavs(), cjVar, jRow);
+            filtered = new TypedFilter(filtered, w2, jInfo);
+        }
         var cjInfo = new ExprType(jRow,
                 com.legend.compiler.element.type.Multiplicity
                         .Bounded.ONE);
