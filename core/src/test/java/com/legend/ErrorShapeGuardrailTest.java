@@ -90,6 +90,12 @@ class ErrorShapeGuardrailTest {
      * idiom exact-FQN doctrine retires; may only shrink. */
     private static final int ENDS_WITH_FQN = 18;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 23)
 
+    // F1.7 (Charter C2.4): a `default -> "<literal>"` in a type/name
+    // mapping switch silently LOSES the unmatched kind — the exact
+    // defect audit 15 removed from Executor.pureOfSqlType and PCT
+    // reintroduced. Shrink-only; a new site must throw instead.
+    private static final int DEFAULT_LITERAL_FALLBACKS = 5;
+
     @Test
     void noReturnOrThrowInsideFinally() throws IOException {
         List<String> bad = new ArrayList<>();
@@ -171,6 +177,23 @@ class ErrorShapeGuardrailTest {
     }
 
     /** Identify elements by EXACT FQN, never suffix match. */
+    @Test
+    void defaultLiteralFallbacksOnlyShrink() throws IOException {
+        int n = 0;
+        for (Path p : mainSources()) {
+            Matcher m = Pattern.compile("default -> \"")
+                    .matcher(Files.readString(p));
+            while (m.find()) {
+                n++;
+            }
+        }
+        assertTrue(n <= DEFAULT_LITERAL_FALLBACKS,
+                "type-losing default->literal sites grew to " + n
+                + " (pinned at " + DEFAULT_LITERAL_FALLBACKS
+                + ") — an unmatched kind must THROW, never become a"
+                + " plausible literal (Charter C2.4)");
+    }
+
     @Test
     void fqnSuffixMatchingOnlyShrinks() throws IOException {
         int n = 0;
