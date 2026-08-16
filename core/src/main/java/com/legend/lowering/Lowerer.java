@@ -1184,7 +1184,7 @@ public final class Lowerer {
             ps.addAll(starProjections(base));
         }
         for (TypedFuncCol c : columns) {
-            TypedSpec body = Scalars.cellRootUnwrapWire(last(c.fn()));
+            TypedSpec body = CastPolicy.cellRootUnwrapWire(last(c.fn()));
             switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(base, name)))) {
                 case Resolution.Resolved r -> ps.add(new SqlSelect.Projection(r.expr(), c.name()));
                 case Resolution.Unfoldable u -> {

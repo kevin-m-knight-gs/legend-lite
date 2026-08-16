@@ -6,6 +6,7 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
@@ -104,15 +105,20 @@ final class Scalars {
                             return new SqlExpr.BoolLit(false);
                         }
                     }
+                    List<SqlExpr> cargs = List.of(
+                            CastPolicy.comparisonWireOperand(n.args().get(0),
+                                    args.get(0), n.args().get(1)),
+                            CastPolicy.comparisonWireOperand(n.args().get(1),
+                                    args.get(1), n.args().get(0)));
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
-                            args.get(0), args.get(1));
+                            cargs.get(0), cargs.get(1));
                     if (inv != null) {
                         return inv;
                     }
                     // nullable col-vs-col equality is NULL-SAFE (engine
                     // isEqualsFromFilter; task #62's equal-side arm)
-                    return NullSemantics.equalNullArms(n, args);
+                    return NullSemantics.equalNullArms(n, cargs);
                 });
             }
         }
@@ -2205,8 +2211,10 @@ final class Scalars {
                             && al.elements().stream().noneMatch(e ->
                                     e instanceof SqlExpr.Call c2
                                             && c2.fn() == SqlFn.TO_VARIANT));
-            SqlExpr needle = collVariant ? SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                    args.get(0)) : args.get(0);
+            SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
+                    n.args().get(1));
+            SqlExpr needle = collVariant
+                    ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
             // A RELATION-shaped collection = LIST-aggregated subquery;
             // membership is list containment (NULL list = empty = FALSE).
             if (n.args().get(1).info().type()
@@ -3452,23 +3460,5 @@ final class Scalars {
      * proven: unscoped unwrap regressed tests/mapping 9->7). CONSUMED
      * positions keep the cast always (audit 19 F7: DuckDB does not
      * wire-convert where H2 does). */
-    static TypedSpec cellRootUnwrapWire(TypedSpec b) {
-        if (b instanceof TypedCast tc && tc.wire()
-                && tc.target() == Type.Primitive.STRING) {
-            return cellRootUnwrapWire(tc.source());
-        }
-        if (b instanceof TypedNativeCall nc
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(nc.callee().qualifiedName())
-                && !nc.args().isEmpty()) {
-            TypedSpec inner = cellRootUnwrapWire(nc.args().get(0));
-            if (inner != nc.args().get(0)) {
-                List<TypedSpec> na = new ArrayList<>(nc.args());
-                na.set(0, inner);
-                return new TypedNativeCall(nc.callee(), na, nc.info());
-            }
-        }
-        return b;
-    }
 
 }
