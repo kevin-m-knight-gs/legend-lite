@@ -38,6 +38,11 @@ from collections import Counter
 import executed
 import model
 
+# The ratchet, updated deliberately when coverage improves. Raised from the numbers this
+# corpus reached the day spread.py was written: 175 pairs and 422 triples before it, these
+# after.
+SURFACE_BASELINE = {"pairs": 220, "triples": 650}
+
 
 def spec_features(c: model.Corpus, spec, byclass, bymapping, closure) -> set[str]:
     """Every distinct construct this one service's evaluation touches."""
@@ -224,6 +229,25 @@ def main() -> None:
     print(f"TRIPLE COVERAGE {len(triples)} of {possible3} "
           f"({len(triples) / possible3:.0%}) feature triples co-occur in a passing service")
     print(f"  constructs in play: {len(universe)}")
+
+    if "--gate" in sys.argv:
+        # A RATCHET on the two combination counts. Not a target: the numbers are low in
+        # absolute terms and will stay low for a while, and the point of pinning them is that
+        # they only ever move one way. A generator refactor that quietly stops emitting half
+        # its services leaves the suite green and every other scoreboard unchanged -- this is
+        # the only place that would notice.
+        base = SURFACE_BASELINE
+        if len(covered) < base["pairs"] or len(triples) < base["triples"]:
+            raise SystemExit(
+                f"\ncombination coverage went DOWN:\n"
+                f"  pairs   {len(covered)} (was {base['pairs']})\n"
+                f"  triples {len(triples)} (was {base['triples']})\n\n"
+                f"If this is deliberate -- a construct removed, a generator narrowed -- "
+                f"update SURFACE_BASELINE\nin scripts/corpus/stacking.py and say why in the "
+                f"commit. If it is not, something stopped\nemitting services and the suite "
+                f"is still green, which is exactly what this catches.")
+        print(f"\ngate: pairs {len(covered)} >= {base['pairs']}, "
+              f"triples {len(triples)} >= {base['triples']}")
 
     if "--gaps" in sys.argv:
         missing = [p for p in possible if not pairs[p]]

@@ -125,7 +125,8 @@ def _path_mapped(c: model.Corpus, root: str, path: list[str], mapped: set[str]) 
     return True
 
 
-def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str]) -> list[Spec]:
+def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
+                    tables_for_ends=None) -> list[Spec]:
     """Query-shape variants of one template, built ONLY from paths the template proves.
 
     The first two versions took the template's mapping and then chose properties and chains
@@ -180,6 +181,45 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str]) -> list[Spec]:
     def clone(ps):
         return [Proj(p.alias, list(p.path), p.agg, list(p.args), p.func) for p in ps]
 
+    def enriched():
+        """The template's reach, widened with more of the model where that is SAFE.
+
+        Safe means the default mapping, which maps every class and every property, so the
+        reader's column table is authoritative there. For a narrow mapping it is not -- the
+        reader keys columns by class rather than by (mapping, class) -- and reaching beyond
+        the template is what produced "can't be found in the mapping" twice.
+
+        This is what unlocks the aggregate shapes. tomany.py emits forty services carrying
+        `emptiness over to-many`, and each projects an identifier and the aggregate and
+        nothing else, so the construct that appears in forty services was paired with almost
+        nothing. Widening the reach around it is the difference between a construct being
+        present and a construct being COMBINED.
+        """
+        # The template's NON-aggregate reach. Cloning its aggregates too and then widening
+        # the reach around them changes what they group over: adding a to-many chain fans the
+        # rows out, and a count that was safe over the template's row set meets an empty
+        # parent over the widened one -- which is F6, arriving as a failure of a service that
+        # was not trying to test F6. Each variant adds the ONE aggregate it is about.
+        ps = [p for p in clone(getattr(t, "projections", [])) if not p.agg]
+        if getattr(t, "mapping", None) not in (None, executed.DEFAULT_MAPPING):
+            return ps
+        have = {tuple(p.path) for p in ps}
+        targets = set()
+        for path, tgt in stacks._chains(c, root, seeded):
+            if len(ps) >= 6 or tuple(path) in have or tgt in targets:
+                continue
+            leaf = stacks._leaf(c, tgt)
+            if not leaf or tuple(path + [leaf]) in have:
+                continue
+            ps.append(Proj(stacks._alias(path, leaf), path + [leaf]))
+            targets.add(tgt)
+        for path, tgt in [([], root)] + stacks._chains(c, root, seeded):
+            names = list(c.classes[tgt].derived) if tgt in c.classes else []
+            if names and len(ps) < 8 and not any(p.path[-1] == names[0] for p in ps):
+                ps.append(Proj(stacks._alias(path, names[0]), path + [names[0]]))
+                break
+        return ps
+
     # A string-typed leaf the template already projects, for the filter. `> ' '` keeps the
     # non-null rows and drops the nulls -- a real predicate -- and agrees with the engine
     # over NULL where `!=` does not (F28).
@@ -199,17 +239,17 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str]) -> list[Spec]:
     filt = [Pred(list(strs[0].path), ">", " ")] if strs else []
 
     if filt:
-        add("Filter", projections=clone(tproj), filters=filt,
+        add("Filter", projections=enriched(), filters=filt,
             sort=(ident, False), limit=25)
     if getattr(t, "filters", None):
         # The template already filters; the variant is the SAME reach unfiltered, which is a
         # different shape and a different row set.
-        add("Open", projections=clone(tproj), sort=(ident, False), limit=25)
+        add("Open", projections=enriched(), sort=(ident, False), limit=25)
 
     # groupBy. This shape had ONE service in the corpus and was missing 37 of its 40 possible
     # pairs -- more than any other construct -- for want of a second service.
     if nums:
-        gb = mk("Group", projections=clone(tproj), filters=filt)
+        gb = mk("Group", projections=enriched(), filters=filt)
         if gb is not None:
             gb.group_by = [ident]
             gb.aggs = [("n", nums[0].alias, "count"), ("tot", nums[0].alias, "sum")]
@@ -219,8 +259,46 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str]) -> list[Spec]:
     # depend on which dates the seeder happened to choose.
     if root in c.classes and getattr(c.classes[root], "temporal", None) \
             and not getattr(t, "as_of", None):
-        add("AsOf", projections=clone(tproj), sort=(ident, False), limit=25,
+        add("AsOf", projections=enriched(), sort=(ident, False), limit=25,
             as_of="latest")
+
+    # Emptiness over a to-many end, stacked on the DEEP reach.
+    #
+    # This is the variant that matters most. `emptiness over to-many` appears in forty
+    # services and was still missing 37 of its 40 pairs, because the forty are tomany.py's
+    # and each projects an identifier and the aggregate and nothing else. Enriching those
+    # services does not help either: _templates keeps the deepest service per root, so a
+    # narrow aggregate service is never the template. Adding the aggregate to the deep
+    # template is the way round -- it pairs emptiness with everything the deep stack already
+    # touches, in one service.
+    #
+    # isEmpty and not count(): F6 makes count() return 1 over an empty set, so a count here
+    # would put a known defect inside every stack this generator builds.
+    # Default mapping only, for the same reason enriched() is: the association end exists in
+    # the MODEL, and a narrow mapping need not map it. Taking it from c.ends and handing it to
+    # InlineFlatMapping is the third time this exact mistake has failed the suite, so the
+    # guard now sits on every place that reaches past the template.
+    default_map = getattr(t, "mapping", None) in (None, executed.DEFAULT_MAPPING)
+    tm_end = next((prop for (cls_, prop), end in c.ends.items()
+                   if cls_ == root and end.to_many), None) if default_map else None
+    if tm_end:
+        add("Empty", projections=enriched() + [Proj("hasNone", [tm_end], agg="isEmpty")],
+            filters=filt, sort=(ident, False), limit=25)
+
+    # count() over a to-many end, stacked on the same deep reach -- but ONLY over an end
+    # where every parent has children. aggregates.usable_ends is the existing answer to that
+    # question and is reused rather than re-derived: F6 makes count() return 1 over an empty
+    # set, so one childless parent fails the whole service, and the F-series pins that on the
+    # empty half deliberately. `count over to-many` is the construct with the most open pairs
+    # in the corpus, and it is open for exactly this reason -- the nine services that carry it
+    # are narrow ones.
+    import aggregates as _agg
+    safe = (_agg.usable_ends(c, tables_for_ends, seeded).get(root, [])
+            if tables_for_ends and default_map else [])
+    if safe:
+        add("Count", projections=enriched() + [Proj(f"{safe[0]}Count", [safe[0]],
+                                                    agg="count")],
+            filters=filt, sort=(ident, False), limit=25)
 
     # Graph fetch over the same reach: a different retrieval path entirely, and one no
     # rare-construct service uses.
@@ -296,7 +374,7 @@ def build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spec
     candidates = []
     seen = set()
     for t in _templates(c, existing):
-        for cand in _shape_variants(c, t, seeded):
+        for cand in _shape_variants(c, t, seeded, tables):
             if cand.name in seen:
                 continue
             seen.add(cand.name)
