@@ -45,11 +45,11 @@ class ObservabilityGuardrailTest {
     // engine-module deletion (DiagramHandler crash report, the two
     // invalid-PORT warnings in main) — process-boundary operational
     // logging, not debug traces. Shrink-only from here.
-    private static final int STDERR_PRINTS = 43;
+    private static final int STDERR_PRINTS = 32;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
     // 111: ObjectRefs' extraction-plumbing recognizers (raw-AST harness
     // vocabulary — generateObjectReferences/decodePkMaps idioms match
     // engine test spellings structurally; reviewed)
-    private static final int STRING_DISPATCH_SITES = 111;
+    private static final int STRING_DISPATCH_SITES = 87;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 111)
 
     @Test
     void noNewDebugEnvFlags() throws IOException {

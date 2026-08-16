@@ -123,23 +123,22 @@ final class ArchitectureTest {
      * <strong>Invariant 4c — the root package is the TOP layer.</strong>
      * The acyclic-slices matcher {@code com.legend.(*)..} skips root
      * classes, so nothing structural prevented a phase from importing the
-     * driver (Compiler/StatementExecutor) or the harness bridge (EngineTestExecutor)
-     * — audit 19's blind spot. Phases never call up into orchestration.
+     * driver (Compiler/StatementExecutor) — audit 19's blind spot. Phases
+     * never call up into orchestration. (The harness bridge left
+     * production in F1.2 — no exemption remains.)
      */
     @Test
     void phasesNeverDependOnTheDriverLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
-            .and().resideOutsideOfPackage("com.legend.harness")
             // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
-            // of Compiler) — same standing as the harness, not a phase
+            // of Compiler) — a top-layer sibling, not a phase
             .and().resideOutsideOfPackage("com.legend.server..")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.StatementExecutor.class,
-                    com.legend.harness.EngineTestExecutor.class)
-            .as("Invariant 4c: the com.legend root (driver/harness) is the top"
+                    com.legend.StatementExecutor.class)
+            .as("Invariant 4c: the com.legend root (driver) is the top"
                     + " layer — audit 19")
             .check(CORE_PROD_CLASSES);
     }
@@ -155,7 +154,6 @@ final class ArchitectureTest {
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
-            .and().resideOutsideOfPackage("com.legend.harness")
             .and().resideInAPackage("com.legend..")
             // the engine-style FAMILY (H2 + DB2 golden-text renderers)
             // may compose internally; the quarantine is against the
@@ -499,9 +497,6 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackages(
                     "com.legend.parser..", "com.legend.ide..",
                     "com.legend.builtin", "com.legend",
-                    // the harness bridge sits WITH the driver at the top
-                    // layer (EngineTestExecutor.run's string entry parses test bodies)
-                    "com.legend.harness",
                     // the server shell receives RAW PURE TEXT over HTTP —
                     // a parse ENTRY like the driver (LSP diagnostics,
                     // diagram extraction, runtime->connection resolution)

@@ -84,11 +84,11 @@ class ErrorShapeGuardrailTest {
     /** Designed catch-return sentinels at review time: harness
      * Unsupported buckets, UnfoldableRef isolation, overflow to
      * BigInteger, join-side search. Shrink-only. */
-    private static final int CATCH_RETURNS_VALUE = 20;
+    private static final int CATCH_RETURNS_VALUE = 13;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 20)
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */
-    private static final int ENDS_WITH_FQN = 23;
+    private static final int ENDS_WITH_FQN = 18;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 23)
 
     @Test
     void noReturnOrThrowInsideFinally() throws IOException {
