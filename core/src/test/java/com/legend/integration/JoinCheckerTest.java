@@ -78,7 +78,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Only ids 1 and 2 match");
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
             assertFalse(byName.containsKey("Charlie"), "Charlie has no match");
@@ -122,7 +122,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                     )""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size(), "id, name, person_id, score");
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
         }
@@ -324,7 +324,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount());
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
         }
@@ -504,7 +504,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                     )""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size());
-            var byName = collectResults(result, "name1", "col");
+            var byName = CheckerResults.collect(result, "name1", "col");
             assertEquals("MoreAlice", byName.get("Alice"));
             assertEquals("MoreBob", byName.get("Bob"));
         }
@@ -565,7 +565,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
             assertTrue(colNames.contains("right_id"), "Right id prefixed");
             assertTrue(colNames.contains("right_score"), "Right score also prefixed");
             assertTrue(colNames.contains("name"), "Left name kept");
-            var byName = collectResults(result, "name", "right_score");
+            var byName = CheckerResults.collect(result, "name", "right_score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
         }
@@ -617,7 +617,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                     )""");
             assertEquals(2, result.rowCount(),
                     "Alice(eng-eng) and Bob(sales-sales); Charlie eng≠marketing");
-            var byName = collectResults(result, "name", "right_level");
+            var byName = CheckerResults.collect(result, "name", "right_level");
             assertEquals("senior", byName.get("Alice"));
             assertEquals("junior", byName.get("Bob"));
             assertFalse(byName.containsKey("Charlie"), "Charlie's dept doesn't match");
@@ -672,7 +672,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
             // Bob: sales==marketing via OR → match (budget=75000)
             // Charlie: hr==hr → match (budget=30000)
             assertEquals(3, result.rowCount());
-            var byName = collectResults(result, "name", "budget");
+            var byName = CheckerResults.collect(result, "name", "budget");
             assertEquals(100000L, ((Number) byName.get("Alice")).longValue());
             assertEquals(75000L, ((Number) byName.get("Bob")).longValue());
             assertEquals(30000L, ((Number) byName.get("Charlie")).longValue());
@@ -705,7 +705,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.id == $r.person_id}
                     )->filter(x | $x.score > 80)""");
             assertEquals(2, result.rowCount(), "Alice(90) and Charlie(85) pass filter");
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Charlie")).longValue());
             assertFalse(byName.containsKey("Bob"), "Bob(60) filtered out");
@@ -729,7 +729,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.id == $r.person_id}
                     )->select(~[name, score])""");
             assertEquals(2, result.columns().size());
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
         }
@@ -755,7 +755,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.id == $r.person_id}
                     )""");
             assertEquals(2, result.rowCount(), "Only active Alice and Charlie join");
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(75L, ((Number) byName.get("Charlie")).longValue());
             assertFalse(byName.containsKey("Bob"), "Inactive Bob filtered before join");
@@ -782,7 +782,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                     ->project(~[resultId:x|$x.id1, resultCol:x|$x.col])""");
             assertEquals(2, result.rowCount());
             assertEquals(2, result.columns().size());
-            var byId = collectResults(result, "resultId", "resultCol");
+            var byId = CheckerResults.collect(result, "resultId", "resultCol");
             assertEquals("MoreGeorge", byId.get(1));
             assertEquals("MoreDavid", byId.get(4));
         }
@@ -835,7 +835,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.id == $r.person_id}
                     )->extend(~total: x | $x.qty * $x.price)""");
             assertEquals(2, result.rowCount());
-            var byName = collectResults(result, "name", "total");
+            var byName = CheckerResults.collect(result, "name", "total");
             assertEquals(500L, ((Number) byName.get("Alice")).longValue(), "Alice: 5*100=500");
             assertEquals(600L, ((Number) byName.get("Bob")).longValue(), "Bob: 3*200=600");
         }
@@ -972,7 +972,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {left, right | $left.id == $right.person_id}
                     )""");
             assertEquals(2, result.rowCount());
-            var byName = collectResults(result, "name", "score");
+            var byName = CheckerResults.collect(result, "name", "score");
             assertEquals(90L, ((Number) byName.get("Alice")).longValue());
             assertEquals(85L, ((Number) byName.get("Bob")).longValue());
         }
@@ -996,7 +996,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.dept == $r.dept_name}
                     )""");
             assertEquals(2, result.rowCount(), "String equality join works");
-            var byName = collectResults(result, "name", "budget");
+            var byName = CheckerResults.collect(result, "name", "budget");
             assertEquals(100000L, ((Number) byName.get("Alice")).longValue());
             assertEquals(50000L, ((Number) byName.get("Bob")).longValue());
         }
@@ -1005,18 +1005,6 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
     // ==================== Utilities ====================
 
     /** Collects results into a map keyed by the specified column value. */
-    private <K> Map<K, Object> collectResults(
-            ExecutionResult result, String keyCol, String valCol) {
-        int keyIdx = columnIndex(result, keyCol);
-        int valIdx = columnIndex(result, valCol);
-        Map<K, Object> map = new HashMap<>();
-        for (var row : result.rows()) {
-            @SuppressWarnings("unchecked")
-            K key = (K) row.get(keyIdx);
-            map.put(key, row.get(valIdx));
-        }
-        return map;
-    }
 
     /** Finds column index by name. */
     private int columnIndex(ExecutionResult result, String name) {

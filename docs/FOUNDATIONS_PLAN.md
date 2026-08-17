@@ -1374,6 +1374,17 @@ the report prints `judged M of N; K judge error(s)` (the old `overall() > 0` fil
 shrank the denominator). Also un-rotted: a dead `com.gs.legend.model.m3` import had kept the
 whole nlq test module from COMPILING outside the gates — 223 module tests green again. Chain
 GREEN (nlq is not yet a gate — its module tests are the referee here).
+**A21 (collectResults half) LANDED:** the three copy-pasted `collectResults` helpers are ONE
+`CheckerResults.collect` — a duplicate key THROWS (the old `HashMap.put` silently kept the last
+row, so a query wrongly returning two rows for one group key passed), insertion order kept
+(LinkedHashMap). 68 call sites migrated, 137 checker tests green — no query returns duplicate
+keys today, and now none can silently. The broader `rows().stream()` sorted/filter idiom sweep
+(48 of 80 sites) is test-idiom hygiene of the same class, left to the ongoing correctness lane.
+**A13 ADJUDICATED merged into the §9 TDS-to-many leg:** the host-side row explosion at
+`Executor.shapeRow` is the EGRESS half of the same design (`OutputCol`/slot reconciliation —
+emit the engine's union-subselect/LEFT-join explosion in SQL); the host path is loud-guarded
+meanwhile (a second many-valued column throws; empty streams keep the LEFT-join row). **A5/A6**
+(testdatagen `Fetched` per-column `SqlExpr`) remains the one substantial open Phase-8 build.
 
 **Backlog (append new findings here, do not act on them mid-plan):**
 - **HTTP streaming route (A20 residue):** `Executor.stream` (JSON straight
