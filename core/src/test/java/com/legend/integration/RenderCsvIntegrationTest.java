@@ -114,6 +114,28 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void tdsToStringIsBuiltByTheDatabase() throws SQLException {
+        // engine toString.pure: '#TDS' + 3-space header + 3-space rows
+        assertEquals("""
+                #TDS
+                   id,name
+                   1,Ann
+                   2,Bob "B"
+                #""",
+                csv("|test::Person.all()->project([p | $p.id, p | $p.name],"
+                        + " ['id', 'name'])->sort(asc('id'))"
+                        + "->meta::pure::functions::relation::toString()"));
+    }
+
+    @Test
+    void tdsToStringEmptyRelation() throws SQLException {
+        assertEquals("#TDS\n   id\n\n#",
+                csv("|test::Person.all()->filter(p | $p.id > 99)"
+                        + "->project([p | $p.id], ['id'])"
+                        + "->meta::pure::functions::relation::toString()"));
+    }
+
+    @Test
     void emptyRelationRendersHeaderAndBlank() throws SQLException {
         // engine joinStrings('', '\n', '\n') over zero rows = '\n'
         assertEquals("id\n\n",

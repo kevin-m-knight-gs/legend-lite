@@ -351,6 +351,8 @@ meta::relational::functions::sqlstring::toSQLStringPretty(f:meta::pure::metamode
 meta::relational::functions::toDDL::dropSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::relational::functions::toDDL::createSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::relational::functions::toDDL::createTableStatement(database:meta::relational::metamodel::Database[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
+meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::String[1]
+meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], typesAndMuls:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1]
 meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1]):meta::pure::metamodel::type::String[1]
 meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1], renderTdsNull:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1]
 meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1], dateTimeFormat:meta::pure::metamodel::type::String[1], dateFormat:meta::pure::metamodel::type::String[1], renderTdsNull:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1]

@@ -2771,10 +2771,11 @@ public final class EngineTestExecutor {
                     tail.parameters().get(0), execStmts, execVars,
                     ctx, imports, runtimeFqn, conn);
             if (stripped instanceof com.legend.exec.ExecutionResult.Tabular tgrid) {
-                if (System.getenv("LL_CSV_PROBE") != null
-                        && simpleName(tail.function()).equals("toCSV")) {
-                    csvProbe(spliced, tgrid, execStmts, execVars, ctx,
-                            imports, runtimeFqn, conn);
+                if (System.getenv("LL_CSV_PROBE") != null) {
+                    csvProbe(spliced, tgrid,
+                            simpleName(tail.function()).equals("toCSV"),
+                            execStmts, execVars, ctx, imports, runtimeFqn,
+                            conn);
                 }
                 return new Eval(stripped,
                         endsInSort(orderView(tail.parameters().get(0),
@@ -3340,7 +3341,7 @@ public final class EngineTestExecutor {
      *  target/csv-differential.tsv: fqn, EXACT|MULTISET|DIFFERS|B_ERROR,
      *  and the first divergent line pair. Read-only — never throws. */
     private static void csvProbe(ValueSpecification unstripped,
-            com.legend.exec.ExecutionResult.Tabular grid,
+            com.legend.exec.ExecutionResult.Tabular grid, boolean csvTail,
             List<ValueSpecification> execStmts,
             java.util.Set<String> execVars,
             ModelContext ctx, ImportScope imports, String runtimeFqn,
@@ -3359,7 +3360,8 @@ public final class EngineTestExecutor {
                 verdict = "B_NOT_SCALAR";
                 detail = rb.getClass().getSimpleName();
             } else {
-                String sideA = csvText(grid);
+                String sideA = csvTail ? csvText(grid)
+                        : harnessTdsText(grid);
                 if (sideA.equals(sideB)) {
                     verdict = "EXACT";
                 } else {
@@ -3401,6 +3403,27 @@ public final class EngineTestExecutor {
         } catch (java.io.IOException ignore) {
             // best-effort probe
         }
+    }
+
+    /** TEMPORARY F4.2b/c PROBE side-A: the harness's '#TDS' render (the
+     *  tdsStringEquals line shape) — deletes with F4.3. */
+    private static String harnessTdsText(
+            com.legend.exec.ExecutionResult.Tabular t) {
+        StringBuilder out = new StringBuilder("#TDS\n   ");
+        out.append(t.columns().stream().map(c -> c.name().contains(" ")
+                ? "'" + c.name() + "'" : c.name())
+                .collect(java.util.stream.Collectors.joining(",")));
+        for (var r : t.rows()) {
+            out.append("\n   ");
+            for (int i = 0; i < r.values().size(); i++) {
+                if (i > 0) {
+                    out.append(',');
+                }
+                Object v = r.values().get(i);
+                out.append(v == null ? "null" : String.valueOf(v));
+            }
+        }
+        return out.append("\n#").toString();
     }
 
     private static String csvText(com.legend.exec.ExecutionResult.Tabular t) {

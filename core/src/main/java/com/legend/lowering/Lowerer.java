@@ -2662,6 +2662,11 @@ public final class Lowerer {
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
                 Render.lowerToCsv(tc, this::relation, nextAlias());
+            // F4.2c (RENDER): relation toString — the '#TDS' text form
+            case TypedNativeCall tc when
+                    "meta::pure::functions::relation::toString"
+                            .equals(tc.callee().qualifiedName()) ->
+                Render.lowerToString(tc, this::relation, nextAlias());
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the

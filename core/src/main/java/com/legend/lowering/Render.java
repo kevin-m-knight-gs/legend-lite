@@ -146,27 +146,8 @@ final class Render {
         List<OutputCol> rowOuts = new ArrayList<>();
         rowProjs.add(new SqlSelect.Projection(line, "_csv_line"));
         rowOuts.add(new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false));
-        List<SqlSelect.SortKey> aggOrder = new ArrayList<>();
-        int ord = 0;
-        for (SqlSelect.SortKey k : inner.orderBy()) {
-            String out = k.outputName() != null ? k.outputName()
-                    : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
-            OutputCol src = out == null ? null : cols.stream()
-                    .filter(oc -> oc.name().equals(out)).findFirst()
-                    .orElse(null);
-            if (src == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "toCSV over an ordered relation whose sort key is"
-                        + " not an output column");
-            }
-            String oname = "_ord" + ord++;
-            rowProjs.add(new SqlSelect.Projection(
-                    new SqlExpr.Column(rowAlias, src.name()), oname));
-            rowOuts.add(new OutputCol(oname, src.type(), src.nullable()));
-            aggOrder.add(new SqlSelect.SortKey(
-                    new SqlExpr.Column(aggAlias, oname), k.ascending(),
-                    k.nullOrder(), null));
-        }
+        List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
+                rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
         // the header line: names through the SAME escape expression
         SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
         for (int i = 1; i < cols.size(); i++) {
@@ -193,6 +174,144 @@ final class Render {
                                 SqlType.Scalar.VARCHAR, false)));
     }
 
+    /** The Lowerer's relation-toString dispatch target (engine
+     *  toString.pure:19-35): the '#TDS' text form, built by the DB.
+     *  typesAndMuls=true stays loud until a demand names it. */
+    static SqlExpr lowerToString(
+            com.legend.compiler.spec.typed.TypedNativeCall tc,
+            java.util.function.Function<
+                    com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
+            String alias) {
+        if (tc.args().size() == 2
+                && (!(tc.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCBoolean b)
+                        || b.value())) {
+            throw new com.legend.error.NotImplementedException(
+                    "relation toString(typesAndMuls) is lowered only for"
+                    + " the literal-false form");
+        }
+        SqlSelect inner = relation.apply(tc.args().get(0));
+        java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
+        if (tc.args().get(0).info().type() instanceof Type.RelationType rt) {
+            for (Type.Column col : rt.columns()) {
+                byName.put(col.name(), col);
+            }
+        }
+        List<Type.Column> relCols = inner.outputs().stream()
+                .map(oc -> {
+                    Type.Column t = byName.get(oc.name());
+                    if (t == null) {
+                        throw new IllegalStateException("toString: output"
+                                + " column '" + oc.name()
+                                + "' has no typed relation column");
+                    }
+                    return t;
+                }).toList();
+        return new SqlExpr.ScalarSubquery(
+                tdsString(inner, relCols, alias));
+    }
+
+    /** The '#TDS' text (engine toString.pure:24-35): {@code #TDS\n} +
+     *  {@code '   '} + names (quoted unless simple:
+     *  {@code ^[a-zA-Z0-9_]+$} or already quote-bearing) + one
+     *  {@code '   '}-prefixed line per row + {@code \n#}; empty
+     *  relation = a blank rows segment. Cell = the engine's {@code s()}:
+     *  NULL prints {@code null}, a String containing '{'/'[' quotes
+     *  with backslash/quote escaping, everything else is the pure print
+     *  form. Header names are typed plan facts (charter clause 1). */
+    static SqlSelect tdsString(SqlSelect inner, List<Type.Column> relCols,
+            String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        String aggAlias = rowAlias + "_a";
+        if (cols.isEmpty()) {
+            throw new IllegalStateException(
+                    "toString over a zero-column relation");
+        }
+        StringBuilder hdr = new StringBuilder("   ");
+        for (int i = 0; i < cols.size(); i++) {
+            String name = cols.get(i).name().trim();
+            boolean simple = name.startsWith("'")
+                    || name.matches("^[a-zA-Z0-9_]+$");
+            if (i > 0) {
+                hdr.append(',');
+            }
+            hdr.append(simple ? name : "'" + name + "'");
+        }
+        SqlExpr line = new SqlExpr.StringLit("   ");
+        for (int i = 0; i < cols.size(); i++) {
+            SqlExpr c = tdsCell(
+                    new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                    relCols.get(i).type(), cols.get(i).type());
+            line = i == 0 ? cat(line, c)
+                    : cat(line, new SqlExpr.StringLit(","), c);
+        }
+        List<SqlSelect.Projection> rowProjs = new ArrayList<>();
+        List<OutputCol> rowOuts = new ArrayList<>();
+        rowProjs.add(new SqlSelect.Projection(line, "_tds_line"));
+        rowOuts.add(new OutputCol("_tds_line", SqlType.Scalar.VARCHAR, false));
+        SqlExpr nl = new SqlExpr.StringLit("\n");
+        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
+                new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(new SqlExpr.Column(aggAlias, "_tds_line"), nl),
+                        false, hoistOrder(inner, cols, rowAlias, aggAlias,
+                                new Object[] {rowProjs, rowOuts})),
+                new SqlExpr.StringLit(""));
+        SqlExpr text = cat(new SqlExpr.StringLit("#TDS\n"
+                        + hdr + "\n"), rowsJoined,
+                new SqlExpr.StringLit("\n#"));
+        SqlSelect rows = SqlSelect.starOf(
+                        new SqlSource.Subselect(inner, rowAlias, null))
+                .withProjections(rowProjs, rowOuts);
+        return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
+                .withProjections(
+                        List.of(new SqlSelect.Projection(text, "tds")),
+                        List.of(new OutputCol("tds",
+                                SqlType.Scalar.VARCHAR, false)));
+    }
+
+    /** The engine {@code s()} cell (s.pure:23-38). */
+    private static SqlExpr tdsCell(SqlExpr c, Type t, SqlType slot) {
+        boolean variant = t instanceof Type.ClassType vc
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isVariant(vc);
+        SqlExpr rendered;
+        if (variant) {
+            rendered = cat(new SqlExpr.StringLit("'"),
+                    SqlExpr.Call.of(SqlFn.REPLACE,
+                            SqlExpr.Call.of(SqlFn.REPLACE,
+                                    Scalars.pureToString(t, c),
+                                    new SqlExpr.StringLit("\\"),
+                                    new SqlExpr.StringLit("\\\\")),
+                            new SqlExpr.StringLit("'"),
+                            new SqlExpr.StringLit("\\'")),
+                    new SqlExpr.StringLit("'"));
+        } else if (t == Type.Primitive.STRING) {
+            SqlExpr braced = SqlExpr.Call.of(SqlFn.OR,
+                    contains(c, "{"), contains(c, "["));
+            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(braced,
+                    cat(new SqlExpr.StringLit("'"),
+                            SqlExpr.Call.of(SqlFn.REPLACE,
+                                    SqlExpr.Call.of(SqlFn.REPLACE, c,
+                                            new SqlExpr.StringLit("\\"),
+                                            new SqlExpr.StringLit("\\\\")),
+                                    new SqlExpr.StringLit("'"),
+                                    new SqlExpr.StringLit("\\'")),
+                            new SqlExpr.StringLit("'")))),
+                    c);
+        } else if (t == Type.Primitive.STRICT_DATE
+                || (t == Type.Primitive.DATE
+                        && slot == SqlType.Scalar.DATE)) {
+            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                    new SqlExpr.FormatLit(DateFmt.DATE));
+        } else {
+            rendered = Scalars.pureToString(t, c);
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, c),
+                new SqlExpr.StringLit(variant ? "'null'" : "null"))),
+                rendered);
+    }
+
     /** write(rel, accessor)'s observable: the COUNT of rows written
      *  (a TDS-relation accessor destination has no physical table — the
      *  write is vacuous, only the count is observable). */
@@ -205,6 +324,44 @@ final class Render {
                         List.of(new OutputCol("count",
                                 SqlType.Scalar.BIGINT, false)));
         return new SqlExpr.ScalarSubquery(count);
+    }
+
+    /** RESULT-ORDER hoist: an ordered inner select keeps its order
+     *  INSIDE the aggregate; only plain output-column keys hoist —
+     *  anything else walls loudly, never a silently unordered render.
+     *  {@code carry} (when non-null) receives the pass-through
+     *  projections/outputs the row subselect must carry. */
+    @SuppressWarnings("unchecked")
+    private static List<SqlSelect.SortKey> hoistOrder(SqlSelect inner,
+            List<OutputCol> cols, String rowAlias, String aggAlias,
+            Object @com.legend.Nullable [] carry) {
+        List<SqlSelect.SortKey> aggOrder = new ArrayList<>();
+        int ord = 0;
+        for (SqlSelect.SortKey k : inner.orderBy()) {
+            String out = k.outputName() != null ? k.outputName()
+                    : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
+            OutputCol src = out == null ? null : cols.stream()
+                    .filter(oc -> oc.name().equals(out)).findFirst()
+                    .orElse(null);
+            if (src == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "render over an ordered relation whose sort key is"
+                        + " not an output column");
+            }
+            String oname = "_ord" + ord++;
+            if (carry != null) {
+                ((List<SqlSelect.Projection>) carry[0]).add(
+                        new SqlSelect.Projection(
+                                new SqlExpr.Column(rowAlias, src.name()),
+                                oname));
+                ((List<OutputCol>) carry[1]).add(
+                        new OutputCol(oname, src.type(), src.nullable()));
+            }
+            aggOrder.add(new SqlSelect.SortKey(
+                    new SqlExpr.Column(aggAlias, oname), k.ascending(),
+                    k.nullOrder(), null));
+        }
+        return aggOrder;
     }
 
     /** One cell — the engine's {@code toCSVString} dispatch, typed.

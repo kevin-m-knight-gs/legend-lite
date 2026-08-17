@@ -1679,6 +1679,11 @@ public final class Pure {
     public static final NativeFunctionDefinition DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::toDDL::createTableStatement(database:meta::relational::metamodel::Database[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     // engine helperFunctions.pure:198-232 — the RENDER phase's CSV text
     // (F4.2): platform-owned lowerings, the DB constructs the text
+    // engine toString.pure:19-24 — the '#TDS' relation text (F4.2c);
+    // the RELATION overload also NARROWS toString(Any)'s leak for
+    // relation args (overload resolution picks the specific one)
+    public static final NativeFunctionDefinition TO_STRING__RELATION = signature("native function meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition TO_STRING__RELATION_BOOL = signature("native function meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], typesAndMuls:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_CSV__TDS = signature("native function meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_CSV__TDS_BOOL = signature("native function meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1], renderTdsNull:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_CSV__TDS_FMT = signature("native function meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1], dateTimeFormat:meta::pure::metamodel::type::String[1], dateFormat:meta::pure::metamodel::type::String[1], renderTdsNull:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
