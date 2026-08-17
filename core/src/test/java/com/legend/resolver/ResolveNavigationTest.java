@@ -507,9 +507,10 @@ class ResolveNavigationTest {
         var r = Compiler.execute(MODEL,
                 "{| m::Firm.all()->map(f|$f.staff->filter(e|$e.name != 'Ann'))"
                         + "->map(p|$p.name);}", "m::RT", conn);
-        var t = (com.legend.exec.ExecutionResult.Tabular) r;
-        assertEquals(List.of("Cat"), t.rows().stream()
-                .map(row -> String.valueOf(row.values().get(0))).sorted().toList());
+        // F6.2: the map-binder channel is a VALUE COLLECTION
+        var c = (com.legend.exec.ExecutionResult.Collection) r;
+        assertEquals(List.of("Cat"),
+                c.values().stream().map(String::valueOf).sorted().toList());
     }
 
     @Test
@@ -532,9 +533,20 @@ class ResolveNavigationTest {
         var r = Compiler.execute(MODEL,
                 "{| let row = m::Person.all()->filter(p|$p.name == 'Ann')->toOne();\n"
                         + "$row.addr.city;}", "m::RT", conn);
-        var t = (com.legend.exec.ExecutionResult.Tabular) r;
-        assertEquals(1, t.rows().size());
-        assertEquals("NYC", t.rows().get(0).values().get(0));
+        // F6.2: the map-binder channel is a VALUE COLLECTION (here to-one)
+        switch (r) {
+            case com.legend.exec.ExecutionResult.Scalar sc ->
+                    assertEquals("NYC", sc.value());
+            case com.legend.exec.ExecutionResult.Collection c2 -> {
+                assertEquals(1, c2.values().size());
+                assertEquals("NYC", c2.values().get(0));
+            }
+            default -> {
+                var t = (com.legend.exec.ExecutionResult.Tabular) r;
+                assertEquals(1, t.rows().size());
+                assertEquals("NYC", t.rows().get(0).values().get(0));
+            }
+        }
     }
 
     @Test

@@ -60,6 +60,11 @@ class NullSemanticsTest {
 
     private static List<String> names(String query) throws SQLException {
         ExecutionResult r = Compiler.execute(MODEL, query, "m::RT", conn);
+        // F6.2: the map-binder channel is a VALUE COLLECTION (nulls are
+        // pure empties and never arrive)
+        if (r instanceof ExecutionResult.Collection c) {
+            return c.values().stream().map(String::valueOf).sorted().toList();
+        }
         return ((ExecutionResult.Tabular) r).rows().stream()
                 .map(row -> String.valueOf(row.values().get(0))).sorted().toList();
     }
