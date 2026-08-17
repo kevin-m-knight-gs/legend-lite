@@ -955,6 +955,16 @@ Audit §5 A1.
 
 **Expected red:** up to 71 reads. Adjudicate as blocked-on-feature.
 
+**LANDED ENDPOINT (2026-08-17):** both fabrications deleted — the `[]` fold (and its
+filter-over-activities variant) and the UUID trace comment; those reads now wall with
+`NotImplementedException("execution activities are not recorded")`. The aggregationAware
+`rewrittenQuery` arm SURVIVES: it is a derived read (routed print recomputed from the frame's
+actual chain via `AggAwareActivities`), not fabrication — which is why the realized red is
+**13**, not 71 (the derived arm still answers the rewrite-print asserts). Deltas, all the wall:
+`aggregationAware/test/rewrite` 13→9, `…/rewrite/NOP` 15→7, `functions/tests` 238→237
+(`testSQLComments`). Verdicts in docs/BURNDOWN_EXPLANATIONS.md (blocked-on-feature); corpus
+total 2347→2334, scoreboard re-frozen. Un-red path = recording REAL activities (§9 backlog).
+
 ### F6.2 — Delete the `u_map__` null strip
 
 **Files:** `EngineTestExecutor.java:2507-2521`

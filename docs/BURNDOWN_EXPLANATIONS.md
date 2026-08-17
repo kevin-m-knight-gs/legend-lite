@@ -449,3 +449,34 @@ Also in the same re-freeze: `tests/mapping/embedded` 62 → 63 —
 `testIsEmpty` now PASSES: the engine golden ('name,firm\n\n') is
 byte-identical to the platform's empty shape; the deleted harness render
 was the thing breaking it. Net corpus total unchanged (2347).
+
+## 2026-08-17 — F6.1 execution-activities honesty (§0.4 declared, 13)
+
+The fabrication apparatus is gone (FOUNDATIONS_PLAN F6.1, audit §5 A1):
+`$r.activities` no longer folds to `[]` (its filters' predicates never
+evaluated — absence asserts passed for the wrong reason) and the
+Java-manufactured `-- "executionTraceID" : "<uuid>"` trace comment is no
+longer synthesized. Any activities read the platform cannot DERIVE (the
+aggregationAware `rewrittenQuery` routed print remains, recomputed from
+the actual chain) now walls loudly:
+`NotImplementedException("execution activities are not recorded")`.
+
+All 13 deltas are that wall — VERDICT: blocked-on-feature
+(MISSING_FEATURE: an execution-activity trail the platform does not
+record). Every one was previously green only through fabrication.
+
+- `aggregationAware/test/rewrite` 13 → 9 (4): `testRewrite::objectGroupBy::
+  testRewriteEmployeeToSales`, `…SalesBackToEmployee`, `…SalesToProduct`,
+  `…SalesToProductToProdLine` — object-side rewrite asserts the derived
+  arm cannot answer.
+- `aggregationAware/test/rewrite/NOP` 15 → 7 (8): `testRewriteAsNOP::
+  nonAggregationAware::testRewriteFilter`, `…GetAllQuery`,
+  `…ProjectCol`, `…ProjectColMulti`, `…ProjectFunction`,
+  `…ProjectFunctionMulti`, `…TDSGroupBy`, `…TDSOperation` — absence
+  asserts over the activity trail (the exact pass-for-the-wrong-reason
+  class the audit named).
+- `functions/tests` 238 → 237 (1): `query::simple::testSQLComments` —
+  the UUID trace-comment consumer.
+
+Corpus total 2347 → 2334. Un-red path: record real execution activities
+(a platform feature, §9 backlog), not a fold.

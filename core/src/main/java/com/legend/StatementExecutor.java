@@ -2405,27 +2405,24 @@ final class StatementExecutor {
                             w.callee(), args, w.info());
                 }
             }
-            // activity-envelope READS (trace comment, aggregationAware
-            // rewrittenQuery) fold host-side — activityEnvelopeRead
+            // aggregationAware rewrittenQuery: a DERIVED read — the routed
+            // print recomputed from the frame's actual chain
             TypedSpec act = activityEnvelopeRead(n, execFrames, env);
             if (act != null) {
                 return act;
             }
-            // $r.activities: the engine's execution-activity trail (routing/
-            // aggregationAware rewrite records). We record NONE — the read
-            // is the EMPTY collection, so absence asserts (assertEmpty over
-            // an activity filter) hold and presence asserts fail honestly.
-            // A filter DIRECTLY over the read folds here (hook is top-down;
-            // filter([]) ≡ [] — its predicate never evaluates, so activity-
-            // class vocabulary like instanceOf needs no scalar lowering).
-            if (n instanceof com.legend.compiler.spec.typed.TypedFilter tf
-                    && activitiesRead(tf.source(), execFrames)) {
-                return new com.legend.compiler.spec.typed.TypedCollection(
-                        java.util.List.of(), tf.info());
-            }
-            if (activitiesRead(n, execFrames)) {
-                return new com.legend.compiler.spec.typed.TypedCollection(
-                        java.util.List.of(), n.info());
+            // F6.1: $r.activities — the engine's execution-activity trail.
+            // We record NONE, and we no longer pretend otherwise: the old
+            // empty-collection fold made absence asserts pass for the wrong
+            // reason (filter predicates never evaluated) and a fabricated
+            // UUID trace comment satisfied regex asserts the platform never
+            // earned. Any activities read the derived arm above cannot
+            // answer is a loud wall.
+            if ((n instanceof com.legend.compiler.spec.typed.TypedFilter tf
+                    && activitiesRead(tf.source(), execFrames))
+                    || activitiesRead(n, execFrames)) {
+                throw new com.legend.error.NotImplementedException(
+                        "execution activities are not recorded");
             }
             // $r.values / execute(...).values → the spliced chain
             TypedSpec direct = spliceValuesRead(n, execFrames, letPrefix,
@@ -2442,19 +2439,18 @@ final class StatementExecutor {
         };
     }
 
-    /** The activity-envelope reads folded HOST-side — the per-execution
-     * trace comment ({@code at(0)->cast(@RelationalActivity).comment} —
-     * the engine stamps '-- "executionTraceID" : "<uuid>"', fresh id
-     * per execution; corpus asserts regex-match the uuid) and the
-     * aggregationAware {@code rewrittenQuery} (the routed print via
-     * {@link AggAwareActivities}). Null when not this shape. */
+    /** The one activity read the platform can DERIVE: aggregationAware
+     * {@code rewrittenQuery} — the routed print recomputed from the
+     * frame's actual chain via {@link AggAwareActivities}. Null when not
+     * this shape. (F6.1: the trace-comment arm — a Java-manufactured
+     * '-- "executionTraceID" : "&lt;uuid&gt;"' string — was fabrication
+     * and is gone; those reads wall.) */
     private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
             activityEnvelopeRead(com.legend.compiler.spec.typed.TypedSpec n,
             java.util.Map<String, ExecFrame> execFrames, ExecEnv env) {
         if (!(n instanceof com.legend.compiler.spec.typed
                 .TypedPropertyAccess pa)
-                || !(pa.property().equals("comment")
-                        || pa.property().equals("rewrittenQuery"))) {
+                || !pa.property().equals("rewrittenQuery")) {
             return null;
         }
         com.legend.compiler.spec.typed.TypedSpec inner = pa.source();
@@ -2473,14 +2469,7 @@ final class StatementExecutor {
                 break;
             }
         }
-        if (pa.property().equals("comment")
-                && activitiesRead(inner, execFrames)) {
-            return new com.legend.compiler.spec.typed.TypedCString(
-                    "-- \"executionTraceID\" : \""
-                    + java.util.UUID.randomUUID() + "\"", n.info());
-        }
-        if (pa.property().equals("rewrittenQuery")
-                && inner instanceof com.legend.compiler.spec.typed
+        if (inner instanceof com.legend.compiler.spec.typed
                         .TypedFilter af
                 && activitiesRead(af.source(), execFrames)
                 && af.source() instanceof com.legend.compiler.spec.typed

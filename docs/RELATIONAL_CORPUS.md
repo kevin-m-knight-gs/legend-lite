@@ -33,12 +33,12 @@ shared source registered by several families cannot double-count. Run with
 
 | family | tests | pass | fail | error | shape | sqldiff-pass | adv-pass | 0-asserts | rescued |
 |---|---|---|---|---|---|---|---|---|---|
-| aggregationAware/test/rewrite | 13 | 13 | 0 | 0 | 0 | 0 | 0 | 0 | 13 |
-| aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| aggregationAware/test/rewrite | 13 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 9 |
+| aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 70 | 14 | 5 | 19 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 238 | 7 | 9 | 5 | 67 | 80 | 1 | 34 |
+| functions/tests | 259 | 237 | 7 | 10 | 5 | 67 | 80 | 1 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 145 | 3 | 6 | 1 | 1 | 4 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2347** | 73 | 69 | 86 | 247 | 293 | 27 | 617 |
+| **total** | 2575 | **2334** | 73 | 82 | 86 | 247 | 293 | 27 | 613 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 617; flags overlap — the union is 929).
+SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1409 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
 
 ### mapping walls (dropped at assembly)
 
@@ -1116,6 +1116,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness 
 
 ### top error buckets
 
+- 13x execution activities are not recorded
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]], multiplicity=Bounded[lower=1, upper=1]]]
 - 3x resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -1125,7 +1126,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness 
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- 2x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                                ^
+- 2x class query under TypedUserCall is not resolvable yet (H2 vocabulary)
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
@@ -1145,10 +1146,21 @@ SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness 
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
-- 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 
 ### per-test outcomes (non-passing)
 
+- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: execution activities are not recorded
+- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: execution activities are not recorded
+- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: execution activities are not recorded
+- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: execution activities are not recorded
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
+- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: execution activities are not recorded
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call [calls meta::relational::extension] — wall: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure::vX_X_X::metamodel::PureModelContextData(…)
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call — wall: no overload of 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan' matches the argument types
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
@@ -1205,6 +1217,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness 
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: emptiness check over a toOne()-pierced navigation through the ~filter-mapped set of 'firm' needs the strict-read filter hoist — not supported yet
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |        
+- ERROR testSQLComments [functions/tests]: execution activities are not recorded
 - FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {address={name=New Yo...
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
@@ -1347,8 +1360,8 @@ SOFT-PASS RECONCILIATION (F2.1): 2347 PASS = 1418 clean + 929 carrying softness 
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
-- ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(
-- ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT replace(replace(
+- ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: class query under TypedUserCall is not resolvable yet (H2 vocabulary)
+- ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: class query under TypedUserCall is not resolvable yet (H2 vocabulary)
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']
