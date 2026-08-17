@@ -83,13 +83,32 @@ public final class DynamicPivot {
                 ResultSet rs = st.executeQuery(dialect.render(q))) {
             while (rs.next()) {
                 Object v = rs.getObject(1);
+                // F7.6: every JDBC pivot-key kind gets its TYPED
+                // literal — the old default silently respelled
+                // DATE/DECIMAL/TIMESTAMP keys as strings in the
+                // regenerated IN list; an unmapped kind now throws
                 in.add(switch (v) {
                     case Integer i -> new SqlExpr.IntLit(i);
                     case Long l -> new SqlExpr.IntLit(l);
                     case Boolean b -> new SqlExpr.BoolLit(b);
+                    case java.math.BigDecimal d -> new SqlExpr.DecimalLit(d);
+                    case Double d -> new SqlExpr.FloatLit(d);
+                    case Float f -> new SqlExpr.FloatLit(f);
+                    case java.sql.Date d ->
+                            new SqlExpr.DateLit(d.toLocalDate().toString());
+                    case java.time.LocalDate d ->
+                            new SqlExpr.DateLit(d.toString());
+                    case java.sql.Timestamp t -> new SqlExpr.TimestampLit(
+                            t.toLocalDateTime().toString().replace('T', ' '));
+                    case java.time.LocalDateTime t -> new SqlExpr.TimestampLit(
+                            t.toString().replace('T', ' '));
+                    case String str -> new SqlExpr.StringLit(str);
                     case null -> throw new IllegalStateException(
                             "NULL pivot key past the IS NOT NULL guard");
-                    default -> new SqlExpr.StringLit(String.valueOf(v));
+                    default -> throw new com.legend.error
+                            .NotImplementedException("dynamic pivot key of"
+                            + " JDBC kind " + v.getClass().getName()
+                            + " has no typed literal arm");
                 });
             }
         }

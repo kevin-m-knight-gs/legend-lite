@@ -1267,6 +1267,12 @@ sharding (recorded, out of scope). Scoreboard byte-identical; full chain GREEN.
 has `DateLit`/`DecimalLit`/`TimestampLit`. **Do not regress this class's placement** — its
 two-phase run at the execution seam, rewriting IR via `SqlRewriter`, is the target design.
 
+**LANDED ENDPOINT (2026-08-17):** every JDBC pivot-key kind has its TYPED literal arm
+(BigDecimal→DecimalLit, Double/Float→FloatLit, Date/LocalDate→DateLit,
+Timestamp/LocalDateTime→TimestampLit, String→StringLit); an unmapped kind THROWS
+(`NotImplementedException` naming the JDBC class). Placement untouched. Scoreboard
+byte-identical, full chain GREEN.
+
 ### F7.7 — `planWalk`: exact FQN dispatch, loud default
 
 **Files:** `StatementExecutor.java:1293`, `:1430`, `:1520`, `:1753`; the null returns at
