@@ -1212,19 +1212,24 @@ public final class TestDataGenerator {
         }
         st.execute(ddl.append(")").toString());
         temps.add(temp);
-        for (int i = 1; i < block.length; i++) {
+        // F7.5: one multi-row INSERT — statement count is the cost
+        if (block.length > 1) {
             StringBuilder ins = new StringBuilder("INSERT INTO ")
-                    .append(temp).append(" VALUES (");
-            for (int c = 0; c < block[0].length; c++) {
-                if (c > 0) {
-                    ins.append(", ");
+                    .append(temp).append(" VALUES ");
+            for (int i = 1; i < block.length; i++) {
+                ins.append(i > 1 ? ", (" : "(");
+                for (int c = 0; c < block[0].length; c++) {
+                    if (c > 0) {
+                        ins.append(", ");
+                    }
+                    String tok = c < block[i].length ? block[i][c] : "";
+                    ins.append(tok.isEmpty() || tok.equals("---null---")
+                            ? "NULL"
+                            : "'" + tok.replace("'", "''") + "'");
                 }
-                String tok = c < block[i].length ? block[i][c] : "";
-                ins.append(tok.isEmpty() || tok.equals("---null---")
-                        ? "NULL"
-                        : "'" + tok.replace("'", "''") + "'");
+                ins.append(')');
             }
-            st.execute(ins.append(")").toString());
+            st.execute(ins.toString());
         }
         return temp;
     }

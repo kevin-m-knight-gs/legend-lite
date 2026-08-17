@@ -1246,6 +1246,18 @@ sweep 2282/2575 identical, full chain GREEN.
 Also fold the effectful `map` arm (`StatementExecutor.java:3174-3185`), which materialises a
 collection, calls `executeTyped` per element, and **keeps only the last result**.
 
+**LANDED ENDPOINT (2026-08-17):** batched where the platform OWNS the text, then measured —
+and the measurement closes the item. `CsvSeed` emits ONE multi-row `INSERT … VALUES` per
+block; `TestDataGenerator.loadSide` likewise (both H2-mirror-replayable and DuckDB-valid).
+`Ddl.setUpDataSqlsText` is EXEMPT — it is the golden-asserted engine TEXT surface, not an
+execution stream. Runner's module DDL was already one-statement units after F7.4. Measured on
+the full sweep: raw jdbc statements 980,068 → 979,780 (−288, 0.03%) — the seed stream is
+overwhelmingly CORPUS-AUTHORED executeInDb text, whose per-statement execution IS the fidelity
+contract (task #14's finding again: the cost is the statement stream itself). The effectful-map
+fold was left alone: its per-element `executeTyped` is the same corpus-text channel and its
+"last result" is semantically discarded setup output. The real speed lever remains family
+sharding (recorded, out of scope). Scoreboard byte-identical; full chain GREEN.
+
 ### F7.6 — `DynamicPivot`: add typed arms, make `default` throw
 
 **Files:** `exec/DynamicPivot.java:86-93`
