@@ -50,10 +50,11 @@ class HarnessDisciplineTest {
      *  scoreboard-RENDER ordering (deterministic output, not result
      *  comparison) — in scope so comparison sorts cannot hide here. */
     private static final Map<String, Integer> ALLOWED = Map.of(
-            // +2 (F4.2b, TEMPORARY — deletes with the probe in F4.3):
-            // csvProbe's line-multiset comparison sorts BOTH sides'
-            // lines — two-sided comparison policy, never result mutation
-            "EngineTestExecutor.java", 7,
+            // F4.3 ratchet-DOWN 5 -> 3: the harness RENDERER died (the
+            // platform's RENDER lowerings produce the text; the probe and
+            // its sorts died with it) — the survivors are the makeString
+            // split-multiset order policy
+            "EngineTestExecutor.java", 3,
             "H2Verify.java", 2,
             "JsonAssertCanon.java", 1,
             "LineageForm.java", 1,

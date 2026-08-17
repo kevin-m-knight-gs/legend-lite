@@ -386,6 +386,13 @@ public class RelationalCorpusRunner {
                     runner.walls(), header);
             System.out.println("[rcorpus] 100% ledger written to"
                     + " docs/RELATIONAL_CORPUS_ALL.md (baseline untouched)");
+        } else if (!System.getProperty("rcorpus.test", "").trim().isEmpty()) {
+            // F4.3 hole-plug: a -Drcorpus.test scoped run bypassed BOTH the
+            // only-filter check and the regression gate (which skips when
+            // test-scoped), so it wrote a TRUNCATED scoreboard — caught when
+            // a stash carried one. Test-scoped runs NEVER write.
+            System.out.println("[rcorpus] TEST-SCOPED run (rcorpus.test) —"
+                    + " scoreboard NOT written");
         } else if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);

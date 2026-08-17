@@ -431,3 +431,21 @@ every non-passing row carries a STATUS verdict —
 | testToSQLStringWithAbs | transform/fromPure/tests | OPEN — fix site named | `TypedNewInstance` unresolvable when a field holds a class-query lambda — `StoreResolver.java:509-512` (arm beside `:506`); `Anch | class query under TypedNewInstance is not resolvable yet (H2 vocabulary) |
 | testToSQLStringWithAggregation | transform/fromPure/tests | OPEN | wall pending cause-group triage | no execute(\|...) call [calls meta::relational::tests::functions::sqlstring] — wall: class query under TypedNew |
 | testToSQLStringWithCodeBlock | transform/fromPure/tests | OPEN — fix site named | `^Duration(…)` unknown class *(exception swallowed — see `ExecCallFinder.java:136-141`)* — catalog | sql-only: 1 advisory golden-SQL assert(s), no row verification |
+
+## 2026-08-17 — F4.3 render cutover (§0.4 declared, exactly one)
+
+`functions/tests` 239 → 238: `testConcatenateWithFilter` — the ONE named
+residue from the F4.2b differential (docs/CSV_DIFFERENTIAL.md mechanism 3).
+The platform's DB-side toCSV spells a to-many projection cell `[Firm X]`
+where the engine golden says `Firm X`; the root cause is a pre-existing
+type-contract deviation (a to-many project lambda types a to-one TDS
+column but lowers to a list-valued slot the Executor unwraps at egress) —
+the render cannot see it statically, and the old harness renderer only
+"passed" it via the Java-side unwrap. Fix = the OutputCol/slot
+reconciliation, filed in FOUNDATIONS_PLAN §9. VERDICT: honest red; the
+test was previously green only through the deleted compensation.
+
+Also in the same re-freeze: `tests/mapping/embedded` 62 → 63 —
+`testIsEmpty` now PASSES: the engine golden ('name,firm\n\n') is
+byte-identical to the platform's empty shape; the deleted harness render
+was the thing breaking it. Net corpus total unchanged (2347).

@@ -2739,6 +2739,13 @@ public final class EngineTestExecutor {
         // toCSV(tds)->replace(a, b): render the grid to CSV text, apply the
         // replace LITERALLY, compare as a string (the calendar family's
         // one-line assert spelling)
+        // F4.3: the RENDER tails are NO LONGER STRIPPED — the whole
+        // expression evaluates through the platform (the toCSV/toString
+        // lowerings: the DATABASE's text). The recognition below carries
+        // only the COMPARISON POLICY (order view + text form) — keeping a
+        // structural comparison does not require keeping a renderer.
+        String renderForm = null;
+        boolean renderSorted = false;
         if (spliced instanceof AppliedFunction rep
                 && simpleName(rep.function()).equals("replace")
                 && rep.parameters().size() == 3
@@ -2748,43 +2755,25 @@ public final class EngineTestExecutor {
                 && rep.parameters().get(1) instanceof CString from
                 && "\n".equals(from.value())
                 && rep.parameters().get(2) instanceof CString to) {
-            com.legend.exec.ExecutionResult stripped2 = evalSpliced(
-                    innerCsv.parameters().get(0), execStmts, execVars,
-                    ctx, imports, runtimeFqn, conn);
-            if (stripped2 instanceof com.legend.exec.ExecutionResult.Tabular tab2) {
-                // structured compare: keep the TABULAR and the joined-line
-                // separator — string-exact comparison broke on ROW ORDER
-                // (unordered groupBy) and float ULPs (5.72 vs 5.7199...);
-                // csvJoinedEquals below applies the header/multiset/
-                // tolerant-cell policy instead
-                return new Eval(stripped2,
-                        endsInSort(orderView(innerCsv.parameters().get(0),
-                                execChains)), false,
-                        "CSVJOIN:" + to.value());
-            }
-        }
-        if (spliced instanceof AppliedFunction tail
+            renderForm = "CSVJOIN:" + to.value();
+            renderSorted = endsInSort(orderView(
+                    innerCsv.parameters().get(0), execChains));
+        } else if (spliced instanceof AppliedFunction tail
                 && (simpleName(tail.function()).equals("toCSV")
                         || simpleName(tail.function()).equals("toString"))
                 && tail.parameters().size() == 1) {
-            com.legend.exec.ExecutionResult stripped = evalSpliced(
-                    tail.parameters().get(0), execStmts, execVars,
-                    ctx, imports, runtimeFqn, conn);
-            if (stripped instanceof com.legend.exec.ExecutionResult.Tabular tgrid) {
-                if (System.getenv("LL_CSV_PROBE") != null) {
-                    csvProbe(spliced, tgrid,
-                            simpleName(tail.function()).equals("toCSV"),
-                            execStmts, execVars, ctx, imports, runtimeFqn,
-                            conn);
-                }
-                return new Eval(stripped,
-                        endsInSort(orderView(tail.parameters().get(0),
-                                execChains)),
-                        simpleName(tail.function()).equals("toCSV"));
-            }
+            renderForm = simpleName(tail.function()).equals("toCSV")
+                    ? "CSVTEXT" : "TDSTEXT";
+            renderSorted = endsInSort(orderView(
+                    tail.parameters().get(0), execChains));
         }
         com.legend.exec.ExecutionResult r = evalSpliced(spliced, execStmts,
                 execVars, ctx, imports, runtimeFqn, conn);
+        if (renderForm != null
+                && r instanceof com.legend.exec.ExecutionResult.Scalar rsc
+                && rsc.value() instanceof String) {
+            return new Eval(r, renderSorted, false, "RENDERED:" + renderForm);
+        }
         // A makeString/joinStrings tail over an UNSORTED chain: the joined
         // string's element order is the DB's incidental row order — record
         // the separator so the compare can fall back to split-multiset
@@ -2942,17 +2931,35 @@ public final class EngineTestExecutor {
     // ===== comparison (both sides share ONE wire convention — strict) =====
 
     static boolean compare(Eval expected, Eval actual, boolean ordered) {
-        // toCSV(..)->replace('\n', SEP) actual vs a string-literal expected:
-        // header EXACT, rows as an (un)ordered multiset, CELLS via the
-        // tolerant wire comparison (numeric ULP policy included)
-        if (actual.joinSep() != null && actual.joinSep().startsWith("CSVJOIN:")
+        // F4.3: RENDERED text (the platform's toCSV/toString/joined form)
+        // vs a string-literal peer — TEXT policy: frame/header lines
+        // pinned, data lines ordered or multiset, cells string-equal or
+        // bounded-float-tolerant (the kept leniencies; header pinning by
+        // the harness and the cross-kind numeric collapse are DELETED —
+        // the platform emits the header now, and '007'=='7' was a
+        // Double.parseDouble side effect nothing justified)
+        if (actual.joinSep() != null
+                && actual.joinSep().startsWith("RENDERED:")
                 && actual.result()
-                        instanceof com.legend.exec.ExecutionResult.Tabular tj
+                        instanceof com.legend.exec.ExecutionResult.Scalar rsc
+                && rsc.value() instanceof String atext
                 && expected.values().size() == 1
-                && expected.values().get(0) instanceof String es) {
-            return csvJoinedEquals(es,
-                    actual.joinSep().substring("CSVJOIN:".length()), tj,
+                && expected.values().get(0) instanceof String etext) {
+            return renderedTextEquals(etext, atext,
+                    actual.joinSep().substring("RENDERED:".length()),
                     ordered && actual.sortedChain());
+        }
+        if (expected.joinSep() != null
+                && expected.joinSep().startsWith("RENDERED:")
+                && expected.result()
+                        instanceof com.legend.exec.ExecutionResult.Scalar esc
+                && esc.value() instanceof String etext2
+                && actual.values().size() == 1
+                && actual.values().get(0) instanceof String atext2) {
+            // the mirrored spelling (rendered expected vs literal actual)
+            return renderedTextEquals(atext2, etext2,
+                    expected.joinSep().substring("RENDERED:".length()),
+                    true);
         }
         // TDS grids compare STRUCTURALLY: column names ordered, rows under
         // the order policy — both sides evaluated by the same pipeline.
@@ -2964,30 +2971,7 @@ public final class EngineTestExecutor {
                 && !expected.flatCells() && !actual.flatCells()) {
             return gridEquals(te, ta, ordered && actual.sortedChain());
         }
-        // ->toString() over a TDS against a '#TDS\n…#' STRING literal:
-        // engine relation toString (core_functions_relation toString.pure)
-        // renders '#TDS\n   col,col\n   cell,cell\n…\n#'. Header exact,
-        // rows under the order policy.
-        if (actual.result() instanceof com.legend.exec.ExecutionResult.Tabular tds
-                && expected.values().size() == 1
-                && expected.values().get(0) instanceof String tdsGolden
-                && tdsGolden.startsWith("#TDS\n")) {
-            return tdsStringEquals(tdsGolden, tds, ordered && actual.sortedChain());
-        }
-        // toCSV() against a STRING literal: render the grid (wire concern);
-        // header pinned, data lines under the order policy
-        if (actual.csvTail()
-                && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular tt
-                && expected.values().size() == 1
-                && expected.values().get(0) instanceof String es) {
-            return csvEquals(es, tt, actual.sortedChain());
-        }
-        if (expected.csvTail()
-                && expected.result() instanceof com.legend.exec.ExecutionResult.Tabular tt2
-                && actual.values().size() == 1
-                && actual.values().get(0) instanceof String as) {
-            return csvEquals(as, tt2, true);
-        }
+
         // MIXED flat-cells vs whole-TDS VALUE (audit 22b F2): pure equality
         // of a raw-cell list against a TabularDataSet instance is FALSE —
         // flattening both sides would drop the TDS side's column-name pin.
@@ -3207,54 +3191,90 @@ public final class EngineTestExecutor {
         return true;
     }
 
-    /** toCSV wire rendering vs an expected CSV string (header pinned). */
-    /** {@code toCSV->replace('\n', sep)} against a string literal: tokens
-     * split on {@code sep}; the first nCols are the HEADER (exact); the
-     * rest group into rows of nCols compared as a multiset (ordered when
-     * the chain sorts) with wireEquals cells (numeric tolerance). */
-    private static boolean csvJoinedEquals(String expected, String sep,
-            com.legend.exec.ExecutionResult.Tabular t, boolean ordered) {
-        int n = t.columns().size();
-        if (n == 0 || sep.isEmpty()) {
+
+
+
+
+
+    /** F4.3: RENDERED-TEXT comparison — the KEPT policies over the
+     *  platform's own text. {@code form}: CSVTEXT (header line + data
+     *  lines + trailing newline), TDSTEXT ('#TDS' frame), or
+     *  CSVJOIN:<sep> (the calendar family's one-line spelling). FRAME
+     *  and header lines pin EXACTLY (the platform emits them — a
+     *  divergence is a finding); data lines compare ordered or as a
+     *  multiset per the chain's sortedness; cells are string-equal or
+     *  BOUNDED-float-tolerant. */
+    private static boolean renderedTextEquals(String expected,
+            String actual, String form, boolean sorted) {
+        if (expected.equals(actual)) {
+            return true;
+        }
+        if (form.startsWith("CSVJOIN:")) {
+            String sep = form.substring("CSVJOIN:".length());
+            String[] et = expected.split(java.util.regex.Pattern.quote(sep), -1);
+            String[] at = actual.split(java.util.regex.Pattern.quote(sep), -1);
+            if (et.length != at.length) {
+                return false;
+            }
+            if (sorted) {
+                for (int i = 0; i < et.length; i++) {
+                    if (!cellEquals(et[i], at[i])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            // token multiset (the sep-join destroyed row boundaries;
+            // bounded by equal counts + per-cell policy)
+            List<String> pool = new ArrayList<>(java.util.List.of(at));
+            for (String e : et) {
+                int hit = -1;
+                for (int i = 0; i < pool.size(); i++) {
+                    if (cellEquals(e, pool.get(i))) {
+                        hit = i;
+                        break;
+                    }
+                }
+                if (hit < 0) {
+                    return false;
+                }
+                pool.remove(hit);
+            }
+            return true;
+        }
+        String[] el = expected.split("\n", -1);
+        String[] al = actual.split("\n", -1);
+        if (el.length != al.length) {
             return false;
         }
-        List<String> tokens = new ArrayList<>(
-                List.of(expected.split(java.util.regex.Pattern.quote(sep), -1)));
-        // a trailing separator leaves one empty tail token
-        if (!tokens.isEmpty() && tokens.get(tokens.size() - 1).isEmpty()) {
-            tokens.remove(tokens.size() - 1);
-        }
-        if (tokens.size() < n || tokens.size() % n != 0) {
-            return false;
-        }
-        for (int i = 0; i < n; i++) {
-            if (!t.columns().get(i).name().equals(tokens.get(i))) {
+        // pinned frame lines: CSVTEXT {first, trailing ''}; TDSTEXT
+        // {'#TDS', header, trailing '#'}
+        int dataFrom = form.equals("TDSTEXT") ? 2 : 1;
+        int dataTo = el.length - 1;   // last line: '' (CSV) or '#' (TDS)
+        for (int i = 0; i < el.length; i++) {
+            boolean pinned = i < dataFrom || i >= dataTo;
+            if (pinned && !el[i].equals(al[i])) {
                 return false;
             }
         }
-        List<List<String>> expRows = new ArrayList<>();
-        for (int i = n; i < tokens.size(); i += n) {
-            expRows.add(tokens.subList(i, i + n));
-        }
-        List<List<Object>> actRows = new ArrayList<>();
-        t.rows().forEach(r -> actRows.add(r.values()));
-        if (expRows.size() != actRows.size()) {
-            return false;
-        }
-        if (ordered) {
-            for (int i = 0; i < expRows.size(); i++) {
-                if (!csvRowEquals(expRows.get(i), actRows.get(i))) {
+        if (sorted) {
+            for (int i = dataFrom; i < dataTo; i++) {
+                if (!lineEquals(el[i], al[i])) {
                     return false;
                 }
             }
             return true;
         }
-        List<List<Object>> pool = new ArrayList<>(actRows);
-        for (List<String> er : expRows) {
+        List<String> pool = new ArrayList<>();
+        for (int i = dataFrom; i < dataTo; i++) {
+            pool.add(al[i]);
+        }
+        for (int i = dataFrom; i < dataTo; i++) {
+            String e = el[i];
             int hit = -1;
-            for (int i = 0; i < pool.size(); i++) {
-                if (csvRowEquals(er, pool.get(i))) {
-                    hit = i;
+            for (int j = 0; j < pool.size(); j++) {
+                if (lineEquals(e, pool.get(j))) {
+                    hit = j;
                     break;
                 }
             }
@@ -3263,11 +3283,10 @@ public final class EngineTestExecutor {
             }
             pool.remove(hit);
         }
-        // F2.4: csvJoinedEquals row multiset — the audit's fourth
-        // uninstrumented path
+        // F2.4 ord-leniency instrument carries over to the text policy
         ordLeniency(() -> {
-            for (int i = 0; i < expRows.size(); i++) {
-                if (!csvRowEquals(expRows.get(i), actRows.get(i))) {
+            for (int i = dataFrom; i < dataTo; i++) {
+                if (!lineEquals(el[i], al[i])) {
                     return false;
                 }
             }
@@ -3276,230 +3295,66 @@ public final class EngineTestExecutor {
         return true;
     }
 
-    private static boolean csvRowEquals(List<String> expected, List<Object> actual) {
-        for (int i = 0; i < expected.size(); i++) {
-            String e = expected.get(i);
-            Object a = actual.get(i);
-            String aCell = csvCell(a);
-            if (e.equals(aCell)) {
-                continue;
-            }
-            // numeric cells: the expected CSV prints ROUNDED (the engine
-            // truncates to ~12 significant digits — 0.383333333333 vs our
-            // 0.38333333333333336) — equal iff the actual rounds to the
-            // expected at the EXPECTED's own printed precision
-            try {
-                double ev = Double.parseDouble(e);
-                double av = a instanceof Number num ? num.doubleValue()
-                        : Double.parseDouble(aCell);
-                int dp = e.contains(".")
-                        ? e.length() - e.indexOf('.') - 1 : 0;
-                // Two leniencies, both bounded by "engine prints ~12 sig
-                // digits + non-associative double summation" (testPwaValue):
-                // 1. relative 1e-11 accumulation epsilon — always;
-                // 2. half-ulp at the expected's PRINTED precision — only
-                //    when the token carries >= 10 sig digits (a genuine
-                //    truncation artifact; trimmed zeros can shave to 10).
-                //    A coarse golden like '100' gets the relative floor
-                //    only (audit 16: dp=0 granted +-0.5 — exact output).
-                int sig = 0;
-                boolean seenNonZero = false;
-                for (int ci = 0; ci < e.length(); ci++) {
-                    char ch = e.charAt(ci);
-                    if (ch >= '1' && ch <= '9') {
-                        seenNonZero = true;
-                    }
-                    if (Character.isDigit(ch) && (seenNonZero || ch != '0')) {
-                        sig++;
-                    }
-                }
-                double tol = sig >= 10
-                        ? Math.max(0.5 * Math.pow(10, -dp), Math.abs(ev) * 1e-11)
-                        : Math.abs(ev) * 1e-11;
-                if (Math.abs(av - ev) > tol) {
-                    return false;
-                }
-                // audit 23 D2 instrumentation (measurement-only): count
-                // comparisons that pass ONLY because of the tolerance
-                if (av != ev && Math.abs(av - ev) <= tol
-                        && System.getenv("LL_TOL_COUNT") != null) {
-                    System.err.println("[tol] csv " + e + " vs " + a);
-                }
-            } catch (NumberFormatException nfe) {
+    /** One text line: exact, else per-cell (comma-split both sides
+     *  IDENTICALLY — symmetric ambiguity for embedded commas). */
+    private static boolean lineEquals(String e, String a) {
+        if (e.equals(a)) {
+            return true;
+        }
+        String[] ec = e.split(",", -1);
+        String[] ac = a.split(",", -1);
+        if (ec.length != ac.length) {
+            return false;
+        }
+        for (int i = 0; i < ec.length; i++) {
+            if (!cellEquals(ec[i], ac[i])) {
                 return false;
             }
         }
         return true;
     }
 
-    /** The toCSV wire text: header line + one line per row, every line
-     * newline-terminated (the engine's Result->toCSV convention). */
-    /** TEMPORARY F4.2b PROBE (delete with F4.3): side A = the harness's
-     *  Java render of the stripped grid; side B = the UNSTRIPPED
-     *  expression through the platform (the registered toCSV lowering —
-     *  the DATABASE's text). One row per assertion into
-     *  target/csv-differential.tsv: fqn, EXACT|MULTISET|DIFFERS|B_ERROR,
-     *  and the first divergent line pair. Read-only — never throws. */
-    private static void csvProbe(ValueSpecification unstripped,
-            com.legend.exec.ExecutionResult.Tabular grid, boolean csvTail,
-            List<ValueSpecification> execStmts,
-            java.util.Set<String> execVars,
-            ModelContext ctx, ImportScope imports, String runtimeFqn,
-            java.sql.Connection conn) {
-        String fqn = String.valueOf(H2Verify.CURRENT_TEST.get());
-        String verdict;
-        String detail = "";
-        try {
-            com.legend.exec.ExecutionResult rb = evalSpliced(unstripped,
-                    execStmts, execVars, ctx, imports, runtimeFqn, conn);
-            if (rb == null) {
-                verdict = "B_NULL";
-                detail = "";
-            } else if (!(rb instanceof com.legend.exec.ExecutionResult.Scalar sc)
-                    || !(sc.value() instanceof String sideB)) {
-                verdict = "B_NOT_SCALAR";
-                detail = rb.getClass().getSimpleName();
-            } else {
-                String sideA = csvTail ? csvText(grid)
-                        : harnessTdsText(grid);
-                if (sideA.equals(sideB)) {
-                    verdict = "EXACT";
-                } else {
-                    String[] la = sideA.split("\n", -1);
-                    String[] lb = sideB.split("\n", -1);
-                    boolean multiset = la.length == lb.length
-                            && la.length > 0 && la[0].equals(lb[0])
-                            && new java.util.ArrayList<>(java.util.List.of(la))
-                                    .stream().sorted().toList()
-                                    .equals(new java.util.ArrayList<>(
-                                            java.util.List.of(lb)).stream()
-                                            .sorted().toList());
-                    verdict = multiset ? "MULTISET" : "DIFFERS";
-                    int i = 0;
-                    while (i < Math.min(la.length, lb.length)
-                            && la[i].equals(lb[i])) {
-                        i++;
-                    }
-                    detail = "line" + i + " A='"
-                            + (i < la.length ? la[i] : "<eof>") + "' B='"
-                            + (i < lb.length ? lb[i] : "<eof>") + "'";
-                }
-            }
-        } catch (Throwable t) {
-            verdict = "B_ERROR";
-            String m = String.valueOf(t.getMessage());
-            detail = t.getClass().getSimpleName() + ": "
-                    + m.substring(0, Math.min(160, m.length()));
-        }
-        try {
-            java.nio.file.Files.writeString(
-                    java.nio.file.Path.of("target", "csv-differential.tsv"),
-                    fqn + "\t" + verdict + "\t"
-                            + detail.replace('\n', ' ').replace('\t', ' ')
-                            + "\n",
-                    java.nio.charset.StandardCharsets.UTF_8,
-                    java.nio.file.StandardOpenOption.CREATE,
-                    java.nio.file.StandardOpenOption.APPEND);
-        } catch (java.io.IOException ignore) {
-            // best-effort probe
-        }
-    }
-
-    /** TEMPORARY F4.2b/c PROBE side-A: the harness's '#TDS' render (the
-     *  tdsStringEquals line shape) — deletes with F4.3. */
-    private static String harnessTdsText(
-            com.legend.exec.ExecutionResult.Tabular t) {
-        StringBuilder out = new StringBuilder("#TDS\n   ");
-        out.append(t.columns().stream().map(c -> c.name().contains(" ")
-                ? "'" + c.name() + "'" : c.name())
-                .collect(java.util.stream.Collectors.joining(",")));
-        for (var r : t.rows()) {
-            out.append("\n   ");
-            for (int i = 0; i < r.values().size(); i++) {
-                if (i > 0) {
-                    out.append(',');
-                }
-                Object v = r.values().get(i);
-                out.append(v == null ? "null" : String.valueOf(v));
-            }
-        }
-        return out.append("\n#").toString();
-    }
-
-    private static String csvText(com.legend.exec.ExecutionResult.Tabular t) {
-        StringBuilder header = new StringBuilder();
-        for (var c : t.columns()) {
-            if (header.length() > 0) {
-                header.append(',');
-            }
-            header.append(c.name());
-        }
-        StringBuilder out = new StringBuilder(header).append('\n');
-        for (var r : t.rows()) {
-            StringBuilder line = new StringBuilder();
-            for (Object v : r.values()) {
-                if (line.length() > 0) {
-                    line.append(',');
-                }
-                line.append(csvCell(v));
-            }
-            out.append(line).append('\n');
-        }
-        return out.toString();
-    }
-
-    private static boolean csvEquals(String expected,
-            com.legend.exec.ExecutionResult.Tabular actual, boolean sorted) {
-        StringBuilder header = new StringBuilder();
-        for (var c : actual.columns()) {
-            if (header.length() > 0) {
-                header.append(',');
-            }
-            header.append(c.name());
-        }
-        List<String> lines = new ArrayList<>();
-        for (var r : actual.rows()) {
-            StringBuilder line = new StringBuilder();
-            for (Object v : r.values()) {
-                if (line.length() > 0) {
-                    line.append(',');
-                }
-                line.append(csvCell(v));
-            }
-            lines.add(line.toString());
-        }
-        String rendered = header + "\n"
-                + lines.stream().map(l -> l + "\n").reduce("", String::concat);
-        if (expected.equals(rendered)) {
+    /** One cell — the KEPT float tolerance, bounded and counted
+     *  (LL_TOL_COUNT), applied ONLY when BOTH tokens are decimal-point
+     *  float prints. The cross-kind collapse ('007'=='7', '1e3'=='1000')
+     *  is DELETED: integers and scientific forms compare as strings. */
+    private static boolean cellEquals(String e, String a) {
+        if (e.equals(a)) {
             return true;
         }
-        if (sorted) {
+        if (e.indexOf('.') < 0 || a.indexOf('.') < 0) {
             return false;
         }
-        // order policy: header line pinned, data lines as a multiset
-        String[] el = expected.split("\n", -1);
-        if (el.length == 0 || !el[0].equals(header.toString())) {
-            return false;
-        }
-        List<String> pool = new ArrayList<>(lines);
-        int dataLines = 0;
-        for (int i = 1; i < el.length; i++) {
-            if (el[i].isEmpty() && i == el.length - 1) {
-                continue;   // trailing newline
+        try {
+            double ev = Double.parseDouble(e);
+            double av = Double.parseDouble(a);
+            int dp = e.length() - e.indexOf('.') - 1;
+            int sig = 0;
+            boolean seenNonZero = false;
+            for (int ci = 0; ci < e.length(); ci++) {
+                char ch = e.charAt(ci);
+                if (ch >= '1' && ch <= '9') {
+                    seenNonZero = true;
+                }
+                if (Character.isDigit(ch) && (seenNonZero || ch != '0')) {
+                    sig++;
+                }
             }
-            dataLines++;
-            if (!pool.remove(el[i])) {
+            double tol = sig >= 10
+                    ? Math.max(0.5 * Math.pow(10, -dp), Math.abs(ev) * 1e-11)
+                    : Math.abs(ev) * 1e-11;
+            if (Math.abs(av - ev) > tol) {
                 return false;
             }
+            if (av != ev && System.getenv("LL_TOL_COUNT") != null) {
+                System.err.println("[tol] csv " + e + " vs " + a);
+            }
+            return true;
+        } catch (NumberFormatException nfe) {
+            return false;
         }
-        boolean ok = pool.isEmpty() && dataLines == lines.size();
-        if (ok) {
-            // the exact-string compare above already FAILED, so reaching a
-            // multiset success is order-leniency-dependent by construction
-            ordLeniency(() -> false);
-        }
-        return ok;
     }
+
 
     /** STRICT wire equality: integral kinds normalize; decimal by compareTo; no cross-kind. */
     private static boolean isTemporal(Object v) {
@@ -3536,66 +3391,7 @@ public final class EngineTestExecutor {
         }
     }
 
-    /** RFC4180 cell rendering (the engine's toCSV): a cell containing a
-     * comma, quote or newline wraps in quotes, inner quotes double. */
-    private static String csvCell(Object v) {
-        if (v == null) {
-            return "";
-        }
-        String s = String.valueOf(v);
-        if (s.indexOf(',') < 0 && s.indexOf('"') < 0 && s.indexOf('\n') < 0) {
-            return s;
-        }
-        return '"' + s.replace("\"", "\"\"") + '"';
-    }
 
-    /** Engine relation toString format: header line exact ('   ' + names
-     * joined by ','), each row '   ' + cells joined by ',', '#' framing.
-     * Rows compare ordered when the chain sorts, else as a line multiset
-     * (the standard order policy). Cells render String.valueOf with NULL
-     * as 'null'; space-bearing names quote ('First Name'). */
-    private static boolean tdsStringEquals(String expected,
-            com.legend.exec.ExecutionResult.Tabular t, boolean ordered) {
-        List<String> lines = new ArrayList<>();
-        lines.add("#TDS");
-        lines.add("   " + t.columns().stream().map(c -> c.name()
-                .contains(" ") ? "'" + c.name() + "'" : c.name())
-                .collect(java.util.stream.Collectors.joining(",")));
-        for (var r : t.rows()) {
-            StringBuilder sb = new StringBuilder("   ");
-            for (int i = 0; i < r.values().size(); i++) {
-                if (i > 0) {
-                    sb.append(',');
-                }
-                Object v = r.values().get(i);
-                sb.append(v == null ? "null" : String.valueOf(v));
-            }
-            lines.add(sb.toString());
-        }
-        lines.add("#");
-        List<String> exp = List.of(expected.split("\n", -1));
-        if (exp.size() != lines.size()
-                || !exp.get(0).equals(lines.get(0))
-                || !exp.get(1).equals(lines.get(1))
-                || !exp.get(exp.size() - 1).equals(lines.get(lines.size() - 1))) {
-            return false;
-        }
-        List<String> er = exp.subList(2, exp.size() - 1);
-        List<String> ar = lines.subList(2, lines.size() - 1);
-        if (ordered) {
-            return er.equals(ar);
-        }
-        List<String> es = new ArrayList<>(er);
-        List<String> as = new ArrayList<>(ar);
-        java.util.Collections.sort(es);
-        java.util.Collections.sort(as);
-        boolean eq = es.equals(as);
-        if (eq) {
-            // F2.4: previously uninstrumented unordered TDS-text compare
-            ordLeniency(() -> er.equals(ar));
-        }
-        return eq;
-    }
 
     private static boolean wireEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
         // the null-cell wire sentinel: an expected ^TDSNull() (or a TDS-grid
