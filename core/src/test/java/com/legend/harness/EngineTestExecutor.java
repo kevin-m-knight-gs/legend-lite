@@ -3,8 +3,7 @@
 
 package com.legend.harness;
 
-import static com.legend.harness.HarnessSubstitution.subst;
-import static com.legend.harness.HarnessSubstitution.substitute;
+
 
 import com.legend.Compiler;
 
@@ -56,6 +55,111 @@ import java.util.Map;
  * failing assert (real pure {@code assert} raises).
  */
 public final class EngineTestExecutor {
+
+    /** F3.2e: ONE substitution engine — the compiler's (SourceSubst,
+     * semantics pinned by SourceSubstTest + SubstitutionParityTest).
+     * CORPUS_FOLD is the driver-injected PostFold carrying the harness's
+     * two wire concerns: the metaprogramming fold (payload grammar =
+     * the native's own contract, engine grammar per LegendCompile.java:57)
+     * and the TDSNull wire sentinel (a real cell value for wireEquals,
+     * never a pure empty). HarnessSubstitution is DELETED; its other
+     * extras moved to their owners (pair fold + lambda-local scoping ->
+     * SourceSubst; serialize-key aliases -> ElqSplice pre-stamping). */
+    static final com.legend.compiler.spec.SourceSubst.PostFold CORPUS_FOLD =
+            node -> {
+                if (node instanceof com.legend.protocol.spec.NewInstance tn
+                        && (tn.className().equals("TDSNull")
+                                || tn.className().equals(
+                                        "meta::pure::tds::TDSNull"))) {
+                    return new com.legend.protocol.spec.CString("TDSNull");
+                }
+                // POST-ORDER means the inner ^TDSNull() has ALREADY
+                // folded to the sentinel by the time the new(...) wrapper
+                // is offered — accept both spellings of the payload
+                if (node instanceof com.legend.protocol.spec.AppliedFunction nf
+                        && nf.function().equals("new")
+                        && nf.parameters().size() == 2
+                        && (nf.parameters().get(1)
+                                instanceof com.legend.protocol.spec.NewInstance tn2
+                                && (tn2.className().equals("TDSNull")
+                                        || tn2.className().equals(
+                                                "meta::pure::tds::TDSNull"))
+                            || nf.parameters().get(1)
+                                instanceof com.legend.protocol.spec.CString cs2
+                                && cs2.value().equals("TDSNull"))) {
+                    return new com.legend.protocol.spec.CString("TDSNull");
+                }
+                if (node instanceof com.legend.protocol.spec.AppliedFunction af) {
+                    return com.legend.parser.QuotedSpecParser.fold(af,
+                            com.legend.parser.Dialect.LEGEND_ENGINE);
+                }
+                // pair(a, b).first/.second constant fold (real pure
+                // anonymousCollections semantics) — corpus-wire concern:
+                // the datetime plan helpers return Pair<plan, text>
+                if (node instanceof com.legend.protocol.spec.AppliedProperty app
+                        && app.receiver()
+                                instanceof com.legend.protocol.spec.AppliedFunction pf
+                        && simpleName(pf.function()).equals("pair")
+                        && pf.parameters().size() == 2) {
+                    if (app.property().equals("first")) {
+                        return pf.parameters().get(0);
+                    }
+                    if (app.property().equals("second")) {
+                        return pf.parameters().get(1);
+                    }
+                }
+                return null;
+            };
+
+    static com.legend.protocol.spec.ValueSpecification subst(
+            com.legend.protocol.spec.ValueSpecification v,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
+        return substitute(v, lets);
+    }
+
+    static com.legend.protocol.spec.ValueSpecification substitute(
+            com.legend.protocol.spec.ValueSpecification v,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
+        return com.legend.compiler.spec.SourceSubst.substitute(v,
+                resolvedLets(lets), CORPUS_FOLD);
+    }
+
+    /** Harness lets maps can hold RAW statement pulls whose values read
+     * other lets (the per-driver toSQLString loop) — the base engine is
+     * pure capture-at-binding (A8 pin), so the BRIDGE pre-resolves each
+     * value through the map with ITSELF removed (cycle-safe: a
+     * self-referential let terminates). Lexical-equivalent absent
+     * rebinding, which the F3.2 corpus differential proved. */
+    private static java.util.Map<String, com.legend.protocol.spec.ValueSpecification>
+            resolvedLets(java.util.Map<String,
+                    com.legend.protocol.spec.ValueSpecification> lets) {
+        if (lets.isEmpty()) {
+            return lets;
+        }
+        // FIXPOINT (bounded by map size — each round resolves at least
+        // one more chain level; self-reads removed per entry so cycles
+        // terminate): after this, every value is capture-complete and
+        // the pure base engine substitutes it verbatim
+        java.util.Map<String, com.legend.protocol.spec.ValueSpecification> cur =
+                new java.util.LinkedHashMap<>(lets);
+        for (int round = 0; round <= lets.size(); round++) {
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification>
+                    next = new java.util.LinkedHashMap<>(cur.size());
+            for (var e : cur.entrySet()) {
+                java.util.Map<String,
+                        com.legend.protocol.spec.ValueSpecification> without =
+                        new java.util.LinkedHashMap<>(cur);
+                without.remove(e.getKey());
+                next.put(e.getKey(), com.legend.compiler.spec.SourceSubst
+                        .substitute(e.getValue(), without, CORPUS_FOLD));
+            }
+            if (next.equals(cur)) {
+                break;
+            }
+            cur = next;
+        }
+        return cur;
+    }
 
     private EngineTestExecutor() {
     }

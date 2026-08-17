@@ -106,6 +106,27 @@ class SourceSubstTest {
     }
 
     @Test
+    void lambdaLocalLetShadowsForStatementsBelowIt() {
+        // let x = 1; {| $x; let x = 9; $x }  =>  first read folds to 1,
+        // the read BELOW the lambda-local let stays the binder's
+        // (F3.2b: real pure scoping — the plan-printer's injected
+        // Allocation lets rely on it; the harness engine had it right
+        // before the owner did)
+        LambdaFunction inner = new LambdaFunction(List.of(), List.of(
+                new Variable("x"),
+                let("x", new CInteger(9L)),
+                new Variable("x")));
+        ValueSpecification r = folded(
+                let("x", new CInteger(1L)),
+                inner);
+        LambdaFunction expect = new LambdaFunction(List.of(), List.of(
+                new CInteger(1L),
+                let("x", new CInteger(9L)),
+                new Variable("x")));
+        assertEquals(expect, r);
+    }
+
+    @Test
     void nonLetIntermediateRefusesLoudly() {
         // [stmt; final] with a non-let stmt: null — the caller keeps its
         // loud wall, never a silently dropped statement

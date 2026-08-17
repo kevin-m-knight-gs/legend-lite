@@ -71,7 +71,7 @@ final class AssertLoopForm {
         List<ValueSpecification> pushed = new ArrayList<>();
         for (ValueSpecification lit : lifted) {
             for (ValueSpecification b : al.body()) {
-                pushed.add(HarnessSubstitution.subst(b, Map.of(pv, lit)));
+                pushed.add(EngineTestExecutor.subst(b, Map.of(pv, lit)));
             }
         }
         for (int i = pushed.size() - 1; i >= 0; i--) {

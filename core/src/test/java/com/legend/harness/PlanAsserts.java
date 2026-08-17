@@ -62,8 +62,8 @@ final class PlanAsserts {
     static boolean wantsPlanText(
             java.util.List<com.legend.protocol.spec.ValueSpecification> args,
             java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
-        var lastSub = HarnessSubstitution.substitute(args.get(args.size() - 1), lets);
-        return containsPlanToString(HarnessSubstitution.subst(args.get(0), lets))
+        var lastSub = EngineTestExecutor.substitute(args.get(args.size() - 1), lets);
+        return containsPlanToString(EngineTestExecutor.subst(args.get(0), lets))
                 || containsPlanToString(lastSub)
                 || containsPlanWalk(lastSub);
     }
@@ -98,7 +98,7 @@ final class PlanAsserts {
             throws java.sql.SQLException {
         try {
             ValueSpecification inlined = inlinePlanText(
-                    HarnessSubstitution.subst(args.get(0), lets), lets, execStmts,
+                    EngineTestExecutor.subst(args.get(0), lets), lets, execStmts,
                     execVars, execChains, ctx, imports, runtimeFqn, conn);
             Object pv = EngineTestExecutor.evalScalar(java.util.Objects.requireNonNull(inlined,
                     "plan-text assert without an inlined plan"),

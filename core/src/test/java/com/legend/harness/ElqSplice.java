@@ -54,7 +54,7 @@ final class ElqSplice {
                 || !EngineTestExecutor.simpleName(elq.function())
                         .equals("executeLegendQuery")
                 || elq.parameters().isEmpty()
-                || !(HarnessSubstitution.substitute(elq.parameters().get(0), lets)
+                || !(EngineTestExecutor.substitute(elq.parameters().get(0), lets)
                         instanceof LambdaFunction qlf)
                 || qlf.body().isEmpty()) {
             return null;
@@ -65,7 +65,7 @@ final class ElqSplice {
                 return null;
             }
             Map<String, ValueSpecification> vars = varPairs(
-                    HarnessSubstitution.substitute(elq.parameters().get(1), lets), lets);
+                    EngineTestExecutor.substitute(elq.parameters().get(1), lets), lets);
             if (vars == null) {
                 return null;
             }
@@ -85,8 +85,13 @@ final class ElqSplice {
             }
         }
         List<ValueSpecification> qb = qlf.body();
-        out.addAll(qb.subList(0, qb.size() - 1));
-        ValueSpecification fin = qb.get(qb.size() - 1);
+        // F3.2d: serialize-key aliases stamp HERE (pre-substitution, the
+        // last point that sees the variable spellings) — substitution is
+        // no longer in the alias business
+        for (ValueSpecification st : qb.subList(0, qb.size() - 1)) {
+            out.add(stampKeys(st));
+        }
+        ValueSpecification fin = stampKeys(qb.get(qb.size() - 1));
         ValueSpecification bound = new AppliedFunction("toString",
                 List.of(fin));
         // a GRAPH-SERIALIZE query returns the engine's json-builder
@@ -105,18 +110,35 @@ final class ElqSplice {
         return out;
     }
 
+    /** F3.2d: pre-substitution alias stamping over the spliced query
+     * body — every ColSpec whose args read an ELQ param gets its
+     * synthetic serialize key ({@code customer($processingDate)}) set
+     * while the variable spelling still exists. Rebuild is lossless. */
+    private static ValueSpecification stampKeys(ValueSpecification v) {
+        // POST-ORDER: children first — nested tree nodes
+        // (customer(...){ address($businessDate){...} }) carry their own
+        // ColSpecs inside the outer spec's lambdas
+        ValueSpecification walked = v.mapChildren(ElqSplice::stampKeys);
+        if (walked instanceof com.legend.protocol.spec.ColSpec cs) {
+            String a = keyAlias(cs);
+            return java.util.Objects.equals(a, cs.alias()) ? cs
+                    : new com.legend.protocol.spec.ColSpec(cs.name(),
+                            cs.function1(), cs.function2(), a, cs.args(),
+                            cs.qualified(), cs.pos(), cs.colType(),
+                            cs.colTypeMult(), cs.stereotypes(),
+                            cs.taggedValues());
+        }
+        return walked;
+    }
+
     /** Synthetic serialize-key alias for a qualifier tree node: an arg
-     * spelled as a let-bound VARIABLE keeps its source form in the engine
-     * key ({@code customer($processingDate, $businessDate)}) even though
-     * the value inlines for execution — precomputed HERE, the last point
-     * that still sees the variable spelling (EngineTestExecutor.substitute's
-     * ColSpecArray arm). Null-alias pass-through otherwise. */
+     * spelled as an ELQ-PARAM variable keeps its source form in the
+     * engine key even though the value inlines for execution.
+     * Null-alias pass-through otherwise. */
     static @com.legend.Nullable String keyAlias(
-            com.legend.protocol.spec.ColSpec cs,
-            Map<String, ValueSpecification> lets) {
+            com.legend.protocol.spec.ColSpec cs) {
         if (cs.alias() != null || cs.args().isEmpty()
                 || cs.args().stream().noneMatch(a -> a instanceof Variable v
-                        && lets.containsKey(v.name())
                         && ELQ_PARAMS.get().contains(v.name()))) {
             return cs.alias();
         }
@@ -175,12 +197,12 @@ final class ElqSplice {
             if (!(e instanceof AppliedFunction pair)
                     || !EngineTestExecutor.simpleName(pair.function()).equals("pair")
                     || pair.parameters().size() != 2
-                    || !(HarnessSubstitution.substitute(pair.parameters().get(0), lets)
+                    || !(EngineTestExecutor.substitute(pair.parameters().get(0), lets)
                             instanceof CString key)) {
                 return null;
             }
             out.put(key.value(),
-                    HarnessSubstitution.substitute(pair.parameters().get(1), lets));
+                    EngineTestExecutor.substitute(pair.parameters().get(1), lets));
         }
         return out;
     }

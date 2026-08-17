@@ -41,75 +41,130 @@ public final class SourceSubst {
     static @com.legend.Nullable LambdaFunction inlineLets(LambdaFunction lam) {
         Map<String, ValueSpecification> env = new LinkedHashMap<>();
         for (int i = 0; i < lam.body().size() - 1; i++) {
-            if (!(lam.body().get(i) instanceof AppliedFunction lf
-                    && lf.function().equals("letFunction")
-                    && lf.parameters().size() == 2
-                    && lf.parameters().get(0) instanceof CString name)) {
+            CString name = letName(lam.body().get(i));
+            if (name == null) {
                 return null;
             }
-            env.put(name.value(), substitute(lf.parameters().get(1), env));
+            env.put(name.value(), substitute(
+                    ((AppliedFunction) lam.body().get(i)).parameters().get(1),
+                    env));
         }
         return new LambdaFunction(lam.parameters(),
                 List.of(substitute(lam.body().get(lam.body().size() - 1), env)));
     }
 
+    /** The ONE let-shape recognizer (protocol encoding, not user
+     * vocabulary): {@code letFunction(<name>, <value>)} — shared by the
+     * fold and the lambda-local shadow-stop so the spelling lives once. */
+    private static @com.legend.Nullable CString letName(ValueSpecification st) {
+        return st instanceof AppliedFunction lf
+                && lf.function().equals("letFunction")
+                && lf.parameters().size() == 2
+                && lf.parameters().get(0) instanceof CString name
+                ? name : null;
+    }
+
+    /** F3.2c: the driver-injected POST-FOLD hook, offered every
+     * substituted node post-order. Two chartered uses today, both
+     * corpus-driver wiring: the METAPROGRAMMING fold (a quote-native's
+     * argument becomes a literal only AFTER substitution; the payload
+     * grammar is each native's own CONTRACT —
+     * compileLegendValueSpecification = engine grammar per the engine's
+     * LegendCompile.java:57 — never ambient context, so this layer needs
+     * no dialect anywhere) and the harness's TDSNull wire-sentinel.
+     * Null hook = plain substitution (product compiles; a dynamic
+     * quote string stays an opaque call and walls at lowering — the
+     * compiled platform folds statically-known code only). */
+    @FunctionalInterface
+    public interface PostFold {
+        @com.legend.Nullable ValueSpecification fold(ValueSpecification substituted);
+    }
+
     public static ValueSpecification substitute(ValueSpecification v,
             Map<String, ValueSpecification> env) {
-        if (env.isEmpty()) {
+        return substitute(v, env, null);
+    }
+
+    public static ValueSpecification substitute(ValueSpecification v,
+            Map<String, ValueSpecification> env,
+            @com.legend.Nullable PostFold folder) {
+        if (env.isEmpty() && folder == null) {
             return v;
         }
-        return switch (v) {
+        ValueSpecification r = switch (v) {
             case Variable var -> env.getOrDefault(var.name(), var);
             case AppliedFunction af -> af.withParameters(
-                    af.parameters().stream().map(p -> substitute(p, env))
+                    af.parameters().stream()
+                            .map(p -> substitute(p, env, folder))
                             .toList());
-            // NO quoted-code fold here: the compiler layer names no
-            // dialect (a speculative fold once lived here with ZERO
-            // callers — the harness inliner is where corpus late folds
-            // actually happen). An unfolded call types Any and walls
-            // loudly at lowering, exactly like the engine's compiler.
             case AppliedProperty ap -> new AppliedProperty(
-                    substitute(ap.receiver(), env), ap.property());
+                    substitute(ap.receiver(), env, folder), ap.property());
             case LambdaFunction lf -> {
                 Map<String, ValueSpecification> inner = new LinkedHashMap<>(env);
                 lf.parameters().forEach(p -> inner.remove(p.name()));
-                yield inner.isEmpty() ? lf
-                        : new LambdaFunction(lf.parameters(), lf.body().stream()
-                                .map(b -> substitute(b, inner)).toList());
+                if (inner.isEmpty()) {
+                    yield lf;
+                }
+                // F3.2b: a LAMBDA-LOCAL let shadows the outer binding for
+                // the statements BELOW it (real pure scoping — the
+                // plan-printer's injected Allocation lets rely on it; the
+                // harness engine had this right and the owner did not)
+                java.util.List<ValueSpecification> body =
+                        new java.util.ArrayList<>(lf.body().size());
+                for (ValueSpecification st : lf.body()) {
+                    body.add(substitute(st, inner, folder));
+                    CString ln = letName(st);
+                    if (ln != null) {
+                        inner.remove(ln.value());
+                    }
+                }
+                yield new LambdaFunction(lf.parameters(), body);
             }
             case PureCollection pc -> new PureCollection(pc.values().stream()
-                    .map(x -> substitute(x, env)).toList());
+                    .map(x -> substitute(x, env, folder)).toList());
+            // LOSSLESS rebuild (F3.2c): the 5-arg ctor silently dropped
+            // qualified/colType/stereotypes — a substituted ColSpec must
+            // carry every component it arrived with
             case ColSpec cs -> new ColSpec(cs.name(),
                     cs.function1() == null ? null
-                            : (LambdaFunction) substitute(cs.function1(), env),
+                            : (LambdaFunction) substitute(cs.function1(), env, folder),
                     cs.function2() == null ? null
-                            : (LambdaFunction) substitute(cs.function2(), env),
+                            : (LambdaFunction) substitute(cs.function2(), env, folder),
                     cs.alias(),
-                    cs.args().stream().map(a -> substitute(a, env))
-                            .toList());
+                    cs.args().stream().map(a -> substitute(a, env, folder))
+                            .toList(),
+                    cs.qualified(), cs.pos(), cs.colType(), cs.colTypeMult(),
+                    cs.stereotypes(), cs.taggedValues());
             case ColSpecArray ca -> new ColSpecArray(ca.colSpecs().stream()
-                    .map(c -> (ColSpec) substitute(c, env)).toList());
+                    .map(c -> (ColSpec) substitute(c, env, folder)).toList());
             case NewInstance ni -> {
                 java.util.List<NewInstance.KeyBinding> props =
                         ni.properties().stream().map(b ->
                                 new NewInstance.KeyBinding(b.key(),
                                         new KeyExpression(
                                                 substitute(b.expression()
-                                                        .value(), env),
+                                                        .value(), env, folder),
                                                 b.expression().isAdd(),
                                                 b.expression().isLocal())))
                                 .toList();
                 yield new NewInstance(ni.className(), ni.typeArguments(), props);
             }
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
-                    nc.typeArguments(), substitute(nc.src(), env),
+                    nc.typeArguments(), substitute(nc.src(), env, folder),
                     nc.targetSetId());
             // a folded quote/eval carrier is a CLOSED term (built from
             // literals — no free variables); substituting through it would
             // re-fold its own original
             case com.legend.protocol.spec.QuotedTreeCall q -> q;
             // leaves pass; any composite not special-cased above recurses
-            default -> v.mapChildren(x -> substitute(x, env));
+            default -> v.mapChildren(x -> substitute(x, env, folder));
         };
+        if (folder != null) {
+            ValueSpecification f = folder.fold(r);
+            if (f != null) {
+                return f;
+            }
+        }
+        return r;
     }
 }

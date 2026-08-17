@@ -559,12 +559,20 @@ with a stated reason) is deleted, not ported.
 > a FOLD PASS (pair `.first/.second` projections + the late quote-fold) that
 > ~16 tds tests and ~34 golden-text extractions genuinely consume. The plan's
 > "deleted, not ported" underestimated the folds' blast radius. New sequence:
-> (b1) extract the folds into an explicitly-chartered `HarnessFolds`
-> post-substitution step (S1-residue; dies when the platform covers
-> pair/late-quote folding), (b2) swap the substitution half onto SourceSubst
-> and delete the engine, (b3) fold retirement as its OWN task with per-family
-> expected-red. Same end state for the duplication; the folds get honest
-> adjudication instead of collateral damage.
+> LANDED ENDPOINT (same day): a fourth fused concern surfaced during
+> extraction — ElqSplice.keyAlias inside the ColSpec arm, a src/test type
+> the src/main owner structurally cannot call — so the folds cannot become
+> a clean post-pass without platformizing them first. The honest landing:
+> (1) SourceSubst GAINED the lambda-local-let shadow-stop the harness copy
+> had right and the owner lacked (pinned in SourceSubstTest); (2)
+> SubstitutionParityTest BINDS the two engines equal on the shared
+> substitution semantics — A8's "nothing binds the halves" is answered
+> mechanically; (3) HarnessSubstitution carries an explicit charter naming
+> its three extras and their retirement owners (quote-fold → platform
+> quote folding; pair fold → typed-level StaticFold; keyAlias →
+> harness-coupled), with "new semantics go in SourceSubst, never here."
+> Full deletion is BLOCKED on platformizing the extras — recorded, not
+> forced.
 
 ### F3.3 — Multiplicity: delete the second engine
 

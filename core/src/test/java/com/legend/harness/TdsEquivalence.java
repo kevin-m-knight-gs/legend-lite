@@ -29,17 +29,17 @@ final class TdsEquivalence {
             com.legend.model.ImportScope imports,
             String runtimeFqn,
             java.sql.Connection conn) throws java.sql.SQLException {
-        EngineTestExecutor.Eval exp = EngineTestExecutor.eval(HarnessSubstitution.subst(args.get(0), lets),
+        EngineTestExecutor.Eval exp = EngineTestExecutor.eval(EngineTestExecutor.subst(args.get(0), lets),
                 lets, execStmts, execVars, execChains, ctx, imports,
                 runtimeFqn, conn);
-        EngineTestExecutor.Eval got = EngineTestExecutor.eval(HarnessSubstitution.subst(args.get(1), lets),
+        EngineTestExecutor.Eval got = EngineTestExecutor.eval(EngineTestExecutor.subst(args.get(1), lets),
                 lets, execStmts, execVars, execChains, ctx, imports,
                 runtimeFqn, conn);
-        double delta = asNumber(EngineTestExecutor.eval(HarnessSubstitution.subst(args.get(2), lets),
+        double delta = asNumber(EngineTestExecutor.eval(EngineTestExecutor.subst(args.get(2), lets),
                 lets, execStmts, execVars, execChains, ctx, imports,
                 runtimeFqn, conn).values());
         double timeDelta = args.size() == 4 ? asNumber(EngineTestExecutor.eval(
-                HarnessSubstitution.subst(args.get(3), lets), lets, execStmts, execVars,
+                EngineTestExecutor.subst(args.get(3), lets), lets, execStmts, execVars,
                 execChains, ctx, imports, runtimeFqn, conn).values()) : 0.0;
         return compare(exp.values(), got.values(), delta, timeDelta);
     }
