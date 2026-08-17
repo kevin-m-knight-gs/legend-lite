@@ -525,6 +525,57 @@ final class Fold {
         return sourceColumn(src, column);
     }
 
+    /** {@code SELECT UNNEST(a.col) AS out FROM (src) a} — the ONE
+     * select-list row-explosion emission (carrier-purity ratchet): the
+     * list always arrives as a LOCAL column of the wrapped source, never
+     * as a raw expression (DuckDB rejects a correlated arg directly
+     * under select-list UNNEST). */
+    static SqlSelect unnestColumn(SqlSource src, String srcAlias,
+            String col, String out, com.legend.sql.SqlType elemType) {
+        return SqlSelect.starOf(src)
+                .withProjections(List.of(new SqlSelect.Projection(
+                                SqlExpr.Call.of(SqlFn.UNNEST,
+                                        new SqlExpr.Column(srcAlias, col)),
+                                out)),
+                        List.of(new OutputCol(out, elemType, true)));
+    }
+
+    /** Row explosion of a (possibly CORRELATED) list expression: a
+     * one-row inner select carries the expr as local column "lst", the
+     * outer select UNNESTs it — column "elem", one row per element. */
+    static SqlSource lateralElem(SqlExpr list,
+            com.legend.sql.SqlType elemType,
+            String carryAlias, String outerAlias) {
+        SqlSelect carry = new SqlSelect(
+                List.of(new SqlSelect.Projection(list, "lst")),
+                false, new SqlSource.Dual(), null, List.of(),
+                null, null, List.of(), null, null,
+                List.of(new OutputCol("lst",
+                        new com.legend.sql.SqlType.Array(elemType), true)));
+        return new SqlSource.Subselect(
+                unnestColumn(new SqlSource.Subselect(carry, carryAlias, null),
+                        carryAlias, "lst", "elem", elemType),
+                outerAlias, null);
+    }
+
+    /** A funcCol whose body is a SCALAR-STREAM COMBINATION (a
+     * concatenate-rooted many-valued lambda) — the one project shape
+     * that lowers to a LIST slot (CSV_DIFFERENTIAL mechanism 3).
+     * Association to-many NAVIGATIONS type many too but route through
+     * the join machinery and already explode as rows — the first draft
+     * keyed on the typed multiplicity alone and broke 28 of them. */
+    static boolean isManyScalarCol(
+            com.legend.compiler.spec.typed.TypedFuncCol c) {
+        List<com.legend.compiler.spec.typed.TypedSpec> body = c.fn().body();
+        return c.fn().info().type() instanceof Type.FunctionType ft
+                && ft.result().multiplicity().isMany()
+                && !(ft.result().type() instanceof Type.RelationType)
+                && body.get(body.size() - 1)
+                        instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && "meta::pure::functions::collection::concatenate"
+                        .equals(nc.callee().qualifiedName());
+    }
+
     static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src, String column) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —

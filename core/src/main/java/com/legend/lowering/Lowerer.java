@@ -248,13 +248,8 @@ public final class Lowerer {
                 return proj;
             }
             String sub = nextAlias();
-            return SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
-                    .withProjections(List.of(new SqlSelect.Projection(
-                                    SqlExpr.Call.of(SqlFn.UNNEST,
-                                            new SqlExpr.Column(sub, "value")),
-                                    "value")),
-                            List.of(new OutputCol("value",
-                                    sqlTypeOf(spec.info().type()), true)));
+            return Fold.unnestColumn(new SqlSource.Subselect(proj, sub, null),
+                    sub, "value", "value", sqlTypeOf(spec.info().type()));
         }
         return scalarRoot(spec);
     }
@@ -1178,6 +1173,26 @@ public final class Lowerer {
     private @com.legend.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting, String[] miss) {
+        // E2 (JAVA_EVICTION_PLAN): a TO-MANY scalar funcCol EXPLODES ROWS
+        // IN SQL — the engine's scalar-stream rule (one row per element,
+        // row-major; an EMPTY stream keeps one parent row with a NULL
+        // cell — the LEFT LATERAL). The declared TDS column is to-one and
+        // the emitted slot matches it; the Executor's host-side explosion
+        // (audit A13) is dead. ONE such column per project (engine wall).
+        List<TypedFuncCol> manyCols = columns.stream()
+                .filter(Fold::isManyScalarCol).toList();
+        if (manyCols.size() > 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "two many-valued TDS columns in one project ('"
+                    + manyCols.get(0).name() + "', '"
+                    + manyCols.get(1).name()
+                    + "') — only single-column row explosion is built");
+        }
+        if (!manyCols.isEmpty()
+                && (!base.groupBy().isEmpty() || base.distinct())) {
+            base = isolate(base);
+        }
+        SqlSelect target = base;
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
             // starProjections handles the JOIN-source case (no single alias:
@@ -1186,8 +1201,30 @@ public final class Lowerer {
         }
         for (TypedFuncCol c : columns) {
             TypedSpec body = CastPolicy.cellRootUnwrapWire(last(c.fn()));
-            switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(base, name)))) {
-                case Resolution.Resolved r -> ps.add(new SqlSelect.Projection(r.expr(), c.name()));
+            SqlSelect resolveBase = base;
+            switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(resolveBase, name)))) {
+                case Resolution.Resolved r -> {
+                    if (manyCols.contains(c)) {
+                        Type elemT = info.type() instanceof Type.RelationType rt
+                                ? rt.columns().stream()
+                                        .filter(cc -> cc.name().equals(c.name()))
+                                        .findFirst().map(Type.Column::type)
+                                        .orElse(Type.Primitive.STRING)
+                                : Type.Primitive.STRING;
+                        String lat = nextAlias();
+                        target = target.withFrom(new SqlSource.Join(
+                                target.from(),
+                                Fold.lateralElem(r.expr(),
+                                        PureSql.type(elemT),
+                                        nextAlias(), lat),
+                                SqlSource.Join.Kind.LEFT_LATERAL,
+                                new SqlExpr.BoolLit(true)));
+                        ps.add(new SqlSelect.Projection(
+                                new SqlExpr.Column(lat, "elem"), c.name()));
+                        continue;
+                    }
+                    ps.add(new SqlSelect.Projection(r.expr(), c.name()));
+                }
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();
                     miss[1] = u.column();   // the caller reports the miss
@@ -1195,7 +1232,7 @@ public final class Lowerer {
                 }
             }
         }
-        return base.withProjections(ps, outputsOf(info));
+        return target.withProjections(ps, outputsOf(info));
     }
 
     private SqlSelect filter(TypedFilter f) {
@@ -2895,15 +2932,8 @@ public final class Lowerer {
                                 ? new SqlExpr.NullLit()
                                 : new SqlExpr.ArrayLit(many.elements().stream()
                                         .map(e -> scalar(e, noScope())).toList());
-                        SqlSelect unnest = new SqlSelect(
-                                List.of(new SqlSelect.Projection(
-                                        SqlExpr.Call.of(SqlFn.UNNEST, array),
-                                        "elem")),
-                                false, new SqlSource.Dual(), null, List.of(),
-                                null, null, List.of(), null, null,
-                                List.of(new OutputCol("elem",
-                                        SqlType.Scalar.VARCHAR, true)));
-                        SqlSource right = new SqlSource.Subselect(unnest, alias, null);
+                        SqlSource right = Fold.lateralElem(array,
+                                SqlType.Scalar.VARCHAR, nextAlias(), alias);
                         src = src == null
                                 ? anchorJoin(right)
                                 : new SqlSource.Join(src, right,

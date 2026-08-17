@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 72 | 15 | 3 | 18 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 237 | 7 | 10 | 5 | 67 | 80 | 1 | 34 |
+| functions/tests | 259 | 239 | 5 | 10 | 5 | 67 | 80 | 1 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 146 | 3 | 6 | 0 | 1 | 4 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2337** | 74 | 80 | 84 | 247 | 293 | 27 | 613 |
+| **total** | 2575 | **2339** | 72 | 80 | 84 | 247 | 293 | 27 | 613 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2337 PASS = 1412 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
+SOFT-PASS RECONCILIATION (F2.1): 2339 PASS = 1414 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
 
 ### mapping walls (dropped at assembly)
 
@@ -1203,9 +1203,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2337 PASS = 1412 clean + 925 carrying softness 
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME,"persontable_0".FIRSTNAME
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - ERROR testSubAggregationMultiLevel [functions/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not DOUBLE |  | LINE 1: SELECT UNNEST((SELECT AVG(t1.AGE) FROM firmTable AS t0 LEFT OUTER... |                ^
-- FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- FAIL testConcatenateWithFilter [functions/tests]: assertEquals: expected a,b\nFirm X,Firm X\nFirm A,\nFirm C,Firm C\nFirm D,\n, got a,b\nFirm X,[Firm X]\nFirm A,[]\nFirm C,[Firm C]\nFirm D,[]\n
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - SHAPE testBuildFilterWithValueThatCanBeNullPlanSql [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

@@ -469,7 +469,11 @@ public class RelationalCorpusRunner {
                     // object-space TypedFilter. Shrink-only; each bucket
                     // is a REAL renderer/recognizer gap — adjudicate
                     // before raising.
-                    "sql-text side", 56);
+                    // 56→57 (E2, 2026-08-17): testConcatenateWithFilter's
+                    // new PASS rides the LEFT-LATERAL row explosion,
+                    // which H2 cannot replay (no LATERAL) — one more
+                    // sql-text-side decline, tied to a GAINED test
+                    "sql-text side", 57);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()

@@ -499,3 +499,30 @@ ERRORED because the replay shadow's H2 rejected the boolean-vs-varchar
 comparison; the ambient session executes it and the asserted values
 match. The old red was an artifact of the shadow, not of the platform.
 Corpus total 2334 → 2335.
+
+## 2026-08-17 — E2 scalar-stream row explosion in SQL (§0.4 declared, 2 gains)
+
+A concatenate-rooted TO-MANY scalar funcCol in `project` now EXPLODES
+ROWS IN SQL (JAVA_EVICTION_PLAN E2): the correlated list expression
+rides a one-row inner select as a local column and the outer select
+UNNESTs it under a LEFT LATERAL join — one row per element, row-major,
+an empty stream keeping one parent row with a NULL cell (the engine's
+scalar-stream rule). The Executor's host-side row explosion (audit A13,
+CSV_DIFFERENTIAL mechanism 3) is probe-proven dead (zero firings on the
+full referee) and DELETED — a many-valued cell reaching a scalar TDS
+slot is now a loud wall, and `arrayAsList` is gone. Detection keys on
+the concatenate root, not the typed multiplicity alone (the first draft
+keyed on multiplicity and broke 28 association to-many navigations that
+already explode through the join machinery).
+
+- `functions/tests/projection`: `testConcatenateWithFilter` PASSES —
+  the F4.3 named residue; its differential was exactly the host-side
+  explosion the SQL now performs.
+- `functions/tests/projection`: `testConcatenateFlatWithOtherProperty`
+  PASSES — same mechanism, a second concatenate stream beside a plain
+  property column.
+
+Registry note: 'sql-text side' H2-oracle declines 56 → 57 — the
+LEFT-LATERAL explosion shape is not H2-replayable through the raw
+boundary; the row is tied to a GAINED test, not a loss.
+Corpus total 2337 → 2339.

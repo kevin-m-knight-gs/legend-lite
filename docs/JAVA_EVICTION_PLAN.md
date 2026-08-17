@@ -173,6 +173,22 @@ the `shapeRow` branch), and OutputCol reconciles with the emitted slot.
 **Acceptance:** the `shapeRow` explosion branch DELETED; `testConcatenateWithFilter`
 flips green (+1, the one CSV-render residue); corpus zero-delta otherwise.
 
+**LANDED 2026-08-17.** The explosion lowers in `Lowerer.tryComputedColumns`:
+detection is CONCATENATE-ROOTED (`Fold.isManyScalarCol` — exact FQN
+`meta::pure::functions::collection::concatenate`; the first draft keyed on typed
+multiplicity alone and broke 28 association to-many navigations already exploded
+by the join machinery). The shape is the shared two-layer lateral
+(`Fold.lateralElem`: correlated list expr as inner local column, UNNEST over that
+column — DuckDB rejects a correlated arg directly under select-list UNNEST), the
+same skeleton E1's PctTdsWrap uses. One many-column per project; a second is the
+engine's own wall. `shapeRow`'s explosion branch deleted after a probe showed
+ZERO firings on the full referee; `arrayAsList` deleted; the Executor ledger row
+is pinned 0. Gains beyond acceptance: `testConcatenateFlatWithOtherProperty`
+also flips (2337 → 2339); 'sql-text side' H2 declines 56 → 57 (LEFT-LATERAL not
+raw-H2-replayable, tied to the gained test). Carrier-purity: pre-dialect
+`SqlFn.UNNEST` sites CONSOLIDATED 13 → 12 (pin tightened) — the collection-mapper
+and instance-literal explosions now ride the same two helpers.
+
 ### E3 — JsonSourceFrame → `SqlSource.SourceUrl` · effort M
 
 The DB path exists end-to-end (`unnest(CAST(… AS JSON[]))`); the missing piece is the

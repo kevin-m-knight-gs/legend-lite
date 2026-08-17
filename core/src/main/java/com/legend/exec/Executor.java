@@ -557,57 +557,27 @@ public final class Executor {
             com.legend.sql.dialect.SqlDialect dialect, Type.RelationType schema,
             List<Column> columns) throws SQLException {
         List<Object> cells = new ArrayList<>(n);
-        int manyCol = -1;
         for (int i = 1; i <= n; i++) {
             Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
                     sqlTypeOf(plan, i - 1), dialect);
+            // E2 (JAVA_EVICTION_PLAN): the host-side row explosion is
+            // DEAD — the scalar-stream projection explodes IN SQL
+            // (LEFT LATERAL UNNEST at project lowering; probe: zero
+            // firings on the full sweep) and the declared to-one slot
+            // matches the emitted one. A list cell in a primitive
+            // schema slot is a lowering defect, never repaired here.
             if ((cell instanceof List<?> || cell instanceof java.sql.Array)
                     && schema.columns().get(i - 1).type()
                             instanceof Type.Primitive) {
-                // TDS cells are SCALAR — a many-valued primitive
-                // projection column (scalar-stream concatenate)
-                // EXPLODES ROWS in the engine (union subselect per
-                // element, row-major; parents with an empty stream
-                // keep ONE row with a NULL cell — the LEFT join).
-                // ONE such column per row; a second stays loud
-                // (zipping is not the engine rule).
-                if (manyCol >= 0) {
-                    throw new com.legend.error.NotImplementedException(
-                            "two many-valued TDS cells in one row ('"
-                                    + columns.get(manyCol).name() + "', '"
-                                    + columns.get(i - 1).name()
-                                    + "') — only single-column row"
-                                    + " explosion is built");
-                }
-                manyCol = i - 1;
+                throw new IllegalStateException("a many-valued cell"
+                        + " reached a scalar TDS slot ('"
+                        + columns.get(i - 1).name()
+                        + "') — the lowering must explode scalar"
+                        + " streams in SQL (E2)");
             }
             cells.add(cell);
         }
-        if (manyCol < 0) {
-            return List.of(new Row(cells));
-        }
-        List<?> stream = cells.get(manyCol) instanceof java.sql.Array a
-                ? arrayAsList(a) : (List<?>) cells.get(manyCol);
-        if (stream.isEmpty()) {
-            List<Object> one = new ArrayList<>(cells);
-            one.set(manyCol, null);
-            return List.of(new Row(one));
-        }
-        List<Row> out = new ArrayList<>(stream.size());
-        for (Object el : stream) {
-            List<Object> one = new ArrayList<>(cells);
-            one.set(manyCol, el);
-            out.add(new Row(one));
-        }
-        return out;
-    }
-
-    private static List<?> arrayAsList(java.sql.Array a) {
-        try {
-            return java.util.Arrays.asList((Object[]) a.getArray());
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException("array cell read failed", e);
-        }
+        return List.of(new Row(cells));
     }
 
     private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {

@@ -75,9 +75,13 @@ class JavaEvalLedgerTest {
         EVICT_NAMES.put("core/src/main/java/com/legend/exec/Ddl.java",
                 new Object[]{"(dropTableStatementText|createTableStatementText|setUpDataSqlsText|setUpDataSqlsTextFromRecords|engineSpell)\\(",
                         15});
-        // E2 — the many-valued row explosion (A13): the branch's own wall
+        // E2 LANDED (2026-08-17): the host-side row explosion is DEAD
+        // — the scalar-stream projection explodes IN SQL (LEFT LATERAL
+        // UNNEST at project lowering; probe: ZERO firings on the full
+        // sweep). This row pins the deletion: a list cell in a scalar
+        // slot is a loud lowering-defect wall now, never a repair.
         EVICT_NAMES.put("core/src/main/java/com/legend/exec/Executor.java",
-                new Object[]{"two many-valued TDS cells", 1});
+                new Object[]{"two many-valued TDS cells", 0});
         // E3 — JSON source realization in Java
         EVICT_NAMES.put("core/src/main/java/com/legend/resolver/JsonSourceFrame.java",
                 new Object[]{"(classSource|cellText)\\(", 3});
