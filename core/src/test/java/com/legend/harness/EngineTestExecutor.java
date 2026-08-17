@@ -1961,7 +1961,7 @@ public final class EngineTestExecutor {
                                     .noneMatch(h -> wireEquals(n2, h)))
                             .toList();
                     boolean holds = missing.isEmpty();
-                    boolean want = af.function().equals("assert");
+                    boolean want = simpleName(af.function()).equals("assert");   // F6.9: FQN-spelled asserts keep polarity
                     return holds == want ? null
                             : "assert" + (want ? "" : "False")
                                     + " (forAll-contains subset): missing "
@@ -1970,7 +1970,7 @@ public final class EngineTestExecutor {
                 // connection-equality contract folds HOST-side (ConnEquality)
                 Object v = ConnEquality.tryEval(subst(args.get(0), lets), ctx, imports);
                 v = v != null ? v : evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
-                boolean expect = af.function().equals("assert");
+                boolean expect = simpleName(af.function()).equals("assert");   // F6.9
                 return Boolean.valueOf(expect).equals(v) ? null
                         : "assert" + (expect ? "" : "False") + " did not hold (" + v + ")";
             }
@@ -2020,7 +2020,7 @@ public final class EngineTestExecutor {
                 }
                 Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 boolean equal = compare(e, a, /* ordered */ true);
-                if (af.function().equals("assertNotEquals")) {
+                if (simpleName(af.function()).equals("assertNotEquals")) {   // F6.9
                     return equal ? "assertNotEquals: both sides are " + e.render() : null;
                 }
                 if (!equal && System.getenv("LEGEND_LITE_CMP_DEBUG") != null) {
@@ -2105,14 +2105,17 @@ public final class EngineTestExecutor {
                 }
                 Object n = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
+                // F6.8 (audit A-hole): the guard runs BEFORE the carrier
+                // arm — a failed-seed empty envelope must never hollow-
+                // PASS an expected 0 through envelopeSizeCheck
+                if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
+                    return UNSUPPORTED_MARKER;
+                }
                 String env0 = envelopeSizeCheck(n, args.get(0), lets,
                         execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (env0 != NOT_ENVELOPE) {
                     return env0;
-                }
-                if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
-                    return UNSUPPORTED_MARKER;
                 }
                 Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 long actual = a.size();
