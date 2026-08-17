@@ -53,23 +53,6 @@ public final class Ddl {
         return sb.append(");").toString();
     }
 
-    /** H2 2.1.214 reserved words (h2Extension2_1_214.pure:180-192) — the
-     * engine's DDL-TEXT column quoting set (the second target's dialect,
-     * same golden surface as the plan channel). */
-    private static final java.util.Set<String> H2_RESERVED = java.util.Set.of(
-            "all", "and", "array", "as", "between", "case", "check",
-            "constraint", "cross", "current_catalog", "current_date",
-            "current_schema", "current_time", "current_timestamp",
-            "current_user", "distinct", "except", "exists", "false", "fetch",
-            "for", "foreign", "from", "full", "group", "having", "if", "in",
-            "inner", "intersect", "interval", "is", "join", "left", "like",
-            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
-            "null", "offset", "on", "or", "order", "primary", "qualify",
-            "row", "rownum", "select", "table", "true", "union", "unique",
-            "unknown", "using", "values", "where", "window", "with",
-            "_rowid_", "both", "groups", "ilike", "leading", "over",
-            "partition", "range", "regexp", "rows", "top", "trailing");
-
     /** The ENGINE's createTableStatement TEXT (translateCreateTable-
      * StatementDefault, extensionDefaults.pure:609-620): reserved-word
      * column quoting, engine type spellings (INT), NULL / NOT NULL
@@ -86,9 +69,7 @@ public final class Ddl {
                 sb.append(",");
             }
             first = false;
-            sb.append(H2_RESERVED.contains(
-                    col.name().toLowerCase(java.util.Locale.ROOT))
-                    ? '"' + col.name() + '"' : col.name())
+            sb.append(processColumnName(col.name()))
                     .append(' ').append(engineSpell(col.dataType()))
                     .append(col.primaryKey() || col.notNull()
                             ? " NOT NULL" : " NULL");
@@ -97,10 +78,39 @@ public final class Ddl {
                 .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
                 .map(DatabaseDefinition.ColumnDefinition::name).toList();
         if (!pks.isEmpty()) {
+            // the engine joins the pk NAMES RAW (translateCreateTable-
+            // StatementDefault: '$t.primaryKey->map(c|$c.name)', no
+            // processColumnName) — text parity keeps that spelling
             sb.append(", PRIMARY KEY(").append(String.join(",", pks))
                     .append(')');
         }
         return sb.append(");").toString();
+    }
+
+    /** The ENGINE's column-name rule for H2 DDL TEXT — processColumnName
+     * = columnNameToIdentifier THEN processIdentifierWithQuoteChar
+     * (dbExtension.pure:611-614, extensionDefaults.pure:557-563). H2
+     * leaves columnNameToIdentifier UNSET, and the DbConfig accessor
+     * defaults it to IDENTITY (dbExtension.pure:155-158) — the
+     * kerberos/date/first uppercase trio belongs to the dialects that
+     * opt in (redshift, sqlserver, ...), NOT H2; testDDL.pure's goldens
+     * pin bare {@code date}. F3.5 (audit A16): the old reserved-word-
+     * ONLY rule missed the engine's OTHER two quote triggers — pre-
+     * quoted and SPACE-BEARING names — so the corpus's 'Previous Fiscal
+     * Week Year' emitted bare here and the DuckDB boundary's head-quoter
+     * mangled it downstream. Reserved words come from the dialect
+     * lexicon — the ONE H2 list. */
+    private static String processColumnName(String name) {
+        // processIdentifierWithQuoteChar: pre-quoted, reserved, or
+        // space-bearing identifiers quote (embedded quotes stripped)
+        if (name.startsWith("\"")
+                || com.legend.sql.dialect.Lexicon.H2_ENGINE_TEXT
+                        .reservedWords()
+                        .contains(name.toLowerCase(java.util.Locale.ROOT))
+                || name.contains(" ")) {
+            return '"' + name.replace("\"", "") + '"';
+        }
+        return name;
     }
 
     /** The ENGINE's setUpDataSQLs TEXT (toDDL.pure:186-195 +

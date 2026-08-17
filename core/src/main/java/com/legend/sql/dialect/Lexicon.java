@@ -62,9 +62,11 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
     /** Engine-text lowering (H2/DB2 golden style): minimal quoting. */
 
     /** H2 2.1.214 reserved words — the ENGINE's own list
-     * (h2Extension2_1_214.pure:180-192, same set as Ddl.H2_RESERVED;
-     * kept in sync by LexiconTest). */
-    public static final Lexicon H2 = new Lexicon('"', Set.of(
+     * (h2Extension2_1_214.pure:180-192). This is the GOLDEN TEXT
+     * channel's set ({@code Ddl.createTableStatementText}'s
+     * column-name rule quotes exactly what the engine quotes); the
+     * EXECUTION lexicon {@link #H2} derives from it. */
+    public static final Lexicon H2_ENGINE_TEXT = new Lexicon('"', Set.of(
             "all", "and", "array", "as", "between", "case", "check",
             "constraint", "cross", "current_catalog", "current_date",
             "current_schema", "current_time", "current_timestamp",
@@ -76,12 +78,18 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
             "row", "rownum", "select", "table", "true", "union", "unique",
             "unknown", "using", "values", "where", "window", "with",
             "_rowid_", "both", "groups", "ilike", "leading", "over",
-            "partition", "range", "regexp", "rows", "top", "trailing",
-            // stock 2.1.214 rejects these in ALIAS position (witnessed:
-            // `AS right` -> syntax error); the engine's own list omits
-            // them — its FORK is laxer. Execution-dialect-only: the
-            // golden text channel uses ENGINE_STYLE (no quoting).
-            "right"));
+            "partition", "range", "regexp", "rows", "top", "trailing"));
+
+    /** Stock H2 2.1.214 EXECUTION lexicon: the engine's list plus the
+     * words the STOCK parser rejects in alias position (witnessed:
+     * {@code AS right} &rarr; syntax error) that the engine's laxer
+     * FORK omits. Execution-dialect-only — golden text channels use
+     * {@link #H2_ENGINE_TEXT} or {@link #ENGINE_STYLE}. */
+    public static final Lexicon H2 = new Lexicon('"',
+            java.util.stream.Stream.concat(
+                    H2_ENGINE_TEXT.reservedWords().stream(),
+                    java.util.stream.Stream.of("right"))
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet()));
 
     public static final Lexicon ENGINE_STYLE = new Lexicon('"', Set.of());
 }
