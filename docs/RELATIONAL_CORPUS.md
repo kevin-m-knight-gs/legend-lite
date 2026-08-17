@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 70 | 14 | 5 | 19 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 237 | 7 | 10 | 5 | 67 | 80 | 1 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 145 | 3 | 6 | 1 | 1 | 4 | 0 | 72 |
+| functions/tests/projection | 155 | 146 | 3 | 6 | 0 | 1 | 4 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2334** | 73 | 82 | 86 | 247 | 293 | 27 | 613 |
+| **total** | 2575 | **2335** | 73 | 82 | 85 | 247 | 293 | 27 | 613 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1409 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
+SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1410 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
 
 ### mapping walls (dropped at assembly)
 
@@ -1227,7 +1227,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1409 clean + 925 carrying softness 
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as date)), got select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(DAY, case when 1 - date_part('isodow', cast(now() as date)) > 0 then 1 - date_part('isodow', cast(now() as date)) - 7 else 1 - date_part('isodow', cast(now() as date)) end, cast(now() as date))
-- SHAPE H2Test [functions/tests/projection]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: Values of types "BOOLEAN" and "CHARACTER VARYING(5)" are not comparable; SQL statement: | SELECT case when false = 'false' then 'Ok' else 'Error' END as BooleanVarCharComparison [90110-214]
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'

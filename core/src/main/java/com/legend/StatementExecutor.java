@@ -541,7 +541,9 @@ final class StatementExecutor {
             return null;
         }
         return com.legend.exec.HostEval.evalToResult(
-                bare, env.ctx(), specs, hostLets);
+                bare, env.ctx(), specs, hostLets,
+                new com.legend.exec.HostEval.Ambient(
+                        env.connection(), env.dialect()));
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
@@ -2863,7 +2865,10 @@ final class StatementExecutor {
         // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
         // HOST-SIDE against the H2 second target (task #43 slice B2)
         if (com.legend.exec.HostEval.wantsHostEval(root)) {
-            return com.legend.exec.HostEval.evalToResult(root, env.ctx());
+            return com.legend.exec.HostEval.evalToResult(root, env.ctx(),
+                    null, java.util.Map.of(),
+                    new com.legend.exec.HostEval.Ambient(
+                            env.connection(), env.dialect()));
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB

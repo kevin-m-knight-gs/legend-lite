@@ -480,3 +480,22 @@ record). Every one was previously green only through fabrication.
 
 Corpus total 2347 → 2334. Un-red path: record real execution activities
 (a platform feature, §9 backlog), not a fold.
+
+## 2026-08-17 — F6.6 executeInDb READ re-site (§0.4 declared, one gain)
+
+executeInDb READS now run on the AMBIENT session — the database the raw
+writes actually seeded — through the same raw-H2 boundary adaptation as
+the write path (HostEval.Ambient); the fresh-H2 shadow replay for reads
+is deleted, and the surviving metadata-channel replay THROWS on a
+rejected statement instead of skipping (a partially-populated shadow can
+no longer answer quietly). One naming rule joined the boundary
+translator: an unaliased `count(*)` projection item gains its H2
+observable alias `AS "COUNT(*)"` (witness ddl::dropAndCreateTable reads
+`.value('COUNT(*)')`; DuckDB spells the column `count_star()`).
+
+`functions/tests/projection` 145 → 146: `H2Test` now PASSES — its
+executeInDb READ (`SELECT case when false = 'false' ...`) previously
+ERRORED because the replay shadow's H2 rejected the boolean-vs-varchar
+comparison; the ambient session executes it and the asserted values
+match. The old red was an artifact of the shadow, not of the platform.
+Corpus total 2334 → 2335.

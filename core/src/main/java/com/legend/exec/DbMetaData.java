@@ -84,23 +84,25 @@ public final class DbMetaData {
         }
     }
 
-    /** A raw QUERY over the replayed H2 second target — the executeInDb
-     * READ path (engine-parity column naming: COUNT(*) etc.). */
-    public static HostResultSet query(String sql, List<String> recorded)
+    /** A raw QUERY over the AMBIENT session (F6.6, audit §5 A9): the
+     * executeInDb READ path runs against the database the raw writes
+     * actually seeded — CSV loads and generator inserts included. The
+     * old form replayed recorded statements into a fresh throwaway H2,
+     * which answered from a partially-populated shadow. The caller owns
+     * the connection's lifecycle. */
+    public static HostResultSet query(String sql, Connection ambient)
             throws SQLException {
-        int id = COUNTER.getAndIncrement();
-        try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:execquery" + id + SETTINGS, "sa", "")) {
-            replay(h2, recorded);
-            try (Statement st = h2.createStatement()) {
-                return grid(st.executeQuery(sql), false);
-            }
+        try (Statement st = ambient.createStatement()) {
+            return grid(st.executeQuery(sql), false);
         }
     }
 
-    /** Best-effort replay: the recorded stream is H2-flavored by
-     * definition; a statement H2 rejects is skipped (the metadata read
-     * over what DID replay stays honest — asserts catch real gaps). */
+    /** Replay of the recorded H2-flavored stream into the metadata
+     * shadow. F6.6: a statement H2 rejects THROWS — the old skip let a
+     * metadata read answer from a partially-populated shadow (audit §5
+     * A9: it "can silently answer from a partially-populated
+     * database"); a gap in the shadow is now a loud red carrying the
+     * failing statement, never a quiet subset answer. */
     private static void replay(Connection h2, List<String> recorded)
             throws SQLException {
         try (Statement st = h2.createStatement()) {
@@ -112,14 +114,12 @@ public final class DbMetaData {
                     try {
                         st.execute(one);
                     } catch (SQLException e) {
-                        // skipped — see javadoc. UNCONDITIONALLY visible
-                        // (audit V1.17: a swallowed Java-synthesized ALTER
-                        // silently changes what the metadata natives
-                        // return; every sweep counts these now)
-                        System.err.println("[h2-meta-replay] skip: "
+                        throw new SQLException(
+                                "h2-meta-replay REFUSED (F6.6 — the shadow"
+                                + " would be partially populated): "
                                 + one.strip().split("\\n")[0] + " => "
                                 + String.valueOf(e.getMessage())
-                                        .split("\\n")[0]);
+                                        .split("\\n")[0], e);
                     }
                 }
             }

@@ -288,6 +288,15 @@ public final class HostEval {
 
     private static final ThreadLocal<com.legend.compiler.element.ModelContext>
             CTX = new ThreadLocal<>();
+    /** The AMBIENT JDBC session (F6.6): executeInDb READS run here — the
+     * database the raw writes actually seeded — never a replayed shadow.
+     * Bound by the full entry; absent (HostEvalTest's bare entry, any
+     * product-less path) the read refuses loudly. */
+    public record Ambient(java.sql.Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect) {
+    }
+
+    private static final ThreadLocal<Ambient> AMBIENT = new ThreadLocal<>();
     private static final ThreadLocal<com.legend.compiler.spec.SpecCompiler>
             SPECS = new ThreadLocal<>();
     /** Enclosing LET bindings (typed, unevaluated) — resolved lazily on
@@ -308,15 +317,26 @@ public final class HostEval {
             com.legend.compiler.element.ModelContext ctx,
             com.legend.compiler.spec.@com.legend.Nullable SpecCompiler specs,
             Map<String, TypedSpec> lets) throws java.sql.SQLException {
+        return evalToResult(root, ctx, specs, lets, null);
+    }
+
+    /** Full entry with the ambient session bound (F6.6). */
+    public static ExecutionResult evalToResult(TypedSpec root,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.compiler.spec.@com.legend.Nullable SpecCompiler specs,
+            Map<String, TypedSpec> lets, @com.legend.Nullable Ambient ambient)
+            throws java.sql.SQLException {
         CTX.set(ctx);
         SPECS.set(specs);
         LETS.set(lets);
+        AMBIENT.set(ambient);
         try {
             return evalToResult(root);
         } finally {
             CTX.remove();
             SPECS.remove();
             LETS.remove();
+            AMBIENT.remove();
         }
     }
 
@@ -377,11 +397,22 @@ public final class HostEval {
                     return List.of();
                 }
                 if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)) {
-                    // the READ path: run the query over the replayed H2
-                    // second target (engine-parity column naming)
+                    // F6.6 (audit §5 A9): the READ path runs on the
+                    // AMBIENT session — the database the raw writes
+                    // actually seeded — through the same raw-H2 boundary
+                    // adaptation as the write path. The old fresh-H2
+                    // replay answered from a partially-populated shadow.
                     Object sqlv = eval(nc.args().get(0), scope);
-                    return DbMetaData.query(String.valueOf(
-                            asList(sqlv).get(0)), replayStream());
+                    Ambient amb = AMBIENT.get();
+                    if (amb == null) {
+                        throw new NotImplementedException(
+                                "host-eval: executeInDb read without an"
+                                + " ambient connection");
+                    }
+                    String sql = String.valueOf(asList(sqlv).get(0));
+                    return DbMetaData.query(amb.dialect().rawH2IsNative()
+                            ? sql : RawSqlBoundary.h2ToDuckDb(sql),
+                            amb.conn());
                 }
                 switch (fqn) {
                     case "meta::pure::functions::collection::fold" -> {

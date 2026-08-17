@@ -42,9 +42,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class RawSqlLedgerTest {
 
+    // F6.6: HostEval joined — the executeInDb READ path adapts the SAME
+    // corpus-authored raw H2 the write path does, before running it on
+    // the ambient session (the R0 contract holds: corpus-authored text
+    // only, now symmetrically on both directions of the boundary).
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
-            "Runner.java", 1);
+            "Runner.java", 1,
+            "HostEval.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");

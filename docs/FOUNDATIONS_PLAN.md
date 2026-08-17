@@ -1053,6 +1053,19 @@ CSV seeds and generator inserts are **absent** from that shadow DB, and rejected
 **Change:** route reads to the ambient connection (`Executor.executeRaw` already owns raw
 statements) or restore the refusal and ledger the one test. Make the replay skip **throw**.
 
+**LANDED ENDPOINT (2026-08-17):** reads re-sited to the AMBIENT session (`HostEval.Ambient`
+record bound by the full entry; both StatementExecutor call sites pass it; the read refuses
+loudly without one). `DbMetaData.query` now executes on the supplied connection — the shadow
+replay for reads is DELETED; the metadata-channel replay that survives THROWS on a rejected
+statement (the old skip printed and answered from a partial shadow). The raw boundary gained
+ONE naming rule: an unaliased `count(*)` projection item aliases to H2's observable
+`"COUNT(*)"` (witness: ddl::dropAndCreateTable reads `.value('COUNT(*)')`; DuckDB names the
+column `count_star()`) — naming is raw-H2 observable behavior, squarely the translator's
+charter. Referee: +1 GAIN (`H2Test` — its read ERRORED only because the shadow H2 rejected a
+boolean-vs-varchar comparison the ambient session executes; declared in
+BURNDOWN_EXPLANATIONS), corpus 2334→2335; h2 sweep 2282/2575 unchanged; the two old
+`h2-meta-replay skip` lines on DuckDB sweeps are gone (those replays no longer happen).
+
 ### F6.7 — Fix the H2 extension wiring gap
 
 **Files:** `harness/H2Verify.java:273` (`aliases()` is called in the *fresh-replay* branch only)
