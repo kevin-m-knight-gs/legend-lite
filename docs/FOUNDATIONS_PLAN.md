@@ -1346,6 +1346,16 @@ GREEN.
 `experiments/backend-probes/duckdb-syntax/` as named PROBES with a README (a test that cannot
 fail is not a test; as recorded probes they keep their evidentiary value); `ProbeWireShapes`
 was already gone — only comment references remain. Chain GREEN.
+**Executor decode cluster (V1.7–V1.9) LANDED:** V1.9's prefix matching is dead — the
+parameter suffix strips once (`DECIMAL(38,9)` → `DECIMAL`), then the table is EXACT-match with
+the loud default (NUMERIC added). V1.7 ADJUDICATED resolved-by-design: the `endsWith("D")`
+parse is the mixed-identity carrier's decode (the print form IS the wire contract for
+NUMBER-rooted mixed collections — the burn-down chose it over the audit's typed-sibling
+column); documented at the site. V1.8 ADJUDICATED: the string arm already delegates to the one
+unescape table (F3.1d); the number arm must NOT delegate to `sql/Json.num` — an Any-rooted
+decimal JSON number is a pure Float (`Double`), while the strict JSON bridge deliberately reads
+`BigDecimal` (audit 18); same grammar, different target kinds by design, documented at the
+site. Referee zero-delta, chain GREEN.
 
 **Backlog (append new findings here, do not act on them mid-plan):**
 - **Normalizer bare super-name resolution (F7.8 census find):** nine

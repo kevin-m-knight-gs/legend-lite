@@ -334,6 +334,11 @@ public final class Executor {
         // Number collections return each element's pure PRINT FORM as text
         // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
         // identities stay strings — the wire's date convention.)
+        // V1.7 adjudication (Phase 8): the audit read this as re-parsing
+        // the DB's print form; it is the DELIBERATE carrier decode of the
+        // mixed-identity design (PCT burn-down: print-form carrier beat
+        // the typed-sibling-column alternative) — the print form IS the
+        // wire contract for NUMBER-rooted mixed collections.
         if (rootType == Type.Primitive.NUMBER && v instanceof String s) {
             if (s.endsWith("D")) {
                 return new java.math.BigDecimal(s.substring(0, s.length() - 1));
@@ -352,6 +357,15 @@ public final class Executor {
      * kind — a number is a Number again, not the string {@code "1"}. Variant
      * results are NOT decoded (their contract is the JSON text itself); only
      * the Any root takes this path.
+     *
+     * <p>V1.8 adjudication (Phase 8): these scalar arms are the ANY-boundary
+     * decode CONTRACT, not a duplicate JSON reader — the string arm already
+     * delegates to the one unescape table (F3.1d), and the number arm must
+     * NOT delegate to {@code sql/Json.num}: a decimal-form JSON number under
+     * an Any root is a pure Float (host {@code Double}), while the strict
+     * JSON bridge deliberately reads {@code BigDecimal} (audit 18 —
+     * wireEquals-grade exactness). Same grammar, different target kinds by
+     * design.
      */
     private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
@@ -652,7 +666,15 @@ public final class Executor {
      * this table, not a String (audit 15: the silent String default
      * corrupted result typing invisibly). */
     private static Type pureOfSqlType(String sqlType) {
+        // V1.9 (Phase 8): the parameter suffix strips ONCE
+        // ('DECIMAL(38,9)' -> 'DECIMAL'), then the table is EXACT-match
+        // with a loud default — no prefix matching (the audited
+        // startsWith arms could never say what they excluded).
         String t = sqlType.toUpperCase();
+        int paren = t.indexOf('(');
+        if (paren > 0) {
+            t = t.substring(0, paren).strip();
+        }
         return switch (t) {
             case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
                     Type.Primitive.INTEGER;
@@ -660,20 +682,13 @@ public final class Executor {
             case "BOOLEAN" -> Type.Primitive.BOOLEAN;
             case "DATE" -> Type.Primitive.STRICT_DATE;
             case "TIMESTAMP" -> Type.Primitive.DATE_TIME;
+            case "DECIMAL", "NUMERIC" -> Type.Primitive.DECIMAL;
             case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" ->
                     Type.Primitive.STRING;
-            default -> {
-                if (t.startsWith("DECIMAL")) {
-                    yield Type.Primitive.DECIMAL;
-                }
-                if (t.startsWith("VARCHAR") || t.startsWith("CHAR")) {
-                    yield Type.Primitive.STRING;
-                }
-                throw new IllegalStateException(
-                        "no Pure primitive mapped for SQL type '" + sqlType
-                        + "' (pivot-generated column) — add it to"
-                        + " Executor.pureOfSqlType");
-            }
+            default -> throw new IllegalStateException(
+                    "no Pure primitive mapped for SQL type '" + sqlType
+                    + "' (pivot-generated column) — add it to"
+                    + " Executor.pureOfSqlType");
         };
     }
 
