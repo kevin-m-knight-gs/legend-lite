@@ -1721,7 +1721,8 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLambda lam) {
         TypedSpec body = lam.body().get(lam.body().size() - 1);
         if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall io
-                && io.callee().qualifiedName().endsWith("instanceOf")
+                && "meta::pure::functions::meta::instanceOf"
+                        .equals(io.callee().qualifiedName())
                 && io.args().size() == 2) {
             String cls = typeRefSimple(io.args().get(1));
             if (cls == null) {
@@ -1737,7 +1738,8 @@ final class StatementExecutor {
             return out;
         }
         if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall eq
-                && eq.callee().qualifiedName().endsWith("equal")
+                && "meta::pure::functions::boolean::equal"
+                        .equals(eq.callee().qualifiedName())
                 && eq.args().size() == 2
                 && eq.args().get(0)
                         instanceof com.legend.compiler.spec.typed
