@@ -46,7 +46,7 @@ class JavaEvalLedgerTest {
             // until root mode reduces it to the adapter contract
             "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101,
             "core/src/main/java/com/legend/exec/HostEval.java", 928,
-            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1603,
+            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
             "core/src/main/java/com/legend/plan/PlanText.java", 888,
             "core/src/main/java/com/legend/AggAwareActivities.java", 265);

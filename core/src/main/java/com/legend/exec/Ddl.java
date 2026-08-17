@@ -378,9 +378,8 @@ public final class Ddl {
     /** The FLAVORED type spelling: the deltas from the H2 base are the
      * ONLY per-target lines — DuckDB where H2's type SEMANTICS differ
      * from its name (FLOAT is an 8-byte double, BIT a boolean — spelled
-     * from the TYPE, never recovered from text, F7.4); engine TEXT where
-     * the engine's dataTypeToSqlText differs (Integer spells INT,
-     * platform_store_relational/functions.pure:68-96). */
+     * from the TYPE, never recovered from text, F7.4); engine TEXT is
+     * {@link #dataTypeToSqlText}, the ONE engine spelling. */
     private static String spell(RelationalDataType t, Flavor f) {
         if (f == Flavor.DUCK_EXEC
                 && t instanceof RelationalDataType.Float_) {
@@ -389,9 +388,25 @@ public final class Ddl {
         if (f == Flavor.DUCK_EXEC && t instanceof RelationalDataType.Bit) {
             return "BOOLEAN";
         }
-        if (f == Flavor.ENGINE_TEXT
-                && t instanceof RelationalDataType.Integer_) {
+        if (f == Flavor.ENGINE_TEXT) {
+            return dataTypeToSqlText(t);
+        }
+        return spell(t);
+    }
+
+    /** THE engine {@code dataTypeToSqlText} spelling
+     * (platform_store_relational/functions.pure:68-96), spelled ONCE —
+     * the ENGINE_TEXT DDL flavor and the metamodel walk's
+     * dataTypeToSqlText native both read here (ratified E4 design: no
+     * type text is spelled twice). Deltas from the EXECUTION base:
+     * Integer spells INT; Other spells OTHER (execution walls — a
+     * column of type Other cannot be created). */
+    public static String dataTypeToSqlText(RelationalDataType t) {
+        if (t instanceof RelationalDataType.Integer_) {
             return "INT";
+        }
+        if (t instanceof RelationalDataType.Other) {
+            return "OTHER";
         }
         return spell(t);
     }
