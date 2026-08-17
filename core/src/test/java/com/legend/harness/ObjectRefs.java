@@ -169,24 +169,15 @@ final class ObjectRefs {
 
     private static @com.legend.Nullable String decodeRef(String ref,
             ModelContext ctx) {
-        String b64 = ref.startsWith("ASOR:") ? ref.substring(5) : ref;
-        String d = new String(java.util.Base64.getDecoder().decode(
-                b64 + "=".repeat((4 - b64.length() % 4) % 4)),
-                java.nio.charset.StandardCharsets.UTF_8);
-        // segments after '001:010:' — len10:value:...
-        List<String> segs = new ArrayList<>();
-        int i = "001:010:".length();
-        while (i < d.length() && segs.size() < 6) {
-            int len = Integer.parseInt(d.substring(i, i + 10));
-            segs.add(d.substring(i + 11, i + 11 + len));
-            i += 11 + len + 1;
-        }
-        if (segs.size() < 6) {
+        // F3.4: decode via the ONE protocol owner
+        com.legend.resolver.AsorRef.Ref r =
+                com.legend.resolver.AsorRef.decode(ref);
+        if (r == null) {
             return null;
         }
-        String mapping = segs.get(1);
-        String setId = segs.get(3);
-        Object pkObj = com.legend.sql.Json.parseOne(segs.get(5));
+        String mapping = r.mapping();
+        String setId = r.setId();
+        Object pkObj = com.legend.sql.Json.parseOne(r.pkJson());
         if (!(pkObj instanceof Map<?, ?> pkMap)) {
             return null;
         }
@@ -342,22 +333,10 @@ final class ObjectRefs {
         return out;
     }
 
-    /** The ASOR static prefix (GraphEmission.asorPrefix protocol; the
-     * DECODE side reads only the trailing pk segment, the rest keeps
-     * the well-formed engine shape). */
+    /** The ASOR static prefix — delegated to the one protocol owner. */
     private static String prefix(String mappingPath, String rootSetId,
             String setId) {
-        String conn = "{\"_type\":\"RelationalDatabaseConnection\","
-                + "\"authenticationStrategy\":{\"_type\":\"h2Default\"},"
-                + "\"datasourceSpecification\":{\"_type\":\"h2Local\"},"
-                + "\"element\":\"\",\"postProcessorWithParameter\":[],"
-                + "\"postProcessors\":[],\"timeZone\":\"GMT\","
-                + "\"type\":\"H2\"}";
-        return "001:010:" + seg("Relational") + seg(mappingPath)
-                + seg(rootSetId) + seg(setId) + seg(conn);
-    }
-
-    private static String seg(String v) {
-        return String.format("%010d", v.length()) + ":" + v + ":";
+        return com.legend.resolver.AsorRef.prefix(mappingPath, rootSetId,
+                setId);
     }
 }

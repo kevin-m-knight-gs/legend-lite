@@ -1514,16 +1514,14 @@ final class Substitution {
                 throw new NotImplementedException(
                         "objectReferenceIn reference is not a literal");
             }
-            String b64 = rs.value().startsWith("ASOR:")
-                    ? rs.value().substring(5) : rs.value();
-            String dec = new String(java.util.Base64.getDecoder().decode(
-                    b64 + "=".repeat((4 - b64.length() % 4) % 4)),
-                    java.nio.charset.StandardCharsets.UTF_8);
-            Object pkObj = com.legend.sql.Json.parseOne(
-                    dec.substring(dec.lastIndexOf(":{") + 1));
+            // F3.4: the REAL segment walk (AsorRef, the one protocol
+            // owner) replaces the lastIndexOf(":{") substring heuristic
+            AsorRef.Ref ref = AsorRef.decode(rs.value());
+            Object pkObj = ref == null ? null
+                    : com.legend.sql.Json.parseOne(ref.pkJson());
             if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.isEmpty()) {
                 throw new NotImplementedException("objectReferenceIn pk"
-                        + " segment did not decode: " + dec);
+                        + " segment did not decode: " + rs.value());
             }
             Map<String, Object> m = new java.util.LinkedHashMap<>();
             pkMap.forEach((k, v) -> m.put(String.valueOf(k), v));
