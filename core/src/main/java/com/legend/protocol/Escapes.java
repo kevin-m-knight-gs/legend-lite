@@ -31,7 +31,7 @@ public final class Escapes {
      *  protocol emitter's byte-parity goldens pin that; the server and
      *  result writers historically emit lowercase. Before F3.1c this
      *  table was spelled three times (server/Json.escapeTo,
-     *  ProtocolEmitter.str, ResultJson.writeString) differing ONLY in
+     *  ProtocolEmitter.str, server Json) differing ONLY in
      *  hex case — all three now delegate here. */
     public static void jsonEscape(Appendable out, String s,
             boolean upperHex) throws java.io.IOException {

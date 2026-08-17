@@ -89,6 +89,22 @@ decide per surface whether engine parity justifies a PERMANENT registration inst
 engine serializes its HTTP results in Java too) — but the RFC-4180 duplication is
 indefensible either way: at minimum the escape delegates to the one owner.
 
+**E5 LANDED 2026-08-17.** The product wire is PLAN-RENDERED (`Compiler.executeWire` →
+`WireRender.wrap/rows` → `Render.csvWire`/`jsonWire`/`jsonWireRows`): CSV composes in SQL
+through the ONE RFC-4180 owner (`escapeCsv`/`cell` — CRLF endings, header of escaped
+names, zero rows = header only); JSON rides `json_object` per row (the DATABASE'S value
+policy and RFC 8259 escaping), `string_agg` snapshot with the pinned `[]` empty form, or
+per-row streaming where Java writes only array punctuation. `ResultJson` DELETED (the
+Java JSON value policy died with it); `CsvSerializer`/`JsonSerializer` shrank to format
+METADATA (id/contentType/streaming — `serialize` no longer exists on the registry
+surface); the `/execute` envelope parses DB-built text (ingress) with columns as a typed
+plan fact; the dead `/sql` SELECT branch removed (executeSql's contract is
+statement-only). Testdatagen: the ROW TEXT is SQL (display casts + `'---null---'` +
+comma joins in the projection, outer ORDER BY over the projected display columns);
+`renderCsv` is dead — `csvEnvelope` assembles only catalog-metadata envelope lines.
+`headerCase` re-registered PERMANENT (identifier-display casing over catalog names — the
+decision rule's metadata-text class). Rows retired/pinned zero in the ledger.
+
 **PERMANENT-ALLOWED (registered with justifications; no counts needed — their own guards
 already pin them):**
 - **Harness comparison layer**: `EngineTestExecutor` (compare/wireEquals/hostEquals/

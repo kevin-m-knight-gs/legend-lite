@@ -194,7 +194,7 @@ public final class TestDataGenerator {
                 fetchRoot(ctx, r, rowIds, st, sqls, fetched, temps, colMap,
                         dates);
             }
-            String csv = renderCsv(st, fetched, hashStrings);
+            String csv = csvEnvelope(st, fetched, hashStrings);
             return new Result(List.copyOf(sqls), csv);
         } finally {
             dropTemps(conn, temps);
@@ -1035,7 +1035,7 @@ public final class TestDataGenerator {
 
     // ===== CSV =====
 
-    private static String renderCsv(Statement st,
+    private static String csvEnvelope(Statement st,
             Map<String, Fetched> fetched, boolean hashStrings)
             throws SQLException {
         StringBuilder out = new StringBuilder();
@@ -1100,26 +1100,26 @@ public final class TestDataGenerator {
                             + " as " + q(c));
                 }
             }
-            // ORDER BY ordinals, not DuckDB's ORDER BY ALL (P3): same
-            // semantics (all columns left-to-right), every backend.
-            try (ResultSet rs = st.executeQuery("select "
+            // E5: the ROW TEXT is SQL — cells cast to their display
+            // text, the '---null---' token and the comma joins all in
+            // the projection; Java appends DB-produced lines only. The
+            // OUTER query orders by the projected display columns
+            // (left-to-right — the old ordinal semantics; the sort keys
+            // need not be projected).
+            String line = cs.stream()
+                    .map(c -> "coalesce(cast(_r." + q(c)
+                            + " as varchar), '---null---')")
+                    .collect(java.util.stream.Collectors
+                            .joining(" || ',' || "));
+            try (ResultSet rs = st.executeQuery("select " + line
+                    + " as _csv_line from (select "
                     + String.join(", ", projs)
-                    + " from (" + union + ") order by "
-                    + java.util.stream.IntStream.rangeClosed(1, cs.size())
-                            .mapToObj(String::valueOf)
+                    + " from (" + union + ")) _r order by "
+                    + cs.stream().map(c -> "_r." + q(c))
                             .collect(java.util.stream.Collectors
                                     .joining(", ")))) {
-                int n = rs.getMetaData().getColumnCount();
                 while (rs.next()) {
-                    StringBuilder row = new StringBuilder();
-                    for (int i = 1; i <= n; i++) {
-                        if (i > 1) {
-                            row.append(',');
-                        }
-                        String v = rs.getString(i);
-                        row.append(v == null ? "---null---" : v);
-                    }
-                    out.append(row).append('\n');
+                    out.append(rs.getString(1)).append('\n');
                 }
             }
         }

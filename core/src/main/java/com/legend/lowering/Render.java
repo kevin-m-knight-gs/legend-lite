@@ -174,6 +174,137 @@ public final class Render {
                                 SqlType.Scalar.VARCHAR, false)));
     }
 
+    /** The PRODUCT CSV wire (E5): RFC 4180 — CRLF line endings, header
+     *  of escaped names, NULL cells render empty, every row (last
+     *  included) ends CRLF; a zero-row result is the header line only.
+     *  Same {@link #cell}/{@link #escapeCsv} owners as toCSV — the
+     *  escape rule stays spelled once. */
+    static SqlSelect csvWire(SqlSelect inner, List<Type.Column> relCols,
+            String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        if (cols.size() != relCols.size()) {
+            throw new IllegalStateException("csv wire: " + cols.size()
+                    + " output columns vs " + relCols.size()
+                    + " typed columns");
+        }
+        if (cols.isEmpty()) {
+            throw new IllegalStateException(
+                    "csv wire over a zero-column relation");
+        }
+        String aggAlias = rowAlias + "_a";
+        SqlExpr line = cell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
+                relCols.get(0), cols.get(0).type(), false);
+        for (int i = 1; i < cols.size(); i++) {
+            line = cat(line, new SqlExpr.StringLit(","),
+                    cell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                            relCols.get(i), cols.get(i).type(), false));
+        }
+        List<SqlSelect.Projection> rowProjs = new ArrayList<>();
+        List<OutputCol> rowOuts = new ArrayList<>();
+        rowProjs.add(new SqlSelect.Projection(line, "_csv_line"));
+        rowOuts.add(new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false));
+        List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
+                rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
+        SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
+        for (int i = 1; i < cols.size(); i++) {
+            header = cat(header, new SqlExpr.StringLit(","),
+                    escapeCsv(new SqlExpr.StringLit(cols.get(i).name())));
+        }
+        SqlExpr crlf = new SqlExpr.StringLit("\r\n");
+        SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                List.of(new SqlExpr.Column(aggAlias, "_csv_line"), crlf),
+                false, aggOrder);
+        // an explicit IS NULL dispatch — concat() SKIPS null args, so a
+        // coalesce over the concatenation could never see the null
+        SqlExpr text = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, agg), cat(header, crlf))),
+                cat(header, crlf, agg, crlf));
+        SqlSelect rows = SqlSelect.starOf(
+                        new SqlSource.Subselect(inner, rowAlias, null))
+                .withProjections(rowProjs, rowOuts);
+        return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
+                .withProjections(
+                        List.of(new SqlSelect.Projection(text, "wire")),
+                        List.of(new OutputCol("wire",
+                                SqlType.Scalar.VARCHAR, false)));
+    }
+
+    /** The per-row product JSON object ({@code json_object} of the
+     *  output columns — the DATABASE'S value policy: numbers and
+     *  booleans native, dates as their SQL text, strings RFC 8259
+     *  escaped by the DB). One VARCHAR {@code _wire_row} column; the
+     *  plan's ORDER BY lifts onto the wrapper (output-column keys only,
+     *  loud otherwise). */
+    static SqlSelect jsonWireRows(SqlSelect inner, String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
+        for (OutputCol oc : cols) {
+            kv.add(new SqlExpr.StringLit(oc.name()));
+            kv.add(new SqlExpr.Column(rowAlias, oc.name()));
+        }
+        SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
+                SqlType.Scalar.VARCHAR);
+        List<SqlSelect.SortKey> lifted = new ArrayList<>();
+        for (SqlSelect.SortKey k : inner.orderBy()) {
+            String out = k.outputName() != null ? k.outputName()
+                    : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
+            if (out == null || cols.stream().noneMatch(
+                    oc -> oc.name().equals(out))) {
+                throw new com.legend.error.NotImplementedException(
+                        "json wire over an ordered relation whose sort key"
+                        + " is not an output column");
+            }
+            lifted.add(new SqlSelect.SortKey(
+                    new SqlExpr.Column(rowAlias, out), k.ascending(),
+                    k.nullOrder(), null));
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(inner, rowAlias, null))
+                .withProjections(
+                        List.of(new SqlSelect.Projection(obj, "_wire_row")),
+                        List.of(new OutputCol("_wire_row",
+                                SqlType.Scalar.VARCHAR, false)))
+                .withOrderBy(lifted);
+    }
+
+    /** The SNAPSHOT product JSON wire: the whole result as one
+     *  {@code [row,row,…]} text — {@code string_agg} over the per-row
+     *  objects with hoisted order; ZERO rows are the empty array (the
+     *  pinned {@code []} wire). */
+    static SqlSelect jsonWire(SqlSelect inner, String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        String aggAlias = rowAlias + "_a";
+        List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
+        for (OutputCol oc : cols) {
+            kv.add(new SqlExpr.StringLit(oc.name()));
+            kv.add(new SqlExpr.Column(rowAlias, oc.name()));
+        }
+        SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
+                SqlType.Scalar.VARCHAR);
+        List<SqlSelect.Projection> rowProjs = new ArrayList<>();
+        List<OutputCol> rowOuts = new ArrayList<>();
+        rowProjs.add(new SqlSelect.Projection(obj, "_wire_row"));
+        rowOuts.add(new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false));
+        List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
+                rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
+        SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                List.of(new SqlExpr.Column(aggAlias, "_wire_row"),
+                        new SqlExpr.StringLit(",")),
+                false, aggOrder);
+        SqlExpr text = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, agg),
+                new SqlExpr.StringLit("[]"))),
+                cat(new SqlExpr.StringLit("["), agg,
+                        new SqlExpr.StringLit("]")));
+        SqlSelect rows = SqlSelect.starOf(
+                        new SqlSource.Subselect(inner, rowAlias, null))
+                .withProjections(rowProjs, rowOuts);
+        return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
+                .withProjections(
+                        List.of(new SqlSelect.Projection(text, "wire")),
+                        List.of(new OutputCol("wire",
+                                SqlType.Scalar.VARCHAR, false)));
+    }
+
     /** The Lowerer's relation-toString dispatch target (engine
      *  toString.pure:19-35): the '#TDS' text form, built by the DB.
      *  typesAndMuls=true stays loud until a demand names it. */

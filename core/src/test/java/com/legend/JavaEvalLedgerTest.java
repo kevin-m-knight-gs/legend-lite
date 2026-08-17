@@ -50,14 +50,17 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
             "core/src/main/java/com/legend/plan/PlanText.java", 888,
             "core/src/main/java/com/legend/AggAwareActivities.java", 265,
-            "core/src/main/java/com/legend/exec/DbMetaData.java", 161,
-            // E5 — PRODUCT wire serializers (deep-audit sweep 2026-08-17,
-            // user question caught them): Java composes the HTTP-observable
-            // result text; CsvSerializer even re-spells the RFC-4180
-            // escape F4 declared spelled-once-in-SQL
-            "core/src/main/java/com/legend/server/serial/CsvSerializer.java", 113,
-            "core/src/main/java/com/legend/server/serial/JsonSerializer.java", 50,
-            "core/src/main/java/com/legend/exec/ResultJson.java", 137);
+            "core/src/main/java/com/legend/exec/DbMetaData.java", 161);
+    // E5 wire rows LANDED (2026-08-17): the product wire is
+    // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
+    // csvWire/jsonWire — the DB composes the bytes through the ONE
+    // RFC-4180 owner and its own json_object policy). ResultJson is
+    // DELETED (the Java JSON value policy died with it; streaming
+    // writes plan-rendered row texts plus array punctuation only);
+    // CsvSerializer/JsonSerializer shrank to format METADATA
+    // (id/contentType/streaming capability — no serialize method
+    // exists on the registry surface anymore), so their size rows
+    // are retired rather than pinned.
 
     /** NAME rows (surgical surfaces inside shared files): explicit
      * name-family regex, EXACT pinned occurrence count (definitions and
@@ -93,10 +96,18 @@ class JavaEvalLedgerTest {
         // build; no JSON value ever materializes in Java.
         EVICT_NAMES.put("core/src/main/java/com/legend/resolver/JsonSourceFrame.java",
                 new Object[]{"(classSource|cellText)\\(", 0});
-        // E5 — testdatagen CSV text assembly (A5/A6 moved hash+scrub
-        // into SQL; the row/comma/newline ASSEMBLY is still Java)
+        // E5 LANDED (2026-08-17): the testdatagen ROW TEXT is SQL — the
+        // cell display casts, the '---null---' token, and the comma
+        // joins all ride the projection; Java (csvEnvelope) assembles
+        // only the ENVELOPE from catalog metadata (schema/table/header
+        // lines, table separators) and appends DB-produced lines. This
+        // row pins the deleted value composition at zero. headerCase is
+        // re-registered PERMANENT: identifier-DISPLAY casing over
+        // catalog names (the engine's H2 uppercase parity rule) — no
+        // value ever flows through it (decision rule: metadata text,
+        // census-classified).
         EVICT_NAMES.put("core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
-                new Object[]{"(renderCsv|headerCase)\\(", 3});
+                new Object[]{"renderCsv\\(", 0});
         // E1 LANDED (2026-08-17): the composition family is DEAD — the
         // PLAN emits the PCT wire text (Lowerer/Render pctTds via
         // PctRender at the execution seam; PCT 1110/1110). This row now

@@ -1,19 +1,11 @@
 package com.legend.server.serial;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.exec.ResultJson;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-
 /**
- * JSON serializer for query results — the {@link ResultJson} wire (array of
- * row objects; a Graph result's database-built JSON array passes through
- * verbatim). Value policy and RFC 8259 escaping live in {@link ResultJson};
- * this class only adapts it to the {@link ResultSerializer} registry.
+ * The JSON wire format's metadata (array of row objects). E5
+ * (JAVA_EVICTION_PLAN): the text itself is PLAN-RENDERED —
+ * {@code Render.jsonWire}'s {@code json_object} rows, the DATABASE'S
+ * value policy and RFC 8259 escaping; this class carries only the
+ * registry surface.
  *
  * GraalVM native-image compatible (no external dependencies).
  */
@@ -37,14 +29,5 @@ public final class JsonSerializer implements ResultSerializer {
     @Override
     public boolean supportsStreaming() {
         return true;
-    }
-
-    @Override
-    public void serialize(ExecutionResult result, OutputStream out) throws IOException {
-        try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            // Rows flow to the OutputStream as they are emitted — no
-            // intermediate String of the whole result.
-            ResultJson.write(result, writer);
-        }
     }
 }

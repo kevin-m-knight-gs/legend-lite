@@ -381,9 +381,76 @@ public final class Compiler {
         Lowered l = lowerQuery(model, query, runtimeFqn, true);
         com.legend.sql.dialect.SqlDialect dialect =
                 dialectOf(l.ctx(), runtimeFqn, connection);
-        com.legend.exec.Executor.stream(dialect.render(l.plan()), l.plan(),
-                l.root().info(), com.legend.exec.ResultShape.of(l.root()),
-                connection, dialect, out);
+        switch (com.legend.exec.ResultShape.of(l.root())) {
+            // E5: the JSON rows are PLAN-RENDERED (WireRender) — the
+            // executor writes bytes and array punctuation only
+            case GRAPH -> com.legend.exec.Executor.streamGraph(
+                    dialect.render(l.plan()), connection, dialect, out);
+            case TABULAR -> com.legend.exec.Executor.streamWireRows(
+                    dialect.render(com.legend.lowering.WireRender.rows(
+                            l.plan())), connection, out);
+            case SCALAR, COLLECTION -> {
+                out.write(com.legend.exec.Executor.wireText(
+                        dialect.render(com.legend.lowering.WireRender.wrap(
+                                l.plan(), wireSchema(l.root().info()),
+                                com.legend.lowering.WireRender.Format.JSON)),
+                        connection));
+                out.flush();
+            }
+        }
+    }
+
+    /**
+     * E5 (JAVA_EVICTION_PLAN): the PRODUCT WIRE execution — the plan
+     * renders the result text ({@link com.legend.lowering.WireRender})
+     * and the DATABASE produces the bytes; Java writes them through.
+     * Returns the typed COLUMN NAMES (a plan fact — the response
+     * envelope's columns, correct even for a zero-row result). GRAPH
+     * results are already DB-built JSON and pass verbatim (JSON only).
+     */
+    public static java.util.List<String> executeWire(String model,
+            String query, @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection,
+            com.legend.lowering.WireRender.Format format, java.io.Writer out)
+            throws java.sql.SQLException, java.io.IOException {
+        Lowered l = lowerQuery(model, query, runtimeFqn, false);
+        com.legend.sql.dialect.SqlDialect dialect =
+                dialectOf(l.ctx(), runtimeFqn, connection);
+        com.legend.exec.ResultShape shape =
+                com.legend.exec.ResultShape.of(l.root());
+        if (shape == com.legend.exec.ResultShape.GRAPH) {
+            if (format != com.legend.lowering.WireRender.Format.JSON) {
+                throw new com.legend.error.NotImplementedException(
+                        "graph results have no CSV wire");
+            }
+            var r = com.legend.exec.Executor.execute(dialect.render(l.plan()),
+                    l.plan(), l.root().info(), shape, connection, dialect);
+            out.write(r instanceof com.legend.exec.ExecutionResult.Graph g
+                    && g.json() != null ? g.json() : "[]");
+            return java.util.List.of();
+        }
+        com.legend.compiler.element.type.Type.RelationType schema =
+                wireSchema(l.root().info());
+        out.write(com.legend.exec.Executor.wireText(
+                dialect.render(com.legend.lowering.WireRender.wrap(
+                        l.plan(), schema, format)), connection));
+        return schema.columns().stream()
+                .map(com.legend.compiler.element.type.Type.Column::name)
+                .toList();
+    }
+
+    /** The wire's typed relation: a tabular root's own schema; a scalar/
+     *  collection root is the one-column {@code value} relation (the
+     *  scalarRoot contract). */
+    private static com.legend.compiler.element.type.Type.RelationType
+            wireSchema(com.legend.compiler.element.type.ExprType info) {
+        return info.type() instanceof
+                com.legend.compiler.element.type.Type.RelationType rt ? rt
+                : new com.legend.compiler.element.type.Type.RelationType(
+                        java.util.List.of(
+                                new com.legend.compiler.element.type.Type.Column(
+                                        "value", info.type(),
+                                        info.multiplicity())));
     }
 
     /**

@@ -156,62 +156,57 @@ public final class Executor {
     }
 
     /**
-     * The STREAMING entry — JSON straight to {@code out}, no materialization
-     * for unbounded shapes. TABULAR iterates the ResultSet lazily through the
-     * SAME cell/column machinery as {@link #execute} (fetch/unwrap/shaping —
-     * one set of rules); GRAPH expects the streaming lowering's one
-     * {@code json_object} per JDBC row ({@code Lowerer#withStreamingGraphRoot})
-     * and writes each row's JSON verbatim inside an enclosing array. SCALAR
-     * and COLLECTION are bounded by contract — materialized, then written.
-     * Flushes after every row so downstream buffers (OutputStreamWriter,
-     * HttpExchange, sockets) release bytes as rows arrive. {@code out} is
-     * never closed — the caller owns its lifecycle.
+     * E5 (JAVA_EVICTION_PLAN): ONE plan-rendered text value (the wire
+     * column) — pure byte transport, the database composed the text.
      */
-    public static void stream(String sql, SqlQuery plan, ExprType rootType,
-                              ResultShape shape, Connection connection,
-                              com.legend.sql.dialect.SqlDialect dialect,
-                              java.io.Writer out)
-            throws SQLException, java.io.IOException {
+    public static String wireText(String sql, Connection connection)
+            throws SQLException {
         dumpSql(sql);
-        switch (shape) {
-            case TABULAR -> streamTabular(sql, plan, rootType, connection, dialect, out);
-            case GRAPH -> streamGraph(sql, connection, dialect, out);
-            case SCALAR, COLLECTION -> {
-                out.write(ResultJson.toJsonArray(
-                        execute(sql, plan, rootType, shape, connection, dialect)));
-                out.flush();
+        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
+             ResultSet rs = st.executeQuery()) {
+            if (!rs.next()) {
+                throw new IllegalStateException(
+                        "wire render produced no row");
             }
+            String s = rs.getString(1);
+            return s == null ? "" : s;
         }
     }
 
-    private static void streamTabular(String sql, SqlQuery plan, ExprType rootType,
-            Connection connection, com.legend.sql.dialect.SqlDialect dialect,
+    /**
+     * E5: stream the plan-rendered JSON rows (one {@code _wire_row}
+     * object text per JDBC row — {@code Render.jsonWireRows}); Java
+     * writes only the array punctuation, flushing per row so downstream
+     * buffers release bytes as rows arrive. {@code out} is never closed.
+     */
+    public static void streamWireRows(String sql, Connection connection,
             java.io.Writer out) throws SQLException, java.io.IOException {
-        final Type.RelationType schema = tabularSchema(rootType);
+        dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
-            int n = rs.getMetaData().getColumnCount();
-            List<Column> columns = resolveColumns(rs, plan, schema, n);
             out.write('[');
             boolean first = true;
             while (rs.next()) {
-                for (Row row : shapeRow(rs, n, plan, dialect, schema, columns)) {
-                    if (!first) {
-                        out.write(',');
-                    }
-                    first = false;
-                    ResultJson.writeRow(out, columns, row.values());
-                    out.flush();
+                if (!first) {
+                    out.write(',');
                 }
+                first = false;
+                String row = rs.getString(1);
+                out.write(row != null ? row : "null");
+                out.flush();
             }
             out.write(']');
             out.flush();
         }
     }
 
-    private static void streamGraph(String sql, Connection connection,
+    /** GRAPH streaming: the streaming lowering's one {@code json_object}
+     * per JDBC row ({@code Lowerer#withStreamingGraphRoot}), each row's
+     * JSON written verbatim inside an enclosing array. */
+    public static void streamGraph(String sql, Connection connection,
             com.legend.sql.dialect.SqlDialect dialect, java.io.Writer out)
             throws SQLException, java.io.IOException {
+        dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             out.write('[');

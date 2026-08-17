@@ -1,12 +1,10 @@
 package com.legend.server.serial;
 
-import com.legend.exec.ExecutionResult;
-
-import java.io.IOException;
-import java.io.OutputStream;
-
 /**
- * Interface for serializing query results to various output formats.
+ * A wire FORMAT's metadata surface — id, MIME type, streaming
+ * capability. E5 (JAVA_EVICTION_PLAN): the result TEXT itself is
+ * plan-rendered ({@code Compiler.executeWire} — the database composes
+ * the bytes); no serializer composes result values in Java anymore.
  *
  * GraalVM native-image compatible.
  */
@@ -23,13 +21,8 @@ public interface ResultSerializer {
     String contentType();
 
     /**
-     * Serializes an ExecutionResult to the output stream.
-     */
-    void serialize(ExecutionResult result, OutputStream out) throws IOException;
-
-    /**
-     * Returns true if this serializer supports true streaming
-     * (can write incrementally without buffering the entire result).
+     * Returns true if this format supports true streaming
+     * (rows can flow incrementally without buffering the entire result).
      */
     default boolean supportsStreaming() {
         return false;
