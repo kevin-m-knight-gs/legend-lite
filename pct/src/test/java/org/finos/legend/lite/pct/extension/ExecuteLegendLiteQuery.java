@@ -88,26 +88,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             ###Runtime
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
 
-            ###Pure
-                function meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues(val: Integer[*]):Boolean[1]
-                {
-                    $val->filter(y | $y->mod(2) == 0)->size() == 2
-                }
-
-                function meta::pure::functions::lang::tests::letFn::letAsLastStatement():String[1]
-                {
-                    let last = 'last statement string'
-                }
-
-                function meta::pure::functions::lang::tests::letFn::letWithParam(val: String[1]):Any[*]
-                {
-                    let a = $val
-                }
-
-                function meta::pure::functions::lang::tests::letFn::letChainedWithAnotherFunction(elements: ModelElement[*]):ModelElement[*]
-                {
-                    let classes = $elements->removeDuplicates()
-                }
             """;
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
@@ -117,11 +97,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     private static final Pattern PARAM_TYPE_PATTERN = Pattern.compile(":\\s*(\\w+(?:::\\w+)+)\\s*\\[");
     /** Bare element references as values ({@code STR_Person->toString()}). */
     private static final Pattern BARE_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\s*->");
+    /** Any multi-segment FQN token (F5.7 support-function extraction). */
+    private static final Pattern FQN_TOKEN_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)");
 
     private final ModelRepository modelRepository;
+    private final FunctionExecutionInterpreted functionExecution;
 
     public ExecuteLegendLiteQuery(FunctionExecutionInterpreted functionExecution, ModelRepository modelRepository) {
         this.modelRepository = modelRepository;
+        this.functionExecution = functionExecution;
     }
 
     // ===== execute =====
@@ -172,16 +156,22 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     extractClassMetadata(pureExpression, discoveredEnums, processorSupport);
             java.util.List<String> enumDefs =
                     extractEnumDefinitions(pureExpression, discoveredEnums, processorSupport);
+            java.util.List<String> functionDefs =
+                    extractFunctionDefinitions(pureExpression, processorSupport);
             String model = h2
                     ? PURE_MODEL.replace("type: DuckDB;", "type: H2;")
                     : PURE_MODEL;
-            if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()) {
+            if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()
+                    || !functionDefs.isEmpty()) {
                 StringBuilder classDefs = new StringBuilder();
                 for (String ed : enumDefs) {
                     classDefs.append(ed).append("\n");
                 }
                 for (String classText : extractedClasses.values()) {
                     classDefs.append(classText).append("\n");
+                }
+                for (String fd : functionDefs) {
+                    classDefs.append(fd).append("\n");
                 }
                 System.out.println("[LegendLite PCT] Injected model:\n" + classDefs);
                 model = classDefs + model;
@@ -836,6 +826,63 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * or @My::Enum) — platform enums are registered natively in core and
      * skipped; unknown FQNs resolve against the interpreter's graph.
      */
+    /** F5.7: CONCRETE test-support functions the expression references
+     *  extract from the interpreter's OWN source registry (the five
+     *  verbatim copies were an unversioned fork of engine test source —
+     *  if upstream changed a body we silently kept testing the old one).
+     *  Definition text is sliced by the function's source span;
+     *  stereotype/tagged-value decorations ({@code <<...>>}, {@code
+     *  {doc...}}) strip — they are PCT-harness metadata, not semantics,
+     *  and their profiles are not part of the lite compile. */
+    private java.util.List<String> extractFunctionDefinitions(
+            String pureExpression, ProcessorSupport ps) {
+        java.util.List<String> defs = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        Matcher fqns = FQN_TOKEN_PATTERN.matcher(pureExpression);
+        while (fqns.find()) {
+            String fqn = fqns.group(1);
+            if (!fqn.contains("::tests::") || !seen.add(fqn)) {
+                continue;
+            }
+            int cut = fqn.lastIndexOf("::");
+            CoreInstance pkg = ps.package_getByUserPath(fqn.substring(0, cut));
+            if (pkg == null) {
+                continue;
+            }
+            String name = fqn.substring(cut + 2);
+            for (CoreInstance child : Instance.getValueForMetaPropertyToManyResolved(
+                    pkg, M3Properties.children, ps)) {
+                if (!Instance.instanceOf(child,
+                        "meta::pure::metamodel::function::ConcreteFunctionDefinition", ps)) {
+                    continue;
+                }
+                CoreInstance fn = child.getValueForMetaPropertyToOne(
+                        M3Properties.functionName);
+                if (fn == null || !name.equals(fn.getName())
+                        || child.getSourceInformation() == null) {
+                    continue;
+                }
+                var si = child.getSourceInformation();
+                var src = functionExecution.getRuntime()
+                        .getSourceById(si.getSourceId());
+                if (src == null) {
+                    continue;
+                }
+                String[] lines = src.getContent().split("\n", -1);
+                StringBuilder def = new StringBuilder();
+                for (int ln = si.getStartLine(); ln <= si.getEndLine()
+                        && ln <= lines.length; ln++) {
+                    def.append(lines[ln - 1]).append('\n');
+                }
+                String text = def.toString()
+                        .replaceAll("<<[^>]*>>", "")
+                        .replaceAll("\\{doc[^}]*\\}", "");
+                defs.add(text);
+            }
+        }
+        return defs;
+    }
+
     private java.util.List<String> extractEnumDefinitions(String pureExpression,
             java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
         java.util.List<String> defs = new java.util.ArrayList<>();
