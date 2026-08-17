@@ -108,11 +108,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 {
                     let classes = $elements->removeDuplicates()
                 }
-
-                function meta::pure::functions::collection::tests::removeDuplicates::cmp(a:Any[1],b:Any[1]):Boolean[1]
-                {
-                    $a->toString() == $b->toString()
-                }
             """;
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
@@ -147,7 +142,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
         pureExpression = reEscapeStringLiterals(pureExpression);
-        pureExpression = inlineFunctionLiterals(pureExpression);
 
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
@@ -555,9 +549,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         // Struct → class instance
         if (value instanceof Map<?, ?> map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> structMap = (Map<String, Object>) map;
-            return createClassInstance(structMap, type, ps);
+            // F5.6: the old createClassInstance FABRICATED a Pair type
+            // for any unknown struct; a probe throw across all 1,109 PCT
+            // tests proved the branch unreachable — keep the wall LOUD
+            throw new UnsupportedOperationException(
+                    "struct result reached the PCT bridge (type=" + type
+                    + ", keys=" + map.keySet() + ") — no fabrication;"
+                    + " add a typed conversion");
         }
         // List (struct arrays unwrapped by Row.java, e.g. zip → List<Pair>)
         if (value instanceof List<?> list) {
@@ -724,80 +722,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, ps);
     }
 
-    // ===== Class instance creation =====
-
-    /**
-     * Creates a Pure class instance from a DuckDB struct Map.
-     * Uses Type for the class path and type arguments.
-     */
-    private CoreInstance createClassInstance(Map<String, Object> structMap, Type type,
-                                            ProcessorSupport ps) {
-        // Resolve class path from Type
-        String qualifiedName = switch (type) {
-            case Type.ClassType ct -> ct.fqn();
-            case Type.GenericType gt -> gt.rawFqn();
-            default -> "meta::pure::functions::collection::Pair"; // fallback for unknown struct types
-        };
-
-        CoreInstance classInstance = ps.package_getByUserPath(qualifiedName);
-        if (classInstance == null) {
-            throw new RuntimeException("Pure class not found: " + qualifiedName);
-        }
-
-        String simpleName = qualifiedName.substring(qualifiedName.lastIndexOf(':') + 1);
-        CoreInstance instance = modelRepository.newCoreInstance(simpleName, classInstance, null);
-
-        // Build classifierGenericType with type arguments from Type
-        CoreInstance classifierGT = org.finos.legend.pure.m3.navigation.type.Type
-                .wrapGenericType(classInstance, null, ps);
-
-        if (type instanceof Type.GenericType p) {
-            // Set type arguments from the compiler-provided Type
-            for (Type typeArg : p.arguments()) {
-                String argTypeName = typeArg.typeName();
-                CoreInstance argTypeClass = ps.package_getByUserPath(argTypeName);
-                if (argTypeClass != null) {
-                    CoreInstance argGT = org.finos.legend.pure.m3.navigation.type.Type
-                            .wrapGenericType(argTypeClass, null, ps);
-                    Instance.addValueToProperty(classifierGT, M3Properties.typeArguments, argGT, ps);
-                }
-            }
-        }
-
-        Instance.addValueToProperty(instance, M3Properties.classifierGenericType, classifierGT, ps);
-
-        // Set properties from struct map
-        for (Map.Entry<String, Object> entry : structMap.entrySet()) {
-            String propName = entry.getKey();
-            Object propValue = entry.getValue();
-            if (propValue == null) continue;
-
-            // Determine property Type from the generic arguments if available
-            Type propType = new Type.ClassType(PlatformTypes.ANY);
-            if (type instanceof Type.GenericType p && !p.arguments().isEmpty()) {
-                // For Pair: first → arguments[0], second → arguments[1]
-                int idx = indexOf(structMap, propName);
-                if (idx >= 0 && idx < p.arguments().size()) {
-                    propType = p.arguments().get(idx);
-                }
-            }
-
-            CoreInstance valueInstance = toCoreInstance(propValue, propType, ps);
-            Instance.addValueToProperty(instance, propName, valueInstance, ps);
-        }
-
-        return instance;
-    }
-
-    /** Returns the positional index of a key in an ordered map. */
-    private static int indexOf(Map<String, ?> map, String key) {
-        int i = 0;
-        for (String k : map.keySet()) {
-            if (k.equals(key)) return i;
-            i++;
-        }
-        return -1;
-    }
 
     // ===== Class metadata extraction =====
 
@@ -1105,28 +1029,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
         }
         return sb.toString();
-    }
-
-    /**
-     * The harness serializes a CAPTURED concrete function by printing its
-     * whole definition inline:
-     * {@code fqn(a: T[1], b: T[1]): R[1] { body }} — the faithful lambda
-     * equivalent is {@code {a: T[1], b: T[1] | body}} (a definition IS its
-     * lambda; only the name is lost, and the name is not semantics).
-     */
-    private static final Pattern FN_LITERAL_PATTERN = Pattern.compile(
-            "[\\w:]+\\(([^()]*)\\):\\s*[\\w:]+\\[[^\\]]*\\]\\s*\\{(.*?)\\}",
-            java.util.regex.Pattern.DOTALL);
-
-    private static String inlineFunctionLiterals(String expr) {
-        Matcher m = FN_LITERAL_PATTERN.matcher(expr);
-        StringBuilder out = new StringBuilder();
-        while (m.find()) {
-            m.appendReplacement(out, Matcher.quoteReplacement(
-                    "{" + m.group(1).trim() + " | " + m.group(2).trim() + "}"));
-        }
-        m.appendTail(out);
-        return out.toString();
     }
 
     private String stripTrailingZeros(String subsecond) {
