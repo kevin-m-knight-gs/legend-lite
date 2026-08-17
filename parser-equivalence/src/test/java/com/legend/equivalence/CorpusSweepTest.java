@@ -497,6 +497,74 @@ public class CorpusSweepTest {
                                 + head(protocolInvalid)));
     }
 
+    /** F3.7: the skew-claims ledger gets stale-row + total accounting.
+     *  The ledger has TWO consumers with different populations (this
+     *  sweep's classifier and SectionParseSentinelTest's), so liveness
+     *  is asserted SEMANTICALLY, not by per-consumer usage: a claim row
+     *  is live iff its source still EXISTS in the corpus, the pinned
+     *  oracle still REFUSES it (the definition of checkout-unreleased
+     *  skew), and lite still ACCEPTS it (otherwise there is nothing to
+     *  pardon). Any other row is stale and must leave
+     *  docs/version-skew-claims.tsv. */
+    @Test
+    void skewClaimsLedgerAccounting() throws Exception {
+        List<Corpus.Source> sources = Corpus.all();
+        org.junit.jupiter.api.Assertions.assertTrue(sources.size() > 7000,
+                "corpus floor: only " + sources.size() + " sources loaded —"
+                        + " check -Dlegend.engine.root/-Dlegend.pure.root");
+        java.util.Map<String, String> byId = new java.util.HashMap<>();
+        for (Corpus.Source s : sources) {
+            byId.put(s.id(), s.text());
+        }
+        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        List<String> stale = new java.util.ArrayList<>();
+        for (String claim : new java.util.TreeSet<>(SKEW_CLAIMS)) {
+            String text = byId.get(claim);
+            if (text == null) {
+                stale.add(claim + " (source left the corpus)");
+                continue;
+            }
+            boolean oracleRefuses;
+            try {
+                oracle.parseModel(text);
+                oracleRefuses = false;
+            } catch (Throwable t) {
+                oracleRefuses = true;
+            }
+            if (!oracleRefuses) {
+                stale.add(claim + " (the pinned oracle now ACCEPTS it —"
+                        + " not skew anymore)");
+                continue;
+            }
+            // the consumers pardon OUR checkout-side surfaces (the
+            // sweep's platform/strict arms and the sentinel's section
+            // walk), so liveness tests those — not the LEGEND document
+            // parser
+            boolean oursAccepts;
+            try {
+                Surfaces.platform(text);
+                oursAccepts = true;
+            } catch (Throwable t) {
+                try {
+                    Surfaces.engine(text);
+                    oursAccepts = true;
+                } catch (Throwable t2) {
+                    oursAccepts = false;
+                }
+            }
+            if (!oursAccepts) {
+                stale.add(claim + " (our platform and strict surfaces"
+                        + " refuse it too — nothing to pardon)");
+            }
+        }
+        assertEquals(List.of(), stale,
+                "stale version-skew claims — remove the rows from"
+                        + " docs/version-skew-claims.tsv");
+        assertEquals(SKEW_CLAIMS_TOTAL, SKEW_CLAIMS.size(),
+                "skew-claims ledger size drifted — re-pin with row-by-row"
+                        + " review");
+    }
+
     // ------------------------------------------------------------------
     // The leniency classifier. NOTE (deep-audit H2 correction): for the
     // PLATFORM-surface population this method IS the gate — a non-null
@@ -535,6 +603,9 @@ public class CorpusSweepTest {
     }
 
     private static final ThreadLocal<String> CLASSIFYING_ID = new ThreadLocal<>();
+
+    /** F3.7: the ledger's exact size — a new claim is a reviewed event. */
+    private static final int SKEW_CLAIMS_TOTAL = 25;
 
     private static boolean versionSkewClaim(Throwable ignored) {
         String id = CLASSIFYING_ID.get();

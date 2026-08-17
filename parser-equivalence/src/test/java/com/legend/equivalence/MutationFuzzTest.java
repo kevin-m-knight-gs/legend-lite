@@ -32,11 +32,17 @@ class MutationFuzzTest {
 
     private static final int MAX_SITES = 3;
 
+    /** F3.7 total accounting: the exact mutant-deck size (deterministic —
+     *  fixtures x operators x sites). A fixture or operator change moves
+     *  this number DELIBERATELY, in the same commit. */
+    private static final int TOTAL_MUTANTS = 950;   // measured 2026-08-16
+
     /** Divergence classes reviewed 2026-08-14, keyed
      *  {@code operator :: fixture}. Shrink-only. */
     private static final java.util.Set<String> ADJUDICATED =
             java.util.Set.of(
-                    // F19 (parity-quarantine): the ENGINE tolerates an
+                    // F19 (2026-08-12 quarantine review; its tsv is
+                    // deleted, F3.7): the ENGINE tolerates an
                     // unterminated final element in the Connection-family
                     // sections; lite requires balance. Lite is RIGHT.
                     "drop-final-delimiter :: connection-auth.pure",
@@ -66,6 +72,7 @@ class MutationFuzzTest {
     void mutantVerdictParity() throws Exception {
         List<String> divergences = new ArrayList<>();
         List<String> internal = new ArrayList<>();
+        java.util.Set<String> pardonedSeen = new java.util.TreeSet<>();
         int agreed = 0;
         int total = 0;
         for (String name : listFixtures()) {
@@ -91,7 +98,9 @@ class MutationFuzzTest {
                 }
                 if (engineAccepts == liteAccepts) {
                     agreed++;
-                } else if (!ADJUDICATED.contains(m.op() + " :: " + name)) {
+                } else if (ADJUDICATED.contains(m.op() + " :: " + name)) {
+                    pardonedSeen.add(m.op() + " :: " + name);
+                } else {
                     divergences.add(m.op() + " :: " + name + " ["
                             + m.site() + "] engine="
                             + (engineAccepts ? "ACCEPTS" : "REFUSES"));
@@ -103,6 +112,19 @@ class MutationFuzzTest {
         assertEquals(List.of(), divergences.stream().sorted().toList(),
                 "mutant verdict divergences (agreed " + agreed + "/" + total
                         + ")");
+        // F3.7: stale-row assert — a pardon that no longer diverges must
+        // LEAVE the ledger (the FixtureCorpusParity shape)
+        List<String> stale = ADJUDICATED.stream()
+                .filter(r -> !pardonedSeen.contains(r)).sorted().toList();
+        assertEquals(List.of(), stale,
+                "ADJUDICATED mutants now agree — remove their rows");
+        // F3.7: total accounting — the mutant deck is deterministic, so a
+        // silent shrink (a fixture or operator dropping out) is a review
+        // event, not a pass
+        assertEquals(TOTAL_MUTANTS, total,
+                "mutant-deck accounting drifted — re-pin with review");
+        assertEquals(total - pardonedSeen.size(), agreed,
+                "mutant accounting drifted (agreed + pardoned != total)");
     }
 
     // ------------------------------------------------------------------

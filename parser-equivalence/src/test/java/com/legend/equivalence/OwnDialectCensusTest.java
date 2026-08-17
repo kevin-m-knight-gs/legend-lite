@@ -62,9 +62,45 @@ class OwnDialectCensusTest {
                     // extractFromSemiStructured (probe json-get-spelling)
                     "ElementParserTest.java", "MappingNormalizerTest.java",
                     "LegacyCleanSheetConvergenceTest.java",
-                    "ModelNormalizerTest.java", "PureModelContextTest.java",
+                    // ModelNormalizerTest REMOVED 2026-08-16 (F3.7): it
+                    // hosted zero extension rows — a stale declaration
+                    "PureModelContextTest.java",
                     "CleanSheetProtocolShapeTest.java",
                     "SQLiteIntegrationTest.java");
+
+    /** F3.7 per-host accounting, both directions EXACT: membership alone
+     *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
+     *  changed count is a review event in the same commit; a host at
+     *  zero everywhere is a stale declaration and leaves its set too. */
+    private static final java.util.Map<String, Integer> PLATFORM_HOST_PINS =
+            java.util.Map.of(   // measured 2026-08-16
+                    "AdversarialParityTest.java", 7,
+                    "ElementParserTest.java", 12,
+                    "LexerTest.java", 1,
+                    "MessageParityTest.java", 1,
+                    "PlatformInliningTest.java", 1,
+                    "ProbeWireShapes.java", 1,
+                    "SectionGrammarRegistryTest.java", 2);
+
+    private static final java.util.Map<String, Integer> EXTENSION_HOST_PINS =
+            java.util.Map.ofEntries(   // measured 2026-08-16 (platform-set
+                                       // hosts may carry extension rows too
+                                       // — invariant 2 allows either set)
+                    java.util.Map.entry("AdversarialParityTest.java", 1),
+                    java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
+                    java.util.Map.entry("CompileFunctionTest.java", 2),
+                    java.util.Map.entry("ElementParserTest.java", 17),
+                    java.util.Map.entry(
+                            "LegacyCleanSheetConvergenceTest.java", 4),
+                    java.util.Map.entry("MappingNormalizerTest.java", 4),
+                    java.util.Map.entry("MessageParityTest.java", 1),
+                    java.util.Map.entry("PureModelContextTest.java", 3),
+                    java.util.Map.entry("RelationalCorpusRunner.java", 1),
+                    java.util.Map.entry("SQLiteIntegrationTest.java", 2),
+                    java.util.Map.entry("TdsLambdaProbeTest.java", 1),
+                    java.util.Map.entry("TypeCheckerTest.java", 1),
+                    java.util.Map.entry("UserCallInlinerTest.java", 1),
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 6));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);
@@ -168,6 +204,45 @@ class OwnDialectCensusTest {
                         + " or fix the test:\n  "
                         + String.join("\n  ", unmarkedExtension.subList(0,
                                 Math.min(10, unmarkedExtension.size()))));
+        // F3.7: per-host EXACT accounting (stale-row + total, the
+        // FixtureCorpusParity shape) — the host sets say WHO may excuse,
+        // the pins say HOW MUCH each one currently does
+        Map<String, Integer> platformHosted = new TreeMap<>();
+        for (String r : rows) {
+            platformHosted.merge(
+                    hostOf(r.substring(0, r.indexOf('\t'))), 1, Integer::sum);
+        }
+        Map<String, Integer> extensionHosted = new TreeMap<>();
+        for (String id : extensionRows) {
+            extensionHosted.merge(hostOf(id), 1, Integer::sum);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new TreeMap<>(PLATFORM_HOST_PINS), platformHosted,
+                "LITE-refused rows per platform-test host drifted — GROWTH"
+                        + " needs review, SHRINKAGE means ratchet the pin"
+                        + " down in the same commit");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new TreeMap<>(EXTENSION_HOST_PINS), extensionHosted,
+                "extension-grammar rows per host drifted — GROWTH needs"
+                        + " review, SHRINKAGE means ratchet the pin down"
+                        + " in the same commit");
+        // a declared host excusing nothing anywhere is a stale pardon
+        List<String> staleHosts = new ArrayList<>();
+        for (String h : PLATFORM_TEST_HOSTS) {
+            if (!platformHosted.containsKey(h)
+                    && !extensionHosted.containsKey(h)) {
+                staleHosts.add(h + " (platform set)");
+            }
+        }
+        for (String h : EXTENSION_TEST_HOSTS) {
+            if (!extensionHosted.containsKey(h)) {
+                staleHosts.add(h + " (extension set)");
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(),
+                staleHosts.stream().sorted().toList(),
+                "declared hosts excuse ZERO rows — remove the stale"
+                        + " declarations");
     }
 
     private interface ThrowingRunnable {

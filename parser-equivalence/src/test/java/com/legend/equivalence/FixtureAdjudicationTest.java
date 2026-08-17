@@ -97,8 +97,37 @@ class FixtureAdjudicationTest {
      * have that shape. Treat this direction as a prompt to check WHERE the
      * rejection happens, not as evidence we refuse valid Legend.
      */
-    private static final int MAX_LENIENCY_KINDS = 21;
-    private static final int MAX_OVER_STRICTNESS = 6;
+    /** F3.7: the adjudicated leniency KINDS, pinned BY NAME (a bare
+     *  ceiling left silent headroom — kinds could vanish and be replaced
+     *  by NEW unreviewed kinds under the same count). A new kind fails;
+     *  a vanished kind fails until its row is removed here. */
+    private static final java.util.Set<String> LENIENCY_KINDS =
+            java.util.Set.of(   // measured 2026-08-16: 10 kinds (the old
+                                // ceiling of 21 was stale by ELEVEN)
+                    "No parser for AssociationMapping",
+                    "The type {T[N]->U[N]} is not supported yet",
+                    "Type and/or multiplicity parameters are not authorized"
+                            + " in Legend Engine",
+                    "Unexpected token",
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'tags…",
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X'…",
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X', 'X', 'X', 'X', 'X', 'X']",
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X']",
+                    "Unexpected token 'X'. Valid alternatives: ['X']",
+                    "no viable alternative at input 'X'");
+
+    /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
+     *  line-positional, so exact ids would tax unrelated edits). */
+    private static final java.util.Map<String, Integer> OVER_STRICT_PINS =
+            java.util.Map.of(   // measured 2026-08-16: 5 rows (the old
+                                // ceiling of 6 was stale by one)
+                    "ElementParserTest.java", 2,
+                    "ModelIndexerTest.java", 1,
+                    "PureModelContextTest.java", 2);
 
     /** A leniency KIND: the reference's message with literals stripped, so
      *  ten fixtures of one construct count once. */
@@ -208,12 +237,23 @@ class FixtureAdjudicationTest {
         overStrict.forEach(s ->
                 System.out.println("[fixture-oracle][strict] " + s));
 
-        assertTrue(kinds.size() <= MAX_LENIENCY_KINDS,
-                "a NEW KIND of fixture leniency appeared: " + kinds.size()
-                        + " > " + MAX_LENIENCY_KINDS + " — kinds: " + kinds);
-        assertTrue(overStrict.size() <= MAX_OVER_STRICTNESS,
-                "fixture over-strictness grew: " + overStrict.size() + " > "
-                        + MAX_OVER_STRICTNESS);
+        // F3.7: exact named-set accounting, both directions
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.TreeSet<>(LENIENCY_KINDS), kinds,
+                "leniency KINDS drifted — a NEW kind needs adjudication;"
+                        + " a VANISHED kind is a stale pin, remove it in"
+                        + " the same commit");
+        java.util.Map<String, Integer> overStrictByFile =
+                new java.util.TreeMap<>();
+        for (String s : overStrict) {
+            overStrictByFile.merge(
+                    s.substring(0, s.indexOf('#')), 1, Integer::sum);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.TreeMap<>(OVER_STRICT_PINS), overStrictByFile,
+                "over-strictness rows drifted — GROWTH needs adjudication"
+                        + " (check WHERE engine rejects, parse vs compile);"
+                        + " SHRINKAGE means ratchet the pin down");
     }
 
     /** legend-lite's own test tree — this module's parent, per Corpus's

@@ -40,7 +40,8 @@ class FixtureCorpusParityTest {
 
     /** ENGINE-REFUSES-LITE-ACCEPTS residue, each row adjudicated
      *  2026-08-14 (ordering class per handoff §6.2 measurement; NPE
-     *  rows per parity-quarantine.tsv). Shrink-only. */
+     *  rows from the 2026-08-12 quarantine review — its tsv was dead
+     *  data and is deleted, F3.7). Shrink-only. */
     private static final java.util.Set<String> LENIENT_RESIDUE =
             java.util.Set.of(
                     // ordering/placement — engine encodes order in rule
