@@ -40,12 +40,24 @@ class JavaEvalLedgerTest {
      * a new Java-evaluation site and needs a deliberate pin bump with a
      * justification (the code-shape-guard convention). */
     private static final Map<String, Integer> EVICT_SIZE = Map.of(
+            // E1 — the WHOLE PCT extension is size-pinned (deep-audit
+            // follow-up: the name row alone under-covered it — print
+            // decisions also live in the value bridge), shrink-only
+            // until root mode reduces it to the adapter contract
+            "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1190,
             "core/src/main/java/com/legend/exec/HostEval.java", 928,
             "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1603,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
             "core/src/main/java/com/legend/plan/PlanText.java", 888,
             "core/src/main/java/com/legend/AggAwareActivities.java", 265,
-            "core/src/main/java/com/legend/exec/DbMetaData.java", 161);
+            "core/src/main/java/com/legend/exec/DbMetaData.java", 161,
+            // E5 — PRODUCT wire serializers (deep-audit sweep 2026-08-17,
+            // user question caught them): Java composes the HTTP-observable
+            // result text; CsvSerializer even re-spells the RFC-4180
+            // escape F4 declared spelled-once-in-SQL
+            "core/src/main/java/com/legend/server/serial/CsvSerializer.java", 113,
+            "core/src/main/java/com/legend/server/serial/JsonSerializer.java", 50,
+            "core/src/main/java/com/legend/exec/ResultJson.java", 137);
 
     /** NAME rows (surgical surfaces inside shared files): explicit
      * name-family regex, EXACT pinned occurrence count (definitions and
@@ -69,9 +81,19 @@ class JavaEvalLedgerTest {
         // E3 — JSON source realization in Java
         EVICT_NAMES.put("core/src/main/java/com/legend/resolver/JsonSourceFrame.java",
                 new Object[]{"(classSource|cellText)\\(", 3});
-        // E1 — the PCT wire formatter
+        // E5 — testdatagen CSV text assembly (A5/A6 moved hash+scrub
+        // into SQL; the row/comma/newline ASSEMBLY is still Java)
+        EVICT_NAMES.put("core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
+                new Object[]{"(renderCsv|headerCase)\\(", 3});
+        // E1 — the PCT composition family: wire text, header spelling,
+        // multiplicity spelling, subsecond print precision, error-text
+        // remap (H4 known weakness), ingress re-escape — everything
+        // Java decides about the OBSERVED surface (the CoreInstance
+        // bridge itself is the PCT framework's adapter contract and
+        // stays until root mode strips its print decisions)
         EVICT_NAMES.put("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java",
-                new Object[]{"(formatAsTds|formatValue|formatDate)\\(", 4});
+                new Object[]{"(formatAsTds|formatValue|formatDate|createTDSResult|purePctName|multText|stripTrailingZeros|remapErrorMessage|reEscapeStringLiterals)\\(",
+                        17});
     }
 
     @Test

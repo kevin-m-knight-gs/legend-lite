@@ -54,6 +54,74 @@ Measured EVICT surface at charter time (~5.4k lines of Java evaluation):
 | E3 | `resolver/JsonSourceFrame.java` — JSON parse → VALUES realization | 2 methods |
 | E1 | PCT `ExecuteLegendLiteQuery.formatAsTds/formatValue/formatDate` — wire text in Java | ~500 lines |
 
+## 2b. The codebase-wide classification (deep-audit sweep, 2026-08-17)
+
+The same audit that widened the PCT rows swept the corpus harness and every remaining
+package. The complete classification — nothing unclassified:
+
+**NEW EVICT rows found by the sweep (all ledgered):**
+- `server/serial/CsvSerializer` (113 lines) + `JsonSerializer` (50) — the PRODUCT HTTP
+  serializers compose the observable result text in Java; **CsvSerializer re-spells the
+  RFC-4180 escape that F4 declared spelled-once-in-SQL** (a real one-owner miss the
+  foundations close did not catch).
+- `exec/ResultJson` (137 lines) — the `/engine` JSON payload's values serialized in Java
+  (the GRAPH path already rides DB `json_object`; the tabular path does not).
+- `testdatagen/TestDataGenerator.renderCsv/headerCase` — A5/A6 moved hash+scrub into SQL;
+  the row/comma/newline CSV ASSEMBLY is still Java text composition.
+
+These form **E5 — product wire + testdatagen text** (effort M): route the product
+serializers and the testdatagen CSV through the platform's own render vocabulary
+(`lowering/Render.csv` exists; JSON via `json_object`/`Executor.stream`). At E5 build time
+decide per surface whether engine parity justifies a PERMANENT registration instead (the
+engine serializes its HTTP results in Java too) — but the RFC-4180 duplication is
+indefensible either way: at minimum the escape delegates to the one owner.
+
+**PERMANENT-ALLOWED (registered with justifications; no counts needed — their own guards
+already pin them):**
+- **Harness comparison layer**: `EngineTestExecutor` (compare/wireEquals/hostEquals/
+  renderedTextEquals/Eval), `H2Verify` (norm/goldenRowsCompare/mirror), `TdsEquivalence`,
+  `PlanAsserts`, `ConnEquality`, `JsonAssertCanon` — verification CONSUMES two sides,
+  never produces a result; reorder/tolerance sites pinned by HarnessDisciplineTest and
+  the LL_TOL/ord-leniency counters.
+- **Harness ingress adaptation**: `SourceSubst` (+`ElqSplice`, CORPUS_FOLD,
+  `TestDataGenForm.inlineReads`, `AssertLoopForm`/`RuntimeIfForm`, `bindParam`) —
+  transforms TEST TEXT into platform inputs before execution; single-owner substitution
+  (F3.2) with the A8 base-grammar pin.
+- **Egress decode**: `Executor.fetch/unwrap/latticeKind/decodeAny`,
+  `H2Verify.carrierList/coerceTemporal` (byte[]-branch sole caller) — decoding carriers
+  the DATABASE produced, by declared contract.
+- **`LiteralFold`** — ConstantExecutionNode parity, differential-pinned.
+- **`RawSqlBoundary`** — INPUT-text translation of corpus-authored SQL, caller-set pinned
+  by RawSqlLedgerTest.
+- **`DynamicPivot`** — two-phase orchestration at the execution seam (reads pivot KEYS to
+  BUILD SQL; F7.6 recorded it as the target design).
+- **Compilation layers** (`parser/`, `compiler/`, `resolver/`, `normalizer/`,
+  `lowering/`, `sql/`, dialects) — building SQL from Pure IS the product; Java
+  orchestrates here by definition.
+- **Metamodel emitters for product surfaces** (`DiagramService`, protocol emitters) —
+  transform the PARSED MODEL, no execution involved.
+
+**Verified by READ, not by name (the sweep's completeness notes):**
+- `LineageForm`/`LineageRelationsForm` — recognize the engine's scanColumns/scanRelations
+  TEST FORMS and route to the REAL analyzer (compile-time lineage; V1.6's Java pipeline is
+  gone).
+- `AssertLoopForm` — the source evaluates THROUGH THE PIPELINE (`EngineTestExecutor.eval`);
+  values lift to literals and re-enter checkAssert. Ingress, not evaluation.
+- `RuntimeIfForm` — the condition evaluates through the pipeline; branches re-enter the
+  statement loop.
+- `ReflectAsserts` — the VERDICT comes from the TYPER (F3.3); the host side only navigates
+  the lambda literal's M3 structure to pose the typing question (E4.c-adjacent recognition,
+  no value computed).
+- `exec/` residue (`Row`, `QueryPlan` compile-only seam, `PostProcessBoundary`,
+  `TimingLedger`, `ResultShape`, `Column`, `ExecutionResult`, `H2Settings`, `CsvSeed`
+  SQL-building) — containers/orchestration.
+- `rcorpus/Runner` + `RelationalCorpusRunner` — zero JDBC value reads; orchestration.
+- `parser-equivalence` — zero execution surface (text/parse comparison vs the oracle).
+- `nlq` — LLM orchestration + eval scoring of LLM output; no Pure-execution surface.
+
+Every file in the repo is now one of: compilation/orchestration, a ledgered EVICT row, or
+a registered PERMANENT row. Nothing unclassified.
+
 ## 3. The legs, in order
 
 ### E1 — PCT renderer → Lowerer ROOT MODE (F4.4 done right) · effort L
@@ -64,8 +132,22 @@ The recorded design from the reverted attempt: post-hoc plan rewriting is imposs
 DateTimes, TDS text, cell forms — all measured and recorded) is EMITTED BY THE PLAN.
 Blocked findings to honor: abstract-Date slots need `typeof()` reflection (OutputCol slot
 claims measured unreliable); minimal-subsec forms demote deephaven columns to STRING.
-**Acceptance:** `formatAsTds`/`formatValue` DELETED; PCT 1109/1109; PCT is
-orchestration-only (its ledger rows reach zero).
+**Scope correction (2026-08-17, user question caught the gap):** E1 covers the WHOLE
+composition family, not just the TDS formatter — `createTDSResult`, `purePctName` (header
+spelling incl. pivot quoting), `multText`, `stripTrailingZeros` (subsecond PRINT PRECISION
+decided in Java), the print/scale decisions inside `toCoreInstance`, plus the two adaptation
+sites: `remapErrorMessage` (H4 known weakness — the prefix strip erases the error CLASS; fix
+or register PERMANENT with the H4 note as its justification) and `reEscapeStringLiterals`
+(ingress text surgery on the interpreter-provided expression). The bare CoreInstance BRIDGE
+(`handleScalar`/`handleCollection`/`structToInstance`/`classInstance` + type plumbing) is the
+PCT framework's ADAPTER CONTRACT — scalar asserts evaluate in the interpreted runtime and
+demand CoreInstances — so it survives E1 as PERMANENT-registered, but ONLY once every print
+decision has moved out of it. The extension file is size-pinned whole (1,190 lines) so the
+leg's progress is a number.
+
+**Acceptance:** the composition family DELETED (name row → the adapter-contract residue,
+re-pinned with justifications); the file's size pin drops to the adapter core; PCT 1109/1109;
+PCT is orchestration-only.
 
 ### E2 — TDS-to-many slot + A13 row explosion → SQL · effort M
 
@@ -115,7 +197,8 @@ or §0.4-declared.
 4. Tenet #1 re-worded in AGENTS.md/TENET_CHARTER from aspiration to INVARIANT, citing the
    ledger as its enforcement.
 
-Dependency order: **E0 → E1 → E2 → E3 → E4.a → E4.b → E4.c → E4.d → E4.e.**
+Dependency order: **E0 → E1 → E2 → E3 → E5 → E4.a → E4.b → E4.c → E4.d → E4.e.**
+(E5 slots after E3: it reuses E1's root-mode render vocabulary and is independent of E4.)
 E1 first because it retires a whole harness (PCT) to orchestration-only and builds the
 root-mode machinery E2 reuses; E4 last because a–d's vocabulary (information_schema,
 struct values, root-mode rendering) is exactly what its arms need.
