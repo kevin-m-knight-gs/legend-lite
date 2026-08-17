@@ -446,7 +446,7 @@ meta::pure::functions::math::max(numbers:meta::pure::metamodel::type::Number[*])
 meta::pure::functions::date::max(left:meta::pure::metamodel::type::StrictDate[1], right:meta::pure::metamodel::type::StrictDate[1]):meta::pure::metamodel::type::StrictDate[1]
 meta::pure::functions::date::max(dates:meta::pure::metamodel::type::StrictDate[*]):meta::pure::metamodel::type::StrictDate[0..1]
 meta::pure::functions::math::mean(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1]
-meta::pure::functions::math::median(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]
+meta::pure::functions::math::median(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Float[1]
 meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Decimal[1], right:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1]
 meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Float[1], right:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1]
 meta::pure::functions::math::minus(left:meta::pure::metamodel::type::Integer[1], right:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1]

@@ -70,10 +70,10 @@ import java.util.regex.Pattern;
  * Pure expressions are re-escaped, executed via QueryService (compile → SQL → DuckDB),
  * and the typed ExecutionResult is converted back to Pure CoreInstances.
  *
- * Type information MOSTLY flows from Type on ExecutionResult — with two
- * SQL-type-name sniffs (pureTypeName(col.sqlType()), audit P2) that F5.1
- * replaces with col.pureType(), and a declared-header overlay (audit
- * §4.1) that F5.3 converts to compare-and-fail.
+ * Type information flows from Type on ExecutionResult: column names,
+ * pure types, and multiplicities are the PLATFORM's typed facts (F5.1
+ * replaced the sqlType-name sniff; F5.3 Stage B deleted the
+ * declared-header overlay and the null-scan — PCT sees the wire).
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 
@@ -611,7 +611,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             if (i > 0) sb.append(",");
             Column col = columns.get(i);
             String colName = col.name();
-            if (colName.contains("__|__")) {
+            if (colName.startsWith("'")) {
+                // quote-BEARING identity ('2011__|__newCol' with its
+                // quotes): escape the inner pair inside an outer pair
+                // (the rule the deleted overlay spelled — now here, the
+                // one wire writer)
+                colName = "'" + colName.replace("'", "\\'") + "'";
+            } else if (colName.contains("__|__")) {
                 // Pure pivot column IDENTITY includes the quotes
                 // ('UK__|__LDN__|__sum'); TDSExtension strips ONE outer
                 // layer, so the header carries an escaped inner pair.
@@ -626,15 +632,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // data-driven multiplicity: the tests cast results to declared
             // Relation<(col:T[1])>/[0..1] shapes, and a header without the
             // annotation builds [0..1] columns that no longer cast to [1].
-            boolean hasNull = false;
-            for (var row : result.rows()) {
-                if (row.values().get(i) == null) {
-                    hasNull = true;
-                    break;
-                }
-            }
+            // F5.3 Stage B: multiplicity is the column's TYPED fact
+            // (F5.2 carried it across the bridge) — the value-scan that
+            // used to sniff NULLs is deleted; a null arity means the
+            // producer did not declare one and the column is to-one
+            var m = col.multiplicity();
+            boolean optional = m instanceof com.legend.compiler.element
+                    .type.Multiplicity.Bounded b && b.lower() == 0;
             sb.append(colName).append(":").append(purePctName(col))
-                    .append(hasNull ? "[0..1]" : "[1]");
+                    .append(optional ? "[0..1]" : "[1]");
         }
         for (var row : result.rows()) {
             sb.append("\n");
@@ -657,25 +663,24 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return sb.toString();
     }
 
-    /** F5.1: the column's PURE type names the header — the SQL-type-name
-     * sniff (audit P2) reintroduced the silent-String-default defect core
-     * removed under audit 15, and DuckDB's DECIMAL spelling for
-     * Float-typed results was one source of the Stage-A
-     * Float-declared/Decimal-delivered rows. Two PCT-boundary
-     * constraints survive, now keyed on the PURE kind: the interpreted
-     * TestTDS cannot BUILD Date columns (getDataAsType: "Not supported
-     * data type") so temporals travel as STRINGS in print form (P-Step
-     * 6a probes lifting this); Variant cells travel as their JSON text. */
+    /** F5.1: the column's PURE type names the header (the SQL-type-name
+     * sniff is gone). F5.3 Stage B: temporals and Variant spell their
+     * REAL pure names — the old "interpreted TestTDS cannot build Date
+     * columns" claim was stale (the overlay had been writing Date
+     * headers green for months); Variant needs its FQN because the 5.88
+     * TDS header parser resolves type names without import scanning.
+     * Variant cells still travel as quoted JSON text. */
     private static String purePctName(com.legend.exec.Column col) {
         var t = col.pureType();
         if (t instanceof com.legend.compiler.element.type.Type.Primitive p) {
-            if (p.isTemporal()) {
-                return "String";
-            }
             return p.typeName();
         }
         if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
-            return "String";
+            // F5.3 Stage B: the wire says what the column IS (cells
+            // travel as quoted JSON text). FULLY QUALIFIED — the 5.88 TDS
+            // header parser resolves type names as pure paths without
+            // import scanning ('Variant not found!').
+            return "meta::pure::metamodel::variant::Variant";
         }
         return t.typeName();
     }
