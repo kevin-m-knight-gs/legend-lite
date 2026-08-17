@@ -77,15 +77,15 @@ final class Render {
                     "toCSV: unexpected arity " + tc.args().size());
         };
         SqlSelect inner = relation.apply(tc.args().get(0));
-        java.util.Map<String, Type> byName = new java.util.HashMap<>();
+        java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         if (tc.args().get(0).info().type() instanceof Type.RelationType rt) {
             for (Type.Column col : rt.columns()) {
-                byName.put(col.name(), col.type());
+                byName.put(col.name(), col);
             }
         }
-        List<Type> colTypes = inner.outputs().stream()
+        List<Type.Column> relCols = inner.outputs().stream()
                 .map(oc -> {
-                    Type t = byName.get(oc.name());
+                    Type.Column t = byName.get(oc.name());
                     if (t == null) {
                         throw new IllegalStateException("toCSV: output column '"
                                 + oc.name() + "' has no typed relation column");
@@ -93,7 +93,7 @@ final class Render {
                     return t;
                 }).toList();
         return new SqlExpr.ScalarSubquery(
-                csv(inner, colTypes, renderTdsNull, alias));
+                csv(inner, relCols, renderTdsNull, alias));
     }
 
     /** The toCSV default-format pair — the zero-arg format fns or their
@@ -117,12 +117,12 @@ final class Render {
      *  relation plan. {@code colTypes} are the relation's PURE column
      *  types in output order (dates dispatch by KIND — F5.4: the kind
      *  is a typed fact, never a value sniff). */
-    static SqlSelect csv(SqlSelect inner, List<Type> colTypes,
+    static SqlSelect csv(SqlSelect inner, List<Type.Column> relCols,
             boolean renderTdsNull, String rowAlias) {
         List<OutputCol> cols = inner.outputs();
-        if (cols.size() != colTypes.size()) {
+        if (cols.size() != relCols.size()) {
             throw new IllegalStateException("toCSV: " + cols.size()
-                    + " output columns vs " + colTypes.size()
+                    + " output columns vs " + relCols.size()
                     + " typed columns");
         }
         // ORDER: the engine renders rows in RESULT order. An ordered
@@ -135,11 +135,12 @@ final class Render {
         }
         // the per-row line: cells joined ','
         SqlExpr line = cell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
-                colTypes.get(0), renderTdsNull);
+                relCols.get(0), cols.get(0).type(), renderTdsNull);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
                     cell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
-                            colTypes.get(i), renderTdsNull));
+                            relCols.get(i), cols.get(i).type(),
+                            renderTdsNull));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         List<OutputCol> rowOuts = new ArrayList<>();
@@ -206,18 +207,48 @@ final class Render {
         return new SqlExpr.ScalarSubquery(count);
     }
 
-    /** One cell — the engine's {@code toCSVString} dispatch, typed. */
-    private static SqlExpr cell(SqlExpr c, Type t, boolean renderTdsNull) {
+    /** One cell — the engine's {@code toCSVString} dispatch, typed.
+     *  (A count-based render for to-many cells was tried and DELETED:
+     *  zero live corpus firings, and its LIST_GET/LIST_LENGTH emissions
+     *  violate the carrier-purity tenet — when a to-many cell demand
+     *  appears it gets a SEMANTIC node with dialect strategies, per
+     *  CARRIER_REDESIGN.md tenet #1. The named residue is
+     *  docs/CSV_DIFFERENTIAL.md mechanism 3.) */
+    private static SqlExpr cell(SqlExpr c, Type.Column col,
+            SqlType slot, boolean renderTdsNull) {
+        Type t = col.type();
         SqlExpr rendered;
-        if (t == Type.Primitive.STRICT_DATE) {
+        if (t == Type.Primitive.STRICT_DATE
+                || (t == Type.Primitive.DATE
+                        && slot == SqlType.Scalar.DATE)) {
             // date-only branch: format WITHOUT escape (engine
-            // formatDateTime escapes only the datetime arm)
+            // formatDateTime escapes only the datetime arm). An ABSTRACT
+            // Date over a DATE slot is a StrictDate READ (the engine's
+            // relational read of a DATE column yields hasHour=false) —
+            // the SLOT KIND is the typed fact, F5.4's rule.
             rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
                     new SqlExpr.FormatLit(DateFmt.DATE));
+        } else if (t == Type.Primitive.DATE) {
+            // ABSTRACT Date over a TIMESTAMP slot: the engine's
+            // formatDateTime rule is DEFINED OVER THE VALUE (hasHour) —
+            // date-only values print yyyy-MM-dd, timed values print the
+            // datetime form. The SQL spells the engine's own rule; the
+            // one residue (a TRUE midnight DateTime under an abstract
+            // Date slot prints date-only) is the F5.4 slot-erasure,
+            // identical on the engine's own relational read-back of a
+            // DATE-precision-less TIMESTAMP.
+            SqlExpr timed = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                            new SqlExpr.FormatLit(DateFmt.TIME_ONLY)),
+                    new SqlExpr.StringLit("00:00:00"));
+            rendered = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed,
+                    escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                            new SqlExpr.FormatLit(DateFmt.CSV_DATETIME))))),
+                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                            new SqlExpr.FormatLit(DateFmt.DATE)));
         } else if (t == Type.Primitive.DATE_TIME
-                || t == Type.Primitive.DATE
                 || t == Type.Primitive.LATEST_DATE) {
-            // the TIMESTAMP-carried kinds (F5.4): datetime spelling
+            // the DateTime kinds: datetime spelling
             rendered = escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
                     new SqlExpr.FormatLit(DateFmt.CSV_DATETIME)));
         } else {

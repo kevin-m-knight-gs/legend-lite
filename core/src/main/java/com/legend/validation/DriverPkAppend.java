@@ -63,6 +63,24 @@ public final class DriverPkAppend {
         if (n instanceof TypedProject p) {
             return appendPk(p, ctx);
         }
+        // F4.3 (CSV differential, mechanism 1): a RENDER tail is
+        // TRANSPARENT to the option — the engine applies
+        // addDriverTablePkForProject to the projections regardless of the
+        // text form around them. Before the platform owned toCSV the
+        // harness's strip removed the tail first, so this arm never
+        // existed; with the tail lowered, the append must see through it
+        // (the probe's 14 validation rows: side A had the golden's ID
+        // column, side B lost it here).
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
+                && com.legend.compiler.element.type.PlatformTypes.TO_CSV
+                        .equals(tc.callee().qualifiedName())
+                && !tc.args().isEmpty()) {
+            TypedSpec src = appendTo(tc.args().get(0), ctx);
+            List<TypedSpec> args = new ArrayList<>(tc.args());
+            args.set(0, src);
+            return new com.legend.compiler.spec.typed.TypedNativeCall(
+                    tc.callee(), args, tc.info());
+        }
         // the option only affects PROJECTIONS (engine: addDriverTablePk
         // ForProject) — any other statement passes through unchanged
         return n;

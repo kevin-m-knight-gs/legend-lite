@@ -62,3 +62,35 @@ declare expected-red per §0.4; mechanism 4 is already engine-true on the
 DB side. Then delete `csvText`/`csvCell`/`csvEquals`' RENDERING half and
 the strip, keeping the comparison POLICY (order/ULP) per the plan's
 keep/drop table — and delete this probe.
+
+## Adjudication results (2026-08-17, F4.3a)
+
+- **Mechanism 1 FIXED**: `DriverPkAppend` is now TRANSPARENT to the toCSV
+  render tail (the engine applies `addDriverTablePkForProject` to the
+  projections regardless of the text form; the harness strip used to remove
+  the tail first). All 18 validation-family probe rows EXACT.
+- **Mechanism 2 FIXED**: an abstract-`Date` cell renders by the engine's own
+  `formatDateTime` rule — a DATE slot is a StrictDate read (slot-kind, typed);
+  over a TIMESTAMP slot the rule is DEFINED OVER THE VALUE (`hasHour`),
+  spelled in SQL (`HH:mm:ss = 00:00:00` → date form). The one residue (a TRUE
+  midnight DateTime under an abstract slot prints date-only) is the F5.4
+  slot-erasure, identical on the engine's own read-back. 4 rows EXACT.
+- **Mechanism 4 ADJUDICATED, no change**: the engine golden for
+  `embedded::testIsEmpty` is `'name,firm\n\n'` — byte-identical to the
+  platform's empty shape. The harness render is the deviation; the test is
+  already baseline-red.
+- **Mechanism 3 RESIDUE (1 row, named)**:
+  `testConcatenateWithFilter` — the platform spells the cell `[Firm X]`
+  where the engine golden says `Firm X`. Root cause is NOT the render: the
+  TDS project column contract is to-one while the lowering emits a
+  list-valued slot (OutputCol says VARCHAR, the wire carries an array) that
+  the Executor unwraps at egress — a pre-existing type-contract deviation
+  the render cannot see statically. (A count-based render was tried and
+  DELETED: zero live firings, and its LIST_GET/LIST_LENGTH emissions
+  violate the carrier-purity tenet — a to-many cell demand gets a
+  SEMANTIC node with dialect strategies when one appears.) The fix is
+  the OutputCol/slot reconciliation — filed in FOUNDATIONS_PLAN §9. F4.3's cutover carries it as a declared
+  §0.4 expected-red of AT MOST ONE test.
+
+**Post-adjudication probe: 123 EXACT / 2 DIFFERS** (the named residue + the
+already-red testIsEmpty) across the full corpus.

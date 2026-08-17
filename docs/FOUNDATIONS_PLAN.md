@@ -1156,6 +1156,12 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 `experiments/backend-probes/` shape or give them assertions.
 
 **Backlog (append new findings here, do not act on them mid-plan):**
+- **TDS project to-many column contract (F4.3 probe find):** a to-many
+  project lambda types a TO-ONE TDS column but LOWERS to a list-valued
+  slot (OutputCol VARCHAR, wire array) that the Executor unwraps at
+  egress — the one CSV-render residue (`testConcatenateWithFilter`,
+  docs/CSV_DIFFERENTIAL.md mechanism 3). Reconcile OutputCol with the
+  emitted slot (or emit the to-one coercion in SQL).
 - `scripts/outstanding.py:14` / `walldepth.py:7` hardcode `/Users/neema/...` — another account's
   checkout. `docs/RUNNABILITY_PLAN.md:129-133,184` derives its re-forecast from their artifacts,
   so **those numbers cannot be reproduced from this checkout.**
