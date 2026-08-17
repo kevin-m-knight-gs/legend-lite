@@ -253,6 +253,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         Type elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
         for (Object value : result.values()) {
+            // CHANNEL-SCOPED null-drop (F5.5, d0f3a356 precedent): a NULL
+            // element of a COLLECTION result is a pure EMPTY, and no pure
+            // collection holds empties — same convention as the
+            // Executor's COLLECTION shaping. Not a fallback.
             if (value != null) {
                 coreInstances.add(toCoreInstance(value, elementType, ps));
             }
@@ -545,6 +549,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 return modelRepository.newCoreInstance(pd.toString(),
                         modelRepository.getTopLevel(classifier), null);
             }
+            if (type instanceof Type.Primitive tp && tp.isTemporal()) {
+                // F5.5: a temporal-typed value whose text does not parse
+                // as a date used to fall through as a silent String
+                throw new UnsupportedOperationException(
+                        "temporal-typed value is not a date print form: '"
+                        + s + "' (" + tp + ")");
+            }
             return modelRepository.newStringCoreInstance(s);
         }
         // Struct → class instance
@@ -562,19 +573,105 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Type elemType = type;
             var coreInstances = new ArrayList<CoreInstance>();
             for (Object elem : list) {
+                // CHANNEL-SCOPED null-drop (F5.5): list elements — the
+                // same pure-collections-hold-no-empties convention
                 if (elem != null) {
                     coreInstances.add(toCoreInstance(elem, elemType, ps));
                 }
             }
             // Return as a single-element wrapping — the collection will be wrapped by caller
             if (coreInstances.size() == 1) return coreInstances.get(0);
-            // For multi-element, this shouldn't happen in scalar context
-            // but return first as fallback
-            return coreInstances.isEmpty() ? modelRepository.newStringCoreInstance("[]")
-                    : coreInstances.get(0);
+            // F5.5: multi-element used to 'return first as fallback' and
+            // empty fabricated a '[]' STRING — both are silent wrong
+            // answers in scalar context
+            throw new UnsupportedOperationException(
+                    "list of " + coreInstances.size() + " elements in"
+                    + " scalar conversion context (type=" + type + ")");
         }
-        // Fallback
-        return modelRepository.newStringCoreInstance(value.toString());
+        // TYPED conversions the old stringify-anything fallback concealed
+        // (F5.5 made the wall loud; these are the adjudicated channels):
+        // a UUID under a String-typed slot IS its canonical text
+        if (value instanceof java.util.UUID u
+                && type == Type.Primitive.STRING) {
+            return modelRepository.newStringCoreInstance(u.toString());
+        }
+        // a DuckDB STRUCT under a class-typed slot builds the declared
+        // class instance (F5.6 deleted the MAP-branch twin by probe; the
+        // live channel was DuckDBStruct, and toString() was concealing it)
+        if (value instanceof org.duckdb.DuckDBStruct ds) {
+            java.util.Map<String, Object> m;
+            try {
+                m = ds.getMap();
+            } catch (java.sql.SQLException e) {
+                throw new RuntimeException(e);
+            }
+            return classInstance(m, type, ps);
+        }
+        // F5.5: the terminal stringify-anything fallback is LOUD — an
+        // unconverted kind is a missing typed conversion, not a String
+        throw new UnsupportedOperationException(
+                "no typed conversion for " + value.getClass().getName()
+                + " (type=" + type + ")");
+    }
+
+    /** Class instance from a struct's field map, keyed on the DECLARED
+     *  type — the honest survivor of the deleted createClassInstance:
+     *  the 'default -> Pair' fabrication is a LOUD wall now. */
+    private CoreInstance classInstance(Map<String, Object> structMap,
+            Type type, ProcessorSupport ps) {
+        String qualifiedName = switch (type) {
+            case Type.ClassType ct -> ct.fqn();
+            case Type.GenericType gt -> gt.rawFqn();
+            default -> throw new UnsupportedOperationException(
+                    "struct under non-class type " + type + " (keys="
+                    + structMap.keySet() + ") — no fabrication");
+        };
+        CoreInstance classCi = ps.package_getByUserPath(qualifiedName);
+        if (classCi == null) {
+            throw new RuntimeException("Pure class not found: " + qualifiedName);
+        }
+        String simpleName = qualifiedName
+                .substring(qualifiedName.lastIndexOf(':') + 1);
+        CoreInstance instance = modelRepository.newCoreInstance(
+                simpleName, classCi, null);
+        CoreInstance classifierGT = org.finos.legend.pure.m3.navigation
+                .type.Type.wrapGenericType(classCi, null, ps);
+        if (type instanceof Type.GenericType p) {
+            for (Type typeArg : p.arguments()) {
+                CoreInstance argTypeClass =
+                        ps.package_getByUserPath(typeArg.typeName());
+                if (argTypeClass != null) {
+                    Instance.addValueToProperty(classifierGT,
+                            M3Properties.typeArguments,
+                            org.finos.legend.pure.m3.navigation.type.Type
+                                    .wrapGenericType(argTypeClass, null, ps),
+                            ps);
+                }
+            }
+        }
+        Instance.addValueToProperty(instance,
+                M3Properties.classifierGenericType, classifierGT, ps);
+        int idx = 0;
+        for (Map.Entry<String, Object> entry : structMap.entrySet()) {
+            Object propValue = entry.getValue();
+            // a NULL field is an omitted property (the canonical layout's
+            // own convention); a field the DECLARED class does not own is
+            // PROJECTED AWAY — types drive construction: the covariant
+            // union layout carries every subtype's fields, and building
+            // the declared type keeps exactly its declared properties
+            if (propValue != null && ps.class_findPropertyUsingGeneralization(
+                    classCi, entry.getKey()) != null) {
+                Type propType = new Type.ClassType(PlatformTypes.ANY);
+                if (type instanceof Type.GenericType p
+                        && idx < p.arguments().size()) {
+                    propType = p.arguments().get(idx);
+                }
+                Instance.addValueToProperty(instance, entry.getKey(),
+                        toCoreInstance(propValue, propType, ps), ps);
+            }
+            idx++;
+        }
+        return instance;
     }
 
     private CoreInstance toPureDateInstance(LocalDate ld) {
