@@ -272,6 +272,28 @@ native vocabulary serving those chains plus the typeInference construction famil
 (`TypedNewInstance` 295, `TypedUserCall` 236, `TypedVariable` 864, …). The E4.e residue
 is therefore bounded by the chains E4.a–d feed it.
 
+**PROPOSED ADJUDICATION (census-backed, 2026-08-17 — AWAITING USER RATIFICATION):**
+the census partitions the remaining interpreter demand into exactly two channels:
+
+1. **The DB-VALUE channel (EVICT, stands):** fetchDb grid-read chains and executeInDb
+   READ chains — database-produced values folded/indexed in Java (`.rows->fold(
+   concatenate(values->at(k)))`, `.value('NAME')`, emptiness reads). This is genuine
+   query-time value evaluation; **E4.e re-scopes to exactly this**: compile the small
+   grid-read vocabulary (rows/values/columnNames/at/value/fold-concatenate/first/size/
+   emptiness) over the E4.b catalog queries INTO SQL, after which the structural arms
+   lose their last DB-value demand.
+2. **The METAMODEL channel (PROPOSED PERMANENT):** typeInference constructions
+   (the curated 5-class set), store-nav (2 firings, inside DDL-text chains), plan/DDL/
+   SQL-text generation (PlanText, MetamodelWalk convert arms, MetamodelSteps,
+   AggAwareActivities, Ddl text) and the structural/native arms serving those chains.
+   Evidence: NO database value ever flows through this channel (inputs are model text
+   and test-constructed metamodel instances; outputs are text/structures ABOUT plans);
+   the engine itself evaluates this family host-side (interpreted Pure); the charter
+   pre-authorized census-decided PERMANENT for the TEXT sub-family — the census shows
+   the construction sub-family exists ONLY to feed it. Conditions if ratified: the
+   size pins become PERMANENT pins (shrink-only forever), the admission predicate
+   stays test-pinned, and any DB value entering the channel is a build failure.
+
 **E4.b LANDED 2026-08-17.** The shadow-H2 replay is DELETED: `fetchDbSchemas/Tables/
 Columns` are catalog queries over the AMBIENT session's `information_schema` (F6.6's
 rule — the database the raw writes actually seeded), identifier columns `upper()`'d IN
