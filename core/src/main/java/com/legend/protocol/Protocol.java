@@ -2407,7 +2407,6 @@ public final class Protocol {
             implements PAuthStrategy {
     }
 
-
     /** {@code _type:"userNamePassword"} — vault references, base optional. */
     public record PUserNamePassword(@com.legend.Nullable String baseVaultReference,
                                     String userNameVaultReference,
@@ -2917,7 +2916,6 @@ public final class Protocol {
     public record PMultiplicity(int lowerBound, @com.legend.Nullable Integer upperBound) {
     }
 
-
     /**
      * Splits an FQN into the wire's {@code package} / {@code name} pair.
      *
@@ -2984,7 +2982,7 @@ public final class Protocol {
                 }
                 String s = path.substring(start, i);
                 out.append(s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
-                        ? unescapeSegment(s.substring(1, s.length() - 1)) : s);
+                        ? Escapes.unescapeJavaLike(s.substring(1, s.length() - 1)) : s);
                 if (i == path.length()) {
                     break;
                 }
@@ -3002,32 +3000,4 @@ public final class Protocol {
         return out.toString();
     }
 
-    /** The escape table for quoted name segments — same rules as the
-     *  parser's canonical {@code TokenStreamCursor.unescapeBody} (real
-     *  pure's EscSeq + drop-backslash terminal rule), minus the error
-     *  channel: this is the wire path, malformed input never reaches it
-     *  (the parser refused it earlier). */
-    private static String unescapeSegment(String body) {
-        if (body.indexOf('\\') < 0) {
-            return body;
-        }
-        StringBuilder sb = new StringBuilder(body.length());
-        for (int i = 0; i < body.length(); i++) {
-            char c = body.charAt(i);
-            if (c != '\\' || i + 1 >= body.length()) {
-                sb.append(c);
-                continue;
-            }
-            char esc = body.charAt(++i);
-            switch (esc) {
-                case 'n' -> sb.append('\n');
-                case 't' -> sb.append('\t');
-                case 'r' -> sb.append('\r');
-                case 'b' -> sb.append('\b');
-                case 'f' -> sb.append('\f');
-                default -> sb.append(esc);   // \' \" \\ and drop-backslash
-            }
-        }
-        return sb.toString();
-    }
 }

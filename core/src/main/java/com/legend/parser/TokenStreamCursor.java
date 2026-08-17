@@ -686,7 +686,7 @@ public interface TokenStreamCursor {
         // the engine accepts them, so refusing was an invented divergence —
         // adversarial-audit fuzz row 'a\\u0041b')
         try {
-            return unescapeJavaLike(body);
+            return com.legend.protocol.Escapes.unescapeJavaLike(body);
         } catch (IllegalArgumentException e) {
             throw at.error("malformed " + what + ": " + e.getMessage());
         }
@@ -1010,83 +1010,9 @@ public interface TokenStreamCursor {
             }
             builder.append(line, 0, end);
         }
-        return unescapeJavaLike(builder.toString());
+        return com.legend.protocol.Escapes.unescapeJavaLike(builder.toString());
     }
 
-    /**
-     * The oracle's string decoder — commons-text {@code unescapeJava}
-     * semantics, JDK-only: octal escapes ({@code \101}), unicode escapes
-     * ({@code \-u+XXXX}), the control table ({@code \b \n \t \f \r}), the
-     * quote/backslash table, and DROP-BACKSLASH for anything else
-     * (including a lone trailing backslash, which commons deletes).
-     */
-    static String unescapeJavaLike(String s) {
-        if (s.indexOf('\\') < 0) {
-            return s;
-        }
-        StringBuilder sb = new StringBuilder(s.length());
-        int i = 0;
-        int n = s.length();
-        while (i < n) {
-            char c = s.charAt(i);
-            if (c != '\\' || i + 1 >= n) {
-                if (c != '\\') {
-                    sb.append(c);
-                }                                    // lone trailing '\' drops
-                i++;
-                continue;
-            }
-            char esc = s.charAt(i + 1);
-            if (esc >= '0' && esc <= '7') {          // octal, 1-3 digits, ≤ \377
-                int k = i + 1;
-                int val = 0;
-                int max = esc <= '3' ? 3 : 2;
-                while (k < n && k - i <= max && s.charAt(k) >= '0'
-                        && s.charAt(k) <= '7') {
-                    val = val * 8 + (s.charAt(k) - '0');
-                    k++;
-                }
-                sb.append((char) val);
-                i = k;
-                continue;
-            }
-            if (esc == 'u') {                        // backslash-u+XXXX (extra u's legal)
-                int k = i + 2;
-                while (k < n && s.charAt(k) == 'u') {
-                    k++;
-                }
-                if (k + 4 <= n) {
-                    int val = 0;
-                    boolean ok = true;
-                    for (int h = 0; h < 4; h++) {
-                        int d = Character.digit(s.charAt(k + h), 16);
-                        if (d < 0) {
-                            ok = false;
-                            break;
-                        }
-                        val = val * 16 + d;
-                    }
-                    if (ok) {
-                        sb.append((char) val);
-                        i = k + 4;
-                        continue;
-                    }
-                }
-                throw new IllegalArgumentException(
-                        "Less than 4 hex digits in unicode escape");
-            }
-            switch (esc) {
-                case 'n' -> sb.append('\n');
-                case 't' -> sb.append('\t');
-                case 'r' -> sb.append('\r');
-                case 'b' -> sb.append('\b');
-                case 'f' -> sb.append('\f');
-                default -> sb.append(esc);           // \' \" \\ + drop-backslash
-            }
-            i += 2;
-        }
-        return sb.toString();
-    }
 
     /** The engine's span for a {@code '''...'''} token: SINGLE-LINE column
      *  arithmetic over the raw length — endLine stays the start line and
