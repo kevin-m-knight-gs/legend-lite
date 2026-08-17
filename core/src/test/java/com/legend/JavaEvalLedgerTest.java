@@ -82,9 +82,17 @@ class JavaEvalLedgerTest {
         // slot is a loud lowering-defect wall now, never a repair.
         EVICT_NAMES.put("core/src/main/java/com/legend/exec/Executor.java",
                 new Object[]{"two many-valued TDS cells", 0});
-        // E3 — JSON source realization in Java
+        // E3 LANDED (2026-08-17): the frame is a one-Variant-column
+        // VALUES relation — each cell an object's RAW JSON TEXT, every
+        // property a typed variant extraction IN SQL (get + to-cast +
+        // toOne); the DATABASE does all value interpretation. This row
+        // PINS the deletion of the Java realization (classSource /
+        // cellText / Json.parseAll — the lossy string grid) at zero.
+        // objectTexts residue is SCISSORS: a lexical string-aware brace
+        // scan cutting the model-text payload into row spans at plan
+        // build; no JSON value ever materializes in Java.
         EVICT_NAMES.put("core/src/main/java/com/legend/resolver/JsonSourceFrame.java",
-                new Object[]{"(classSource|cellText)\\(", 3});
+                new Object[]{"(classSource|cellText)\\(", 0});
         // E5 — testdatagen CSV text assembly (A5/A6 moved hash+scrub
         // into SQL; the row/comma/newline ASSEMBLY is still Java)
         EVICT_NAMES.put("core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",

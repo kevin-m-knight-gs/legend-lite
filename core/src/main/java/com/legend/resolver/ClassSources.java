@@ -616,7 +616,7 @@ public final class ClassSources {
             // typed VALUES relation — the class declaration is the schema.
             String jsonUrl = jsonSources.get(classFqn);
             if (jsonUrl != null) {
-                return JsonSourceFrame.classSource(ctx, mappingFqn, classFqn,
+                return JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn, classFqn,
                         jsonUrl);
             }
             throw new MappingResolutionException("class '" + classFqn
@@ -862,7 +862,7 @@ public final class ClassSources {
             // SELF-SOURCED M2M whose upstream is the execution context's
             // JsonModelConnection (TradeLinkage cross-store golden): the
             // JSON frame IS the source layer — never this mapping again
-            inner = JsonSourceFrame.classSource(ctx, mappingFqn,
+            inner = JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn,
                     srcType.fqn(), jsonUrl);
         } else {
             String srcMapping = !selfSourced

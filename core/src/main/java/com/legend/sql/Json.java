@@ -56,20 +56,6 @@ public final class Json {
         return p.value();
     }
 
-    /** CONCATENATED top-level values ({@code {..}{..}...} — the engine's
-     * JsonModelConnection row stream: one object per row). Strict trailing-
-     * garbage still throws; a single value returns a one-element list. */
-    public static List<Object> parseAll(String json) {
-        Json p = new Json(json);
-        List<Object> out = new ArrayList<>();
-        p.ws();
-        while (p.i < p.s.length()) {
-            out.add(p.value());
-            p.ws();
-        }
-        return out;
-    }
-
     private @com.legend.Nullable Object value() {
         char c = s.charAt(i);
         return switch (c) {

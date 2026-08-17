@@ -21,6 +21,19 @@ This program builds the ratchet FIRST, then evicts in leverage order.
 test assertion (or product consumer) observes as the result of executing a Pure
 expression — evaluation, rendering, row shaping, realization of source data.
 
+**The decision rule (sharpened at E3, user-ratified 2026-08-17):**
+- Java that decides **values, rows, types, or cardinality at query time** → EVICT, no
+  exceptions (semantic-drift risk; composition breakage — E2's filter bug was exactly
+  this). E1, E2, E4.a–c live here.
+- Java that turns **model text into typed constants at plan-build time** → COMPILATION,
+  permitted — but the carrier into SQL must be TYPED AND LOSSLESS (the string grid was
+  the F7.3 defect, not the parse). Do not stuff strings into the database just to select
+  them back out: a `data:` literal is model text, not an external source; the DB-side
+  read channel (`SourceUrl` + `read_json_objects`) is for data that genuinely lives
+  outside the plan (`file:`/remote).
+- Java that formats text **about** plans (metamodel TEXT) → the engine-parity census
+  decides; PERMANENT is a legitimate verdict, not a failure.
+
 **PERMANENT-ALLOWED (registered, each with a written justification):**
 - **Egress decode** (`Executor.fetch/unwrap/latticeKind/decodeAny`): decoding a carrier the
   DATABASE produced, by declared type/carrier contract. No computation.
@@ -189,14 +202,28 @@ raw-H2-replayable, tied to the gained test). Carrier-purity: pre-dialect
 `SqlFn.UNNEST` sites CONSOLIDATED 13 → 12 (pin tightened) — the collection-mapper
 and instance-literal explosions now ride the same two helpers.
 
-### E3 — JsonSourceFrame → `SqlSource.SourceUrl` · effort M
+### E3 — JsonSourceFrame: evict the lossy string grid · effort M
 
-The DB path exists end-to-end (`unnest(CAST(… AS JSON[]))`); the missing piece is the
-`FRAME_ORDINAL` row-identity channel in the sourceUrl spelling, then per-column typed
-variant extraction (`variant::navigation::get` + `variant::convert::to`, both registered).
-**Acceptance:** `classSource` builds a projection over SourceUrl, no Java JSON parse of
-payloads; the F7.3 walls (null-string collision, structured-under-scalar) DISSOLVE
-(the carrier limitation dies with the carrier); XStore tests green.
+*(Re-scoped mid-build, user-ratified: the original leg moved the payload parse INTO the
+DB via SourceUrl — but a `data:` payload is model text, and shipping it into the database
+as one giant string for the DB to cut apart fails the decision rule. The eviction target
+is the UNTYPED STRING GRID, not the build-time split.)*
+
+**Acceptance:** no JSON VALUE ever materializes in Java (`Json.parseAll`/`cellText`
+deleted); the DATABASE does all value interpretation; the F7.3 walls (null-string
+collision, structured-under-scalar) DISSOLVE with the grid; XStore tests green.
+
+**LANDED 2026-08-17.** The frame is a one-Variant-column VALUES relation: Java does
+SCISSORS ONLY — `objectTexts` cuts the payload into per-object TEXT spans lexically (a
+string-aware top-level brace scan handling array / single-object / the engine's
+concatenated row-stream; `JsonSourceFrameArrayTextTest` pins it) — and each span rides as
+a raw-JSON Variant cell (`tdsCell`'s variant arm → `CAST('…' AS JSON)`), plus the hidden
+`FRAME_ORDINAL` column. Every property binds as a typed extraction IN SQL over the
+registered natives (`variant::navigation::get` + the `to(@T)` cast seam + `toOne`,
+conform-by-emission; `toOne` erases value-wise so an absent key stays a NULL cell).
+`cellText`, `classSource`, and `Json.parseAll` (its last consumer) are DELETED; the
+ledger row pins zero. VALUES stays dialect-portable — nothing new falls to the H2
+declines. Full DuckDB referee: scoreboard byte-identical at 2339 (corpus-neutral).
 
 ### E4 — HostEval re-platform · effort XL (its own phased arc)
 
