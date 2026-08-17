@@ -816,6 +816,24 @@ permanent differential test shrinks to covering only the LiteralFold-admitted id
 **Acceptance:** ONE implementation of every value print form, and it runs in the database.
 PCT exercises `floatRepr`.
 
+> **ATTEMPTED AND REVERTED (2026-08-17), design lesson recorded:** a post-hoc
+> plan rewrite (`RenderOption` ThreadLocal + `Render.pctPrintCells` over the
+> FINAL SqlQuery at the orchestrator seam) was built and iterated through ~10
+> shape classes — empty-projection `starOf` selects, star/`StarExcept`
+> expansion, VALUES-backed selects (the dialect COLLAPSES a Subselect over
+> VALUES), DuckDB lateral projection aliasing (extend chains), order-scope
+> hoists — each fix surfacing the next structural interaction. The measured
+> conclusion: the final plan's construction discipline cannot be safely
+> rewritten FROM OUTSIDE. The correct integration is a LOWERER ROOT MODE
+> (the `withStreamingGraphRoot` precedent): the print projection emitted at
+> root construction where aliases/scopes/order are still owned. Also
+> measured on the way: the PCT wire's DateTime spelling is fixed-3-millis
+> `+0000` (the upstream deephaven parser's accepted form — minimal
+> subseconds demote the column to STRING), and an abstract-Date slot needs
+> `typeof()`-style column reflection because OutputCol's slot claim is
+> unreliable (the mechanism-3 deviation). F4.4 proceeds as its OWN leg with
+> the Lowerer-mode design; Phases 6-8 do not depend on it.
+
 ---
 
 ## 6. Phase 5 — The result bridge (type fidelity)
