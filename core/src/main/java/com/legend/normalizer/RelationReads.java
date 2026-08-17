@@ -100,7 +100,7 @@ final class RelationReads {
                     // (physical nullability) and would summon comparison
                     // guards the engine never spells (masking trap #4)
                     ClassDefinition rcd = model == null ? null
-                            : model.findClass(rf.className()).orElse(null);
+                            : model.findClass(rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
                     if (model != null && rcd != null
                             && Multiplicity.Concrete.PURE_ONE.equals(
                             findPropertyDeclared(rcd, ap.property(), model))) {
@@ -129,7 +129,7 @@ final class RelationReads {
             // through to the loud wall below.
             if (model != null && DERIVED_DEPTH.get() < 16) {
                 ClassDefinition dcd =
-                        model.findClass(rf.className()).orElse(null);
+                        model.findClass(rf.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rf.className()));
                 com.legend.protocol.DerivedPropertyDefinition dp =
                         findDerivedInline(dcd, ap.property(), model);
                 if (dp != null) {
@@ -196,7 +196,7 @@ final class RelationReads {
         for (TypeExpression sup : owner.superClasses()) {
             if (sup instanceof TypeExpression.NameRef nr) {
                 var r = findDerivedInline(
-                        model.findClass(nr.name()).orElse(null), prop, model);
+                        model.findClass(nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name())), prop, model);
                 if (r != null) {
                     return r;
                 }
@@ -226,7 +226,7 @@ final class RelationReads {
         }
         for (TypeExpression sup : owner.superClasses()) {
             if (sup instanceof TypeExpression.NameRef nr) {
-                ClassDefinition sc = model.findClass(nr.name()).orElse(null);
+                ClassDefinition sc = model.findClass(nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at RelationReads#4 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name()));
                 if (sc != null) {
                     Multiplicity m = findPropertyDeclared(sc, prop, model);
                     if (m != null) {

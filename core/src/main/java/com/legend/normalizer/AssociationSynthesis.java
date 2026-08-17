@@ -595,7 +595,7 @@ final class AssociationSynthesis {
                         continue;
                     }
                     ClassDefinition owner =
-                            model.findClass(rcm.className()).orElse(null);
+                            model.findClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at AssociationSynthesis#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
                     TypeExpression pt = owner == null ? null
                             : MappingNormalizer.findPropertyTypeDeep(owner,
                                     pm.propertyName(), model);

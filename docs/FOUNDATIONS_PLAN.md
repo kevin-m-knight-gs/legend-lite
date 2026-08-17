@@ -1310,6 +1310,17 @@ predicates from the plan** — wrong rows, no error. Contradicts AGENTS.md commo
 defensiveness should be deleted (all 31). Red → each red names a real gap.** Either outcome is
 a result.
 
+**LANDED ENDPOINT (2026-08-17):** probed ALL 33 `findClass(...).orElse(null)` sites in
+`normalizer/` (the audit's 31 had grown) with a per-site funnel over the full sweep. Verdict
+split: **23 sites never fired → `orElseThrow`** (the named `isBitemporalClass:1507` among them —
+the feared silent milestoning omission is now loud); **10 sites fire legitimately** and funnel
+through the documented `MissProbe.knownMiss`: UnionSynthesis's metamodel probe (20,808 misses,
+every key an engine metamodel/protocol class FQN — the miss IS the answer) and nine sites whose
+keys are BARE super-class simple names — a REAL name-resolution gap, filed in the §9 backlog
+(no corpus case bites today). The `resolver/` 51 `orElse(null)` are post-audit code written
+under the null-policy decision procedure and were not part of this census. Referees: DuckDB
+scoreboard byte-identical, h2 sweep 2282/2575 identical.
+
 ---
 
 ## 9. Phase 8 — Long tail (after the referee is trustworthy)
@@ -1325,6 +1336,14 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 `experiments/backend-probes/` shape or give them assertions.
 
 **Backlog (append new findings here, do not act on them mid-plan):**
+- **Normalizer bare super-name resolution (F7.8 census find):** nine
+  `findClass` sites receive BARE super-class simple names ("Person",
+  "Firm" — `TypeExpression.NameRef` never import-resolved), so
+  superclass traversal silently contributes nothing at those sites (a
+  temporal superclass referenced by bare name would drop its
+  milestoning). No corpus case bites today; the sites are enumerable
+  via `normalizer/MissProbe.knownMiss`. Fix = resolve super names
+  through the import scope before the normalizer walks them.
 - **TDS project to-many column contract (F4.3 probe find):** a to-many
   project lambda types a TO-ONE TDS column but LOWERS to a list-valued
   slot (OutputCol VARCHAR, wire array) that the Executor unwraps at

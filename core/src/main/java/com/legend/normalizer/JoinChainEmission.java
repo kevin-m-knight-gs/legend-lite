@@ -123,7 +123,7 @@ final class JoinChainEmission {
                 // sub-PM join chains hoist into the TOP pipeline (the
                 // embedded instance shares the owner's row); the owner for
                 // class-typed detection is the EMBEDDED class
-                ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+                ClassDefinition owner = MissProbe.knownMiss(model.findClass(ownerClassFqn));
                 TypeExpression propType = owner == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(owner, emb.propertyName(), model);
                 if (propType instanceof TypeExpression.NameRef nr) {
@@ -163,7 +163,7 @@ final class JoinChainEmission {
                         break;
                     }
                 }
-                ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+                ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
                 TypeExpression propType = owner == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(owner,
                                 ie.propertyName(), model);
@@ -658,7 +658,7 @@ final class JoinChainEmission {
     static @com.legend.Nullable String classTypedTargetIfMapped(
             @com.legend.Nullable String ownerClassFqn,
                                                   String propName, ModelBuilder model) {
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+        ClassDefinition owner = MissProbe.knownMiss(model.findClass(ownerClassFqn));
         if (owner == null) return null;
         TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, propName, model);
         if (!(propType instanceof TypeExpression.NameRef nr)) return null;
