@@ -12,10 +12,11 @@ import com.legend.model.RelationalDataType;
  * {@code toDDL.pure} walks the Database metamodel; legend-lite renders
  * from {@link DatabaseDefinition}). Lives in the EXEC (K-phase) package —
  * the SQL layer ({@code com.legend.sql}) stays standalone and never sees
- * the store model. Statements come out H2-flavored and
- * unquoted, exactly like the corpus's own raw seeds — the executing
- * {@link RawSqlBoundary} owns quoting and type adaptation, ONE
- * adaptation path for hand-written and model-derived DDL alike.
+ * the store model. Model-derived DDL is spelled correctly for its
+ * TARGET the first time (F7.4, audit S4): the type switch carries both
+ * flavors, and the {@link RawSqlBoundary} translator serves
+ * HAND-WRITTEN corpus text only — text whose origin really is another
+ * dialect.
  *
  * <p>No PRIMARY KEY / NOT NULL constraints are emitted — a DELIBERATE
  * DIVERGENCE from the engine (its dropAndCreateTableInDb defaults
@@ -36,6 +37,15 @@ public final class Ddl {
 
     public static String createTable(DatabaseDefinition.TableDefinition def,
             @com.legend.Nullable String schema) {
+        return createTable(def, schema, false);
+    }
+
+    /** The EXECUTION create, spelled for the target ({@code duckTarget}
+     * false = H2 flavor — the h2 backend and the advisory mirror's
+     * replay stream; true = DuckDB flavor, where H2's FLOAT is an
+     * 8-byte double and BIT a boolean). */
+    public static String createTable(DatabaseDefinition.TableDefinition def,
+            @com.legend.Nullable String schema, boolean duckTarget) {
         StringBuilder sb = new StringBuilder("Create Table ")
                 .append(qualify(schema, def.name())).append("(");
         boolean first = true;
@@ -48,7 +58,8 @@ public final class Ddl {
             // words ('Previous Fiscal Week Year', 'FIRST NAME') — the
             // dialect's quoteCreateColumns passes quoted heads through
             sb.append('"').append(col.name()).append('"').append(' ')
-                    .append(spell(col.dataType()));
+                    .append(duckTarget ? duckSpell(col.dataType())
+                            : spell(col.dataType()));
         }
         return sb.append(");").toString();
     }
@@ -318,6 +329,19 @@ public final class Ddl {
                 ? table : schema + "." + table;
     }
 
+    /** The DuckDB EXECUTION spelling — differs from {@link #spell}
+     * exactly where H2's type SEMANTICS differ from its NAME: FLOAT is
+     * an 8-byte double (DuckDB FLOAT is REAL), BIT is a boolean (DuckDB
+     * BIT is a bitstring). Spelled from the TYPE, never recovered from
+     * text (F7.4). */
+    private static String duckSpell(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.Float_ ignored -> "DOUBLE";
+            case RelationalDataType.Bit ignored -> "BOOLEAN";
+            default -> spell(t);
+        };
+    }
+
     /** The H2-flavored spelling of a store column type. */
     private static String spell(RelationalDataType t) {
         return switch (t) {
@@ -325,11 +349,8 @@ public final class Ddl {
             case RelationalDataType.SmallInt ignored -> "SMALLINT";
             case RelationalDataType.TinyInt ignored -> "TINYINT";
             case RelationalDataType.Integer_ ignored -> "INTEGER";
-            // H2-FLAVORED on purpose so RawSqlBoundary can rewrite it
-            // (FLOAT->DOUBLE etc. live in RawSqlBoundary.mapColumnTypes,
-            // NOT DuckDb) — this is audit S4's self-inflicted rewrite
-            // loop: model-derived DDL should be spelled correctly the
-            // FIRST time; F7.4 deletes this arm and the rewrite with it.
+            // H2's FLOAT is an 8-byte double (duckSpell owns the
+            // DuckDB flavor — F7.4 ended the render-then-regex loop)
             case RelationalDataType.Float_ ignored -> "FLOAT";
             case RelationalDataType.Double_ ignored -> "DOUBLE";
             case RelationalDataType.Real ignored -> "REAL";

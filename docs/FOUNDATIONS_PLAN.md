@@ -1222,6 +1222,23 @@ and `"`-quoted identifiers containing `;`.
 **Acceptance:** `RawSqlBoundary`'s stated contract becomes **true for the first time**, and
 F1.6's ledger drops to its one legitimate entry.
 
+**LANDED ENDPOINT (2026-08-17):** the loop is dead. `Ddl.createTable(def, schema, duckTarget)`
+spells the EXECUTION form for its target from the TYPE (`duckSpell`: FLOAT→DOUBLE, BIT→BOOLEAN
+— exactly where H2's type semantics differ from its names); the H2 flavor survives as the
+mirror-replay/h2-backend spelling. Both model-derived channels route DIRECTLY to execution
+(`dropAndCreateTableInDb` via `Executor.executeRaw`; Runner's module-DDL loop executes the
+pre-spelled unit), the H2 advisory mirror gets its stream by SPELLING THE MODEL A SECOND TIME
+— recorded only after the session executed, so the recording still mirrors executed reality —
+and `splitStatements` left the model-derived path (each unit IS one statement). Adjudications
+against the plan text: `mapColumnTypes` STAYS — its witness (`relationalSetUp` testTable's
+literal `float` column) is HAND-WRITTEN corpus text, the translator's actual charter; the
+loop-justifying comments died instead. `recordMeta` was NOT the right channel for CREATEs —
+the row-replay mirror needs the tables (only constraints ride the meta channel, as before).
+F1.6's ledger: Runner LEFT — now `{StatementExecutor, HostEval}`, both corpus-authored text
+(the F6.6 read direction joined after the plan was written); the boundary's stated contract is
+true at last. Referees: DuckDB scoreboard byte-identical, h2-exec 320+632/0/155 identical, h2
+sweep 2282/2575 identical, full chain GREEN.
+
 ### F7.5 — Batch the seeds
 
 `CsvSeed.java:85-108`, `Ddl.setUpDataSqlsText:157-162`, `TestDataGenerator.loadSide:1212-1226`

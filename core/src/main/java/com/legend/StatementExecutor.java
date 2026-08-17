@@ -3182,10 +3182,22 @@ final class StatementExecutor {
                         .orElseThrow(() -> new IllegalStateException(
                                 "dropAndCreateTableInDb: no table '" + lookup
                                         + "' in store " + db.fullPath()));
+        // F7.4: model-derived DDL routes DIRECTLY — spelled for the
+        // target from the TYPE, never rendered-H2-then-regexed. The H2
+        // advisory mirror still needs its H2-flavored stream: the SAME
+        // model spells it a second time (recorded only after the session
+        // executed — the recording mirrors executed reality).
+        boolean rawH2 = env.dialect().rawH2IsNative();
+        String drop = Ddl.dropTable(schema, table);
+        Executor.executeRaw(connection, drop);
         Executor.executeRaw(connection,
-                adaptRaw(Ddl.dropTable(schema, table), env));
-        Executor.executeRaw(connection,
-                adaptRaw(Ddl.createTable(def, schema), env));
+                Ddl.createTable(def, schema, !rawH2));
+        java.util.List<String> mirror =
+                com.legend.exec.RawSqlBoundary.recording();
+        if (!rawH2 && mirror != null) {
+            mirror.add(drop);
+            mirror.add(Ddl.createTable(def, schema));
+        }
         // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
         // constraints; our DuckDB DDL deliberately omits them (milestoned
         // re-seeds) — the H2 second target's stream keeps the engine
