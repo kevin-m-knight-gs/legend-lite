@@ -129,12 +129,14 @@ final class SnapshotEnvelope {
                                         SqlExpr.Call.of(com.legend.sql
                                                 .SqlFn.LENGTH, pkJson),
                                         com.legend.sql.SqlType.Scalar.VARCHAR),
-                                new SqlExpr.IntLit(10),
+                                new SqlExpr.IntLit(
+                                com.legend.resolver.AsorRef.SEG_LEN_WIDTH),
                                 new SqlExpr.StringLit("0")),
                         new SqlExpr.StringLit(":"), pkJson));
         SqlExpr asor = new SqlExpr.Call(com.legend.sql.SqlFn.CONCAT,
                 java.util.List.of(
-                        new SqlExpr.StringLit("ASOR:"),
+                        new SqlExpr.StringLit(
+                                com.legend.resolver.AsorRef.MARKER),
                         SqlExpr.Call.of(com.legend.sql.SqlFn.RTRIM,
                                 SqlExpr.Call.of(com.legend.sql.SqlFn
                                         .ENCODE_BASE64, full),

@@ -84,13 +84,9 @@ final class ObjectRefs {
             if (i > 0) {
                 arr.append(",");
             }
-            String ref = prefix(mappingPath.value(), rootSetId.value(),
-                    setId)
-                    + String.format("%010d", pkJson.length()) + ":" + pkJson;
-            arr.append("\"ASOR:").append(java.util.Base64.getEncoder()
-                    .withoutPadding().encodeToString(ref.getBytes(
-                            java.nio.charset.StandardCharsets.UTF_8)))
-                    .append("\"");
+            arr.append('"').append(com.legend.resolver.AsorRef.ref(
+                    mappingPath.value(), rootSetId.value(), setId, pkJson))
+                    .append('"');
         }
         return new CString(arr.append("]").toString());
     }
@@ -333,10 +329,4 @@ final class ObjectRefs {
         return out;
     }
 
-    /** The ASOR static prefix — delegated to the one protocol owner. */
-    private static String prefix(String mappingPath, String rootSetId,
-            String setId) {
-        return com.legend.resolver.AsorRef.prefix(mappingPath, rootSetId,
-                setId);
-    }
 }

@@ -22,6 +22,13 @@ public final class AsorRef {
 
     public static final String KIND = "Relational";
 
+    /** The reference marker prefixed to the base64 payload. */
+    public static final String MARKER = "ASOR:";
+
+    /** Segment-length framing width ({@code %010d}) — the SQL-side
+     *  encoder spells it as {@code lpad(.., SEG_LEN_WIDTH, '0')}. */
+    public static final int SEG_LEN_WIDTH = 10;
+
     /** The engine protocol's canonical test-H2 connection segment —
      * part of the WIRE FORMAT (both producer and consumer are ours;
      * the goldens pin these exact bytes), not an execution choice. */
@@ -44,6 +51,21 @@ public final class AsorRef {
                 + seg(rootSetId) + seg(setId) + seg(CANONICAL_H2_CONNECTION);
     }
 
+    /** The COMPLETE reference for one row — prefix + the per-row
+     *  pk-map segment (len10-framed, NO trailing colon), base64 without
+     *  padding, MARKER-prefixed. The harness encoder (ObjectRefs) and
+     *  the SQL-side emitter (SnapshotEnvelope) both follow this shape;
+     *  the harness delegates here (F3.4b). */
+    public static String ref(String definingMapping, String rootSetId,
+            String setId, String pkJson) {
+        String full = prefix(definingMapping, rootSetId, setId)
+                + String.format("%0" + SEG_LEN_WIDTH + "d", pkJson.length())
+                + ":" + pkJson;
+        return MARKER + java.util.Base64.getEncoder().withoutPadding()
+                .encodeToString(full.getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     /** A decoded reference: the segments a consumer reads. */
     public record Ref(String mapping, String rootSetId, String setId,
             String pkJson) {
@@ -55,7 +77,8 @@ public final class AsorRef {
      * walls). */
     public static @com.legend.Nullable Ref decode(String ref) {
         try {
-            String b64 = ref.startsWith("ASOR:") ? ref.substring(5) : ref;
+            String b64 = ref.startsWith(MARKER)
+                    ? ref.substring(MARKER.length()) : ref;
             String d = new String(java.util.Base64.getDecoder().decode(
                     b64 + "=".repeat((4 - b64.length() % 4) % 4)),
                     java.nio.charset.StandardCharsets.UTF_8);
