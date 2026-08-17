@@ -1356,8 +1356,18 @@ unescape table (F3.1d); the number arm must NOT delegate to `sql/Json.num` — a
 decimal JSON number is a pure Float (`Double`), while the strict JSON bridge deliberately reads
 `BigDecimal` (audit 18); same grammar, different target kinds by design, documented at the
 site. Referee zero-delta, chain GREEN.
+**A20 (double-encode half) LANDED:** `/engine/execute` and `/engine/sql` responses carry
+`data` as a REAL JSON array node (`Json.parse` of the ResultJson text into the response tree) —
+the old put of the `toJsonArray` STRING double-encoded the payload; the integration test now
+PINS `"data":[` and refutes `"data":"[` (the substring check that passed identically for both
+forms is superseded). The STREAMING half — `Executor.stream` is correct and no HTTP route uses
+it — is product-surface wiring, filed in the §9 backlog. Chain GREEN.
 
 **Backlog (append new findings here, do not act on them mid-plan):**
+- **HTTP streaming route (A20 residue):** `Executor.stream` (JSON straight
+  to the wire, no materialization) is correct and unreachable — no HTTP
+  endpoint uses it. Wire `/engine/execute` (or a streaming variant) through
+  it when the server surface gets its product pass.
 - **Normalizer bare super-name resolution (F7.8 census find):** nine
   `findClass` sites receive BARE super-class simple names ("Person",
   "Firm" — `TypeExpression.NameRef` never import-resolved), so

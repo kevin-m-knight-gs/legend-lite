@@ -159,7 +159,11 @@ public class LegendHttpServer {
 
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", true);
-                response.put("data", com.legend.exec.ResultJson.toJsonArray(result));
+                // A20: data is a REAL JSON array node — the old put of
+                // the toJsonArray STRING double-encoded the payload
+                // (JSON inside a JSON string)
+                response.put("data", Json.parse(
+                        com.legend.exec.ResultJson.toJsonArray(result)));
                 response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                 response.put("rowCount", result.rowCount());
 
@@ -235,7 +239,11 @@ public class LegendHttpServer {
                     response.put("message", "SQL executed successfully");
                 } else {
                     // SELECT - return results
-                    response.put("data", com.legend.exec.ResultJson.toJsonArray(result));
+                    // A20: data is a REAL JSON array node — the old put of
+                // the toJsonArray STRING double-encoded the payload
+                // (JSON inside a JSON string)
+                response.put("data", Json.parse(
+                        com.legend.exec.ResultJson.toJsonArray(result)));
                     response.put("columns", result.columns().stream().map(c -> c.name()).toList());
                     response.put("rowCount", result.rowCount());
                 }
