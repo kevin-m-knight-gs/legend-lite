@@ -147,6 +147,11 @@ public class CorpusSweepTest {
         Map<String, String> modelRefuseAllow =
                 readAllowlist("model-refuse-allowlist.tsv");
 
+        // F3.7b ledger accounting: which pardon rows were actually NEEDED
+        java.util.Set<String> c12DiffsUsed = new java.util.TreeSet<>();
+        java.util.Set<String> c12WallsUsed = new java.util.TreeSet<>();
+        java.util.Set<String> modelRefuseUsed = new java.util.TreeSet<>();
+
         // accumulators
         int docsMatched = 0;
         int seamMatched = 0;
@@ -197,20 +202,28 @@ public class CorpusSweepTest {
                             .parseDocument(src.text());
                     if (Comparators.sameBytes(oracleJson, doc)) {
                         docsMatched++;
-                    } else if (!c12Diffs.containsKey(src.id())) {
+                    } else if (c12Diffs.containsKey(src.id())) {
+                        c12DiffsUsed.add(src.id());
+                    } else {
                         docDiffs.add(src.id() + " :: "
                                 + firstDivergence(oracleJson, doc));
                     }
                 } catch (Throwable t) {
-                    if (!c12Walls.containsKey(src.id())) weRefuse.add(src.id() + " :: "
-                            + msgOf(rootOf(t)));
+                    if (c12Walls.containsKey(src.id())) {
+                        c12WallsUsed.add(src.id());
+                    } else {
+                        weRefuse.add(src.id() + " :: "
+                                + msgOf(rootOf(t)));
+                    }
                 }
                 // CLAIM 2a: the MODEL transform reads every accepted
                 // source (compile-seam family excepted, BY ID)
                 try {
                     Surfaces.platform(src.text());
                 } catch (Throwable t) {
-                    if (!modelRefuseAllow.containsKey(src.id())) {
+                    if (modelRefuseAllow.containsKey(src.id())) {
+                        modelRefuseUsed.add(src.id());
+                    } else {
                         modelRefuse.add(src.id() + " :: "
                                 + msgOf(rootOf(t)));
                     }
@@ -371,6 +384,32 @@ public class CorpusSweepTest {
         // stale allowlist rows — parity fixed, lines to REMOVE
         List<String> stale = refusalAllow.keySet().stream()
                 .filter(id -> !asymIds.contains(id)).toList();
+        // F3.7b: staleness is ENFORCED, not just reported, for all four
+        // pardon ledgers; sizes are pinned so growth is a reviewed event
+        assertEquals(List.of(), stale.stream().sorted().toList(),
+                "stale refusal-allowlist rows (parity fixed) — remove them"
+                        + " from docs/refusal-allowlist.tsv");
+        assertEquals(List.of(), modelRefuseAllow.keySet().stream()
+                        .filter(id -> !modelRefuseUsed.contains(id))
+                        .sorted().toList(),
+                "stale model-refuse-allowlist rows (the platform transform"
+                        + " now reads them, or the id left the corpus) —"
+                        + " remove them from docs/model-refuse-allowlist.tsv");
+        assertEquals(List.of(), c12Walls.keySet().stream()
+                        .filter(id -> !c12WallsUsed.contains(id))
+                        .sorted().toList(),
+                "stale c12-walls rows — remove them");
+        assertEquals(List.of(), c12Diffs.keySet().stream()
+                        .filter(id -> !c12DiffsUsed.contains(id))
+                        .sorted().toList(),
+                "stale c12-known-diffs rows — remove them");
+        assertEquals(REFUSAL_ALLOW_TOTAL, refusalAllow.size(),
+                "refusal-allowlist size drifted — re-pin with review");
+        assertEquals(MODEL_REFUSE_ALLOW_TOTAL, modelRefuseAllow.size(),
+                "model-refuse-allowlist size drifted — re-pin with review");
+        assertEquals(0, c12Walls.size() + c12Diffs.size(),
+                "the c12 ledgers are EMPTY and stay empty — a new row is a"
+                        + " reviewed event (raise this pin deliberately)");
 
         writeReports(sources.size(), oracleAccepts, docsMatched, docDiffs,
                 weRefuse, bothReject, seamMatched, engineAsym, seamDiffs,
@@ -603,6 +642,10 @@ public class CorpusSweepTest {
     }
 
     private static final ThreadLocal<String> CLASSIFYING_ID = new ThreadLocal<>();
+
+    /** F3.7b: pardon-ledger size pins — growth is a reviewed event. */
+    private static final int REFUSAL_ALLOW_TOTAL = 8;
+    private static final int MODEL_REFUSE_ALLOW_TOTAL = 4;   // 2026-08-16 F3.7b: 67 stale rows pruned (the ledger predated full section parity)
 
     /** F3.7: the ledger's exact size — a new claim is a reviewed event. */
     private static final int SKEW_CLAIMS_TOTAL = 25;
