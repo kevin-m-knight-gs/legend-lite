@@ -252,7 +252,7 @@ public final class Executor {
                 case SCALAR -> {
                     Object v = rs.next()
                             ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
-                                    rootType.type(), plan)
+                                    rootType.type())
                             : null;
                     // a SECOND row under a scalar-shaped root is a resolver/
                     // lowering bug (e.g. a to-one stand-in leaking rows) —
@@ -269,7 +269,7 @@ public final class Executor {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
-                                rootType.type(), plan);
+                                rootType.type());
                         // a NULL cell is a pure EMPTY, and no pure collection
                         // holds empties — Person.all().middleName over a row
                         // with no middle name contributes nothing, not null
@@ -315,18 +315,21 @@ public final class Executor {
 
     /**
      * LATTICE-typed roots recover their values' own kinds from the
-     * identity channel's print forms (computed by the database) — plus
-     * ONE remaining value-consulting heuristic this header previously
-     * mislabeled an encoding: the TIMESTAMP-carried midnight StrictDate
-     * reads the cell's MAGNITUDE (00:00 => date), audit A10 — a genuine
-     * DateTime at exactly midnight is misread. Root cause is
-     * PureSql's DATE/DATE_TIME collapse to TIMESTAMP; F5.4 carries the
-     * kind as a typed fact and deletes the heuristic. The other
-     * value-consulting heuristics (integral-double narrowing, scale-0
-     * decimal narrowing) WERE audited out.
+     * identity channel's print forms (computed by the database). The
+     * TIMESTAMP-midnight StrictDate heuristic that used to live here
+     * (audit A10: it read the cell's MAGNITUDE, and a genuine DateTime
+     * at exactly midnight was misread) is DELETED BY PROOF (F5.4): an
+     * instrumented probe fired ZERO times across all three referees —
+     * the full DuckDB corpus, the full H2 corpus, and the 1,109-test
+     * PCT suite. Mapped DATE columns arrive as {@code java.sql.Date}
+     * (the COLUMN's SQL kind carries the fact); a TIMESTAMP under an
+     * abstract Date root keeps its time and decodes as a DateTime —
+     * the A10-correct semantics. The other value-consulting heuristics
+     * (integral-double narrowing, scale-0 decimal narrowing) WERE
+     * audited out earlier.
      */
-    private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v, Type rootType,
-            SqlQuery plan) {
+    private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v,
+            Type rootType) {
         // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
         // Number collections return each element's pure PRINT FORM as text
         // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
@@ -339,18 +342,6 @@ public final class Executor {
                 return Double.valueOf(s);
             }
             return Long.valueOf(s);
-        }
-        if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
-                && t.toLocalDateTime().toLocalTime()
-                        .equals(java.time.LocalTime.MIDNIGHT)) {
-            return t.toLocalDateTime().toLocalDate();
-        }
-        // the BC carrier (fetch keeps LocalDateTime where Timestamp is
-        // unfaithful) gets the SAME midnight narrowing — carrier choice
-        // must not change the recovered kind
-        if (rootType == Type.Primitive.DATE && v instanceof java.time.LocalDateTime ldt
-                && ldt.toLocalTime().equals(java.time.LocalTime.MIDNIGHT)) {
-            return ldt.toLocalDate();
         }
         return v;
     }
