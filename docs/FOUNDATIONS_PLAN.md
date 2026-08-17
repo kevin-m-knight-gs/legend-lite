@@ -1284,6 +1284,20 @@ states the opposite rule at `:2057-2058` (*"EXACT FQN (never suffix matching)"*)
 throw, not return null. Delete the `LL_TMP_DEBUG` breadcrumbs that exist only because the silence
 was undiagnosable.
 
+**LANDED ENDPOINT (2026-08-17):** the walk vocabulary now dispatches on EXACT FQN.
+`MetamodelSteps.metamodelStep`/`mappingNav` take the full qualified name; every case label is
+the real engine FQN — censused LIVE over the full sweep (`[F77-PROBE]`, 19 distinct FQNs
+observed) and the unfired residue (`filter`/`cast`/`map`/`toOneMany`/`schema`/`table`/
+`superMapping`) verified against `Pure.java` registered signatures and the real legend-pure
+sources (`meta::pure::mapping::superMapping` at functions_PropertyMappingsImplementation.pure:19).
+A user function sharing a simple name can no longer shadow the metamodel vocabulary. The three
+planWalk `LL_TMP_DEBUG` breadcrumbs died. ADJUDICATED, not changed: planWalk's terminal `null`
+is a ROUTING signal — the statement falls through to the execute-frame / SQL pipeline channels
+(`:312`), so throwing there would break the architecture, and `WALK_UNRECOGNIZED` already
+separates "not my vocabulary" from Pure-empty; the `constructOp`/`constructNode` simple-name
+switches sit INSIDE the four-package `startsWith` namespace guard (`:1160-1168` — platform-owned
+namespaces), so no user shape reaches them. Scoreboard byte-identical, full chain GREEN.
+
 ### F7.8 — The `normalizer/`'s 31 silent defaults
 
 **Files:** 31 `orElse(null)` sites in `normalizer/`, 11 in `resolver/`. Start with

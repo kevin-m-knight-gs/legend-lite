@@ -314,11 +314,6 @@ final class StatementExecutor {
                 result = walkResult(walked);
                 continue;
             }
-            if (System.getenv("LL_TMP_DEBUG") != null
-                    && preRoot.toString().contains("rootExecutionNode")) {
-                System.err.println("[walk-miss] " + preRoot.getClass()
-                        .getSimpleName() + ": " + preRoot);
-            }
             // execute() in RESULT position: the eager frame run IS the value
             // (the Result envelope is typing-only — the chain's rows are what
             // a reader observes).
@@ -1224,13 +1219,6 @@ final class StatementExecutor {
                     return jt.withAlias(al);
                 }
             }
-            if (System.getenv("LL_TMP_DEBUG") != null) {
-                System.err.println("[walk] copy of " + cp.classFqn()
-                        + " does not walk: src="
-                        + (src == null ? "null" : src.getClass()
-                                .getSimpleName())
-                        + " overrides=" + cp.overrides().keySet());
-            }
             return null;
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
@@ -1256,14 +1244,13 @@ final class StatementExecutor {
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && !c.args().isEmpty()) {
-            String fn = c.callee().qualifiedName();
-            String simple = fn.substring(fn.lastIndexOf(':') + 1);
             Object recv = planWalk(c.args().get(0), specs, env);
             if (recv == null) {
                 return null;
             }
-            Object step = MetamodelSteps.metamodelStep(simple, recv, c,
-                    specs, env);
+            // F7.7: exact-FQN dispatch inside metamodelStep
+            Object step = MetamodelSteps.metamodelStep(
+                    c.callee().qualifiedName(), recv, c, specs, env);
             return step == MetamodelSteps.WALK_UNRECOGNIZED ? null : step;
         }
         return null;
@@ -1490,11 +1477,6 @@ final class StatementExecutor {
         for (var e : ni.properties().entrySet()) {
             Object v = nodeValue(e.getValue(), specs, env);
             if (v == null) {
-                if (System.getenv("LL_TMP_DEBUG") != null) {
-                    System.err.println("[walk] " + simple + "." + e.getKey()
-                            + " does not walk: " + e.getValue().getClass()
-                                    .getSimpleName());
-                }
                 return null;
             }
             props.put(e.getKey(), v);
