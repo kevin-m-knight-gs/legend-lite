@@ -2698,7 +2698,9 @@ final class Scalars {
      * Pair prints {@code '<first, second>'} (real anonymousCollections
      * toString), recursively; everything else is the VARCHAR cast.
      */
-    private static SqlExpr pureToString(Type t, SqlExpr x) {
+    /** Package-visible for the RENDER phase (F4.2): the CSV cell rule is
+     *  {@code toString()->escapeCSVString()} — one print form, one owner. */
+    static SqlExpr pureToString(Type t, SqlExpr x) {
         if (t == Type.Primitive.FLOAT) {
             return floatRepr(x);
         }

@@ -1,0 +1,265 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.lowering;
+
+import com.legend.compiler.element.type.Type;
+import com.legend.sql.DateFmt;
+import com.legend.sql.OutputCol;
+import com.legend.sql.SqlAgg;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The RENDER phase (F4.1/F4.2, foundations Phase 4): result text is a
+ * PLAN PROJECTION the database executes — Java never touches the value
+ * bytes (the graph-fetch precedent, generalized; charter clauses 1–3:
+ * headers/envelopes come from typed plan facts, only the LiteralFold-
+ * admitted kinds may render in Java, everything else is byte transport).
+ *
+ * <p>This first form is the engine's {@code meta::relational::tests::
+ * csv::toCSV} text (helperFunctions.pure:198-232), constructed in SQL:
+ * <pre>
+ *   header-names(each toCSVString)->joinStrings(',') + '\n'
+ *   + rows(cells joined ',')->joinStrings('', '\n', '\n')
+ * </pre>
+ * Cell rule ({@code toCSVString}): a NULL cell renders {@code ''}
+ * ({@code 'TDSNull'} under renderTdsNull); a date-kinded cell formats
+ * {@code yyyy-MM-dd} (no escape — the engine escapes only the datetime
+ * branch); a datetime formats {@code yyyy-MM-dd HH:mm:ss} then escapes;
+ * everything else is {@code toString()->escapeCSVString()} with
+ * RFC4180 double-quote escaping. The escape rule is spelled ONCE below
+ * — the header goes through the SAME SQL expression over literal names
+ * so no second copy exists in Java.
+ */
+final class Render {
+
+    private Render() {
+    }
+
+    /** The Lowerer's toCSV dispatch target: arity/format admission +
+     *  typed-column collection + the render wrap. The 4-arg overload
+     *  accepts only the DEFAULT format pair (SimpleDateTimeFormat /
+     *  ISO8601DateFormat, as the zero-arg calls or their folded
+     *  '%t{...}' literals); anything else stays loud. */
+    static SqlExpr lowerToCsv(
+            com.legend.compiler.spec.typed.TypedNativeCall tc,
+            java.util.function.Function<
+                    com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
+            String alias) {
+        boolean renderTdsNull = switch (tc.args().size()) {
+            case 1 -> false;
+            case 2, 4 -> {
+                com.legend.compiler.spec.typed.TypedSpec last =
+                        tc.args().get(tc.args().size() - 1);
+                if (!(last instanceof
+                        com.legend.compiler.spec.typed.TypedCBoolean b)) {
+                    throw new com.legend.error.NotImplementedException(
+                            "toCSV: renderTdsNull must be a literal");
+                }
+                if (tc.args().size() == 4
+                        && (!isDefaultCsvFormat(tc.args().get(1),
+                                "%t{yyyy-MM-dd HH:mm:ss}")
+                            || !isDefaultCsvFormat(tc.args().get(2),
+                                "%t{yyyy-MM-dd}"))) {
+                    throw new com.legend.error.NotImplementedException(
+                            "toCSV: only the default date formats are lowered");
+                }
+                yield b.value();
+            }
+            default -> throw new com.legend.error.NotImplementedException(
+                    "toCSV: unexpected arity " + tc.args().size());
+        };
+        SqlSelect inner = relation.apply(tc.args().get(0));
+        java.util.Map<String, Type> byName = new java.util.HashMap<>();
+        if (tc.args().get(0).info().type() instanceof Type.RelationType rt) {
+            for (Type.Column col : rt.columns()) {
+                byName.put(col.name(), col.type());
+            }
+        }
+        List<Type> colTypes = inner.outputs().stream()
+                .map(oc -> {
+                    Type t = byName.get(oc.name());
+                    if (t == null) {
+                        throw new IllegalStateException("toCSV: output column '"
+                                + oc.name() + "' has no typed relation column");
+                    }
+                    return t;
+                }).toList();
+        return new SqlExpr.ScalarSubquery(
+                csv(inner, colTypes, renderTdsNull, alias));
+    }
+
+    /** The toCSV default-format pair — the zero-arg format fns or their
+     *  folded literal text. */
+    private static boolean isDefaultCsvFormat(
+            com.legend.compiler.spec.typed.TypedSpec arg, String pattern) {
+        if (arg instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+            return pattern.equals(cs.value());
+        }
+        return arg instanceof com.legend.compiler.spec.typed.TypedNativeCall f
+                && f.args().isEmpty()
+                && (f.callee().qualifiedName().equals(
+                        "meta::pure::functions::date::SimpleDateTimeFormat")
+                        ? pattern.startsWith("%t{yyyy-MM-dd HH")
+                        : f.callee().qualifiedName().equals(
+                                "meta::pure::functions::date::ISO8601DateFormat")
+                                && pattern.equals("%t{yyyy-MM-dd}"));
+    }
+
+    /** The whole toCSV text as a one-column scalar select over the
+     *  relation plan. {@code colTypes} are the relation's PURE column
+     *  types in output order (dates dispatch by KIND — F5.4: the kind
+     *  is a typed fact, never a value sniff). */
+    static SqlSelect csv(SqlSelect inner, List<Type> colTypes,
+            boolean renderTdsNull, String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        if (cols.size() != colTypes.size()) {
+            throw new IllegalStateException("toCSV: " + cols.size()
+                    + " output columns vs " + colTypes.size()
+                    + " typed columns");
+        }
+        // ORDER: the engine renders rows in RESULT order. An ordered
+        // inner select keeps its order INSIDE the aggregate; only plain
+        // output-column keys can hoist — anything else is a loud wall,
+        // never a silently unordered render.
+        String aggAlias = rowAlias + "_a";
+        if (cols.isEmpty()) {
+            throw new IllegalStateException("toCSV over a zero-column relation");
+        }
+        // the per-row line: cells joined ','
+        SqlExpr line = cell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
+                colTypes.get(0), renderTdsNull);
+        for (int i = 1; i < cols.size(); i++) {
+            line = cat(line, new SqlExpr.StringLit(","),
+                    cell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                            colTypes.get(i), renderTdsNull));
+        }
+        List<SqlSelect.Projection> rowProjs = new ArrayList<>();
+        List<OutputCol> rowOuts = new ArrayList<>();
+        rowProjs.add(new SqlSelect.Projection(line, "_csv_line"));
+        rowOuts.add(new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false));
+        List<SqlSelect.SortKey> aggOrder = new ArrayList<>();
+        int ord = 0;
+        for (SqlSelect.SortKey k : inner.orderBy()) {
+            String out = k.outputName() != null ? k.outputName()
+                    : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
+            OutputCol src = out == null ? null : cols.stream()
+                    .filter(oc -> oc.name().equals(out)).findFirst()
+                    .orElse(null);
+            if (src == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "toCSV over an ordered relation whose sort key is"
+                        + " not an output column");
+            }
+            String oname = "_ord" + ord++;
+            rowProjs.add(new SqlSelect.Projection(
+                    new SqlExpr.Column(rowAlias, src.name()), oname));
+            rowOuts.add(new OutputCol(oname, src.type(), src.nullable()));
+            aggOrder.add(new SqlSelect.SortKey(
+                    new SqlExpr.Column(aggAlias, oname), k.ascending(),
+                    k.nullOrder(), null));
+        }
+        // the header line: names through the SAME escape expression
+        SqlExpr header = escapeCsv(new SqlExpr.StringLit(cols.get(0).name()));
+        for (int i = 1; i < cols.size(); i++) {
+            header = cat(header, new SqlExpr.StringLit(","),
+                    escapeCsv(new SqlExpr.StringLit(cols.get(i).name())));
+        }
+        SqlExpr nl = new SqlExpr.StringLit("\n");
+        // rows->joinStrings('', '\n', '\n'): string_agg(line, '\n') with
+        // the hoisted order; ZERO rows aggregate to NULL -> '' (the
+        // engine's empty joinStrings is prefix+suffix)
+        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
+                new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(new SqlExpr.Column(aggAlias, "_csv_line"), nl),
+                        false, aggOrder),
+                new SqlExpr.StringLit(""));
+        SqlExpr text = cat(header, nl, rowsJoined, nl);
+        SqlSelect rows = SqlSelect.starOf(
+                        new SqlSource.Subselect(inner, rowAlias, null))
+                .withProjections(rowProjs, rowOuts);
+        return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
+                .withProjections(
+                        List.of(new SqlSelect.Projection(text, "csv")),
+                        List.of(new OutputCol("csv",
+                                SqlType.Scalar.VARCHAR, false)));
+    }
+
+    /** write(rel, accessor)'s observable: the COUNT of rows written
+     *  (a TDS-relation accessor destination has no physical table — the
+     *  write is vacuous, only the count is observable). */
+    static SqlExpr writeCount(SqlSelect src, String alias) {
+        SqlSelect count = SqlSelect.starOf(
+                        new SqlSource.Subselect(src, alias, null))
+                .withProjections(List.of(new SqlSelect.Projection(
+                                new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                                        List.of(), false, List.of()), null)),
+                        List.of(new OutputCol("count",
+                                SqlType.Scalar.BIGINT, false)));
+        return new SqlExpr.ScalarSubquery(count);
+    }
+
+    /** One cell — the engine's {@code toCSVString} dispatch, typed. */
+    private static SqlExpr cell(SqlExpr c, Type t, boolean renderTdsNull) {
+        SqlExpr rendered;
+        if (t == Type.Primitive.STRICT_DATE) {
+            // date-only branch: format WITHOUT escape (engine
+            // formatDateTime escapes only the datetime arm)
+            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                    new SqlExpr.FormatLit(DateFmt.DATE));
+        } else if (t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.DATE
+                || t == Type.Primitive.LATEST_DATE) {
+            // the TIMESTAMP-carried kinds (F5.4): datetime spelling
+            rendered = escapeCsv(SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                    new SqlExpr.FormatLit(DateFmt.CSV_DATETIME)));
+        } else {
+            rendered = escapeCsv(Scalars.pureToString(t, c));
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, c),
+                new SqlExpr.StringLit(renderTdsNull ? "TDSNull" : ""))),
+                rendered);
+    }
+
+    /** THE RFC4180 escape rule ({@code escapeCSVString}), spelled once:
+     *  quote when the text contains comma, quote, LF or CR; embedded
+     *  quotes double. */
+    private static SqlExpr escapeCsv(SqlExpr s) {
+        SqlExpr needs = or(contains(s, ","), or(contains(s, "\""),
+                or(contains(s, "\n"), contains(s, "\r"))));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(needs,
+                cat(new SqlExpr.StringLit("\""),
+                        SqlExpr.Call.of(SqlFn.REPLACE, s,
+                                new SqlExpr.StringLit("\""),
+                                new SqlExpr.StringLit("\"\"")),
+                        new SqlExpr.StringLit("\"")))),
+                s);
+    }
+
+    private static SqlExpr contains(SqlExpr s, String needle) {
+        return SqlExpr.Call.of(SqlFn.GREATER,
+                SqlExpr.Call.of(SqlFn.STRPOS, s,
+                        new SqlExpr.StringLit(needle)),
+                new SqlExpr.IntLit(0));
+    }
+
+    private static SqlExpr or(SqlExpr a, SqlExpr b) {
+        return SqlExpr.Call.of(SqlFn.OR, a, b);
+    }
+
+    private static SqlExpr cat(SqlExpr... parts) {
+        SqlExpr out = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            out = SqlExpr.Call.of(SqlFn.CONCAT, out, parts[i]);
+        }
+        return out;
+    }
+}

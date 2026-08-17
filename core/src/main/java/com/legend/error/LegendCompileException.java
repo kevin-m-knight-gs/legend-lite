@@ -24,7 +24,10 @@ package com.legend.error;
 public abstract class LegendCompileException extends RuntimeException {
 
     /** The pipeline stage that rejected the input. */
-    public enum Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE }
+    /** The pipeline stages. {@code RENDER} (F4.1) is a PLAN-CONSTRUCTION
+     *  phase: when a text form is requested the plan wraps with a render
+     *  projection and the DATABASE produces the final text. */
+    public enum Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, RENDER, EXECUTE }
 
     private final Phase phase;
     private final @com.legend.Nullable String element;

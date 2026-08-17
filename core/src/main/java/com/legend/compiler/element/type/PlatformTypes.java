@@ -215,8 +215,13 @@ public final class PlatformTypes {
     public static final String CREATE_DB_CONFIG =
             "meta::relational::functions::sqlQueryToString::createDbConfig";
 
+    /** The RENDER phase's CSV text fn (F4.2) — the corpus's own
+     *  M3-reflective body never joins the overload set. */
+    public static final String TO_CSV = "meta::relational::tests::csv::toCSV";
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || TO_CSV.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)
                 || TO_SQL_STRING.equals(fqn)

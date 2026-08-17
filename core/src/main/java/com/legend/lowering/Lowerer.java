@@ -2658,28 +2658,22 @@ public final class Lowerer {
                     when ValueCollectionOps.relationSpaceRewrite(n) != null ->
                     scalar(Objects.requireNonNull(
                             ValueCollectionOps.relationSpaceRewrite(n)), columns);
+            // F4.2 (RENDER): toCSV is a plan PROJECTION the DB executes
+            case TypedNativeCall tc when PlatformTypes.TO_CSV
+                    .equals(tc.callee().qualifiedName()) ->
+                Render.lowerToCsv(tc, this::relation, nextAlias());
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the
-            // PCT contract). A TDS-relation accessor destination has no
-            // physical table — the write is vacuous and only the count is
-            // observable; a REAL store destination stays loud until the
-            // insert path exists.
+            // PCT contract) — Render.writeCount; a REAL store destination
+            // stays loud until the insert path exists.
             case TypedWrite w -> {
-                boolean accessor = w.destination().isEmpty()
-                        || !containsStoreTable(w.destination().get());
-                if (!accessor) {
+                if (!(w.destination().isEmpty()
+                        || !containsStoreTable(w.destination().get()))) {
                     throw new NotImplementedException(
                             "TypedWrite to a store destination is not yet implemented");
                 }
-                SqlSelect src = relation(w.source());
-                SqlSelect count = SqlSelect.starOf(
-                                new SqlSource.Subselect(src, nextAlias(), null))
-                        .withProjections(List.of(new SqlSelect.Projection(
-                                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, java.util.List.of()), null)),
-                                List.of(new OutputCol("count",
-                                        SqlType.Scalar.BIGINT, false)));
-                yield new SqlExpr.ScalarSubquery(count);
+                yield Render.writeCount(relation(w.source()), nextAlias());
             }
             // A CLASS REFERENCE in scalar position carries its SIMPLE name
             // (PCT: STR_Person->toString() == 'STR_Person').

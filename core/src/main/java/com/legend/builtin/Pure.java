@@ -1677,6 +1677,12 @@ public final class Pure {
     public static final NativeFunctionDefinition DDL_DROP_SCHEMA_STATEMENT__STRING_1 = signature("native function meta::relational::functions::toDDL::dropSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition DDL_CREATE_SCHEMA_STATEMENT__STRING_1 = signature("native function meta::relational::functions::toDDL::createSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::toDDL::createTableStatement(database:meta::relational::metamodel::Database[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    // engine helperFunctions.pure:198-232 — the RENDER phase's CSV text
+    // (F4.2): platform-owned lowerings, the DB constructs the text
+    public static final NativeFunctionDefinition TO_CSV__TDS = signature("native function meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition TO_CSV__TDS_BOOL = signature("native function meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1], renderTdsNull:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition TO_CSV__TDS_FMT = signature("native function meta::relational::tests::csv::toCSV(t:meta::pure::tds::TabularDataSet[1], dateTimeFormat:meta::pure::metamodel::type::String[1], dateFormat:meta::pure::metamodel::type::String[1], renderTdsNull:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
+
     // engine toDDL.pure:34-47 string-generator overloads — platform-owned
     // (the native IS the definition; the corpus bodies walk DbConfig)
     public static final NativeFunctionDefinition DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1 = signature("native function meta::relational::functions::toDDL::createTableStatement(database:meta::relational::metamodel::Database[1], tableName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
