@@ -243,7 +243,10 @@ public final class HostEval {
         }
         if (a instanceof Number na && b instanceof Number nb
                 && !(a instanceof Double || b instanceof Double)) {
-            return na.longValue() == nb.longValue();
+            // F6.4 (audit A4): longValue() collapsed 1.5 == 1 — exact
+            // numeric comparison, no kind collapse
+            return new java.math.BigDecimal(na.toString())
+                    .compareTo(new java.math.BigDecimal(nb.toString())) == 0;
         }
         return java.util.Objects.equals(a, b);
     }
