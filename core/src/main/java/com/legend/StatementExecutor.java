@@ -3150,6 +3150,12 @@ final class StatementExecutor {
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + dialect.render(plan));
         }
+        // E1 (JAVA_EVICTION_PLAN): post-staticize wrap — the plan
+        // emits the PCT wire text as one Scalar String
+        if (com.legend.exec.PctRenderOption.enabled() && root.info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType) {
+            return executePctTds(plan, root, dialect, connection);
+        }
         ExecutionResult res = Executor.execute(
                 dialect.render(plan), plan,
                 collectionDeclared ? java.util.Objects.requireNonNull(declaredInfo, "declaredInfo")
@@ -3159,6 +3165,28 @@ final class StatementExecutor {
                 connection, dialect);
         enforceToOneReader(root, res);
         return res;
+    }
+
+    /** E1: probe (pivot plans only) → lowering-side wrap → SCALAR
+     * String execution — the wire text is the plan's projection. */
+    private static ExecutionResult executePctTds(com.legend.sql.SqlQuery plan,
+            TypedSpec root, com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection) throws java.sql.SQLException {
+        com.legend.sql.PlanProbe probe =
+                com.legend.lowering.PctTdsWrap.pivots(plan).isEmpty() ? null
+                        : com.legend.exec.PctProbe.probe(plan, dialect,
+                                connection);
+        com.legend.sql.SqlQuery rendered =
+                com.legend.lowering.PctTdsWrap.wrap(plan,
+                        (com.legend.compiler.element.type.Type.RelationType)
+                                root.info().type(),
+                        probe, com.legend.exec.Executor::pureOfSqlType);
+        com.legend.exec.PctRenderOption.markRendered();
+        return Executor.execute(dialect.render(rendered), rendered,
+                com.legend.compiler.element.type.ExprType.one(
+                        com.legend.compiler.element.type.Type.Primitive
+                                .STRING),
+                com.legend.exec.ResultShape.SCALAR, connection, dialect);
     }
 
     /** rows->toOne() READER enforcement (audit 22b F1): the lowering is

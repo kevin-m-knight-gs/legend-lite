@@ -169,6 +169,7 @@ public final class Lowerer {
         return this;
     }
 
+
     public Lowerer bindPlanParam(String name, boolean stringTyped) {
         letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
         return this;
@@ -1442,52 +1443,16 @@ public final class Lowerer {
      */
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
                                      ExprType info) {
-        List<SqlSelect.Projection> ps = tryProjectAll(base, columns);
+        List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns);
         if (ps == null) {
             base = isolate(base);
-            ps = tryProjectAll(base, columns);
+            ps = Fold.tryProjectAll(base, columns);
             if (ps == null) {
                 throw new IllegalStateException("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
             }
         }
         return base.withProjections(ps, outputsOf(info));
-    }
-
-    /** All columns resolved against {@code base}, or null if any misses. */
-    private static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
-        List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
-        for (String c : columns) {
-            SqlExpr e = Fold.resolveInto(base, c);
-            if (e == null) {
-                // PROJECTION position may inline a COMPUTED projection
-                // (window calls included): the caller REPLACES the whole
-                // projection list, so this is a narrowing/reorder of the
-                // same select — never a recomputation in a filtering
-                // position (the restrict-over-window-cols corpus pin;
-                // resolveInto's computed-decline serves the WHERE sites).
-                for (SqlSelect.Projection p : base.projections()) {
-                    if (c.equals(p.outputName())) {
-                        e = p.expr();
-                        break;
-                    }
-                }
-            }
-            if (e == null) {
-                return null;
-            }
-            // self-aliased reads drop the alias — EXCEPT reads of a
-            // union frame's outputs, which keep it (tds union goldens:
-            // "unionalias_0"."lhs_lastName" as "lhs_lastName")
-            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && "unionAlias".equals(sub.frameName())
-                    && e instanceof SqlExpr.Column uc
-                    && sub.alias().equals(uc.table());
-            ps.add(new SqlSelect.Projection(e,
-                    !unionRead && e instanceof SqlExpr.Column col
-                            && col.name().equals(c) ? null : c));
-        }
-        return ps;
     }
 
     /** Single-column relation removeDuplicates (rule owned by
@@ -3088,7 +3053,13 @@ public final class Lowerer {
         List<SqlSource.Pivot.Using> usings = new ArrayList<>();
         SqlSelect forAgg = SqlSelect.starOf(inner);
         for (TypedAggCol a : pv.aggs()) {
-            usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a), a.name()));
+            // the using carries its LOWERING-typed result slot — the
+            // typed fact pivot-generated columns inherit (E1)
+            Type aggT = a.reduce().info().type()
+                    instanceof Type.FunctionType ft
+                    ? ft.result().type() : Type.Primitive.STRING;
+            usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a),
+                    a.name(), PureSql.type(aggT)));
         }
         // Static pivot values pin the output columns via PIVOT ... IN (v…).
         List<SqlExpr> in = pv.values().stream()

@@ -44,7 +44,7 @@ class JavaEvalLedgerTest {
             // follow-up: the name row alone under-covered it — print
             // decisions also live in the value bridge), shrink-only
             // until root mode reduces it to the adapter contract
-            "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1190,
+            "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101,
             "core/src/main/java/com/legend/exec/HostEval.java", 928,
             "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1603,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
@@ -85,15 +85,19 @@ class JavaEvalLedgerTest {
         // into SQL; the row/comma/newline ASSEMBLY is still Java)
         EVICT_NAMES.put("core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
                 new Object[]{"(renderCsv|headerCase)\\(", 3});
-        // E1 — the PCT composition family: wire text, header spelling,
-        // multiplicity spelling, subsecond print precision, error-text
-        // remap (H4 known weakness), ingress re-escape — everything
-        // Java decides about the OBSERVED surface (the CoreInstance
-        // bridge itself is the PCT framework's adapter contract and
-        // stays until root mode strips its print decisions)
+        // E1 LANDED (2026-08-17): the composition family is DEAD — the
+        // PLAN emits the PCT wire text (Lowerer/Render pctTds via
+        // PctRender at the execution seam; PCT 1110/1110). This row now
+        // PINS the deletion at zero. The adapter-contract RESIDUE moved
+        // to the PERMANENT register: createTDSResult (wraps the DB text
+        // into the TDSResult CoreInstance), multText (model-source
+        // extraction, ingress), stripTrailingZeros (scalar-bridge date
+        // instance precision decode), remapErrorMessage (error-text
+        // adapter, H4 known weakness documented), reEscapeStringLiterals
+        // (interpreter-artifact ingress).
         EVICT_NAMES.put("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java",
-                new Object[]{"(formatAsTds|formatValue|formatDate|createTDSResult|purePctName|multText|stripTrailingZeros|remapErrorMessage|reEscapeStringLiterals)\\(",
-                        17});
+                new Object[]{"(formatAsTds|formatValue|formatDate|purePctName)\\(",
+                        0});
     }
 
     @Test

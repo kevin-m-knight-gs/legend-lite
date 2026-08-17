@@ -102,7 +102,7 @@ public abstract class SqlRewriter {
                 List<SqlSource.Pivot.Using> us = mapList(p.usings(), u -> {
                     SqlAgg.Reducer r2 = (SqlAgg.Reducer) rewriteExpr(u.agg());
                     return r2 == u.agg() ? u
-                            : new SqlSource.Pivot.Using(r2, u.alias());
+                            : new SqlSource.Pivot.Using(r2, u.alias(), u.type());
                 });
                 yield src == p.source() && on == p.on() && in == p.in()
                         && us == p.usings() ? p

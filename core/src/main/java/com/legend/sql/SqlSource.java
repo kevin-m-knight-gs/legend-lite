@@ -29,7 +29,16 @@ public sealed interface SqlSource {
      */
     record Pivot(SqlSource source, List<SqlExpr> on, List<SqlExpr> in, List<Using> usings,
                  String alias, List<OutputCol> outputs) implements SqlSource {
-        public record Using(SqlAgg.Reducer agg, String alias) {
+        /** {@code type}: the aggregate's LOWERING-typed result slot —
+         * the typed fact pivot-generated columns inherit (E1: recovered
+         * from backend metadata before, which typed SUM columns Decimal
+         * on H2 and Integer on DuckDB). Null only through the legacy
+         * ctor at rewrite sites that predate the field. */
+        public record Using(SqlAgg.Reducer agg, String alias,
+                @com.legend.Nullable SqlType type) {
+            public Using(SqlAgg.Reducer agg, String alias) {
+                this(agg, alias, null);
+            }
         }
     }
 

@@ -38,7 +38,7 @@ import java.util.List;
  * — the header goes through the SAME SQL expression over literal names
  * so no second copy exists in Java.
  */
-final class Render {
+public final class Render {
 
     private Render() {
     }
@@ -420,6 +420,177 @@ final class Render {
     /** THE RFC4180 escape rule ({@code escapeCSVString}), spelled once:
      *  quote when the text contains comma, quote, LF or CR; embedded
      *  quotes double. */
+    /** E1: the PCT wire TDS text (the deleted
+     *  ExecuteLegendLiteQuery.formatAsTds, spelled by the DATABASE).
+     *  Header = a compile-time constant from the TYPED schema (name
+     *  quoting incl. pivot identities, pure type names — Variant FQN —
+     *  and data-independent multiplicity); rows '\n'-PREFIXED (no
+     *  trailing newline), cells comma-joined with the pure print forms:
+     *  DateTime = fixed-3-millis '+0000', StrictDate = yyyy-MM-dd,
+     *  Float = the pure minimal-decimal repr (Scalars.floatRepr),
+     *  Variant = always-quoted JSON with doubled quotes, SQL NULL =
+     *  bare {@code null}, strings quote only when they carry
+     *  comma/quote/newline. */
+    public static SqlSelect pctTds(SqlSelect inner, List<Type.Column> typedCols,
+            String rowAlias) {
+        List<OutputCol> cols = inner.outputs();
+        java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
+        for (Type.Column c : typedCols) {
+            byName.put(c.name(), c);
+        }
+        // hidden _pct_ord sort carriers ride the outputs for the
+        // aggregate's ORDER BY (hoistOrder sees them) but never print
+        List<OutputCol> hoistCols = cols;
+        cols = cols.stream()
+                .filter(oc -> !oc.name().startsWith("_pct_ord")).toList();
+        List<Type.Column> relCols = cols.stream().map(oc -> {
+            Type.Column t = byName.get(oc.name());
+            if (t == null) {
+                throw new IllegalStateException("pctTds: output column '"
+                        + oc.name() + "' has no typed relation column");
+            }
+            return t;
+        }).toList();
+        if (cols.isEmpty()) {
+            throw new IllegalStateException("pctTds over a zero-column relation");
+        }
+        String aggAlias = rowAlias + "_a";
+        SqlExpr line = pctCell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
+                relCols.get(0), cols.get(0).type());
+        for (int i = 1; i < cols.size(); i++) {
+            line = cat(line, new SqlExpr.StringLit(","),
+                    pctCell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                            relCols.get(i), cols.get(i).type()));
+        }
+        List<SqlSelect.Projection> rowProjs = new ArrayList<>();
+        List<OutputCol> rowOuts = new ArrayList<>();
+        rowProjs.add(new SqlSelect.Projection(line, "_pct_line"));
+        rowOuts.add(new OutputCol("_pct_line", SqlType.Scalar.VARCHAR, false));
+        List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, hoistCols,
+                rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
+        SqlExpr nl = new SqlExpr.StringLit("\n");
+        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
+                cat(nl, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(new SqlExpr.Column(aggAlias, "_pct_line"), nl),
+                        false, aggOrder)),
+                new SqlExpr.StringLit(""));
+        SqlExpr text = cat(new SqlExpr.StringLit(pctHeader(relCols)),
+                rowsJoined);
+        SqlSelect rows = SqlSelect.starOf(
+                        new SqlSource.Subselect(inner, rowAlias, null))
+                .withProjections(rowProjs, rowOuts);
+        return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
+                .withProjections(
+                        List.of(new SqlSelect.Projection(text, "pctTds")),
+                        List.of(new OutputCol("pctTds",
+                                SqlType.Scalar.VARCHAR, false)));
+    }
+
+    /** The header line — a COMPILE-TIME constant from the typed schema
+     *  (Java building a SQL literal is orchestration; every printed
+     *  fact is a typed plan fact). */
+    static String pctHeader(List<Type.Column> relCols) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < relCols.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            Type.Column col = relCols.get(i);
+            String colName = col.name();
+            if (colName.startsWith("'")) {
+                colName = "'" + colName.replace("'", "\\'") + "'";
+            } else if (colName.contains("__|__")) {
+                colName = "'\\'" + colName + "\\''";
+            } else if (!colName.matches("[A-Za-z_][A-Za-z0-9_$]*")) {
+                colName = "'" + colName + "'";
+            }
+            var m = col.multiplicity();
+            boolean optional = m instanceof com.legend.compiler.element
+                    .type.Multiplicity.Bounded b && b.lower() == 0;
+            sb.append(colName).append(':').append(pctTypeName(col.type()))
+                    .append(optional ? "[0..1]" : "[1]");
+        }
+        return sb.toString();
+    }
+
+    private static String pctTypeName(Type t) {
+        if (t instanceof Type.Primitive p) {
+            return p.typeName();
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
+            // the 5.88 TDS header parser resolves names as pure paths
+            // without import scanning — Variant must be fully qualified
+            return "meta::pure::metamodel::variant::Variant";
+        }
+        return t.typeName();
+    }
+
+    /** One PCT cell: typed print form, SQL NULL = bare 'null'. */
+    private static SqlExpr pctCell(SqlExpr c, Type.Column col, SqlType slot) {
+        Type t = col.type();
+        SqlExpr rendered;
+        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
+            // pure prints VARIANT cells ALWAYS quoted, quotes doubled
+            SqlExpr json = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
+            rendered = cat(new SqlExpr.StringLit("\""),
+                    SqlExpr.Call.of(SqlFn.REPLACE, json,
+                            new SqlExpr.StringLit("\""),
+                            new SqlExpr.StringLit("\"\"")),
+                    new SqlExpr.StringLit("\""));
+        } else if (t == Type.Primitive.STRICT_DATE
+                || (t == Type.Primitive.DATE
+                        && slot == SqlType.Scalar.DATE)) {
+            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+        } else if (t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.DATE) {
+            // fixed THREE millisecond digits + '+0000' (the deephaven
+            // parser's accepted form — measured in the F4.4 attempt)
+            rendered = cat(
+                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                            new SqlExpr.FormatLit(
+                                    com.legend.sql.DateFmt.ISO_DOT)),
+                    SqlExpr.Call.of(SqlFn.SUBSTRING,
+                            SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                                    new SqlExpr.FormatLit(List.of(
+                                            com.legend.sql.DateFmt.Part
+                                                    .SUBSEC_MICRO))),
+                            new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
+                    new SqlExpr.StringLit("+0000"));
+        } else if (t == Type.Primitive.FLOAT) {
+            rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
+        } else if (t == Type.Primitive.STRING
+                || t instanceof Type.EnumType) {
+            rendered = pctEscape(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else {
+            // Integer/Boolean/Decimal/Number print via the DB's plain
+            // VARCHAR cast (NUMBER columns carry mixed-identity print
+            // forms already)
+            rendered = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
+        }
+        // EXPLICIT null dispatch on the SOURCE column — DuckDB's
+        // concat() SKIPS null arguments (a null DateTime rendered as
+        // bare '+0000' through the concat chain), so coalesce over the
+        // rendered text is not a null test
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, c),
+                new SqlExpr.StringLit("null"))), rendered);
+    }
+
+    /** PCT string cell quoting: only when the value carries a comma,
+     *  quote, or newline (quotes double). */
+    private static SqlExpr pctEscape(SqlExpr s) {
+        SqlExpr needs = or(or(contains(s, ","), contains(s, "\"")),
+                contains(s, "\n"));
+        SqlExpr quoted = cat(new SqlExpr.StringLit("\""),
+                SqlExpr.Call.of(SqlFn.REPLACE, s,
+                        new SqlExpr.StringLit("\""),
+                        new SqlExpr.StringLit("\"\"")),
+                new SqlExpr.StringLit("\""));
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(needs, quoted)), s);
+    }
+
     private static SqlExpr escapeCsv(SqlExpr s) {
         SqlExpr needs = or(contains(s, ","), or(contains(s, "\""),
                 or(contains(s, "\n"), contains(s, "\r"))));

@@ -665,7 +665,7 @@ public final class Executor {
      * Every known name is EXPLICIT — an unrecognized SQL type is a gap in
      * this table, not a String (audit 15: the silent String default
      * corrupted result typing invisibly). */
-    private static Type pureOfSqlType(String sqlType) {
+    public static Type pureOfSqlType(String sqlType) {
         // V1.9 (Phase 8): the parameter suffix strips ONCE
         // ('DECIMAL(38,9)' -> 'DECIMAL'), then the table is EXACT-match
         // with a loud default — no prefix matching (the audited

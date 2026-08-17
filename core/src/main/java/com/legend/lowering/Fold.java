@@ -6,6 +6,7 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
+import java.util.ArrayList;
 import java.util.List;
 /**
  * THE fold authority (PHASE_HIJ_LOWERING.md): the single owner of the
@@ -644,5 +645,42 @@ final class Fold {
         return t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                 ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
                 : new SqlExpr.Cast(v, com.legend.sql.SqlType.Scalar.VARCHAR);
+    }
+
+    /** All columns resolved against {@code base}, or null if any misses
+     * (moved from Lowerer — this is Fold's own resolveInto vocabulary). */
+    static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
+        for (String c : columns) {
+            SqlExpr e = Fold.resolveInto(base, c);
+            if (e == null) {
+                // PROJECTION position may inline a COMPUTED projection
+                // (window calls included): the caller REPLACES the whole
+                // projection list, so this is a narrowing/reorder of the
+                // same select — never a recomputation in a filtering
+                // position (the restrict-over-window-cols corpus pin;
+                // resolveInto's computed-decline serves the WHERE sites).
+                for (SqlSelect.Projection p : base.projections()) {
+                    if (c.equals(p.outputName())) {
+                        e = p.expr();
+                        break;
+                    }
+                }
+            }
+            if (e == null) {
+                return null;
+            }
+            // self-aliased reads drop the alias — EXCEPT reads of a
+            // union frame's outputs, which keep it (tds union goldens:
+            // "unionalias_0"."lhs_lastName" as "lhs_lastName")
+            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
+                    && "unionAlias".equals(sub.frameName())
+                    && e instanceof SqlExpr.Column uc
+                    && sub.alias().equals(uc.table());
+            ps.add(new SqlSelect.Projection(e,
+                    !unionRead && e instanceof SqlExpr.Column col
+                            && col.name().equals(c) ? null : c));
+        }
+        return ps;
     }
 }

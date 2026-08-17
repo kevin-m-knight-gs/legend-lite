@@ -177,13 +177,31 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 model = classDefs + model;
             }
 
-            ExecutionResult result = new QueryService().execute(model, pureExpression,
-                    "test::TestRuntime", connection);
+            // E1 (JAVA_EVICTION_PLAN): relation-rooted queries render
+            // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root
+            // mode) — the adapter receives one Scalar String and hands
+            // it over verbatim; formatAsTds/formatValue are gone.
+            ExecutionResult result;
+            boolean tdsRendered;
+            try (AutoCloseable ignored2 =
+                    com.legend.exec.PctRenderOption.enable()) {
+                result = new QueryService().execute(model, pureExpression,
+                        "test::TestRuntime", connection);
+                tdsRendered = com.legend.exec.PctRenderOption.wasRendered();
+            }
+            if (tdsRendered) {
+                String tdsString = String.valueOf(((Scalar) result).value());
+                System.out.println("[LegendLite PCT] TDS: "
+                        + tdsString.replace("\n", "\\n"));
+                return createTDSResult(tdsString, processorSupport);
+            }
 
             return switch (result) {
                 case Scalar s -> handleScalar(s, processorSupport);
                 case Collection c -> handleCollection(c, processorSupport);
-                case Tabular t -> handleTabular(t, processorSupport);
+                case Tabular t -> throw new IllegalStateException(
+                        "PCT tabular result outside the render mode — the"
+                        + " root-mode wrap missed a relation root");
                 case Graph g -> ValueSpecificationBootstrap.newStringLiteral(
                         modelRepository, g.json(), processorSupport);
             };
@@ -265,11 +283,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances), true, ps);
     }
 
-    private CoreInstance handleTabular(Tabular result, ProcessorSupport ps) {
-        String tdsString = formatAsTds(result);
-        System.out.println("[LegendLite PCT] TDS: " + tdsString.replace("\n", "\\n"));
-        return createTDSResult(tdsString, ps);
-    }
 
     // ===== toCoreInstance: single Java → CoreInstance conversion =====
 
@@ -691,64 +704,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Formats a TabularResult as a TDS string for stringToTDS().
      * Column types come from the compiler schema (already Pure type names).
      */
-    private String formatAsTds(ExecutionResult result) {
-        StringBuilder sb = new StringBuilder();
-        var columns = result.columns();
-        for (int i = 0; i < columns.size(); i++) {
-            if (i > 0) sb.append(",");
-            Column col = columns.get(i);
-            String colName = col.name();
-            if (colName.startsWith("'")) {
-                // quote-BEARING identity ('2011__|__newCol' with its
-                // quotes): escape the inner pair inside an outer pair
-                // (the rule the deleted overlay spelled — now here, the
-                // one wire writer)
-                colName = "'" + colName.replace("'", "\\'") + "'";
-            } else if (colName.contains("__|__")) {
-                // Pure pivot column IDENTITY includes the quotes
-                // ('UK__|__LDN__|__sum'); TDSExtension strips ONE outer
-                // layer, so the header carries an escaped inner pair.
-                colName = "'\\'" + colName + "\\''";
-            } else if (!colName.matches("[A-Za-z_][A-Za-z0-9_$]*")) {
-                // Non-identifier names ('other kind') quote — the parser
-                // strips the pair; the IDENTITY stays unquoted.
-                colName = "'" + colName + "'";
-            }
-            // Pure 5.88's TDS parser resolves header types as PURE paths
-            // (VARCHAR was "not found") — spell the Pure primitive, WITH a
-            // data-driven multiplicity: the tests cast results to declared
-            // Relation<(col:T[1])>/[0..1] shapes, and a header without the
-            // annotation builds [0..1] columns that no longer cast to [1].
-            // F5.3 Stage B: multiplicity is the column's TYPED fact
-            // (F5.2 carried it across the bridge) — the value-scan that
-            // used to sniff NULLs is deleted; a null arity means the
-            // producer did not declare one and the column is to-one
-            var m = col.multiplicity();
-            boolean optional = m instanceof com.legend.compiler.element
-                    .type.Multiplicity.Bounded b && b.lower() == 0;
-            sb.append(colName).append(":").append(purePctName(col))
-                    .append(optional ? "[0..1]" : "[1]");
-        }
-        for (var row : result.rows()) {
-            sb.append("\n");
-            var values = row.values();
-            for (int i = 0; i < values.size(); i++) {
-                if (i > 0) sb.append(",");
-                // Pure prints VARIANT cells ALWAYS quoted ("[]", "null"),
-                // comma or not.
-                boolean variant = com.legend.compiler.element.type
-                        .PlatformTypes.isVariant(
-                                columns.get(i).pureType());
-                Object v = values.get(i);
-                if (variant && v != null) {
-                    sb.append("\"").append(v.toString().replace("\"", "\"\"")).append("\"");
-                } else {
-                    sb.append(formatValue(v));
-                }
-            }
-        }
-        return sb.toString();
-    }
 
     /** F5.1: the column's PURE type names the header (the SQL-type-name
      * sniff is gone). F5.3 Stage B: temporals and Variant spell their
@@ -757,51 +712,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * headers green for months); Variant needs its FQN because the 5.88
      * TDS header parser resolves type names without import scanning.
      * Variant cells still travel as quoted JSON text. */
-    private static String purePctName(com.legend.exec.Column col) {
-        var t = col.pureType();
-        if (t instanceof com.legend.compiler.element.type.Type.Primitive p) {
-            return p.typeName();
-        }
-        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
-            // F5.3 Stage B: the wire says what the column IS (cells
-            // travel as quoted JSON text). FULLY QUALIFIED — the 5.88 TDS
-            // header parser resolves type names as pure paths without
-            // import scanning ('Variant not found!').
-            return "meta::pure::metamodel::variant::Variant";
-        }
-        return t.typeName();
-    }
 
-    private String formatValue(Object value) {
-        if (value == null) return "null";
-        // Pure's date print forms: DateTime = ISO with millis + +0000
-        // offset; StrictDate = plain date (the PCT expected strings).
-        if (value instanceof java.sql.Timestamp ts) {
-            var ldt = ts.toLocalDateTime();
-            return ldt.format(java.time.format.DateTimeFormatter
-                    .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
-        }
-        if (value instanceof java.time.OffsetDateTime odt) {
-            return odt.withOffsetSameInstant(java.time.ZoneOffset.UTC)
-                    .format(java.time.format.DateTimeFormatter
-                            .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
-        }
-        if (value instanceof Double d && !d.isInfinite() && !d.isNaN()) {
-            // pure float PRINT: plain decimal, never scientific; integral
-            // floats keep a trailing .0 (2.25e19 -> '22500000000000000000.0')
-            java.math.BigDecimal bd = java.math.BigDecimal.valueOf(d);
-            String plain = bd.toPlainString();
-            return bd.scale() <= 0 ? plain + ".0" : plain;
-        }
-        String str = value.toString();
-        // NOTE: an empty string CANNOT survive the TDS wire — the parser's
-        // null literals are ["", "null"], quoted or not (probe-verified);
-        // the one affected test is the ledgered expected failure.
-        if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
-            return "\"" + str.replace("\"", "\"\"") + "\"";
-        }
-        return str;
-    }
 
     private CoreInstance createTDSResult(String tdsString, ProcessorSupport ps) {
         CoreInstance tdsResultClass = ps.package_getByUserPath("meta::legend::lite::pct::TDSResult");

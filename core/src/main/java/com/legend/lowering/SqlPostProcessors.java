@@ -271,7 +271,7 @@ public final class SqlPostProcessors {
                     p.in().stream().map(x -> expr(x, m)).toList(),
                     p.usings().stream().map(u -> new SqlSource.Pivot.Using(
                             (com.legend.sql.SqlAgg.Reducer) expr(u.agg(), m),
-                            u.alias())).toList(),
+                            u.alias(), u.type())).toList(),
                     p.alias(), p.outputs());
             case SqlSource.Values v -> new SqlSource.Values(
                     v.rows().stream().map(r -> r.stream()

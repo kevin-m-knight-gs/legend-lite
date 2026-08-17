@@ -149,6 +149,22 @@ leg's progress is a number.
 re-pinned with justifications); the file's size pin drops to the adapter core; PCT 1109/1109;
 PCT is orchestration-only.
 
+**LANDED (2026-08-17):** the plan emits the PCT wire text. `Render.pctTds` (header = a
+compile-time constant from the typed schema; cells = the pure print forms in SQL — fixed-3ms
+'+0000' DateTimes, `floatRepr` floats, always-quoted Variant JSON, bare `null` via explicit
+IS NULL dispatch since DuckDB's `concat` SKIPS nulls); `PctTdsWrap` composes the wrapper AFTER
+`DynamicPivot.staticize` (post-hoc plan REWRITING stays impossible — this is shape-agnostic
+subselect WRAPPING); pivot plans get a LIMIT-0 metadata probe (`PctProbe`, exec seam) for
+concrete NAMES, while their TYPES ride structurally: `Pivot.Using` now carries its
+lowering-typed result slot, and the decode is an `endsWith` against that closed minted-alias
+vocabulary — loud wall on zero-or-many (the first draft's `lastIndexOf` name-parsing was the
+exact anti-pattern this program kills, caught in review; the G7 H2 ledger had already caught
+the backend-typed fallback spelling SUM columns Decimal-on-H2/Integer-on-DuckDB). ORDER BY
+lifts onto the wrapper; keys the projection dropped carry out as hidden `_pct_ord`
+projections. `formatAsTds`/`formatValue`/`purePctName` DELETED; the adapter keeps only the
+option toggle and the verbatim hand-over. PCT 1110/1110 on DuckDB AND within the G7 H2
+ledger; corpus scoreboard byte-identical; full chain GREEN.
+
 ### E2 — TDS-to-many slot + A13 row explosion → SQL · effort M
 
 One design, both halves: a to-many project lambda emits the engine's
