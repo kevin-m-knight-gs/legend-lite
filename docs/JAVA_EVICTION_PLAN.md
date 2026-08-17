@@ -299,6 +299,23 @@ into two channels, each with a ratified end-state:
      constants from `^Class(...)` literals — compilation by the §1 rule) and the
      plan-text ENVELOPE wrapper. No SQL or DDL is spelled twice anywhere.
 
+**E4.e batch 1 LANDED 2026-08-17 — the grid-read chain compiler (`exec/GridReads`).**
+Recognized DB-VALUE chains COMPILE INTO SQL over the catalog base query and the
+DATABASE produces every value: the fold-concatenate column collect
+(`.rows->fold({a,b|concatenate($a.values->at(k), $b)}, [])` → `SELECT "COL" FROM
+(base)`), `Row.value('NAME')` (direct AND auto-mapped through its TypedMap wrapper),
+flattened positional cells (`.rows.values->at(k)` → row k/n col k%n via LIMIT/OFFSET),
+`columnNames` (compilation facts — we authored the catalog projections), bare-rows
+emptiness reads, and `toOne`/`toString` wrappers (CAST semantics via the value).
+Bottoms: fetchDb* with literal/let-resolved patterns (base SQL from `DbMetaData.
+fetchSql`/`pkSql`, now exposed without execution) and literal-SQL `executeInDb` READS
+(boundary-adapted like the write path; projection names from a LIMIT-0 probe — the E1
+discipline). A chain outside the vocabulary falls back to the interpreter unchanged —
+per-shape eviction, never a behavior change. Instrumented result on the
+`functions/tests` family: interpreter firings ~300 → 10 (the residue: two
+`executeInDb` reads whose SQL argument is a COMPUTED string — non-literal ingress
+stays interpreted by the closed-vocabulary discipline; loud and characterized).
+
 **E4.d batch 1 LANDED 2026-08-17 — the DDL flavor merge.** `Ddl.Flavor {H2_EXEC,
 DUCK_EXEC, ENGINE_TEXT}`: one create-table generator (flavor dispatches column-name
 quoting, separator, type spelling, nullability, PK clause), one drop spelling (the two

@@ -52,7 +52,13 @@ class RawSqlLedgerTest {
     // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
-            "HostEval.java", 1);
+            "HostEval.java", 1,
+            // E4.e: the grid-read chain compiler adapts the SAME
+            // corpus-authored executeInDb READ text as HostEval's read
+            // arm (F6.6) before compiling the chain over it — the R0
+            // contract's admitted class, a second call site of the one
+            // boundary, never a new text source
+            "GridReads.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");

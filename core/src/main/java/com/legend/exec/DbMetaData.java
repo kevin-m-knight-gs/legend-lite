@@ -43,7 +43,17 @@ public final class DbMetaData {
             @com.legend.Nullable String tablePattern,
             @com.legend.Nullable String columnPattern,
             Connection ambient) throws SQLException {
-        String sql = switch (com.legend.compiler.element.type.PlatformTypes
+        return query(fetchSql(nativeFqn, schemaPattern, tablePattern,
+                columnPattern), ambient);
+    }
+
+    /** The catalog query TEXT alone — the E4.e grid-read compiler
+     * composes further SQL over it (the chain projection). */
+    public static String fetchSql(String nativeFqn,
+            @com.legend.Nullable String schemaPattern,
+            @com.legend.Nullable String tablePattern,
+            @com.legend.Nullable String columnPattern) {
+        return switch (com.legend.compiler.element.type.PlatformTypes
                 .fetchDbKind(nativeFqn)) {
             case SCHEMAS -> "SELECT upper(schema_name) AS \"TABLE_SCHEM\","
                     + " upper(catalog_name) AS \"TABLE_CATALOG\""
@@ -80,7 +90,6 @@ public final class DbMetaData {
                     "primary keys route through fetchPrimaryKeys (model"
                     + " facts — the ambient DDL omits PK constraints)");
         };
-        return query(sql, ambient);
     }
 
     /** The PRIMARY_KEYS grid: the connection store's PK facts are MODEL
@@ -93,10 +102,21 @@ public final class DbMetaData {
             @com.legend.Nullable String schemaPattern,
             @com.legend.Nullable String tablePattern,
             Connection ambient) throws SQLException {
+        String sql = pkSql(facts, schemaPattern, tablePattern);
+        return sql == null
+                ? new HostResultSet(List.of("TABLE_CAT", "TABLE_SCHEM",
+                        "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"),
+                        List.of())
+                : query(sql, ambient);
+    }
+
+    /** The PK catalog query TEXT alone (null = no facts → empty grid) —
+     * the E4.e grid-read compiler composes over it. */
+    public static @com.legend.Nullable String pkSql(List<String[]> facts,
+            @com.legend.Nullable String schemaPattern,
+            @com.legend.Nullable String tablePattern) {
         if (facts.isEmpty()) {
-            return new HostResultSet(List.of("TABLE_CAT", "TABLE_SCHEM",
-                    "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"),
-                    List.of());
+            return null;
         }
         StringBuilder values = new StringBuilder();
         for (String[] f : facts) {
@@ -109,7 +129,7 @@ public final class DbMetaData {
                     .append("'), ").append(Integer.parseInt(f[3]))
                     .append(", NULL)");
         }
-        String sql = "SELECT * FROM (VALUES " + values
+        return "SELECT * FROM (VALUES " + values
                 + ") AS pk(\"TABLE_CAT\", \"TABLE_SCHEM\", \"TABLE_NAME\","
                 + " \"COLUMN_NAME\", \"KEY_SEQ\", \"PK_NAME\")"
                 + " WHERE EXISTS (SELECT 1 FROM information_schema.tables t"
@@ -119,11 +139,27 @@ public final class DbMetaData {
                 + like("pk.\"TABLE_SCHEM\"", schemaPattern)
                 + like("pk.\"TABLE_NAME\"", tablePattern)
                 + " ORDER BY 2, 3, 5";
-        return query(sql, ambient);
     }
 
     private static String esc(String s) {
         return s.replace("'", "''");
+    }
+
+    /** The grid's projection names per kind — WE authored the catalog
+     * projections above, so the names are compilation facts (the E4.e
+     * chain compiler's columnNames / positional-index arithmetic). */
+    public static List<String> gridColumns(
+            com.legend.compiler.element.type.PlatformTypes.FetchDbKind k) {
+        return switch (k) {
+            case SCHEMAS -> List.of("TABLE_SCHEM", "TABLE_CATALOG");
+            case TABLES -> List.of("TABLE_CAT", "TABLE_SCHEM",
+                    "TABLE_NAME", "TABLE_TYPE", "REMARKS");
+            case COLUMNS -> List.of("TABLE_CAT", "TABLE_SCHEM",
+                    "TABLE_NAME", "COLUMN_NAME", "DATA_TYPE", "TYPE_NAME",
+                    "SQL_TYPE_NAME");
+            case PRIMARY_KEYS -> List.of("TABLE_CAT", "TABLE_SCHEM",
+                    "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME");
+        };
     }
 
     /** The PK fact rows (schema, table, column, seq) of the connection's

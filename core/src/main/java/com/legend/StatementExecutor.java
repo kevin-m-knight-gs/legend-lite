@@ -531,10 +531,20 @@ final class StatementExecutor {
         if (!com.legend.exec.HostEval.wantsHostEval(bare, hostLets)) {
             return null;
         }
-        return com.legend.exec.HostEval.evalToResult(
-                bare, env.ctx(), specs, hostLets,
+        com.legend.exec.HostEval.Ambient amb =
                 new com.legend.exec.HostEval.Ambient(
-                        env.connection(), env.dialect()));
+                        env.connection(), env.dialect());
+        // E4.e: a recognized grid-read chain COMPILES INTO SQL — the
+        // database produces the chain's values; anything else falls
+        // through to the interpreter (per-shape eviction)
+        com.legend.exec.ExecutionResult lowered =
+                com.legend.exec.GridReads.tryLower(bare, hostLets,
+                        env.ctx(), amb);
+        if (lowered != null) {
+            return lowered;
+        }
+        return com.legend.exec.HostEval.evalToResult(
+                bare, env.ctx(), specs, hostLets, amb);
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
