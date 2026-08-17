@@ -46,7 +46,7 @@ class NlqFullPipelineEvalTest {
         index.buildIndex(modelBuilder);
 
         gemini = new GeminiClient(System.getenv("GEMINI_API_KEY"), "gemini-3-flash-preview");
-        service = new NlqService(index, modelBuilder, gemini);
+        service = new NlqService(index, modelBuilder, gemini, pureSource);
         runner = new NlqEvalRunner(index, modelBuilder);
 
         evalCases = NlqEvalRunner.loadCases("/nlq/nlq-eval-cases.json");

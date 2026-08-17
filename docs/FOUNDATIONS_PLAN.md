@@ -1362,6 +1362,18 @@ the old put of the `toJsonArray` STRING double-encoded the payload; the integrat
 PINS `"data":[` and refutes `"data":"[` (the substring check that passed identically for both
 forms is superseded). The STREAMING half — `Executor.stream` is correct and no HTTP route uses
 it — is product-surface wiring, filed in the §9 backlog. Chain GREEN.
+**A22 LANDED:** nlq validation is COMPILE, not parse — `NlqService` now REQUIRES the model
+source (4-arg constructor, all nine sites migrated) and the generation retry loop calls
+`Compiler.compileQuery` (type check against the model); the generator prompt demands fully
+qualified class names. On its FIRST run the compile validator caught a real fixture bug — a
+mock query reading `VaRResult.var95`, a property that never existed (the audit's exact
+scenario). `NlqEvalMetrics`: `scoreQueryAccuracy` compiles when a model source is supplied;
+the sort-coverage tautology is dead (the key must appear IN the sort section — the old
+`contains("sort")` clause scored 1.0 for any sorted query); judge ERRORS count as UNJUDGED and
+the report prints `judged M of N; K judge error(s)` (the old `overall() > 0` filter silently
+shrank the denominator). Also un-rotted: a dead `com.gs.legend.model.m3` import had kept the
+whole nlq test module from COMPILING outside the gates — 223 module tests green again. Chain
+GREEN (nlq is not yet a gate — its module tests are the referee here).
 
 **Backlog (append new findings here, do not act on them mid-plan):**
 - **HTTP streaming route (A20 residue):** `Executor.stream` (JSON straight

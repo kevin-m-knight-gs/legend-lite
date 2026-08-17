@@ -25,6 +25,11 @@ public class NlqService {
     private static final String PURE_GENERATOR_PROMPT = """
             You are a Pure language code generator. Generate a valid Pure query expression.
 
+            NAMING: spell every class by its FULLY QUALIFIED name exactly
+            as the schema gives it (e.g. trading::Trade.all(), never
+            Trade.all()) — the query is COMPILED against the model and
+            an unqualified name does not resolve.
+
             ═══════════════════════════════════════════
             RULE 1: PROJECT FIRST
             ═══════════════════════════════════════════
@@ -227,11 +232,24 @@ public class NlqService {
     private final SemanticIndex index;
     private final ParsedModel modelBuilder;
     private final LlmClient llmClient;
+    private final String modelSource;
 
-    public NlqService(SemanticIndex index, ParsedModel modelBuilder, LlmClient llmClient) {
+    /** A22: the service REQUIRES the model source — generated queries
+     * validate by COMPILE (type check against the model), never by
+     * parse alone (a query naming a nonexistent property used to be
+     * reported {@code success: true}). */
+    public NlqService(SemanticIndex index, ParsedModel modelBuilder,
+            LlmClient llmClient, String modelSource) {
         this.index = index;
         this.modelBuilder = modelBuilder;
         this.llmClient = llmClient;
+        this.modelSource = java.util.Objects.requireNonNull(modelSource,
+                "modelSource — compile validation needs the model");
+    }
+
+    /** The Pure model source this service validates against. */
+    public String modelSource() {
+        return modelSource;
     }
 
     /**
@@ -269,25 +287,28 @@ public class NlqService {
 
             // Step 3: Pure Generator — generate Pure syntax (with parse-retry)
             String pureQuery = null;
-            Exception lastParseError = null;
+            Exception lastCompileError = null;
             for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 pureQuery = generatePure(question, rootClass, queryPlan, focusedSchema);
                 try {
-                    com.legend.Compiler.parseQuery(pureQuery);
-                    lastParseError = null;
+                    // A22: COMPILE validation — syntax AND types against
+                    // the model (parseQuery alone reported success for
+                    // queries naming nonexistent properties)
+                    com.legend.Compiler.compileQuery(modelSource, pureQuery);
+                    lastCompileError = null;
                     break;
                 } catch (Exception e) {
-                    lastParseError = e;
+                    lastCompileError = e;
                     if (attempt < MAX_RETRIES) {
-                        System.out.printf("  [retry] parse failed (attempt %d/%d): %s%n",
+                        System.out.printf("  [retry] compile failed (attempt %d/%d): %s%n",
                                 attempt + 1, MAX_RETRIES + 1, e.getMessage());
                     }
                 }
             }
-            if (lastParseError != null) {
+            if (lastCompileError != null) {
                 long elapsed = (System.nanoTime() - start) / 1_000_000;
-                return NlqResult.error("Parse validation failed after " + (MAX_RETRIES + 1) +
-                        " attempts: " + lastParseError.getMessage(), retrievedList, elapsed);
+                return NlqResult.error("Compile validation failed after " + (MAX_RETRIES + 1) +
+                        " attempts: " + lastCompileError.getMessage(), retrievedList, elapsed);
             }
 
             long elapsed = (System.nanoTime() - start) / 1_000_000;

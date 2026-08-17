@@ -109,7 +109,7 @@ public class NlqHttpServer {
                 LlmClient llmClient = LlmClientFactory.create();
 
                 // Run NLQ pipeline
-                NlqService nlqService = new NlqService(index, modelBuilder, llmClient);
+                NlqService nlqService = new NlqService(index, modelBuilder, llmClient, pureSource);
                 NlqResult result = nlqService.process(question, domain);
 
                 Map<String, Object> response = new LinkedHashMap<>();

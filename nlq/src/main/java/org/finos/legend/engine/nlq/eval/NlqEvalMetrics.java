@@ -172,6 +172,15 @@ public final class NlqEvalMetrics {
 
     public static NlqFullEvalResult.QueryAccuracyScore scoreQueryAccuracy(
             String pureQuery, NlqEvalCase.QueryExpectation expected) {
+        return scoreQueryAccuracy(pureQuery, expected, null);
+    }
+
+    /** A22: with a model source, "parseable" means COMPILES (types
+     * checked against the model); parse-only survives solely for
+     * callers with no model in hand. */
+    public static NlqFullEvalResult.QueryAccuracyScore scoreQueryAccuracy(
+            String pureQuery, NlqEvalCase.QueryExpectation expected,
+            @com.legend.Nullable String modelSource) {
 
         if (pureQuery == null || pureQuery.isBlank()) {
             return new NlqFullEvalResult.QueryAccuracyScore(
@@ -180,7 +189,11 @@ public final class NlqEvalMetrics {
 
         boolean parseable;
         try {
-            com.legend.Compiler.parseQuery(pureQuery);
+            if (modelSource != null) {
+                com.legend.Compiler.compileQuery(modelSource, pureQuery);
+            } else {
+                com.legend.Compiler.parseQuery(pureQuery);
+            }
             parseable = true;
         } catch (Exception e) {
             parseable = false;
@@ -262,9 +275,13 @@ public final class NlqEvalMetrics {
                 : (double) (expected.filters().size() - missingFilters.size()) / expected.filters().size();
 
         // Sort coverage
+        // A22: the KEY must appear in the sort section — the old
+        // `|| !pureQuery.contains("sort")` clause made every expected
+        // key count as present in ANY query containing any sort()
+        // (always 1.0, a tautology)
         List<String> missingSorts = new ArrayList<>();
         for (String s : expected.sortedBy()) {
-            if (sortSection == null || (!sortSection.contains(s) && !pureQuery.contains("sort") )) {
+            if (sortSection == null || !sortSection.contains(s)) {
                 missingSorts.add(s);
             }
         }
@@ -378,6 +395,7 @@ public final class NlqEvalMetrics {
         double totalJudgeAgg = 0;
         double totalJudgeSemantic = 0;
         int judgeCount = 0;
+        int judgeErrors = 0;
         long totalLatency = 0;
 
         for (NlqFullEvalResult r : results) {
@@ -399,13 +417,24 @@ public final class NlqEvalMetrics {
                 double roleScore = r.propertyRoles().overallScore();
                 if (roleScore > 0) { totalRoleScore += roleScore; roleCount++; }
             }
-            if (r.llmJudge() != null && r.llmJudge().overall() > 0) {
-                totalJudgeOverall += r.llmJudge().overall();
-                totalJudgeCols += r.llmJudge().columnSelection();
-                totalJudgeFilter += r.llmJudge().filtering();
-                totalJudgeAgg += r.llmJudge().aggregation();
-                totalJudgeSemantic += r.llmJudge().semanticEquivalence();
-                judgeCount++;
+            if (r.llmJudge() != null) {
+                // A22: a judge ERROR (infra failure — the all-zero
+                // sentinel with a 'Judge error:' rationale) is counted
+                // as UNJUDGED and reported, never silently dropped from
+                // the denominator; a legitimate all-zero judgment
+                // COUNTS (the old `overall() > 0` filter let the
+                // average be computed over 1 of 25 cases and pass)
+                if (String.valueOf(r.llmJudge().reasoning())
+                        .startsWith("Judge error:")) {
+                    judgeErrors++;
+                } else {
+                    totalJudgeOverall += r.llmJudge().overall();
+                    totalJudgeCols += r.llmJudge().columnSelection();
+                    totalJudgeFilter += r.llmJudge().filtering();
+                    totalJudgeAgg += r.llmJudge().aggregation();
+                    totalJudgeSemantic += r.llmJudge().semanticEquivalence();
+                    judgeCount++;
+                }
             }
         }
 
@@ -427,7 +456,10 @@ public final class NlqEvalMetrics {
             sb.append(String.format("  Avg Property Role:     %.1f%%\n", 100.0 * totalRoleScore / roleCount));
         }
 
-        sb.append(String.format("\n  LLM Judge (avg of %d):\n", judgeCount));
+        sb.append(String.format(
+                "\n  LLM Judge (judged %d of %d; %d judge error(s) —"
+                + " unjudged, excluded):\n",
+                judgeCount, total, judgeErrors));
         sb.append(String.format("    Column Selection:   %.1f / 5.0\n", totalJudgeCols / Math.max(1, judgeCount)));
         sb.append(String.format("    Filtering:          %.1f / 5.0\n", totalJudgeFilter / Math.max(1, judgeCount)));
         sb.append(String.format("    Aggregation:        %.1f / 5.0\n", totalJudgeAgg / Math.max(1, judgeCount)));

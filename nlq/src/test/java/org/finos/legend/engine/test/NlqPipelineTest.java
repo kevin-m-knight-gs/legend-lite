@@ -21,12 +21,13 @@ class NlqPipelineTest {
 
     private static ParsedModel modelBuilder;
     private static SemanticIndex index;
+    private static String pureSource;
 
     @BeforeAll
     static void setup() throws Exception {
         InputStream is = NlqPipelineTest.class.getResourceAsStream("/nlq/sales-trading-model.pure");
         assertNotNull(is, "Test model not found");
-        String pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        pureSource = new String(is.readAllBytes(), StandardCharsets.UTF_8);
 
         modelBuilder = NlqModel.parse(pureSource);
 
@@ -46,16 +47,16 @@ class NlqPipelineTest {
                 // Step 2: Planner response
                 "{\"projections\": [\"tradeId\", \"notional\"], \"filters\": [{\"path\": \"status\", \"op\": \"==\", \"value\": \"NEW\"}]}",
                 // Step 3: Generator response
-                "Trade.all()->filter(t|$t.status == 'NEW')->project([t|$t.tradeId, t|$t.notional], ['Trade ID', 'Notional'])"
+                "trading::Trade.all()->filter(t|$t.status == 'NEW')->project([t|$t.tradeId, t|$t.notional], ['Trade ID', 'Notional'])"
         );
 
-        NlqService service = new NlqService(index, modelBuilder, mock);
+        NlqService service = new NlqService(index, modelBuilder, mock, pureSource);
         NlqResult result = service.process("show me new trades", null);
 
         assertTrue(result.isValid(), "Pipeline should succeed: " + result.validationError());
         assertEquals("Trade", result.rootClass());
         assertNotNull(result.pureQuery());
-        assertTrue(result.pureQuery().contains("Trade.all()"));
+        assertTrue(result.pureQuery().contains("trading::Trade.all()"));
         assertNotNull(result.retrievedClasses());
         assertFalse(result.retrievedClasses().isEmpty());
         assertTrue(result.latencyMs() >= 0);
@@ -72,7 +73,7 @@ class NlqPipelineTest {
                 "Still don't understand",
                 "Nope, still garbage"
         );
-        NlqService service = new NlqService(index, modelBuilder, mock);
+        NlqService service = new NlqService(index, modelBuilder, mock, pureSource);
         NlqResult result = service.process("show me trades", null);
 
         assertFalse(result.isValid());
@@ -88,10 +89,10 @@ class NlqPipelineTest {
         MockLlmClient mock = MockLlmClient.withResponses(
                 "{\"rootClass\": \"DailyPnL\", \"reasoning\": \"PnL query\"}",
                 "{\"projections\": [\"totalPnL\"]}",
-                "DailyPnL.all()->project([p|$p.totalPnL], ['Total PnL'])"
+                "pnl::DailyPnL.all()->project([p|$p.totalPnL], ['Total PnL'])"
         );
 
-        NlqService service = new NlqService(index, modelBuilder, mock);
+        NlqService service = new NlqService(index, modelBuilder, mock, pureSource);
         NlqResult result = service.process("total PnL", "PnL");
 
         assertTrue(result.isValid());
@@ -105,16 +106,16 @@ class NlqPipelineTest {
         MockLlmClient mock = MockLlmClient.withResponses(
                 "```json\n{\"rootClass\": \"Trade\", \"reasoning\": \"trades\"}\n```",
                 "```json\n{\"projections\": [\"tradeId\"]}\n```",
-                "```pure\nTrade.all()->project([t|$t.tradeId], ['ID'])\n```"
+                "```pure\ntrading::Trade.all()->project([t|$t.tradeId], ['ID'])\n```"
         );
 
-        NlqService service = new NlqService(index, modelBuilder, mock);
+        NlqService service = new NlqService(index, modelBuilder, mock, pureSource);
         NlqResult result = service.process("show trades", null);
 
         assertTrue(result.isValid());
         assertEquals("Trade", result.rootClass());
         assertFalse(result.pureQuery().contains("```"), "Code fences should be stripped");
-        assertTrue(result.pureQuery().startsWith("Trade.all()"));
+        assertTrue(result.pureQuery().startsWith("trading::Trade.all()"));
     }
 
     @Test
@@ -124,10 +125,10 @@ class NlqPipelineTest {
         MockLlmClient mock = MockLlmClient.withResponses(
                 "{\"rootClass\": \"VaRResult\", \"reasoning\": \"risk query\"}",
                 "{\"projections\": [\"var95\"]}",
-                "VaRResult.all()->project([v|$v.var95], ['VaR'])"
+                "risk::VaRResult.all()->project([v|$v.varAmount], ['VaR'])"
         );
 
-        NlqService service = new NlqService(index, modelBuilder, mock);
+        NlqService service = new NlqService(index, modelBuilder, mock, pureSource);
         NlqResult result = service.process("VaR by portfolio", null);
 
         assertTrue(result.isValid());
