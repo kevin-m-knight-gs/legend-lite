@@ -98,9 +98,12 @@ public final class CsvSeed {
                 if (tok.isEmpty() || tok.equals("---null---")) {
                     // ---null--- is the testDataGeneration CSV null token
                     sql.append("NULL");
-                } else if (tok.matches("[+-]?\\d+(\\.\\d+)?")) {
-                    sql.append(tok);
                 } else {
+                    // F7.2: uniform policy (same as TestDataGenerator
+                    // .loadSide) — every value rides as a QUOTED literal
+                    // and the DATABASE casts it to the model's column
+                    // type; the old numeric-looking-token regex was
+                    // host-side type dispatch from the token's TEXT
                     sql.append("'").append(tok.replace("'", "''"))
                             .append("'");
                 }

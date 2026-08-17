@@ -1162,6 +1162,16 @@ explicit-per-variant switch. Copy it, or switch to a typed `PreparedStatement`.
 **Expected red:** real, where the regex was papering over a type mismatch. **Those reds are the
 finding.**
 
+**LANDED ENDPOINT (2026-08-17):** the value-side regex is gone — every CSV value now rides as
+a QUOTED literal and the database casts it to the model's column type (the exact
+`TestDataGenerator.loadSide` policy, copied). Realized red: ZERO on both full sweeps (DuckDB
+scoreboard byte-identical at 2335, h2 2282/2575) — the regex was live host-side type dispatch
+but was not currently papering over any mismatch. The `:2732` `sqls(csv, null, ctx)` complaint
+was adjudicated STALE: null dbFqn deliberately selects the DELETE+INSERT branch — the inline
+`testDataSetupCsv` override seeds over family-DDL tables that already exist, so `ddlType`'s
+loudness is not bypassed, it is out of scope by design (documented at the call site). Full
+chain GREEN.
+
 ### F7.3 — JSON ingress through the database
 
 **Files:** `resolver/JsonSourceFrame.java:75`, `:109-119`
