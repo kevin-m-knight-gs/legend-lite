@@ -1342,6 +1342,10 @@ embedded connection shared one fixed `jdbc:h2:mem:testdb`); the resolver gives e
 `databaseName` a DISTINCT in-memory db (the engine's directory-backed isolation without disk
 side effects — deliberate divergence, spelled at the resolver). Referee zero-delta, chain
 GREEN.
+**Zero-assertion trio LANDED:** `DuckDBUnnestSyntaxTest`/`DuckDBVariantLoadTest` moved to
+`experiments/backend-probes/duckdb-syntax/` as named PROBES with a README (a test that cannot
+fail is not a test; as recorded probes they keep their evidentiary value); `ProbeWireShapes`
+was already gone — only comment references remain. Chain GREEN.
 
 **Backlog (append new findings here, do not act on them mid-plan):**
 - **Normalizer bare super-name resolution (F7.8 census find):** nine
