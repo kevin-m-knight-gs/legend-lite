@@ -30,70 +30,69 @@ public final class Ddl {
     private Ddl() {
     }
 
-    /** {@code Drop table if exists s.T;} — the engine's dropTableStatement spelling. */
+    /** The render TARGETS of the ONE generator (ratified E4 design:
+     * engine-exact text is a FLAVOR of the single speller, never a
+     * second one). {@code H2_EXEC}/{@code DUCK_EXEC} are the EXECUTION
+     * forms — full-name quoting, no constraints (the deliberate DuckDB
+     * re-seed divergence in this file's header); {@code ENGINE_TEXT} is
+     * the engine's {@code translateCreateTableStatementDefault}
+     * (extensionDefaults.pure:609-620) — reserved-word column quoting,
+     * engine type spellings (INT), NULL / NOT NULL nullability,
+     * trailing {@code , PRIMARY KEY(...)} with RAW pk names. */
+    public enum Flavor { H2_EXEC, DUCK_EXEC, ENGINE_TEXT }
+
+    /** {@code Drop table if exists s.T;} — the engine's
+     * dropTableStatement spelling, identical across every flavor. */
     public static String dropTable(String schema, String table) {
         return "Drop table if exists " + qualify(schema, table) + ";";
     }
 
     public static String createTable(DatabaseDefinition.TableDefinition def,
             @com.legend.Nullable String schema) {
-        return createTable(def, schema, false);
+        return createTable(def, schema, Flavor.H2_EXEC);
     }
 
-    /** The EXECUTION create, spelled for the target ({@code duckTarget}
-     * false = H2 flavor — the h2 backend and the advisory mirror's
-     * replay stream; true = DuckDB flavor, where H2's FLOAT is an
-     * 8-byte double and BIT a boolean). */
     public static String createTable(DatabaseDefinition.TableDefinition def,
             @com.legend.Nullable String schema, boolean duckTarget) {
-        StringBuilder sb = new StringBuilder("Create Table ")
-                .append(qualify(schema, def.name())).append("(");
-        boolean first = true;
-        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
-            if (!first) {
-                sb.append(", ");
-            }
-            first = false;
-            // FULL-name quoting: corpus columns carry spaces and reserved
-            // words ('Previous Fiscal Week Year', 'FIRST NAME') — the
-            // dialect's quoteCreateColumns passes quoted heads through
-            sb.append('"').append(col.name()).append('"').append(' ')
-                    .append(duckTarget ? duckSpell(col.dataType())
-                            : spell(col.dataType()));
-        }
-        return sb.append(");").toString();
+        return createTable(def, schema,
+                duckTarget ? Flavor.DUCK_EXEC : Flavor.H2_EXEC);
     }
 
-    /** The ENGINE's createTableStatement TEXT (translateCreateTable-
-     * StatementDefault, extensionDefaults.pure:609-620): reserved-word
-     * column quoting, engine type spellings (INT), NULL / NOT NULL
-     * nullability, trailing {@code , PRIMARY KEY(...)}. TEXT ONLY — the
-     * EXECUTION form ({@link #createTable}) stays constraint-free (the
-     * deliberate DuckDB re-seed divergence in this file's header). */
-    public static String createTableStatementText(
-            DatabaseDefinition.TableDefinition def, String schema) {
+    /** THE create-table generator, flavor-dispatched ({@link Flavor}). */
+    public static String createTable(DatabaseDefinition.TableDefinition def,
+            @com.legend.Nullable String schema, Flavor f) {
         StringBuilder sb = new StringBuilder("Create Table ")
                 .append(qualify(schema, def.name())).append("(");
         boolean first = true;
         for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
             if (!first) {
-                sb.append(",");
+                sb.append(f == Flavor.ENGINE_TEXT ? "," : ", ");
             }
             first = false;
-            sb.append(processColumnName(col.name()))
-                    .append(' ').append(engineSpell(col.dataType()))
-                    .append(col.primaryKey() || col.notNull()
-                            ? " NOT NULL" : " NULL");
+            // EXEC flavors FULL-quote (corpus columns carry spaces and
+            // reserved words — the dialect's quoteCreateColumns passes
+            // quoted heads through); ENGINE_TEXT quotes by the engine's
+            // processColumnName rule
+            sb.append(f == Flavor.ENGINE_TEXT
+                            ? processColumnName(col.name())
+                            : '"' + col.name() + '"')
+                    .append(' ').append(spell(col.dataType(), f));
+            if (f == Flavor.ENGINE_TEXT) {
+                sb.append(col.primaryKey() || col.notNull()
+                        ? " NOT NULL" : " NULL");
+            }
         }
-        java.util.List<String> pks = def.columns().stream()
-                .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
-                .map(DatabaseDefinition.ColumnDefinition::name).toList();
-        if (!pks.isEmpty()) {
-            // the engine joins the pk NAMES RAW (translateCreateTable-
-            // StatementDefault: '$t.primaryKey->map(c|$c.name)', no
-            // processColumnName) — text parity keeps that spelling
-            sb.append(", PRIMARY KEY(").append(String.join(",", pks))
-                    .append(')');
+        if (f == Flavor.ENGINE_TEXT) {
+            java.util.List<String> pks = def.columns().stream()
+                    .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                    .map(DatabaseDefinition.ColumnDefinition::name).toList();
+            if (!pks.isEmpty()) {
+                // the engine joins the pk NAMES RAW (translateCreateTable-
+                // StatementDefault: '$t.primaryKey->map(c|$c.name)', no
+                // processColumnName) — text parity keeps that spelling
+                sb.append(", PRIMARY KEY(").append(String.join(",", pks))
+                        .append(')');
+            }
         }
         return sb.append(");").toString();
     }
@@ -165,8 +164,8 @@ public final class Ddl {
         out.add("Create Schema if not exists default;");
         for (var sc : named.entrySet()) {
             for (var t : sc.getValue().values()) {
-                out.add(dropTableStatementText(sc.getKey(), t.name()));
-                out.add(createTableStatementText(t, sc.getKey()));
+                out.add(dropTable(sc.getKey(), t.name()));
+                out.add(createTable(t, sc.getKey(), Flavor.ENGINE_TEXT));
             }
         }
         // the parser FLATTENS named-schema tables into the top-level list
@@ -179,8 +178,8 @@ public final class Ddl {
         }
         for (var t : defaults.values()) {
             if (!inSchemas.contains(t.name())) {
-                out.add(dropTableStatementText("default", t.name()));
-                out.add(createTableStatementText(t, "default"));
+                out.add(dropTable("default", t.name()));
+                out.add(createTable(t, "default", Flavor.ENGINE_TEXT));
             }
         }
         String[] lines = data.split("\n", -1);
@@ -344,19 +343,6 @@ public final class Ddl {
                 || t instanceof RelationalDataType.Numeric;
     }
 
-    /** The ENGINE's dropTableStatement TEXT (translateDropTable-
-     * StatementDefault): {@code Drop table if exists <schema.>table;}. */
-    public static String dropTableStatementText(String schema, String table) {
-        return "Drop table if exists " + qualify(schema, table) + ";";
-    }
-
-    /** dataTypeToSqlText parity (platform_store_relational/functions.pure
-     * :68-96) — differs from the EXECUTION spelling only where the engine
-     * text does (Integer spells INT). */
-    private static String engineSpell(RelationalDataType t) {
-        return t instanceof RelationalDataType.Integer_ ? "INT" : spell(t);
-    }
-
     private static void collectClosure(DatabaseDefinition db,
             java.util.function.Function<String,
                     java.util.Optional<DatabaseDefinition>> lookup,
@@ -389,17 +375,25 @@ public final class Ddl {
                 ? table : schema + "." + table;
     }
 
-    /** The DuckDB EXECUTION spelling — differs from {@link #spell}
-     * exactly where H2's type SEMANTICS differ from its NAME: FLOAT is
-     * an 8-byte double (DuckDB FLOAT is REAL), BIT is a boolean (DuckDB
-     * BIT is a bitstring). Spelled from the TYPE, never recovered from
-     * text (F7.4). */
-    private static String duckSpell(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Float_ ignored -> "DOUBLE";
-            case RelationalDataType.Bit ignored -> "BOOLEAN";
-            default -> spell(t);
-        };
+    /** The FLAVORED type spelling: the deltas from the H2 base are the
+     * ONLY per-target lines — DuckDB where H2's type SEMANTICS differ
+     * from its name (FLOAT is an 8-byte double, BIT a boolean — spelled
+     * from the TYPE, never recovered from text, F7.4); engine TEXT where
+     * the engine's dataTypeToSqlText differs (Integer spells INT,
+     * platform_store_relational/functions.pure:68-96). */
+    private static String spell(RelationalDataType t, Flavor f) {
+        if (f == Flavor.DUCK_EXEC
+                && t instanceof RelationalDataType.Float_) {
+            return "DOUBLE";
+        }
+        if (f == Flavor.DUCK_EXEC && t instanceof RelationalDataType.Bit) {
+            return "BOOLEAN";
+        }
+        if (f == Flavor.ENGINE_TEXT
+                && t instanceof RelationalDataType.Integer_) {
+            return "INT";
+        }
+        return spell(t);
     }
 
     /** The H2-flavored spelling of a store column type. */

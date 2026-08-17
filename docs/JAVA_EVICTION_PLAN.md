@@ -272,27 +272,40 @@ native vocabulary serving those chains plus the typeInference construction famil
 (`TypedNewInstance` 295, `TypedUserCall` 236, `TypedVariable` 864, …). The E4.e residue
 is therefore bounded by the chains E4.a–d feed it.
 
-**PROPOSED ADJUDICATION (census-backed, 2026-08-17 — AWAITING USER RATIFICATION):**
-the census partitions the remaining interpreter demand into exactly two channels:
+**RATIFIED ADJUDICATION (census-backed; user-ratified 2026-08-17 — "engine-exact H2
+is another lower target"):** the census partitions the remaining interpreter demand
+into two channels, each with a ratified end-state:
 
 1. **The DB-VALUE channel (EVICT, stands):** fetchDb grid-read chains and executeInDb
    READ chains — database-produced values folded/indexed in Java (`.rows->fold(
-   concatenate(values->at(k)))`, `.value('NAME')`, emptiness reads). This is genuine
-   query-time value evaluation; **E4.e re-scopes to exactly this**: compile the small
-   grid-read vocabulary (rows/values/columnNames/at/value/fold-concatenate/first/size/
-   emptiness) over the E4.b catalog queries INTO SQL, after which the structural arms
-   lose their last DB-value demand.
-2. **The METAMODEL channel (PROPOSED PERMANENT):** typeInference constructions
-   (the curated 5-class set), store-nav (2 firings, inside DDL-text chains), plan/DDL/
-   SQL-text generation (PlanText, MetamodelWalk convert arms, MetamodelSteps,
-   AggAwareActivities, Ddl text) and the structural/native arms serving those chains.
-   Evidence: NO database value ever flows through this channel (inputs are model text
-   and test-constructed metamodel instances; outputs are text/structures ABOUT plans);
-   the engine itself evaluates this family host-side (interpreted Pure); the charter
-   pre-authorized census-decided PERMANENT for the TEXT sub-family — the census shows
-   the construction sub-family exists ONLY to feed it. Conditions if ratified: the
-   size pins become PERMANENT pins (shrink-only forever), the admission predicate
-   stays test-pinned, and any DB value entering the channel is a build failure.
+   concatenate(values->at(k)))`, `.value('NAME')`, emptiness reads). **E4.e = compile
+   the small grid-read vocabulary (rows/values/columnNames/at/value/fold-concatenate/
+   first/size/emptiness) over the E4.b catalog queries INTO SQL**, after which the
+   structural arms lose their last DB-value demand.
+2. **The METAMODEL-TEXT channel → ENGINE-EXACT TEXT IS A LOWER TARGET** (not a
+   registered second speller — the user rejected wholesale PERMANENT): the platform's
+   main lowering is ALREADY engine-text-exact by construction (the corpus's thousands
+   of SQL-text goldens pass through the one Lowerer + renderer); the hand-written
+   islands catch up to it. Concretely:
+   - **DDL golden text** = the ENGINE_TEXT flavor of the ONE `Ddl.createTable`
+     generator (batch 1 — landed below).
+   - **Hand-built engine-metamodel trees** (`DynaFunction`/`Literal`/
+     `TableAliasColumn`/`SelectSQLQuery`) = a CONVERTER onto our SqlExpr IR, rendered
+     by the one renderer's engine-text target (a SECOND ENTRY POINT into the same IR;
+     one-way; closed vocabulary with loud walls). MetamodelWalk's parallel
+     mini-renderer dies. Engine quirks the goldens pin become engine-text dialect
+     rules, adjudicated by the referee quirk by quirk.
+   - **Residual register (small):** instance CONSTRUCTION evaluation (building typed
+     constants from `^Class(...)` literals — compilation by the §1 rule) and the
+     plan-text ENVELOPE wrapper. No SQL or DDL is spelled twice anywhere.
+
+**E4.d batch 1 LANDED 2026-08-17 — the DDL flavor merge.** `Ddl.Flavor {H2_EXEC,
+DUCK_EXEC, ENGINE_TEXT}`: one create-table generator (flavor dispatches column-name
+quoting, separator, type spelling, nullability, PK clause), one drop spelling (the two
+were byte-identical), one flavored type-spelling switch whose per-target deltas are the
+only flavor lines. `dropTableStatementText`/`createTableStatementText`/`engineSpell`
+DELETED; the ledger pins the dead names at zero. `setUpDataSqlsText*` now compose
+through the one generator.
 
 **E4.b LANDED 2026-08-17.** The shadow-H2 replay is DELETED: `fetchDbSchemas/Tables/
 Columns` are catalog queries over the AMBIENT session's `information_schema` (F6.6's

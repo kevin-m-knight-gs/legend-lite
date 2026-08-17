@@ -63,7 +63,7 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
 
     /** H2 2.1.214 reserved words — the ENGINE's own list
      * (h2Extension2_1_214.pure:180-192). This is the GOLDEN TEXT
-     * channel's set ({@code Ddl.createTableStatementText}'s
+     * channel's set ({@code Ddl.createTable ENGINE_TEXT}'s
      * column-name rule quotes exactly what the engine quotes); the
      * EXECUTION lexicon {@link #H2} derives from it. */
     public static final Lexicon H2_ENGINE_TEXT = new Lexicon('"', Set.of(

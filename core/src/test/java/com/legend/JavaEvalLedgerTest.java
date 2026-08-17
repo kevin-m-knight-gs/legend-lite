@@ -82,10 +82,19 @@ class JavaEvalLedgerTest {
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
                         42});
-        // E4 — engine-TEXT generators in Ddl
+        // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
+        // text is a lower TARGET"): the second DDL speller is DEAD —
+        // dropTableStatementText/createTableStatementText/engineSpell
+        // merged into the ONE generator (Ddl.createTable + Flavor
+        // {H2_EXEC, DUCK_EXEC, ENGINE_TEXT}; the flavored type spelling
+        // is the only per-target delta). This row pins the dead names
+        // at zero. setUpDataSqlsText* remain as the engine-text
+        // setUpDataSQLs walkers, now composing THROUGH the one
+        // generator — engine-golden text of the model's own seed data
+        // (compilation-class; asserted against engine goldens).
         EVICT_NAMES.put("core/src/main/java/com/legend/exec/Ddl.java",
-                new Object[]{"(dropTableStatementText|createTableStatementText|setUpDataSqlsText|setUpDataSqlsTextFromRecords|engineSpell)\\(",
-                        15});
+                new Object[]{"(dropTableStatementText|createTableStatementText|engineSpell)\\(",
+                        0});
         // E2 LANDED (2026-08-17): the host-side row explosion is DEAD
         // — the scalar-stream projection explodes IN SQL (LEFT LATERAL
         // UNNEST at project lowering; probe: ZERO firings on the full

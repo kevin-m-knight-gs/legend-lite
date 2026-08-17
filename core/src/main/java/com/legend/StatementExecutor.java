@@ -3382,7 +3382,7 @@ final class StatementExecutor {
                         ds.args().get(2)).value();
         if (com.legend.compiler.element.type.PlatformTypes
                 .DROP_TABLE_STATEMENT.equals(fqn)) {
-            return Ddl.dropTableStatementText(sch, tbl);
+            return Ddl.dropTable(sch, tbl);
         }
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
         com.legend.model.DatabaseDefinition.TableDefinition def =
@@ -3390,10 +3390,10 @@ final class StatementExecutor {
                         .orElseThrow(() -> new IllegalStateException(
                                 "createTableStatement: no table '" + lookup
                                         + "' in store " + db.fullPath()));
-        // the ENGINE TEXT (NOT NULL / PRIMARY KEY constraints) — the
-        // EXECUTION form (dropAndCreateTableInDb -> Ddl.createTable)
-        // stays constraint-free for DuckDB re-seeds
-        return Ddl.createTableStatementText(def, sch);
+        // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
+        // PRIMARY KEY constraints) — the EXECUTION flavors stay
+        // constraint-free for DuckDB re-seeds
+        return Ddl.createTable(def, sch, Ddl.Flavor.ENGINE_TEXT);
     }
 
     /**
