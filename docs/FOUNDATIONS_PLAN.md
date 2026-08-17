@@ -992,6 +992,18 @@ above.** Audit §5 A3.
 **Probe first:** instrument `H2Verify.java:315` to print the declared type, value, and side. Any
 hit on a side that came from an `execute()` binding is a masked typing bug — likely fixed by F5.4.
 
+**LANDED ENDPOINT (2026-08-17):** the probe ADJUDICATED, then the coercion was RESCOPED, not
+deleted. Firings: DuckDB full sweep **0** (nothing masked on the scoreboard backend); h2 full
+sweep **71**, every one the **JSON collection carrier** — H2 has no native list type, so
+collection reads ride `JSON_ARRAYAGG`, and JSON has no temporal types (verified by SQL dump:
+`SELECT (SELECT JSON_ARRAYAGG(t1."from" …))` on testMilestoningColumnProjectionForRoot). That
+decode is a carrier convention, not a masked typing bug. Fix: the side-agnostic
+`coerceTemporal` wrappers in `Eval.values()` are GONE; the decode now lives ONLY in
+`Eval.flatten`'s `byte[]` JSON-carrier branch (the one arrival whose provenance proves the
+carrier typeless), so a String-where-Date on ANY other path now reaches `wireEquals`'s
+typing-bug refusal — the audit's demand, honored without breaking the carrier. Referees: DuckDB
+scoreboard byte-identical, h2 sweep 2282/2575 (identical to pre-change), full chain GREEN.
+
 ### F6.4 — Fix `hostEquals`'s numeric arm (one line)
 
 **Files:** `exec/HostEval.java:244-247`

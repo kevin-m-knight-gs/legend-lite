@@ -2652,7 +2652,8 @@ public final class EngineTestExecutor {
         long size() {
             return switch (result) {
                 case com.legend.exec.ExecutionResult.Scalar sc ->
-                        sc.value() == null ? 0 : flatten(sc.value()).size();
+                        sc.value() == null ? 0
+                                : flatten(sc.value(), sc.returnType()).size();
                 case com.legend.exec.ExecutionResult.Collection c -> c.values().size();
                 case com.legend.exec.ExecutionResult.Tabular t -> t.rows().size();
                 case com.legend.exec.ExecutionResult.Graph g -> {
@@ -2666,10 +2667,9 @@ public final class EngineTestExecutor {
             return switch (result) {
                 case com.legend.exec.ExecutionResult.Scalar sc ->
                         sc.value() == null ? List.of()
-                                : H2Verify.coerceTemporal(flatten(sc.value()),
-                                        sc.returnType());
+                                : flatten(sc.value(), sc.returnType());
                 case com.legend.exec.ExecutionResult.Collection c ->
-                        H2Verify.coerceTemporal(c.values(), c.returnType());
+                        c.values();
                 case com.legend.exec.ExecutionResult.Tabular t -> {
                     List<Object> out = new ArrayList<>();
                     t.rows().forEach(r -> out.addAll(r.values()));
@@ -2688,8 +2688,14 @@ public final class EngineTestExecutor {
             return v.size() == 1 ? String.valueOf(v.get(0)) : String.valueOf(v);
         }
 
-        /** A collection-literal root arrives as an ARRAY-valued scalar. */
-        private static List<Object> flatten(Object v) {
+        /** A collection-literal root arrives as an ARRAY-valued scalar.
+         * F6.3: the temporal decode fires ONLY on the byte[] JSON-carrier
+         * branch — JSON is the one arrival with no temporal types, so the
+         * DECLARED type drives the decode back exactly there. A String
+         * where a Date is declared on any OTHER path stays a String and
+         * reaches wireEquals's typing-bug refusal. */
+        private static List<Object> flatten(Object v,
+                com.legend.compiler.element.type.Type declared) {
             if (v == null) {
                 return new ArrayList<>();   // SQL NULL = pure empty
             }
@@ -2699,7 +2705,11 @@ public final class EngineTestExecutor {
             // native java.sql.Array and byte[] JSON-carrier arrivals —
             // one decoder, hoisted (H2Verify.carrierList)
             List<Object> carried = H2Verify.carrierList(v);
-            return carried != null ? carried : List.of(v);
+            if (carried == null) {
+                return List.of(v);
+            }
+            return v instanceof byte[]
+                    ? H2Verify.coerceTemporal(carried, declared) : carried;
         }
     }
 

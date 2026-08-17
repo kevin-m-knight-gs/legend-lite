@@ -295,7 +295,15 @@ public final class H2Verify {
     /** The JSON carrier has NO temporal types — a Date-family element
      * arrives as its ISO text. The DECLARED pure type drives the
      * decode back (never value sniffing on non-temporal roots): ISO
-     * date-time text to Timestamp, bare dates to java.sql.Date. */
+     * date-time text to Timestamp, bare dates to java.sql.Date.
+     *
+     * <p>F6.3 contract: the ONE caller is the byte[] JSON-carrier branch
+     * of Eval.flatten — the arrival whose carrier genuinely cannot hold
+     * a temporal (probe 2026-08-17: DuckDB sweep 0 firings, h2 sweep 71,
+     * every one the JSON_ARRAYAGG collection carrier). It must never run
+     * side-agnostically over arbitrary result values: a String where a
+     * Date is declared on any other path is a typing bug that must reach
+     * wireEquals's refusal, not a repair. */
     public static java.util.List<Object> coerceTemporal(
             java.util.List<Object> vals,
             com.legend.compiler.element.type.Type t) {
