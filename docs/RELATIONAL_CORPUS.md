@@ -37,7 +37,7 @@ shared source registered by several families cannot double-count. Run with
 | aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
-| executionPlan/tests | 108 | 70 | 14 | 5 | 19 | 0 | 0 | 1 | 0 |
+| executionPlan/tests | 108 | 72 | 15 | 3 | 18 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 237 | 7 | 10 | 5 | 67 | 80 | 1 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 146 | 3 | 6 | 0 | 1 | 4 | 0 | 72 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2335** | 73 | 82 | 85 | 247 | 293 | 27 | 613 |
+| **total** | 2575 | **2337** | 74 | 80 | 84 | 247 | 293 | 27 | 613 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1410 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
+SOFT-PASS RECONCILIATION (F2.1): 2337 PASS = 1412 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
 
 ### mapping walls (dropped at assembly)
 
@@ -1119,7 +1119,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1410 clean + 925 carrying softness 
 - 13x execution activities are not recorded
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]]], multiplicity=Bounded[lower=1, upper=1]]], multiplicity=Bounded[lower=1, upper=1]]]
 - 3x resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
-- 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x unbound variable '$_nr2'
@@ -1146,6 +1145,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1410 clean + 925 carrying softness 
 - 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - 1x no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
 - 1x class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5)
+- 1x association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys))
 
 ### per-test outcomes (non-passing)
 
@@ -1165,15 +1165,13 @@ SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1410 clean + 925 carrying softness 
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call — wall: no overload of 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan' matches the argument types
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary) [surfaced via assert form 'assertEquals/2']
-- SHAPE testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'connection' [surfaced via assert form 'assertEquals/2']
+- FAIL testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: assertEquals: expected [a, b], got []
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: plan wall: unknown class 'Service' in ^Service(…) [surfaced via assert form 'assertEquals/2']
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: plan wall: unknown class 'Service' in ^Service(…) [surfaced via assert form 'assertEquals/2']
 - SHAPE inheritance [executionPlan/tests]: plan wall: plan: no class mapping for 'meta::relational::tests::model::inheritance::RoadVehicle' under 'meta::relational::tests::mapping::inheritance::relational::inheritanceMappingDB' [surfaced via assert form 'assertEquals/2']
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - SHAPE tdsTwoJoinThreeDB [executionPlan/tests]: plan wall: plan: star-top TDS column 'firstName' resolves through no FROM-tree table [surfaced via assert form 'assertEquals/2']
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: no execute(|...) call [calls meta::relational::extension] — wall: plan wall: executionPlan mapping argument must be a reference (or the query must carry ->from), got TypedNativeCall [surfaced via assert form 'assertEquals/2']
-- ERROR testDatabaseConnectionSQLPopulation [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
-- ERROR testDatabaseConnectionSQLPopulationLegacy [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: plan wall: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in the native or user catalog (unported platform function, or a misspelling) [surfaced via assert form 'assertEquals/2']
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - FAIL testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert did not hold (false)

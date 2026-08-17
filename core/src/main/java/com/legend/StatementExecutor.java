@@ -1112,6 +1112,95 @@ final class StatementExecutor {
         return ni == null ? "H2" : dbTypeOf(ni);
     }
 
+    /** The plan connection handle (cluster 60): the engine's generated
+     * plan carries the runtime connection on SQLExecutionNode, with
+     * processRuntimeTestConnections' DDL expansion on testDataSetupSqls
+     * — a TestDatabaseConnection with a PRESENT csv ('' is a present
+     * [0..1] value in pure) and no declared sqls gets setUpDataSQLs
+     * text; a LocalH2DatasourceSpecification concatenates the expansion
+     * onto its declared sqls. */
+    private static com.legend.plan.@com.legend.Nullable PlanConn planConnOf(
+            @com.legend.Nullable TypedSpec rtArg, ExecEnv env) {
+        if (rtArg == null) {
+            return new com.legend.plan.PlanConn(
+                    "TestDatabaseConnection", "H2", null,
+                    java.util.List.of(), null);
+        }
+        var ni = connectionInstanceOf(rtArg);
+        String storeFqn = connectionStoreElementOf(rtArg);
+        com.legend.model.DatabaseDefinition db = storeFqn == null ? null
+                : env.ctx().findDatabase(storeFqn).orElse(null);
+        java.util.function.Function<String, java.util.Optional<
+                com.legend.model.DatabaseDefinition>> lookup =
+                f -> env.ctx().findDatabase(f);
+        if (ni == null) {
+            return new com.legend.plan.PlanConn(
+                    "TestDatabaseConnection", "H2", null,
+                    java.util.List.of(), null);
+        }
+        String kind = switch (ni.classFqn()) {
+            case "meta::external::store::relational::runtime"
+                    + "::DatabaseConnection" -> "DatabaseConnection";
+            case "meta::external::store::relational::runtime"
+                    + "::RelationalDatabaseConnection" ->
+                    "RelationalDatabaseConnection";
+            case "meta::external::store::relational::runtime"
+                    + "::TestDatabaseConnection" -> "TestDatabaseConnection";
+            default -> throw new IllegalStateException(
+                    "plan connection: unmatched connection class "
+                    + ni.classFqn());
+        };
+        String type = String.valueOf(dbTypeOf(ni));
+        String csv = ni.properties().get("testDataSetupCsv")
+                instanceof com.legend.compiler.spec.typed.TypedCString c
+                ? c.value() : null;
+        java.util.List<String> sqls = java.util.List.of();
+        if (csv != null && db != null) {
+            sqls = com.legend.exec.Ddl.setUpDataSqlsText(csv, db, lookup);
+        }
+        com.legend.plan.PlanConn.DsSpec spec = null;
+        if (ni.properties().get("datasourceSpecification")
+                instanceof com.legend.compiler.spec.typed
+                        .TypedNewInstance ds
+                && ds.classFqn().equals("meta::pure::alloy::connections"
+                        + "::alloy::specification"
+                        + "::LocalH2DatasourceSpecification")) {
+            String specCsv = ds.properties().get("testDataSetupCsv")
+                    instanceof com.legend.compiler.spec.typed
+                            .TypedCString sc2
+                    ? sc2.value() : null;
+            java.util.List<String> specSqls = specCsv != null && db != null
+                    ? com.legend.exec.Ddl.setUpDataSqlsText(specCsv, db,
+                            lookup)
+                    : java.util.List.of();
+            spec = new com.legend.plan.PlanConn.DsSpec(
+                    "LocalH2DatasourceSpecification", specCsv, specSqls);
+        }
+        return new com.legend.plan.PlanConn(kind, type, csv, sqls, spec);
+    }
+
+    /** The ConnectionStore's {@code element} store reference under the
+     * runtime argument (exact-FQN dispatch), or null. */
+    private static @com.legend.Nullable String connectionStoreElementOf(
+            TypedSpec rtArg) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(rtArg);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed
+                            .TypedNewInstance ni
+                    && "meta::core::runtime::ConnectionStore"
+                            .equals(ni.classFqn())
+                    && ni.properties().get("element")
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedPackageableRef pr) {
+                return pr.fullPath();
+            }
+            work.addAll(t.children());
+        }
+        return null;
+    }
+
     /** The engine-style PLAN renderer for a connection DatabaseType —
      * the plan goldens pin Composite to the DB2-family spelling
      * (paren-wrapped conjunctions, quoted boolean placeholders). */
@@ -1590,9 +1679,29 @@ final class StatementExecutor {
                         new java.util.ArrayList<Object>(pn.children());
                 case "sqlQuery" -> pn.sqlQuery();
                 case "sqlComment" -> pn.sqlComment();
+                case "connection" -> pn.connection();
                 case "functionParameters" ->
                         new java.util.ArrayList<Object>(
                                 pn.functionParameters());
+                default -> null;
+            };
+        }
+        if (recv instanceof com.legend.plan.PlanConn pc2) {
+            return switch (prop) {
+                case "type" -> pc2.type();
+                case "testDataSetupCsv" -> pc2.testDataSetupCsv();
+                case "testDataSetupSqls" -> new java.util.ArrayList<Object>(
+                        pc2.testDataSetupSqls());
+                case "datasourceSpecification" ->
+                        pc2.datasourceSpecification();
+                default -> null;
+            };
+        }
+        if (recv instanceof com.legend.plan.PlanConn.DsSpec ds2) {
+            return switch (prop) {
+                case "testDataSetupCsv" -> ds2.testDataSetupCsv();
+                case "testDataSetupSqls" -> new java.util.ArrayList<Object>(
+                        ds2.testDataSetupSqls());
                 default -> null;
             };
         }
@@ -1765,7 +1874,8 @@ final class StatementExecutor {
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
                 java.util.List.of(),
-                com.legend.plan.PlanNode.EXEC_TRACE_COMMENT);
+                com.legend.plan.PlanNode.EXEC_TRACE_COMMENT,
+                planConnOf(rtArg2, env));
         com.legend.plan.PlanNode rel = new com.legend.plan.PlanNode(
                 "RelationalInstantiationExecutionNode",
                 java.util.List.of(sqlNode), null, java.util.List.of());

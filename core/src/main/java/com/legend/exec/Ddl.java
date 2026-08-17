@@ -132,28 +132,52 @@ public final class Ddl {
      * separators are lines of dashes (the CsvSeed corpus form). */
     public static java.util.List<String> setUpDataSqlsText(String data,
             DatabaseDefinition db) {
+        return setUpDataSqlsText(data, db, f -> java.util.Optional.empty());
+    }
+
+    /** Include-closure form (cluster 60 — the engine's {@code
+     * allSchemas()} recurses {@code includes} FIRST, groups schemas by
+     * name and de-duplicates tables; setUpDataSQLs walks that closure,
+     * so a db of includes yields every included table's DDL). The
+     * lookup resolves an include FQN to its definition; an unresolvable
+     * include contributes nothing (parity with the engine's cast walk
+     * over a compiled model, where it cannot happen). */
+    public static java.util.List<String> setUpDataSqlsText(String data,
+            DatabaseDefinition db,
+            java.util.function.Function<String,
+                    java.util.Optional<DatabaseDefinition>> lookup) {
+        // include-first, group-by-name, table-dedup-by-name (first wins)
+        java.util.LinkedHashMap<String,
+                java.util.LinkedHashMap<String,
+                        DatabaseDefinition.TableDefinition>> named =
+                new java.util.LinkedHashMap<>();
+        java.util.LinkedHashMap<String,
+                DatabaseDefinition.TableDefinition> defaults =
+                new java.util.LinkedHashMap<>();
+        collectClosure(db, lookup, new java.util.LinkedHashSet<>(), named,
+                defaults);
         java.util.List<String> out = new java.util.ArrayList<>();
-        for (var sc : db.schemas()) {
-            out.add("Drop schema if exists " + sc.name() + " cascade;");
-            out.add("Create Schema if not exists " + sc.name() + ";");
+        for (var sc : named.entrySet()) {
+            out.add("Drop schema if exists " + sc.getKey() + " cascade;");
+            out.add("Create Schema if not exists " + sc.getKey() + ";");
         }
         out.add("Drop schema if exists default cascade;");
         out.add("Create Schema if not exists default;");
-        for (var sc : db.schemas()) {
-            for (var t : sc.tables()) {
-                out.add(dropTableStatementText(sc.name(), t.name()));
-                out.add(createTableStatementText(t, sc.name()));
+        for (var sc : named.entrySet()) {
+            for (var t : sc.getValue().values()) {
+                out.add(dropTableStatementText(sc.getKey(), t.name()));
+                out.add(createTableStatementText(t, sc.getKey()));
             }
         }
         // the parser FLATTENS named-schema tables into the top-level list
         // too — the DDL surface lists each table once, under its schema
         java.util.Set<String> inSchemas = new java.util.HashSet<>();
-        for (var sc : db.schemas()) {
-            for (var t : sc.tables()) {
+        for (var sc : named.values()) {
+            for (var t : sc.values()) {
                 inSchemas.add(t.name());
             }
         }
-        for (var t : db.tables()) {
+        for (var t : defaults.values()) {
             if (!inSchemas.contains(t.name())) {
                 out.add(dropTableStatementText("default", t.name()));
                 out.add(createTableStatementText(t, "default"));
@@ -192,7 +216,16 @@ public final class Ddl {
     public static java.util.List<String> setUpDataSqlsTextFromRecords(
             java.util.List<java.util.List<String>> records,
             DatabaseDefinition db) {
-        java.util.List<String> out = setUpDataSqlsText("", db);
+        return setUpDataSqlsTextFromRecords(records, db,
+                f -> java.util.Optional.empty());
+    }
+
+    public static java.util.List<String> setUpDataSqlsTextFromRecords(
+            java.util.List<java.util.List<String>> records,
+            DatabaseDefinition db,
+            java.util.function.Function<String,
+                    java.util.Optional<DatabaseDefinition>> lookup) {
+        java.util.List<String> out = setUpDataSqlsText("", db, lookup);
         int i = 0;
         while (i < records.size()) {
             while (i < records.size() && blankRecord(records.get(i))) {
@@ -322,6 +355,33 @@ public final class Ddl {
      * text does (Integer spells INT). */
     private static String engineSpell(RelationalDataType t) {
         return t instanceof RelationalDataType.Integer_ ? "INT" : spell(t);
+    }
+
+    private static void collectClosure(DatabaseDefinition db,
+            java.util.function.Function<String,
+                    java.util.Optional<DatabaseDefinition>> lookup,
+            java.util.Set<String> seen,
+            java.util.Map<String, java.util.LinkedHashMap<String,
+                    DatabaseDefinition.TableDefinition>> named,
+            java.util.Map<String,
+                    DatabaseDefinition.TableDefinition> defaults) {
+        if (!seen.add(db.qualifiedName())) {
+            return;
+        }
+        for (String inc : db.includes()) {
+            lookup.apply(inc).ifPresent(d ->
+                    collectClosure(d, lookup, seen, named, defaults));
+        }
+        for (var sc : db.schemas()) {
+            var tables = named.computeIfAbsent(sc.name(),
+                    k -> new java.util.LinkedHashMap<>());
+            for (var t : sc.tables()) {
+                tables.putIfAbsent(t.name(), t);
+            }
+        }
+        for (var t : db.tables()) {
+            defaults.putIfAbsent(t.name(), t);
+        }
     }
 
     private static String qualify(@com.legend.Nullable String schema, String table) {

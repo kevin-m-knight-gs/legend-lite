@@ -527,7 +527,9 @@ class NativeFunctionTest {
                             "sqlQueryPostProcessorsConnectionAware")),
                     java.util.Map.entry(
                     "meta::external::store::relational::runtime::TestDatabaseConnection",
-                    List.of("testDataSetupCsv")),
+                    // real relationalRuntime.pure:104,118 (cluster 60:
+                    // testDataSetupSqls is engine-populated, never manual)
+                    List.of("testDataSetupCsv", "testDataSetupSqls")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::relation::View",
                     List.of("columnMappings")),
@@ -826,7 +828,9 @@ class NativeFunctionTest {
                     "meta::relational::mapping::SQLExecutionNode",
                     // sqlComment: real engine executionPlan.pure:65
                     // (E2E §4.4 cluster 3, verified 2026-08-15)
-                    List.of("sqlQuery", "sqlComment"),
+                    // real executionPlan.pure:63-73 (cluster 60: the plan
+                    // carries the runtime connection on SQLExecutionNode)
+                    List.of("sqlQuery", "sqlComment", "connection"),
                     // taxonomy T2 additions — real engine sources:
                     // runtime.pure (EngineRuntime.mappings),
                     // executionPlan_generation.pure (MultiExecutionContext,
