@@ -299,6 +299,15 @@ into two channels, each with a ratified end-state:
      constants from `^Class(...)` literals — compilation by the §1 rule) and the
      plan-text ENVELOPE wrapper. No SQL or DDL is spelled twice anywhere.
 
+**End-state census (post-E4.e, full referee):** 4,119 → 3,436 firings. The DB-VALUE
+channel is EVICTED: fetchDb natives 30 → 0, the fold/concatenate collects → 0,
+store-nav 2 → 1; the residue is 2 `executeInDb` reads with a COMPUTED SQL string
+(closed-vocabulary fallback, characterized) — everything else remaining is the
+METAMODEL channel (constructions 295, UserCall 222, MatchRuntime 79, instanceOf 97 —
+the typeInference/sqlDialectTranslation/postprocessor families), whose ratified
+end-state is the engine-text lower target (converter for text-producing shapes;
+node-equality tests are transformation replication).
+
 **E4.e batch 1 LANDED 2026-08-17 — the grid-read chain compiler (`exec/GridReads`).**
 Recognized DB-VALUE chains COMPILE INTO SQL over the catalog base query and the
 DATABASE produces every value: the fold-concatenate column collect
