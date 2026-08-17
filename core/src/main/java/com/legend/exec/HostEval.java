@@ -353,6 +353,14 @@ public final class HostEval {
 
     private static Object eval(TypedSpec node, Map<String, Object> scope)
             throws java.sql.SQLException {
+        // E4 instrument (census-mandated): one line per arm firing so a
+        // full referee cycle yields the per-family demand counts
+        if (System.getenv("LL_HOST_ARM_COUNT") != null) {
+            System.err.println("[host-arm] "
+                    + (node instanceof TypedNativeCall n
+                            ? "native:" + n.callee().qualifiedName()
+                            : node.getClass().getSimpleName()));
+        }
         switch (node) {
             case TypedNativeCall nc -> {
                 return evalNative(nc, scope);
@@ -784,15 +792,30 @@ public final class HostEval {
         String a1 = patternArg(nc, 1, scope);
         String a2 = nc.args().size() > 2 ? patternArg(nc, 2, scope) : null;
         String a3 = nc.args().size() > 3 ? patternArg(nc, 3, scope) : null;
-        // replay order: schema creates (prerequisites for the main
-        // stream's schema-qualified DDL), then the corpus's own
-        // statements, then constraint post-fixes (PK alters)
-        List<String> replay = replayStream();
+        // E4.b: catalog queries run on the AMBIENT session — the
+        // database the raw writes actually seeded (F6.6); the throwaway
+        // shadow-H2 replay is DELETED
+        Ambient amb = AMBIENT.get();
+        if (amb == null) {
+            throw new NotImplementedException(
+                    "host-eval database metadata (fetchDb*) requires the"
+                    + " ambient session (F6.6) — none is bound on this"
+                    + " entry");
+        }
         return switch (PlatformTypes.fetchDbKind(fqn)) {
-            case SCHEMAS -> DbMetaData.fetch(fqn, a1, null, null, replay);
-            case TABLES, PRIMARY_KEYS -> DbMetaData.fetch(fqn, a1, a2, null,
-                    replay);
-            case COLUMNS -> DbMetaData.fetch(fqn, a1, a2, a3, replay);
+            case SCHEMAS -> DbMetaData.fetch(fqn, a1, null, null,
+                    amb.conn());
+            case TABLES -> DbMetaData.fetch(fqn, a1, a2, null,
+                    amb.conn());
+            case COLUMNS -> DbMetaData.fetch(fqn, a1, a2, a3, amb.conn());
+            // PRIMARY KEYS are MODEL facts (the ambient DDL deliberately
+            // omits them — milestoned re-seeds): literal rows from the
+            // connection's store, existence-filtered against the live
+            // catalog IN SQL
+            case PRIMARY_KEYS -> DbMetaData.fetchPrimaryKeys(
+                    DbMetaData.pkFacts(CTX.get(), nc.args().get(0),
+                            LETS.get() == null ? Map.of() : LETS.get()),
+                    a1, a2, amb.conn());
         };
     }
 
@@ -847,44 +870,6 @@ public final class HostEval {
                 out.addAll(sd.tables());
             }
         }
-    }
-
-    /** The H2 second target's replay stream — schema creates
-     * (prerequisites for the main stream's schema-qualified DDL), then
-     * the corpus's own statements, then constraint post-fixes. */
-    private static List<String> replayStream() {
-        // LOUD WALL (deep-audit 2A-1, slice zero 2026-08-15): the replay
-        // channel exists only when a recorder was installed on this
-        // thread (the corpus harness does; no product path does). With
-        // no recorder, metadata would be read from an EMPTY throwaway H2
-        // — an empty result set with no error, the exact silent-wrong
-        // failure Tenet 3 bans. Until metadata reads from the supplied
-        // connection, refuse loudly.
-        if (RawSqlBoundary.recording() == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "host-eval database metadata (fetchDb*/executeInDb"
-                    + " reads) requires the recorded-statement replay"
-                    + " channel, which only the test harness installs —"
-                    + " reading metadata from the live connection is not"
-                    + " implemented yet (deep-audit 2A-1)");
-        }
-        List<String> replay = new ArrayList<>();
-        List<String> meta = RawSqlBoundary.metaRecording() == null
-                ? List.of() : RawSqlBoundary.metaRecording();
-        for (String m : meta) {
-            if (m.regionMatches(true, 0, "create schema", 0, 13)) {
-                replay.add(m);
-            }
-        }
-        if (RawSqlBoundary.recording() != null) {
-            replay.addAll(RawSqlBoundary.recording());
-        }
-        for (String m : meta) {
-            if (!m.regionMatches(true, 0, "create schema", 0, 13)) {
-                replay.add(m);
-            }
-        }
-        return replay;
     }
 
     /** The class FQN named by a TYPE-reference argument (instanceOf's

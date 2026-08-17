@@ -3,25 +3,24 @@
 package com.legend.exec;
 
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * The {@code fetchDb*MetaData} K-native backend: JDBC
- * {@link DatabaseMetaData} reads over the H2 SECOND TARGET. The corpus's
- * raw statements (recorded at the {@link RawSqlBoundary}) replay onto a
- * fresh default-mode H2 — engine-parity metadata semantics: H2 uppercases
+ * The {@code fetchDb*MetaData} K-native backend (E4.b,
+ * JAVA_EVICTION_PLAN): catalog queries over the AMBIENT session's
+ * {@code information_schema} — the database the raw writes actually
+ * seeded (the F6.6 rule; the throwaway shadow-H2 replay is DELETED).
+ * Grids carry the JDBC {@code DatabaseMetaData} column names and
+ * ordinals the engine tests index into; identifier columns project
+ * {@code upper(...)} — the engine-parity spelling (H2 uppercases
  * unquoted DDL identifiers, which is exactly what the corpus goldens
- * assert (FETCHDBMETADATATESTSCHEMA1); DuckDB's case-preserving metadata
- * would diverge. Deliberately NOT {@code H2Verify}'s settings — that
- * connection disables DATABASE_TO_UPPER to mirror DuckDB for row replays.
+ * assert; the ambient store is case-preserving). Every VALUE is
+ * database-produced; Java composes the catalog query (orchestration)
+ * and decodes the result by contract (egress).
  */
 public final class DbMetaData {
 
@@ -34,124 +33,231 @@ public final class DbMetaData {
             List<List<Object>> rows) {
     }
 
-    private static final java.util.concurrent.atomic.AtomicInteger COUNTER =
-            new java.util.concurrent.atomic.AtomicInteger();
-
-    /** Default-upper H2 (unquoted DDL identifiers uppercase — the
-     * fetchDb casing asserts) + case-insensitive MATCHING (the model DDL
-     * quotes column names lowercase, corpus inserts reference them
-     * unquoted — both targets must accept both spellings). */
-    private static final String SETTINGS =
-            ";MODE=LEGACY;CASE_INSENSITIVE_IDENTIFIERS=TRUE";
-
-    /** java.sql.Types int -> field name (the engine's JavaSqlTypeNames). */
-    private static final Map<Integer, String> SQL_TYPE_NAMES = sqlTypeNames();
-
-    private static Map<Integer, String> sqlTypeNames() {
-        Map<Integer, String> m = new LinkedHashMap<>();
-        for (java.lang.reflect.Field f : java.sql.Types.class.getFields()) {
-            try {
-                m.putIfAbsent((Integer) f.get(null), f.getName());
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        return m;
-    }
+    /** System schemas the catalog queries exclude — the tests navigate
+     * the corpus's own DDL, never the engine's internals. */
+    private static final String NOT_SYSTEM =
+            " NOT IN ('information_schema','pg_catalog')";
 
     public static HostResultSet fetch(String nativeFqn,
             @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern, @com.legend.Nullable String columnPattern,
-            List<String> recorded)
-            throws SQLException {
-        int id = COUNTER.getAndIncrement();
-        try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:fetchmeta" + id + SETTINGS, "sa", "")) {
-            replay(h2, recorded);
-            DatabaseMetaData md = h2.getMetaData();
-            return switch (com.legend.compiler.element.type.PlatformTypes
-                    .fetchDbKind(nativeFqn)) {
-                case SCHEMAS -> grid(md.getSchemas(null, schemaPattern), false);
-                case TABLES -> grid(md.getTables(null, schemaPattern,
-                        tablePattern, null), false);
-                // the engine APPENDS SQL_TYPE_NAME (java.sql.Types name of
-                // DATA_TYPE at index 4) — FetchDbColumnsMetadata.java
-                case COLUMNS -> grid(md.getColumns(null, schemaPattern,
-                        tablePattern, columnPattern), true);
-                case PRIMARY_KEYS -> grid(md.getPrimaryKeys(null,
-                        schemaPattern, tablePattern), false);
-            };
+            @com.legend.Nullable String tablePattern,
+            @com.legend.Nullable String columnPattern,
+            Connection ambient) throws SQLException {
+        String sql = switch (com.legend.compiler.element.type.PlatformTypes
+                .fetchDbKind(nativeFqn)) {
+            case SCHEMAS -> "SELECT upper(schema_name) AS \"TABLE_SCHEM\","
+                    + " upper(catalog_name) AS \"TABLE_CATALOG\""
+                    + " FROM information_schema.schemata"
+                    + " WHERE schema_name" + NOT_SYSTEM
+                    + like("upper(schema_name)", schemaPattern)
+                    + " ORDER BY 1";
+            case TABLES -> "SELECT upper(table_catalog) AS \"TABLE_CAT\","
+                    + " upper(table_schema) AS \"TABLE_SCHEM\","
+                    + " upper(table_name) AS \"TABLE_NAME\","
+                    + " table_type AS \"TABLE_TYPE\", NULL AS \"REMARKS\""
+                    + " FROM information_schema.tables"
+                    + " WHERE table_schema" + NOT_SYSTEM
+                    + like("upper(table_schema)", schemaPattern)
+                    + like("upper(table_name)", tablePattern)
+                    + " ORDER BY 2, 3";
+            case COLUMNS -> "SELECT upper(table_catalog) AS \"TABLE_CAT\","
+                    + " upper(table_schema) AS \"TABLE_SCHEM\","
+                    + " upper(table_name) AS \"TABLE_NAME\","
+                    + " upper(column_name) AS \"COLUMN_NAME\","
+                    + " CASE " + BASE_TYPE + TYPE_CODE
+                    + " ELSE 1111 END AS \"DATA_TYPE\","
+                    + " " + BASE_TYPE_EXPR + " AS \"TYPE_NAME\","
+                    // the engine APPENDS SQL_TYPE_NAME (the java.sql.Types
+                    // NAME of the column's type) — FetchDbColumnsMetadata
+                    + " " + BASE_TYPE_EXPR + " AS \"SQL_TYPE_NAME\""
+                    + " FROM information_schema.columns"
+                    + " WHERE table_schema" + NOT_SYSTEM
+                    + like("upper(table_schema)", schemaPattern)
+                    + like("upper(table_name)", tablePattern)
+                    + like("upper(column_name)", columnPattern)
+                    + " ORDER BY 2, 3, ordinal_position";
+            case PRIMARY_KEYS -> throw new IllegalStateException(
+                    "primary keys route through fetchPrimaryKeys (model"
+                    + " facts — the ambient DDL omits PK constraints)");
+        };
+        return query(sql, ambient);
+    }
+
+    /** The PRIMARY_KEYS grid: the connection store's PK facts are MODEL
+     * text (the ambient DDL deliberately omits the constraints —
+     * milestoned re-seeds), composed as literal rows and
+     * existence-filtered against the LIVE catalog in SQL; the database
+     * produces every value, uppercased by the same engine-parity rule. */
+    public static HostResultSet fetchPrimaryKeys(
+            List<String[]> facts,
+            @com.legend.Nullable String schemaPattern,
+            @com.legend.Nullable String tablePattern,
+            Connection ambient) throws SQLException {
+        if (facts.isEmpty()) {
+            return new HostResultSet(List.of("TABLE_CAT", "TABLE_SCHEM",
+                    "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"),
+                    List.of());
+        }
+        StringBuilder values = new StringBuilder();
+        for (String[] f : facts) {
+            if (values.length() > 0) {
+                values.append(", ");
+            }
+            values.append("(NULL, upper('").append(esc(f[0]))
+                    .append("'), upper('").append(esc(f[1]))
+                    .append("'), upper('").append(esc(f[2]))
+                    .append("'), ").append(Integer.parseInt(f[3]))
+                    .append(", NULL)");
+        }
+        String sql = "SELECT * FROM (VALUES " + values
+                + ") AS pk(\"TABLE_CAT\", \"TABLE_SCHEM\", \"TABLE_NAME\","
+                + " \"COLUMN_NAME\", \"KEY_SEQ\", \"PK_NAME\")"
+                + " WHERE EXISTS (SELECT 1 FROM information_schema.tables t"
+                + " WHERE upper(t.table_name) = pk.\"TABLE_NAME\""
+                + " AND (pk.\"TABLE_SCHEM\" = 'DEFAULT'"
+                + " OR upper(t.table_schema) = pk.\"TABLE_SCHEM\"))"
+                + like("pk.\"TABLE_SCHEM\"", schemaPattern)
+                + like("pk.\"TABLE_NAME\"", tablePattern)
+                + " ORDER BY 2, 3, 5";
+        return query(sql, ambient);
+    }
+
+    private static String esc(String s) {
+        return s.replace("'", "''");
+    }
+
+    /** The PK fact rows (schema, table, column, seq) of the connection's
+     * store — the database referenced inside the connection argument's
+     * typed tree (variables resolve through the enclosing lets),
+     * include-closure merged. MODEL-fact collection (compilation-class),
+     * never value evaluation. */
+    public static List<String[]> pkFacts(
+            com.legend.compiler.element.@com.legend.Nullable ModelContext ctx,
+            com.legend.compiler.spec.typed.TypedSpec connArg,
+            java.util.Map<String,
+                    com.legend.compiler.spec.typed.TypedSpec> lets) {
+        String dbFqn = ctx == null ? null
+                : findDbRef(ctx, connArg, lets, new java.util.HashSet<>());
+        if (ctx == null || dbFqn == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "fetchDb primary keys — no database reference found"
+                    + " in the connection argument");
+        }
+        List<String[]> facts = new ArrayList<>();
+        collectPks(ctx, dbFqn, facts, new java.util.LinkedHashSet<>());
+        return facts;
+    }
+
+    private static void collectPks(
+            com.legend.compiler.element.ModelContext ctx, String dbFqn,
+            List<String[]> out, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return;
+        }
+        var dbo = ctx.findDatabase(dbFqn);
+        if (dbo.isEmpty()) {
+            return;
+        }
+        var db = dbo.get();
+        for (String inc : db.includes()) {
+            collectPks(ctx, inc, out, seen);
+        }
+        for (var t : db.tables()) {
+            tablePks("default", t, out);
+        }
+        for (var sd : db.schemas()) {
+            for (var t : sd.tables()) {
+                tablePks(sd.name(), t, out);
+            }
         }
     }
 
-    /** A raw QUERY over the AMBIENT session (F6.6, audit §5 A9): the
-     * executeInDb READ path runs against the database the raw writes
-     * actually seeded — CSV loads and generator inserts included. The
-     * old form replayed recorded statements into a fresh throwaway H2,
-     * which answered from a partially-populated shadow. The caller owns
-     * the connection's lifecycle. */
+    private static void tablePks(String schema,
+            com.legend.model.DatabaseDefinition.TableDefinition t,
+            List<String[]> out) {
+        int seq = 1;
+        for (var c : t.columns()) {
+            if (c.primaryKey()) {
+                out.add(new String[] {schema, t.name(), c.name(),
+                        String.valueOf(seq++)});
+            }
+        }
+    }
+
+    private static @com.legend.Nullable String findDbRef(
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.compiler.spec.typed.TypedSpec n,
+            java.util.Map<String,
+                    com.legend.compiler.spec.typed.TypedSpec> lets,
+            java.util.Set<String> visitedVars) {
+        if (n instanceof
+                com.legend.compiler.spec.typed.TypedPackageableRef pr
+                && ctx.isDatabase(pr.fullPath())) {
+            return pr.fullPath();
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            var bound = lets.get(v.name());
+            return bound != null && visitedVars.add(v.name())
+                    ? findDbRef(ctx, bound, lets, visitedVars) : null;
+        }
+        for (var c : n.children()) {
+            String hit = findDbRef(ctx, c, lets, visitedVars);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
+    }
+
+    /** The parameterized-type head ({@code DECIMAL(10,2)} → DECIMAL) —
+     * the java.sql.Types NAME for every scalar the corpus declares. */
+    private static final String BASE_TYPE =
+            "CASE WHEN data_type LIKE 'DECIMAL%' THEN 'DECIMAL'"
+            + " ELSE data_type END";
+
+    private static final String BASE_TYPE_EXPR = "(" + BASE_TYPE + ")";
+
+    /** {@code java.sql.Types} codes for the JDBC DATA_TYPE ordinal. */
+    private static final String TYPE_CODE =
+            " WHEN 'INTEGER' THEN 4 WHEN 'VARCHAR' THEN 12"
+            + " WHEN 'BIGINT' THEN -5 WHEN 'SMALLINT' THEN 5"
+            + " WHEN 'TINYINT' THEN -6 WHEN 'DOUBLE' THEN 8"
+            + " WHEN 'FLOAT' THEN 6 WHEN 'REAL' THEN 7"
+            + " WHEN 'DECIMAL' THEN 3 WHEN 'DATE' THEN 91"
+            + " WHEN 'TIMESTAMP' THEN 93 WHEN 'BOOLEAN' THEN 16";
+
+    /** JDBC LIKE-pattern filter ({@code %}/{@code _} wildcards — the
+     * DatabaseMetaData pattern contract); a null pattern matches all. */
+    private static String like(String expr,
+            @com.legend.Nullable String pattern) {
+        return pattern == null ? ""
+                : " AND " + expr + " LIKE '" + pattern.replace("'", "''")
+                        + "'";
+    }
+
+    /** A raw QUERY over the AMBIENT session (F6.6, audit §5 A9): reads
+     * run against the database the raw writes actually seeded — CSV
+     * loads and generator inserts included. The caller owns the
+     * connection's lifecycle. */
     public static HostResultSet query(String sql, Connection ambient)
             throws SQLException {
         try (Statement st = ambient.createStatement()) {
-            return grid(st.executeQuery(sql), false);
+            return grid(st.executeQuery(sql));
         }
     }
 
-    /** Replay of the recorded H2-flavored stream into the metadata
-     * shadow. F6.6: a statement H2 rejects THROWS — the old skip let a
-     * metadata read answer from a partially-populated shadow (audit §5
-     * A9: it "can silently answer from a partially-populated
-     * database"); a gap in the shadow is now a loud red carrying the
-     * failing statement, never a quiet subset answer. */
-    private static void replay(Connection h2, List<String> recorded)
-            throws SQLException {
-        try (Statement st = h2.createStatement()) {
-            for (String blob : recorded == null ? List.<String>of() : recorded) {
-                for (String one : blob.split(";\\s*\n|;\\s*$")) {
-                    if (one.isBlank()) {
-                        continue;
-                    }
-                    try {
-                        st.execute(one);
-                    } catch (SQLException e) {
-                        throw new SQLException(
-                                "h2-meta-replay REFUSED (F6.6 — the shadow"
-                                + " would be partially populated): "
-                                + one.strip().split("\\n")[0] + " => "
-                                + String.valueOf(e.getMessage())
-                                        .split("\\n")[0], e);
-                    }
-                }
-            }
-        }
-    }
-
-    private static HostResultSet grid(ResultSet rs, boolean sqlTypeName)
-            throws SQLException {
+    private static HostResultSet grid(ResultSet rs) throws SQLException {
         try (rs) {
             int n = rs.getMetaData().getColumnCount();
-            List<String> names = new ArrayList<>(n + 1);
+            List<String> names = new ArrayList<>(n);
             for (int i = 1; i <= n; i++) {
                 names.add(rs.getMetaData().getColumnName(i));
             }
-            if (sqlTypeName) {
-                names.add("SQL_TYPE_NAME");
-            }
             List<List<Object>> rows = new ArrayList<>();
             while (rs.next()) {
-                List<Object> row = new ArrayList<>(n + 1);
+                List<Object> row = new ArrayList<>(n);
                 for (int i = 1; i <= n; i++) {
                     row.add(rs.getObject(i));
-                }
-                if (sqlTypeName) {
-                    // DATA_TYPE is getColumns' 5th column (index 4)
-                    int dt = ((Number) row.get(4)).intValue();
-                    String tn = SQL_TYPE_NAMES.get(dt);
-                    if (tn == null) {
-                        throw new IllegalStateException(
-                                "no java.sql.Types name for " + dt);
-                    }
-                    row.add(tn);
                 }
                 rows.add(row);
             }

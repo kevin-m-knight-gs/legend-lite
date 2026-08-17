@@ -36,7 +36,7 @@ class ObservabilityGuardrailTest {
             "LEGEND_LITE_STACKS", "LEGEND_LITE_STAMP_TRACE",
             "LL_DUMP_RESOLVED", "LL_FNLR_DEBUG", "LL_LINEAGE_DEBUG",
             "LL_ORD_COUNT", "LL_SQLTEXT_DEBUG", "LL_TDG_DEBUG",
-            "LL_TMP_DEBUG", "LL_TMP_SQL", "LL_TOL_COUNT",
+            "LL_HOST_ARM_COUNT", "LL_TMP_DEBUG", "LL_TMP_SQL", "LL_TOL_COUNT",
             // deployment config for the HTTP server entrypoint (moved in
             // with the engine-module deletion) — not a debug flag
             "PORT");
@@ -45,7 +45,7 @@ class ObservabilityGuardrailTest {
     // engine-module deletion (DiagramHandler crash report, the two
     // invalid-PORT warnings in main) — process-boundary operational
     // logging, not debug traces. Shrink-only from here.
-    private static final int STDERR_PRINTS = 32;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
+    private static final int STDERR_PRINTS = 33;   // 32 + the E4 census instrument (HostEval LL_HOST_ARM_COUNT — REMOVED with the interpreter at E4's end); re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
     // 111: ObjectRefs' extraction-plumbing recognizers (raw-AST harness
     // vocabulary — generateObjectReferences/decodePkMaps idioms match
     // engine test spellings structurally; reviewed)

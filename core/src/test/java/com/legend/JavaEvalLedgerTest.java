@@ -49,8 +49,16 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1603,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
             "core/src/main/java/com/legend/plan/PlanText.java", 888,
-            "core/src/main/java/com/legend/AggAwareActivities.java", 265,
-            "core/src/main/java/com/legend/exec/DbMetaData.java", 161);
+            "core/src/main/java/com/legend/AggAwareActivities.java", 265);
+    // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
+    // shadow-H2 replay is DELETED and every metadata VALUE is now
+    // database-produced (catalog queries over the AMBIENT session's
+    // information_schema, F6.6's rule; identifier columns upper()'d in
+    // SQL for the H2 engine-parity spelling). The residual file is
+    // catalog-query ORCHESTRATION + egress decode by contract — the
+    // decision rule's permitted classes. The grid VALUES still flow
+    // into interpreter arms (fold/at chains) — that residue is E4.e's,
+    // pinned by the HostEval rows above.
     // E5 wire rows LANDED (2026-08-17): the product wire is
     // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
     // csvWire/jsonWire — the DB composes the bytes through the ONE

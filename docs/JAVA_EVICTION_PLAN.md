@@ -264,6 +264,26 @@ instrument-first firing count:
 **Acceptance per sub-leg:** the family's ledger rows shrink; corpus/PCT referee zero-delta
 or §0.4-declared.
 
+**E4 firing census (2026-08-17, `LL_HOST_ARM_COUNT` over the full DuckDB referee —
+4,119 firings):** store-nav (E4.a) fires exactly TWICE (`schema` 1 + `table` 1);
+metadata natives (E4.b) ~35 (`fetchDbColumns` 14, `fetchDbTables` 6, `fetchDbSchemas` 5,
+`fetchDbPrimaryKeys` 5, `executeInDb` 5); everything else (~4,080) is the structural/
+native vocabulary serving those chains plus the typeInference construction family
+(`TypedNewInstance` 295, `TypedUserCall` 236, `TypedVariable` 864, …). The E4.e residue
+is therefore bounded by the chains E4.a–d feed it.
+
+**E4.b LANDED 2026-08-17.** The shadow-H2 replay is DELETED: `fetchDbSchemas/Tables/
+Columns` are catalog queries over the AMBIENT session's `information_schema` (F6.6's
+rule — the database the raw writes actually seeded), identifier columns `upper()`'d IN
+SQL (the H2 engine-parity spelling the goldens assert), `SQL_TYPE_NAME` mapped from
+`data_type` in the projection. `fetchDbPrimaryKeys` is MODEL facts (the ambient DDL
+deliberately omits PK constraints — milestoned re-seeds): literal rows from the
+connection's store (the database reference found inside the connection argument's typed
+tree, include-closure merged), existence-filtered against the LIVE catalog in SQL.
+`replayStream` deleted; the DbMetaData EVICT row retired (residual file = catalog-query
+orchestration + egress decode by contract). Grid values still flow into interpreter
+fold/at chains — E4.e's residue, pinned by the HostEval rows.
+
 ## 4. Definition of done
 
 1. Every EVICT ledger row at zero (row deleted from the test).
