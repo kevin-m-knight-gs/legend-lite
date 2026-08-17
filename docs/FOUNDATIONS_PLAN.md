@@ -1335,6 +1335,14 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 (`DuckDBVariantLoadTest`, `DuckDBUnnestSyntaxTest`, `ProbeWireShapes`) — convert to
 `experiments/backend-probes/` shape or give them assertions.
 
+**Phase-8 progress ledger (2026-08-17):** `A17` retired by F7.6, `A18` by F7.8. **`A19`
+LANDED:** `ConnectionSpecification.EmbeddedH2(databaseName, directory, autoServerMode)` —
+carried WHOLE (the old fold to `LocalH2(null,null,null)` discarded all three fields and every
+embedded connection shared one fixed `jdbc:h2:mem:testdb`); the resolver gives each
+`databaseName` a DISTINCT in-memory db (the engine's directory-backed isolation without disk
+side effects — deliberate divergence, spelled at the resolver). Referee zero-delta, chain
+GREEN.
+
 **Backlog (append new findings here, do not act on them mid-plan):**
 - **Normalizer bare super-name resolution (F7.8 census find):** nine
   `findClass` sites receive BARE super-class simple names ("Person",

@@ -86,6 +86,13 @@ final class ConnectionResolver {
                 case ConnectionSpecification.LocalFile(String path) -> "jdbc:h2:file:" + path;
                 case ConnectionSpecification.StaticDatasource(String host, int port,
                         String database) -> "jdbc:h2:tcp://" + host + ":" + port + "/" + database;
+                // A19: a DISTINCT in-memory db per databaseName — the
+                // engine's directory-backed isolation without disk side
+                // effects (the old fold shared ONE fixed testdb instance
+                // across every embedded connection)
+                case ConnectionSpecification.EmbeddedH2(String dbName,
+                        String dir, boolean auto) ->
+                        "jdbc:h2:mem:" + dbName + ";DB_CLOSE_DELAY=-1";
                 default -> "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1";
             }), def);
             case Postgres -> {
