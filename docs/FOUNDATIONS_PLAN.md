@@ -1074,6 +1074,14 @@ BURNDOWN_EXPLANATIONS), corpus 2334→2335; h2 sweep 2282/2575 unchanged; the tw
 and the mirror never registers the aliases — so the C1 fix this class exists for is not in effect
 on the default path.
 
+**LANDED ENDPOINT (2026-08-17):** `H2Verify.mirrorBegin` now registers
+`H2ExtensionFunctions.aliases()` on the mirror connection before attaching it — the mirror and
+the fresh-replay branch install identically (a failed registration is a loud
+IllegalStateException, never a silent partial mirror). Measured delta today: ZERO (both sweeps
+carry no `legend_h2_extension_*` declines — h2-exec 320+632/0/155 identical before and after),
+so this is wiring parity, not a rescue: the gap would have surfaced the moment an
+extension-calling golden hit the default mirror path. Full chain GREEN.
+
 ### F6.8 — Fix the emptiness-guard ordering hole
 
 **Files:** `EngineTestExecutor.java:1944-1953`

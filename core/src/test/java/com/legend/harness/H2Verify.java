@@ -190,6 +190,20 @@ public final class H2Verify {
 
     /** Install the family session's live mirror (runner-owned). */
     public static void mirrorBegin(Connection h2) {
+        // F6.7: the engine's H2 extension functions register on the
+        // MIRROR too — only the fresh-replay branch installed them, and
+        // Runner makes the incremental mirror the DEFAULT path for
+        // DuckDB sweeps, so golden SQL calling legend_h2_extension_*
+        // declined verification on the path that actually runs (the C1
+        // fix this class exists for was not in effect).
+        try (Statement st = h2.createStatement()) {
+            for (String alias : H2ExtensionFunctions.aliases()) {
+                st.execute(alias);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "h2 mirror extension registration failed", e);
+        }
         MIRROR = new MirrorState(h2);
     }
 
