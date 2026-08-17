@@ -2770,7 +2770,12 @@ public final class EngineTestExecutor {
             com.legend.exec.ExecutionResult stripped = evalSpliced(
                     tail.parameters().get(0), execStmts, execVars,
                     ctx, imports, runtimeFqn, conn);
-            if (stripped instanceof com.legend.exec.ExecutionResult.Tabular) {
+            if (stripped instanceof com.legend.exec.ExecutionResult.Tabular tgrid) {
+                if (System.getenv("LL_CSV_PROBE") != null
+                        && simpleName(tail.function()).equals("toCSV")) {
+                    csvProbe(spliced, tgrid, execStmts, execVars, ctx,
+                            imports, runtimeFqn, conn);
+                }
                 return new Eval(stripped,
                         endsInSort(orderView(tail.parameters().get(0),
                                 execChains)),
@@ -3328,6 +3333,76 @@ public final class EngineTestExecutor {
 
     /** The toCSV wire text: header line + one line per row, every line
      * newline-terminated (the engine's Result->toCSV convention). */
+    /** TEMPORARY F4.2b PROBE (delete with F4.3): side A = the harness's
+     *  Java render of the stripped grid; side B = the UNSTRIPPED
+     *  expression through the platform (the registered toCSV lowering —
+     *  the DATABASE's text). One row per assertion into
+     *  target/csv-differential.tsv: fqn, EXACT|MULTISET|DIFFERS|B_ERROR,
+     *  and the first divergent line pair. Read-only — never throws. */
+    private static void csvProbe(ValueSpecification unstripped,
+            com.legend.exec.ExecutionResult.Tabular grid,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            ModelContext ctx, ImportScope imports, String runtimeFqn,
+            java.sql.Connection conn) {
+        String fqn = String.valueOf(H2Verify.CURRENT_TEST.get());
+        String verdict;
+        String detail = "";
+        try {
+            com.legend.exec.ExecutionResult rb = evalSpliced(unstripped,
+                    execStmts, execVars, ctx, imports, runtimeFqn, conn);
+            if (rb == null) {
+                verdict = "B_NULL";
+                detail = "";
+            } else if (!(rb instanceof com.legend.exec.ExecutionResult.Scalar sc)
+                    || !(sc.value() instanceof String sideB)) {
+                verdict = "B_NOT_SCALAR";
+                detail = rb.getClass().getSimpleName();
+            } else {
+                String sideA = csvText(grid);
+                if (sideA.equals(sideB)) {
+                    verdict = "EXACT";
+                } else {
+                    String[] la = sideA.split("\n", -1);
+                    String[] lb = sideB.split("\n", -1);
+                    boolean multiset = la.length == lb.length
+                            && la.length > 0 && la[0].equals(lb[0])
+                            && new java.util.ArrayList<>(java.util.List.of(la))
+                                    .stream().sorted().toList()
+                                    .equals(new java.util.ArrayList<>(
+                                            java.util.List.of(lb)).stream()
+                                            .sorted().toList());
+                    verdict = multiset ? "MULTISET" : "DIFFERS";
+                    int i = 0;
+                    while (i < Math.min(la.length, lb.length)
+                            && la[i].equals(lb[i])) {
+                        i++;
+                    }
+                    detail = "line" + i + " A='"
+                            + (i < la.length ? la[i] : "<eof>") + "' B='"
+                            + (i < lb.length ? lb[i] : "<eof>") + "'";
+                }
+            }
+        } catch (Throwable t) {
+            verdict = "B_ERROR";
+            String m = String.valueOf(t.getMessage());
+            detail = t.getClass().getSimpleName() + ": "
+                    + m.substring(0, Math.min(160, m.length()));
+        }
+        try {
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target", "csv-differential.tsv"),
+                    fqn + "\t" + verdict + "\t"
+                            + detail.replace('\n', ' ').replace('\t', ' ')
+                            + "\n",
+                    java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.APPEND);
+        } catch (java.io.IOException ignore) {
+            // best-effort probe
+        }
+    }
+
     private static String csvText(com.legend.exec.ExecutionResult.Tabular t) {
         StringBuilder header = new StringBuilder();
         for (var c : t.columns()) {
