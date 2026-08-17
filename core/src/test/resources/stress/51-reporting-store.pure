@@ -95,6 +95,17 @@ Mapping reporting::EmbeddedFlatMapping
 ###Mapping
 Mapping reporting::RollupMapping
 (
+    // The association mapping that makes the view REACHABLE. Without it BookRollup is an
+    // island: nothing navigates to it, so the only service that ever touched `View` was the
+    // one rooted at it, and the construct sat at three of its forty possible feature pairs.
+    // A construct nothing can reach is a construct nothing can combine.
+    reporting::BookHasRollup: Relational {
+        AssociationMapping (
+            rollup: [store::DB] @Book_Rollup,
+            book: [store::DB] @Book_Rollup
+        )
+    }
+
     reporting::BookRollup: Relational {
         ~primaryKey ([store::DB] NOTIONAL_BY_BOOK.BOOK_ID)
         ~mainTable [store::DB] NOTIONAL_BY_BOOK
@@ -166,4 +177,13 @@ Runtime stress::InlineFlatRT
 {
     mappings: [ reporting::InlineFlatMapping ];
     connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+###Pure
+// Declared here rather than in a domain file because the view it reaches is declared here.
+// `rollup` is [0..1]: four books, three rollup rows, so one book has none.
+Association reporting::BookHasRollup
+{
+   book: positions::Book[0..1];
+   rollup: reporting::BookRollup[0..1];
 }

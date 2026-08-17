@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import model
 import oracle
+import query
 from query import Proj, Spec
 
 # Bounded like stacks.MAX_ROOTS and graphs.MAX_ROOTS: the ranking decides which, so a wider
@@ -134,6 +135,7 @@ def build(c: model.Corpus, seeded: set[str],
                     root)
         spec.projections = projections
         spec.sort = (ident, False)
+        query.apply_temporal(c, spec)
         specs.append(spec)
     return specs
 

@@ -1,6 +1,13 @@
 ###Mapping
 Mapping counterparty::TemporalMapping
 (
+    counterparty::RatingsOfCounterparty: Relational {
+        AssociationMapping (
+            ratings: [store::DB] @Counterparty_RatingMS,
+            counterparty: [store::DB] @Counterparty_RatingMS
+        )
+    }
+
     counterparty::RatingVersion: Relational {
         ~primaryKey ([store::DB] CPTY_RATING_MS.COUNTERPARTY_ID, [store::DB] CPTY_RATING_MS.FROM_Z)
         ~mainTable [store::DB] CPTY_RATING_MS
@@ -15,6 +22,13 @@ Mapping counterparty::TemporalMapping
 ###Mapping
 Mapping products::BiTemporalMapping
 (
+    products::RatingsOfInstrument: Relational {
+        AssociationMapping (
+            ratings: [store::DB] @Instrument_RatingBI,
+            instrument: [store::DB] @Instrument_RatingBI
+        )
+    }
+
     products::InstrumentRating: Relational {
         ~primaryKey ([store::DB] INSTR_RATING_BI.INSTRUMENT_ID, [store::DB] INSTR_RATING_BI.FROM_Z, [store::DB] INSTR_RATING_BI.IN_Z)
         ~mainTable [store::DB] INSTR_RATING_BI
@@ -23,3 +37,25 @@ Mapping products::BiTemporalMapping
         source: [store::DB] INSTR_RATING_BI.SOURCE
     }
 )
+
+
+###Pure
+// The two milestoned classes were islands: nothing navigated to them, so `milestoning`,
+// `composite PK` and `milestoned as-of` appeared only in the nine services rooted at them and
+// combined with almost nothing.
+//
+// The to-ONE direction is the one that matters for coverage. stacks.py chains along to-one
+// ends, so a service rooted at a rating can now walk out into the counterparty and instrument
+// graphs and carry its milestoning with it -- which is how a construct stops being a probe
+// and starts being part of a stack.
+Association counterparty::RatingsOfCounterparty
+{
+   counterparty: counterparty::Counterparty[0..1];
+   ratings: counterparty::RatingVersion[*];
+}
+
+Association products::RatingsOfInstrument
+{
+   instrument: products::Instrument[0..1];
+   ratings: products::InstrumentRating[*];
+}

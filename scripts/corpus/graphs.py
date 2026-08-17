@@ -31,6 +31,7 @@ Two exclusions, both because generating a test that is known to fail buys nothin
 from __future__ import annotations
 
 import model
+import query
 from query import Spec
 
 # Bounded like stacks.MAX_ROOTS: every root costs a service and the suite runs per commit.
@@ -176,6 +177,7 @@ def build(c: model.Corpus, seeded: set[str],
                     f"scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the "
                     f"hand-written G0-G3 in battery.py.", root)
         spec.graph = tree
+        query.apply_temporal(c, spec)
         specs.append(spec)
     return specs
 

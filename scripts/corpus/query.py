@@ -329,6 +329,30 @@ def _finish(name: str, body: str) -> Spec:
     return s
 
 
+def apply_temporal(c, spec) -> None:
+    """Give a temporal root the date(s) `all()` requires.
+
+    Every generator needs this and none of them had it, because until the milestoned classes
+    were made reachable no generated service was ever rooted at one -- the two milestoned
+    classes were islands and only hand-written services touched them. The moment they were
+    reachable, three generators failed the BUILD in turn with
+
+        counterparty::RatingVersion is businesstemporal, so all() needs 1 date(s)
+        products::InstrumentRating is bitemporal, so all() needs 2 date(s)
+
+    `latest` rather than a fixed date: every milestoned row in the seed is live at latest, so
+    the expectation does not depend on which dates the seeder happened to choose, and the
+    milestoning is still applied.
+    """
+    if spec.as_of is not None:
+        return
+    temporal = c.classes[spec.root].temporal if spec.root in c.classes else None
+    if temporal == "bitemporal":
+        spec.as_of = ["latest", "latest"]
+    elif temporal:
+        spec.as_of = "latest"
+
+
 def load() -> list[Spec]:
     return parse((STRESS / "92-services.pure").read_text())
 

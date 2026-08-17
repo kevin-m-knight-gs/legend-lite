@@ -29,6 +29,7 @@ green only if the two disagree row by row, exactly where the data says they shou
 from __future__ import annotations
 
 import model
+import query
 from query import Proj, Spec
 
 # Bounded like the other generators: the ranking decides which ends, so a wider seed widens

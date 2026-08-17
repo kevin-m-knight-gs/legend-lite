@@ -25,6 +25,7 @@ Two rules keep the output meaningful:
 from __future__ import annotations
 
 import model
+import query
 from query import Pred, Proj, Spec
 
 MIN_FEATURES = 5
@@ -233,6 +234,7 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
             # the part it actually affects.
             spec.filters = [Pred([scalar], ">", " ")]
             features.add("queryFilter")
+        query.apply_temporal(c, spec)
         spec.sort = (ident, False)
         spec.limit = 25
         features.update({"sort", "limit"})

@@ -580,6 +580,17 @@ Database store::DB
     // TRADER.MANAGER_ID = TRADER.TRADER_ID would be a tautology matching every row
     // against itself.
     Join Trader_Manager(TRADER.MANAGER_ID = {target}.TRADER_ID)
+    // Reaches the VIEW from the book that owns it. BOOK has four rows and the view has
+    // three, so one book resolves to nothing -- a NULL to-one, which is the case the corpus
+    // wants reachable rather than a tidy one-to-one.
+    Join Book_Rollup(BOOK.BOOK_ID = NOTIONAL_BY_BOOK.BOOK_ID)
+    // Reach the MILESTONED tables from the entities they describe. Both were islands, so the
+    // only services carrying `milestoning` and `composite PK` were the nine rooted at them,
+    // and each construct sat at five of its forty possible pairs. The FROM_Z/THRU_Z columns
+    // are not in the condition: milestoning supplies them, and putting them here would be
+    // asserting the temporal semantics by hand instead of letting the engine apply them.
+    Join Counterparty_RatingMS(COUNTERPARTY.COUNTERPARTY_ID = CPTY_RATING_MS.COUNTERPARTY_ID)
+    Join Instrument_RatingBI(INSTRUMENT.INSTRUMENT_ID = INSTR_RATING_BI.INSTRUMENT_ID)
 
     Join TradeFlatPartial_Counterparty(TRADE_FLAT_PARTIAL.CPTY_FK = COUNTERPARTY.COUNTERPARTY_ID)
 
