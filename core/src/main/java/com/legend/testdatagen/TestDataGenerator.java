@@ -43,9 +43,9 @@ import java.util.TreeSet;
  * <p>Walls are LOUD ({@link NotImplementedException} naming the
  * pending shape) — but the previously-listed examples (view-backed
  * relations, hashStrings, temporal milestoning dates) are IMPLEMENTED
- * now; hashStrings via a Java SHA-256 over rs.getString, which is
- * audit A5, the tenet's oldest open breach — the Phase-8 expression
- * channel deletes it. Only genuinely unhandled shapes throw today.
+ * now; hashStrings and the CSV scrub are spelled IN SQL (A5/A6 — the
+ * Java SHA-256 over rs.getString was the tenet's oldest open breach).
+ * Only genuinely unhandled shapes throw today.
  */
 public final class TestDataGenerator {
 
@@ -1062,18 +1062,54 @@ public final class TestDataGenerator {
                     .append('\n').append(String.join(",", cs.stream()
                             .map(TestDataGenerator::headerCase).toList()))
                     .append('\n');
+            // A5/A6: hashing AND the CSV scrub are SQL — Java only
+            // displays. Text columns learn from the union's SCHEMA (a
+            // LIMIT-0 metadata read, not value sniffing).
+            java.util.Set<String> textCols = new java.util.HashSet<>();
+            try (ResultSet meta = st.executeQuery(
+                    "select * from (" + union + ") limit 0")) {
+                var mmd = meta.getMetaData();
+                for (int i = 1; i <= mmd.getColumnCount(); i++) {
+                    if (isTextType(mmd.getColumnType(i))) {
+                        textCols.add(mmd.getColumnName(i));
+                    }
+                }
+            }
+            List<String> projs = new ArrayList<>(cs.size());
+            for (String c : cs) {
+                if (!textCols.contains(c)) {
+                    // non-string kinds pass through (engine
+                    // hashStrings(): s:String -> hash, Any unchanged);
+                    // their display forms never carry scrub characters
+                    projs.add(q(c));
+                } else if (hashStrings) {
+                    // the engine's hashString (testDataGeneration
+                    // .pure:656) IN SQL: first 5 hex chars of sha256,
+                    // tiled to the source length (whole repeats + the
+                    // LAST len%5 chars) — hex output needs no scrub
+                    String h = "substr(sha256(" + q(c) + "),1,5)";
+                    projs.add("repeat(" + h + ", length(" + q(c)
+                            + ")//5) || right(" + h + ", length(" + q(c)
+                            + ")%5) as " + q(c));
+                } else {
+                    // the CSV scrub (quote/comma/newline) in SQL — the
+                    // old Java replace chain was A6's lossy scrub at
+                    // the wrong layer
+                    projs.add("replace(replace(replace(" + q(c)
+                            + ", chr(39), ' '), ',', ';'), chr(10), ' ')"
+                            + " as " + q(c));
+                }
+            }
             // ORDER BY ordinals, not DuckDB's ORDER BY ALL (P3): same
             // semantics (all columns left-to-right), every backend.
             try (ResultSet rs = st.executeQuery("select "
-                    + String.join(", ", cs.stream().map(
-                            TestDataGenerator::q).toList())
+                    + String.join(", ", projs)
                     + " from (" + union + ") order by "
                     + java.util.stream.IntStream.rangeClosed(1, cs.size())
                             .mapToObj(String::valueOf)
                             .collect(java.util.stream.Collectors
                                     .joining(", ")))) {
-                var md = rs.getMetaData();
-                int n = md.getColumnCount();
+                int n = rs.getMetaData().getColumnCount();
                 while (rs.next()) {
                     StringBuilder row = new StringBuilder();
                     for (int i = 1; i <= n; i++) {
@@ -1081,16 +1117,7 @@ public final class TestDataGenerator {
                             row.append(',');
                         }
                         String v = rs.getString(i);
-                        // hashStrings applies to STRING-typed values only
-                        // (engine hashStrings(): s:String -> hash, Any
-                        // passes through) — column type decides
-                        if (v != null && hashStrings && isTextType(
-                                md.getColumnType(i))) {
-                            v = hashString(v);
-                        }
-                        row.append(v == null ? "---null---"
-                                : v.replace('\'', ' ').replace(',', ';')
-                                        .replace('\n', ' '));
+                        row.append(v == null ? "---null---" : v);
                     }
                     out.append(row).append('\n');
                 }
@@ -1108,28 +1135,6 @@ public final class TestDataGenerator {
                 || sqlType == java.sql.Types.LONGVARCHAR;
     }
 
-    /** The engine's {@code hashString} (testDataGeneration.pure:656):
-     * the first 5 hex chars of SHA-256, TILED to the original string's
-     * length (whole repeats + the LAST len%5 chars). */
-    static String hashString(String s) {
-        java.security.MessageDigest md;
-        try {
-            md = java.security.MessageDigest.getInstance("SHA-256");
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-        byte[] d = md.digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        StringBuilder hex = new StringBuilder();
-        for (byte b : d) {
-            hex.append(String.format("%02x", b));
-        }
-        String h = hex.substring(0, 5);
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < s.length() / 5; i++) {
-            out.append(h);
-        }
-        return out.append(h.substring(5 - s.length() % 5)).toString();
-    }
 
     // ===== assertTestData (engine: setUpDataSQLs + assertSameElements) =====
 

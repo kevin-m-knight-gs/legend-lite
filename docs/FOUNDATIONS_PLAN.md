@@ -1385,6 +1385,18 @@ keys today, and now none can silently. The broader `rows().stream()` sorted/filt
 emit the engine's union-subselect/LEFT-join explosion in SQL); the host path is loud-guarded
 meanwhile (a second many-valued column throws; empty streams keep the LEFT-join row). **A5/A6**
 (testdatagen `Fetched` per-column `SqlExpr`) remains the one substantial open Phase-8 build.
+**A5/A6 LANDED (2026-08-17):** `hashStrings` and the CSV scrub are SQL. The dump's SELECT
+spells the engine's hashString per text column (`repeat(substr(sha256(c),1,5), len//5) ||
+right(…, len%5)` — first-5-hex tiled, engine testDataGeneration.pure:656) and the
+quote/comma/newline scrub as nested `replace`; text columns learn from the union's SCHEMA (a
+LIMIT-0 metadata read). The Java `MessageDigest` hashString and the display-string replace
+chain are DELETED — the tenet's oldest open breach (survived 691 commits) is closed. Row
+values cross into Java as display strings only. The full `Fetched` per-column-SqlExpr
+re-plumbing proved unnecessary: the projection layer was the one seam that needed typing.
+Referee zero-delta, chain GREEN. **Phase 8's build items are done**; residue = §9 backlog
+(F4.4 Lowerer root mode, TDS-to-many + A13, HostEval re-platforming, SourceUrl frame,
+streaming route, CorpusDifferentialTest gate wiring, reflection retirements, bare-super-name
+resolution, DuckDB-upgrade txn revisit).
 
 **Backlog (append new findings here, do not act on them mid-plan):**
 - **HTTP streaming route (A20 residue):** `Executor.stream` (JSON straight
