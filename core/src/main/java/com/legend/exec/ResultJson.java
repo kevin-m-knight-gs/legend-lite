@@ -76,6 +76,19 @@ public final class ResultJson {
         out.append('}');
     }
 
+    /** JSON text of a parsed-JSON value tree (F7.3: the JSON source
+     * frame's Variant cells re-emit REAL JSON — a nested object must
+     * never ride Java's {@code Map.toString}). */
+    public static String jsonText(@com.legend.Nullable Object v) {
+        StringBuilder sb = new StringBuilder();
+        try {
+            writeValue(sb, v);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return sb.toString();
+    }
+
     static void writeValue(Appendable out, @com.legend.Nullable Object v) throws IOException {
         switch (v) {
             case null -> out.append("null");

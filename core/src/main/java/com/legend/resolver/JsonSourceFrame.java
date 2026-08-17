@@ -62,6 +62,40 @@ final class JsonSourceFrame {
         return out;
     }
 
+    /** One JSON value as a TDS-grid cell, typed by the DECLARED column
+     * (F7.3: the old {@code String.valueOf} erased every JSON type back
+     * to text). A Variant cell re-emits REAL JSON, quote-wrapped for the
+     * grid ({@code Scalars.tdsCell}'s variant arm strips one outer quote
+     * pair); a structured value under a SCALAR column walls; a JSON
+     * string that spells the grid's null tokens walls (the string grid
+     * cannot carry it — blocked on the SourceUrl re-platform, §9). */
+    static String cellText(@com.legend.Nullable Object v,
+            Type t, String classFqn, String prop) {
+        if (v == null) {
+            return com.legend.compiler.element.type.PlatformTypes
+                    .TDS_NULL_CELL;
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
+            return "\"" + com.legend.exec.ResultJson.jsonText(v) + "\"";
+        }
+        if (v instanceof Map || v instanceof List) {
+            throw new NotImplementedException("JSON source for '" + classFqn
+                    + "': structured value under scalar property '" + prop
+                    + "' (" + t.typeName() + ") — declare the property as"
+                    + " Variant, or wait for the SourceUrl re-platform");
+        }
+        if (v instanceof String sv && (sv.isEmpty() || sv.equals("null")
+                || sv.equals(com.legend.compiler.element.type.PlatformTypes
+                        .TDS_NULL_CELL))) {
+            throw new NotImplementedException("JSON source for '" + classFqn
+                    + "': string value '" + sv + "' for property '" + prop
+                    + "' collides with the TDS-grid null spelling — the"
+                    + " string grid cannot carry it (SourceUrl re-platform,"
+                    + " §9)");
+        }
+        return String.valueOf(v);
+    }
+
     static ClassSource classSource(ModelContext ctx, String mappingFqn,
             String classFqn, String url) {
         String prefix = "data:application/json,";
@@ -97,8 +131,14 @@ final class JsonSourceFrame {
                         + classFqn + "' unknown to the model"));
         List<Type.Column> cols = new ArrayList<>();
         for (var p : cls.properties()) {
-            if (p.type() instanceof Type.ClassType) {
-                continue;   // class-typed: no column; reads wall downstream
+            // F7.3: Variant IS a column (the platform's JSON carrier) —
+            // a nested object/array realizes as real JSON, never Java
+            // toString. Other class-typed properties contribute nothing
+            // (reads through them keep their own walls).
+            if (p.type() instanceof Type.ClassType ct
+                    && !com.legend.compiler.element.type.PlatformTypes
+                            .isVariant(ct)) {
+                continue;
             }
             cols.add(new Type.Column(p.name(), p.type(), p.multiplicity()));
         }
@@ -110,10 +150,8 @@ final class JsonSourceFrame {
         for (Map<?, ?> o : objects) {
             List<String> row = new ArrayList<>(cols.size());
             for (Type.Column c : cols) {
-                Object v = o.get(c.name());
-                row.add(v == null
-                        ? com.legend.compiler.element.type.PlatformTypes.TDS_NULL_CELL
-                        : String.valueOf(v));
+                row.add(cellText(o.get(c.name()), c.type(), classFqn,
+                        c.name()));
             }
             rows.add(row);
         }

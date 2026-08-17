@@ -1185,6 +1185,19 @@ every JSON type back to text**, which `Scalars.tdsCell` re-parses (`Long.parseLo
 `SourceUrlChecker.java:38` → `Lowerer.java:323-324` → `SqlSource.SourceUrl` →
 `DuckDb.java:171-185` (`unnest(CAST(… AS JSON[]))`). 27 occurrences / 5 files. Audit §5 A12.
 
+**LANDED ENDPOINT (2026-08-17):** both concrete bugs fixed AT THE PRODUCER; the full SourceUrl
+re-platform is scoped and filed (§9). `JsonSourceFrame.cellText` now types every cell by the
+DECLARED column: a **Variant** property IS a column (the frame no longer skips it with the
+class-typed ones) and its value re-emits as REAL JSON via `ResultJson.jsonText` (quote-wrapped
+for `Scalars.tdsCell`'s variant arm — nested objects never ride `Map.toString` again); a
+structured value under a SCALAR column WALLS; a JSON string spelling the grid's null tokens
+(`"null"`, empty, `---null---`) WALLS instead of silently becoming SQL NULL — the
+`List<List<String>>` grid genuinely cannot carry it, which is the honest boundary of this
+carrier. Four pins in `JsonSourceFrameCellTest`. Residue → §9: realize the frame OVER
+`SqlSource.SourceUrl` + typed variant extraction (`variant::navigation::get` +
+`variant::convert::to` exist; the missing piece is the FRAME_ORDINAL row-identity channel in
+the sourceUrl spelling). Referees: DuckDB scoreboard byte-identical, full chain GREEN.
+
 ### F7.4 — End the self-inflicted SQL rewrite loop
 
 **Files:** `exec/Ddl.java:323` (`Float_ -> "FLOAT"`), `exec/RawSqlBoundary.java:245-249`
