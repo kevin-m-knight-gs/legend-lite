@@ -402,36 +402,10 @@ public final class Executor {
      * a raw quote-strip would keep the backslashes (audit finding).
      */
     private static String jsonUnescape(String s) {
-        if (s.indexOf('\\') < 0) {
-            return s;
-        }
-        StringBuilder out = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c != '\\' || i == s.length() - 1) {
-                out.append(c);
-                continue;
-            }
-            char e = s.charAt(++i);
-            switch (e) {
-                case '"' -> out.append('"');
-                case '\\' -> out.append('\\');
-                case '/' -> out.append('/');
-                case 'n' -> out.append('\n');
-                case 't' -> out.append('\t');
-                case 'r' -> out.append('\r');
-                case 'b' -> out.append('\b');
-                case 'f' -> out.append('\f');
-                case 'u' -> {
-                    if (i + 4 < s.length()) {
-                        out.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16));
-                        i += 4;
-                    }
-                }
-                default -> out.append('\\').append(e);
-            }
-        }
-        return out.toString();
+        // F3.1d: this was a keep-the-backslash TWIN of the platform
+        // reader's table (sql/Json drops it — the same terminal rule as
+        // the Pure unescape family); the twin lost the adjudication
+        return com.legend.sql.Json.unescapeString(s);
     }
 
     /**

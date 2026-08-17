@@ -530,6 +530,20 @@ one owner plus documented exemptions.
 **Expected red:** possible in `server/` tests if any pinned a `double`-rounded value.
 **That red is the bug.**
 
+> **LANDED ENDPOINT (2026-08-16, second pass — the Phase-3 deep audit caught c/d/e
+> unlanded after F3.7's commit prematurely declared the phase complete):**
+> **c)** the WRITE table lives once in `protocol/Escapes.jsonEscape(out, s, upperHex)` —
+> the three spellings (server/Json.escapeTo, ProtocolEmitter.str, ResultJson.writeString)
+> differed ONLY in control-escape hex case, so Jackson's uppercase is the one parameter;
+> all three delegate (JsonSerializer already rode ResultJson). Byte parity pre-flighted
+> (CorpusSweepTest green) before the chain.
+> **d)** the READ table for string bodies is `sql/Json.unescapeString` (drop-backslash —
+> the platform reader's and the Pure unescape family's shared terminal rule);
+> `Executor.jsonUnescape`'s keep-the-backslash twin lost the adjudication and delegates.
+> **e)** the MongoDB exemption is recorded AT THE SITE (token-level, no escape decoding,
+> loud on floats). `sql/Json`'s header claim is now TRUE with two documented exemptions
+> (server/Json strict HTTP reader; MongoDB). The five-readers table above is history.
+
 ### F3.2 — Substitution: delete the harness copy
 
 **Files:** delete `core/src/main/java/com/legend/harness/HarnessSubstitution.java`; repoint

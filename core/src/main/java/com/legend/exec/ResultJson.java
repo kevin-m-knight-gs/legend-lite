@@ -113,29 +113,12 @@ public final class ResultJson {
         }
     }
 
-    /** RFC 8259 string emission: quotes, backslash, and ALL control chars
-     * escaped ({@code \b \f \n \r \t} named, the rest {@code \}{@code u00XX}). */
+    /** RFC 8259 string emission — the ONE table
+     *  ({@link com.legend.protocol.Escapes#jsonEscape}, F3.1c),
+     *  lowercase hex. */
     static void writeString(Appendable out, String s) throws IOException {
         out.append('"');
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\b' -> out.append("\\b");
-                case '\f' -> out.append("\\f");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        out.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-                }
-            }
-        }
+        com.legend.protocol.Escapes.jsonEscape(out, s, false);
         out.append('"');
     }
 }

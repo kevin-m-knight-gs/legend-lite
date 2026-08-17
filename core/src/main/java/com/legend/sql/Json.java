@@ -8,12 +8,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** A minimal JSON reader — DESIGNED as the platform's one, which is
- * not yet true (audit F3.1: five readers coexist — server/Json with the
- * decimal->double bug audit 18 fixed HERE, TdsChecker's validator,
- * MongoDB section grammar, Executor's string decoder). F3.1 collapses
- * them onto this one. Integers read as Long, decimals as BigDecimal
- * (audit 18: double rounding made distinct Decimals compare equal). */
+/** THE platform's JSON reader (F3.1 landed): TdsChecker's validator
+ * delegates here (F3.1b), Executor's string decoder is deleted onto
+ * {@link #unescapeString} (F3.1d), and the TWO documented exemptions
+ * are server/Json (the strict fail-fast HTTP-boundary reader — a
+ * different policy on purpose; its decimal path got the audit-18
+ * BigDecimal fix in F3.1a) and MongoDBSectionGrammar (token-level,
+ * decodes no escapes, loud on floats — F3.1e, recorded at the site).
+ * Integers read as Long, decimals as BigDecimal (audit 18: double
+ * rounding made distinct Decimals compare equal). */
 public final class Json {
     private final String s;
     private int i;
@@ -130,33 +133,52 @@ public final class Json {
     }
 
     private String str() {
-        StringBuilder b = new StringBuilder();
         i++;
+        int start = i;
         while (s.charAt(i) != '"') {
-            char c = s.charAt(i);
-            if (c == '\\') {
-                i++;
-                char e = s.charAt(i);
-                b.append(switch (e) {
-                    case 'n' -> '\n';
-                    case 't' -> '\t';
-                    case 'r' -> '\r';
-                    case 'b' -> '\b';
-                    case 'f' -> '\f';
-                    case 'u' -> {
-                        char u = (char) Integer.parseInt(
-                                s.substring(i + 1, i + 5), 16);
-                        i += 4;
-                        yield u;
-                    }
-                    default -> e;
-                });
-            } else {
-                b.append(c);
-            }
-            i++;
+            i += s.charAt(i) == '\\' ? 2 : 1;
         }
+        String body = s.substring(start, i);
         i++;
+        return unescapeString(body);
+    }
+
+    /** THE JSON string-escape READ table (F3.1d), decoding an already-
+     *  extracted string BODY: named escapes, {@code \-uXXXX}, and
+     *  DROP-BACKSLASH for anything unknown (the same terminal rule as
+     *  the platform's Pure unescape family). Executor's variant-carrier
+     *  decoder was a keep-the-backslash twin of this table and is
+     *  deleted — it delegates here. A lone trailing backslash (invalid
+     *  JSON, unreachable from a well-formed reader) stays verbatim. */
+    public static String unescapeString(String s) {
+        if (s.indexOf('\\') < 0) {
+            return s;
+        }
+        StringBuilder b = new StringBuilder(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c != '\\' || i + 1 >= s.length()) {
+                b.append(c);
+                i++;
+                continue;
+            }
+            char e = s.charAt(i + 1);
+            switch (e) {
+                case 'n' -> b.append('\n');
+                case 't' -> b.append('\t');
+                case 'r' -> b.append('\r');
+                case 'b' -> b.append('\b');
+                case 'f' -> b.append('\f');
+                case 'u' -> {
+                    b.append((char) Integer.parseInt(
+                            s.substring(i + 2, i + 6), 16));
+                    i += 4;
+                }
+                default -> b.append(e);   // drop-backslash
+            }
+            i += 2;
+        }
         return b.toString();
     }
 

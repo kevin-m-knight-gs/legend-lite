@@ -3337,28 +3337,16 @@ public final class ProtocolEmitter {
         }
     }
 
-    /** RFC-8259 string escaping, matching Jackson's default output. */
+    /** RFC-8259 string escaping, matching Jackson's default output —
+     *  the ONE table ({@link Escapes#jsonEscape}, F3.1c), UPPERCASE hex
+     *  (the byte-parity goldens pin Jackson's case). */
     static void str(StringBuilder b, String v) {
         b.append('"');
-        for (int i = 0; i < v.length(); i++) {
-            char c = v.charAt(i);
-            switch (c) {
-                case '"' -> b.append("\\\"");
-                case '\\' -> b.append("\\\\");
-                case '\n' -> b.append("\\n");
-                case '\r' -> b.append("\\r");
-                case '\t' -> b.append("\\t");
-                case '\b' -> b.append("\\b");
-                case '\f' -> b.append("\\f");
-                default -> {
-                    if (c < 0x20) {
-                        // Jackson writes control escapes with UPPERCASE hex ()
-                        b.append(String.format("\\u%04X", (int) c));
-                    } else {
-                        b.append(c);
-                    }
-                }
-            }
+        try {
+            Escapes.jsonEscape(b, v, true);
+        } catch (java.io.IOException e) {
+            // StringBuilder never throws
+            throw new java.io.UncheckedIOException(e);
         }
         b.append('"');
     }
