@@ -368,6 +368,7 @@ public class RelationalCorpusRunner {
                                 + o.detail())));
             }
             System.out.println("[rcorpus] failed seeds: " + seedFails.size());
+            seedFails.forEach(f -> System.out.println("[rcorpus]   seed-fail: " + f));
             System.out.println("[rcorpus] seed replay: "
                     + Runner.SEED_CALLS.get() + " calls, "
                     + (Runner.SEED_NANOS.get() / 1_000_000) + " ms; raw jdbc "
@@ -412,6 +413,7 @@ public class RelationalCorpusRunner {
                             + " " + o.test() + ": " + o.detail())));
         }
         System.out.println("[rcorpus] failed seeds: " + seedFails.size());
+        seedFails.forEach(f -> System.out.println("[rcorpus]   seed-fail: " + f));
         byFamily.forEach((f, outs) -> {
             long p = outs.stream().filter(o -> o.status() == Runner.Status.PASS).count();
             System.out.println("[rcorpus] " + f + ": " + p + "/" + outs.size() + " pass");

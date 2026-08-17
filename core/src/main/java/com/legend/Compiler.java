@@ -560,7 +560,8 @@ public final class Compiler {
             @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection)
             throws java.sql.SQLException {
-        return executeResolved(resolved, ctx, runtimeFqn, connection, null);
+        return StatementExecutor.execute(resolved, ctx,
+                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection);
     }
 
     /**
@@ -598,22 +599,6 @@ public final class Compiler {
         return lw.lower(body);
     }
 
-    /**
-     * {@code rawSqlFailureSink}: OPTIONAL per-statement tolerance at the
-     * {@code executeInDb} boundary — a failed raw statement is reported
-     * to the sink and the setup CONTINUES (the engine's own harness
-     * semantics: one dialect-incompatible INSERT must not abort the whole
-     * seed; the caller's ledger feeds its emptiness guard). Null = throw.
-     */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn, java.sql.Connection connection,
-            java.util.function.@com.legend.Nullable Consumer<String> rawSqlFailureSink)
-            throws java.sql.SQLException {
-        return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
-                rawSqlFailureSink);
-    }
 
 
     /**

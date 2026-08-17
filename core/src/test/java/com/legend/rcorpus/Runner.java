@@ -1959,6 +1959,16 @@ public final class Runner {
                         if (!H2_BACKEND) {
                             com.legend.exec.RawSqlBoundary.unrecordLast();
                         }
+                        // F7.1: the ONE tolerated failure is the NAMED gap
+                        // — a same-named table from another database's DDL
+                        // already lives in the family session (6 on the h2
+                        // sweep, 0 on DuckDB). Everything else THROWS.
+                        if (!String.valueOf(e.getMessage())
+                                .contains("already exists")) {
+                            throw new IllegalStateException(
+                                    "module DDL failed (F7.1 fail-loud): "
+                                    + stmt.strip().split("\n")[0], e);
+                        }
                         String head = stmt.strip().split("\n")[0];
                         failedSeeds.add(head + " => "
                                 + String.valueOf(e.getMessage()).split("\n")[0]);
@@ -2256,8 +2266,8 @@ public final class Runner {
         com.legend.compiler.element.ModelContext target =
                 preflightResolvable(setupFqn, ctx) ? ctx : setupUniverseContext();
         try {
-            com.legend.Compiler.executeResolved(call, target, "rcorpus::Rt", conn,
-                    failedSeeds::add);
+            com.legend.Compiler.executeResolved(call, target, "rcorpus::Rt",
+                    conn);
         } catch (Exception e) {
             failedSeeds.add("setup " + setupFqn + "() => "
                     + String.valueOf(e.getMessage()).split("\n")[0]);

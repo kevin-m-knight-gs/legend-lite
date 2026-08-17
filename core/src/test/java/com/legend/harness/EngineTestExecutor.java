@@ -673,11 +673,13 @@ public final class EngineTestExecutor {
                                     ? new LambdaFunction(List.of(),
                                             append(execStmts, sub))
                                     : sub;
+                    // F7.1 fail-loud: no per-statement sink — a failed
+                    // setup statement throws (zero live firings on both
+                    // full sweeps when the tolerance was deleted)
                     Compiler.executeResolved(
                             NameResolver.resolveQuery(wrapped,
                                     imports, ctx.elementFqns()),
-                            ctx, runtimeFqn, conn,
-                            seedFailures == null ? null : seedFailures::add);
+                            ctx, runtimeFqn, conn);
                     executed++;
                     continue;
                 } catch (java.sql.SQLException sql) {
@@ -1360,8 +1362,7 @@ public final class EngineTestExecutor {
                     java.util.Objects.requireNonNull(TestDataGenForm
                             .inlineReads(subst(rhs, lets), tdg)),
                     imports, ctx.elementFqns()),
-                    ctx, runtimeFqn, conn,
-                    seedFailures == null ? null : seedFailures::add);
+                    ctx, runtimeFqn, conn);
             return null;
         } catch (com.legend.error.NotImplementedException
                 | com.legend.error.LegendCompileException e) {

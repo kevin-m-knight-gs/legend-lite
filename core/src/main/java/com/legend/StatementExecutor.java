@@ -32,12 +32,10 @@ final class StatementExecutor {
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection,
-            java.util.function.@com.legend.Nullable Consumer<String> rawSqlFailureSink)
+            java.sql.Connection connection)
             throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
         ExecEnv env = new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                rawSqlFailureSink,
                 com.legend.validation.DriverPkOption.get());
         return executeStatements(specs.typeQueryBody(resolved),
                 new java.util.ArrayList<>(), specs, env,
@@ -46,39 +44,37 @@ final class StatementExecutor {
 
     /** The K-phase execution environment: ONE ambient connection, ONE
      * dialect (audit 17: recomputing it per arm invited a future
-     * mixed-dialect bug), the driver runtime, the optional raw-SQL
-     * failure sink, and the addDriverTablePkForProject execution option
-     * (#45 — see {@link com.legend.validation.DriverPkOption}). */
+     * mixed-dialect bug), the driver runtime, and the
+     * addDriverTablePkForProject execution option (#45 — see
+     * {@link com.legend.validation.DriverPkOption}). F7.1: the raw-SQL
+     * failure sink is GONE — a failed raw statement THROWS (zero live
+     * sink firings on both full sweeps; the corpus runner records
+     * failures per SETUP UNIT and keeps its emptiness guard). */
     record ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            @com.legend.Nullable java.util.function.Consumer<String> rawSqlFailureSink,
             boolean addDriverTablePk,
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace) {
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                @com.legend.Nullable java.util.function.Consumer<String>
-                        rawSqlFailureSink,
                 boolean addDriverTablePk,
                 java.util.Map<String, TypedSpec> queryLets) {
             // historical arity: no connection post-processor hooks
-            this(ctx, runtimeFqn, dialect, connection, rawSqlFailureSink,
+            this(ctx, runtimeFqn, dialect, connection,
                     addDriverTablePk, queryLets, java.util.Map.of());
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                @com.legend.Nullable java.util.function.Consumer<String>
-                        rawSqlFailureSink,
                 boolean addDriverTablePk) {
             // run-scoped accumulator of inliner-consumed lets: graph-tree
             // date args keep their source spelling (the serialize key), so
             // every resolver seeds its let env from here (engine
             // inScopeVars)
-            this(ctx, runtimeFqn, dialect, connection, rawSqlFailureSink,
+            this(ctx, runtimeFqn, dialect, connection,
                     addDriverTablePk, new java.util.LinkedHashMap<>());
         }
     }
@@ -378,7 +374,7 @@ final class StatementExecutor {
         }
         return union == null ? env
                 : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
-                        env.connection(), env.rawSqlFailureSink(),
+                        env.connection(),
                         env.addDriverTablePk(), env.queryLets(), union);
     }
 
@@ -1999,7 +1995,7 @@ final class StatementExecutor {
             com.legend.exec.PostProcessBoundary.record(tr);
             if (!tr.isEmpty()) {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
-                        env.connection(), env.rawSqlFailureSink(),
+                        env.connection(),
                         env.addDriverTablePk(), env.queryLets(), tr);
             }
         }
@@ -2821,12 +2817,7 @@ final class StatementExecutor {
                     if (!env.dialect().rawH2IsNative()) {
                         com.legend.exec.RawSqlBoundary.unrecordLast();
                     }
-                    if (env.rawSqlFailureSink() == null) {
-                        throw e;
-                    }
-                    env.rawSqlFailureSink().accept(
-                            stmt.strip().split("\\n")[0] + " => "
-                            + String.valueOf(e.getMessage()).split("\\n")[0]);
+                    throw e;
                 }
             }
         }
@@ -2978,15 +2969,12 @@ final class StatementExecutor {
             // feeds the failure ledger (arming the emptiness guard), or
             // throws when no ledger is listening.
             if (containsEffectfulNode(pn.args())) {
-                if (env.rawSqlFailureSink() == null) {
-                    throw new IllegalStateException("print/println argument"
-                            + " contains an executeInDb-family call; the print"
-                            + " arm never evaluates arguments, so the effect"
-                            + " would be dropped");
-                }
-                env.rawSqlFailureSink().accept(
-                        "print => argument contains an executeInDb-family call;"
-                        + " not evaluated (effect dropped)");
+                // F7.1 fail-loud: no sink to report to — the dropped
+                // effect is always an error
+                throw new IllegalStateException("print/println argument"
+                        + " contains an executeInDb-family call; the print"
+                        + " arm never evaluates arguments, so the effect"
+                        + " would be dropped");
             }
             return new ExecutionResult.Scalar(null, pn.info().type());
         }
@@ -3139,13 +3127,7 @@ final class StatementExecutor {
                 if (!env.dialect().rawH2IsNative()) {
                     com.legend.exec.RawSqlBoundary.unrecordLast();
                 }
-                if (env.rawSqlFailureSink() == null) {
-                    throw e;
-                }
-                // per-statement tolerance (engine-harness semantics): report
-                // and CONTINUE — the caller's ledger drives its emptiness guard
-                env.rawSqlFailureSink().accept(stmt.strip().split("\\n")[0]
-                        + " => " + String.valueOf(e.getMessage()).split("\\n")[0]);
+                throw e;
             }
         }
         // an opaque ResultSet handle: setup statements ignore it; a test

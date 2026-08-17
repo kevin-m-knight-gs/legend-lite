@@ -1123,6 +1123,27 @@ downgrade a red assertion to advisory.** Audit §5.2.
 **Expected direction: GREEN.** This converts unverifiable → verifiable. It is the one task in the
 plan likely to *raise* the honest pass count.
 
+**LANDED ENDPOINT (2026-08-17):** adjudicated in two halves.
+*Transactions:* already BUILT AND MEASURED by the perf program (task #14, recorded at
+`Runner.openSession`): DML txn-batching saved zero (DuckDB's per-statement cost is
+parse+plan+JNI, not commit), and the DDL-bearing variant hit a **DuckDB 1.1.3 native abort**
+(`DuckTransaction::Commit → std::terminate` through JNI — kills the JVM). Seed atomicity via
+transactions is NOT available on the primary backend at this engine version; revisit on DuckDB
+upgrade (§9). A failed CREATE is per-statement atomic already; the half-populated-DB window the
+audit feared is otherwise covered by fail-loud below.
+*The apparatus:* measured, then deleted to its one honest residue. The `rawSqlFailureSink`
+per-statement tolerance channel fired ZERO times on both full sweeps — DELETED end to end
+(Compiler overload, ExecEnv field, executeInDb + runtime-setups + print-effectful arms, the two
+harness sink args): a failed raw statement now THROWS; the runner's per-SETUP-UNIT catch still
+records into `failedSeeds`, so `emptinessUnverifiable` keeps its (stricter-grained) feed. The
+module-DDL loop's catch NARROWED to exactly one named gap: `already exists` — a same-named
+table from another database's DDL already living in the family session (6 on the h2 sweep, 0 on
+DuckDB; all six spelled in the sweep log via the new seed-fail detail print) — anything else is
+a loud `IllegalStateException`. Referees: DuckDB scoreboard byte-identical, failed seeds 0;
+h2 2282/2575 with the same 6 named rows. The plan's GREEN prediction did not materialize as new
+passes (the unverifiables were not seed-gated on the referee backend); the honest gain is the
+deleted tolerance surface.
+
 ### F7.2 — CSV values: copy the fix that already exists
 
 **Files:** `exec/CsvSeed.java:93-107`; `harness/EngineTestExecutor.java:2732`
