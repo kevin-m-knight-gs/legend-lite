@@ -68,7 +68,11 @@ final class TdsEquivalence {
                     if (Math.abs(ex - ey) <= Math.abs(timeDeltaSeconds)) {
                         continue;
                     }
-                } else if (String.valueOf(x).equals(String.valueOf(y))) {
+                } else if (java.util.Objects.equals(x, y)) {
+                    // F6.5: same KIND, same value — the old
+                    // String.valueOf collapse equated VARCHAR '7' with
+                    // INTEGER 7, a cross-kind bridge the primary
+                    // wireEquals explicitly refuses
                     continue;
                 }
             }

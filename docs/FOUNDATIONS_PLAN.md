@@ -1026,6 +1026,21 @@ scoreboard byte-identical, h2 sweep 2282/2575 (identical to pre-change), full ch
 a collapse the primary `wireEquals:3325-3335` **explicitly refuses**. Whether an assert gets the
 strict comparator or a permissive one is decided by **which spelling the test happened to use.**
 
+**LANDED ENDPOINT (2026-08-17):** three sites adjudicated, two fixed, one already dead:
+`csvRowEquals` was DELETED by F4.3b's render cutover (nothing left to fix);
+`TdsEquivalence` cell fallback `String.valueOf(x)==String.valueOf(y)` → `Objects.equals`
+(same kind, same value — no cross-kind bridge); **A7** `JsonAssertCanon.sortByKey` lexical
+sort → pure `sortBy` comparator semantics (numbers numerically, strings lexically, mixed
+kinds WALL). The A7 sort SITE stays allow-listed — it re-creates the TEST'S OWN
+`^JSONArray(values=…->sortBy(getValue('K')))` canonicalization (the JSON metamodel never
+executes through the SQL pipeline), so the site is the test's, not harness compensation;
+the discipline ledger's "LEDGERED VIOLATION" label is retired to RESOLVED.
+`H2Verify.norm` was inspected and STAYS: it is the cross-ENGINE oracle channel (two live
+engines, different SQL texts — database-level VALUE equality is its documented contract;
+the audit's `Double.parseDouble` was already replaced by the exact-integral/10-sig-digit
+BigDecimal arms in H2_BACKEND §12). Referees: DuckDB scoreboard byte-identical, full
+chain GREEN.
+
 ### F6.6 — Re-site the `executeInDb` READ path
 
 **Files:** `exec/HostEval.java:376-382`, `exec/DbMetaData.java:89-99`, `:104-127`
