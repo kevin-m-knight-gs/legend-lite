@@ -1195,12 +1195,34 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
   GenerativeDualParseTest), both now gated; the other orphans are
   zero-assertion report/census printers (ProbeWireShapes et al. are the
   Phase-8 zero-assert item).
-- **HostEval eviction (F0.3 census result):** the channel's demand is 100% harness (all four
-  admission gates serve corpus vocabulary; no production entry point routes host today) —
-  after F1.2, move the host-channel dispatch behind a harness-installed seam so production
-  `StatementExecutor` carries no interpreter. Requires one referee cycle of arm-usage counter
-  data first (`LL_HOST_ARM_COUNT` pattern); rides only after F1.5's pin exists. Census:
-  `FOUNDATIONS_BASELINE.md` §7.
+- **HostEval RE-PLATFORMING (F0.3 census result; reframed 2026-08-16, user directive):** the
+  channel's demand is 100% harness (all four admission gates serve corpus vocabulary; no
+  production entry point routes host today). The goal is NOT to relocate the interpreter — it
+  is to make its vocabularies USE THE PLATFORM instead of reimplementing evaluation, the same
+  move F3.2 (substitution → SourceSubst), F3.3 (multiplicity walk → Typer), and F3.4 (ASOR →
+  AsorRef) made for their harness twins. Run it like a Phase-3 leg:
+  1. **Instrument first:** one full referee cycle of per-arm demand data
+     (`LL_HOST_ARM_COUNT` pattern) — the gates admit whole chains, so per-arm deadness is
+     not statically decidable.
+  2. **Convert arm-FAMILIES onto real platform capabilities**, deleting arms as they empty,
+     corpus as referee per step:
+     - `executeInDb` grid chains → compile the Pure chain, lower over the grid as a
+       relation (grid → VALUES source); exec already owns the SQL round trip;
+     - `schema()`/`table()` store navigation → compile-time metamodel constants answered
+       by `ModelContext` (the F3.3 move, applied to reflection);
+     - the curated typeInference construction set (`^DynaFunction`/`Literal`/`Alias`/…
+       + property reads) → the landed STRUCT-values design (typed construction,
+       DB-lowered values);
+     - `containsFetchDb` JDBC-metadata grids → `information_schema` queries lowered like
+       any relation.
+  3. **Endgame, not goal:** whatever residue remains moves behind a harness-installed seam
+     so production `StatementExecutor` carries no interpreter — the charter-3 invariant
+     becomes vacuously true in production. Comparison POLICY stays harness-owned
+     (orchestration, not evaluation — it must not migrate into the platform).
+  Rides only after F1.5's pin exists (it does) and with the counter data; the admission
+  predicate has collapsed the sweep twice, so every family conversion is its own gated
+  task. Each conversion doubles as a product capability (relation-from-grid, compile-time
+  reflection, struct values). Census: `FOUNDATIONS_BASELINE.md` §7.
 
 ---
 
