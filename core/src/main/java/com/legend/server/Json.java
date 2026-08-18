@@ -14,6 +14,16 @@ import java.util.Objects;
 /**
  * Canonical zero-dependency JSON utility for legend-lite.
  *
+ * <p><b>Two-parser adjudication (Pile-1 audit, 2026-08-18):</b> this is
+ * the STRICT RFC 8259 boundary parser (Node AST, depth limits, the
+ * rejection set its tests pin) — {@code com.legend.sql.Json} is the
+ * deliberately LENIENT data-bridge decoder (plain Java values, the
+ * leading-zero/trailing-dot leniencies TdsChecker's validator depends
+ * on, audit-18 BigDecimal exactness). Two contracts, each behavior-
+ * pinned; registered as distinct owners on purpose — a merge would need
+ * a mode flag and would move corpus classifications. Keep the two docs
+ * cross-referenced; grammar fixes must consider both.
+ *
  * <h2>Design</h2>
  * <ul>
  *   <li><b>Zero external deps</b> — GraalVM native-image friendly.</li>

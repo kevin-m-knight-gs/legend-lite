@@ -549,11 +549,11 @@ final class ArchitectureTest {
      * Reflection is the one mechanism that bypasses every dependency
      * rule in this file (a {@code Class.forName("java.sql...")} carries
      * no bytecode dependency ArchUnit can see). The bytecode rule found
-     * what the source census missed — THREE pre-existing sites
-     * (DbMetaData's java.sql.Types field iteration, ScanColumns'
+     * what the source census missed — pre-existing sites (ScanColumns'
      * reflective record-tree walker, server/Json's generic Array
-     * serialization), frozen here shrink-only with removal backlogged
-     * (FOUNDATIONS_PLAN §9). NO NEW reflection: a fourth class fails.
+     * serialization; DbMetaData's java.sql.Types iteration died with
+     * E4.b), frozen here shrink-only with removal backlogged
+     * (FOUNDATIONS_PLAN §9). NO NEW reflection: a third class fails.
      * JDBC drivers load via ServiceLoader, never {@code Class.forName}.
      * Tests keep reflection (the guardrails themselves need it).
      */
@@ -561,9 +561,9 @@ final class ArchitectureTest {
     void reflectionIsBannedInProduction() {
         noClasses()
             .that().resideInAPackage("com.legend..")
-            // the frozen pre-existing three (nested classes ride along)
-            .and().haveNameNotMatching(
-                    "com\\.legend\\.exec\\.DbMetaData(\\$.*)?")
+            // the frozen pre-existing TWO (nested classes ride along) —
+            // DbMetaData's java.sql.Types field iteration DIED with the
+            // E4.b information_schema rewrite; the pin shrank
             .and().haveNameNotMatching(
                     "com\\.legend\\.lineage\\.ScanColumns(\\$.*)?")
             .and().haveNameNotMatching(
@@ -571,7 +571,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
             .as("F1.11: no NEW reflection in production — it bypasses"
-                    + " every dependency rule; the frozen three shrink"
+                    + " every dependency rule; the frozen two shrink"
                     + " only")
             .check(CORE_PROD_CLASSES);
     }
