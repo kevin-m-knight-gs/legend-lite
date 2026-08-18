@@ -522,7 +522,7 @@ final class ArchitectureTest {
 
     /**
      * <strong>E4 final burn — the INTERPRETER performs no JDBC.</strong>
-     * The metamodel channel (HostEval, MetamodelWalk, MetamodelSteps,
+     * The metamodel channel (MetamodelWalk, MetamodelSteps,
      * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS only:
      * grid chains COMPILE to SQL at the exec seam
      * ({@code GridReads.tryLower} — its JDBC sites are the chartered
@@ -535,7 +535,7 @@ final class ArchitectureTest {
     @Test
     void theInterpreterPerformsNoJdbc() {
         noClasses()
-            .that().haveNameMatching(".*\\.(HostEval|MetamodelWalk"
+            .that().haveNameMatching(".*\\.(MetamodelWalk"
                     + "|MetamodelSteps|PlanText|AggAwareActivities)")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.sql..", "javax.sql..",

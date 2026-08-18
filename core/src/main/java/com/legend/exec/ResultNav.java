@@ -158,11 +158,13 @@ public final class ResultNav {
                         root.info(), conn, dialect);
             }
             case ROWS -> {
-                // bare rows reach only EMPTINESS asserts in the corpus:
-                // one non-null WITNESS per row is size-faithful for that
-                // consumer (a real column would pass through the
-                // COLLECTION null-drop — the PK grid's first column is
-                // literally NULL); positional reads went through at()
+                // bare rows are REAL rows (user question 2026-08-18:
+                // "don't we execute and get something back?" — yes, and
+                // the platform's own Row carrier is the honest result):
+                // the grid executes TABULAR through the one Executor
+                // leaf path and the collection holds the actual Row
+                // objects with their real cells. Positional reads went
+                // through at(); a peel over rows walls.
                 if (at != null || c.row() != null || asString) {
                     yield null;
                 }
@@ -170,13 +172,12 @@ public final class ResultNav {
                     yield new ExecutionResult.Collection(List.of(),
                             root.info().type());
                 }
-                SqlSelect witness = SqlSelect.starOf(source(c))
-                        .withProjections(
-                                List.of(new SqlSelect.Projection(
-                                        new SqlExpr.IntLit(1), "v")),
-                                List.of(new OutputCol("v",
-                                        SqlType.Scalar.INTEGER, false)));
-                yield run(witness, root.info(), conn, dialect);
+                ExecutionResult.Tabular grid =
+                        (ExecutionResult.Tabular) run(
+                                SqlSelect.starOf(source(c)),
+                                gridInfo(c), conn, dialect);
+                yield new ExecutionResult.Collection(
+                        new ArrayList<>(grid.rows()), root.info().type());
             }
         };
     }
@@ -531,6 +532,96 @@ public final class ResultNav {
         n = resolve(n, lets);
         return n instanceof TypedPropertyAccess pa
                 && "columnNames".equals(pa.property()) ? pa.source() : n;
+    }
+
+    /** The GRID channel's admission predicate (HostEval's fold-in,
+     * Phase 1 batch 2): a chain whose PRIMARY SOURCE bottoms at
+     * executeInDb, or any fetchDb containment (its only corpus shapes
+     * are grid reads). Routing on containment for executeInDb
+     * collapsed the sweep once (2096->408) — bottoming is the pin. */
+    public static boolean owns(TypedSpec root, Map<String, TypedSpec> lets) {
+        TypedSpec bottom = chainBottom(root, lets);
+        if (bottom instanceof TypedNativeCall b
+                && PlatformTypes.EXECUTE_IN_DB
+                        .equals(b.callee().qualifiedName())) {
+            return true;
+        }
+        return containsFetchDb(root);
+    }
+
+    private static boolean containsFetchDb(TypedSpec root) {
+        if (root instanceof TypedNativeCall nc
+                && PlatformTypes.isFetchDbFn(nc.callee().qualifiedName())) {
+            return true;
+        }
+        for (TypedSpec c : root.children()) {
+            if (containsFetchDb(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final java.util.Set<String> READ_CHAIN_FNS =
+            java.util.Set.of(
+                    "meta::pure::functions::collection::fold",
+                    "meta::pure::functions::collection::map",
+                    "meta::pure::functions::collection::concatenate",
+                    "meta::pure::functions::collection::at",
+                    "meta::pure::functions::collection::first",
+                    "meta::pure::functions::collection::size",
+                    "meta::pure::functions::collection::indexOf",
+                    "meta::pure::functions::multiplicity::toOne",
+                    "meta::pure::functions::string::toString");
+
+    /** Walk the primary source chain (property access sources, fold/map
+     * sources, READ-shaped collection-native first args, user-call and
+     * match receivers, let-bound variables) to the expression's root —
+     * shared with {@link StoreNav#owns}. */
+    static TypedSpec chainBottom(TypedSpec n, Map<String, TypedSpec> lets) {
+        while (true) {
+            switch (n) {
+                case TypedPropertyAccess pa -> n = pa.source();
+                case TypedFold f -> n = f.source();
+                case com.legend.compiler.spec.typed.TypedMap m ->
+                        n = m.source();
+                case TypedUserCall uc -> {
+                    if (uc.args().isEmpty()) {
+                        return uc;
+                    }
+                    n = uc.args().get(0);
+                }
+                case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
+                        n = mr.input();
+                case com.legend.compiler.spec.typed.TypedCast tc ->
+                        n = tc.source();
+                case com.legend.compiler.spec.typed.TypedLet l ->
+                        n = l.value();
+                case TypedVariable v -> {
+                    TypedSpec bound = lets.get(v.name());
+                    if (bound == null) {
+                        return v;
+                    }
+                    n = bound;
+                }
+                case TypedNativeCall nc -> {
+                    String fqn = nc.callee().qualifiedName();
+                    if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)
+                            || PlatformTypes.isFetchDbFn(fqn)
+                            || PlatformTypes.isStoreNavFn(fqn)) {
+                        return nc;
+                    }
+                    if (nc.args().isEmpty()
+                            || !READ_CHAIN_FNS.contains(fqn)) {
+                        return nc;
+                    }
+                    n = nc.args().get(0);
+                }
+                default -> {
+                    return n;
+                }
+            }
+        }
     }
 
     private static TypedSpec resolve(TypedSpec n,

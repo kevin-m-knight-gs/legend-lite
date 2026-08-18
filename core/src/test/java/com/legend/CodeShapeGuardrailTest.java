@@ -218,8 +218,8 @@ class CodeShapeGuardrailTest {
         try (Stream<Path> s = Files.walk(root)) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
                     .toList();
-            GuardCoverage.assertFloor("CodeShapeGuardrailTest",
-                    out.size(), 499);
+            GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "CodeShapeGuardrailTest",
+                    out.size(), 498);
             return out;
         }
     }

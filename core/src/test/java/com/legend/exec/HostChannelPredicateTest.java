@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * F1.5 — the host-channel dispatch predicate, PINNED (Charter clause 3:
- * forbid the PROVENANCE, not the arm). {@code wantsHostEval} gates an
+ * forbid the PROVENANCE, not the arm). The dispatch predicate (now ResultNav.owns || StoreNav.owns) gated an
  * 894-line interpreter and has collapsed the corpus sweep twice by two
  * different mechanisms (2096→408 routing-on-containment; 2091→2013).
  * These pins hold the predicate's admission surface exactly where the
@@ -23,6 +23,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * chainBottom (audit A9's mechanism) flips the buried-call pin red.
  */
 class HostChannelPredicateTest {
+
+    private static boolean routesHost(TypedSpec n) {
+        // Phase 1 batch 2: HostEval is DELETED — the predicate lives
+        // with its owners (ResultNav grids, StoreNav store-nav +
+        // curated constructions); the seam ORs them exactly like this
+        return ResultNav.owns(n, java.util.Map.of())
+                || StoreNav.owns(n, java.util.Map.of());
+    }
 
     private static final String MODEL = "Class model::Person { name: "
             + "meta::pure::metamodel::type::String[1]; }\n";
@@ -43,7 +51,7 @@ class HostChannelPredicateTest {
         TypedSpec n = typed("meta::relational::metamodel::execute"
                 + "::executeInDb('select 1', " + CONN + ", 0, 100)"
                 + ".rows->size()");
-        assertTrue(HostEval.wantsHostEval(n),
+        assertTrue(routesHost(n),
                 "a chain BOTTOMING at executeInDb is the host channel's"
                         + " charter case");
     }
@@ -53,7 +61,7 @@ class HostChannelPredicateTest {
         TypedSpec n = typed("meta::relational::metamodel::execute"
                 + "::fetchDbColumnsMetaData(" + CONN + ", 'S', 'T', '%')"
                 + ".rows->size()");
-        assertTrue(HostEval.wantsHostEval(n),
+        assertTrue(routesHost(n),
                 "fetchDb anywhere routes: its only corpus shapes are"
                         + " grid reads");
     }
@@ -62,7 +70,7 @@ class HostChannelPredicateTest {
     void curatedHostConstructionRoutesHost() {
         TypedSpec n = typed(
                 "^meta::relational::metamodel::Literal(value='x')");
-        assertTrue(HostEval.wantsHostEval(n),
+        assertTrue(routesHost(n),
                 "the five curated metamodel constructions are the host"
                         + " channel's typeInference vocabulary");
     }
@@ -82,20 +90,20 @@ class HostChannelPredicateTest {
                                 + "::metamodel::FreeMarkerOperationHolder",
                         "meta::relational::functions::pureToSqlQuery"
                                 + "::metamodel::VarPlaceHolder"),
-                HostEval.HOST_CONSTRUCTION_CLASSES);
+                StoreNav.HOST_CONSTRUCTION_CLASSES);
     }
 
     // ---- refused shapes (must NEVER route host) -------------------------
 
     @Test
     void bareLiteralDoesNotRouteHost() {
-        assertFalse(HostEval.wantsHostEval(typed("'hi'")));
-        assertFalse(HostEval.wantsHostEval(typed("1 + 2")));
+        assertFalse(routesHost(typed("'hi'")));
+        assertFalse(routesHost(typed("1 + 2")));
     }
 
     @Test
     void queryChainDoesNotRouteHost() {
-        assertFalse(HostEval.wantsHostEval(
+        assertFalse(routesHost(
                 typed("model::Person.all()->filter(p|$p.name == 'x')")),
                 "query values are the SQL pipeline's — the tenet's line");
     }
@@ -106,7 +114,7 @@ class HostChannelPredicateTest {
         // "any native class" once stole 21 sqlDialectTranslation
         // constructions from the K path (the gate caught it)
         TypedSpec n = typed("^model::Person(name='x')");
-        assertFalse(HostEval.wantsHostEval(n),
+        assertFalse(routesHost(n),
                 "constructions outside the curated set stay on the"
                         + " compile-to-SQL path");
     }
@@ -121,7 +129,7 @@ class HostChannelPredicateTest {
         TypedSpec n = typed("'prefix' + meta::relational::metamodel"
                 + "::execute::executeInDb('select 1', " + CONN
                 + ", 0, 100).rows->size()->toString()");
-        assertFalse(HostEval.wantsHostEval(n),
+        assertFalse(routesHost(n),
                 "executeInDb inside an argument tree is the SQL"
                         + " pipeline's business — containment must not"
                         + " route (the 2096->408 collapse)");

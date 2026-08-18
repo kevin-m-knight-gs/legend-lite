@@ -558,7 +558,8 @@ final class StatementExecutor {
                 hostLets.put(hl.name(), hl.value());
             }
         }
-        if (!com.legend.exec.HostEval.wantsHostEval(bare, hostLets)) {
+        if (!com.legend.exec.ResultNav.owns(bare, hostLets)
+                && !com.legend.exec.StoreNav.owns(bare, hostLets)) {
             return null;
         }
         return hostEvalAtSeam(bare, hostLets, env);
@@ -2974,7 +2975,8 @@ final class StatementExecutor {
         }
         // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
         // HOST-SIDE against the H2 second target (task #43 slice B2)
-        if (com.legend.exec.HostEval.wantsHostEval(root)) {
+        if (com.legend.exec.ResultNav.owns(root, java.util.Map.of())
+                || com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
             return hostEvalAtSeam(root, java.util.Map.of(), env);
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc

@@ -75,7 +75,7 @@ class TenetRatchetTest {
                 }
             }
         }
-        GuardCoverage.assertFloor("TenetRatchetTest", scanned, 499);
+        GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "TenetRatchetTest", scanned, 498);
         assertTrue(sites.size() <= RESULT_SET_ACCESSOR_SITES,
                 "JDBC value-accessor sites grew to " + sites.size()
                 + " (pinned at " + RESULT_SET_ACCESSOR_SITES + "): "

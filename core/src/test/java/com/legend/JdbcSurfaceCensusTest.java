@@ -64,7 +64,9 @@ class JdbcSurfaceCensusTest {
 
     /** Coverage floor: files scanned on 2026-08-18. Shrink needs a
      * written justification (files deleted); growth is free. */
-    private static final int FILE_FLOOR = 779;
+    // 779 -> 778: HostEval DELETED (Phase 1 batch 2; GridReads was
+    // a rename, net zero)
+    private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
             "core/src/main/java/com/legend/Compiler.java",

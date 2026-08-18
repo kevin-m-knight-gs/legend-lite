@@ -321,8 +321,8 @@ class ErrorShapeGuardrailTest {
         try (Stream<Path> s = Files.walk(root)) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
                     .toList();
-            GuardCoverage.assertFloor("ErrorShapeGuardrailTest",
-                    out.size(), 499);
+            GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "ErrorShapeGuardrailTest",
+                    out.size(), 498);
             return out;
         }
     }

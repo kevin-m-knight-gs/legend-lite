@@ -94,8 +94,11 @@ class JavaEvalLedgerTest {
             // recognition survives as ResultNav's navigation-to-relation
             // mapping; the string SQL, HostResultSet carrier, and hand
             // shaping DIED (execution rides MIR + the standard Executor)
-            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 435),
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 110),
+            // +77 (Phase 1 batch 2): HostEval's fold-in — owns()/chainBottom
+            // moved to their owner (the shim's 132 lines net -30)
+            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 511),
+            // +25 (Phase 1 batch 2): owns() + the curated construction set
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 135),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
             // 235 -> 188 (Phase 1): HostResultSet + query/grid died
             Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 188));
@@ -199,7 +202,7 @@ class JavaEvalLedgerTest {
                     "Column.java", "CsvSeed.java", "DbMetaData.java",
                     "Ddl.java", "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java", "ResultNav.java",
-                    "H2Settings.java", "HostEval.java",
+                    "H2Settings.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
                     "QueryPlan.java", "RawSqlBoundary.java",

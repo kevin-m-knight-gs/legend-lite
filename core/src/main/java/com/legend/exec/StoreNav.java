@@ -36,6 +36,43 @@ public final class StoreNav {
             List<DatabaseDefinition.TableDefinition> tables) {
     }
 
+    /** The STORE-NAV channel's admission predicate (HostEval's
+     * fold-in, Phase 1 batch 2): chains bottoming at the store-nav
+     * natives, plus the five CURATED metamodel constructions — those
+     * route to the host channel so the SEAM's wall declines them with
+     * the oracle-not-runtime verdict instead of the SQL pipeline
+     * mangling them ("any native class" once stole 21 passing
+     * constructions; the pinned set is the fix). */
+    public static boolean owns(
+            com.legend.compiler.spec.typed.TypedSpec root,
+            java.util.Map<String,
+                    com.legend.compiler.spec.typed.TypedSpec> lets) {
+        com.legend.compiler.spec.typed.TypedSpec bottom =
+                ResultNav.chainBottom(root, lets);
+        if (bottom instanceof com.legend.compiler.spec.typed
+                .TypedNativeCall b
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isStoreNavFn(b.callee().qualifiedName())) {
+            return true;
+        }
+        return root instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni
+                && HOST_CONSTRUCTION_CLASSES.contains(ni.classFqn());
+    }
+
+    /** The ^Class(...) constructions the host channel owns — a CURATED
+     * set that grows deliberately per slice (pinned by
+     * HostChannelPredicateTest). */
+    static final java.util.Set<String> HOST_CONSTRUCTION_CLASSES =
+            java.util.Set.of(
+                    "meta::relational::metamodel::DynaFunction",
+                    "meta::relational::metamodel::Literal",
+                    "meta::relational::metamodel::Alias",
+                    "meta::relational::functions::pureToSqlQuery::metamodel"
+                            + "::FreeMarkerOperationHolder",
+                    "meta::relational::functions::pureToSqlQuery::metamodel"
+                            + "::VarPlaceHolder");
+
     public static @com.legend.Nullable ExecutionResult tryEval(
             TypedSpec root, Map<String, TypedSpec> lets, ModelContext ctx) {
         List<Object> v = nav(resolve(root, lets), lets, ctx);
