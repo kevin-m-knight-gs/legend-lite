@@ -73,6 +73,7 @@ class HarnessDisciplineTest {
     void resultReorderingIsEnumeratedComparisonPolicyOnly()
             throws IOException {
         Map<String, Integer> found = new TreeMap<>();
+        int scanned = 0;
         for (Path root : new Path[] {
                 Path.of("src/test/java/com/legend/harness"),
                 Path.of("src/test/java/com/legend/rcorpus")}) {
@@ -80,6 +81,7 @@ class HarnessDisciplineTest {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
                         .toList()) {
+                    scanned++;
                     Matcher m = SITE.matcher(Files.readString(f));
                     int n = 0;
                     while (m.find()) {
@@ -91,6 +93,7 @@ class HarnessDisciplineTest {
                 }
             }
         }
+        GuardCoverage.assertFloor("HarnessDisciplineTest", scanned, 22);
         assertEquals(new TreeMap<>(ALLOWED), found,
                 "harness sort/distinct sites moved — a NEW site must be"
                 + " two-sided comparison policy, gated on a compile-time"

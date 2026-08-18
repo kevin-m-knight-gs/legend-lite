@@ -216,7 +216,11 @@ class CodeShapeGuardrailTest {
     private static List<Path> mainSources() throws IOException {
         Path root = Path.of("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
-            return s.filter(p -> p.toString().endsWith(".java")).toList();
+            List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
+                    .toList();
+            GuardCoverage.assertFloor("CodeShapeGuardrailTest",
+                    out.size(), 499);
+            return out;
         }
     }
 

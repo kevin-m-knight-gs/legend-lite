@@ -311,7 +311,7 @@ final class StatementExecutor {
             // own plan API): evaluate over the PLAN NODE MODEL
             Object walked = planWalk(preRoot, specs, env);
             if (walked != null) {
-                result = walkResult(walked);
+                result = walkResult(walked, preRoot.info().type());
                 continue;
             }
             // execute() in RESULT position: the eager frame run IS the value
@@ -1807,22 +1807,18 @@ final class StatementExecutor {
         return null;
     }
 
-    private static ExecutionResult walkResult(Object w) {
+    /** Walk results carry the TYPER's declared type — never a type
+     * inferred from runtime classes (audit 2026-08-18 finding N: the
+     * old {@code allMatch} inference typed an EMPTY list BOOLEAN
+     * vacuously and coerced unknown scalars through
+     * {@code String.valueOf}). */
+    private static ExecutionResult walkResult(Object w,
+            com.legend.compiler.element.type.Type declared) {
         if (w instanceof java.util.List<?> l) {
-            java.util.List<Object> vals = new java.util.ArrayList<>(l);
-            return new ExecutionResult.Collection(vals,
-                    vals.stream().allMatch(x -> x instanceof Boolean)
-                            ? com.legend.compiler.element.type.Type
-                                    .Primitive.BOOLEAN
-                            : com.legend.compiler.element.type.Type
-                                    .Primitive.STRING);
+            return new ExecutionResult.Collection(
+                    new java.util.ArrayList<>(l), declared);
         }
-        if (w instanceof Boolean b3) {
-            return new ExecutionResult.Scalar(b3,
-                    com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
-        }
-        return new ExecutionResult.Scalar(String.valueOf(w),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
+        return new ExecutionResult.Scalar(w, declared);
     }
 
     /** The PLAN NODE MODEL for an executionPlan call — same shapes the

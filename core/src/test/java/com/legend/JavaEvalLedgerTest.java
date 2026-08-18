@@ -16,16 +16,17 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE TENET RATCHET (JAVA_EVICTION_PLAN E0; program CLOSED 2026-08-18):
+ * THE TENET RATCHET (JAVA_EVICTION_PLAN E0; program CLOSED 2026-08-18;
+ * claim recalibrated by docs/ADVERSARIAL_TENET_AUDIT_2026_08_18.md):
  * tenet #1 — "Java orchestrates, the DATABASE executes" — enforced as a
- * shrink-only ledger instead of prose. The EVICTION is COMPLETE: every
- * value a test assertion or product consumer observes as the result of
- * executing a Pure expression is DATABASE-PRODUCED (PCT wire, product
+ * shrink-only ledger instead of prose. The honest, measurable claim: NO
+ * host interpreter remains; the QUERY COMPILER executes no values; the
+ * egress boundary is a small set of irreducible carriage sites plus the
+ * NAMED, SHRINKING residue registered below (PCT wire, product
  * CSV/JSON, corpus rows, metadata grids, JSON-source frames, testdatagen
- * text, grid-read chains). The rows below are the REGISTER — the
- * adjudicated residue, each class justified, still shrink-only: growth
- * is a new Java-evaluation site and needs a deliberate pin bump with a
- * written justification.
+ * text, grid-read chains are all DATABASE-PRODUCED). Growth is a new
+ * Java-evaluation site and needs a deliberate pin bump with a written
+ * justification.
  *
  * <p>THE METAMODEL CHANNEL (ratified adjudication, JAVA_EVICTION_PLAN):
  * HostEval/MetamodelWalk/MetamodelSteps/PlanText/AggAwareActivities
@@ -34,8 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (convertElement, wrapH2Boolean — node-to-node assertions, no text),
  * and compose engine-parity TEXT through single-owner spellings (the
  * Ddl ENGINE_TEXT flavor, dataTypeToSqlText, the plan-text envelope).
- * NO DATABASE VALUE can enter the channel: grids pre-fetch at the seam
- * ({@code GridReads.preResolve} — the one JDBC pass) and
+ * NO DATABASE VALUE can enter the channel: grid chains COMPILE to SQL
+ * at the exec seam ({@code GridReads.tryLower} — chartered grid egress,
+ * scheduled for deletion by the relation-typed {@code fetchDb} leg) and
  * {@code ArchitectureTest.theInterpreterPerformsNoJdbc} makes the
  * boundary mechanical (the channel cannot reach a connection).
  *
@@ -55,16 +57,16 @@ class JavaEvalLedgerTest {
      * justification — the code-shape-guard convention). The PCT
      * extension row is the E1 adapter-contract residue (ingress
      * splicing, the scalar bridge, the H4 message remap). */
-    private static final Map<String, Integer> EVICT_SIZE = Map.of(
-            "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101,
+    private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101),
             // the INTERPRETER IS DELETED (oracle-not-runtime principle,
             // user-ratified 2026-08-18): HostEval is the routing
             // predicate only — grid chains compile into SQL (GridReads),
             // store nav resolves against the compiled model (StoreNav),
             // everything else walls with the principle's name
-            "core/src/main/java/com/legend/exec/HostEval.java", 181,
-            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580,
-            "core/src/main/java/com/legend/MetamodelSteps.java", 234,
+            Map.entry("core/src/main/java/com/legend/exec/HostEval.java", 181),
+            Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580),
+            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 234),
             // pin bumped 888 -> 943 -> 957 (2026-08-18, burn batches
             // 1-2): the temp-table IN protocol's engine-envelope
             // emitters (RelationalBlockExecutionNode /
@@ -72,8 +74,17 @@ class JavaEvalLedgerTest {
             // FreeMarkerConditionalExecutionNode / bare Constant) plus
             // the PureExp let-allocation emitter — engine-parity plan
             // TEXT, the register's own class
-            "core/src/main/java/com/legend/plan/PlanText.java", 957,
-            "core/src/main/java/com/legend/AggAwareActivities.java", 265);
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 957),
+            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 265),
+            // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
+            // "the sixth class the JDBC guard doesn't name" — these four
+            // rows pin it until the relation-typed fetchDb leg DELETES
+            // GridReads + DbMetaData's carrier wholesale (delete the
+            // rows with the files, never bump them)
+            Map.entry("core/src/main/java/com/legend/exec/GridReads.java", 465),
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 136),
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 163),
+            Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 303));
     // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
     // shadow-H2 replay is DELETED and every metadata VALUE is now
     // database-produced (catalog queries over the AMBIENT session's

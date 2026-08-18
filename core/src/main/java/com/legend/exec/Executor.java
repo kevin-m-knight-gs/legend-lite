@@ -267,10 +267,27 @@ public final class Executor {
                                 rootType.type());
                         // a NULL cell is a pure EMPTY, and no pure collection
                         // holds empties — Person.all().middleName over a row
-                        // with no middle name contributes nothing, not null
+                        // with no middle name contributes nothing, not null.
+                        // The compile-time gate (audit 2026-08-18 finding F):
+                        // no Pure VALUE of a non-variant type is carried as
+                        // Java null (variant roots keep driver carriers, and
+                        // an Any root's JSON null decays to empty by variant-
+                        // decay semantics), so null here can only MEAN empty
                         if (v != null) {
                             values.add(v);
                         }
+                    }
+                    // the declared lower bound is the fact with teeth: a
+                    // drop that shrinks a [1..*]-typed collection below its
+                    // bound is a mapping/lowering defect, never a quiet count
+                    long lower = rootType.multiplicity()
+                            .requireBounded("COLLECTION shaping").lower();
+                    if (values.size() < lower) {
+                        throw new IllegalStateException("collection-shaped"
+                                + " result holds " + values.size()
+                                + " values, below its declared lower bound "
+                                + lower + " — NULL cells were dropped past"
+                                + " the type's own contract");
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }

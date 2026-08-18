@@ -104,7 +104,11 @@ class ObservabilityGuardrailTest {
     private static java.util.List<Path> mainSources() throws IOException {
         Path root = Path.of("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
-            return s.filter(f -> f.toString().endsWith(".java")).toList();
+            java.util.List<Path> out = s
+                    .filter(f -> f.toString().endsWith(".java")).toList();
+            GuardCoverage.assertFloor("ObservabilityGuardrailTest",
+                    out.size(), 499);
+            return out;
         }
     }
 }

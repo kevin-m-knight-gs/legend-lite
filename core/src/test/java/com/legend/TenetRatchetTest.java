@@ -28,8 +28,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * this ratchet records the descent and refuses regrowth.
  *
  * <p>Counting rule: {@code .getXxx(} accessor spellings inside
- * src/main files that import {@code java.sql} (the funnel makes that
- * the complete universe). Seeded 2026-08-16 at the F0.1 baseline:
+ * src/main files that mention {@code java.sql} OR a driver-native
+ * package (audit 2026-08-18 probe 6: an {@code org.sqlite.core} read
+ * carries zero {@code java.sql} spellings — the old precondition let
+ * it through GREEN; the accessor list likewise gained the audit's five
+ * omitted spellings). Seeded 2026-08-16 at the F0.1 baseline:
  * TestDataGenerator 6, Executor 6, DynamicPivot 1, DbMetaData 1.
  */
 class TenetRatchetTest {
@@ -38,18 +41,25 @@ class TenetRatchetTest {
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"
-            + "|Date|Timestamp|Time|Bytes|Array|Float|Short|Byte)\\(");
+            + "|Date|Timestamp|Time|Bytes|Array|Float|Short|Byte"
+            + "|NString|URL|Clob|NClob|RowId|CharacterStream"
+            + "|NCharacterStream|BinaryStream|AsciiStream|Blob|Ref"
+            + "|SQLXML)\\(");
 
     @Test
     void resultSetConsumptionOnlyShrinks() throws IOException {
         List<String> sites = new ArrayList<>();
+        int scanned = 0;
         Path root = Path.of("src/main/java");
         try (Stream<Path> files = Files.walk(root)) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java"))
                     .toList()) {
+                scanned++;
                 String src = Files.readString(f);
-                if (!src.contains("import java.sql")
-                        && !src.contains("java.sql.")) {
+                if (!src.contains("java.sql")
+                        && !src.contains("org.duckdb")
+                        && !src.contains("org.h2.")
+                        && !src.contains("org.sqlite")) {
                     continue;
                 }
                 String code = src.replaceAll("//.*", "")
@@ -60,6 +70,7 @@ class TenetRatchetTest {
                 }
             }
         }
+        GuardCoverage.assertFloor("TenetRatchetTest", scanned, 499);
         assertTrue(sites.size() <= RESULT_SET_ACCESSOR_SITES,
                 "JDBC value-accessor sites grew to " + sites.size()
                 + " (pinned at " + RESULT_SET_ACCESSOR_SITES + "): "

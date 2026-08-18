@@ -80,7 +80,8 @@ class CarrierPurityRatchetTest {
     private static java.util.List<Path> preDialectSources()
             throws IOException {
         try (Stream<Path> s = Files.walk(Path.of("src/main/java/com/legend"))) {
-            return s.filter(f -> f.toString().endsWith(".java"))
+            java.util.List<Path> out = s
+                    .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
                         String path = f.toString();
                         return (path.contains("/lowering/")
@@ -89,6 +90,9 @@ class CarrierPurityRatchetTest {
                                 && !path.contains("/sql/dialect/");
                     })
                     .toList();
+            GuardCoverage.assertFloor("CarrierPurityRatchetTest",
+                    out.size(), 74);
+            return out;
         }
     }
 }

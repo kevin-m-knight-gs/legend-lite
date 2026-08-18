@@ -60,14 +60,19 @@ and belongs in the database:
 
 ## Clause 3 — Provenance, not arms (the host channel)
 
-**No `ResultSet`-derived value may reach `HostEval.eval()`.** The invariant is on the
-PROVENANCE of the value, never on the interpreter's arm list: audit §8 proved a ~6-line
-dispatch edge reclassified all 47 existing arms at once — 18 are dual-use (`fold`, `map`,
-`at`, `size`, `eq`, `in`, `filter`…) and become execution the moment a data-space value
-flows through them. An arm charter would not have caught it; the provenance rule does.
-`HostEval` exists for ORCHESTRATION VALUES (config, test scaffolding, model-space reads)
-and its production reach is measured by the F0.3 census. Enforcement: F1.5's
-`HostChannelPredicateTest`.
+**No `ResultSet`-derived value may be EVALUATED in Java on the host channel.** The
+invariant is on the PROVENANCE of the value, never on an interpreter arm list: audit §8
+proved a ~6-line dispatch edge reclassified all 47 then-existing arms at once — 18 were
+dual-use (`fold`, `map`, `at`, `size`, `eq`, `in`, `filter`…) and became execution the
+moment a data-space value flowed through them. *(Re-scoped 2026-08-18,
+`ADVERSARIAL_TENET_AUDIT_2026_08_18.md` §5: `HostEval.eval()` no longer exists — the
+interpreter was DELETED under the oracle-not-runtime principle.)* Today the host channel
+is `GridReads.tryLower` (grid chains COMPILE to SQL; DB values flow only through carriage
+into results, never through computation) and `StoreNav` (compiled-model reads, no DB
+values), and everything else walls loudly. Enforcement: the interpreter's nonexistence,
+`ArchitectureTest.theInterpreterPerformsNoJdbc`, and the `JavaEvalLedgerTest` register.
+Known enforcement limits are recorded in the audit's §3 — the guards catch drift, not
+adversaries; residue DELETION (the relation-typed `fetchDb` leg) is the durable fix.
 
 ## Clause 4 — The literal exception, once (the LiteralFold rule)
 

@@ -1342,6 +1342,31 @@ public final class TestDataGenerator {
                 "testDataGen: row identifier value " + v.getClass());
     }
 
+    /** The engine's {@code toRepresentation()} (platform
+     * toRepresentation.pure): row-identifier cells are PURE SOURCE, so
+     * strings take BACKSLASH escapes, dates the {@code %} form,
+     * decimals the {@code D} suffix. (Audit 2026-08-18 finding E: the
+     * old inline speller had NO escaping and JDBC-default spellings;
+     * the fix is this spec port, not the SQL {@code lit()} speller —
+     * SQL doubles quotes, Pure backslash-escapes them.) */
+    private static String pureRepr(@com.legend.Nullable Object v) {
+        return switch (v) {
+            case String s -> "'" + s.replace("\\", "\\\\")
+                    .replace("'", "\\'").replace("\n", "\\n") + "'";
+            case java.math.BigDecimal d -> d.toPlainString() + "D";
+            case Number n -> n.toString();
+            case Boolean b -> b.toString();
+            case java.sql.Date d -> "%" + d.toLocalDate();
+            case java.time.LocalDate d -> "%" + d;
+            case null -> throw new NotImplementedException(
+                    "testDataGen: NULL row-identifier cell — a primary"
+                    + " key produced no value");
+            default -> throw new NotImplementedException(
+                    "testDataGen: row identifier toRepresentation for "
+                    + v.getClass().getName() + " pending");
+        };
+    }
+
     /** The engine's generateSeedDataString: execute the demanded
      * columns (pks first) of each tree table and format every row as
      * createRowIdentifier SOURCE CODE — column names spelled by their
@@ -1391,9 +1416,7 @@ public final class TestDataGenerator {
                     while (rs.next()) {
                         List<String> vals = new ArrayList<>();
                         for (int i = 1; i <= n; i++) {
-                            Object v = rs.getObject(i);
-                            vals.add(v instanceof String str
-                                    ? "'" + str + "'" : String.valueOf(v));
+                            vals.add(pureRepr(rs.getObject(i)));
                         }
                         rows.add("       meta::relational::"
                                 + "testDataGeneration::createRowIdentifier(["

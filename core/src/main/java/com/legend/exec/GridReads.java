@@ -72,8 +72,7 @@ public final class GridReads {
         return switch (c.kind()) {
             case COLUMN_NAMES -> {
                 if (at != null) {
-                    yield result(root, cast(c.names().get(at.intValue()),
-                            asString));
+                    yield result(root, c.names().get(at.intValue()));
                 }
                 yield result(root, new ArrayList<Object>(c.names()));
             }
@@ -85,18 +84,18 @@ public final class GridReads {
                 if (c.row() != null) {
                     // rows->at(k).value('NAME'): one cell, one query
                     DbMetaData.HostResultSet one = DbMetaData.query(
-                            "SELECT " + q(col) + " FROM (" + c.baseSql()
+                            "SELECT " + sel(col, asString) + " FROM ("
+                            + c.baseSql()
                             + ") _g LIMIT 1 OFFSET " + c.row(), conn);
                     yield one.rows().isEmpty() ? null
-                            : result(root, cast(one.rows().get(0).get(0),
-                                    asString));
+                            : result(root, one.rows().get(0).get(0));
                 }
-                List<Object> vals = columnValues(c, col, conn);
+                List<Object> vals = columnValues(c, col, asString, conn);
                 if (at != null && at >= vals.size()) {
                     yield null;   // OOB stays the interpreter's error
                 }
                 yield result(root, at != null
-                        ? cast(vals.get(at.intValue()), asString) : vals);
+                        ? vals.get(at.intValue()) : vals);
             }
             case CELLS -> {
                 // flattened row-major cells: at(k) is row k/n, col k%n
@@ -117,13 +116,13 @@ public final class GridReads {
                 }
                 int ncols = c.names().size();
                 String col = c.names().get((int) (at % ncols));
-                String sql = "SELECT " + q(col) + " FROM (" + c.baseSql()
+                String sql = "SELECT " + sel(col, asString) + " FROM ("
+                        + c.baseSql()
                         + ") _g LIMIT 1 OFFSET " + (at / ncols);
                 DbMetaData.HostResultSet g =
                         DbMetaData.query(sql, conn);
                 yield g.rows().isEmpty() ? null
-                        : result(root, cast(g.rows().get(0).get(0),
-                                asString));
+                        : result(root, g.rows().get(0).get(0));
             }
             case ROWS -> {
                 // bare rows reach only EMPTINESS asserts in the corpus:
@@ -131,17 +130,18 @@ public final class GridReads {
                 // for that consumer; positional reads went through at()
                 yield at != null || c.row() != null ? null
                         : result(root, columnValues(c, c.names().get(0),
-                                conn));
+                                false, conn));
             }
         };
     }
 
     private static List<Object> columnValues(Chain c, String col,
-            Connection conn) throws SQLException {
+            boolean asString, Connection conn) throws SQLException {
         if (c.baseSql() == null) {
             return List.of();   // the no-facts PK grid
         }
-        String sql = "SELECT " + q(col) + " FROM (" + c.baseSql() + ") _g";
+        String sql = "SELECT " + sel(col, asString) + " FROM ("
+                + c.baseSql() + ") _g";
         DbMetaData.HostResultSet g = DbMetaData.query(sql, conn);
         List<Object> out = new ArrayList<>(g.rows().size());
         for (List<Object> r : g.rows()) {
@@ -150,8 +150,12 @@ public final class GridReads {
         return out;
     }
 
-    private static Object cast(Object v, boolean asString) {
-        return asString ? String.valueOf(v) : v;
+    /** toString rides the PROJECTION — the DATABASE renders the text
+     * (audit finding B: the Java {@code String.valueOf} fabricated the
+     * literal {@code "null"} for NULL cells; SQL CAST keeps NULL NULL,
+     * the pure EMPTY). */
+    private static String sel(String col, boolean asString) {
+        return asString ? "CAST(" + q(col) + " AS VARCHAR)" : q(col);
     }
 
     private static ExecutionResult result(TypedSpec root, Object v) {

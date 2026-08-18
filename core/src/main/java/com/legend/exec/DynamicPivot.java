@@ -93,15 +93,22 @@ public final class DynamicPivot {
                     case Boolean b -> new SqlExpr.BoolLit(b);
                     case java.math.BigDecimal d -> new SqlExpr.DecimalLit(d);
                     case Double d -> new SqlExpr.FloatLit(d);
-                    case Float f -> new SqlExpr.FloatLit(f);
+                    // audit 2026-08-18 finding D: a bare (double) widen
+                    // of 3.14f is 3.140000104904175 — the regenerated IN
+                    // literal could never match the source row and the
+                    // pivot column silently vanished. Float.toString is
+                    // the shortest round-trip repr; parsing THAT as
+                    // double preserves the printed value
+                    case Float f -> new SqlExpr.FloatLit(
+                            Double.parseDouble(Float.toString(f)));
                     case java.sql.Date d ->
                             new SqlExpr.DateLit(d.toLocalDate().toString());
                     case java.time.LocalDate d ->
                             new SqlExpr.DateLit(d.toString());
                     case java.sql.Timestamp t -> new SqlExpr.TimestampLit(
-                            t.toLocalDateTime().toString().replace('T', ' '));
-                    case java.time.LocalDateTime t -> new SqlExpr.TimestampLit(
-                            t.toString().replace('T', ' '));
+                            tsText(t.toLocalDateTime()));
+                    case java.time.LocalDateTime t ->
+                            new SqlExpr.TimestampLit(tsText(t));
                     case String str -> new SqlExpr.StringLit(str);
                     case null -> throw new IllegalStateException(
                             "NULL pivot key past the IS NOT NULL guard");
@@ -113,6 +120,37 @@ public final class DynamicPivot {
             }
         }
         return in;
+    }
+
+    /** Deterministic timestamp-literal text: seconds ALWAYS present,
+     * subseconds exactly as carried (audit 2026-08-18 finding D:
+     * {@code LocalDateTime.toString()} drops {@code :00} seconds and
+     * varies subsecond width — a repr-ruled value spelled by a JDK
+     * convenience). */
+    private static String tsText(java.time.LocalDateTime t) {
+        StringBuilder sb = new StringBuilder(29)
+                .append(t.toLocalDate()).append(' ');
+        pad2(sb, t.getHour()).append(':');
+        pad2(sb, t.getMinute()).append(':');
+        pad2(sb, t.getSecond());
+        int nano = t.getNano();
+        if (nano != 0) {
+            String frac = String.valueOf(1_000_000_000L + nano)
+                    .substring(1);
+            int end = frac.length();
+            while (frac.charAt(end - 1) == '0') {
+                end--;
+            }
+            sb.append('.').append(frac, 0, end);
+        }
+        return sb.toString();
+    }
+
+    private static StringBuilder pad2(StringBuilder sb, int v) {
+        if (v < 10) {
+            sb.append('0');
+        }
+        return sb.append(v);
     }
 
     private static final class Wrapped extends RuntimeException {

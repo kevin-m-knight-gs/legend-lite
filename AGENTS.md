@@ -15,15 +15,20 @@
 > a build green (docs/FOUNDATIONS_PLAN.md §0.4).
 >
 > **Execution tenet — an INVARIANT, not an aspiration (eviction program
-> closed 2026-08-18):** *Java orchestrates, the DATABASE executes.* Every
-> value a test assertion or product consumer observes as the result of
-> executing a Pure expression is DATABASE-PRODUCED; this is enforced
-> mechanically, not culturally: `JavaEvalLedgerTest` (shrink-only pins on
-> the registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
+> closed 2026-08-18; claim recalibrated by
+> docs/ADVERSARIAL_TENET_AUDIT_2026_08_18.md):** *Java orchestrates, the
+> DATABASE executes.* The honest, measurable form: NO host interpreter
+> remains; the QUERY COMPILER executes no values; the egress boundary is
+> a small set of irreducible carriage sites plus a NAMED, SHRINKING
+> residue (the register in `JavaEvalLedgerTest`). Enforcement is
+> mechanical, with known limits (guards catch drift, not adversaries —
+> the audit's §3): `JavaEvalLedgerTest` (shrink-only pins on the
+> registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
 > (JDBC only at the chartered seams) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
-> cannot reach a connection — grids pre-fetch at `GridReads.preResolve`,
-> the one JDBC pass). The adjudication authority is `docs/TENET_CHARTER.md`
+> cannot reach a connection — grid chains COMPILE to SQL at the exec
+> seam, `GridReads.tryLower`, scheduled for deletion by the
+> relation-typed `fetchDb` leg). The adjudication authority is `docs/TENET_CHARTER.md`
 > (clauses C1-C5) plus `docs/JAVA_EVICTION_PLAN.md` §1's decision rule
 > (query-time values → the DB; build-time model text → typed constants;
 > engine-exact text → a render TARGET of the one compiler). Consult them

@@ -523,12 +523,14 @@ final class ArchitectureTest {
     /**
      * <strong>E4 final burn — the INTERPRETER performs no JDBC.</strong>
      * The metamodel channel (HostEval, MetamodelWalk, MetamodelSteps,
-     * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS and
-     * pre-fetched values only: every grid subtree executes at the seam
-     * ({@code GridReads.preResolve} — the one JDBC pass) before the
-     * interpreter runs. This rule is the ratified adjudication's
-     * mechanical guard: a database VALUE can never be produced inside
-     * the channel, because the channel cannot reach a connection.
+     * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS only:
+     * grid chains COMPILE to SQL at the exec seam
+     * ({@code GridReads.tryLower} — its JDBC sites are the chartered
+     * grid egress, pinned by the eval ledger and scheduled for deletion
+     * by the relation-typed {@code fetchDb} leg). This rule is the
+     * ratified adjudication's mechanical guard: a database VALUE can
+     * never be produced inside the channel, because the channel cannot
+     * reach a connection.
      */
     @Test
     void theInterpreterPerformsNoJdbc() {
@@ -538,9 +540,9 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.sql..", "javax.sql..",
                     "org.duckdb..", "org.h2..")
-            .as("E4: the metamodel channel evaluates model constants and"
-                    + " seam-prefetched values only — JDBC lives at the"
-                    + " GridReads.preResolve seam")
+            .as("E4: the metamodel channel evaluates model constants"
+                    + " only — grid chains compile to SQL at the"
+                    + " GridReads.tryLower exec seam")
             .check(CORE_PROD_CLASSES);
     }
 
