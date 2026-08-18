@@ -2880,7 +2880,8 @@ Service stress::D_SalesCreditDense
             tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
             tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~creditId->ascending())
         ->limit(25);
@@ -2917,7 +2918,7 @@ Service stress::D_SalesCreditDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"creditId":"SC-0001","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0},{"creditId":"SC-0002","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0},{"creditId":"SC-0003","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0004","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0},{"creditId":"SC-0005","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0006","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0},{"creditId":"SC-0007","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0},{"creditId":"SC-0008","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":18975.0},{"creditId":"SC-0009","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":576750.0},{"creditId":"SC-0010","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0},{"creditId":"SC-0011","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0},{"creditId":"SC-0012","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":null,"tradeGrossAmount":369000.0}]';
+                    data: '[{"creditId":"SC-0001","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"creditId":"SC-0002","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"creditId":"SC-0003","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0004","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0005","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0006","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0007","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"creditId":"SC-0008","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":18975.0,"tradeGrossAmountInQ":9487.5},{"creditId":"SC-0009","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"creditId":"SC-0010","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"creditId":"SC-0011","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"creditId":"SC-0012","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":null,"tradeGrossAmount":369000.0,"tradeGrossAmountInQ":184500.0}]';
                   }#;
               }#
           ]
@@ -2941,7 +2942,8 @@ Service stress::D_ClearedTradeDense
             tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
             tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~clearedTradeId->ascending())
         ->limit(25);
@@ -2978,7 +2980,7 @@ Service stress::D_ClearedTradeDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
+                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0}]';
                   }#;
               }#
           ]
@@ -3002,7 +3004,8 @@ Service stress::D_AllocationDense
             tradeTraderManagerBadge:x|$x.trade.trader.manager.badge,
             tradeCounterpartyCountryName:x|$x.trade.counterparty.country.name,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~allocationId->ascending())
         ->limit(25);
@@ -3039,7 +3042,7 @@ Service stress::D_AllocationDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"allocationId":"A-0001","tradeBookDeskName":null,"tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":null,"tradeGrossAmount":null},{"allocationId":"A-0003","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":190500.0},{"allocationId":"A-0004","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":477500.0},{"allocationId":"A-0005","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeGrossAmount":250000.0}]';
+                    data: '[{"allocationId":"A-0001","tradeBookDeskName":null,"tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"allocationId":"A-0003","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"allocationId":"A-0004","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"allocationId":"A-0005","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0}]';
                   }#;
               }#
           ]
@@ -3063,7 +3066,8 @@ Service stress::D_TradeExceptionDense
             tradeOrderStatus:x|$x.trade.order.status,
             tradeBlockCurrency:x|$x.trade.block.currency,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~exceptionId->ascending())
         ->limit(25);
@@ -3100,7 +3104,7 @@ Service stress::D_TradeExceptionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"exceptionId":"TE-0001","tradeTraderDeskName":null,"tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":null,"tradeGrossAmount":null},{"exceptionId":"TE-0003","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":190500.0},{"exceptionId":"TE-0004","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":477500.0},{"exceptionId":"TE-0005","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0}]';
+                    data: '[{"exceptionId":"TE-0001","tradeTraderDeskName":null,"tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"exceptionId":"TE-0003","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"exceptionId":"TE-0004","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"exceptionId":"TE-0005","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0}]';
                   }#;
               }#
           ]
@@ -3124,7 +3128,8 @@ Service stress::D_SettlementDense
             tradeInstrumentCurrency:x|$x.trade.instrument.currency,
             tradeBookCurrency:x|$x.trade.book.currency,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~settlementId->ascending())
         ->limit(25);
@@ -3161,7 +3166,7 @@ Service stress::D_SettlementDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"settlementId":"STL-0001","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0},{"settlementId":"STL-0002","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0},{"settlementId":"STL-0003","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0004","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0},{"settlementId":"STL-0005","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0006","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"settlementId":"STL-0007","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0},{"settlementId":"STL-0008","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":576750.0},{"settlementId":"STL-0009","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0},{"settlementId":"STL-0010","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0},{"settlementId":"STL-0011","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":171250.0},{"settlementId":"STL-0012","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":69000.0},{"settlementId":"STL-0013","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":35000.0},{"settlementId":"STL-0014","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":264600.0},{"settlementId":"STL-0015","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":385000.0},{"settlementId":"STL-0016","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":4912500.0},{"settlementId":"STL-0017","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":1960000.0},{"settlementId":"STL-9999","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":null,"tradeBookCurrency":null,"tradeSide":null,"tradeGrossAmount":null}]';
+                    data: '[{"settlementId":"STL-0001","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"settlementId":"STL-0002","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"settlementId":"STL-0003","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0004","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0005","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0006","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0007","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"settlementId":"STL-0008","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"settlementId":"STL-0009","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"settlementId":"STL-0010","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"settlementId":"STL-0011","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"settlementId":"STL-0012","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0},{"settlementId":"STL-0013","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":35000.0,"tradeGrossAmountInQ":17500.0},{"settlementId":"STL-0014","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":264600.0,"tradeGrossAmountInQ":132300.0},{"settlementId":"STL-0015","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":385000.0,"tradeGrossAmountInQ":192500.0},{"settlementId":"STL-0016","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":4912500.0,"tradeGrossAmountInQ":2456250.0},{"settlementId":"STL-0017","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":1960000.0,"tradeGrossAmountInQ":980000.0},{"settlementId":"STL-9999","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":null,"tradeBookCurrency":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null}]';
                   }#;
               }#
           ]
@@ -3184,7 +3189,8 @@ Service stress::D_TradeDense
             orderInstrumentSectorName:x|$x.order.instrument.sector.name,
             orderInstrumentInstrumentCurrencyName:x|$x.order.instrument.instrumentCurrency.name,
             orderInstrumentExchangeName:x|$x.order.instrument.exchange.name,
-            grossAmount:x|$x.grossAmount
+            grossAmount:x|$x.grossAmount,
+            grossAmountInQ:x|$x.grossAmountIn(0.5)
         ])
         ->sort(~tradeId->ascending())
         ->limit(25);
@@ -3221,7 +3227,7 @@ Service stress::D_TradeDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":190500.0},{"tradeId":"TRD-0002","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":477500.0},{"tradeId":"TRD-0003","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0004","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0005","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0006","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0},{"tradeId":"TRD-0007","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":282000.0},{"tradeId":"TRD-0008","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":18975.0},{"tradeId":"TRD-0009","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":576750.0},{"tradeId":"TRD-0010","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":498000.0},{"tradeId":"TRD-0011","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":167300.0},{"tradeId":"TRD-0012","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":369000.0},{"tradeId":"TRD-0013","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":171250.0},{"tradeId":"TRD-0014","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":69000.0},{"tradeId":"TRD-0015","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":35000.0},{"tradeId":"TRD-0016","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":264600.0},{"tradeId":"TRD-0017","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":385000.0},{"tradeId":"TRD-0018","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":4912500.0},{"tradeId":"TRD-0019","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":1960000.0},{"tradeId":"TRD-0020","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":975000.0}]';
+                    data: '[{"tradeId":"TRD-0001","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":190500.0,"grossAmountInQ":95250.0},{"tradeId":"TRD-0002","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":477500.0,"grossAmountInQ":238750.0},{"tradeId":"TRD-0003","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0,"grossAmountInQ":125000.0},{"tradeId":"TRD-0004","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0,"grossAmountInQ":125000.0},{"tradeId":"TRD-0005","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0,"grossAmountInQ":125000.0},{"tradeId":"TRD-0006","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":250000.0,"grossAmountInQ":125000.0},{"tradeId":"TRD-0007","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":282000.0,"grossAmountInQ":141000.0},{"tradeId":"TRD-0008","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":18975.0,"grossAmountInQ":9487.5},{"tradeId":"TRD-0009","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":576750.0,"grossAmountInQ":288375.0},{"tradeId":"TRD-0010","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":498000.0,"grossAmountInQ":249000.0},{"tradeId":"TRD-0011","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":167300.0,"grossAmountInQ":83650.0},{"tradeId":"TRD-0012","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":369000.0,"grossAmountInQ":184500.0},{"tradeId":"TRD-0013","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":171250.0,"grossAmountInQ":85625.0},{"tradeId":"TRD-0014","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":69000.0,"grossAmountInQ":34500.0},{"tradeId":"TRD-0015","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":35000.0,"grossAmountInQ":17500.0},{"tradeId":"TRD-0016","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":264600.0,"grossAmountInQ":132300.0},{"tradeId":"TRD-0017","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":385000.0,"grossAmountInQ":192500.0},{"tradeId":"TRD-0018","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":4912500.0,"grossAmountInQ":2456250.0},{"tradeId":"TRD-0019","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":1960000.0,"grossAmountInQ":980000.0},{"tradeId":"TRD-0020","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null,"grossAmount":975000.0,"grossAmountInQ":487500.0}]';
                   }#;
               }#
           ]
@@ -3245,7 +3251,8 @@ Service stress::D_ConfirmationDense
             tradeCounterpartyLegalName:x|$x.trade.counterparty.legalName,
             tradeCurrency:x|$x.trade.currency,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~confirmId->ascending())
         ->limit(25);
@@ -3282,7 +3289,7 @@ Service stress::D_ConfirmationDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"confirmId":"CNF-0001","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0},{"confirmId":"CNF-0002","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0},{"confirmId":"CNF-0003","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0004","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0},{"confirmId":"CNF-0005","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0006","tradeTraderBadge":null,"tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0},{"confirmId":"CNF-0007","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":null,"tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0},{"confirmId":"CNF-0008","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0},{"confirmId":"CNF-0009","tradeTraderBadge":null,"tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0},{"confirmId":"CNF-0010","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":171250.0},{"confirmId":"CNF-0011","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":69000.0},{"confirmId":"CNF-0012","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":264600.0},{"confirmId":"CNF-0013","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":385000.0},{"confirmId":"CNF-0014","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":4912500.0},{"confirmId":"CNF-0015","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":1960000.0}]';
+                    data: '[{"confirmId":"CNF-0001","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"confirmId":"CNF-0002","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"confirmId":"CNF-0003","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0004","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0005","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0006","tradeTraderBadge":null,"tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0007","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":null,"tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"confirmId":"CNF-0008","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"confirmId":"CNF-0009","tradeTraderBadge":null,"tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"confirmId":"CNF-0010","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"confirmId":"CNF-0011","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0},{"confirmId":"CNF-0012","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":264600.0,"tradeGrossAmountInQ":132300.0},{"confirmId":"CNF-0013","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":385000.0,"tradeGrossAmountInQ":192500.0},{"confirmId":"CNF-0014","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":4912500.0,"tradeGrossAmountInQ":2456250.0},{"confirmId":"CNF-0015","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":1960000.0,"tradeGrossAmountInQ":980000.0}]';
                   }#;
               }#
           ]
@@ -3306,7 +3313,8 @@ Service stress::D_TradeReportDense
             tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
             tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
         ])
         ->sort(~reportId->ascending())
         ->limit(25);
@@ -3343,7 +3351,7 @@ Service stress::D_TradeReportDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reportId":"RPT-0001","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":190500.0},{"reportId":"RPT-0002","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":477500.0},{"reportId":"RPT-0003","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0004","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"SELL","tradeGrossAmount":250000.0},{"reportId":"RPT-0005","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0006","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0},{"reportId":"RPT-0007","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":282000.0},{"reportId":"RPT-0008","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":18975.0},{"reportId":"RPT-0009","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":576750.0},{"reportId":"RPT-0010","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":498000.0},{"reportId":"RPT-0011","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":167300.0},{"reportId":"RPT-0012","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":null,"tradeGrossAmount":369000.0},{"reportId":"RPT-0013","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeSide":"SELL","tradeGrossAmount":171250.0},{"reportId":"RPT-0014","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeSide":"BUY","tradeGrossAmount":69000.0}]';
+                    data: '[{"reportId":"RPT-0001","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"reportId":"RPT-0002","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"reportId":"RPT-0003","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0004","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0005","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0006","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0007","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"reportId":"RPT-0008","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":18975.0,"tradeGrossAmountInQ":9487.5},{"reportId":"RPT-0009","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"reportId":"RPT-0010","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"reportId":"RPT-0011","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"reportId":"RPT-0012","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":null,"tradeGrossAmount":369000.0,"tradeGrossAmountInQ":184500.0},{"reportId":"RPT-0013","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"reportId":"RPT-0014","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0}]';
                   }#;
               }#
           ]
@@ -3367,7 +3375,8 @@ Service stress::D_CashSettlementDense
             settlementTradeBlockCurrency:x|$x.settlement.trade.block.currency,
             settlementTradeAvgPriceTradeCurrency:x|$x.settlement.trade.avgPriceTrade.currency,
             settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
+            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
         ])
         ->sort(~cashSettlementId->ascending())
         ->limit(25);
@@ -3404,7 +3413,7 @@ Service stress::D_CashSettlementDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"cashSettlementId":"CS-0001","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"cashSettlementId":"CS-0002","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"cashSettlementId":"CS-0003","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"cashSettlementId":"CS-0004","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0}]';
+                    data: '[{"cashSettlementId":"CS-0001","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"cashSettlementId":"CS-0002","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"cashSettlementId":"CS-0003","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0,"settlementTradeGrossAmountInQ":95250.0},{"cashSettlementId":"CS-0004","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0}]';
                   }#;
               }#
           ]
@@ -3428,7 +3437,8 @@ Service stress::D_NovationRequestDense
             clearedTradeTradeOrderStatus:x|$x.clearedTrade.trade.order.status,
             clearedTradeTradeBlockCurrency:x|$x.clearedTrade.trade.block.currency,
             clearedTradeTradeSide:x|$x.clearedTrade.trade.side,
-            clearedTradeTradeGrossAmount:x|$x.clearedTrade.trade.grossAmount
+            clearedTradeTradeGrossAmount:x|$x.clearedTrade.trade.grossAmount,
+            clearedTradeTradeGrossAmountInQ:x|$x.clearedTrade.trade.grossAmountIn(0.5)
         ])
         ->sort(~novationId->ascending())
         ->limit(25);
@@ -3465,7 +3475,7 @@ Service stress::D_NovationRequestDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"novationId":"NR-0001","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0002","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0003","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null},{"novationId":"NR-0004","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null}]';
+                    data: '[{"novationId":"NR-0001","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null},{"novationId":"NR-0002","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null},{"novationId":"NR-0003","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null},{"novationId":"NR-0004","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null}]';
                   }#;
               }#
           ]
@@ -3487,7 +3497,8 @@ Service stress::D_GreeksDense
             greeksId:x|$x.greeksId,
             positionBookRollupBookId:x|$x.position.book.rollup.bookId,
             positionBookDeskName:x|$x.position.book.desk.name,
-            positionPortfolioManagerBenchmark:x|$x.position.portfolio.manager.benchmark
+            positionPortfolioManagerBenchmark:x|$x.position.portfolio.manager.benchmark,
+            positionValuedAtQ:x|$x.position.valuedAt(0.5)
         ])
         ->sort(~greeksId->ascending())
         ->limit(25);
@@ -3524,7 +3535,7 @@ Service stress::D_GreeksDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"greeksId":"GRK-0001","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null},{"greeksId":"GRK-0002","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null},{"greeksId":"GRK-0003","positionBookRollupBookId":"BK-VOL-01","positionBookDeskName":"Equity Derivatives","positionPortfolioManagerBenchmark":null},{"greeksId":"GRK-0004","positionBookRollupBookId":null,"positionBookDeskName":null,"positionPortfolioManagerBenchmark":null}]';
+                    data: '[{"greeksId":"GRK-0001","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null,"positionValuedAtQ":4575.0},{"greeksId":"GRK-0002","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities","positionPortfolioManagerBenchmark":null,"positionValuedAtQ":800.0},{"greeksId":"GRK-0003","positionBookRollupBookId":"BK-VOL-01","positionBookDeskName":"Equity Derivatives","positionPortfolioManagerBenchmark":null,"positionValuedAtQ":3500000.0},{"greeksId":"GRK-0004","positionBookRollupBookId":null,"positionBookDeskName":null,"positionPortfolioManagerBenchmark":null,"positionValuedAtQ":null}]';
                   }#;
               }#
           ]
@@ -3548,7 +3559,8 @@ Service stress::D_SecuritiesSettlementDense
             settlementTradeBookCurrency:x|$x.settlement.trade.book.currency,
             settlementTradeTraderBadge:x|$x.settlement.trade.trader.badge,
             settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
+            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
         ])
         ->sort(~secSettlementId->ascending())
         ->limit(25);
@@ -3585,7 +3597,7 @@ Service stress::D_SecuritiesSettlementDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"secSettlementId":"SS-0001","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"secSettlementId":"SS-0002","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"secSettlementId":"SS-0004","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"secSettlementId":"SS-0005","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10077","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
+                    data: '[{"secSettlementId":"SS-0001","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"secSettlementId":"SS-0002","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"secSettlementId":"SS-0004","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"secSettlementId":"SS-0005","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10077","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
                   }#;
               }#
           ]
@@ -3609,7 +3621,8 @@ Service stress::D_SettlementFailDense
             settlementCounterpartyCountryName:x|$x.settlement.counterparty.country.name,
             settlementNettingCurrency:x|$x.settlement.netting.currency,
             settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
+            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
         ])
         ->sort(~failId->ascending())
         ->limit(25);
@@ -3646,7 +3659,7 @@ Service stress::D_SettlementFailDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"failId":"SF-0001","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementNettingCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"failId":"SF-0002","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementNettingCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"failId":"SF-0004","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementNettingCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"failId":"SF-0005","settlementTradeCounterpartyLegalName":"Halberd Securities","settlementCounterpartyCountryName":"United Kingdom","settlementNettingCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
+                    data: '[{"failId":"SF-0001","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementNettingCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"failId":"SF-0002","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementNettingCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"failId":"SF-0004","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementNettingCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"failId":"SF-0005","settlementTradeCounterpartyLegalName":"Halberd Securities","settlementCounterpartyCountryName":"United Kingdom","settlementNettingCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
                   }#;
               }#
           ]
@@ -3670,7 +3683,8 @@ Service stress::D_SettlementInstructionDense
             settlementCounterpartyLegalName:x|$x.settlement.counterparty.legalName,
             settlementCurrency:x|$x.settlement.currency,
             settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
+            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
         ])
         ->sort(~instructionId->ascending())
         ->limit(25);
@@ -3707,7 +3721,7 @@ Service stress::D_SettlementInstructionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"instructionId":"SI-0002","settlementTradeCurrency":null,"settlementCounterpartyLegalName":null,"settlementCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null},{"instructionId":"SI-0003","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0},{"instructionId":"SI-0004","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0},{"instructionId":"SI-0005","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Halberd Securities","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0}]';
+                    data: '[{"instructionId":"SI-0002","settlementTradeCurrency":null,"settlementCounterpartyLegalName":null,"settlementCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"instructionId":"SI-0003","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0,"settlementTradeGrossAmountInQ":95250.0},{"instructionId":"SI-0004","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"instructionId":"SI-0005","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Halberd Securities","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
                   }#;
               }#
           ]
@@ -3729,7 +3743,8 @@ Service stress::D_PositionDense
             positionId:x|$x.positionId,
             bookRollupBookCurrency:x|$x.book.rollup.book.currency,
             bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
-            portfolioManagerDeskName:x|$x.portfolio.manager.desk.name
+            portfolioManagerDeskName:x|$x.portfolio.manager.desk.name,
+            valuedAtQ:x|$x.valuedAt(0.5)
         ])
         ->sort(~positionId->ascending())
         ->limit(25);
@@ -3766,7 +3781,7 @@ Service stress::D_PositionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"positionId":"POS-0001","bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null},{"positionId":"POS-0002","bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null},{"positionId":"POS-0003","bookRollupBookCurrency":"EUR","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null},{"positionId":"POS-0004","bookRollupBookCurrency":"EUR","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null},{"positionId":"POS-0005","bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null},{"positionId":"POS-0006","bookRollupBookCurrency":null,"bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null}]';
+                    data: '[{"positionId":"POS-0001","bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null,"valuedAtQ":4575.0},{"positionId":"POS-0002","bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null,"valuedAtQ":800.0},{"positionId":"POS-0003","bookRollupBookCurrency":"EUR","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null,"valuedAtQ":-5000.0},{"positionId":"POS-0004","bookRollupBookCurrency":"EUR","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null,"valuedAtQ":1850.0},{"positionId":"POS-0005","bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null,"valuedAtQ":3500000.0},{"positionId":"POS-0006","bookRollupBookCurrency":null,"bookDeskBusinessUnitName":null,"portfolioManagerDeskName":null,"valuedAtQ":0.0}]';
                   }#;
               }#
           ]
@@ -3790,7 +3805,8 @@ Service stress::D_BreakResolutionDense
             tradeExceptionTradeBlockCurrency:x|$x.tradeException.trade.block.currency,
             tradeExceptionTradeAvgPriceTradeCurrency:x|$x.tradeException.trade.avgPriceTrade.currency,
             tradeExceptionTradeSide:x|$x.tradeException.trade.side,
-            tradeExceptionTradeGrossAmount:x|$x.tradeException.trade.grossAmount
+            tradeExceptionTradeGrossAmount:x|$x.tradeException.trade.grossAmount,
+            tradeExceptionTradeGrossAmountInQ:x|$x.tradeException.trade.grossAmountIn(0.5)
         ])
         ->sort(~resolutionId->ascending())
         ->limit(25);
@@ -3827,7 +3843,7 @@ Service stress::D_BreakResolutionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"resolutionId":"BR-0001","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0003","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0004","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null},{"resolutionId":"BR-0005","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":"BUY","tradeExceptionTradeGrossAmount":190500.0}]';
+                    data: '[{"resolutionId":"BR-0001","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null,"tradeExceptionTradeGrossAmountInQ":null},{"resolutionId":"BR-0003","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null,"tradeExceptionTradeGrossAmountInQ":null},{"resolutionId":"BR-0004","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null,"tradeExceptionTradeGrossAmountInQ":null},{"resolutionId":"BR-0005","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":"BUY","tradeExceptionTradeGrossAmount":190500.0,"tradeExceptionTradeGrossAmountInQ":95250.0}]';
                   }#;
               }#
           ]
@@ -3849,7 +3865,8 @@ Service stress::D_LotPositionDense
             lotId:x|$x.lotId,
             positionInstrumentSectorName:x|$x.position.instrument.sector.name,
             positionInstrumentInstrumentCurrencyName:x|$x.position.instrument.instrumentCurrency.name,
-            positionInstrumentExchangeName:x|$x.position.instrument.exchange.name
+            positionInstrumentExchangeName:x|$x.position.instrument.exchange.name,
+            positionValuedAtQ:x|$x.position.valuedAt(0.5)
         ])
         ->sort(~lotId->ascending())
         ->limit(25);
@@ -3886,7 +3903,67 @@ Service stress::D_LotPositionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"lotId":"LP-0001","positionInstrumentSectorName":null,"positionInstrumentInstrumentCurrencyName":null,"positionInstrumentExchangeName":null},{"lotId":"LP-0002","positionInstrumentSectorName":null,"positionInstrumentInstrumentCurrencyName":null,"positionInstrumentExchangeName":null},{"lotId":"LP-0003","positionInstrumentSectorName":"Information Technology","positionInstrumentInstrumentCurrencyName":"US Dollar","positionInstrumentExchangeName":"Nasdaq Stock Market"},{"lotId":"LP-0004","positionInstrumentSectorName":"Information Technology","positionInstrumentInstrumentCurrencyName":"US Dollar","positionInstrumentExchangeName":"Nasdaq Stock Market"},{"lotId":"LP-0005","positionInstrumentSectorName":"Financials","positionInstrumentInstrumentCurrencyName":"Pound Sterling","positionInstrumentExchangeName":"London Stock Exchange"}]';
+                    data: '[{"lotId":"LP-0001","positionInstrumentSectorName":null,"positionInstrumentInstrumentCurrencyName":null,"positionInstrumentExchangeName":null,"positionValuedAtQ":null},{"lotId":"LP-0002","positionInstrumentSectorName":null,"positionInstrumentInstrumentCurrencyName":null,"positionInstrumentExchangeName":null,"positionValuedAtQ":null},{"lotId":"LP-0003","positionInstrumentSectorName":"Information Technology","positionInstrumentInstrumentCurrencyName":"US Dollar","positionInstrumentExchangeName":"Nasdaq Stock Market","positionValuedAtQ":4575.0},{"lotId":"LP-0004","positionInstrumentSectorName":"Information Technology","positionInstrumentInstrumentCurrencyName":"US Dollar","positionInstrumentExchangeName":"Nasdaq Stock Market","positionValuedAtQ":800.0},{"lotId":"LP-0005","positionInstrumentSectorName":"Financials","positionInstrumentInstrumentCurrencyName":"Pound Sterling","positionInstrumentExchangeName":"London Stock Exchange","positionValuedAtQ":-5000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_PositionBreakDense
+{
+    pattern: '/stress/d_positionbreak';
+    documentation: 'Dense stack on positions::PositionBreak: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |positions::PositionBreak.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            breakId:x|$x.breakId,
+            positionBookCurrency:x|$x.position.book.currency,
+            positionPortfolioCurrency:x|$x.position.portfolio.currency,
+            positionInstrumentCurrency:x|$x.position.instrument.currency,
+            positionValuedAtQ:x|$x.position.valuedAt(0.5)
+        ])
+        ->sort(~breakId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_PositionBreakDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"breakId":"PB-0001","positionBookCurrency":null,"positionPortfolioCurrency":null,"positionInstrumentCurrency":null,"positionValuedAtQ":null},{"breakId":"PB-0002","positionBookCurrency":null,"positionPortfolioCurrency":null,"positionInstrumentCurrency":null,"positionValuedAtQ":null},{"breakId":"PB-0004","positionBookCurrency":"USD","positionPortfolioCurrency":null,"positionInstrumentCurrency":"USD","positionValuedAtQ":800.0},{"breakId":"PB-0005","positionBookCurrency":"EUR","positionPortfolioCurrency":null,"positionInstrumentCurrency":"GBP","positionValuedAtQ":-5000.0}]';
                   }#;
               }#
           ]
@@ -3908,7 +3985,8 @@ Service stress::D_PositionSnapshotDense
             snapshotId:x|$x.snapshotId,
             positionCurrency:x|$x.position.currency,
             positionBookRollupBookId:x|$x.position.book.rollup.bookId,
-            positionBookDeskName:x|$x.position.book.desk.name
+            positionBookDeskName:x|$x.position.book.desk.name,
+            positionValuedAtQ:x|$x.position.valuedAt(0.5)
         ])
         ->sort(~snapshotId->ascending())
         ->limit(25);
@@ -3945,7 +4023,7 @@ Service stress::D_PositionSnapshotDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"snapshotId":"PS-0001","positionCurrency":null,"positionBookRollupBookId":null,"positionBookDeskName":null},{"snapshotId":"PS-0002","positionCurrency":null,"positionBookRollupBookId":null,"positionBookDeskName":null},{"snapshotId":"PS-0003","positionCurrency":"USD","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities"},{"snapshotId":"PS-0005","positionCurrency":"GBP","positionBookRollupBookId":"BK-CASH-EU","positionBookDeskName":"Cash Equities"}]';
+                    data: '[{"snapshotId":"PS-0001","positionCurrency":null,"positionBookRollupBookId":null,"positionBookDeskName":null,"positionValuedAtQ":null},{"snapshotId":"PS-0002","positionCurrency":null,"positionBookRollupBookId":null,"positionBookDeskName":null,"positionValuedAtQ":null},{"snapshotId":"PS-0003","positionCurrency":"USD","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities","positionValuedAtQ":4575.0},{"snapshotId":"PS-0005","positionCurrency":"GBP","positionBookRollupBookId":"BK-CASH-EU","positionBookDeskName":"Cash Equities","positionValuedAtQ":-5000.0}]';
                   }#;
               }#
           ]
@@ -3969,7 +4047,8 @@ Service stress::D_TradeReportStatusDense
             tradeReportTradeBlockCurrency:x|$x.tradeReport.trade.block.currency,
             tradeReportTradeAvgPriceTradeCurrency:x|$x.tradeReport.trade.avgPriceTrade.currency,
             tradeReportTradeSide:x|$x.tradeReport.trade.side,
-            tradeReportTradeGrossAmount:x|$x.tradeReport.trade.grossAmount
+            tradeReportTradeGrossAmount:x|$x.tradeReport.trade.grossAmount,
+            tradeReportTradeGrossAmountInQ:x|$x.tradeReport.trade.grossAmountIn(0.5)
         ])
         ->sort(~statusId->ascending())
         ->limit(25);
@@ -4006,7 +4085,7 @@ Service stress::D_TradeReportStatusDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"statusId":"TRS-0001","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null},{"statusId":"TRS-0002","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null},{"statusId":"TRS-0003","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":190500.0},{"statusId":"TRS-0004","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":477500.0}]';
+                    data: '[{"statusId":"TRS-0001","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null,"tradeReportTradeGrossAmountInQ":null},{"statusId":"TRS-0002","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null,"tradeReportTradeGrossAmountInQ":null},{"statusId":"TRS-0003","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":190500.0,"tradeReportTradeGrossAmountInQ":95250.0},{"statusId":"TRS-0004","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":477500.0,"tradeReportTradeGrossAmountInQ":238750.0}]';
                   }#;
               }#
           ]
@@ -4028,7 +4107,8 @@ Service stress::D_AccrualEntryDense
             accrualId:x|$x.accrualId,
             dailyPnLMtdPnLYtdPnLCurrency:x|$x.dailyPnL.mtdPnL.ytdPnL.currency,
             dailyPnLBookRollupBookId:x|$x.dailyPnL.book.rollup.bookId,
-            dailyPnLBookDeskName:x|$x.dailyPnL.book.desk.name
+            dailyPnLBookDeskName:x|$x.dailyPnL.book.desk.name,
+            dailyPnLPnlInQ:x|$x.dailyPnL.pnlIn(0.5)
         ])
         ->sort(~accrualId->ascending())
         ->limit(25);
@@ -4065,7 +4145,7 @@ Service stress::D_AccrualEntryDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"accrualId":"AE-0001","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":null,"dailyPnLBookDeskName":null},{"accrualId":"AE-0002","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":null,"dailyPnLBookDeskName":null},{"accrualId":"AE-0003","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":"BK-CASH-US","dailyPnLBookDeskName":"Cash Equities"},{"accrualId":"AE-0004","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":"BK-CASH-US","dailyPnLBookDeskName":"Cash Equities"}]';
+                    data: '[{"accrualId":"AE-0001","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":null,"dailyPnLBookDeskName":null,"dailyPnLPnlInQ":null},{"accrualId":"AE-0002","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":null,"dailyPnLBookDeskName":null,"dailyPnLPnlInQ":null},{"accrualId":"AE-0003","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":"BK-CASH-US","dailyPnLBookDeskName":"Cash Equities","dailyPnLPnlInQ":64200.125},{"accrualId":"AE-0004","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLBookRollupBookId":"BK-CASH-US","dailyPnLBookDeskName":"Cash Equities","dailyPnLPnlInQ":-20600.25}]';
                   }#;
               }#
           ]
@@ -4087,7 +4167,8 @@ Service stress::D_DailyPnLDense
             pnlId:x|$x.pnlId,
             traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
             traderManagerDeskName:x|$x.trader.manager.desk.name,
-            traderManagerManagerBadge:x|$x.trader.manager.manager.badge
+            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
+            pnlInQ:x|$x.pnlIn(0.5)
         ])
         ->sort(~pnlId->ascending())
         ->limit(25);
@@ -4124,7 +4205,7 @@ Service stress::D_DailyPnLDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null}]';
+                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":64200.125},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-20600.25},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":9375.0},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":0.0},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":201050.375},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":7950.0},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-1250.0}]';
                   }#;
               }#
           ]
@@ -4146,7 +4227,8 @@ Service stress::D_HypotheticalPnLDense
             hypotheticalId:x|$x.hypotheticalId,
             dailyPnLTraderDeskName:x|$x.dailyPnL.trader.desk.name,
             dailyPnLTraderManagerBadge:x|$x.dailyPnL.trader.manager.badge,
-            dailyPnLDeskBusinessUnitName:x|$x.dailyPnL.desk.businessUnit.name
+            dailyPnLDeskBusinessUnitName:x|$x.dailyPnL.desk.businessUnit.name,
+            dailyPnLPnlInQ:x|$x.dailyPnL.pnlIn(0.5)
         ])
         ->sort(~hypotheticalId->ascending())
         ->limit(25);
@@ -4183,7 +4265,67 @@ Service stress::D_HypotheticalPnLDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"hypotheticalId":"HPL-0001","dailyPnLTraderDeskName":null,"dailyPnLTraderManagerBadge":null,"dailyPnLDeskBusinessUnitName":null},{"hypotheticalId":"HPL-0002","dailyPnLTraderDeskName":null,"dailyPnLTraderManagerBadge":null,"dailyPnLDeskBusinessUnitName":null},{"hypotheticalId":"HPL-0003","dailyPnLTraderDeskName":"Cash Equities","dailyPnLTraderManagerBadge":null,"dailyPnLDeskBusinessUnitName":null},{"hypotheticalId":"HPL-0005","dailyPnLTraderDeskName":"Equity Derivatives","dailyPnLTraderManagerBadge":"B10041","dailyPnLDeskBusinessUnitName":null}]';
+                    data: '[{"hypotheticalId":"HPL-0001","dailyPnLTraderDeskName":null,"dailyPnLTraderManagerBadge":null,"dailyPnLDeskBusinessUnitName":null,"dailyPnLPnlInQ":null},{"hypotheticalId":"HPL-0002","dailyPnLTraderDeskName":null,"dailyPnLTraderManagerBadge":null,"dailyPnLDeskBusinessUnitName":null,"dailyPnLPnlInQ":null},{"hypotheticalId":"HPL-0003","dailyPnLTraderDeskName":"Cash Equities","dailyPnLTraderManagerBadge":null,"dailyPnLDeskBusinessUnitName":null,"dailyPnLPnlInQ":64200.125},{"hypotheticalId":"HPL-0005","dailyPnLTraderDeskName":"Equity Derivatives","dailyPnLTraderManagerBadge":"B10041","dailyPnLDeskBusinessUnitName":null,"dailyPnLPnlInQ":9375.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_PnLAdjustmentDense
+{
+    pattern: '/stress/d_pnladjustment';
+    documentation: 'Dense stack on pnl::PnLAdjustment: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |pnl::PnLAdjustment.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            adjustmentId:x|$x.adjustmentId,
+            dailyPnLMtdPnLCurrency:x|$x.dailyPnL.mtdPnL.currency,
+            dailyPnLBookCurrency:x|$x.dailyPnL.book.currency,
+            dailyPnLTraderBadge:x|$x.dailyPnL.trader.badge,
+            dailyPnLPnlInQ:x|$x.dailyPnL.pnlIn(0.5)
+        ])
+        ->sort(~adjustmentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_PnLAdjustmentDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"adjustmentId":"PL-0001","dailyPnLMtdPnLCurrency":null,"dailyPnLBookCurrency":null,"dailyPnLTraderBadge":null,"dailyPnLPnlInQ":null},{"adjustmentId":"PL-0002","dailyPnLMtdPnLCurrency":null,"dailyPnLBookCurrency":null,"dailyPnLTraderBadge":null,"dailyPnLPnlInQ":null},{"adjustmentId":"PL-0003","dailyPnLMtdPnLCurrency":"USD","dailyPnLBookCurrency":"USD","dailyPnLTraderBadge":"B10041","dailyPnLPnlInQ":64200.125},{"adjustmentId":"PL-0004","dailyPnLMtdPnLCurrency":"GBP","dailyPnLBookCurrency":"USD","dailyPnLTraderBadge":"B10077","dailyPnLPnlInQ":-20600.25}]';
                   }#;
               }#
           ]
@@ -4205,7 +4347,8 @@ Service stress::D_PnLAttributionDense
             attributionId:x|$x.attributionId,
             dailyPnLDeskName:x|$x.dailyPnL.desk.name,
             dailyPnLCurrency:x|$x.dailyPnL.currency,
-            dailyPnLMtdPnLYtdPnLCurrency:x|$x.dailyPnL.mtdPnL.ytdPnL.currency
+            dailyPnLMtdPnLYtdPnLCurrency:x|$x.dailyPnL.mtdPnL.ytdPnL.currency,
+            dailyPnLPnlInQ:x|$x.dailyPnL.pnlIn(0.5)
         ])
         ->sort(~attributionId->ascending())
         ->limit(25);
@@ -4242,7 +4385,7 @@ Service stress::D_PnLAttributionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"attributionId":"PL-0002","dailyPnLDeskName":null,"dailyPnLCurrency":null,"dailyPnLMtdPnLYtdPnLCurrency":null},{"attributionId":"PL-0003","dailyPnLDeskName":"Cash Equities","dailyPnLCurrency":"USD","dailyPnLMtdPnLYtdPnLCurrency":null},{"attributionId":"PL-0004","dailyPnLDeskName":"Cash Equities","dailyPnLCurrency":"USD","dailyPnLMtdPnLYtdPnLCurrency":null},{"attributionId":"PL-0005","dailyPnLDeskName":"Cash Equities","dailyPnLCurrency":"USD","dailyPnLMtdPnLYtdPnLCurrency":"USD"}]';
+                    data: '[{"attributionId":"PL-0002","dailyPnLDeskName":null,"dailyPnLCurrency":null,"dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLPnlInQ":null},{"attributionId":"PL-0003","dailyPnLDeskName":"Cash Equities","dailyPnLCurrency":"USD","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLPnlInQ":64200.125},{"attributionId":"PL-0004","dailyPnLDeskName":"Cash Equities","dailyPnLCurrency":"USD","dailyPnLMtdPnLYtdPnLCurrency":null,"dailyPnLPnlInQ":-20600.25},{"attributionId":"PL-0005","dailyPnLDeskName":"Cash Equities","dailyPnLCurrency":"USD","dailyPnLMtdPnLYtdPnLCurrency":"USD","dailyPnLPnlInQ":9375.0}]';
                   }#;
               }#
           ]
@@ -4500,7 +4643,8 @@ Service stress::D_MarketQuoteDense
             quoteId:x|$x.quoteId,
             instrumentExchangeCountryName:x|$x.instrument.exchange.country.name,
             instrumentExchangeName:x|$x.instrument.exchange.name,
-            snapshotStatus:x|$x.snapshot.status
+            snapshotStatus:x|$x.snapshot.status,
+            bidInQ:x|$x.bidIn(0.5)
         ])
         ->sort(~quoteId->ascending())
         ->limit(25);
@@ -4537,7 +4681,7 @@ Service stress::D_MarketQuoteDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"quoteId":"MQ-0001","instrumentExchangeCountryName":null,"instrumentExchangeName":null,"snapshotStatus":null},{"quoteId":"MQ-0002","instrumentExchangeCountryName":null,"instrumentExchangeName":null,"snapshotStatus":null},{"quoteId":"MQ-0003","instrumentExchangeCountryName":"United States","instrumentExchangeName":"Nasdaq Stock Market","snapshotStatus":"ACTIVE"},{"quoteId":"MQ-0004","instrumentExchangeCountryName":"United States","instrumentExchangeName":"Nasdaq Stock Market","snapshotStatus":"PENDING"},{"quoteId":"MQ-0005","instrumentExchangeCountryName":"United Kingdom","instrumentExchangeName":"London Stock Exchange","snapshotStatus":"CLOSED"}]';
+                    data: '[{"quoteId":"MQ-0001","instrumentExchangeCountryName":null,"instrumentExchangeName":null,"snapshotStatus":null,"bidInQ":743.75},{"quoteId":"MQ-0002","instrumentExchangeCountryName":null,"instrumentExchangeName":null,"snapshotStatus":null,"bidInQ":762.5},{"quoteId":"MQ-0003","instrumentExchangeCountryName":"United States","instrumentExchangeName":"Nasdaq Stock Market","snapshotStatus":"ACTIVE","bidInQ":781.25},{"quoteId":"MQ-0004","instrumentExchangeCountryName":"United States","instrumentExchangeName":"Nasdaq Stock Market","snapshotStatus":"PENDING","bidInQ":null},{"quoteId":"MQ-0005","instrumentExchangeCountryName":"United Kingdom","instrumentExchangeName":"London Stock Exchange","snapshotStatus":"CLOSED","bidInQ":818.75}]';
                   }#;
               }#
           ]
@@ -4677,7 +4821,8 @@ Service stress::D_CapitalGainDense
             gainId:x|$x.gainId,
             taxLotPositionBookCurrency:x|$x.taxLot.position.book.currency,
             taxLotPositionPortfolioCurrency:x|$x.taxLot.position.portfolio.currency,
-            taxLotPositionInstrumentCurrency:x|$x.taxLot.position.instrument.currency
+            taxLotPositionInstrumentCurrency:x|$x.taxLot.position.instrument.currency,
+            taxLotPositionValuedAtQ:x|$x.taxLot.position.valuedAt(0.5)
         ])
         ->sort(~gainId->ascending())
         ->limit(25);
@@ -4714,7 +4859,7 @@ Service stress::D_CapitalGainDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"gainId":"CG-0002","taxLotPositionBookCurrency":null,"taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":null},{"gainId":"CG-0003","taxLotPositionBookCurrency":null,"taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":null},{"gainId":"CG-0004","taxLotPositionBookCurrency":null,"taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":null},{"gainId":"CG-0005","taxLotPositionBookCurrency":"USD","taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":"USD"}]';
+                    data: '[{"gainId":"CG-0002","taxLotPositionBookCurrency":null,"taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":null,"taxLotPositionValuedAtQ":null},{"gainId":"CG-0003","taxLotPositionBookCurrency":null,"taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":null,"taxLotPositionValuedAtQ":null},{"gainId":"CG-0004","taxLotPositionBookCurrency":null,"taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":null,"taxLotPositionValuedAtQ":null},{"gainId":"CG-0005","taxLotPositionBookCurrency":"USD","taxLotPositionPortfolioCurrency":null,"taxLotPositionInstrumentCurrency":"USD","taxLotPositionValuedAtQ":4575.0}]';
                   }#;
               }#
           ]
@@ -6034,7 +6179,8 @@ Service stress::D_ConcentrationRiskDense
             concentrationId:x|$x.concentrationId,
             varResultPortfolioManagerBenchmark:x|$x.varResult.portfolio.manager.benchmark,
             varResultPortfolioCurrency:x|$x.varResult.portfolio.currency,
-            varResultCurrency:x|$x.varResult.currency
+            varResultCurrency:x|$x.varResult.currency,
+            varResultVarScaledQ:x|$x.varResult.varScaled(0.5)
         ])
         ->sort(~concentrationId->ascending())
         ->limit(25);
@@ -6071,7 +6217,7 @@ Service stress::D_ConcentrationRiskDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"concentrationId":"CR-0001","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":null},{"concentrationId":"CR-0002","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":null},{"concentrationId":"CR-0003","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":"USD"},{"concentrationId":"CR-0004","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":"GBP"}]';
+                    data: '[{"concentrationId":"CR-0001","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":null,"varResultVarScaledQ":null},{"concentrationId":"CR-0002","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":null,"varResultVarScaledQ":null},{"concentrationId":"CR-0003","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":"USD","varResultVarScaledQ":462.5},{"concentrationId":"CR-0004","varResultPortfolioManagerBenchmark":null,"varResultPortfolioCurrency":null,"varResultCurrency":"GBP","varResultVarScaledQ":481.25}]';
                   }#;
               }#
           ]
@@ -6152,7 +6298,8 @@ Service stress::D_VaRResultDense
             varId:x|$x.varId,
             portfolioManagerBenchmark:x|$x.portfolio.manager.benchmark,
             portfolioCurrency:x|$x.portfolio.currency,
-            portfolioManagerDeskName:x|$x.portfolio.manager.desk.name
+            portfolioManagerDeskName:x|$x.portfolio.manager.desk.name,
+            varScaledQ:x|$x.varScaled(0.5)
         ])
         ->sort(~varId->ascending())
         ->limit(25);
@@ -6189,7 +6336,7 @@ Service stress::D_VaRResultDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"varId":"VR-0001","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null},{"varId":"VR-0002","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null},{"varId":"VR-0004","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null},{"varId":"VR-0005","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null}]';
+                    data: '[{"varId":"VR-0001","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null,"varScaledQ":462.5},{"varId":"VR-0002","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null,"varScaledQ":481.25},{"varId":"VR-0004","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null,"varScaledQ":null},{"varId":"VR-0005","portfolioManagerBenchmark":null,"portfolioCurrency":null,"portfolioManagerDeskName":null,"varScaledQ":537.5}]';
                   }#;
               }#
           ]
@@ -14149,8 +14296,8 @@ Service stress::SP_defDailyPnLEmpty
             traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
             traderManagerDeskName:x|$x.trader.manager.desk.name,
             traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
+            pnlInQ:x|$x.pnlIn(0.5),
             bookRollupBookCurrency:x|$x.book.rollup.book.currency,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
             hasNone:x|$x.attributions->isEmpty()
         ])
         ->sort(~pnlId->ascending())
@@ -14188,7 +14335,7 @@ Service stress::SP_defDailyPnLEmpty
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"hasNone":false},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"hasNone":false},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookRollupBookCurrency":"EUR","bookDeskBusinessUnitName":null,"hasNone":false},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"bookRollupBookCurrency":"EUR","bookDeskBusinessUnitName":null,"hasNone":true},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"hasNone":true},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"bookRollupBookCurrency":"USD","bookDeskBusinessUnitName":null,"hasNone":true},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"bookRollupBookCurrency":null,"bookDeskBusinessUnitName":null,"hasNone":true}]';
+                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":64200.125,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-20600.25,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":9375.0,"bookRollupBookCurrency":"EUR","hasNone":false},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":0.0,"bookRollupBookCurrency":"EUR","hasNone":true},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":201050.375,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":7950.0,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-1250.0,"bookRollupBookCurrency":null,"hasNone":true}]';
                   }#;
               }#
           ]
@@ -14386,78 +14533,6 @@ Service stress::SP_JoinTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defTradeEmpty
-{
-    pattern: '/stress/sp_deftradeempty';
-    documentation: 'Coverage-directed stack on trading::Trade (Empty), reusing the reach of F30_TradeEverything and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |trading::Trade.all()
-        ->filter({x|($x.tradeId > ' ')})
-        ->project(~[
-            tradeId:x|$x.tradeId,
-            side:x|$x.side,
-            status:x|$x.status,
-            quantity:x|$x.quantity,
-            price:x|$x.price,
-            sectorName:x|$x.instrument.sector.name,
-            sectorGics:x|$x.instrument.sector.gicsCode,
-            deskName:x|$x.book.desk.name,
-            deskRegion:x|$x.book.desk.region,
-            cptyCountry:x|$x.counterparty.country.name,
-            cptyRegion:x|$x.counterparty.country.region,
-            traderDesk:x|$x.trader.desk.name,
-            grossAmount:x|$x.grossAmount,
-            grossGbp:x|$x.grossAmountIn(0.79),
-            grossEur:x|$x.grossAmountIn(0.92),
-            isLarge:x|$x->stress::rules::isLargeTrade(),
-            hasNone:x|$x.allocations->isEmpty()
-        ])
-        ->sort(~tradeId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 20 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","side":"BUY","status":"EXECUTED","quantity":1000.0,"price":190.5,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":190500.0,"grossGbp":150495.0,"grossEur":175260.0,"isLarge":false,"hasNone":false},{"tradeId":"TRD-0002","side":"BUY","status":"EXECUTED","quantity":2500.0,"price":191.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":477500.0,"grossGbp":377225.0,"grossEur":439300.0,"isLarge":true,"hasNone":false},{"tradeId":"TRD-0003","side":"BUY","status":"EXECUTED","quantity":500.0,"price":500.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Cash Equities","grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"hasNone":false},{"tradeId":"TRD-0004","side":"SELL","status":"EXECUTED","quantity":1250.0,"price":200.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Cash Equities","grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0005","side":"BUY","status":"EXECUTED","quantity":2000.0,"price":125.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0006","side":"BUY","status":"EXECUTED","quantity":800.0,"price":312.5,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":null,"grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0007","side":"BUY","status":"EXECUTED","quantity":1500.0,"price":188.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":null,"cptyRegion":null,"traderDesk":"Cash Equities","grossAmount":282000.0,"grossGbp":222780.0,"grossEur":259440.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0008","side":"BUY","status":"CANCELLED","quantity":100.0,"price":189.75,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":18975.0,"grossGbp":14990.25,"grossEur":17457.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0009","side":"BUY","status":"EXECUTE","quantity":3000.0,"price":192.25,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Cash Equities","grossAmount":576750.0,"grossGbp":455632.5,"grossEur":530610.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0010","side":"BUY","status":"EXECUTED","quantity":1200.0,"price":415.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":498000.0,"grossGbp":393420.0,"grossEur":458160.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0011","side":"BUY","status":"EXECUTED","quantity":400.0,"price":418.25,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":null,"grossAmount":167300.0,"grossGbp":132167.0,"grossEur":153916.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0012","side":null,"status":"PENDING","quantity":900.0,"price":410.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":369000.0,"grossGbp":291510.0,"grossEur":339480.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0013","side":"SELL","status":"EXECUTED","quantity":25000.0,"price":6.85,"sectorName":"Financials","sectorGics":"40","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":171250.0,"grossGbp":135287.5,"grossEur":157550.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0014","side":"BUY","status":"EXECUTED","quantity":10000.0,"price":6.9,"sectorName":"Financials","sectorGics":"40","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Japan","cptyRegion":"APAC","traderDesk":"Equity Derivatives","grossAmount":69000.0,"grossGbp":54510.0,"grossEur":63480.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0015","side":"BUY","status":"SETTLED","quantity":5000.0,"price":7.0,"sectorName":"Financials","sectorGics":"40","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":35000.0,"grossGbp":27650.0,"grossEur":32200.0,"isLarge":false,"hasNone":true},{"tradeId":"TRD-0016","side":"BUY","status":"EXECUTED","quantity":1500.0,"price":176.4,"sectorName":"Health Care","sectorGics":"35","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":264600.0,"grossGbp":209034.0,"grossEur":243432.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0017","side":"SELL","status":"EXECUTED","quantity":2200.0,"price":175.0,"sectorName":"Health Care","sectorGics":"35","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Japan","cptyRegion":"APAC","traderDesk":"Equity Derivatives","grossAmount":385000.0,"grossGbp":304150.0,"grossEur":354200.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0018","side":"BUY","status":"EXECUTED","quantity":5000000.0,"price":0.9825,"sectorName":null,"sectorGics":null,"deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":4912500.0,"grossGbp":3880875.0,"grossEur":4519500.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0019","side":"BUY","status":"EXECUTED","quantity":2000000.0,"price":0.98,"sectorName":null,"sectorGics":null,"deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Equity Derivatives","grossAmount":1960000.0,"grossGbp":1548400.0,"grossEur":1803200.0,"isLarge":true,"hasNone":true},{"tradeId":"TRD-0020","side":"BUY","status":"REJECTED","quantity":1000000.0,"price":0.975,"sectorName":null,"sectorGics":null,"deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":975000.0,"grossGbp":770250.0,"grossEur":897000.0,"isLarge":true,"hasNone":true}]';
                   }#;
               }#
           ]
@@ -14872,6 +14947,69 @@ Service stress::SP_defTraderCount
   ]
 }
 
+Service stress::SP_defClearedTradeEmpty
+{
+    pattern: '/stress/sp_defclearedtradeempty';
+    documentation: 'Coverage-directed stack on clearing::ClearedTrade (Empty), reusing the reach of D_ClearedTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |clearing::ClearedTrade.all()
+        ->filter({x|($x.clearedTradeId > ' ')})
+        ->project(~[
+            clearedTradeId:x|$x.clearedTradeId,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
+            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
+            tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5),
+            hasNone:x|$x.novationRequests->isEmpty()
+        ])
+        ->sort(~clearedTradeId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defClearedTradeEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0,"hasNone":false},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0,"hasNone":true},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0,"hasNone":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_ExecutedExecutedTradeGraph
 {
     pattern: '/stress/sp_executedexecutedtradegraph';
@@ -14938,68 +15076,6 @@ Service stress::SP_ExecutedExecutedTradeGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD"}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defClearedTradeEmpty
-{
-    pattern: '/stress/sp_defclearedtradeempty';
-    documentation: 'Coverage-directed stack on clearing::ClearedTrade (Empty), reusing the reach of D_ClearedTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |clearing::ClearedTrade.all()
-        ->filter({x|($x.clearedTradeId > ' ')})
-        ->project(~[
-            clearedTradeId:x|$x.clearedTradeId,
-            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
-            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
-            tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
-            tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            hasNone:x|$x.novationRequests->isEmpty()
-        ])
-        ->sort(~clearedTradeId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defClearedTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"hasNone":false},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"hasNone":false},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"hasNone":false},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":477500.0,"hasNone":true},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"hasNone":true}]';
                   }#;
               }#
           ]

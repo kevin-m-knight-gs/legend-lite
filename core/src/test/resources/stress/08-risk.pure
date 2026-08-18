@@ -5,6 +5,11 @@
 
 Class risk::VaRResult
 {
+   // A QUALIFIED property: derived, and taking a parameter. The corpus had exactly
+   // one -- trading::Trade.grossAmountIn -- so `qualified property` appeared in four
+   // services and combined with almost nothing. One per rich class puts it inside
+   // every dense stack those classes root.
+   varScaled(factor: Float[1]) { $this.varAmount * $factor } : Float[1];
     varId: String[1];
     calcDate: StrictDate[1];
     varAmount: Float[1];

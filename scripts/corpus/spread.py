@@ -214,7 +214,11 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
             ps.append(Proj(stacks._alias(path, leaf), path + [leaf]))
             targets.add(tgt)
         for path, tgt in [([], root)] + stacks._chains(c, root, seeded):
-            names = list(c.classes[tgt].derived) if tgt in c.classes else []
+            # Plain derived properties only. A QUALIFIED one takes a parameter, and
+            # projecting it with none fails the build -- "valuedAt takes 1 argument(s),
+            # given 0". stacks.py projects those deliberately, with an argument.
+            names = [n for n, d in c.classes[tgt].derived.items() if not d.params] \
+                if tgt in c.classes else []
             if names and len(ps) < 8 and not any(p.path[-1] == names[0] for p in ps):
                 ps.append(Proj(stacks._alias(path, names[0]), path + [names[0]]))
                 break

@@ -22,6 +22,11 @@ Class positions::Book
 
 Class positions::Position
 {
+   // A QUALIFIED property: derived, and taking a parameter. The corpus had exactly
+   // one -- trading::Trade.grossAmountIn -- so `qualified property` appeared in four
+   // services and combined with almost nothing. One per rich class puts it inside
+   // every dense stack those classes root.
+   valuedAt(rate: Float[1]) { $this.quantity * $rate } : Float[1];
     positionId: String[1];
     quantity: Float[1];
     averageCost: Float[1];

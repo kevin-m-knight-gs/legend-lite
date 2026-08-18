@@ -196,10 +196,24 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
         # A derived property, on the root or on anything it reaches.
         for path, target in [([], root)] + chains:
             derived = c.classes.get(target)
-            name = next(iter(derived.derived), None) if derived else None
+            name = next((n for n, d in derived.derived.items() if not d.params), None) \
+                if derived else None
             if name and len(projections) < 9:
                 projections.append(Proj(_alias(path, name), path + [name]))
                 features.add("derivedProperty")
+                break
+
+        # A QUALIFIED property -- derived AND taking a parameter -- on the root or anything
+        # it reaches. Projected alongside the plain derived one rather than instead of it:
+        # they are different constructs, and the scoreboard counts them separately because
+        # the engine plans them differently.
+        for path, tgt in [([], root)] + chains:
+            k = c.classes.get(tgt)
+            qual = next((d for d in (k.derived.values() if k else []) if d.params), None)
+            if qual and len(projections) < 10:
+                projections.append(Proj(_alias(path, qual.name) + "Q",
+                                        path + [qual.name], args=[0.5]))
+                features.add("qualifiedProperty")
                 break
 
         # Named from the CLASS, not the loop index -- the ranking is derived from the seed,
