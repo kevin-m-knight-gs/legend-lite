@@ -1183,23 +1183,12 @@ final class Scalars {
         // passthrough (engine goldens pass args unshifted; diverges from
         // platform pure's 0-based).
         for (String f : Pure.nativeKeysAt("substring")) {
-            RULES.put(f, (n, args) -> {
-                // DECLARED TEXT/EXEC PAIR (D2-4, adjudicated 2026-08-15):
-                // TEXT = engine advisory golden (verbatim; H2 clamps at
-                // its runtime); EXEC adds DuckDB's row-parity clamp. One
-                // statement, two dialect roles; G4/G5 rows verify.
-                if (com.legend.sql.dialect.TextGoldens.active()) {
-                    return new SqlExpr.Call(SqlFn.SUBSTRING, args);
-                }
-                // H2 CLAMPS a sub-1 start; DuckDB counts empties — clamp
-                List<SqlExpr> a2 = new ArrayList<>(args);
-                SqlExpr st = args.get(1);
-                a2.set(1, st instanceof SqlExpr.IntLit il
-                        ? (il.value() < 1 ? new SqlExpr.IntLit(1) : st)
-                        : SqlExpr.Call.of(SqlFn.GREATEST, st,
-                                new SqlExpr.IntLit(1)));
-                return new SqlExpr.Call(SqlFn.SUBSTRING, a2);
-            });
+            // ONE verbatim emission (Phase 1 audit): the DuckDB
+            // start-clamp is that dialect's OWN rewrite pass
+            // (SubstringClamp in DuckDb.passes()) — the last
+            // dialect-mode branch left this layer
+            RULES.put(f, (n, args) ->
+                    new SqlExpr.Call(SqlFn.SUBSTRING, args));
         }
         for (String f : Pure.nativeKeysAt("indexOf")) {
             RULES.put(f, (n, args) -> {

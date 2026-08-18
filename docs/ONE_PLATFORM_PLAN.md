@@ -387,6 +387,54 @@ comforts, so we begin with the weaknesses named rather than discovered.*
 - The TDS-grid share of assertEquals is small (~5% by literal count) — phase 2a covers
   the great bulk of the 3,278 with scalar/collection equality.
 
+**Phase 1 audit (2026-08-18, the first phase gate): verdict PARTIAL, gaps scheduled.**
+
+*Delivered and verified:* GridReads, HostEval, and the HostResultSet carrier are DELETED;
+grid chains execute as MIR over the quarantined RawSql seam through the one Executor
+(carriers, shaping, egress — one leaf path); the DDL-blob side-effect path is unchanged
+(ExecuteInDbTest); bare `.rows` returns REAL Row objects with real cells — including
+NULL-first-column rows, the shape both prior stand-ins broke on (user-forced honesty,
+pinned in Phase1AuditTest); the dispatch predicate lives with its owners
+(ResultNav.owns / StoreNav.owns, HostChannelPredicateTest re-pinned); TWO new invariants
+armed and already earning (RawSql ctor quarantine at source+bytecode; compiler
+dialect-blindness — which found two pre-existing breaches: PlanText's renderer parameter
+FIXED to the pass-a-function convention, and Scalars' SUBSTRING TextGoldens branch MOVED
+to DuckDb's own SubstringClamp rewrite pass, retiring the rule's only carve-out).
+Referee byte-match held throughout; two real behavior gaps it caught mid-flip (GRAPH
+mis-shaping, the NULL-column emptiness break) were fixed, not worked around.
+
+*The honest gap (the phase's own acceptance text says "the chains stop being special" —
+NOT yet true):* ResultNav remains a closed-vocabulary recognizer. `.rows->size()` — a
+perfectly well-typed expression — walls today, and that behavior is PINNED as a
+tripwire (Phase1AuditTest) that must flip green when the fix lands.
+
+*The fix, user-ratified (2026-08-18), and SIMPLER than first sketched:* we support
+exactly TWO result worlds — Relation and Class — and this design uses BOTH, each where
+it fits. `ResultSet` is an honest **platform Class** (the engine signature holds:
+`executeInDb` returns `ResultSet[1]`) whose **`.rows` property is typed Relation** —
+the envelope is a Class (`columnNames` a schema-fact property; the timing/connection
+fields Clause-2b host facts), the data is a Relation with late-bound columns. The
+late-columns problem is the **dynamic-pivot precedent, already built**: probe on the
+same connection at the staticize point, pin into `RelationType.dynamicColumns` (which
+exists because pivot needed it), ordinary pipeline after. ONE declared divergence,
+recorded: the engine types `rows: Row[*]` — its interpreter architecture in the
+signature (bucket 2). The `.rows` type is an ORDERED MATERIALIZED relation kind, not
+bare `Relation` — because `at(k)` is only SOUND where an order exists (a result
+sequence has one; an unordered relation does not), and `value('name')` exists because
+columns are late-bound. Preference order (the phase's opening design question,
+user-proposed): (1) REUSE the platform's existing TDS/materialized kind if it fits
+without TDS wire/header baggage — zero invention, `$tds.rows->at(0)` already works;
+(2) a minimal `Rows <: Relation` nominal carrying only `{at(k), value(name)}`;
+(3) never order-assuming operations on bare Relation. Once rows is a relation, `->size()`, `->filter()`, and
+everything not yet written work for free; ResultNav's recognition arms DELETE. This is
+**Phase 3a**, merged with Phase 3 (the Result envelope rides the same Class modeling).
+Phase 2 (platform asserts) does not depend on it and proceeds first.
+
+*Process defect recorded:* one batch briefly landed on the remote as two commits (a
+silently failed `git add` — stderr was suppressed; remote was unbuildable for ~1
+minute). Rule adopted: never silence stderr on staging commands; verify `git status`
+before commit.
+
 **Standing risks accepted, with mitigations:**
 
 - Phases 1+2 interleaving touches `Executor` from both sides → land in alternating

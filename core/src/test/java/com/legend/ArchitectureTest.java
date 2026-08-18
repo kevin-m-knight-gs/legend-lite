@@ -566,10 +566,9 @@ final class ArchitectureTest {
      * difference is a dialect rewrite/render rule applied AFTER them.
      * Only the execution layer (exec, root) may see
      * {@code com.legend.sql.dialect} — it must render and normalize.
-     * ONE frozen pre-existing breach: {@code lowering.Scalars} branches
-     * SUBSTRING lowering on the {@code TextGoldens} mode flag
-     * (documented at the site; fix-or-adjudicate row in the Phase 1
-     * audit). No new dependency joins it.
+     * ZERO exceptions (Phase 1 audit: the last breach — Scalars'
+     * SUBSTRING TextGoldens branch — moved to DuckDb's SubstringClamp
+     * rewrite pass; the frozen carve-out is retired).
      */
     @Test
     void compileSideLayersAreDialectBlind() {
@@ -586,8 +585,7 @@ final class ArchitectureTest {
             .as("single-compiler tenet: compile-side layers are"
                     + " DIALECT-BLIND — backend differences are dialect"
                     + " rewrite/render rules, never branches in the"
-                    + " compiler (frozen exception: Scalars/TextGoldens,"
-                    + " Phase 1 audit row)")
+                    + " compiler (zero exceptions since Phase 1)")
             .check(CORE_PROD_CLASSES);
     }
 

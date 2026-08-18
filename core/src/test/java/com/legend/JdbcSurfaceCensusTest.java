@@ -97,6 +97,7 @@ class JdbcSurfaceCensusTest {
             // they verify egress spelling and wall behavior, computing
             // no values in Java
             "core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java",
+            "core/src/test/java/com/legend/exec/Phase1AuditTest.java",
             "core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java",
             "core/src/test/java/com/legend/testdatagen/PureReprTest.java",
             "core/src/test/java/com/legend/exec/ExecuteFrameTest.java",
