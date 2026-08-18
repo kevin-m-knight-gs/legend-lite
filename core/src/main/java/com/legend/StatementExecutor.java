@@ -170,7 +170,8 @@ final class StatementExecutor {
             TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet l
                     ? l.value() : stmt;
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
-                    && containsEffect(call, specs, effectMemo)) {
+                    && containsEffect(call, specs, effectMemo)
+                    && !com.legend.GridSplice.isRowValueRead(call)) {   // grid READ ≠ effect
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }
@@ -523,8 +524,7 @@ final class StatementExecutor {
         if (nav != null) {
             return nav;
         }
-        // Phase 1c: unrecognized GRID chains fall to the pipeline
-        if (com.legend.exec.ResultNav.owns(root, lets)
+        if (com.legend.exec.ResultNav.owns(root, lets)   // Phase 1c fall-through
                 && !com.legend.exec.StoreNav.owns(root, lets)) { return null; }
         throw new com.legend.error.NotImplementedException(
                 "host channel: this chain would need interpreted engine"
@@ -2366,7 +2366,9 @@ final class StatementExecutor {
                 execFrames = new java.util.LinkedHashMap<>(allFrames);
                 execFrames.keySet().removeAll(boundVars);
             }
-            TypedSpec rawGrid = com.legend.GridSplice.spliceAny(n);
+            TypedSpec rawGrid = com.legend.GridSplice.spliceAny(n, env.ctx(),
+                    java.util.Map.of(), sql -> com.legend.exec.ResultNav
+                            .probeNamesUnchecked(sql, env.connection(), env.dialect()));
             if (rawGrid != null) { return rawGrid; }
                         // $result.rows->size(): POST-EXECUTE row count. The engine
             // counts the MATERIALIZED rows in memory; the in-query
@@ -2982,9 +2984,8 @@ final class StatementExecutor {
         // HOST-SIDE against the H2 second target (task #43 slice B2)
         if (com.legend.exec.ResultNav.owns(root, java.util.Map.of())
                 || com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
-            ExecutionResult hosted = hostEvalAtSeam(root,
-                    java.util.Map.of(), env);
-            if (hosted != null) { return hosted; }   // else fall through
+            ExecutionResult hosted = hostEvalAtSeam(root, java.util.Map.of(), env);
+            if (hosted != null) { return hosted; }
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB

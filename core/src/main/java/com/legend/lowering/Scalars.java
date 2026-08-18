@@ -2730,7 +2730,15 @@ final class Scalars {
         boolean scalarCell = t instanceof Type.RelationType rt
                 && rt.columns().size() == 1
                 && rt.dynamicColumns().isEmpty()
-                && rt.columns().get(0).type() instanceof Type.Primitive;
+                && (rt.columns().get(0).type() instanceof Type.Primitive
+                        // the map-binder value column over a LATE-BOUND
+                        // grid cell is Any-typed (Phase 1c) — still ONE
+                        // cell, the same collapse
+                        || (rt.columns().get(0).name().startsWith(
+                                com.legend.sql.SqlSelect.SYNTH_MAP_COL)
+                            && rt.columns().get(0).type()
+                                    instanceof Type.ClassType ac
+                            && PlatformTypes.isAny(ac)));
         // Nil (the []-born bottom) has no inhabitants: the value is
         // provably EMPTY — SQL NULL, cast for the string context
         if (t instanceof Type.ClassType nil0 && PlatformTypes.isNil(nil0)) {

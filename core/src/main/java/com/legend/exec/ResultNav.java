@@ -239,7 +239,18 @@ public final class ResultNav {
     /** LIMIT-0 metadata probe: the projection NAMES of a raw read —
      * schema only, never a value (the E1 probe discipline). Even the
      * probe is MIR-rendered — this class composes zero SQL text. */
-    private static List<String> probeNames(String sql, Connection conn,
+    /** Unchecked form for the splice-hook lambda (the probe is a schema
+     * read; a failure there is a genuine setup fault, surfaced loudly). */
+    public static List<String> probeNamesUnchecked(String sql,
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect) {
+        try {
+            return probeNames(sql, conn, dialect);
+        } catch (SQLException e) {
+            throw new IllegalStateException("schema probe failed: " + sql, e);
+        }
+    }
+
+    public static List<String> probeNames(String sql, Connection conn,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of()))
@@ -405,10 +416,11 @@ public final class ResultNav {
             if (raw.endsWith(";")) {
                 raw = raw.substring(0, raw.length() - 1);
             }
-            String adapted = dialect.rawH2IsNative()
-                    ? raw : com.legend.sql.dialect.RawSqlBoundary.h2ToDuckDb(raw);
-            return new Chain(Kind.ROWS, adapted,
-                    probeNames(adapted, conn, dialect), null);
+            // the text stays AUTHORED — the dialect's RawSqlAdapt pass
+            // owns the boundary translation at render (slice 3: the
+            // slice-1 pre-adaptation double-translated under the pass)
+            return new Chain(Kind.ROWS, raw,
+                    probeNames(raw, conn, dialect), null);
         }
         return null;
     }
@@ -441,6 +453,16 @@ public final class ResultNav {
         }
         return new Chain(Kind.COLUMN_VALUES, rows.baseSql(), rows.names(),
                 col.value(), rows.row());
+    }
+
+    /** The catalog grid's SQL text for a fetchDb* call with literal
+     * patterns (null = not compile-time recognizable, or the empty
+     * no-facts PK grid). Slice 3: shared with GridSplice so fetchDb
+     * bottoms splice to the relation node too. */
+    public static @com.legend.Nullable String gridSql(TypedNativeCall nc,
+            Map<String, TypedSpec> lets, ModelContext ctx) {
+        Chain c = grid(nc, lets, ctx);
+        return c == null ? null : c.baseSql();
     }
 
     private static @com.legend.Nullable Chain grid(TypedNativeCall nc,

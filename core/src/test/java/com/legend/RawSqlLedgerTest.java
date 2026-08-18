@@ -52,13 +52,10 @@ class RawSqlLedgerTest {
     // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
-            // Phase 1c: the DuckDb dialect pass adapting AUTHORED RawSql
-            // text at render time (same R0 contract, dialect-owned)
-            "RawSqlAdapt.java", 1,
-            // Phase 1: the READ bottom moved with the recognizer —
-            // ResultNav's executeInDb bottom adapts the SAME
-            // corpus-authored text class (F6.6), never a new source
-            "ResultNav.java", 1);
+            // Phase 1c: the ONE render-time adapter — the DuckDb pass
+            // (slice 3: ResultNav's pre-adaptation DIED; it had begun
+            // double-translating once the pass existed)
+            "RawSqlAdapt.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");

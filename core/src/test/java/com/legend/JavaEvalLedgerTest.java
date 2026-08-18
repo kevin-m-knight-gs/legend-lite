@@ -96,7 +96,10 @@ class JavaEvalLedgerTest {
             // shaping DIED (execution rides MIR + the standard Executor)
             // +77 (Phase 1 batch 2): HostEval's fold-in — owns()/chainBottom
             // moved to their owner (the shim's 132 lines net -30)
-            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 511),
+            // 511 -> 522 (slice 3): gridSql + probeNamesUnchecked exposed for
+            // GridSplice (the arms' own text/probe helpers, shared on the
+            // way to their deletion)
+            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 522),
             // +25 (Phase 1 batch 2): owns() + the curated construction set
             Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 135),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),

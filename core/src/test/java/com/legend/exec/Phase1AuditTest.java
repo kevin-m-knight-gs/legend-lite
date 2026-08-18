@@ -60,13 +60,17 @@ class Phase1AuditTest {
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as A, 7 as B union all"
                 + " select null, 8 order by 2', $c, 0, 1000).rows;}", conn);
-        List<Object> rows = ((ExecutionResult.Collection) r).values();
+        // bare .rows = REAL Row carriers with real cells, whichever
+        // route serves it during the slice-3/4 migration (the ResultNav
+        // arm yields a Collection of Rows; the pipeline yields the
+        // relation as TABULAR — the user-ratified two-worlds design)
+        List<Row> rows = r instanceof ExecutionResult.Tabular t ? t.rows()
+                : ((ExecutionResult.Collection) r).values().stream()
+                        .map(Row.class::cast).toList();
         assertEquals(2, rows.size(),
                 "NULL-first-column rows must COUNT (both prior stand-ins"
                 + " failed exactly here)");
-        Row first = assertInstanceOf(Row.class, rows.get(0),
-                "bare rows are the platform's Row carrier, not a witness");
-        assertEquals(7L, ((Number) first.get(1)).longValue(),
+        assertEquals(7L, ((Number) rows.get(0).get(1)).longValue(),
                 "the Row holds its REAL cells");
     }
 
@@ -92,6 +96,30 @@ class Phase1AuditTest {
      * column read. Today it refuses; flips to {@code assertEquals(2)}
      * when slice 2 lands. Note {@code $r.A} is NON-spec and its type
      * error is correct forever, not a gap. */
+    @Test
+    @DisplayName("slice 3: .columnNames is a probed SCHEMA FACT through the ordinary pipeline")
+    void columnNamesIsASchemaFact() throws Exception {
+        ExecutionResult r = Compiler.execute("", CONN_LET
+                + "meta::relational::metamodel::execute::executeInDb("
+                + "'select 1 as A, 2 as B', $c, 0, 1000).columnNames;}",
+                conn);
+        assertEquals(List.of("A", "B"),
+                ((ExecutionResult.Collection) r).values());
+    }
+
+    @Test
+    @DisplayName("slice 3: a fetchDb catalog grid composes as a relation too")
+    void fetchDbGridComposes() throws Exception {
+        try (var st = conn.createStatement()) {
+            st.execute("CREATE TABLE PHASE1_T(X INT)");
+        }
+        ExecutionResult r = Compiler.execute("", CONN_LET
+                + "meta::relational::metamodel::execute::fetchDbTablesMetaData("
+                + "$c, [], 'PHASE1_T').rows->size();}", conn);
+        assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
+                .longValue());
+    }
+
     @Test
     @DisplayName("tripwire #2 FLIPPED (slice 2): filter via the SPEC accessor value('A') composes")
     void filterViaSpecAccessorComposes() throws Exception {
