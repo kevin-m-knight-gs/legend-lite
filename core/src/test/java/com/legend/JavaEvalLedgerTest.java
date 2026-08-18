@@ -52,42 +52,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JavaEvalLedgerTest {
 
-    /** SIZE rows — the METAMODEL-CHANNEL register: pinned MAX line
-     * count, shrink-only (growth needs a pin bump with a written
-     * justification — the code-shape-guard convention). The PCT
-     * extension row is the E1 adapter-contract residue (ingress
-     * splicing, the scalar bridge, the H4 message remap). */
+    /** SIZE rows — the METAMODEL-CHANNEL register: pinned MAX count of
+     * COMMENT-STRIPPED NON-BLANK lines, shrink-only (growth needs a pin
+     * bump with a written justification — the code-shape-guard
+     * convention). Stripped counting is the Tier-2 audit's answer to
+     * the ADVERSARIAL_TENET_AUDIT §3.1 probe: with raw line counts,
+     * deleting comments funded new evaluation code under a green pin —
+     * stripped, only CODE moves the number. The PCT extension row is
+     * the E1 adapter-contract residue (ingress splicing, the scalar
+     * bridge, the H4 message remap). */
     private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101),
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 844),
             // the INTERPRETER IS DELETED (oracle-not-runtime principle,
             // user-ratified 2026-08-18): HostEval is the routing
             // predicate only — grid chains compile into SQL (GridReads),
             // store nav resolves against the compiled model (StoreNav),
             // everything else walls with the principle's name
-            Map.entry("core/src/main/java/com/legend/exec/HostEval.java", 181),
-            Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580),
-            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 234),
-            // pin bumped 888 -> 943 -> 957 (2026-08-18, burn batches
-            // 1-2): the temp-table IN protocol's engine-envelope
-            // emitters (RelationalBlockExecutionNode /
-            // CreateAndPopulateTempTable /
-            // FreeMarkerConditionalExecutionNode / bare Constant) plus
-            // the PureExp let-allocation emitter — engine-parity plan
-            // TEXT, the register's own class
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 957),
-            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 265),
+            Map.entry("core/src/main/java/com/legend/exec/HostEval.java", 132),
+            Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
+            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 195),
+            // raw-line history: 888 -> 943 -> 957 (burn batches 1-2:
+            // temp-table IN envelope emitters + PureExp let-allocation —
+            // engine-parity plan TEXT, the register's own class);
+            // re-seeded stripped 2026-08-18
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 749),
+            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 225),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES
             // GridReads + DbMetaData's carrier wholesale (delete the
             // rows with the files, never bump them)
-            // 465 -> 474 (2026-08-18 Tier-1 audit): defensive asString
-            // walls on the ROWS/CELLS-stream arms — a toString peel is
-            // never silently ignored, it falls through to the wall
-            Map.entry("core/src/main/java/com/legend/exec/GridReads.java", 474),
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 136),
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 163),
-            Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 303));
+            Map.entry("core/src/main/java/com/legend/exec/GridReads.java", 386),
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 110),
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
+            Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 235));
     // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
     // shadow-H2 replay is DELETED and every metadata VALUE is now
     // database-produced (catalog queries over the AMBIENT session's
@@ -178,6 +176,51 @@ class JavaEvalLedgerTest {
                         0});
     }
 
+    /** The EXEC PACKAGE is a CLOSED REGISTER (Tier-2 audit 2026-08-18;
+     * ADVERSARIAL_TENET_AUDIT §3 probe: "new class in com.legend.exec
+     * hashing a live cell" landed GREEN — exec had no class-list pin).
+     * The egress boundary lives here; a NEW class is a new egress
+     * surface and registers consciously. Exact in both directions. */
+    private static final java.util.Set<String> EXEC_CLASSES =
+            java.util.Set.of(
+                    "Column.java", "CsvSeed.java", "DbMetaData.java",
+                    "Ddl.java", "DynamicPivot.java",
+                    "ExecutionResult.java", "Executor.java",
+                    "GridReads.java", "H2Settings.java", "HostEval.java",
+                    "MetamodelWalk.java", "PctProbe.java",
+                    "PctRenderOption.java", "PostProcessBoundary.java",
+                    "QueryPlan.java", "RawSqlBoundary.java",
+                    "ResultShape.java", "Row.java", "StoreNav.java",
+                    "TimingLedger.java", "package-info.java");
+
+    @Test
+    void theExecPackageIsAClosedRegister() throws IOException {
+        Path dir = Path.of("..",
+                "core/src/main/java/com/legend/exec");
+        java.util.Set<String> actual = new java.util.TreeSet<>();
+        try (var s = Files.list(dir)) {
+            s.map(p -> p.getFileName().toString())
+                    .filter(n -> n.endsWith(".java"))
+                    .forEach(actual::add);
+        }
+        StringBuilder drift = new StringBuilder();
+        for (String f : actual) {
+            if (!EXEC_CLASSES.contains(f)) {
+                drift.append("\n  NEW exec class: ").append(f)
+                        .append(" — a new egress surface registers"
+                                + " consciously with its tenet argument");
+            }
+        }
+        for (String f : EXEC_CLASSES) {
+            if (!actual.contains(f)) {
+                drift.append("\n  ").append(f)
+                        .append(" is GONE — delete its register row");
+            }
+        }
+        assertTrue(drift.length() == 0,
+                "exec class-register drift (Tier-2 audit):" + drift);
+    }
+
     @Test
     void javaEvaluationSurfaceOnlyShrinks() throws IOException {
         StringBuilder drift = new StringBuilder();
@@ -186,13 +229,17 @@ class JavaEvalLedgerTest {
             if (!Files.exists(p)) {
                 continue;   // evicted whole — delete the row when seen
             }
-            long lines = Files.readAllLines(p).size();
+            long lines = Files.readString(p)
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "")
+                    .lines().filter(l -> !l.isBlank()).count();
             if (lines > e.getValue()) {
                 drift.append("\n  ").append(e.getKey()).append(": ")
                         .append(lines).append(" > ").append(e.getValue())
-                        .append(" lines — the evaluator GREW (tenet #1:"
-                                + " the database executes; evict, or bump"
-                                + " the pin with a written justification)");
+                        .append(" stripped code lines — the evaluator"
+                                + " GREW (tenet #1: the database"
+                                + " executes; evict, or bump the pin"
+                                + " with a written justification)");
             }
         }
         for (var e : EVICT_NAMES.entrySet()) {

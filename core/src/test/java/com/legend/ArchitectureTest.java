@@ -579,6 +579,47 @@ final class ArchitectureTest {
     }
 
     /**
+     * F1.11b (Tier-2 audit 2026-08-18): the two PARDONED classes are
+     * SITE-counted, not pardoned wholesale — the original audit's
+     * probe 11 grew reflection inside {@code server/Json} GREEN
+     * because the name-regex pardon had no interior measure. Exact
+     * pins; shrink deletes the row with the residue.
+     */
+    @Test
+    void thePardonedReflectionClassesAreSiteCounted() throws Exception {
+        var pins = java.util.Map.of(
+                "src/main/java/com/legend/lineage/ScanColumns.java", 2,
+                "src/main/java/com/legend/server/Json.java", 4);
+        var spelling = java.util.regex.Pattern.compile(
+                "java\\.lang\\.reflect|getMethod\\(|getDeclaredMethod"
+                + "|Class\\.forName|\\.invoke\\(|getRecordComponents"
+                + "|MethodHandles");
+        StringBuilder drift = new StringBuilder();
+        for (var e : pins.entrySet()) {
+            String src = java.nio.file.Files.readString(
+                    java.nio.file.Path.of(e.getKey()))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "");
+            var m = spelling.matcher(src);
+            int n = 0;
+            while (m.find()) {
+                n++;
+            }
+            if (n != e.getValue()) {
+                drift.append("\n  ").append(e.getKey()).append(": ")
+                        .append(n).append(" reflective sites, pinned ")
+                        .append(e.getValue())
+                        .append(n > e.getValue()
+                                ? " — the pardon covers the EXISTING"
+                                        + " residue only, never growth"
+                                : " — residue died: shrink the pin");
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(drift.length() == 0,
+                "pardoned-reflection site drift (F1.11b):" + drift);
+    }
+
+    /**
      * <strong>F1.3b — the root package's {@code java.sql} class-list
      * pin.</strong> The funnel licenses {@code com.legend} ROOT, which
      * contains StatementExecutor — the audit's S1 dispatcher. Until the

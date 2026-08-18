@@ -3049,20 +3049,6 @@ final class Substitution {
     }
 
     /**
-     * {@code and}/{@code or} distribute over the per-leaf implicit EXISTS;
-     * {@code not} does NOT (&not; is not &exist;-distributive): {@code !=}
-     * is real pure's {@code not(equal(...))}, and hoisting the negation
-     * outside would turn "has an address with a different city" into "has
-     * no address with that city" — {@code not(X)} wraps as a WHOLE leaf,
-     * &exist;(&not;X), the engine's ANY-semantics.
-     */
-    private static boolean isBooleanConnective(TypedNativeCall c) {
-        String key = c.callee().signatureKey();
-        return Pure.nativeNamed("and", key)
-                || Pure.nativeNamed("or", key);
-    }
-
-    /**
      * THE otherwise recognizer (one, shared with the demand scan): the
      * binding's {@code otherwise(^Inner(...), $row.<slot>)} call, looking
      * through a {@code toOne} wrap; {@code null} when the binding is not an

@@ -1163,13 +1163,6 @@ final class Pipelines {
         }
     }
 
-    private static Set<String> slotAliasUniverse(Set<String> stripped,
-                                                 Map<String, String> prefixes) {
-        Set<String> all = new LinkedHashSet<>(stripped);
-        all.addAll(prefixes.keySet());
-        return all;
-    }
-
     /**
      * THE single row-read rewriter — shared by slot conditions (via
      * {@link #materialize}) and binding expressions

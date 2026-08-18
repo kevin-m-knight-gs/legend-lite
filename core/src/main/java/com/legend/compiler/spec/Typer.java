@@ -1766,12 +1766,6 @@ final class Typer {
         return t instanceof Type.GenericType g && g.rawFqn().equals(def.qualifiedName());
     }
 
-    /** Pick the best-scoring overload by its already-typed arguments (deferred slots are skipped). */
-    private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed) {
-        return selectByPresentArgs(name, arity, typed, null);
-
-    }
-
     /** Candidates best-score-first (stable — declaration order breaks
      *  ties, preserving first-max semantics for the winner); arity
      *  misfits filtered; empty = the same loud no-overload error. */
@@ -1806,46 +1800,6 @@ final class Typer {
                 .comparingLong(Scored::score).reversed()
                 .thenComparingInt(Scored::declIdx));
         return scored.stream().map(Scored::fn).toList();
-    }
-
-    /** With {@code raw} supplied, a candidate whose function-typed
-     * parameter cannot accept a deferred lambda argument's ARITY is
-     * filtered before scoring — non-lambda args tie between the
-     * {@code Function<{->T}>} / {@code Function<{P1->T}>} overload
-     * families, and declaration-order first-max would otherwise pin the
-     * wrong one (the executionPlan P1/P2 family). */
-    private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed,
-            @com.legend.Nullable List<ValueSpecification> raw) {
-        List<ExprType> argTypes = new ArrayList<>(typed.length);
-        for (TypedSpec t : typed) {
-            argTypes.add(t == null ? null : t.info());   // null = deferred slot, not yet typed
-        }
-        TypedFunction best = null;
-        long bestScore = -1;
-        String arityRejection = null;
-        for (TypedFunction c : arity) {
-            if (raw != null && !lambdaAritiesFit(c, raw, typed)) {
-                if (arityRejection == null) {
-                    arityRejection = lambdaArityMismatch(c, raw, typed);
-                }
-                continue;
-            }
-            long s = kernel.scoreNonLambda(c, argTypes);
-            if (s > bestScore) {
-                best = c;
-                bestScore = s;
-            }
-        }
-        if (best == null) {
-            // when every candidate died on a deferred lambda's parameter
-            // count, say THAT — the generic line hides the actual defect
-            // from the caller (the engine-suite arity pin)
-            throw new TypeInferenceException(
-                    "no overload of '" + name + "' matches the argument types"
-                            + (arityRejection != null
-                                    ? " (" + arityRejection + ")" : ""));
-        }
-        return best;
     }
 
     /** Whether every DEFERRED lambda argument's parameter count fits the

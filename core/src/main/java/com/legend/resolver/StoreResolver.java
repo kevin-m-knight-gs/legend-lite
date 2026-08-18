@@ -502,38 +502,6 @@ public final class StoreResolver {
         return n.mapChildren(k -> resolveNode(k, context));
     }
 
-    /** An op whose source chain is still in OBJECT space (class-typed). */
-
-    /** INTERIM temporal-propagation wall (audit S1): engine dates EVERY
-     * milestoned table; lite only the root — navigation to an UNFILTERED
-     * temporal extent would multiply rows, so it stays loud. */
-
-    /**
-     * Any colspec body reading its row parameter? A constant-only project
-     * (the synthetic count column) is NOT a function of the row — mapping
-     * {@code ~distinct} must not defer past it.
-     */
-    private static boolean projectReadsRow(TypedProject p) {
-        for (var fc : p.columns()) {
-            TypedLambda l = fc.fn();
-            String param = l.parameters().isEmpty() ? null : l.parameters().get(0);
-            if (param == null) {
-                return true;    // shape surprise: keep the verified behavior
-            }
-            for (TypedSpec b : l.body()) {
-                if (readsVar(b, param)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /** {@code $var} read anywhere beneath {@code n}; shadowing lambdas stop the walk. */
-    private static boolean readsVar(TypedSpec n, String var) {
-        return com.legend.compiler.spec.typed.VarUse.reads(n, var);
-    }
-
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
     /** The NAV-SLOT correlation pass: a demanded navigate step whose lifted
      * head carries a CORRELATED predicate gets it ANDed into the step\u0027s

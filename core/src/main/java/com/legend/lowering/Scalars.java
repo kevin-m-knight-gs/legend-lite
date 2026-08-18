@@ -2293,16 +2293,6 @@ final class Scalars {
         }
     }
 
-    /** The engine's format tokens, longest-first, to DuckDB strptime tokens. */
-
-
-    private static Iterable<String> concat(Iterable<String> a, Iterable<String> b) {
-        List<String> out = new ArrayList<>();
-        a.forEach(out::add);
-        b.forEach(out::add);
-        return out;
-    }
-
     private static SqlExpr strptimeOf(List<SqlExpr> args, boolean toDate) {
         if (!(args.get(1) instanceof SqlExpr.StringLit fmt)) {
             throw new NotImplementedException(

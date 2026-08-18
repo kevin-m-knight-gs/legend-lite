@@ -424,18 +424,6 @@ final class AssociationJoins {
                 List.of(merged), cond.info()));
     }
 
-    private static boolean filterFree(TypedSpec p) {
-        if (p instanceof com.legend.compiler.spec.typed.TypedFilter) {
-            return false;
-        }
-        for (TypedSpec c : p.children()) {
-            if (!filterFree(c)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static TypedSpec renameCondVar(TypedSpec n, String from,
             String to, ExprType rowInfo) {
         if (n instanceof com.legend.compiler.spec.typed.TypedVariable v

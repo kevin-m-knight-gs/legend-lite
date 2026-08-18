@@ -65,9 +65,16 @@ class HarnessDisciplineTest {
             // (workspace names), not a result reorder
             "DuckWorkspaces.java", 1);
 
+    /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
+     * original audit's probe 12 — {@code Collections.max} in the
+     * harness — landed GREEN). Zero sites today; a new one registers
+     * like any reorder. */
     private static final Pattern SITE = Pattern.compile(
             "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)"
-            + "|\\.sort\\(|new TreeSet|new TreeMap");
+            + "|\\.sort\\(|new TreeSet|new TreeMap"
+            + "|Collections\\.max\\(|Collections\\.min\\("
+            + "|new PriorityQueue|\\.stream\\(\\)\\.max\\("
+            + "|\\.stream\\(\\)\\.min\\(");
 
     @Test
     void resultReorderingIsEnumeratedComparisonPolicyOnly()

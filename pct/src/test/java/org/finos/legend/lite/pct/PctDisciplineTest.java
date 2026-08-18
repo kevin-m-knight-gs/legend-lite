@@ -29,7 +29,10 @@ class PctDisciplineTest {
 
     private static final Pattern SITE = Pattern.compile(
             "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)"
-            + "|\\.sort\\(|Math\\.abs\\(.*<|new TreeSet|new TreeMap");
+            + "|\\.sort\\(|Math\\.abs\\(.*<|new TreeSet|new TreeMap"
+            + "|Collections\\.max\\(|Collections\\.min\\("
+            + "|new PriorityQueue|\\.stream\\(\\)\\.max\\("
+            + "|\\.stream\\(\\)\\.min\\(");
 
     /** The same discipline for the module's PURE sources — the audit's
      * theater #9: the walk visited the directory holding

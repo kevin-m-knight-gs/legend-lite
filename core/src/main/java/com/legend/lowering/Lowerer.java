@@ -1578,11 +1578,6 @@ public final class Lowerer {
         return base.withProjections(ps, outputsOf(r.info()));
     }
 
-    private static String stripQuotes(String n) {
-        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
-                ? n.substring(1, n.length() - 1) : n;
-    }
-
     private SqlSelect sort(TypedSort s) {
         SqlSelect src = relation(s.source());
         SqlSelect base = Fold.sortFolds(src) ? src : isolate(src);
