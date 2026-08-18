@@ -504,6 +504,7 @@ final class Fold {
             case SqlSource.Join j -> physicallyRenderable(j.left(), c)
                     || physicallyRenderable(j.right(), c);
             case SqlSource.VarSetPlaceholder vp -> false;
+            case SqlSource.RawSql raw -> false;
             case SqlSource.Values v -> v.alias().equals(c.table())
                     && v.columns().contains(c.name());
             case SqlSource.Table t -> t.alias().equals(c.table());
@@ -588,6 +589,7 @@ final class Fold {
             case SqlSource.Table t -> claims(t.outputs(), column)
                     ? new SqlExpr.Column(t.alias(), column) : null;
             case SqlSource.VarSetPlaceholder vp -> null;
+            case SqlSource.RawSql raw -> null;
             case SqlSource.Subselect sub -> claims(sub.outputs(), column)
                     ? new SqlExpr.Column(sub.alias(), column) : null;
             case SqlSource.Values v -> claims(v.outputs(), column)

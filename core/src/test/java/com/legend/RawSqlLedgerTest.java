@@ -52,11 +52,10 @@ class RawSqlLedgerTest {
     // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
-            // interpreter deletion (oracle-not-runtime): the one
-            // remaining site is tryLower's executeInDb READ bottom —
-            // the same corpus-authored text class (F6.6), never a new
-            // text source (preResolve died with the interpreter)
-            "GridReads.java", 1);
+            // Phase 1: the READ bottom moved with the recognizer —
+            // ResultNav's executeInDb bottom adapts the SAME
+            // corpus-authored text class (F6.6), never a new source
+            "ResultNav.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");
@@ -90,5 +89,50 @@ class RawSqlLedgerTest {
                 + " contract admits corpus-AUTHORED text only; a new"
                 + " caller is a violation, a removed caller shrinks the"
                 + " ledger (F7.4 narrows Runner's feed, not this list)");
+    }
+
+    /** THE RawSql QUARANTINE (One-Platform Plan Phase 1, user-ratified
+     * 2026-08-18): {@code SqlSource.RawSql} carries corpus/user-AUTHORED
+     * SQL text as a relation source — it must NEVER become a smuggling
+     * channel for platform-composed SQL past the compiler. Exact
+     * construction-site register, both directions; the companion
+     * ArchitectureTest bytecode rule enforces the same boundary below
+     * source level, and the SQL-text ratchet patrols the composition
+     * side. */
+    private static final Map<String, Integer> RAW_SOURCE_CTORS = Map.of(
+            // TWO sites, both in the chartered seam: the chain source
+            // and the LIMIT-0 probe (itself MIR-rendered)
+            "ResultNav.java", 2);
+
+    @Test
+    void rawSqlSourceConstructionIsQuarantined() throws IOException {
+        Pattern ctor = Pattern.compile("new SqlSource\\.RawSql\\(");
+        Map<String, Integer> found = new TreeMap<>();
+        for (Path root : new Path[] {Path.of("src/main/java"),
+                Path.of("src/test/java")}) {
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path f : files
+                        .filter(p -> p.toString().endsWith(".java"))
+                        .filter(p -> !p.getFileName().toString()
+                                .equals("RawSqlLedgerTest.java"))
+                        .toList()) {
+                    Matcher m = ctor.matcher(Files.readString(f)
+                            .replaceAll("//.*", "")
+                            .replaceAll("(?s)/\\*.*?\\*/", ""));
+                    int n = 0;
+                    while (m.find()) {
+                        n++;
+                    }
+                    if (n > 0) {
+                        found.put(f.getFileName().toString(), n);
+                    }
+                }
+            }
+        }
+        assertEquals(new TreeMap<>(RAW_SOURCE_CTORS), found,
+                "SqlSource.RawSql construction site set moved — RawSql"
+                + " carries AUTHORED text through the chartered seam"
+                + " (ResultNav) only; wrapping platform-composed SQL in"
+                + " it is smuggling past the compiler");
     }
 }

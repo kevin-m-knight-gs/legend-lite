@@ -504,14 +504,16 @@ final class StatementExecutor {
     }
 
     /** The host-channel dispatch (oracle-not-runtime principle,
-     * user-ratified): recognized grid-read chains COMPILE INTO SQL
-     * (GridReads), store navigation resolves against the COMPILED MODEL
-     * (StoreNav), and anything else walls with the principle's name —
-     * the interpreter that executed engine compiler source is DELETED. */
+     * user-ratified): recognized grid-read chains lower to MIR and
+     * execute through the standard Executor (ResultNav, One-Platform
+     * Plan Phase 1), store navigation resolves against the COMPILED
+     * MODEL (StoreNav), and anything else walls with the principle's
+     * name — the interpreter that executed engine compiler source is
+     * DELETED. */
     private static ExecutionResult hostEvalAtSeam(TypedSpec root,
             java.util.Map<String, TypedSpec> lets, ExecEnv env)
             throws java.sql.SQLException {
-        ExecutionResult lowered = com.legend.exec.GridReads.tryLower(
+        ExecutionResult lowered = com.legend.exec.ResultNav.tryExec(
                 root, lets, env.ctx(), env.connection(), env.dialect());
         if (lowered != null) {
             return lowered;
@@ -525,7 +527,7 @@ final class StatementExecutor {
                 "host channel: this chain would need interpreted engine"
                 + " code — engine/legend-pure source is ORACLE material,"
                 + " never our runtime (user-ratified 2026-08-18); build"
-                + " the feature natively (GridReads/StoreNav/walk family)"
+                + " the feature natively (ResultNav/StoreNav/walk family)"
                 + " or decline the test with a verdict"
                 + (System.getenv("LL_TMP_DEBUG") != null
                         ? " [root=" + root + "]" : ""));
@@ -774,7 +776,8 @@ final class StatementExecutor {
                     java.util.function.UnaryOperator.identity(), chainMaps);
             String aSql = prevVar == null ? aEs.sql()
                     : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
-                            prevVar, planDialect(dbType, quote, tz));
+                            prevVar,
+                            planDialect(dbType, quote, tz)::render);
             if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
@@ -792,7 +795,7 @@ final class StatementExecutor {
                 java.util.function.UnaryOperator.identity(), chainMaps);
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
                 fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
-                planDialect(dbType, quote, tz));
+                planDialect(dbType, quote, tz)::render);
         if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,

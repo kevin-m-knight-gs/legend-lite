@@ -27,25 +27,10 @@ public final class DbMetaData {
     private DbMetaData() {
     }
 
-    /** One fetched grid: column names + row values, a HOST value (the
-     * orchestration channel never lowers these to SQL). */
-    public record HostResultSet(List<String> columnNames,
-            List<List<Object>> rows) {
-    }
-
     /** System schemas the catalog queries exclude — the tests navigate
      * the corpus's own DDL, never the engine's internals. */
     private static final String NOT_SYSTEM =
             " NOT IN ('information_schema','pg_catalog')";
-
-    public static HostResultSet fetch(String nativeFqn,
-            @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern,
-            @com.legend.Nullable String columnPattern,
-            Connection ambient) throws SQLException {
-        return query(fetchSql(nativeFqn, schemaPattern, tablePattern,
-                columnPattern), ambient);
-    }
 
     /** The catalog query TEXT alone — the E4.e grid-read compiler
      * composes further SQL over it (the chain projection). */
@@ -97,19 +82,6 @@ public final class DbMetaData {
      * milestoned re-seeds), composed as literal rows and
      * existence-filtered against the LIVE catalog in SQL; the database
      * produces every value, uppercased by the same engine-parity rule. */
-    public static HostResultSet fetchPrimaryKeys(
-            List<String[]> facts,
-            @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern,
-            Connection ambient) throws SQLException {
-        String sql = pkSql(facts, schemaPattern, tablePattern);
-        return sql == null
-                ? new HostResultSet(List.of("TABLE_CAT", "TABLE_SCHEM",
-                        "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"),
-                        List.of())
-                : query(sql, ambient);
-    }
-
     /** The PK catalog query TEXT alone (null = no facts → empty grid) —
      * the E4.e grid-read compiler composes over it. */
     public static @com.legend.Nullable String pkSql(List<String[]> facts,
@@ -275,29 +247,4 @@ public final class DbMetaData {
      * run against the database the raw writes actually seeded — CSV
      * loads and generator inserts included. The caller owns the
      * connection's lifecycle. */
-    public static HostResultSet query(String sql, Connection ambient)
-            throws SQLException {
-        try (Statement st = ambient.createStatement()) {
-            return grid(st.executeQuery(sql));
-        }
-    }
-
-    private static HostResultSet grid(ResultSet rs) throws SQLException {
-        try (rs) {
-            int n = rs.getMetaData().getColumnCount();
-            List<String> names = new ArrayList<>(n);
-            for (int i = 1; i <= n; i++) {
-                names.add(rs.getMetaData().getColumnName(i));
-            }
-            List<List<Object>> rows = new ArrayList<>();
-            while (rs.next()) {
-                List<Object> row = new ArrayList<>(n);
-                for (int i = 1; i <= n; i++) {
-                    row.add(rs.getObject(i));
-                }
-                rows.add(row);
-            }
-            return new HostResultSet(names, rows);
-        }
-    }
 }

@@ -226,6 +226,10 @@ public class AnsiSqlRenderer implements SqlDialect {
                     .append(vp.varName()).append("}) as ")
                     .append(ident(vp.alias()));
             case SqlSource.Values v -> valuesSource(sb, v);
+            // corpus-authored raw SQL as a relation source (Phase 1:
+            // the typed executeInDb grid) — carried text, parenthesized
+            case SqlSource.RawSql r -> sb.append("(").append(r.sql())
+                    .append(") AS ").append(ident(r.alias()));
             case SqlSource.SourceUrl u -> {
                 sb.append("(");
                 nl(sb, depth + 1).append(sourceUrl(u.url()));

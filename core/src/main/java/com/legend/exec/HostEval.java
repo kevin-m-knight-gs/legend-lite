@@ -41,7 +41,7 @@ import java.util.Map;
  * interpreted engine compiler source is GONE). {@code wantsHostEval}
  * still classifies expressions whose chains bottom at grid/store-nav/
  * construction vocabulary so the seams can dispatch them: recognized
- * grid-read chains compile into SQL ({@code GridReads}), store
+ * grid-read chains lower to MIR ({@code ResultNav}), store
  * navigation resolves against the compiled model ({@code StoreNav}),
  * and everything else walls loudly with the principle's name.
  */

@@ -74,8 +74,8 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/DbMetaData.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
             "core/src/main/java/com/legend/exec/Executor.java",
-            "core/src/main/java/com/legend/exec/GridReads.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
+            "core/src/main/java/com/legend/exec/ResultNav.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
             "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java"

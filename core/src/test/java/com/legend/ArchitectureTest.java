@@ -559,6 +559,67 @@ final class ArchitectureTest {
      * JDBC drivers load via ServiceLoader, never {@code Class.forName}.
      * Tests keep reflection (the guardrails themselves need it).
      */
+    /**
+     * THE COMPILER IS DIALECT-BLIND (single-compiler tenet, guard added
+     * 2026-08-18 after a user challenge found it missing): the
+     * compile-side layers produce ONE semantic MIR; every backend
+     * difference is a dialect rewrite/render rule applied AFTER them.
+     * Only the execution layer (exec, root) may see
+     * {@code com.legend.sql.dialect} — it must render and normalize.
+     * ONE frozen pre-existing breach: {@code lowering.Scalars} branches
+     * SUBSTRING lowering on the {@code TextGoldens} mode flag
+     * (documented at the site; fix-or-adjudicate row in the Phase 1
+     * audit). No new dependency joins it.
+     */
+    @Test
+    void compileSideLayersAreDialectBlind() {
+        noClasses()
+            .that().resideInAnyPackage("com.legend.parser..",
+                    "com.legend.compiler..", "com.legend.lowering..",
+                    "com.legend.resolver..", "com.legend.normalizer..",
+                    "com.legend.lineage..", "com.legend.plan..",
+                    "com.legend.protocol..", "com.legend.model..")
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.lowering\\.Scalars(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAPackage("com.legend.sql.dialect..")
+            .as("single-compiler tenet: compile-side layers are"
+                    + " DIALECT-BLIND — backend differences are dialect"
+                    + " rewrite/render rules, never branches in the"
+                    + " compiler (frozen exception: Scalars/TextGoldens,"
+                    + " Phase 1 audit row)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * THE RawSql QUARANTINE, at bytecode level (One-Platform Plan
+     * Phase 1; companion to RawSqlLedgerTest's source register): only
+     * the chartered seam may CONSTRUCT {@code SqlSource.RawSql}.
+     * Renderers and rewriters legitimately pattern-match it (that is a
+     * dependency), so the rule targets the CONSTRUCTOR CALL — the act
+     * of wrapping text as a relation source. Anything else wrapping SQL
+     * text in RawSql is smuggling past the compiler.
+     */
+    @Test
+    void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
+        noClasses()
+            .that().haveNameNotMatching(
+                    "com\\.legend\\.exec\\.ResultNav(\\$.*)?")
+            .should().callConstructorWhere(
+                    com.tngtech.archunit.core.domain.JavaCall.Predicates
+                            .target(com.tngtech.archunit.core.domain
+                                    .properties.HasOwner.Predicates.With
+                                    .owner(com.tngtech.archunit.core
+                                            .domain.properties.HasName
+                                            .Predicates.name(
+                                                    "com.legend.sql.SqlSource$RawSql"))))
+            .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
+                    + " ONLY by the chartered seam (ResultNav) — it"
+                    + " carries authored text, never platform-composed"
+                    + " SQL")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void reflectionIsBannedInProduction() {
         noClasses()

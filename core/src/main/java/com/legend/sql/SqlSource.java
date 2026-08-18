@@ -110,6 +110,15 @@ public sealed interface SqlSource {
                   List<OutputCol> outputs) implements SqlSource {
     }
 
+    /** A CORPUS-AUTHORED raw SQL text as a relation source —
+     * {@code (rawSql) AS alias} (One-Platform Plan Phase 1: the typed
+     * {@code executeInDb} result grid; columns from the LIMIT-0 schema
+     * probe). The text is CARRIED data (a user/test-authored query),
+     * never platform-composed SQL — the SQL-text ratchet's distinction. */
+    record RawSql(String sql, String alias, List<OutputCol> outputs)
+            implements SqlSource {
+    }
+
     /** {@code on} is KIND-COUPLED, enforced at construction: the CROSS
      * family takes no ON clause; every other kind REQUIRES one — a null
      * {@code on} on an INNER/LEFT join would render {@code JOIN t}

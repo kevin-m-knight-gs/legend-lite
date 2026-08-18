@@ -81,17 +81,24 @@ class JavaEvalLedgerTest {
             // temp-table IN envelope emitters + PureExp let-allocation —
             // engine-parity plan TEXT, the register's own class);
             // re-seeded stripped 2026-08-18
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 749),
+            // 749 -> 750 (Phase 1 dialect-blind fix: spliceLeftVar takes
+            // a render FUNCTION instead of the AnsiSqlRenderer type)
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 750),
             Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 225),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES
             // GridReads + DbMetaData's carrier wholesale (delete the
             // rows with the files, never bump them)
-            Map.entry("core/src/main/java/com/legend/exec/GridReads.java", 386),
+            // Phase 1 (One-Platform Plan): GridReads is DELETED — its
+            // recognition survives as ResultNav's navigation-to-relation
+            // mapping; the string SQL, HostResultSet carrier, and hand
+            // shaping DIED (execution rides MIR + the standard Executor)
+            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 435),
             Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 110),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
-            Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 235));
+            // 235 -> 188 (Phase 1): HostResultSet + query/grid died
+            Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 188));
     // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
     // shadow-H2 replay is DELETED and every metadata VALUE is now
     // database-produced (catalog queries over the AMBIENT session's
@@ -191,8 +198,8 @@ class JavaEvalLedgerTest {
             java.util.Set.of(
                     "Column.java", "CsvSeed.java", "DbMetaData.java",
                     "Ddl.java", "DynamicPivot.java",
-                    "ExecutionResult.java", "Executor.java",
-                    "GridReads.java", "H2Settings.java", "HostEval.java",
+                    "ExecutionResult.java", "Executor.java", "ResultNav.java",
+                    "H2Settings.java", "HostEval.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
                     "QueryPlan.java", "RawSqlBoundary.java",

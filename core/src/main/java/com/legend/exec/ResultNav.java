@@ -4,7 +4,10 @@
 package com.legend.exec;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCollection;
@@ -15,6 +18,11 @@ import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.sql.OutputCol;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -23,22 +31,40 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * E4.e (JAVA_EVICTION_PLAN, ratified adjudication): the DB-VALUE
- * grid-read chains COMPILE INTO SQL over the catalog base query — the
- * DATABASE produces every value the chain yields (column collects,
- * positional cells, name reads); the interpreter arms lose their
- * DB-value demand shape by shape. A chain outside the recognized
- * vocabulary returns {@code null} and falls back to the interpreter —
- * per-shape eviction, never a behavior change.
+ * THE {@code ResultSet}-METAMODEL NAVIGATION LOWERING (One-Platform
+ * Plan Phase 1). The engine's own spec
+ * ({@code platform_store_relational/functions.pure}) says
+ * {@code executeInDb} returns the CLASS
+ * {@code ResultSet { columnNames: String[*], rows: Row[*] }}, where
+ * {@code Row.value(name)} is defined as
+ * {@code at($this.values, indexOf($this.parent.columnNames, $name))}.
+ * This class is the platform's lowering rule for that navigation: a
+ * typed chain over a grid translates to ORDINARY MIR — a
+ * {@link SqlSelect} over the ONE {@link SqlSource.RawSql} seam — and
+ * executes through the standard {@link Executor}, which owns shaping,
+ * carriers, and the egress rules. No SQL strings, no private carrier,
+ * no hand shaping (all three died with GridReads, this class's
+ * predecessor; the shape RECOGNITION below survives as the documented
+ * navigation-to-relation mapping).
+ *
+ * <p>Column NAMES are plan-time SCHEMA FACTS (the LIMIT-0 metadata
+ * probe; catalog grids know their projections statically) and are
+ * served as constants — the same class of fact as a table's columns.
+ *
+ * <p>RawSql QUARANTINE: the one {@code new SqlSource.RawSql} below is
+ * the chartered construction site (RawSqlLedgerTest register +
+ * ArchitectureTest bytecode rule). The text it carries is AUTHORED —
+ * the corpus's {@code executeInDb} argument (boundary-adapted, the R0
+ * contract) or the registered catalog SQL — never platform-composed.
  */
-public final class GridReads {
+public final class ResultNav {
 
-    private GridReads() {
+    private ResultNav() {
     }
 
-    /** The recognized chain lowered and EXECUTED; null = not a shape
-     * this compiler owns (the caller falls back to the interpreter). */
-    public static @com.legend.Nullable ExecutionResult tryLower(
+    /** The recognized chain lowered to MIR and EXECUTED; null = not a
+     * grid navigation (the caller falls through to the next channel). */
+    public static @com.legend.Nullable ExecutionResult tryExec(
             TypedSpec root, Map<String, TypedSpec> lets, ModelContext ctx,
             Connection conn, com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
@@ -64,116 +90,176 @@ public final class GridReads {
             at = k.value().longValue();
             n = resolve(nc.args().get(0), lets);
         }
-        // the chain forms over a grid bottom
         Chain c = chain(n, lets, ctx, conn, dialect);
         if (c == null) {
             return null;
         }
         return switch (c.kind()) {
             case COLUMN_NAMES -> {
+                // schema facts, never values: served as constants
                 if (at != null) {
-                    yield result(root, c.names().get(at.intValue()));
+                    yield scalar(root, c.names().get(at.intValue()));
                 }
-                yield result(root, new ArrayList<Object>(c.names()));
+                yield new ExecutionResult.Collection(
+                        new ArrayList<>(c.names()), root.info().type());
             }
             case COLUMN_VALUES -> {
                 String col = c.column();
                 if (col == null) {
                     yield null;
                 }
+                if (c.baseSql() == null) {
+                    yield new ExecutionResult.Collection(List.of(),
+                            root.info().type());
+                }
                 if (c.row() != null) {
-                    // rows->at(k).value('NAME'): one cell, one query
-                    DbMetaData.HostResultSet one = DbMetaData.query(
-                            "SELECT " + sel(col, asString) + " FROM ("
-                            + c.baseSql()
-                            + ") _g LIMIT 1 OFFSET " + c.row(), conn);
-                    yield one.rows().isEmpty() ? null
-                            : result(root, one.rows().get(0).get(0));
+                    // rows->at(k).value('NAME'): one cell
+                    yield run(select(c, col, asString)
+                                    .withLimit(1L).withOffset(c.row()),
+                            root.info(), conn, dialect);
                 }
-                List<Object> vals = columnValues(c, col, asString, conn);
-                if (at != null && at >= vals.size()) {
-                    yield null;   // OOB stays the interpreter's error
+                if (at != null) {
+                    yield run(select(c, col, asString)
+                                    .withLimit(1L).withOffset(at),
+                            root.info(), conn, dialect);
                 }
-                yield result(root, at != null
-                        ? vals.get(at.intValue()) : vals);
+                yield run(select(c, col, asString), root.info(), conn,
+                        dialect);
             }
             case CELLS -> {
-                // flattened row-major cells: at(k) is row k/n, col k%n
+                if (asString && at == null) {
+                    yield null;   // a peel over the whole stream: wall
+                }
                 if (at == null) {
-                    if (asString) {
-                        // a toString peel over the WHOLE stream has no
-                        // projection to ride — unrecognized, wall
-                        // (Tier-1 audit: never silently ignore the peel)
-                        yield null;
-                    }
-                    // the whole cell stream: every value DB-produced,
+                    // the whole cell stream: every value DB-produced
+                    // and egressed through the ONE Executor leaf path;
                     // Java reshapes 2D to row-major 1D (decode-class)
-                    String base = c.baseSql();
-                    if (base == null) {
-                        yield result(root, List.of());
+                    if (c.baseSql() == null) {
+                        yield new ExecutionResult.Collection(List.of(),
+                                root.info().type());
                     }
-                    DbMetaData.HostResultSet g = DbMetaData.query(
-                            "SELECT * FROM (" + base + ") _g", conn);
+                    ExecutionResult.Tabular grid =
+                            (ExecutionResult.Tabular) run(
+                                    SqlSelect.starOf(source(c)),
+                                    gridInfo(c), conn, dialect);
                     List<Object> flat = new ArrayList<>();
-                    for (List<Object> r : g.rows()) {
-                        flat.addAll(r);
+                    for (Row r : grid.rows()) {
+                        for (int i = 0; i < c.names().size(); i++) {
+                            flat.add(r.get(i));
+                        }
                     }
-                    yield result(root, flat);
+                    yield new ExecutionResult.Collection(flat,
+                            root.info().type());
                 }
                 int ncols = c.names().size();
                 String col = c.names().get((int) (at % ncols));
-                String sql = "SELECT " + sel(col, asString) + " FROM ("
-                        + c.baseSql()
-                        + ") _g LIMIT 1 OFFSET " + (at / ncols);
-                DbMetaData.HostResultSet g =
-                        DbMetaData.query(sql, conn);
-                yield g.rows().isEmpty() ? null
-                        : result(root, g.rows().get(0).get(0));
+                yield run(select(c, col, asString)
+                                .withLimit(1L).withOffset(at / ncols),
+                        root.info(), conn, dialect);
             }
             case ROWS -> {
                 // bare rows reach only EMPTINESS asserts in the corpus:
-                // the first column's values are size- and value-faithful
-                // for that consumer; positional reads went through at().
-                // asString cannot form over Row[*] (the peel matches
-                // direct 1-arg calls only) — guarded anyway: wall over
-                // silently dropping the peel (Tier-1 audit)
-                yield at != null || c.row() != null || asString ? null
-                        : result(root, columnValues(c, c.names().get(0),
-                                false, conn));
+                // one non-null WITNESS per row is size-faithful for that
+                // consumer (a real column would pass through the
+                // COLLECTION null-drop — the PK grid's first column is
+                // literally NULL); positional reads went through at()
+                if (at != null || c.row() != null || asString) {
+                    yield null;
+                }
+                if (c.baseSql() == null) {
+                    yield new ExecutionResult.Collection(List.of(),
+                            root.info().type());
+                }
+                SqlSelect witness = SqlSelect.starOf(source(c))
+                        .withProjections(
+                                List.of(new SqlSelect.Projection(
+                                        new SqlExpr.IntLit(1), "v")),
+                                List.of(new OutputCol("v",
+                                        SqlType.Scalar.INTEGER, false)));
+                yield run(witness, root.info(), conn, dialect);
             }
         };
     }
 
-    private static List<Object> columnValues(Chain c, String col,
-            boolean asString, Connection conn) throws SQLException {
-        if (c.baseSql() == null) {
-            return List.of();   // the no-facts PK grid
+    // ===== MIR construction + execution (the part that replaced =====
+    // ===== GridReads' string SQL, HostResultSet, and hand shaping) ===
+
+    private static SqlSource source(Chain c) {
+        List<OutputCol> outs = new ArrayList<>(c.names().size());
+        for (String name : c.names()) {
+            outs.add(new OutputCol(name, SqlType.Scalar.VARCHAR, true));
         }
-        String sql = "SELECT " + sel(col, asString) + " FROM ("
-                + c.baseSql() + ") _g";
-        DbMetaData.HostResultSet g = DbMetaData.query(sql, conn);
-        List<Object> out = new ArrayList<>(g.rows().size());
-        for (List<Object> r : g.rows()) {
-            out.add(r.get(0));
-        }
-        return out;
+        return new SqlSource.RawSql(
+                java.util.Objects.requireNonNull(c.baseSql()), "_g", outs);
     }
 
-    /** toString rides the PROJECTION — the DATABASE renders the text
-     * (audit finding B: the Java {@code String.valueOf} fabricated the
-     * literal {@code "null"} for NULL cells; SQL CAST keeps NULL NULL,
-     * the pure EMPTY). */
-    private static String sel(String col, boolean asString) {
-        return asString ? "CAST(" + q(col) + " AS VARCHAR)" : q(col);
+    private static SqlSelect select(Chain c, String col, boolean asString) {
+        SqlExpr e = new SqlExpr.Column(null, col);
+        if (asString) {
+            // toString rides the PROJECTION — the DATABASE renders the
+            // text; NULL stays NULL, the pure EMPTY (Tier-1 finding B)
+            e = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+        }
+        return SqlSelect.starOf(source(c)).withProjections(
+                List.of(new SqlSelect.Projection(e, "v")),
+                List.of(new OutputCol("v", SqlType.Scalar.VARCHAR, true)));
     }
 
-    private static ExecutionResult result(TypedSpec root, Object v) {
+    private static ExecutionResult run(SqlSelect q, ExprType rootInfo,
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
+        // shape EXPLICIT: a grid cell's Any-typed root is a VALUE read
+        // (scalar/collection by multiplicity) — the type alone would
+        // classify a bare class type GRAPH (ResultShape's own caveat)
+        ResultShape shape = rootInfo.type() instanceof Type.RelationType
+                ? ResultShape.TABULAR
+                : rootInfo.multiplicity().isMany()
+                        ? ResultShape.COLLECTION : ResultShape.SCALAR;
+        return Executor.execute(dialect.render(q), q, rootInfo, shape,
+                conn, dialect);
+    }
+
+    /** The synthetic relation type of the whole grid (cells stream):
+     * every column Any[0..1] — the probe knows names, never types. */
+    private static ExprType gridInfo(Chain c) {
+        List<Type.Column> cols = new ArrayList<>(c.names().size());
+        for (String name : c.names()) {
+            cols.add(new Type.Column(name,
+                    new Type.ClassType(PlatformTypes.ANY),
+                    new Multiplicity.Bounded(0, 1)));
+        }
+        return ExprType.one(new Type.RelationType(cols, List.of()));
+    }
+
+    private static ExecutionResult scalar(TypedSpec root, Object v) {
         return new ExecutionResult.Scalar(v, root.info().type());
     }
 
+    /** LIMIT-0 metadata probe: the projection NAMES of a raw read —
+     * schema only, never a value (the E1 probe discipline). Even the
+     * probe is MIR-rendered — this class composes zero SQL text. */
+    private static List<String> probeNames(String sql, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+        SqlSelect probe = SqlSelect.starOf(
+                new SqlSource.RawSql(sql, "_p", List.of()))
+                .withLimit(0L);
+        try (var st = conn.createStatement();
+                var rs = st.executeQuery(dialect.render(probe))) {
+            var md = rs.getMetaData();
+            List<String> names = new ArrayList<>(md.getColumnCount());
+            for (int i = 1; i <= md.getColumnCount(); i++) {
+                names.add(md.getColumnLabel(i));
+            }
+            return names;
+        }
+    }
+
+    // ===== the navigation-to-relation MAPPING (the recognition =====
+    // ===== rules — corpus-proven, carried over from GridReads) ======
+
     private enum Kind { ROWS, COLUMN_NAMES, COLUMN_VALUES, CELLS }
 
-    /** A recognized grid chain: the base catalog SQL (null = empty
+    /** A recognized grid chain: the AUTHORED base SQL (null = empty
      * grid), its projection names, what the chain reads, and an
      * optional single-ROW index ({@code rows->at(k)}). */
     private record Chain(Kind kind, @com.legend.Nullable String baseSql,
@@ -305,7 +391,7 @@ public final class GridReads {
                 && PlatformTypes.isFetchDbFn(nc.callee().qualifiedName())) {
             return grid(nc, lets, ctx);
         }
-        // the executeInDb READ bottom: a literal SQL text over the
+        // the executeInDb READ bottom: AUTHORED SQL text over the
         // AMBIENT session (F6.6), boundary-adapted like the write path;
         // projection names come from a LIMIT-0 metadata probe at
         // execution (schema read, never value sniffing — E1 precedent)
@@ -320,8 +406,8 @@ public final class GridReads {
             }
             String adapted = dialect.rawH2IsNative()
                     ? raw : RawSqlBoundary.h2ToDuckDb(raw);
-            return new Chain(Kind.ROWS, adapted, probeNames(adapted, conn),
-                    null);
+            return new Chain(Kind.ROWS, adapted,
+                    probeNames(adapted, conn, dialect), null);
         }
         return null;
     }
@@ -363,7 +449,7 @@ public final class GridReads {
         String a2 = nc.args().size() > 2 ? literalPattern(nc, 2, lets) : null;
         String a3 = nc.args().size() > 3 ? literalPattern(nc, 3, lets) : null;
         if (bad(a1) || bad(a2) || bad(a3)) {
-            return null;    // a non-literal pattern stays interpreted
+            return null;    // a non-literal pattern is not a grid read
         }
         PlatformTypes.FetchDbKind kind = PlatformTypes.fetchDbKind(fqn);
         List<String> names = DbMetaData.gridColumns(kind);
@@ -458,17 +544,5 @@ public final class GridReads {
             n = bound;
         }
         return n;
-    }
-
-    private static String q(String name) {
-        return '"' + name.replace("\"", "\"\"") + '"';
-    }
-
-    /** LIMIT-0 metadata probe: the projection NAMES of a raw read —
-     * schema only, never a value (the E1 probe discipline). */
-    private static List<String> probeNames(String sql,
-            Connection conn) throws SQLException {
-        return DbMetaData.query("SELECT * FROM (" + sql + ") _p LIMIT 0",
-                conn).columnNames();
     }
 }

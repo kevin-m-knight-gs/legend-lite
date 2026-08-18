@@ -573,9 +573,14 @@ public final class PlanText {
      * join-of-subselects (the cross-store split's SQL-text channel). */
     public static @com.legend.Nullable String spliceLeftVar(
             com.legend.sql.SqlQuery plan, String var,
-            com.legend.sql.dialect.AnsiSqlRenderer renderer) {
+            java.util.function.Function<com.legend.sql.SqlQuery,
+                    String> render) {
+        // render is PASSED AS A FUNCTION from the root layer — the
+        // plan layer stays dialect-blind (the InProtocol convention;
+        // the AnsiSqlRenderer parameter here was the second breach the
+        // 2026-08-18 dialect-blind rule caught)
         SqlSelect spliced = spliceLeftVarQuery(plan, var);
-        return spliced == null ? null : renderer.render(spliced);
+        return spliced == null ? null : render.apply(spliced);
     }
 
     /** The colsPlan for a maybe-spliced plan: the placeholder-bearing

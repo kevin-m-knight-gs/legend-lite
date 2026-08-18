@@ -66,7 +66,6 @@ class SqlTextRatchetTest {
         REGISTER.put("exec/CsvSeed.java", 4);
         REGISTER.put("exec/DbMetaData.java", 9);
         REGISTER.put("exec/Ddl.java", 3);
-        REGISTER.put("exec/GridReads.java", 6);
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG
