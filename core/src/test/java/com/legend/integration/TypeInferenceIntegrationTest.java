@@ -1031,10 +1031,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|%2024-01-31T00:32:34+0000->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                assertEquals(java.sql.Timestamp.valueOf("2024-01-31 00:00:00"), value);
+                // one-carrier rule (documented-debts 2026-08-18):
+                // timestamp cells arrive as java.time
+                assertEquals(java.time.LocalDateTime.of(2024, 1, 31, 0, 0), value);
                 // Verify nanosecond precision is preserved (TIMESTAMP_NS)
-                assertInstanceOf(java.sql.Timestamp.class, value);
-                assertEquals(0, ((java.sql.Timestamp) value).getNanos(),
+                assertInstanceOf(java.time.LocalDateTime.class, value);
+                assertEquals(0, ((java.time.LocalDateTime) value).getNano(),
                                 "timeBucket should use TIMESTAMP_NS for nanosecond precision");
         }
 
@@ -1056,7 +1058,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
                                 "test::TestRuntime", connection);
-                assertEquals(java.sql.Timestamp.valueOf("2024-01-29 00:00:00"), result.rows().get(0).get(0));
+                assertEquals(java.time.LocalDateTime.of(2024, 1, 29, 0, 0),
+                                result.rows().get(0).get(0));
         }
 
         // ==================== GenerateGuid ====================

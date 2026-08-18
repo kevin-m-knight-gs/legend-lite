@@ -69,7 +69,9 @@ class SqlTextRatchetTest {
         REGISTER.put("exec/GridReads.java", 6);
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);
-        REGISTER.put("testdatagen/TestDataGenerator.java", 17);
+        // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG
+        // COUNT(*) round-trip died
+        REGISTER.put("testdatagen/TestDataGenerator.java", 16);
     }
 
     @Test

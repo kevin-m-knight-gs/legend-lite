@@ -200,6 +200,15 @@ public final class PctTdsWrap {
     }
 
     private static String slotName(@com.legend.Nullable SqlType t) {
-        return t instanceof SqlType.Scalar sc ? sc.name() : "VARCHAR";
+        if (t instanceof SqlType.Scalar sc) {
+            return sc.name();
+        }
+        // audit theater #8 (documented-debts 2026-08-18): this was
+        // `: "VARCHAR"` — the banned default->"String" shape respelled
+        // as a ternary, invisible to the fallback guard. An untyped
+        // slot is an upstream typed-slot gap and WALLS
+        throw new IllegalStateException("PCT render: output column"
+                + " carries no scalar SqlType (" + t + ") — fix the"
+                + " typed slot upstream; never a silent VARCHAR");
     }
 }

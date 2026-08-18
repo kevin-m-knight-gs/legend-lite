@@ -62,7 +62,13 @@ class JavaEvalLedgerTest {
      * the E1 adapter-contract residue (ingress splicing, the scalar
      * bridge, the H4 message remap). */
     private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 844),
+            // 844 -> 850 (documented-debts 2026-08-18): the emptyCell
+            // single-owner helper (six scattered null-drops now route
+            // through ONE argued rule) and the LocalDateTime arm's
+            // declared-type consult (the one-carrier Executor change
+            // exposed the missing StrictDate narrowing) — both shrink
+            // ambiguity, not evaluation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 850),
             // the INTERPRETER IS DELETED (oracle-not-runtime principle,
             // user-ratified 2026-08-18): HostEval is the routing
             // predicate only — grid chains compile into SQL (GridReads),
@@ -193,32 +199,50 @@ class JavaEvalLedgerTest {
                     "ResultShape.java", "Row.java", "StoreNav.java",
                     "TimingLedger.java", "package-info.java");
 
+    /** The other two funnel packages (documented-debts 2026-08-18,
+     * audit item 9's remainder): server and testdatagen may touch JDBC
+     * per F1.3, so their class lists close the same way exec's does. */
+    private static final java.util.Map<String, java.util.Set<String>>
+            FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
+                    "core/src/main/java/com/legend/exec", EXEC_CLASSES,
+                    "core/src/main/java/com/legend/server",
+                    java.util.Set.of("ConnectionResolver.java",
+                            "DiagramService.java", "Json.java",
+                            "LegendHttpServer.java", "OutputFormat.java",
+                            "PureLspServer.java", "QueryService.java"),
+                    "core/src/main/java/com/legend/testdatagen",
+                    java.util.Set.of("TestDataGenerator.java"));
+
     @Test
-    void theExecPackageIsAClosedRegister() throws IOException {
-        Path dir = Path.of("..",
-                "core/src/main/java/com/legend/exec");
-        java.util.Set<String> actual = new java.util.TreeSet<>();
-        try (var s = Files.list(dir)) {
-            s.map(p -> p.getFileName().toString())
-                    .filter(n -> n.endsWith(".java"))
-                    .forEach(actual::add);
-        }
+    void theFunnelPackagesAreClosedRegisters() throws IOException {
         StringBuilder drift = new StringBuilder();
-        for (String f : actual) {
-            if (!EXEC_CLASSES.contains(f)) {
-                drift.append("\n  NEW exec class: ").append(f)
-                        .append(" — a new egress surface registers"
-                                + " consciously with its tenet argument");
+        for (var e : FUNNEL_PACKAGE_REGISTERS.entrySet()) {
+            Path dir = Path.of("..", e.getKey());
+            java.util.Set<String> actual = new java.util.TreeSet<>();
+            try (var s = Files.list(dir)) {
+                s.map(p -> p.getFileName().toString())
+                        .filter(n -> n.endsWith(".java"))
+                        .forEach(actual::add);
             }
-        }
-        for (String f : EXEC_CLASSES) {
-            if (!actual.contains(f)) {
-                drift.append("\n  ").append(f)
-                        .append(" is GONE — delete its register row");
+            for (String f : actual) {
+                if (!e.getValue().contains(f)) {
+                    drift.append("\n  NEW class in ").append(e.getKey())
+                            .append(": ").append(f)
+                            .append(" — a new funnel-package surface"
+                                    + " registers consciously with its"
+                                    + " tenet argument");
+                }
+            }
+            for (String f : e.getValue()) {
+                if (!actual.contains(f)) {
+                    drift.append("\n  ").append(f).append(" in ")
+                            .append(e.getKey())
+                            .append(" is GONE — delete its register row");
+                }
             }
         }
         assertTrue(drift.length() == 0,
-                "exec class-register drift (Tier-2 audit):" + drift);
+                "funnel class-register drift (Tier-2 audit):" + drift);
     }
 
     @Test

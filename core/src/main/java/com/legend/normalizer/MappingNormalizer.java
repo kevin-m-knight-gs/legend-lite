@@ -884,9 +884,6 @@ public final class MappingNormalizer {
             LegacyMappingDefinition defining, ClassMapping.Relational rcm,
             ModelBuilder model) {
         ClassDefinition owner = model.findClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
-        if (owner == null) {
-            return false;
-        }
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (!(pm instanceof PropertyMapping.Join j)
                     || j.targetSetId() == null) {
@@ -1480,9 +1477,6 @@ public final class MappingNormalizer {
             return false;
         }
         ClassDefinition cd = model.findClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
-        if (cd == null) {
-            return false;
-        }
         for (var st : cd.stereotypes()) {
             if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
                     st.profileName(), st.stereotypeName())
@@ -1510,9 +1504,6 @@ public final class MappingNormalizer {
             return false;   // superclass cycle guard
         }
         ClassDefinition cd = model.findClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#4 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
-        if (cd == null) {
-            return false;
-        }
         for (var st : cd.stereotypes()) {
             if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
                     st.profileName(), st.stereotypeName()) != null) {

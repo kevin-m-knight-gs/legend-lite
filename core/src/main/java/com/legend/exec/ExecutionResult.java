@@ -65,7 +65,7 @@ public sealed interface ExecutionResult {
 
         @Override
         public List<Column> columns() {
-            return List.of(new Column("value", null, returnType));
+            return List.of(new Column("value", returnType));
         }
 
         @Override
@@ -88,7 +88,7 @@ public sealed interface ExecutionResult {
 
         @Override
         public List<Column> columns() {
-            return List.of(new Column("value", null, returnType));
+            return List.of(new Column("value", returnType));
         }
 
         @Override
@@ -125,7 +125,7 @@ public sealed interface ExecutionResult {
 
         @Override
         public List<Column> columns() {
-            return List.of(new Column("json", "JSON", Type.Primitive.STRING));
+            return List.of(new Column("json", Type.Primitive.STRING));
         }
 
         @Override

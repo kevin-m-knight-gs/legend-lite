@@ -100,9 +100,16 @@ public final class H2Verify {
             Object v) {
         if (v instanceof java.sql.Array arr) {
             try {
-                // Arrays.asList: NULL ELEMENTS survive (SQL NULL cells)
-                return new java.util.ArrayList<>(java.util.Arrays.asList(
-                        (Object[]) arr.getArray()));
+                // Arrays.asList: NULL ELEMENTS survive (SQL NULL cells).
+                // One-carrier rule (documented-debts 2026-08-18): raw
+                // driver elements convert like every other egress leaf —
+                // this was the LAST path leaking java.sql.Timestamp
+                java.util.List<Object> out = new java.util.ArrayList<>();
+                for (Object e : (Object[]) arr.getArray()) {
+                    out.add(e instanceof java.sql.Timestamp ts
+                            ? ts.toLocalDateTime() : e);
+                }
+                return out;
             } catch (java.sql.SQLException e) {
                 throw new IllegalStateException(e);
             }
@@ -332,9 +339,13 @@ public final class H2Verify {
         for (Object v : vals) {
             if (v instanceof String s
                     && s.matches("\\d{4}-\\d{2}-\\d{2}(T[\\d:.]+)?")) {
+                // one-carrier rule (documented-debts 2026-08-18): the
+                // decode lands on java.time, matching the Executor's
+                // timestamp carrier — a Timestamp here made the two
+                // compare sides box-diverge on identical instants
                 out.add(s.contains("T")
-                        ? java.sql.Timestamp.valueOf(s.replace('T', ' '))
-                        : java.sql.Date.valueOf(s));
+                        ? java.time.LocalDateTime.parse(s)
+                        : java.time.LocalDate.parse(s));
             } else {
                 out.add(v);
             }
@@ -595,6 +606,27 @@ public final class H2Verify {
             } catch (NumberFormatException e) {
                 return v.toString();
             }
+        }
+        // temporal CARRIERS canonicalize before any toString — the
+        // Executor now hands java.time (one-carrier rule, documented-
+        // debts 2026-08-18) while the H2 replay side reads raw
+        // Timestamps; same instant, different box spellings
+        // ('2015-08-26T00:00' vs '2015-08-26 00:00:00.0'). This is the
+        // method's own contract sentence applied to dates.
+        if (v instanceof java.sql.Timestamp ts) {
+            v = ts.toLocalDateTime();
+        }
+        if (v instanceof java.time.LocalDateTime ldt) {
+            String s = ldt.toLocalDate() + " "
+                    + String.format("%02d:%02d:%02d",
+                            ldt.getHour(), ldt.getMinute(),
+                            ldt.getSecond());
+            int nano = ldt.getNano();
+            if (nano != 0) {
+                s += ("." + String.valueOf(1_000_000_000L + nano)
+                        .substring(1)).replaceAll("0+$", "");
+            }
+            return s;
         }
         String s = v.toString();
         // timestamp spellings: trim trailing fractional zeros and the

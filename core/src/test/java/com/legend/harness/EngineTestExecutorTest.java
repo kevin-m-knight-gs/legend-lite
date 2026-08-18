@@ -110,6 +110,34 @@ class EngineTestExecutorTest {
                 """), 1);
     }
 
+    /** Audit finding K pin (documented-debts 2026-08-18): the harness
+     * answers {@code assertSize($r.values, N)} from the ENVELOPE's
+     * arity — in the engine's metamodel a tabular execute's
+     * {@code Result.values} holds exactly ONE carrier (the TDS
+     * object), while a value execute's values SPLAT to the elements.
+     * The audit read the {@code tds ? 1L} as "answered by a constant";
+     * the 1 IS the metamodel arity, but the branch had no test — both
+     * arms and the failure path are pinned here. */
+    @Test
+    void envelopeSizeAnswersBothCarrierShapes() throws Exception {
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['name']),
+                        test::M, r(), e());
+                assertSize($result.values, 1);
+                """), 1);
+        assertHeld(run("""
+                let result = execute(|Person.all().name, test::M, r(), e());
+                assertSize($result.values, 3);
+                """), 1);
+        EngineTestExecutor.Outcome wrong = run("""
+                let result = execute(|Person.all().name, test::M, r(), e());
+                assertSize($result.values, 1);
+                """);
+        assertEquals(1, ((EngineTestExecutor.Outcome.Ran) wrong)
+                .failures().size(),
+                "a splatting collection must NOT count as one carrier");
+    }
+
     @Test
     void wrongValuesFail() throws Exception {
         EngineTestExecutor.Outcome o = run("""

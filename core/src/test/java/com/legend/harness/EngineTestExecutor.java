@@ -355,6 +355,15 @@ public final class EngineTestExecutor {
      * emptiness-shaped assertion (assertEmpty, assertSize 0, an empty
      * expected grid) proves nothing then and the body reports Unsupported
      * instead of a hollow pass.
+     *
+     * <p>Adjudicated (documented-debts 2026-08-18; the tenet audit
+     * listed this flag as "gated on a runtime fact and uncounted"): the
+     * gate DECLINES hollow passes, it never grants one — the runtime
+     * fact (did seeding fail?) is irreducibly runtime. And it IS
+     * counted, twice: the sweep prints {@code failed seeds: N} (0 on
+     * every healthy run — the 18 sites are inert then), and a fired
+     * gate surfaces as a NON-pass the scoreboard's gate-before-write
+     * comparison catches as a family delta.
      */
     public static @com.legend.Nullable Outcome run(ModelContext ctx, String body, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
@@ -2071,7 +2080,11 @@ public final class EngineTestExecutor {
                 }
                 Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return compare(e, a, /* ordered */ false) ? null
-                        : "assertSameElements: expected " + e.render() + ", got " + a.render();
+                        : "assertSameElements: expected " + e.render() + ", got " + a.render()
+                                + " [expected types=" + e.values().stream()
+                                        .map(o -> o == null ? "null" : o.getClass().getSimpleName()).toList()
+                                + "; got types=" + a.values().stream()
+                                        .map(o -> o == null ? "null" : o.getClass().getSimpleName()).toList() + "]";
             }
             case "assertContains" -> {
                 return assertContainsCheck(args, lets, execStmts, execVars, execChains,

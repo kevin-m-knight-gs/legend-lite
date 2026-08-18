@@ -656,14 +656,6 @@ public final class TestDataGenerator {
         String temp = "tdg_" + temps.size() + "_"
                 + table.replaceAll("[^A-Za-z0-9_]", "_");
         st.execute("CREATE TEMPORARY TABLE " + temp + " AS " + sql);
-        if (System.getenv("LL_TMP_DEBUG") != null) {
-            try (var rs = st.executeQuery(
-                    "SELECT COUNT(*) FROM " + temp)) {
-                rs.next();
-                System.err.println("[tdg] " + rs.getLong(1) + " rows <- "
-                        + sql);
-            }
-        }
         temps.add(temp);
         return temp;
     }
@@ -1177,9 +1169,10 @@ public final class TestDataGenerator {
                         + ") union all (select * from " + ta
                         + " except select * from " + te + "))")) {
                     rs.next();
-                    if (rs.getLong(1) != 0) {
+                    long asymmetric = rs.getLong(1);
+                    if (asymmetric != 0) {
                         return "assertTestData: rows of '" + table
-                                + "' differ (" + rs.getLong(1)
+                                + "' differ (" + asymmetric
                                 + " asymmetric rows)\nexpected:\n"
                                 + side(e) + "got:\n" + side(a);
                     }

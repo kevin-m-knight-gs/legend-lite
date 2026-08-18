@@ -18,7 +18,13 @@ import java.util.List;
 /**
  * Executes rendered SQL and shapes the rows per the ROOT's classification.
  * Cell values are raw JDBC objects; column Pure types come from the query's
- * typed outputs (never from JDBC metadata — the no-sniffing contract).
+ * typed outputs. ONE registered exception (documented-debts 2026-08-18 —
+ * the audit's §5 caught this header claiming "never" while the exception
+ * lived below it): a schema rebuilt DOWNSTREAM of a dynamic pivot loses
+ * the aggregate templates, and {@code pivotColumnType}'s last fallback
+ * derives the Pure type from the JDBC type name through the exact-match
+ * {@code pureOfSqlType} table (loud on unknown names). Everywhere else,
+ * JDBC metadata never types a column.
  */
 public final class Executor {
 
@@ -381,8 +387,15 @@ public final class Executor {
      */
     private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
-        // org.duckdb.JsonNode) or as text — matched by FULL class name so the
-        // executor needs no driver import; the node's toString IS the JSON text.
+        // org.duckdb.JsonNode) or as text — matched by FULL class name.
+        // The REASON is optional-dependency isolation, not guard-dodging
+        // (documented-debts 2026-08-18; the audit read the old comment as
+        // compliance-avoidance policy): exec MAY import driver packages
+        // (F1.3 funnel), but a hard `instanceof org.duckdb.JsonNode`
+        // links a class that is ABSENT on H2/SQLite-only deployments —
+        // NoClassDefFoundError at first result read. The full-FQN string
+        // is the exact-match, no-sniffing form of the same test; the
+        // node's toString IS the JSON text.
         String s;
         if (v instanceof String str) {
             s = str;
@@ -446,11 +459,16 @@ public final class Executor {
         if (o instanceof java.sql.Timestamp) {
             // (a TIMESTAMP-typed output may still surface a VARCHAR cell —
             // the precision-faithful string convention — so gate on the
-            // actual driver object, not the declared type)
-            java.time.LocalDateTime ldt = rs.getObject(i, java.time.LocalDateTime.class);
-            if (ldt != null && ldt.getYear() < 1) {
-                return ldt;
-            }
+            // actual driver object, not the declared type.)
+            // ONE carrier, chosen by KIND, never by value (documented-
+            // debts 2026-08-18; the old `getYear() < 1` read a value's
+            // MAGNITUDE to pick the box — C2.2's shape, the surviving
+            // sibling of the deleted midnight heuristic): every
+            // timestamp cell re-fetches as java.time, the BC-faithful
+            // carrier — Timestamp's epoch is WRONG for BC years
+            java.time.LocalDateTime ldt =
+                    rs.getObject(i, java.time.LocalDateTime.class);
+            return ldt != null ? ldt : o;
         }
         return o;
     }
@@ -495,6 +513,14 @@ public final class Executor {
             }
             return out;
         }
+        // the ONE-CARRIER rule at every LEAF (documented-debts
+        // 2026-08-18): array elements and struct attributes arrive as
+        // raw driver objects that never pass fetch() — the timestamp
+        // box converts here so NO egress path can leak
+        // java.sql.Timestamp beside the java.time carrier
+        if (v instanceof java.sql.Timestamp ts) {
+            v = ts.toLocalDateTime();
+        }
         return dialect.normalize(v, type);
     }
 
@@ -535,8 +561,7 @@ public final class Executor {
             // POSITIONAL on both sides (schemas are ordered); no null types.
             for (int i = 1; i <= n; i++) {
                 Type.Column sc = schema.columns().get(i - 1);
-                columns.add(new Column(sc.name(),
-                        rs.getMetaData().getColumnTypeName(i), sc.type(),
+                columns.add(new Column(sc.name(), sc.type(),
                         sc.multiplicity()));
             }
         } else if (hasPivot(plan)) {
@@ -552,7 +577,7 @@ public final class Executor {
             for (int i = 1; i <= n; i++) {
                 String name = rs.getMetaData().getColumnName(i);
                 String sqlType = rs.getMetaData().getColumnTypeName(i);
-                columns.add(new Column(name, sqlType, pivotColumnType(schema, name, sqlType)));
+                columns.add(new Column(name, pivotColumnType(schema, name, sqlType)));
             }
         } else {
             throw new IllegalStateException("result has " + n + " columns but the typed"

@@ -34,10 +34,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * it through GREEN; the accessor list likewise gained the audit's five
  * omitted spellings). Seeded 2026-08-16 at the F0.1 baseline:
  * TestDataGenerator 6, Executor 6, DynamicPivot 1, DbMetaData 1.
+ * RE-SEEDED 14 -> 12 (documented-debts 2026-08-18, audit §7): the
+ * LL_TMP_DEBUG COUNT(*) print (an extra round-trip just to log) is
+ * DELETED and the assertTestData getLong double-read hoisted to a
+ * local — TestDataGenerator 6 -> 3 raw sites minus one pureRepr read;
+ * Executor 7 with the one-carrier timestamp re-fetch.
  */
 class TenetRatchetTest {
 
-    private static final int RESULT_SET_ACCESSOR_SITES = 14;
+    private static final int RESULT_SET_ACCESSOR_SITES = 12;
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"
