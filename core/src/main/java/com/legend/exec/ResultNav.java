@@ -406,7 +406,7 @@ public final class ResultNav {
                 raw = raw.substring(0, raw.length() - 1);
             }
             String adapted = dialect.rawH2IsNative()
-                    ? raw : RawSqlBoundary.h2ToDuckDb(raw);
+                    ? raw : com.legend.sql.dialect.RawSqlBoundary.h2ToDuckDb(raw);
             return new Chain(Kind.ROWS, adapted,
                     probeNames(adapted, conn, dialect), null);
         }

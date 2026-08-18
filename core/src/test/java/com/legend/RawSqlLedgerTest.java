@@ -52,6 +52,9 @@ class RawSqlLedgerTest {
     // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
+            // Phase 1c: the DuckDb dialect pass adapting AUTHORED RawSql
+            // text at render time (same R0 contract, dialect-owned)
+            "RawSqlAdapt.java", 1,
             // Phase 1: the READ bottom moved with the recognizer —
             // ResultNav's executeInDb bottom adapts the SAME
             // corpus-authored text class (F6.6), never a new source
@@ -100,9 +103,14 @@ class RawSqlLedgerTest {
      * source level, and the SQL-text ratchet patrols the composition
      * side. */
     private static final Map<String, Integer> RAW_SOURCE_CTORS = Map.of(
-            // TWO sites, both in the chartered seam: the chain source
-            // and the LIMIT-0 probe (itself MIR-rendered)
-            "ResultNav.java", 2);
+            // the chain source + the LIMIT-0 probe (itself MIR-rendered)
+            "ResultNav.java", 2,
+            // Phase 1c: the compiler's TypedRawSqlRelation lowering,
+            // carrying the AUTHORED text from the typed node verbatim
+            "Lowerer.java", 1,
+            // Phase 1c: RawSqlAdapt REWRAPS an existing RawSql with the
+            // adapted authored text — same contract, dialect layer
+            "RawSqlAdapt.java", 1);
 
     @Test
     void rawSqlSourceConstructionIsQuarantined() throws IOException {

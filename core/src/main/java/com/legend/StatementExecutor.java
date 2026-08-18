@@ -510,7 +510,7 @@ final class StatementExecutor {
      * MODEL (StoreNav), and anything else walls with the principle's
      * name — the interpreter that executed engine compiler source is
      * DELETED. */
-    private static ExecutionResult hostEvalAtSeam(TypedSpec root,
+    private static @com.legend.Nullable ExecutionResult hostEvalAtSeam(TypedSpec root,
             java.util.Map<String, TypedSpec> lets, ExecEnv env)
             throws java.sql.SQLException {
         ExecutionResult lowered = com.legend.exec.ResultNav.tryExec(
@@ -523,6 +523,9 @@ final class StatementExecutor {
         if (nav != null) {
             return nav;
         }
+        // Phase 1c: unrecognized GRID chains fall to the pipeline
+        if (com.legend.exec.ResultNav.owns(root, lets)
+                && !com.legend.exec.StoreNav.owns(root, lets)) { return null; }
         throw new com.legend.error.NotImplementedException(
                 "host channel: this chain would need interpreted engine"
                 + " code — engine/legend-pure source is ORACLE material,"
@@ -2363,7 +2366,9 @@ final class StatementExecutor {
                 execFrames = new java.util.LinkedHashMap<>(allFrames);
                 execFrames.keySet().removeAll(boundVars);
             }
-            // $result.rows->size(): POST-EXECUTE row count. The engine
+            TypedSpec rawGrid = com.legend.GridSplice.rawGridRelation(n);
+            if (rawGrid != null) { return rawGrid; }
+                        // $result.rows->size(): POST-EXECUTE row count. The engine
             // counts the MATERIALIZED rows in memory; the in-query
             // single-column count(col) rule (processRowCount, null-
             // skipping) must not apply to this splice — a nullable
@@ -2935,7 +2940,7 @@ final class StatementExecutor {
                     Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
                 } catch (java.sql.SQLException e) {
                     if (!env.dialect().rawH2IsNative()) {
-                        com.legend.exec.RawSqlBoundary.unrecordLast();
+                        com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
                     }
                     throw e;
                 }
@@ -2977,7 +2982,9 @@ final class StatementExecutor {
         // HOST-SIDE against the H2 second target (task #43 slice B2)
         if (com.legend.exec.ResultNav.owns(root, java.util.Map.of())
                 || com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
-            return hostEvalAtSeam(root, java.util.Map.of(), env);
+            ExecutionResult hosted = hostEvalAtSeam(root,
+                    java.util.Map.of(), env);
+            if (hosted != null) { return hosted; }   // else fall through
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
@@ -3253,7 +3260,7 @@ final class StatementExecutor {
      * is a DuckDB-target adaptation, never generic). */
     private static String adaptRaw(String sql, ExecEnv env) {
         return env.dialect().rawH2IsNative() ? sql
-                : com.legend.exec.RawSqlBoundary.h2ToDuckDb(sql);
+                : com.legend.sql.dialect.RawSqlBoundary.h2ToDuckDb(sql);
     }
 
     static ExecutionResult executeInDb(
@@ -3271,7 +3278,7 @@ final class StatementExecutor {
                 // the recording must mirror EXECUTED reality — a failed
                 // statement leaves the H2-replay ledger (task #112)
                 if (!env.dialect().rawH2IsNative()) {
-                    com.legend.exec.RawSqlBoundary.unrecordLast();
+                    com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
                 }
                 throw e;
             }
@@ -3294,7 +3301,7 @@ final class StatementExecutor {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
         Executor.executeRaw(env.connection(), schemaDdl);
-        com.legend.exec.RawSqlBoundary.recordMeta(schemaDdl);
+        com.legend.sql.dialect.RawSqlBoundary.recordMeta(schemaDdl);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
 
@@ -3339,7 +3346,7 @@ final class StatementExecutor {
         Executor.executeRaw(connection,
                 Ddl.createTable(def, schema, !rawH2));
         java.util.List<String> mirror =
-                com.legend.exec.RawSqlBoundary.recording();
+                com.legend.sql.dialect.RawSqlBoundary.recording();
         if (!rawH2 && mirror != null) {
             mirror.add(drop);
             mirror.add(Ddl.createTable(def, schema));
@@ -3359,10 +3366,10 @@ final class StatementExecutor {
                     : schema + "." + table;
             for (String pk : pks) {
                 // H2 2.x requires PK columns NOT NULL before the ALTER
-                com.legend.exec.RawSqlBoundary.recordMeta("Alter table "
+                com.legend.sql.dialect.RawSqlBoundary.recordMeta("Alter table "
                         + qn + " alter column " + pk + " set not null");
             }
-            com.legend.exec.RawSqlBoundary.recordMeta("Alter table " + qn
+            com.legend.sql.dialect.RawSqlBoundary.recordMeta("Alter table " + qn
                     + " add primary key (" + String.join(", ", pks) + ")");
         }
         return new ExecutionResult.Scalar(true, call.info().type());

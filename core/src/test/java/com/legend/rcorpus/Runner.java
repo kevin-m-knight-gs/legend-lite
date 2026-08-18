@@ -1255,7 +1255,7 @@ public final class Runner {
         // seeds and mutations are part of this test's visible state);
         // after the run the ledger becomes the recording.
         List<String> recording = new ArrayList<>();
-        com.legend.exec.RawSqlBoundary.record(recording);
+        com.legend.sql.dialect.RawSqlBoundary.record(recording);
         lastRunShared = false;
         try {
             return run0(t, recording);
@@ -1961,7 +1961,7 @@ public final class Runner {
             try (var st = conn.prepareStatement(stmt)) {
                 st.execute();
                 if (!H2_BACKEND) {
-                    var mirror = com.legend.exec.RawSqlBoundary.recording();
+                    var mirror = com.legend.sql.dialect.RawSqlBoundary.recording();
                     if (mirror != null) {
                         mirror.add(unit.createSql());
                     }

@@ -1189,13 +1189,13 @@ public final class EngineTestExecutor {
             Map<String, ValueSpecification> execChains, ModelContext ctx,
             ImportScope imports, String runtimeFqn, Connection conn) {
         if (!H2Verify.ready()
-                || com.legend.exec.RawSqlBoundary.recording() == null
+                || com.legend.sql.dialect.RawSqlBoundary.recording() == null
                 || args.size() != 2) {
             // COUNTED decline (H2_BACKEND.md §12 step 4): these
             // early-outs were the two silent ADVISORY_MARKER paths —
             // without the print the sweep's unverifiable total lied low
             h2Decline(!H2Verify.ready() ? "h2 driver not ready"
-                    : com.legend.exec.RawSqlBoundary.recording() == null
+                    : com.legend.sql.dialect.RawSqlBoundary.recording() == null
                             ? "no recorded seed statements"
                             : "assert arity " + args.size() + " != 2");
             return ADVISORY_MARKER;
@@ -1225,7 +1225,7 @@ public final class EngineTestExecutor {
             // session-direct on an H2 backend, seed-replay elsewhere —
             // the routing lives with the oracle (H2Verify.verifyAuto)
             return H2Verify.verifyAuto(conn,
-                    com.legend.exec.RawSqlBoundary.recording(), golden,
+                    com.legend.sql.dialect.RawSqlBoundary.recording(), golden,
                     rows.result(), H2Verify.enumDecodeFor(rows.result(),
                             actual, lets, execStmts, ctx, imports));
         } catch (java.sql.SQLException | RuntimeException e) {

@@ -15,6 +15,7 @@ import java.util.List;
  * land in later stages). Adding a variant = a new record here.
  */
 public sealed interface TypedSpec permits
+        TypedRawSqlRelation,
         TypedCInteger,
         TypedCString,
         TypedCBoolean,

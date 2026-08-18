@@ -602,7 +602,7 @@ final class ArchitectureTest {
     void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
         noClasses()
             .that().haveNameNotMatching(
-                    "com\\.legend\\.exec\\.ResultNav(\\$.*)?")
+                    "com\\.legend\\.(exec\\.ResultNav|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -612,7 +612,8 @@ final class ArchitectureTest {
                                             .Predicates.name(
                                                     "com.legend.sql.SqlSource$RawSql"))))
             .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
-                    + " ONLY by the chartered seam (ResultNav) — it"
+                    + " ONLY by the chartered seams (ResultNav + the"
+                    + " Lowerer TypedRawSqlRelation case) — it"
                     + " carries authored text, never platform-composed"
                     + " SQL")
             .check(CORE_PROD_CLASSES);

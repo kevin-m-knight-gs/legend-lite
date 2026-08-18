@@ -205,7 +205,7 @@ class JavaEvalLedgerTest {
                     "H2Settings.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
-                    "QueryPlan.java", "RawSqlBoundary.java",
+                    "QueryPlan.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
                     "TimingLedger.java", "package-info.java");
 

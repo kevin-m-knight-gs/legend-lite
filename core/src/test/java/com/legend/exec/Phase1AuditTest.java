@@ -71,16 +71,36 @@ class Phase1AuditTest {
     }
 
     @Test
-    @DisplayName("Pin 2 (generality tripwire): .rows->size() WALLS today; Phase 3a flips this to 2")
-    void rowsSizeWallsUntilTheMetamodelLegLands() {
-        Exception e = assertThrows(Exception.class,
+    @DisplayName("Pin 2 FLIPPED (Phase 1c): .rows->size() is an ORDINARY expression — the generality landed")
+    void rowsSizeIsOrdinary() throws Exception {
+        // the tripwire's contract fulfilled: `.rows` types as a
+        // relation (the splice arm -> TypedRawSqlRelation -> the one
+        // Lowerer -> COUNT in the database); no recognizer vocabulary
+        ExecutionResult r = Compiler.execute("", CONN_LET
+                + "meta::relational::metamodel::execute::executeInDb("
+                + "'select 1 as A union all select 2', $c, 0, 1000)"
+                + ".rows->size();}", conn);
+        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
+                .longValue());
+    }
+
+    /** TRIPWIRE #2 (Phase 1c slice 2) — SPEC-FAITHFUL spelling
+     * (user-ratified: the SURFACE stays legend-pure-spec-exact even
+     * where the implementation is relation/TDS underneath):
+     * {@code $r.value('A')} is the spec's OWN accessor
+     * (Row.value(name)), and composing it under filter must lower to a
+     * column read. Today it refuses; flips to {@code assertEquals(2)}
+     * when slice 2 lands. Note {@code $r.A} is NON-spec and its type
+     * error is correct forever, not a gap. */
+    @Test
+    @DisplayName("tripwire #2: filter via the SPEC accessor value('A') awaits slice 2")
+    void filterViaSpecAccessorAwaitsSlice2() {
+        assertThrows(Exception.class,
                 () -> Compiler.execute("", CONN_LET
                         + "meta::relational::metamodel::execute::executeInDb("
-                        + "'select 1 as A union all select 2', $c, 0, 1000)"
-                        + ".rows->size();}", conn));
-        assertTrue(e.getMessage() != null
-                        && e.getMessage().contains("host channel"),
-                "the wall must be the honest oracle-not-runtime decline,"
-                + " never a wrong value; got: " + e.getMessage());
+                        + "'select 1 as A union all select 2 union all select 3',"
+                        + " $c, 0, 1000)"
+                        + ".rows->filter(r | $r.value('A')->cast(@Integer) > 1)"
+                        + "->size();}", conn));
     }
 }
