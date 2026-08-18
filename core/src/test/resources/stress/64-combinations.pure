@@ -1204,10 +1204,19 @@ Association combo::RootHop
    roots: combo::C0[*];
 }
 
+// Reaches the SCHEMA-qualified table by navigation rather than only by being rooted
+// at it, which is what lets `Schema` combine with anything else at all.
+Association combo::RootSummary
+{
+   summary: combo::Summary[0..1];
+   summarised: combo::C0[*];
+}
+
 // Mapped over a table inside the `analytics` Schema.
 Class combo::Summary
 {
    summaryId: String[1];
+   rootId: String[0..1];
    sm_s_nn1: String[0..1];
    sm_s_nl1: String[0..1];
    sm_c_nn1: String[0..1];
@@ -1436,6 +1445,15 @@ Database combo::ComboDB
       Table COMBO_SUMMARY
       (
          SUMMARY_ID VARCHAR(64) PRIMARY KEY,
+         // A real FOREIGN KEY, so the schema-qualified table can be REACHED.
+         // Without one it is an island: nothing navigates to it, and `Schema`
+         // appears only in the single service rooted at it. The first attempt
+         // joined on the numeric suffix of the two ids instead --
+         // right(ROOT_ID,4) = right(SUMMARY_ID,4) -- which is correct, needs no
+         // schema change, and cannot use an index: a dynafunction on both sides
+         // of a join is a cross-product, and it took the suite from thirteen
+         // minutes to over fifty. A column is cheaper than cleverness.
+         ROOT_ID VARCHAR(64),
          SM_S_NN1 VARCHAR(200) NOT NULL,
          SM_S_NN2 VARCHAR(200) NOT NULL,
          SM_S_NL1 VARCHAR(200),
@@ -1479,6 +1497,7 @@ Database combo::ComboDB
       )
    )
 
+   Join Combo_Summary(COMBO_ROOT.ROOT_ID = analytics.COMBO_SUMMARY.ROOT_ID)
    Join Combo_Hop1(COMBO_ROOT.HOP1_CODE = COMBO_HOP1.HOP1_CODE)
    Join Combo_Hop2(COMBO_HOP1.HOP2_CODE = COMBO_HOP2.HOP2_CODE)
 
@@ -2753,12 +2772,22 @@ Mapping combo::ComboMapping
       )
    }
 
+   combo::RootSummary: Relational
+   {
+      AssociationMapping
+      (
+         summary[c0, summary]: [combo::ComboDB]@Combo_Summary,
+         summarised[summary, c0]: [combo::ComboDB]@Combo_Summary
+      )
+   }
+
    // The SCHEMA-QUALIFIED mapping: every reference names analytics.COMBO_SUMMARY.
    combo::Summary: Relational
    {
       ~primaryKey ( [combo::ComboDB]analytics.COMBO_SUMMARY.SUMMARY_ID )
       ~mainTable [combo::ComboDB]analytics.COMBO_SUMMARY
       summaryId: [combo::ComboDB]analytics.COMBO_SUMMARY.SUMMARY_ID,
+      rootId: [combo::ComboDB]analytics.COMBO_SUMMARY.ROOT_ID,
       sm_s_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_S_NN1,
       sm_s_nl1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_S_NL1,
       sm_c_nn1: [combo::ComboDB]analytics.COMBO_SUMMARY.SM_C_NN1,

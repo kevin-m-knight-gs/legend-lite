@@ -70,6 +70,8 @@ SENTINEL = "ALT-SENTINEL"
 SCHEMA = "analytics"
 SCHEMA_TABLE = "COMBO_SUMMARY"
 SCHEMA_CLASS = "combo::Summary"
+SCHEMA_ASSOC = "combo::RootSummary"
+J_SUMMARY = "Combo_Summary"
 # A class mapped through a SCOPE block, and one reached by an association whose ends name
 # both set ids. Both constructs existed in the corpus and neither was executed: the 60
 # scope-using class mappings live in a Mapping no runtime binds, and the only association
@@ -545,10 +547,19 @@ def build_source() -> str:
         f"   roots: {_class_for(0)}[*];",
         "}",
         "",
+        "// Reaches the SCHEMA-qualified table by navigation rather than only by being rooted",
+        "// at it, which is what lets `Schema` combine with anything else at all.",
+        f"Association {SCHEMA_ASSOC}",
+        "{",
+        f"   summary: {SCHEMA_CLASS}[0..1];",
+        f"   summarised: {_class_for(0)}[*];",
+        "}",
+        "",
         f"// Mapped over a table inside the `{SCHEMA}` Schema.",
         f"Class {SCHEMA_CLASS}",
         "{",
         "   summaryId: String[1];",
+        "   rootId: String[0..1];",
         *[f"   {column(SCHEMA_TABLE, ty, nl, 1).lower()}: {TYPE_PURE[ty]}[0..1];"
           for ty in TYPES for nl in NULLS],
         "}",
@@ -599,10 +610,20 @@ def build_source() -> str:
         f"      Table {SCHEMA_TABLE}",
         "      (",
         "         SUMMARY_ID VARCHAR(64) PRIMARY KEY,",
+        "         // A real FOREIGN KEY, so the schema-qualified table can be REACHED.",
+        "         // Without one it is an island: nothing navigates to it, and `Schema`",
+        "         // appears only in the single service rooted at it. The first attempt",
+        "         // joined on the numeric suffix of the two ids instead --",
+        "         // right(ROOT_ID,4) = right(SUMMARY_ID,4) -- which is correct, needs no",
+        "         // schema change, and cannot use an index: a dynafunction on both sides",
+        "         // of a join is a cross-product, and it took the suite from thirteen",
+        "         // minutes to over fifty. A column is cheaper than cleverness.",
+        "         ROOT_ID VARCHAR(64),",
         *[f"   {line}" for line in cols(SCHEMA_TABLE, last=True)],
         "      )",
         "   )",
         "",
+        f"   Join {J_SUMMARY}({ROOT}.ROOT_ID = {SCHEMA}.{SCHEMA_TABLE}.ROOT_ID)",
         f"   Join {J1}({ROOT}.HOP1_CODE = {HOP1}.HOP1_CODE)",
         f"   Join {J2}({HOP1}.HOP2_CODE = {HOP2}.HOP2_CODE)",
         "",
@@ -776,13 +797,23 @@ def build_source() -> str:
         "      )",
         "   }",
         "",
+        f"   {SCHEMA_ASSOC}: Relational",
+        "   {",
+        "      AssociationMapping",
+        "      (",
+        f"         summary[c0, summary]: [{DB}]@{J_SUMMARY},",
+        f"         summarised[summary, c0]: [{DB}]@{J_SUMMARY}",
+        "      )",
+        "   }",
+        "",
         f"   // The SCHEMA-QUALIFIED mapping: every reference names {SCHEMA}.{SCHEMA_TABLE}.",
         f"   {SCHEMA_CLASS}: Relational",
         "   {",
         f"      ~primaryKey ( [{DB}]{SCHEMA}.{SCHEMA_TABLE}.SUMMARY_ID )",
         f"      ~mainTable [{DB}]{SCHEMA}.{SCHEMA_TABLE}",
         ",\n".join(
-            [f"      summaryId: [{DB}]{SCHEMA}.{SCHEMA_TABLE}.SUMMARY_ID"]
+            [f"      summaryId: [{DB}]{SCHEMA}.{SCHEMA_TABLE}.SUMMARY_ID",
+             f"      rootId: [{DB}]{SCHEMA}.{SCHEMA_TABLE}.ROOT_ID"]
             + [f"      {column(SCHEMA_TABLE, ty, nl, 1).lower()}: "
                f"[{DB}]{SCHEMA}.{SCHEMA_TABLE}.{column(SCHEMA_TABLE, ty, nl, 1)}"
                for ty in TYPES for nl in NULLS]),
@@ -902,6 +933,48 @@ def assoc_ids_spec(c: model.Corpus):
     spec.projections = [Proj("rootId", ["rootId"]),
                         Proj("hopCode", ["hop", "hopCode"]),
                         Proj("hopLeaf", ["hop", leaf])]
+    spec.sort = ("rootId", False)
+    spec.mapping, spec.runtime = MAPPING, RUNTIME
+    spec.connection, spec.data_element = CONN_ID, DATA
+    return spec
+
+
+def schema_reach_spec(c: model.Corpus):
+    """NOT EMITTED -- see F47. Kept because the model it needs is real and still here.
+
+    Navigating to a class whose main table sits in a non-default SCHEMA fails in the router:
+
+        meta::pure::router::store::routing::Void not supported!
+
+    The association, the join and the foreign key are all in the corpus and correct; it is
+    the navigation that the engine will not plan. The service is reproduced standalone in
+    repro/schema-qualified-navigation/ rather than emitted here, because a service that
+    cannot produce a plan takes its whole batch down with it and the run costs thirteen
+    minutes.
+
+    Reaches the schema-qualified table BY NAVIGATION, from a matrix root.
+
+    schema_spec below is rooted AT the schema table, which proves a mapping can resolve
+    `[db]schema.TABLE.COL` and nothing more -- one service, and `Schema` sat at three of its
+    forty possible feature pairs because nothing else could reach it. This one starts at C0
+    and navigates, so Schema arrives stacked on whatever C0 carries: the set ids, the scope
+    block, the join forms.
+
+    The FK it crosses is seeded by the expansion, which means it carries the corpus's
+    adversarial shapes for free -- one summary row points at a root that does not exist and
+    another points at nothing at all. So this is a navigation over a broken edge, not a tidy
+    one.
+    """
+    cls = _class_for(0)
+    if c.ends.get((cls, "summary")) is None or c.ends[(cls, "summary")].join is None:
+        return None
+    leaf = column(SCHEMA_TABLE, "string", "notnull", 1).lower()
+    spec = Spec("stress::CB_SchemaReach", "/stress/cb_schema_reach",
+                f"Navigates {SCHEMA_ASSOC} from {cls} to the schema-qualified "
+                f"{SCHEMA}.{SCHEMA_TABLE}. Generated by scripts/corpus/combos.py.", cls)
+    spec.projections = [Proj("rootId", ["rootId"]),
+                        Proj("summaryId", ["summary", "summaryId"]),
+                        Proj("summaryLeaf", ["summary", leaf])]
     spec.sort = ("rootId", False)
     spec.mapping, spec.runtime = MAPPING, RUNTIME
     spec.connection, spec.data_element = CONN_ID, DATA

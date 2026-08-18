@@ -1500,3 +1500,23 @@ while the fact they need — this overload has no lowering, pass the flags — i
 transform's type signature.
 
 `repro/regexp-arity/`.
+
+## F47 — An association cannot be navigated to a class mapped in a non-default schema
+
+    meta::pure::router::store::routing::Void not supported!
+
+Two classes in one mapping, over one database, joined by a plain foreign-key equality. The
+only thing unusual about the target is that its table is in the `analytics` schema rather than
+`default`. A service projecting `rootId, summary.summaryId` fails during plan generation with
+that assertion — a router internal naming no class, no association and no schema.
+
+Not caused by the join, which is a simple column equality; not by the data, which is seeded
+with real values; and not by the class being unqueryable, since a service ROOTED at it passes
+today. It is reaching it by navigation that fails.
+
+A schema is the usual way a warehouse separates a mart from its sources, so joining across one
+is not an exotic shape. `repro/schema-qualified-navigation/`.
+
+Found while closing a coverage gap rather than by looking for it: `Schema` was the construct
+with the most uncovered feature pairs, for the plain reason that nothing in the model could
+reach the only class carrying it.

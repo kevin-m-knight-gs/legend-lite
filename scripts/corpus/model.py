@@ -485,9 +485,15 @@ _TABLE = re.compile(r"^\s*Table\s+(\w+)\s*\((.*)\)\s*$")
 # join was not captured at all -- and a chain referencing it failed with "join is not
 # declared", which reads as a typo in the chain rather than as a join the reader could not
 # see. Optional, so single-database joins are unaffected.
+# Either side may also be SCHEMA-QUALIFIED -- `analytics.COMBO_SUMMARY.ROOT_ID`. Without
+# that the simple pattern misses and the join falls through to the general-condition form,
+# which sets no left_col/right_col; the seeder's foreign-key filler skips general conditions
+# by design, so the FK column was filled by the generic value generator instead and pointed
+# at nothing. The join still worked and the DATA silently did not join, which is the worst
+# of the three possible outcomes.
 _JOIN = re.compile(
-    r"^\s*Join\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*=\s*"
-    r"(?:\[[\w:]+\]\s*)?(\{target\}|\w+)\.(\w+)\s*\)\s*$")
+    r"^\s*Join\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(?:\w+\.)?(\w+)\.(\w+)\s*=\s*"
+    r"(?:\[[\w:]+\]\s*)?(?:\w+\.)?(\{target\}|\w+)\.(\w+)\s*\)\s*$")
 # A Filter's column may carry a store qualifier -- `Filter F([db]T.COL is not null)` -- and
 # its predicate may be a NULL TEST rather than a comparison. Neither was accepted before,
 # so three of this corpus's seven filters matched nothing and were silently absent from
