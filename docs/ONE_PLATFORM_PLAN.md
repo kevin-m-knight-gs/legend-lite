@@ -288,3 +288,62 @@ instrumentation about our platform, not Pure semantics.*
 
 Phases 1 and 2 can interleave (different files, same referee). Nothing here blocks
 urgent product work; every landing leaves the tree strictly better and fully green.
+
+---
+
+## Plan audit (pre-flight, 2026-08-18)
+
+*The plan re-read adversarially before starting — five corrections and three verified
+comforts, so we begin with the weaknesses named rather than discovered.*
+
+**Corrections the audit forced:**
+
+1. **Phase 1 must preserve the side-effect path.** `executeInDb` has TWO uses in the
+   corpus: navigated query results (the chains) AND multi-statement DDL/DML blobs whose
+   result is an opaque handle nobody reads. The typed-ResultSet design covers the first;
+   the second keeps its current execute-and-discard path. Phase 1's acceptance list now
+   includes: the DDL-blob tests (e.g. `ExecuteInDbTest`'s keyword-column blob) unchanged.
+2. **Phase 1 is "modeling plus one new mechanism", not "mostly modeling".** Navigating a
+   result whose columns are only known at run time needs a plan-time schema resolution
+   point (the LIMIT-0 probe moving into compilation). That is genuinely new compiler
+   machinery — bounded, but it is the phase's real work and its real risk. Named
+   honestly.
+3. **Phase 2's default is host-native platform equality, not SQL round-trips.** Most
+   asserts compare values the query already produced; re-lowering each into SQL would
+   add thousands of round-trips to a sweep this machine runs sequentially. The rule:
+   ONE platform equality (Java, Clause 2b) over produced values by default; `EXCEPT`/
+   `COUNT` pushdown only where both sides are still unfetched relations. Perf gate:
+   the sweep's wall-clock must not grow by more than ~10% at any phase-2 landing.
+4. **Phase 2 splits into 2a/2b.** 2a: platform equality + scalar/collection
+   assertEquals/assertSize/assertSameElements (the bulk). 2b: the TDS-grid compare
+   policies (row cohesion, multiset fallback, header pins) migrate as their own step —
+   measured lower bound ~152 grid-literal compares, but the policies also serve
+   grid-shaped values beyond literals, so 2b is sized as its own landing.
+5. **The tenet-#2 guard register has THREE entries, not one:** `pct_adapter.pure`,
+   `pct_types.pure`, `pct_native.pure` — all channel-A resources that execute inside the
+   REFERENCE interpreter, never our runtime. The guard names all three exactly.
+6. **Phase 4's acceptance is a three-bucket diff, not "nearly identical".** Channel A vs
+   channel B rows land as: AGREE / WIRE-BUG (the census we want) / CHANNEL-B-DECLINED
+   with a reason (PCT tests exercising reference-only reflection — `deactivate`,
+   `genericType` inspection — are expected declines, not failures). Promising
+   near-identity without the third bucket would recreate the "100%" mistake.
+7. **Phase 4 entry gate:** before building the runner, a parse census over the PCT test
+   files specifically (the 1,856/2,110 figure is all reference sources; the test files'
+   own rate is the one that matters).
+
+**Verified comforts (checked, not assumed):**
+
+- The `Row.value` navigation really is spec'd as `at`/`indexOf` — Phase 1 compiles
+  functions we already own.
+- Zero `.pure` anywhere under any module's `src/main` except the three channel-A files —
+  tenet #2 needs a guard, not a cleanup.
+- The TDS-grid share of assertEquals is small (~5% by literal count) — phase 2a covers
+  the great bulk of the 3,278 with scalar/collection equality.
+
+**Standing risks accepted, with mitigations:**
+
+- Phases 1+2 interleaving touches `Executor` from both sides → land in alternating
+  batches, full referee between.
+- The harness's compare policies encode adjudications (2-ULP, TDSNull, order rules) —
+  migration must move each policy WITH its written justification, and the referee's
+  byte-match is the proof nothing was silently dropped.
