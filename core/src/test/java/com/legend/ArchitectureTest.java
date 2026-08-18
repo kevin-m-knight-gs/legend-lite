@@ -521,6 +521,30 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>E4 final burn — the INTERPRETER performs no JDBC.</strong>
+     * The metamodel channel (HostEval, MetamodelWalk, MetamodelSteps,
+     * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS and
+     * pre-fetched values only: every grid subtree executes at the seam
+     * ({@code GridReads.preResolve} — the one JDBC pass) before the
+     * interpreter runs. This rule is the ratified adjudication's
+     * mechanical guard: a database VALUE can never be produced inside
+     * the channel, because the channel cannot reach a connection.
+     */
+    @Test
+    void theInterpreterPerformsNoJdbc() {
+        noClasses()
+            .that().haveNameMatching(".*\\.(HostEval|MetamodelWalk"
+                    + "|MetamodelSteps|PlanText|AggAwareActivities)")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage("java.sql..", "javax.sql..",
+                    "org.duckdb..", "org.h2..")
+            .as("E4: the metamodel channel evaluates model constants and"
+                    + " seam-prefetched values only — JDBC lives at the"
+                    + " GridReads.preResolve seam")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>F1.11 — reflection is BANNED in production.</strong>
      * Reflection is the one mechanism that bypasses every dependency
      * rule in this file (a {@code Class.forName("java.sql...")} carries

@@ -16,6 +16,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +40,8 @@ public final class GridReads {
      * this compiler owns (the caller falls back to the interpreter). */
     public static @com.legend.Nullable ExecutionResult tryLower(
             TypedSpec root, Map<String, TypedSpec> lets, ModelContext ctx,
-            HostEval.Ambient amb) throws SQLException {
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
         TypedSpec n = resolve(root, lets);
         // toString / toOne wrappers peel off the root inward
         boolean asString = false;
@@ -63,7 +65,7 @@ public final class GridReads {
             n = resolve(nc.args().get(0), lets);
         }
         // the chain forms over a grid bottom
-        Chain c = chain(n, lets, ctx, amb);
+        Chain c = chain(n, lets, ctx, conn, dialect);
         if (c == null) {
             return null;
         }
@@ -80,7 +82,7 @@ public final class GridReads {
                 if (col == null) {
                     yield null;
                 }
-                List<Object> vals = columnValues(c, col, amb);
+                List<Object> vals = columnValues(c, col, conn);
                 if (at != null && at >= vals.size()) {
                     yield null;   // OOB stays the interpreter's error
                 }
@@ -90,14 +92,26 @@ public final class GridReads {
             case CELLS -> {
                 // flattened row-major cells: at(k) is row k/n, col k%n
                 if (at == null) {
-                    yield null;   // whole-cell-list reads stay interpreted
+                    // the whole cell stream: every value DB-produced,
+                    // Java reshapes 2D to row-major 1D (decode-class)
+                    String base = c.baseSql();
+                    if (base == null) {
+                        yield result(root, List.of());
+                    }
+                    DbMetaData.HostResultSet g = DbMetaData.query(
+                            "SELECT * FROM (" + base + ") _g", conn);
+                    List<Object> flat = new ArrayList<>();
+                    for (List<Object> r : g.rows()) {
+                        flat.addAll(r);
+                    }
+                    yield result(root, flat);
                 }
                 int ncols = c.names().size();
                 String col = c.names().get((int) (at % ncols));
                 String sql = "SELECT " + q(col) + " FROM (" + c.baseSql()
                         + ") _g LIMIT 1 OFFSET " + (at / ncols);
                 DbMetaData.HostResultSet g =
-                        DbMetaData.query(sql, amb.conn());
+                        DbMetaData.query(sql, conn);
                 yield g.rows().isEmpty() ? null
                         : result(root, cast(g.rows().get(0).get(0),
                                 asString));
@@ -108,18 +122,81 @@ public final class GridReads {
                 // for that consumer; positional reads went through at()
                 yield at != null ? null
                         : result(root, columnValues(c, c.names().get(0),
-                                amb));
+                                conn));
             }
         };
     }
 
+    /** THE JDBC SEAM for the interpreter (final-burn design): every
+     * LITERAL grid subtree (executeInDb READS, fetchDb catalog calls)
+     * reachable from {@code root} or its lets is EXECUTED HERE —
+     * identity-keyed finished values the interpreter merely reads.
+     * After this pass the interpreter performs NO JDBC: a grid node
+     * with a non-literal argument stays unresolved and the interpreter
+     * arm WALLS loudly (zero such nodes in the corpus — census-proven).
+     * Matches the old lazy-arm behavior exactly: the same SQL through
+     * the same {@code DbMetaData.query}, order-independent SELECTs. */
+    public static Map<TypedSpec, DbMetaData.HostResultSet> preResolve(
+            TypedSpec root, Map<String, TypedSpec> lets, ModelContext ctx,
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
+        java.util.IdentityHashMap<TypedSpec, DbMetaData.HostResultSet> out =
+                new java.util.IdentityHashMap<>();
+        java.util.Set<TypedSpec> seen = java.util.Collections.newSetFromMap(
+                new java.util.IdentityHashMap<>());
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(root);
+        work.addAll(lets.values());
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (!seen.add(t)) {
+                continue;
+            }
+            if (t instanceof TypedNativeCall nc) {
+                String fqn = nc.callee().qualifiedName();
+                if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)
+                        && resolve(nc.args().get(0), lets)
+                                instanceof TypedCString sql) {
+                    String raw = sql.value().strip();
+                    if (raw.endsWith(";")) {
+                        raw = raw.substring(0, raw.length() - 1);
+                    }
+                    out.put(nc, DbMetaData.query(dialect.rawH2IsNative()
+                            ? raw : RawSqlBoundary.h2ToDuckDb(raw), conn));
+                } else if (PlatformTypes.isFetchDbFn(fqn)) {
+                    String a1 = literalPattern(nc, 1, lets);
+                    String a2 = nc.args().size() > 2
+                            ? literalPattern(nc, 2, lets) : null;
+                    String a3 = nc.args().size() > 3
+                            ? literalPattern(nc, 3, lets) : null;
+                    if (!bad(a1) && !bad(a2) && !bad(a3)) {
+                        out.put(nc, switch (PlatformTypes.fetchDbKind(fqn)) {
+                            case SCHEMAS -> DbMetaData.fetch(fqn, a1, null,
+                                    null, conn);
+                            case TABLES -> DbMetaData.fetch(fqn, a1, a2,
+                                    null, conn);
+                            case COLUMNS -> DbMetaData.fetch(fqn, a1, a2,
+                                    a3, conn);
+                            case PRIMARY_KEYS -> DbMetaData.fetchPrimaryKeys(
+                                    DbMetaData.pkFacts(ctx,
+                                            nc.args().get(0), lets),
+                                    a1, a2, conn);
+                        });
+                    }
+                }
+            }
+            work.addAll(t.children());
+        }
+        return out;
+    }
+
     private static List<Object> columnValues(Chain c, String col,
-            HostEval.Ambient amb) throws SQLException {
+            Connection conn) throws SQLException {
         if (c.baseSql() == null) {
             return List.of();   // the no-facts PK grid
         }
         String sql = "SELECT " + q(col) + " FROM (" + c.baseSql() + ") _g";
-        DbMetaData.HostResultSet g = DbMetaData.query(sql, amb.conn());
+        DbMetaData.HostResultSet g = DbMetaData.query(sql, conn);
         List<Object> out = new ArrayList<>(g.rows().size());
         for (List<Object> r : g.rows()) {
             out.add(r.get(0));
@@ -145,12 +222,13 @@ public final class GridReads {
 
     private static @com.legend.Nullable Chain chain(TypedSpec n,
             Map<String, TypedSpec> lets, ModelContext ctx,
-            HostEval.Ambient amb) throws SQLException {
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
         n = resolve(n, lets);
         // fold({a,b| concatenate($a.values->at(k), $b)}, []) over rows:
         // the column-collect idiom — column k of the grid
         if (n instanceof TypedFold f) {
-            Chain src = chain(f.source(), lets, ctx, amb);
+            Chain src = chain(f.source(), lets, ctx, conn, dialect);
             if (src == null || src.kind() != Kind.ROWS) {
                 return null;
             }
@@ -166,24 +244,37 @@ public final class GridReads {
         // mapper body is value($row, 'NAME'))
         if (n instanceof TypedUserCall uc) {
             Chain c = valueRead(uc, uc.args().isEmpty() ? null
-                    : uc.args().get(0), null, lets, ctx, amb);
+                    : uc.args().get(0), null, lets, ctx, conn, dialect);
             if (c != null) {
                 return c;
             }
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedMap m
                 && m.mapper().parameters().size() == 1
-                && !m.mapper().body().isEmpty()
-                && m.mapper().body().get(m.mapper().body().size() - 1)
-                        instanceof TypedUserCall muc) {
-            Chain c = valueRead(muc, m.source(),
-                    m.mapper().parameters().get(0), lets, ctx, amb);
-            if (c != null) {
-                return c;
+                && !m.mapper().body().isEmpty()) {
+            TypedSpec body = m.mapper().body().get(m.mapper().body().size() - 1);
+            String rowVar = m.mapper().parameters().get(0);
+            if (body instanceof TypedUserCall muc) {
+                Chain c = valueRead(muc, m.source(), rowVar, lets, ctx, conn, dialect);
+                if (c != null) {
+                    return c;
+                }
+            }
+            // .values over rows[*] AUTO-MAPS too: map({r|$r.values}) —
+            // the flattened row-major cell stream
+            if (body instanceof TypedPropertyAccess bp
+                    && "values".equals(bp.property())
+                    && bp.source() instanceof TypedVariable brv
+                    && brv.name().equals(rowVar)) {
+                Chain src = chain(m.source(), lets, ctx, conn, dialect);
+                if (src != null && src.kind() == Kind.ROWS) {
+                    return new Chain(Kind.CELLS, src.baseSql(), src.names(),
+                            null);
+                }
             }
         }
         if (n instanceof TypedPropertyAccess pa) {
-            Chain src = chain(pa.source(), lets, ctx, amb);
+            Chain src = chain(pa.source(), lets, ctx, conn, dialect);
             if (src == null) {
                 return null;
             }
@@ -220,9 +311,9 @@ public final class GridReads {
             if (raw.endsWith(";")) {
                 raw = raw.substring(0, raw.length() - 1);
             }
-            String adapted = amb.dialect().rawH2IsNative()
+            String adapted = dialect.rawH2IsNative()
                     ? raw : RawSqlBoundary.h2ToDuckDb(raw);
-            return new Chain(Kind.ROWS, adapted, probeNames(adapted, amb),
+            return new Chain(Kind.ROWS, adapted, probeNames(adapted, conn),
                     null);
         }
         return null;
@@ -236,7 +327,8 @@ public final class GridReads {
             @com.legend.Nullable TypedSpec src,
             @com.legend.Nullable String rowVar,
             Map<String, TypedSpec> lets, ModelContext ctx,
-            HostEval.Ambient amb) throws SQLException {
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
         if (src == null || uc.args().size() != 2
                 || !uc.callee().qualifiedName().contains("::execute::")
                 || !uc.callee().qualifiedName().endsWith("value")
@@ -248,7 +340,7 @@ public final class GridReads {
                         && rv.name().equals(rowVar))) {
             return null;
         }
-        Chain rows = chain(src, lets, ctx, amb);
+        Chain rows = chain(src, lets, ctx, conn, dialect);
         if (rows == null || rows.kind() != Kind.ROWS
                 || !rows.names().contains(col.value())) {
             return null;
@@ -359,8 +451,8 @@ public final class GridReads {
     /** LIMIT-0 metadata probe: the projection NAMES of a raw read —
      * schema only, never a value (the E1 probe discipline). */
     private static List<String> probeNames(String sql,
-            HostEval.Ambient amb) throws SQLException {
+            Connection conn) throws SQLException {
         return DbMetaData.query("SELECT * FROM (" + sql + ") _p LIMIT 0",
-                amb.conn()).columnNames();
+                conn).columnNames();
     }
 }

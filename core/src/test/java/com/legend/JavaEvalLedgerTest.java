@@ -16,13 +16,28 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE TENET RATCHET (JAVA_EVICTION_PLAN E0): tenet #1 — "Java
- * orchestrates, the DATABASE executes" — enforced as a shrink-only
- * ledger instead of prose. Every EVICT row below is a Java surface that
- * COMPUTES a value or COMPOSES text a test assertion observes as the
- * result of executing a Pure expression. A NEW evaluator method on a
- * ledgered file fails this test; an evicted one forces its row to
- * SHRINK. The program is done when every EVICT row is zero and deleted.
+ * THE TENET RATCHET (JAVA_EVICTION_PLAN E0; program CLOSED 2026-08-18):
+ * tenet #1 — "Java orchestrates, the DATABASE executes" — enforced as a
+ * shrink-only ledger instead of prose. The EVICTION is COMPLETE: every
+ * value a test assertion or product consumer observes as the result of
+ * executing a Pure expression is DATABASE-PRODUCED (PCT wire, product
+ * CSV/JSON, corpus rows, metadata grids, JSON-source frames, testdatagen
+ * text, grid-read chains). The rows below are the REGISTER — the
+ * adjudicated residue, each class justified, still shrink-only: growth
+ * is a new Java-evaluation site and needs a deliberate pin bump with a
+ * written justification.
+ *
+ * <p>THE METAMODEL CHANNEL (ratified adjudication, JAVA_EVICTION_PLAN):
+ * HostEval/MetamodelWalk/MetamodelSteps/PlanText/AggAwareActivities
+ * evaluate MODEL CONSTANTS (instance construction from {@code ^Class}
+ * literals), replicate engine metamodel TRANSFORMATIONS under test
+ * (convertElement, wrapH2Boolean — node-to-node assertions, no text),
+ * and compose engine-parity TEXT through single-owner spellings (the
+ * Ddl ENGINE_TEXT flavor, dataTypeToSqlText, the plan-text envelope).
+ * NO DATABASE VALUE can enter the channel: grids pre-fetch at the seam
+ * ({@code GridReads.preResolve} — the one JDBC pass) and
+ * {@code ArchitectureTest.theInterpreterPerformsNoJdbc} makes the
+ * boundary mechanical (the channel cannot reach a connection).
  *
  * <p>PERMANENT-ALLOWED (the registered residue — justified, not
  * counted): the egress decode cluster ({@code Executor.fetch/unwrap/
@@ -35,17 +50,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JavaEvalLedgerTest {
 
-    /** SIZE rows (whole-file E4 surfaces): pinned MAX line count,
-     * measured 2026-08-17 — the file may only SHRINK or hold; growth is
-     * a new Java-evaluation site and needs a deliberate pin bump with a
-     * justification (the code-shape-guard convention). */
+    /** SIZE rows — the METAMODEL-CHANNEL register: pinned MAX line
+     * count, shrink-only (growth needs a pin bump with a written
+     * justification — the code-shape-guard convention). The PCT
+     * extension row is the E1 adapter-contract residue (ingress
+     * splicing, the scalar bridge, the H4 message remap). */
     private static final Map<String, Integer> EVICT_SIZE = Map.of(
-            // E1 — the WHOLE PCT extension is size-pinned (deep-audit
-            // follow-up: the name row alone under-covered it — print
-            // decisions also live in the value bridge), shrink-only
-            // until root mode reduces it to the adapter contract
             "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101,
-            "core/src/main/java/com/legend/exec/HostEval.java", 928,
+            "core/src/main/java/com/legend/exec/HostEval.java", 863,
             "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
             "core/src/main/java/com/legend/plan/PlanText.java", 888,

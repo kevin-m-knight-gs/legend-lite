@@ -345,13 +345,33 @@ tree, include-closure merged), existence-filtered against the LIVE catalog in SQ
 orchestration + egress decode by contract). Grid values still flow into interpreter
 fold/at chains — E4.e's residue, pinned by the HostEval rows.
 
-## 4. Definition of done
+## 4. Definition of done — **PROGRAM CLOSED 2026-08-18**
 
-1. Every EVICT ledger row at zero (row deleted from the test).
-2. The PERMANENT-ALLOWED register is the complete residue, each row justified.
-3. Corpus + PCT referees green through every leg; declared deltas verdicted.
-4. Tenet #1 re-worded in AGENTS.md/TENET_CHARTER from aspiration to INVARIANT, citing the
-   ledger as its enforcement.
+1. Every EVICT ledger row at zero (row deleted from the test). **DONE** — the dead-name
+   rows pin the deletions (shapeRow, JsonSourceFrame realization, PCT composition, the
+   second DDL speller, renderCsv, ResultJson/serializer rows retired); the remaining
+   size rows ARE the register (see 2).
+2. The PERMANENT-ALLOWED register is the complete residue, each row justified. **DONE**
+   — `JavaEvalLedgerTest` reclassified as THE REGISTER: the metamodel channel
+   (model-constant construction + engine transformation replication + single-owner
+   engine-parity text) plus the E1 adapter residue, all shrink-only; the census-proven
+   adjudication is that NO corpus test renders SQL text from a hand-built tree (the
+   converter demand is vacuous — node-to-node assertions only), and NO database value
+   can enter the channel: grids pre-fetch at the ONE JDBC pass
+   (`GridReads.preResolve`) and `ArchitectureTest.theInterpreterPerformsNoJdbc` makes
+   the boundary mechanical — HostEval carries no `java.sql` at all.
+3. Corpus + PCT referees green through every leg; declared deltas verdicted. **DONE** —
+   corpus 2339 (gains declared in BURNDOWN_EXPLANATIONS §0.4), PCT 1110/1110 both
+   backends, every batch full-chain green.
+4. Tenet #1 re-worded in AGENTS.md from aspiration to INVARIANT citing the ledger + the
+   two ArchitectureTest rules. **DONE.**
+
+**Final residue census (instrument removed at close):** ~41 interpreter firings across
+two families — map-lookups over seam-prefetched grids and model navigation; zero JDBC,
+zero DB-value computation. The `sqlQueryToString` family's 3,390 firings are
+construction + transformation replication over model constants (census-proven
+node-equality assertions). The census instrument (`LL_HOST_ARM_COUNT`) was removed at
+close per its obligation; the invariant is carried by the guards, not the instrument.
 
 Dependency order: **E0 → E1 → E2 → E3 → E5 → E4.a → E4.b → E4.c → E4.d → E4.e.**
 (E5 slots after E3: it reuses E1's root-mode render vocabulary and is independent of E4.)

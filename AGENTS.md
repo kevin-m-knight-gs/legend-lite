@@ -14,10 +14,19 @@
 > comment naming the task/incident — never as an edit-in-passing to make
 > a build green (docs/FOUNDATIONS_PLAN.md §0.4).
 >
-> **Execution tenet:** *Java orchestrates, the DATABASE executes.* The
-> adjudication authority is `docs/TENET_CHARTER.md` (clauses C1-C5: what
-> orchestration may do, what execution may not, the host-channel provenance
-> rule, the LiteralFold literal exception, the ingress mirror). Consult it
+> **Execution tenet — an INVARIANT, not an aspiration (eviction program
+> closed 2026-08-18):** *Java orchestrates, the DATABASE executes.* Every
+> value a test assertion or product consumer observes as the result of
+> executing a Pure expression is DATABASE-PRODUCED; this is enforced
+> mechanically, not culturally: `JavaEvalLedgerTest` (shrink-only pins on
+> the registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
+> (JDBC only at the chartered seams) and
+> `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
+> cannot reach a connection — grids pre-fetch at `GridReads.preResolve`,
+> the one JDBC pass). The adjudication authority is `docs/TENET_CHARTER.md`
+> (clauses C1-C5) plus `docs/JAVA_EVICTION_PLAN.md` §1's decision rule
+> (query-time values → the DB; build-time model text → typed constants;
+> engine-exact text → a render TARGET of the one compiler). Consult them
 > before any "may Java compute this?" decision.
 >
 > **Authoritative spec:** `core/README.md` — folder layout, per-package

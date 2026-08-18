@@ -288,26 +288,23 @@ public final class HostEval {
 
     private static final ThreadLocal<com.legend.compiler.element.ModelContext>
             CTX = new ThreadLocal<>();
-    /** The AMBIENT JDBC session (F6.6): executeInDb READS run here — the
-     * database the raw writes actually seeded — never a replayed shadow.
-     * Bound by the full entry; absent (HostEvalTest's bare entry, any
-     * product-less path) the read refuses loudly. */
-    public record Ambient(java.sql.Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect) {
-    }
-
-    private static final ThreadLocal<Ambient> AMBIENT = new ThreadLocal<>();
     private static final ThreadLocal<com.legend.compiler.spec.SpecCompiler>
             SPECS = new ThreadLocal<>();
     /** Enclosing LET bindings (typed, unevaluated) — resolved lazily on
      * first variable read, memoized into the eval scope. */
     private static final ThreadLocal<Map<String, TypedSpec>> LETS =
             new ThreadLocal<>();
+    /** PRE-RESOLVED grid values (final-burn design): every executeInDb
+     * READ / fetchDb subtree was EXECUTED at the seam
+     * ({@code GridReads.preResolve} — the ONE JDBC pass); the
+     * interpreter reads finished values by node identity and performs
+     * NO JDBC of its own. */
+    private static final ThreadLocal<Map<TypedSpec,
+            DbMetaData.HostResultSet>> PRE = new ThreadLocal<>();
 
     /** Whole-expression entry: host value wrapped as an ExecutionResult. */
     public static ExecutionResult evalToResult(TypedSpec root,
-            com.legend.compiler.element.ModelContext ctx)
-            throws java.sql.SQLException {
+            com.legend.compiler.element.ModelContext ctx) {
         return evalToResult(root, ctx, null, Map.of());
     }
 
@@ -316,33 +313,32 @@ public final class HostEval {
     public static ExecutionResult evalToResult(TypedSpec root,
             com.legend.compiler.element.ModelContext ctx,
             com.legend.compiler.spec.@com.legend.Nullable SpecCompiler specs,
-            Map<String, TypedSpec> lets) throws java.sql.SQLException {
-        return evalToResult(root, ctx, specs, lets, null);
+            Map<String, TypedSpec> lets) {
+        return evalToResult(root, ctx, specs, lets, Map.of());
     }
 
-    /** Full entry with the ambient session bound (F6.6). */
+    /** Full entry with the seam's pre-resolved grid values. */
     public static ExecutionResult evalToResult(TypedSpec root,
             com.legend.compiler.element.ModelContext ctx,
             com.legend.compiler.spec.@com.legend.Nullable SpecCompiler specs,
-            Map<String, TypedSpec> lets, @com.legend.Nullable Ambient ambient)
-            throws java.sql.SQLException {
+            Map<String, TypedSpec> lets,
+            Map<TypedSpec, DbMetaData.HostResultSet> preResolved) {
         CTX.set(ctx);
         SPECS.set(specs);
         LETS.set(lets);
-        AMBIENT.set(ambient);
+        PRE.set(preResolved);
         try {
             return evalToResult(root);
         } finally {
             CTX.remove();
             SPECS.remove();
             LETS.remove();
-            AMBIENT.remove();
+            PRE.remove();
         }
     }
 
     /** Whole-expression entry: host value wrapped as an ExecutionResult. */
-    public static ExecutionResult evalToResult(TypedSpec root)
-            throws java.sql.SQLException {
+    public static ExecutionResult evalToResult(TypedSpec root) {
         Object hv = eval(root, new LinkedHashMap<>());
         if (hv instanceof List<?> hl) {
             return new ExecutionResult.Collection(
@@ -351,16 +347,7 @@ public final class HostEval {
         return new ExecutionResult.Scalar(hv, root.info().type());
     }
 
-    private static Object eval(TypedSpec node, Map<String, Object> scope)
-            throws java.sql.SQLException {
-        // E4 instrument (census-mandated): one line per arm firing so a
-        // full referee cycle yields the per-family demand counts
-        if (System.getenv("LL_HOST_ARM_COUNT") != null) {
-            System.err.println("[host-arm] "
-                    + (node instanceof TypedNativeCall n
-                            ? "native:" + n.callee().qualifiedName()
-                            : node.getClass().getSimpleName()));
-        }
+    private static Object eval(TypedSpec node, Map<String, Object> scope) {
         switch (node) {
             case TypedNativeCall nc -> {
                 return evalNative(nc, scope);
@@ -377,11 +364,11 @@ public final class HostEval {
     /** Native-function arms — the collection/logic/string vocabulary the
      * host channel implements (grows per wall, each loud). */
     private static Object evalNative(TypedNativeCall nc,
-            Map<String, Object> scope) throws java.sql.SQLException {
+            Map<String, Object> scope) {
         String fqn = nc.callee().qualifiedName();
         {
                 if (PlatformTypes.isFetchDbFn(fqn)) {
-                    return fetch(nc, scope);
+                    return preResolved(nc);
                 }
                 if (PlatformTypes.STORE_SCHEMA_NAV.equals(fqn)) {
                     return schemaNav(nc, scope);
@@ -405,22 +392,10 @@ public final class HostEval {
                     return List.of();
                 }
                 if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)) {
-                    // F6.6 (audit §5 A9): the READ path runs on the
-                    // AMBIENT session — the database the raw writes
-                    // actually seeded — through the same raw-H2 boundary
-                    // adaptation as the write path. The old fresh-H2
-                    // replay answered from a partially-populated shadow.
-                    Object sqlv = eval(nc.args().get(0), scope);
-                    Ambient amb = AMBIENT.get();
-                    if (amb == null) {
-                        throw new NotImplementedException(
-                                "host-eval: executeInDb read without an"
-                                + " ambient connection");
-                    }
-                    String sql = String.valueOf(asList(sqlv).get(0));
-                    return DbMetaData.query(amb.dialect().rawH2IsNative()
-                            ? sql : RawSqlBoundary.h2ToDuckDb(sql),
-                            amb.conn());
+                    // final-burn design: the read was EXECUTED at the
+                    // seam (GridReads.preResolve — the one JDBC pass);
+                    // the interpreter only picks up the finished grid
+                    return preResolved(nc);
                 }
                 switch (fqn) {
                     case "meta::pure::functions::collection::fold" -> {
@@ -553,7 +528,7 @@ public final class HostEval {
     /** Runtime match dispatch — first arm whose declared type accepts
      * the RUNTIME value (real pure Match semantics). */
     private static Object evalMatchRuntime(TypedMatchRuntime mr,
-            Map<String, Object> scope) throws java.sql.SQLException {
+            Map<String, Object> scope) {
         Object in = eval(mr.input(), scope);
         Object inOne = asList(in).size() == 1 ? asList(in).get(0) : in;
         for (TypedMatchRuntime.Arm arm : mr.arms()) {
@@ -572,8 +547,7 @@ public final class HostEval {
     }
 
     /** The non-native, non-match node arms. */
-    private static Object evalRest(TypedSpec node, Map<String, Object> scope)
-            throws java.sql.SQLException {
+    private static Object evalRest(TypedSpec node, Map<String, Object> scope) {
         switch (node) {
             case TypedMap m -> {
                 List<Object> src = asList(eval(m.source(), scope));
@@ -784,46 +758,28 @@ public final class HostEval {
                         : src.getClass().getSimpleName()));
     }
 
-    private static DbMetaData.HostResultSet fetch(TypedNativeCall nc,
-            Map<String, Object> scope) throws java.sql.SQLException {
-        String fqn = nc.callee().qualifiedName();
-        // arg 0 is the connection — an orchestration handle, never
-        // evaluated (the H2 second target IS the metadata connection)
-        String a1 = patternArg(nc, 1, scope);
-        String a2 = nc.args().size() > 2 ? patternArg(nc, 2, scope) : null;
-        String a3 = nc.args().size() > 3 ? patternArg(nc, 3, scope) : null;
-        // E4.b: catalog queries run on the AMBIENT session — the
-        // database the raw writes actually seeded (F6.6); the throwaway
-        // shadow-H2 replay is DELETED
-        Ambient amb = AMBIENT.get();
-        if (amb == null) {
-            throw new NotImplementedException(
-                    "host-eval database metadata (fetchDb*) requires the"
-                    + " ambient session (F6.6) — none is bound on this"
-                    + " entry");
+    /** The seam-EXECUTED grid for a fetchDb/executeInDb node (final-burn
+     * design): {@code GridReads.preResolve} ran every literal grid
+     * subtree through the ONE JDBC pass; a miss means a NON-LITERAL
+     * argument reached the interpreter — a loud wall, never a query. */
+    private static DbMetaData.HostResultSet preResolved(TypedNativeCall nc) {
+        Map<TypedSpec, DbMetaData.HostResultSet> pre = PRE.get();
+        DbMetaData.HostResultSet g = pre == null ? null : pre.get(nc);
+        if (g == null) {
+            throw new NotImplementedException("host-eval: a "
+                    + nc.callee().qualifiedName() + " grid was not"
+                    + " pre-resolved at the seam — its argument is not a"
+                    + " literal (extend GridReads.preResolve, the one"
+                    + " JDBC pass; the interpreter performs no JDBC)");
         }
-        return switch (PlatformTypes.fetchDbKind(fqn)) {
-            case SCHEMAS -> DbMetaData.fetch(fqn, a1, null, null,
-                    amb.conn());
-            case TABLES -> DbMetaData.fetch(fqn, a1, a2, null,
-                    amb.conn());
-            case COLUMNS -> DbMetaData.fetch(fqn, a1, a2, a3, amb.conn());
-            // PRIMARY KEYS are MODEL facts (the ambient DDL deliberately
-            // omits them — milestoned re-seeds): literal rows from the
-            // connection's store, existence-filtered against the live
-            // catalog IN SQL
-            case PRIMARY_KEYS -> DbMetaData.fetchPrimaryKeys(
-                    DbMetaData.pkFacts(CTX.get(), nc.args().get(0),
-                            LETS.get() == null ? Map.of() : LETS.get()),
-                    a1, a2, amb.conn());
-        };
+        return g;
     }
 
     /** schema(db, name): the include-closure schema lookup with MERGED
      * tables (functions.pure:227-235) over the compiled store model;
      * top-level tables are the 'default' schema. */
     private static Object schemaNav(TypedNativeCall nc,
-            Map<String, Object> scope) throws java.sql.SQLException {
+            Map<String, Object> scope) {
         if (!(nc.args().get(0) instanceof
                 com.legend.compiler.spec.typed.TypedPackageableRef db)) {
             throw new NotImplementedException(
@@ -889,20 +845,6 @@ public final class HostEval {
 
     /** A String[0..1] pattern argument: literal, empty collection (null =
      * match all), or an in-scope binding. */
-    private static @com.legend.Nullable String patternArg(TypedNativeCall nc, int i,
-            Map<String, Object> scope) throws java.sql.SQLException {
-        Object v = eval(nc.args().get(i), scope);
-        List<Object> l = asList(v);
-        if (l.isEmpty()) {
-            return null;
-        }
-        if (l.size() == 1 && l.get(0) instanceof String s) {
-            return s;
-        }
-        throw new IllegalStateException("fetchDb pattern argument " + i
-                + " is not a String[0..1]: " + v);
-    }
-
     @SuppressWarnings("unchecked")
     private static List<Object> asList(Object v) {
         if (v instanceof List<?> l) {

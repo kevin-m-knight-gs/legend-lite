@@ -503,6 +503,18 @@ final class StatementExecutor {
         return new EngineSql(plan, text, body);
     }
 
+    /** The executeTyped-tail host seam (final-burn design): every
+     * literal grid subtree executes HERE via GridReads.preResolve — the
+     * one JDBC pass; the interpreter receives finished values only. */
+    private static ExecutionResult hostEvalAtSeam(TypedSpec root,
+            ExecEnv env) throws java.sql.SQLException {
+        return com.legend.exec.HostEval.evalToResult(root, env.ctx(),
+                null, java.util.Map.of(),
+                com.legend.exec.GridReads.preResolve(root,
+                        java.util.Map.of(), env.ctx(),
+                        env.connection(), env.dialect()));
+    }
+
     /** HOST channel BEFORE the inliner: recursive corpus functions over
      * metamodel instances cannot β-inline (the inliner is loud on
      * cycles) — the host evaluator runs them with real call frames.
@@ -531,20 +543,22 @@ final class StatementExecutor {
         if (!com.legend.exec.HostEval.wantsHostEval(bare, hostLets)) {
             return null;
         }
-        com.legend.exec.HostEval.Ambient amb =
-                new com.legend.exec.HostEval.Ambient(
-                        env.connection(), env.dialect());
         // E4.e: a recognized grid-read chain COMPILES INTO SQL — the
         // database produces the chain's values; anything else falls
         // through to the interpreter (per-shape eviction)
         com.legend.exec.ExecutionResult lowered =
                 com.legend.exec.GridReads.tryLower(bare, hostLets,
-                        env.ctx(), amb);
+                        env.ctx(), env.connection(), env.dialect());
         if (lowered != null) {
             return lowered;
         }
+        // final-burn design: ALL JDBC happens HERE (the seam) — every
+        // literal grid subtree executes now; the interpreter receives
+        // finished values and performs no JDBC of its own
         return com.legend.exec.HostEval.evalToResult(
-                bare, env.ctx(), specs, hostLets, amb);
+                bare, env.ctx(), specs, hostLets,
+                com.legend.exec.GridReads.preResolve(bare, hostLets,
+                        env.ctx(), env.connection(), env.dialect()));
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
@@ -2960,10 +2974,7 @@ final class StatementExecutor {
         // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
         // HOST-SIDE against the H2 second target (task #43 slice B2)
         if (com.legend.exec.HostEval.wantsHostEval(root)) {
-            return com.legend.exec.HostEval.evalToResult(root, env.ctx(),
-                    null, java.util.Map.of(),
-                    new com.legend.exec.HostEval.Ambient(
-                            env.connection(), env.dialect()));
+            return hostEvalAtSeam(root, env);
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
