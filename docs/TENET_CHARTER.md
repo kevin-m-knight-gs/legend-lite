@@ -58,6 +58,23 @@ and belongs in the database:
   rules live in the SQL emission path (`Scalars.floatRepr`, `DateFmt`) and render in the
   database (Phase 4). The only exception is Clause 4.
 
+## Clause 2b — Platform natives (ratified 2026-08-18)
+
+Tenet #1 governs DATA evaluation: any value derived from stored data reaches the user
+through SQL. It does NOT require pushing every Pure construct into the database. A
+legend-pure semantic may be implemented as a NATIVE JAVA PLATFORM FUNCTION where pushing
+it down is senseless or wrong — asserts, unordered/multiset checks, metamodel operations,
+comparison policies over already-produced results. Three conditions make such a native
+legitimate rather than a shadow implementation: (1) ONE owner, in the platform
+({@code com.legend}), on the compiled surface — never a harness-private copy; (2) the
+engine/legend-pure {@code .pure} source is the SPEC it is ported from and verified
+against; (3) it is registered — the eval ledger distinguishes "platform native" from
+"evaluation residue awaiting eviction". This is how legend-pure itself is built (the
+reference interpreter's natives are Java); an implementation of Pure is not un-Pure for
+having Java natives. What remains banned: data-derived values computed host-side, and
+SECOND implementations of semantics the platform already owns (the harness's private
+equality/envelope/decode copies are migration targets, not exemplars).
+
 ## Clause 3 — Provenance, not arms (the host channel)
 
 **No `ResultSet`-derived value may be EVALUATED in Java on the host channel.** The
