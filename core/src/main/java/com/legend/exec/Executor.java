@@ -156,62 +156,57 @@ public final class Executor {
     }
 
     /**
-     * The STREAMING entry — JSON straight to {@code out}, no materialization
-     * for unbounded shapes. TABULAR iterates the ResultSet lazily through the
-     * SAME cell/column machinery as {@link #execute} (fetch/unwrap/shaping —
-     * one set of rules); GRAPH expects the streaming lowering's one
-     * {@code json_object} per JDBC row ({@code Lowerer#withStreamingGraphRoot})
-     * and writes each row's JSON verbatim inside an enclosing array. SCALAR
-     * and COLLECTION are bounded by contract — materialized, then written.
-     * Flushes after every row so downstream buffers (OutputStreamWriter,
-     * HttpExchange, sockets) release bytes as rows arrive. {@code out} is
-     * never closed — the caller owns its lifecycle.
+     * E5 (JAVA_EVICTION_PLAN): ONE plan-rendered text value (the wire
+     * column) — pure byte transport, the database composed the text.
      */
-    public static void stream(String sql, SqlQuery plan, ExprType rootType,
-                              ResultShape shape, Connection connection,
-                              com.legend.sql.dialect.SqlDialect dialect,
-                              java.io.Writer out)
-            throws SQLException, java.io.IOException {
+    public static String wireText(String sql, Connection connection)
+            throws SQLException {
         dumpSql(sql);
-        switch (shape) {
-            case TABULAR -> streamTabular(sql, plan, rootType, connection, dialect, out);
-            case GRAPH -> streamGraph(sql, connection, dialect, out);
-            case SCALAR, COLLECTION -> {
-                out.write(ResultJson.toJsonArray(
-                        execute(sql, plan, rootType, shape, connection, dialect)));
-                out.flush();
+        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
+             ResultSet rs = st.executeQuery()) {
+            if (!rs.next()) {
+                throw new IllegalStateException(
+                        "wire render produced no row");
             }
+            String s = rs.getString(1);
+            return s == null ? "" : s;
         }
     }
 
-    private static void streamTabular(String sql, SqlQuery plan, ExprType rootType,
-            Connection connection, com.legend.sql.dialect.SqlDialect dialect,
+    /**
+     * E5: stream the plan-rendered JSON rows (one {@code _wire_row}
+     * object text per JDBC row — {@code Render.jsonWireRows}); Java
+     * writes only the array punctuation, flushing per row so downstream
+     * buffers release bytes as rows arrive. {@code out} is never closed.
+     */
+    public static void streamWireRows(String sql, Connection connection,
             java.io.Writer out) throws SQLException, java.io.IOException {
-        final Type.RelationType schema = tabularSchema(rootType);
+        dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
-            int n = rs.getMetaData().getColumnCount();
-            List<Column> columns = resolveColumns(rs, plan, schema, n);
             out.write('[');
             boolean first = true;
             while (rs.next()) {
-                for (Row row : shapeRow(rs, n, plan, dialect, schema, columns)) {
-                    if (!first) {
-                        out.write(',');
-                    }
-                    first = false;
-                    ResultJson.writeRow(out, columns, row.values());
-                    out.flush();
+                if (!first) {
+                    out.write(',');
                 }
+                first = false;
+                String row = rs.getString(1);
+                out.write(row != null ? row : "null");
+                out.flush();
             }
             out.write(']');
             out.flush();
         }
     }
 
-    private static void streamGraph(String sql, Connection connection,
+    /** GRAPH streaming: the streaming lowering's one {@code json_object}
+     * per JDBC row ({@code Lowerer#withStreamingGraphRoot}), each row's
+     * JSON written verbatim inside an enclosing array. */
+    public static void streamGraph(String sql, Connection connection,
             com.legend.sql.dialect.SqlDialect dialect, java.io.Writer out)
             throws SQLException, java.io.IOException {
+        dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             out.write('[');
@@ -252,7 +247,7 @@ public final class Executor {
                 case SCALAR -> {
                     Object v = rs.next()
                             ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
-                                    rootType.type(), plan)
+                                    rootType.type())
                             : null;
                     // a SECOND row under a scalar-shaped root is a resolver/
                     // lowering bug (e.g. a to-one stand-in leaking rows) —
@@ -269,7 +264,7 @@ public final class Executor {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
-                                rootType.type(), plan);
+                                rootType.type());
                         // a NULL cell is a pure EMPTY, and no pure collection
                         // holds empties — Person.all().middleName over a row
                         // with no middle name contributes nothing, not null
@@ -315,22 +310,30 @@ public final class Executor {
 
     /**
      * LATTICE-typed roots recover their values' own kinds from the
-     * identity channel's print forms (computed by the database) — plus
-     * ONE remaining value-consulting heuristic this header previously
-     * mislabeled an encoding: the TIMESTAMP-carried midnight StrictDate
-     * reads the cell's MAGNITUDE (00:00 => date), audit A10 — a genuine
-     * DateTime at exactly midnight is misread. Root cause is
-     * PureSql's DATE/DATE_TIME collapse to TIMESTAMP; F5.4 carries the
-     * kind as a typed fact and deletes the heuristic. The other
-     * value-consulting heuristics (integral-double narrowing, scale-0
-     * decimal narrowing) WERE audited out.
+     * identity channel's print forms (computed by the database). The
+     * TIMESTAMP-midnight StrictDate heuristic that used to live here
+     * (audit A10: it read the cell's MAGNITUDE, and a genuine DateTime
+     * at exactly midnight was misread) is DELETED BY PROOF (F5.4): an
+     * instrumented probe fired ZERO times across all three referees —
+     * the full DuckDB corpus, the full H2 corpus, and the 1,109-test
+     * PCT suite. Mapped DATE columns arrive as {@code java.sql.Date}
+     * (the COLUMN's SQL kind carries the fact); a TIMESTAMP under an
+     * abstract Date root keeps its time and decodes as a DateTime —
+     * the A10-correct semantics. The other value-consulting heuristics
+     * (integral-double narrowing, scale-0 decimal narrowing) WERE
+     * audited out earlier.
      */
-    private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v, Type rootType,
-            SqlQuery plan) {
+    private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v,
+            Type rootType) {
         // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
         // Number collections return each element's pure PRINT FORM as text
         // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
         // identities stay strings — the wire's date convention.)
+        // V1.7 adjudication (Phase 8): the audit read this as re-parsing
+        // the DB's print form; it is the DELIBERATE carrier decode of the
+        // mixed-identity design (PCT burn-down: print-form carrier beat
+        // the typed-sibling-column alternative) — the print form IS the
+        // wire contract for NUMBER-rooted mixed collections.
         if (rootType == Type.Primitive.NUMBER && v instanceof String s) {
             if (s.endsWith("D")) {
                 return new java.math.BigDecimal(s.substring(0, s.length() - 1));
@@ -339,18 +342,6 @@ public final class Executor {
                 return Double.valueOf(s);
             }
             return Long.valueOf(s);
-        }
-        if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
-                && t.toLocalDateTime().toLocalTime()
-                        .equals(java.time.LocalTime.MIDNIGHT)) {
-            return t.toLocalDateTime().toLocalDate();
-        }
-        // the BC carrier (fetch keeps LocalDateTime where Timestamp is
-        // unfaithful) gets the SAME midnight narrowing — carrier choice
-        // must not change the recovered kind
-        if (rootType == Type.Primitive.DATE && v instanceof java.time.LocalDateTime ldt
-                && ldt.toLocalTime().equals(java.time.LocalTime.MIDNIGHT)) {
-            return ldt.toLocalDate();
         }
         return v;
     }
@@ -361,6 +352,15 @@ public final class Executor {
      * kind — a number is a Number again, not the string {@code "1"}. Variant
      * results are NOT decoded (their contract is the JSON text itself); only
      * the Any root takes this path.
+     *
+     * <p>V1.8 adjudication (Phase 8): these scalar arms are the ANY-boundary
+     * decode CONTRACT, not a duplicate JSON reader — the string arm already
+     * delegates to the one unescape table (F3.1d), and the number arm must
+     * NOT delegate to {@code sql/Json.num}: a decimal-form JSON number under
+     * an Any root is a pure Float (host {@code Double}), while the strict
+     * JSON bridge deliberately reads {@code BigDecimal} (audit 18 —
+     * wireEquals-grade exactness). Same grammar, different target kinds by
+     * design.
      */
     private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
@@ -402,36 +402,10 @@ public final class Executor {
      * a raw quote-strip would keep the backslashes (audit finding).
      */
     private static String jsonUnescape(String s) {
-        if (s.indexOf('\\') < 0) {
-            return s;
-        }
-        StringBuilder out = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c != '\\' || i == s.length() - 1) {
-                out.append(c);
-                continue;
-            }
-            char e = s.charAt(++i);
-            switch (e) {
-                case '"' -> out.append('"');
-                case '\\' -> out.append('\\');
-                case '/' -> out.append('/');
-                case 'n' -> out.append('\n');
-                case 't' -> out.append('\t');
-                case 'r' -> out.append('\r');
-                case 'b' -> out.append('\b');
-                case 'f' -> out.append('\f');
-                case 'u' -> {
-                    if (i + 4 < s.length()) {
-                        out.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16));
-                        i += 4;
-                    }
-                }
-                default -> out.append('\\').append(e);
-            }
-        }
-        return out.toString();
+        // F3.1d: this was a keep-the-backslash TWIN of the platform
+        // reader's table (sql/Json drops it — the same terminal rule as
+        // the Pure unescape family); the twin lost the adjudication
+        return com.legend.sql.Json.unescapeString(s);
     }
 
     /**
@@ -545,7 +519,8 @@ public final class Executor {
             for (int i = 1; i <= n; i++) {
                 Type.Column sc = schema.columns().get(i - 1);
                 columns.add(new Column(sc.name(),
-                        rs.getMetaData().getColumnTypeName(i), sc.type()));
+                        rs.getMetaData().getColumnTypeName(i), sc.type(),
+                        sc.multiplicity()));
             }
         } else if (hasPivot(plan)) {
             // DYNAMIC PIVOT: one result column per pivoted VALUE — the static
@@ -577,57 +552,27 @@ public final class Executor {
             com.legend.sql.dialect.SqlDialect dialect, Type.RelationType schema,
             List<Column> columns) throws SQLException {
         List<Object> cells = new ArrayList<>(n);
-        int manyCol = -1;
         for (int i = 1; i <= n; i++) {
             Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
                     sqlTypeOf(plan, i - 1), dialect);
+            // E2 (JAVA_EVICTION_PLAN): the host-side row explosion is
+            // DEAD — the scalar-stream projection explodes IN SQL
+            // (LEFT LATERAL UNNEST at project lowering; probe: zero
+            // firings on the full sweep) and the declared to-one slot
+            // matches the emitted one. A list cell in a primitive
+            // schema slot is a lowering defect, never repaired here.
             if ((cell instanceof List<?> || cell instanceof java.sql.Array)
                     && schema.columns().get(i - 1).type()
                             instanceof Type.Primitive) {
-                // TDS cells are SCALAR — a many-valued primitive
-                // projection column (scalar-stream concatenate)
-                // EXPLODES ROWS in the engine (union subselect per
-                // element, row-major; parents with an empty stream
-                // keep ONE row with a NULL cell — the LEFT join).
-                // ONE such column per row; a second stays loud
-                // (zipping is not the engine rule).
-                if (manyCol >= 0) {
-                    throw new com.legend.error.NotImplementedException(
-                            "two many-valued TDS cells in one row ('"
-                                    + columns.get(manyCol).name() + "', '"
-                                    + columns.get(i - 1).name()
-                                    + "') — only single-column row"
-                                    + " explosion is built");
-                }
-                manyCol = i - 1;
+                throw new IllegalStateException("a many-valued cell"
+                        + " reached a scalar TDS slot ('"
+                        + columns.get(i - 1).name()
+                        + "') — the lowering must explode scalar"
+                        + " streams in SQL (E2)");
             }
             cells.add(cell);
         }
-        if (manyCol < 0) {
-            return List.of(new Row(cells));
-        }
-        List<?> stream = cells.get(manyCol) instanceof java.sql.Array a
-                ? arrayAsList(a) : (List<?>) cells.get(manyCol);
-        if (stream.isEmpty()) {
-            List<Object> one = new ArrayList<>(cells);
-            one.set(manyCol, null);
-            return List.of(new Row(one));
-        }
-        List<Row> out = new ArrayList<>(stream.size());
-        for (Object el : stream) {
-            List<Object> one = new ArrayList<>(cells);
-            one.set(manyCol, el);
-            out.add(new Row(one));
-        }
-        return out;
-    }
-
-    private static List<?> arrayAsList(java.sql.Array a) {
-        try {
-            return java.util.Arrays.asList((Object[]) a.getArray());
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException("array cell read failed", e);
-        }
+        return List.of(new Row(cells));
     }
 
     private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
@@ -685,8 +630,16 @@ public final class Executor {
      * Every known name is EXPLICIT — an unrecognized SQL type is a gap in
      * this table, not a String (audit 15: the silent String default
      * corrupted result typing invisibly). */
-    private static Type pureOfSqlType(String sqlType) {
+    public static Type pureOfSqlType(String sqlType) {
+        // V1.9 (Phase 8): the parameter suffix strips ONCE
+        // ('DECIMAL(38,9)' -> 'DECIMAL'), then the table is EXACT-match
+        // with a loud default — no prefix matching (the audited
+        // startsWith arms could never say what they excluded).
         String t = sqlType.toUpperCase();
+        int paren = t.indexOf('(');
+        if (paren > 0) {
+            t = t.substring(0, paren).strip();
+        }
         return switch (t) {
             case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
                     Type.Primitive.INTEGER;
@@ -694,20 +647,13 @@ public final class Executor {
             case "BOOLEAN" -> Type.Primitive.BOOLEAN;
             case "DATE" -> Type.Primitive.STRICT_DATE;
             case "TIMESTAMP" -> Type.Primitive.DATE_TIME;
+            case "DECIMAL", "NUMERIC" -> Type.Primitive.DECIMAL;
             case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" ->
                     Type.Primitive.STRING;
-            default -> {
-                if (t.startsWith("DECIMAL")) {
-                    yield Type.Primitive.DECIMAL;
-                }
-                if (t.startsWith("VARCHAR") || t.startsWith("CHAR")) {
-                    yield Type.Primitive.STRING;
-                }
-                throw new IllegalStateException(
-                        "no Pure primitive mapped for SQL type '" + sqlType
-                        + "' (pivot-generated column) — add it to"
-                        + " Executor.pureOfSqlType");
-            }
+            default -> throw new IllegalStateException(
+                    "no Pure primitive mapped for SQL type '" + sqlType
+                    + "' (pivot-generated column) — add it to"
+                    + " Executor.pureOfSqlType");
         };
     }
 

@@ -1568,36 +1568,13 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         return null;
     }
 
-    /** {@code dataTypeToSqlText} — the ENGINE's spelling: {@code
-     * DECIMAL(p, s)} with a space, {@code BIT} for booleans (distinct
-     * from the plan-tuple spelling in PlanText.spell). */
+    /** {@code dataTypeToSqlText} — delegates to the ONE engine type
+     * spelling ({@code Ddl.dataTypeToSqlText}, ratified E4 design: no
+     * type text is spelled twice; distinct from the plan-tuple spelling
+     * in PlanText.spell, which is the engine's OTHER convention). */
     public static @com.legend.Nullable Object sqlText(Object recv) {
         Object r = recv instanceof List<?> l && l.size() == 1
                 ? l.get(0) : recv;
-        if (!(r instanceof Dt d)) {
-            return null;
-        }
-        return switch (d.type()) {
-            case RelationalDataType.Integer_ ignored -> "INT";
-            case RelationalDataType.BigInt ignored -> "BIGINT";
-            case RelationalDataType.SmallInt ignored -> "SMALLINT";
-            case RelationalDataType.TinyInt ignored -> "TINYINT";
-            case RelationalDataType.Varchar v -> "VARCHAR(" + v.size() + ")";
-            case RelationalDataType.Char_ c -> "CHAR(" + c.size() + ")";
-            case RelationalDataType.Double_ ignored -> "DOUBLE";
-            case RelationalDataType.Float_ ignored -> "FLOAT";
-            case RelationalDataType.Real ignored -> "REAL";
-            case RelationalDataType.Decimal dc ->
-                    "DECIMAL(" + dc.precision() + ", " + dc.scale() + ")";
-            case RelationalDataType.Numeric n ->
-                    "NUMERIC(" + n.precision() + ", " + n.scale() + ")";
-            case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
-            case RelationalDataType.Date_ ignored -> "DATE";
-            case RelationalDataType.Bit ignored -> "BIT";
-            case RelationalDataType.Other ignored -> "OTHER";
-            default -> throw new NotImplementedException(
-                    "dataTypeToSqlText spelling for " + d.type()
-                    + " pending");
-        };
+        return r instanceof Dt d ? Ddl.dataTypeToSqlText(d.type()) : null;
     }
 }

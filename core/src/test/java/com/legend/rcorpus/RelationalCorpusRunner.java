@@ -368,6 +368,7 @@ public class RelationalCorpusRunner {
                                 + o.detail())));
             }
             System.out.println("[rcorpus] failed seeds: " + seedFails.size());
+            seedFails.forEach(f -> System.out.println("[rcorpus]   seed-fail: " + f));
             System.out.println("[rcorpus] seed replay: "
                     + Runner.SEED_CALLS.get() + " calls, "
                     + (Runner.SEED_NANOS.get() / 1_000_000) + " ms; raw jdbc "
@@ -386,6 +387,13 @@ public class RelationalCorpusRunner {
                     runner.walls(), header);
             System.out.println("[rcorpus] 100% ledger written to"
                     + " docs/RELATIONAL_CORPUS_ALL.md (baseline untouched)");
+        } else if (!System.getProperty("rcorpus.test", "").trim().isEmpty()) {
+            // F4.3 hole-plug: a -Drcorpus.test scoped run bypassed BOTH the
+            // only-filter check and the regression gate (which skips when
+            // test-scoped), so it wrote a TRUNCATED scoreboard — caught when
+            // a stash carried one. Test-scoped runs NEVER write.
+            System.out.println("[rcorpus] TEST-SCOPED run (rcorpus.test) —"
+                    + " scoreboard NOT written");
         } else if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);
@@ -405,6 +413,7 @@ public class RelationalCorpusRunner {
                             + " " + o.test() + ": " + o.detail())));
         }
         System.out.println("[rcorpus] failed seeds: " + seedFails.size());
+        seedFails.forEach(f -> System.out.println("[rcorpus]   seed-fail: " + f));
         byFamily.forEach((f, outs) -> {
             long p = outs.stream().filter(o -> o.status() == Runner.Status.PASS).count();
             System.out.println("[rcorpus] " + f + ": " + p + "/" + outs.size() + " pass");
@@ -460,7 +469,11 @@ public class RelationalCorpusRunner {
                     // object-space TypedFilter. Shrink-only; each bucket
                     // is a REAL renderer/recognizer gap — adjudicate
                     // before raising.
-                    "sql-text side", 56);
+                    // 56→57 (E2, 2026-08-17): testConcatenateWithFilter's
+                    // new PASS rides the LEFT-LATERAL row explosion,
+                    // which H2 cannot replay (no LATERAL) — one more
+                    // sql-text-side decline, tied to a GAINED test
+                    "sql-text side", 57);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()

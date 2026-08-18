@@ -35,7 +35,18 @@ public enum ResultShape {
     }
 
     public static ResultShape of(ExprType root) {
-        if (root.type() instanceof Type.RelationType) {
+        if (root.type() instanceof Type.RelationType rt) {
+            // F6.2 (audit A2): the map-binder channel (single synthetic
+            // u_map__ column) IS a VALUE COLLECTION — pure collections
+            // hold no empties, and the COLLECTION shaping's existing
+            // null-drop is the platform-owned convention (the harness
+            // used to repair arity with a post-ResultSet strip; SQL-level
+            // exclusion corrupted correlated getters — referee-proven)
+            if (rt.columns().size() == 1
+                    && rt.columns().get(0).name().startsWith(
+                            com.legend.sql.SqlSelect.SYNTH_MAP_COL)) {
+                return isMany(root.multiplicity()) ? COLLECTION : SCALAR;
+            }
             return TABULAR;
         }
         if (root.type() instanceof Type.ClassType ct) {

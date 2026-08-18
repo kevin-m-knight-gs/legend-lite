@@ -3346,20 +3346,11 @@ final class GraphEmission {
      * mapping, the mangled set id twice, the canonical test-H2
      * connection protocol JSON. The per-row pk segment appends in SQL. */
     static String asorPrefix(ModelContext mc, ClassSource cs) {
+        // F3.4: the protocol lives ONCE in AsorRef; this keeps only the
+        // model-derived inputs (defining mapping, set id)
         String defining = definingMapping(mc, cs.mappingFqn(), cs.classFqn());
         String setId = cs.classFqn().replace("::", "_");
-        String conn = "{\"_type\":\"RelationalDatabaseConnection\","
-                + "\"authenticationStrategy\":{\"_type\":\"h2Default\"},"
-                + "\"datasourceSpecification\":{\"_type\":\"h2Local\"},"
-                + "\"element\":\"\",\"postProcessorWithParameter\":[],"
-                + "\"postProcessors\":[],\"timeZone\":\"GMT\","
-                + "\"type\":\"H2\"}";
-        return "001:010:" + seg("Relational") + seg(defining) + seg(setId)
-                + seg(setId) + seg(conn);
-    }
-
-    private static String seg(String v) {
-        return String.format("%010d", v.length()) + ":" + v + ":";
+        return AsorRef.prefix(defining, setId, setId);
     }
 
     /** The include-closure mapping that DEFINES the class binding (the

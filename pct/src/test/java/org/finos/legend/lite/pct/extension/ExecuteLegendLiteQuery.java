@@ -70,10 +70,10 @@ import java.util.regex.Pattern;
  * Pure expressions are re-escaped, executed via QueryService (compile → SQL → DuckDB),
  * and the typed ExecutionResult is converted back to Pure CoreInstances.
  *
- * Type information MOSTLY flows from Type on ExecutionResult — with two
- * SQL-type-name sniffs (pureTypeName(col.sqlType()), audit P2) that F5.1
- * replaces with col.pureType(), and a declared-header overlay (audit
- * §4.1) that F5.3 converts to compare-and-fail.
+ * Type information flows from Type on ExecutionResult: column names,
+ * pure types, and multiplicities are the PLATFORM's typed facts (F5.1
+ * replaced the sqlType-name sniff; F5.3 Stage B deleted the
+ * declared-header overlay and the null-scan — PCT sees the wire).
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 
@@ -88,31 +88,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             ###Runtime
                 Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
 
-            ###Pure
-                function meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues(val: Integer[*]):Boolean[1]
-                {
-                    $val->filter(y | $y->mod(2) == 0)->size() == 2
-                }
-
-                function meta::pure::functions::lang::tests::letFn::letAsLastStatement():String[1]
-                {
-                    let last = 'last statement string'
-                }
-
-                function meta::pure::functions::lang::tests::letFn::letWithParam(val: String[1]):Any[*]
-                {
-                    let a = $val
-                }
-
-                function meta::pure::functions::lang::tests::letFn::letChainedWithAnotherFunction(elements: ModelElement[*]):ModelElement[*]
-                {
-                    let classes = $elements->removeDuplicates()
-                }
-
-                function meta::pure::functions::collection::tests::removeDuplicates::cmp(a:Any[1],b:Any[1]):Boolean[1]
-                {
-                    $a->toString() == $b->toString()
-                }
             """;
 
     private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
@@ -122,11 +97,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
     private static final Pattern PARAM_TYPE_PATTERN = Pattern.compile(":\\s*(\\w+(?:::\\w+)+)\\s*\\[");
     /** Bare element references as values ({@code STR_Person->toString()}). */
     private static final Pattern BARE_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\s*->");
+    /** Any multi-segment FQN token (F5.7 support-function extraction). */
+    private static final Pattern FQN_TOKEN_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)");
 
     private final ModelRepository modelRepository;
+    private final FunctionExecutionInterpreted functionExecution;
 
     public ExecuteLegendLiteQuery(FunctionExecutionInterpreted functionExecution, ModelRepository modelRepository) {
         this.modelRepository = modelRepository;
+        this.functionExecution = functionExecution;
     }
 
     // ===== execute =====
@@ -147,7 +126,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
         pureExpression = reEscapeStringLiterals(pureExpression);
-        pureExpression = inlineFunctionLiterals(pureExpression);
 
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
@@ -178,10 +156,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     extractClassMetadata(pureExpression, discoveredEnums, processorSupport);
             java.util.List<String> enumDefs =
                     extractEnumDefinitions(pureExpression, discoveredEnums, processorSupport);
+            java.util.List<String> functionDefs =
+                    extractFunctionDefinitions(pureExpression, processorSupport);
             String model = h2
                     ? PURE_MODEL.replace("type: DuckDB;", "type: H2;")
                     : PURE_MODEL;
-            if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()) {
+            if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()
+                    || !functionDefs.isEmpty()) {
                 StringBuilder classDefs = new StringBuilder();
                 for (String ed : enumDefs) {
                     classDefs.append(ed).append("\n");
@@ -189,17 +170,38 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 for (String classText : extractedClasses.values()) {
                     classDefs.append(classText).append("\n");
                 }
+                for (String fd : functionDefs) {
+                    classDefs.append(fd).append("\n");
+                }
                 System.out.println("[LegendLite PCT] Injected model:\n" + classDefs);
                 model = classDefs + model;
             }
 
-            ExecutionResult result = new QueryService().execute(model, pureExpression,
-                    "test::TestRuntime", connection);
+            // E1 (JAVA_EVICTION_PLAN): relation-rooted queries render
+            // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root
+            // mode) — the adapter receives one Scalar String and hands
+            // it over verbatim; formatAsTds/formatValue are gone.
+            ExecutionResult result;
+            boolean tdsRendered;
+            try (AutoCloseable ignored2 =
+                    com.legend.exec.PctRenderOption.enable()) {
+                result = new QueryService().execute(model, pureExpression,
+                        "test::TestRuntime", connection);
+                tdsRendered = com.legend.exec.PctRenderOption.wasRendered();
+            }
+            if (tdsRendered) {
+                String tdsString = String.valueOf(((Scalar) result).value());
+                System.out.println("[LegendLite PCT] TDS: "
+                        + tdsString.replace("\n", "\\n"));
+                return createTDSResult(tdsString, processorSupport);
+            }
 
             return switch (result) {
                 case Scalar s -> handleScalar(s, processorSupport);
                 case Collection c -> handleCollection(c, processorSupport);
-                case Tabular t -> handleTabular(t, processorSupport);
+                case Tabular t -> throw new IllegalStateException(
+                        "PCT tabular result outside the render mode — the"
+                        + " root-mode wrap missed a relation root");
                 case Graph g -> ValueSpecificationBootstrap.newStringLiteral(
                         modelRepository, g.json(), processorSupport);
             };
@@ -259,6 +261,10 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         Type elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
         for (Object value : result.values()) {
+            // CHANNEL-SCOPED null-drop (F5.5, d0f3a356 precedent): a NULL
+            // element of a COLLECTION result is a pure EMPTY, and no pure
+            // collection holds empties — same convention as the
+            // Executor's COLLECTION shaping. Not a fallback.
             if (value != null) {
                 coreInstances.add(toCoreInstance(value, elementType, ps));
             }
@@ -277,11 +283,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 org.eclipse.collections.impl.factory.Lists.immutable.withAll(coreInstances), true, ps);
     }
 
-    private CoreInstance handleTabular(Tabular result, ProcessorSupport ps) {
-        String tdsString = formatAsTds(result);
-        System.out.println("[LegendLite PCT] TDS: " + tdsString.replace("\n", "\\n"));
-        return createTDSResult(tdsString, ps);
-    }
 
     // ===== toCoreInstance: single Java → CoreInstance conversion =====
 
@@ -551,32 +552,129 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 return modelRepository.newCoreInstance(pd.toString(),
                         modelRepository.getTopLevel(classifier), null);
             }
+            if (type instanceof Type.Primitive tp && tp.isTemporal()) {
+                // F5.5: a temporal-typed value whose text does not parse
+                // as a date used to fall through as a silent String
+                throw new UnsupportedOperationException(
+                        "temporal-typed value is not a date print form: '"
+                        + s + "' (" + tp + ")");
+            }
             return modelRepository.newStringCoreInstance(s);
         }
         // Struct → class instance
         if (value instanceof Map<?, ?> map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> structMap = (Map<String, Object>) map;
-            return createClassInstance(structMap, type, ps);
+            // F5.6: the old createClassInstance FABRICATED a Pair type
+            // for any unknown struct; a probe throw across all 1,109 PCT
+            // tests proved the branch unreachable — keep the wall LOUD
+            throw new UnsupportedOperationException(
+                    "struct result reached the PCT bridge (type=" + type
+                    + ", keys=" + map.keySet() + ") — no fabrication;"
+                    + " add a typed conversion");
         }
         // List (struct arrays unwrapped by Row.java, e.g. zip → List<Pair>)
         if (value instanceof List<?> list) {
             Type elemType = type;
             var coreInstances = new ArrayList<CoreInstance>();
             for (Object elem : list) {
+                // CHANNEL-SCOPED null-drop (F5.5): list elements — the
+                // same pure-collections-hold-no-empties convention
                 if (elem != null) {
                     coreInstances.add(toCoreInstance(elem, elemType, ps));
                 }
             }
             // Return as a single-element wrapping — the collection will be wrapped by caller
             if (coreInstances.size() == 1) return coreInstances.get(0);
-            // For multi-element, this shouldn't happen in scalar context
-            // but return first as fallback
-            return coreInstances.isEmpty() ? modelRepository.newStringCoreInstance("[]")
-                    : coreInstances.get(0);
+            // F5.5: multi-element used to 'return first as fallback' and
+            // empty fabricated a '[]' STRING — both are silent wrong
+            // answers in scalar context
+            throw new UnsupportedOperationException(
+                    "list of " + coreInstances.size() + " elements in"
+                    + " scalar conversion context (type=" + type + ")");
         }
-        // Fallback
-        return modelRepository.newStringCoreInstance(value.toString());
+        // TYPED conversions the old stringify-anything fallback concealed
+        // (F5.5 made the wall loud; these are the adjudicated channels):
+        // a UUID under a String-typed slot IS its canonical text
+        if (value instanceof java.util.UUID u
+                && type == Type.Primitive.STRING) {
+            return modelRepository.newStringCoreInstance(u.toString());
+        }
+        // a DuckDB STRUCT under a class-typed slot builds the declared
+        // class instance (F5.6 deleted the MAP-branch twin by probe; the
+        // live channel was DuckDBStruct, and toString() was concealing it)
+        if (value instanceof org.duckdb.DuckDBStruct ds) {
+            java.util.Map<String, Object> m;
+            try {
+                m = ds.getMap();
+            } catch (java.sql.SQLException e) {
+                throw new RuntimeException(e);
+            }
+            return classInstance(m, type, ps);
+        }
+        // F5.5: the terminal stringify-anything fallback is LOUD — an
+        // unconverted kind is a missing typed conversion, not a String
+        throw new UnsupportedOperationException(
+                "no typed conversion for " + value.getClass().getName()
+                + " (type=" + type + ")");
+    }
+
+    /** Class instance from a struct's field map, keyed on the DECLARED
+     *  type — the honest survivor of the deleted createClassInstance:
+     *  the 'default -> Pair' fabrication is a LOUD wall now. */
+    private CoreInstance classInstance(Map<String, Object> structMap,
+            Type type, ProcessorSupport ps) {
+        String qualifiedName = switch (type) {
+            case Type.ClassType ct -> ct.fqn();
+            case Type.GenericType gt -> gt.rawFqn();
+            default -> throw new UnsupportedOperationException(
+                    "struct under non-class type " + type + " (keys="
+                    + structMap.keySet() + ") — no fabrication");
+        };
+        CoreInstance classCi = ps.package_getByUserPath(qualifiedName);
+        if (classCi == null) {
+            throw new RuntimeException("Pure class not found: " + qualifiedName);
+        }
+        String simpleName = qualifiedName
+                .substring(qualifiedName.lastIndexOf(':') + 1);
+        CoreInstance instance = modelRepository.newCoreInstance(
+                simpleName, classCi, null);
+        CoreInstance classifierGT = org.finos.legend.pure.m3.navigation
+                .type.Type.wrapGenericType(classCi, null, ps);
+        if (type instanceof Type.GenericType p) {
+            for (Type typeArg : p.arguments()) {
+                CoreInstance argTypeClass =
+                        ps.package_getByUserPath(typeArg.typeName());
+                if (argTypeClass != null) {
+                    Instance.addValueToProperty(classifierGT,
+                            M3Properties.typeArguments,
+                            org.finos.legend.pure.m3.navigation.type.Type
+                                    .wrapGenericType(argTypeClass, null, ps),
+                            ps);
+                }
+            }
+        }
+        Instance.addValueToProperty(instance,
+                M3Properties.classifierGenericType, classifierGT, ps);
+        int idx = 0;
+        for (Map.Entry<String, Object> entry : structMap.entrySet()) {
+            Object propValue = entry.getValue();
+            // a NULL field is an omitted property (the canonical layout's
+            // own convention); a field the DECLARED class does not own is
+            // PROJECTED AWAY — types drive construction: the covariant
+            // union layout carries every subtype's fields, and building
+            // the declared type keeps exactly its declared properties
+            if (propValue != null && ps.class_findPropertyUsingGeneralization(
+                    classCi, entry.getKey()) != null) {
+                Type propType = new Type.ClassType(PlatformTypes.ANY);
+                if (type instanceof Type.GenericType p
+                        && idx < p.arguments().size()) {
+                    propType = p.arguments().get(idx);
+                }
+                Instance.addValueToProperty(instance, entry.getKey(),
+                        toCoreInstance(propValue, propType, ps), ps);
+            }
+            idx++;
+        }
+        return instance;
     }
 
     private CoreInstance toPureDateInstance(LocalDate ld) {
@@ -606,112 +704,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * Formats a TabularResult as a TDS string for stringToTDS().
      * Column types come from the compiler schema (already Pure type names).
      */
-    private String formatAsTds(ExecutionResult result) {
-        StringBuilder sb = new StringBuilder();
-        var columns = result.columns();
-        for (int i = 0; i < columns.size(); i++) {
-            if (i > 0) sb.append(",");
-            Column col = columns.get(i);
-            String colName = col.name();
-            if (colName.contains("__|__")) {
-                // Pure pivot column IDENTITY includes the quotes
-                // ('UK__|__LDN__|__sum'); TDSExtension strips ONE outer
-                // layer, so the header carries an escaped inner pair.
-                colName = "'\\'" + colName + "\\''";
-            } else if (!colName.matches("[A-Za-z_][A-Za-z0-9_$]*")) {
-                // Non-identifier names ('other kind') quote — the parser
-                // strips the pair; the IDENTITY stays unquoted.
-                colName = "'" + colName + "'";
-            }
-            // Pure 5.88's TDS parser resolves header types as PURE paths
-            // (VARCHAR was "not found") — spell the Pure primitive, WITH a
-            // data-driven multiplicity: the tests cast results to declared
-            // Relation<(col:T[1])>/[0..1] shapes, and a header without the
-            // annotation builds [0..1] columns that no longer cast to [1].
-            boolean hasNull = false;
-            for (var row : result.rows()) {
-                if (row.values().get(i) == null) {
-                    hasNull = true;
-                    break;
-                }
-            }
-            sb.append(colName).append(":").append(purePctName(col))
-                    .append(hasNull ? "[0..1]" : "[1]");
-        }
-        for (var row : result.rows()) {
-            sb.append("\n");
-            var values = row.values();
-            for (int i = 0; i < values.size(); i++) {
-                if (i > 0) sb.append(",");
-                // Pure prints VARIANT cells ALWAYS quoted ("[]", "null"),
-                // comma or not.
-                boolean variant = com.legend.compiler.element.type
-                        .PlatformTypes.isVariant(
-                                columns.get(i).pureType());
-                Object v = values.get(i);
-                if (variant && v != null) {
-                    sb.append("\"").append(v.toString().replace("\"", "\"\"")).append("\"");
-                } else {
-                    sb.append(formatValue(v));
-                }
-            }
-        }
-        return sb.toString();
-    }
 
-    /** F5.1: the column's PURE type names the header — the SQL-type-name
-     * sniff (audit P2) reintroduced the silent-String-default defect core
-     * removed under audit 15, and DuckDB's DECIMAL spelling for
-     * Float-typed results was one source of the Stage-A
-     * Float-declared/Decimal-delivered rows. Two PCT-boundary
-     * constraints survive, now keyed on the PURE kind: the interpreted
-     * TestTDS cannot BUILD Date columns (getDataAsType: "Not supported
-     * data type") so temporals travel as STRINGS in print form (P-Step
-     * 6a probes lifting this); Variant cells travel as their JSON text. */
-    private static String purePctName(com.legend.exec.Column col) {
-        var t = col.pureType();
-        if (t instanceof com.legend.compiler.element.type.Type.Primitive p) {
-            if (p.isTemporal()) {
-                return "String";
-            }
-            return p.typeName();
-        }
-        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
-            return "String";
-        }
-        return t.typeName();
-    }
+    /** F5.1: the column's PURE type names the header (the SQL-type-name
+     * sniff is gone). F5.3 Stage B: temporals and Variant spell their
+     * REAL pure names — the old "interpreted TestTDS cannot build Date
+     * columns" claim was stale (the overlay had been writing Date
+     * headers green for months); Variant needs its FQN because the 5.88
+     * TDS header parser resolves type names without import scanning.
+     * Variant cells still travel as quoted JSON text. */
 
-    private String formatValue(Object value) {
-        if (value == null) return "null";
-        // Pure's date print forms: DateTime = ISO with millis + +0000
-        // offset; StrictDate = plain date (the PCT expected strings).
-        if (value instanceof java.sql.Timestamp ts) {
-            var ldt = ts.toLocalDateTime();
-            return ldt.format(java.time.format.DateTimeFormatter
-                    .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
-        }
-        if (value instanceof java.time.OffsetDateTime odt) {
-            return odt.withOffsetSameInstant(java.time.ZoneOffset.UTC)
-                    .format(java.time.format.DateTimeFormatter
-                            .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
-        }
-        if (value instanceof Double d && !d.isInfinite() && !d.isNaN()) {
-            // pure float PRINT: plain decimal, never scientific; integral
-            // floats keep a trailing .0 (2.25e19 -> '22500000000000000000.0')
-            java.math.BigDecimal bd = java.math.BigDecimal.valueOf(d);
-            String plain = bd.toPlainString();
-            return bd.scale() <= 0 ? plain + ".0" : plain;
-        }
-        String str = value.toString();
-        // NOTE: an empty string CANNOT survive the TDS wire — the parser's
-        // null literals are ["", "null"], quoted or not (probe-verified);
-        // the one affected test is the ledgered expected failure.
-        if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
-            return "\"" + str.replace("\"", "\"\"") + "\"";
-        }
-        return str;
-    }
 
     private CoreInstance createTDSResult(String tdsString, ProcessorSupport ps) {
         CoreInstance tdsResultClass = ps.package_getByUserPath("meta::legend::lite::pct::TDSResult");
@@ -724,80 +725,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return ValueSpecificationBootstrap.wrapValueSpecification(instance, true, ps);
     }
 
-    // ===== Class instance creation =====
-
-    /**
-     * Creates a Pure class instance from a DuckDB struct Map.
-     * Uses Type for the class path and type arguments.
-     */
-    private CoreInstance createClassInstance(Map<String, Object> structMap, Type type,
-                                            ProcessorSupport ps) {
-        // Resolve class path from Type
-        String qualifiedName = switch (type) {
-            case Type.ClassType ct -> ct.fqn();
-            case Type.GenericType gt -> gt.rawFqn();
-            default -> "meta::pure::functions::collection::Pair"; // fallback for unknown struct types
-        };
-
-        CoreInstance classInstance = ps.package_getByUserPath(qualifiedName);
-        if (classInstance == null) {
-            throw new RuntimeException("Pure class not found: " + qualifiedName);
-        }
-
-        String simpleName = qualifiedName.substring(qualifiedName.lastIndexOf(':') + 1);
-        CoreInstance instance = modelRepository.newCoreInstance(simpleName, classInstance, null);
-
-        // Build classifierGenericType with type arguments from Type
-        CoreInstance classifierGT = org.finos.legend.pure.m3.navigation.type.Type
-                .wrapGenericType(classInstance, null, ps);
-
-        if (type instanceof Type.GenericType p) {
-            // Set type arguments from the compiler-provided Type
-            for (Type typeArg : p.arguments()) {
-                String argTypeName = typeArg.typeName();
-                CoreInstance argTypeClass = ps.package_getByUserPath(argTypeName);
-                if (argTypeClass != null) {
-                    CoreInstance argGT = org.finos.legend.pure.m3.navigation.type.Type
-                            .wrapGenericType(argTypeClass, null, ps);
-                    Instance.addValueToProperty(classifierGT, M3Properties.typeArguments, argGT, ps);
-                }
-            }
-        }
-
-        Instance.addValueToProperty(instance, M3Properties.classifierGenericType, classifierGT, ps);
-
-        // Set properties from struct map
-        for (Map.Entry<String, Object> entry : structMap.entrySet()) {
-            String propName = entry.getKey();
-            Object propValue = entry.getValue();
-            if (propValue == null) continue;
-
-            // Determine property Type from the generic arguments if available
-            Type propType = new Type.ClassType(PlatformTypes.ANY);
-            if (type instanceof Type.GenericType p && !p.arguments().isEmpty()) {
-                // For Pair: first → arguments[0], second → arguments[1]
-                int idx = indexOf(structMap, propName);
-                if (idx >= 0 && idx < p.arguments().size()) {
-                    propType = p.arguments().get(idx);
-                }
-            }
-
-            CoreInstance valueInstance = toCoreInstance(propValue, propType, ps);
-            Instance.addValueToProperty(instance, propName, valueInstance, ps);
-        }
-
-        return instance;
-    }
-
-    /** Returns the positional index of a key in an ordered map. */
-    private static int indexOf(Map<String, ?> map, String key) {
-        int i = 0;
-        for (String k : map.keySet()) {
-            if (k.equals(key)) return i;
-            i++;
-        }
-        return -1;
-    }
 
     // ===== Class metadata extraction =====
 
@@ -810,6 +737,63 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      * or @My::Enum) — platform enums are registered natively in core and
      * skipped; unknown FQNs resolve against the interpreter's graph.
      */
+    /** F5.7: CONCRETE test-support functions the expression references
+     *  extract from the interpreter's OWN source registry (the five
+     *  verbatim copies were an unversioned fork of engine test source —
+     *  if upstream changed a body we silently kept testing the old one).
+     *  Definition text is sliced by the function's source span;
+     *  stereotype/tagged-value decorations ({@code <<...>>}, {@code
+     *  {doc...}}) strip — they are PCT-harness metadata, not semantics,
+     *  and their profiles are not part of the lite compile. */
+    private java.util.List<String> extractFunctionDefinitions(
+            String pureExpression, ProcessorSupport ps) {
+        java.util.List<String> defs = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        Matcher fqns = FQN_TOKEN_PATTERN.matcher(pureExpression);
+        while (fqns.find()) {
+            String fqn = fqns.group(1);
+            if (!fqn.contains("::tests::") || !seen.add(fqn)) {
+                continue;
+            }
+            int cut = fqn.lastIndexOf("::");
+            CoreInstance pkg = ps.package_getByUserPath(fqn.substring(0, cut));
+            if (pkg == null) {
+                continue;
+            }
+            String name = fqn.substring(cut + 2);
+            for (CoreInstance child : Instance.getValueForMetaPropertyToManyResolved(
+                    pkg, M3Properties.children, ps)) {
+                if (!Instance.instanceOf(child,
+                        "meta::pure::metamodel::function::ConcreteFunctionDefinition", ps)) {
+                    continue;
+                }
+                CoreInstance fn = child.getValueForMetaPropertyToOne(
+                        M3Properties.functionName);
+                if (fn == null || !name.equals(fn.getName())
+                        || child.getSourceInformation() == null) {
+                    continue;
+                }
+                var si = child.getSourceInformation();
+                var src = functionExecution.getRuntime()
+                        .getSourceById(si.getSourceId());
+                if (src == null) {
+                    continue;
+                }
+                String[] lines = src.getContent().split("\n", -1);
+                StringBuilder def = new StringBuilder();
+                for (int ln = si.getStartLine(); ln <= si.getEndLine()
+                        && ln <= lines.length; ln++) {
+                    def.append(lines[ln - 1]).append('\n');
+                }
+                String text = def.toString()
+                        .replaceAll("<<[^>]*>>", "")
+                        .replaceAll("\\{doc[^}]*\\}", "");
+                defs.add(text);
+            }
+        }
+        return defs;
+    }
+
     private java.util.List<String> extractEnumDefinitions(String pureExpression,
             java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
         java.util.List<String> defs = new java.util.ArrayList<>();
@@ -1105,28 +1089,6 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             }
         }
         return sb.toString();
-    }
-
-    /**
-     * The harness serializes a CAPTURED concrete function by printing its
-     * whole definition inline:
-     * {@code fqn(a: T[1], b: T[1]): R[1] { body }} — the faithful lambda
-     * equivalent is {@code {a: T[1], b: T[1] | body}} (a definition IS its
-     * lambda; only the name is lost, and the name is not semantics).
-     */
-    private static final Pattern FN_LITERAL_PATTERN = Pattern.compile(
-            "[\\w:]+\\(([^()]*)\\):\\s*[\\w:]+\\[[^\\]]*\\]\\s*\\{(.*?)\\}",
-            java.util.regex.Pattern.DOTALL);
-
-    private static String inlineFunctionLiterals(String expr) {
-        Matcher m = FN_LITERAL_PATTERN.matcher(expr);
-        StringBuilder out = new StringBuilder();
-        while (m.find()) {
-            m.appendReplacement(out, Matcher.quoteReplacement(
-                    "{" + m.group(1).trim() + " | " + m.group(2).trim() + "}"));
-        }
-        m.appendTail(out);
-        return out.toString();
     }
 
     private String stripTrailingZeros(String subsecond) {

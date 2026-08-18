@@ -1685,7 +1685,12 @@ public final class Runner {
      * EngineTestExecutor — no pre-replay, engine-exact ordering. */
     /** One module-DDL unit: the session-dedup KEY (physical table
      * identity), the drop spelling for shape-clobber, and the create. */
-    record DdlUnit(String key, String dropSql, String createSql) {}
+    /** One module-DDL unit: the session-dedup KEY, the drop spelling,
+     * the H2-flavored create (shape identity + the mirror's replay
+     * stream), and the DuckDB-target create (F7.4: spelled from the
+     * TYPE, never text-rewritten). */
+    record DdlUnit(String key, String dropSql, String createSql,
+            String duckSql) {}
 
     private List<DdlUnit> moduleDdl(
             com.legend.compiler.element.ModelContext ctx) {
@@ -1708,7 +1713,9 @@ public final class Runner {
                 if (seenTables.add(td.name().toLowerCase())) {
                     out.add(new DdlUnit(td.name().toLowerCase(),
                             "DROP TABLE IF EXISTS " + td.name(),
-                            com.legend.exec.Ddl.createTable(td, null)));
+                            com.legend.exec.Ddl.createTable(td, null),
+                            com.legend.exec.Ddl.createTable(td, null,
+                                    true)));
                 }
             }
             for (var schema : db.schemas()) {
@@ -1716,7 +1723,9 @@ public final class Runner {
                         || "default".equals(schema.name());
                 if (!defaultSchema && seenSchemas.add(schema.name())) {
                     out.add(new DdlUnit("schema:" + schema.name(), "",
-                            "CREATE SCHEMA IF NOT EXISTS " + schema.name()));
+                            "CREATE SCHEMA IF NOT EXISTS " + schema.name(),
+                            "CREATE SCHEMA IF NOT EXISTS "
+                                    + schema.name()));
                 }
                 for (var td : schema.tables()) {
                     // default-schema tables share the FLAT key — the same
@@ -1729,7 +1738,10 @@ public final class Runner {
                         out.add(new DdlUnit(key,
                                 "DROP TABLE IF EXISTS " + qual,
                                 com.legend.exec.Ddl.createTable(td,
-                                        defaultSchema ? null : schema.name())));
+                                        defaultSchema ? null : schema.name()),
+                                com.legend.exec.Ddl.createTable(td,
+                                        defaultSchema ? null : schema.name(),
+                                        true)));
                     }
                 }
             }
@@ -1932,7 +1944,6 @@ public final class Runner {
             // FAMILY session (#112): same table key + same shape = done.
             // A conflicting shape never reaches here — the conflict check
             // routed the test to a private session.
-            List<String> pending = new ArrayList<>();
             if (shared) {
                 String prev = familyDdlShapes.get(unit.key());
                 if (unit.createSql().equals(prev)) {
@@ -1940,30 +1951,35 @@ public final class Runner {
                 }
                 familyDdlShapes.put(unit.key(), unit.createSql());
             }
-            pending.add(unit.createSql());
-            for (String sql : pending) {
-                for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
-                    // module DDL adapts to the SESSION: raw for the H2
-                    // sweep, the DuckDB-target boundary translation
-                    // otherwise (the translation ALSO records the
-                    // statement for the H2 advisory mirror)
-                    String stmt = H2_BACKEND ? raw
-                            : com.legend.exec.RawSqlBoundary.h2ToDuckDb(raw);
-                    // prepare(): DuckDB JDBC masks Statement.execute errors
-                    try (var st = conn.prepareStatement(stmt)) {
-                        st.execute();
-                    } catch (Exception e) {
-                        // ledger fidelity (#112): the translation recorded
-                        // eagerly; a failed statement must not reach the
-                        // H2 advisory replay
-                        if (!H2_BACKEND) {
-                            com.legend.exec.RawSqlBoundary.unrecordLast();
-                        }
-                        String head = stmt.strip().split("\n")[0];
-                        failedSeeds.add(head + " => "
-                                + String.valueOf(e.getMessage()).split("\n")[0]);
+            // F7.4: each unit IS one statement, pre-spelled for both
+            // targets from the model — no boundary translation, no
+            // statement splitting on the model-derived path. The H2
+            // advisory mirror records the H2 flavor, after the session
+            // executed (the recording mirrors executed reality).
+            String stmt = H2_BACKEND ? unit.createSql() : unit.duckSql();
+            // prepare(): DuckDB JDBC masks Statement.execute errors
+            try (var st = conn.prepareStatement(stmt)) {
+                st.execute();
+                if (!H2_BACKEND) {
+                    var mirror = com.legend.exec.RawSqlBoundary.recording();
+                    if (mirror != null) {
+                        mirror.add(unit.createSql());
                     }
                 }
+            } catch (Exception e) {
+                // F7.1: the ONE tolerated failure is the NAMED gap
+                // — a same-named table from another database's DDL
+                // already lives in the family session (6 on the h2
+                // sweep, 0 on DuckDB). Everything else THROWS.
+                if (!String.valueOf(e.getMessage())
+                        .contains("already exists")) {
+                    throw new IllegalStateException(
+                            "module DDL failed (F7.1 fail-loud): "
+                            + stmt.strip().split("\n")[0], e);
+                }
+                String head = stmt.strip().split("\n")[0];
+                failedSeeds.add(head + " => "
+                        + String.valueOf(e.getMessage()).split("\n")[0]);
             }
         }
         DDL_NANOS.addAndGet(System.nanoTime() - ddlT0);
@@ -2256,8 +2272,8 @@ public final class Runner {
         com.legend.compiler.element.ModelContext target =
                 preflightResolvable(setupFqn, ctx) ? ctx : setupUniverseContext();
         try {
-            com.legend.Compiler.executeResolved(call, target, "rcorpus::Rt", conn,
-                    failedSeeds::add);
+            com.legend.Compiler.executeResolved(call, target, "rcorpus::Rt",
+                    conn);
         } catch (Exception e) {
             failedSeeds.add("setup " + setupFqn + "() => "
                     + String.valueOf(e.getMessage()).split("\n")[0]);

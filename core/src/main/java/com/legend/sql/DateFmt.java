@@ -51,6 +51,19 @@ public sealed interface DateFmt {
             new Text("-"), Part.DAY2, new Text("T"), Part.HOUR2,
             new Text(":"), Part.MIN2, new Text(":"), Part.SEC2);
 
+    /** The engine CSV datetime spelling (helperFunctions.pure
+     *  SimpleDateTimeFormat(): {@code yyyy-MM-dd HH:mm:ss} — space
+     *  separator, no subseconds) — the RENDER phase's toCSV cells. */
+    static final List<DateFmt> CSV_DATETIME = List.of(Part.YEAR4,
+            new Text("-"), Part.MONTH2, new Text("-"), Part.DAY2,
+            new Text(" "), Part.HOUR2, new Text(":"), Part.MIN2,
+            new Text(":"), Part.SEC2);
+
+    /** Time-of-day only ({@code HH:mm:ss}) — the RENDER phase's
+     *  abstract-Date hasHour test rides it. */
+    static final List<DateFmt> TIME_ONLY = List.of(Part.HOUR2,
+            new Text(":"), Part.MIN2, new Text(":"), Part.SEC2);
+
     /** ISO_LOCAL + trailing dot (a subsecond tail is concatenated on). */
     static final List<DateFmt> ISO_DOT = concat(ISO_LOCAL, new Text("."));
 

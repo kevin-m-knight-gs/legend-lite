@@ -37,20 +37,25 @@ class HarnessDisciplineTest {
      *  and the graph-triples canonicalization at :1720 (two-sided);
      *  H2Verify 2 — the replay oracle's order-insensitive row multiset
      *  (two-sided BY DESIGN, counted by F2.4);
-     *  JsonAssertCanon 1 — **audit A7, a LEDGERED VIOLATION** (lexical
-     *  row sort, both sides canonicalized independently): stays listed
-     *  so it cannot multiply — listing is not license. Phase pointer
-     *  corrected (user deferral review): the plan's Phase 6 tasks do
-     *  NOT include A7 (it sat in the Phase-8 tail); it is hereby
-     *  ASSIGNED to Phase 6 — it is harness compensation of exactly the
-     *  F6 class and dies with F6.5's comparator-collapse batch;
+     *  JsonAssertCanon 1 — audit A7 RESOLVED by F6.5 (2026-08-17): the
+     *  site re-creates the TEST'S OWN canonicalization idiom
+     *  (^JSONArray(values=...->sortBy(getValue('K')))) with pure
+     *  sortBy comparator semantics — numbers numerically, mixed kinds
+     *  wall — replacing the lexical String.valueOf sort. The sort
+     *  itself is the test's, not harness compensation, so the SITE
+     *  stays listed (the JSON metamodel never executes through the
+     *  SQL pipeline);
      *  LineageForm 1 — want.sort on the property-name existence check
      *  (two-sided: both lists sorted before compare);
      *  Runner 2 / RelationalCorpusRunner 14 — rcorpus orchestration and
      *  scoreboard-RENDER ordering (deterministic output, not result
      *  comparison) — in scope so comparison sorts cannot hide here. */
     private static final Map<String, Integer> ALLOWED = Map.of(
-            "EngineTestExecutor.java", 5,
+            // F4.3 ratchet-DOWN 5 -> 3: the harness RENDERER died (the
+            // platform's RENDER lowerings produce the text; the probe and
+            // its sorts died with it) — the survivors are the makeString
+            // split-multiset order policy
+            "EngineTestExecutor.java", 3,
             "H2Verify.java", 2,
             "JsonAssertCanon.java", 1,
             "LineageForm.java", 1,

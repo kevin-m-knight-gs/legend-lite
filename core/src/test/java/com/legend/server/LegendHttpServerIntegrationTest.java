@@ -323,6 +323,12 @@ class LegendHttpServerIntegrationTest {
         assertTrue(response.body().contains("\"success\":true"),
                 "Pure query failed: " + response.body());
         // Data was inserted in Order 4, so we should see John/Smith
+        // A20 pin: data is a REAL JSON array ("data":[...]), never a
+        // double-encoded string ("data":"[...")
+        assertTrue(response.body().contains("\"data\":["),
+                "data must be a raw JSON array, got: " + response.body());
+        assertFalse(response.body().contains("\"data\":\"["),
+                "double-encoded data payload: " + response.body());
         assertTrue(response.body().contains("John") || response.body().contains("firstName"),
                 "Expected query results: " + response.body());
     }

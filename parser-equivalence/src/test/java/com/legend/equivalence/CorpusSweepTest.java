@@ -147,6 +147,11 @@ public class CorpusSweepTest {
         Map<String, String> modelRefuseAllow =
                 readAllowlist("model-refuse-allowlist.tsv");
 
+        // F3.7b ledger accounting: which pardon rows were actually NEEDED
+        java.util.Set<String> c12DiffsUsed = new java.util.TreeSet<>();
+        java.util.Set<String> c12WallsUsed = new java.util.TreeSet<>();
+        java.util.Set<String> modelRefuseUsed = new java.util.TreeSet<>();
+
         // accumulators
         int docsMatched = 0;
         int seamMatched = 0;
@@ -197,20 +202,28 @@ public class CorpusSweepTest {
                             .parseDocument(src.text());
                     if (Comparators.sameBytes(oracleJson, doc)) {
                         docsMatched++;
-                    } else if (!c12Diffs.containsKey(src.id())) {
+                    } else if (c12Diffs.containsKey(src.id())) {
+                        c12DiffsUsed.add(src.id());
+                    } else {
                         docDiffs.add(src.id() + " :: "
                                 + firstDivergence(oracleJson, doc));
                     }
                 } catch (Throwable t) {
-                    if (!c12Walls.containsKey(src.id())) weRefuse.add(src.id() + " :: "
-                            + msgOf(rootOf(t)));
+                    if (c12Walls.containsKey(src.id())) {
+                        c12WallsUsed.add(src.id());
+                    } else {
+                        weRefuse.add(src.id() + " :: "
+                                + msgOf(rootOf(t)));
+                    }
                 }
                 // CLAIM 2a: the MODEL transform reads every accepted
                 // source (compile-seam family excepted, BY ID)
                 try {
                     Surfaces.platform(src.text());
                 } catch (Throwable t) {
-                    if (!modelRefuseAllow.containsKey(src.id())) {
+                    if (modelRefuseAllow.containsKey(src.id())) {
+                        modelRefuseUsed.add(src.id());
+                    } else {
                         modelRefuse.add(src.id() + " :: "
                                 + msgOf(rootOf(t)));
                     }
@@ -371,6 +384,32 @@ public class CorpusSweepTest {
         // stale allowlist rows — parity fixed, lines to REMOVE
         List<String> stale = refusalAllow.keySet().stream()
                 .filter(id -> !asymIds.contains(id)).toList();
+        // F3.7b: staleness is ENFORCED, not just reported, for all four
+        // pardon ledgers; sizes are pinned so growth is a reviewed event
+        assertEquals(List.of(), stale.stream().sorted().toList(),
+                "stale refusal-allowlist rows (parity fixed) — remove them"
+                        + " from docs/refusal-allowlist.tsv");
+        assertEquals(List.of(), modelRefuseAllow.keySet().stream()
+                        .filter(id -> !modelRefuseUsed.contains(id))
+                        .sorted().toList(),
+                "stale model-refuse-allowlist rows (the platform transform"
+                        + " now reads them, or the id left the corpus) —"
+                        + " remove them from docs/model-refuse-allowlist.tsv");
+        assertEquals(List.of(), c12Walls.keySet().stream()
+                        .filter(id -> !c12WallsUsed.contains(id))
+                        .sorted().toList(),
+                "stale c12-walls rows — remove them");
+        assertEquals(List.of(), c12Diffs.keySet().stream()
+                        .filter(id -> !c12DiffsUsed.contains(id))
+                        .sorted().toList(),
+                "stale c12-known-diffs rows — remove them");
+        assertEquals(REFUSAL_ALLOW_TOTAL, refusalAllow.size(),
+                "refusal-allowlist size drifted — re-pin with review");
+        assertEquals(MODEL_REFUSE_ALLOW_TOTAL, modelRefuseAllow.size(),
+                "model-refuse-allowlist size drifted — re-pin with review");
+        assertEquals(0, c12Walls.size() + c12Diffs.size(),
+                "the c12 ledgers are EMPTY and stay empty — a new row is a"
+                        + " reviewed event (raise this pin deliberately)");
 
         writeReports(sources.size(), oracleAccepts, docsMatched, docDiffs,
                 weRefuse, bothReject, seamMatched, engineAsym, seamDiffs,
@@ -497,6 +536,74 @@ public class CorpusSweepTest {
                                 + head(protocolInvalid)));
     }
 
+    /** F3.7: the skew-claims ledger gets stale-row + total accounting.
+     *  The ledger has TWO consumers with different populations (this
+     *  sweep's classifier and SectionParseSentinelTest's), so liveness
+     *  is asserted SEMANTICALLY, not by per-consumer usage: a claim row
+     *  is live iff its source still EXISTS in the corpus, the pinned
+     *  oracle still REFUSES it (the definition of checkout-unreleased
+     *  skew), and lite still ACCEPTS it (otherwise there is nothing to
+     *  pardon). Any other row is stale and must leave
+     *  docs/version-skew-claims.tsv. */
+    @Test
+    void skewClaimsLedgerAccounting() throws Exception {
+        List<Corpus.Source> sources = Corpus.all();
+        org.junit.jupiter.api.Assertions.assertTrue(sources.size() > 7000,
+                "corpus floor: only " + sources.size() + " sources loaded —"
+                        + " check -Dlegend.engine.root/-Dlegend.pure.root");
+        java.util.Map<String, String> byId = new java.util.HashMap<>();
+        for (Corpus.Source s : sources) {
+            byId.put(s.id(), s.text());
+        }
+        PureGrammarParser oracle = PureGrammarParser.newInstance();
+        List<String> stale = new java.util.ArrayList<>();
+        for (String claim : new java.util.TreeSet<>(SKEW_CLAIMS)) {
+            String text = byId.get(claim);
+            if (text == null) {
+                stale.add(claim + " (source left the corpus)");
+                continue;
+            }
+            boolean oracleRefuses;
+            try {
+                oracle.parseModel(text);
+                oracleRefuses = false;
+            } catch (Throwable t) {
+                oracleRefuses = true;
+            }
+            if (!oracleRefuses) {
+                stale.add(claim + " (the pinned oracle now ACCEPTS it —"
+                        + " not skew anymore)");
+                continue;
+            }
+            // the consumers pardon OUR checkout-side surfaces (the
+            // sweep's platform/strict arms and the sentinel's section
+            // walk), so liveness tests those — not the LEGEND document
+            // parser
+            boolean oursAccepts;
+            try {
+                Surfaces.platform(text);
+                oursAccepts = true;
+            } catch (Throwable t) {
+                try {
+                    Surfaces.engine(text);
+                    oursAccepts = true;
+                } catch (Throwable t2) {
+                    oursAccepts = false;
+                }
+            }
+            if (!oursAccepts) {
+                stale.add(claim + " (our platform and strict surfaces"
+                        + " refuse it too — nothing to pardon)");
+            }
+        }
+        assertEquals(List.of(), stale,
+                "stale version-skew claims — remove the rows from"
+                        + " docs/version-skew-claims.tsv");
+        assertEquals(SKEW_CLAIMS_TOTAL, SKEW_CLAIMS.size(),
+                "skew-claims ledger size drifted — re-pin with row-by-row"
+                        + " review");
+    }
+
     // ------------------------------------------------------------------
     // The leniency classifier. NOTE (deep-audit H2 correction): for the
     // PLATFORM-surface population this method IS the gate — a non-null
@@ -535,6 +642,13 @@ public class CorpusSweepTest {
     }
 
     private static final ThreadLocal<String> CLASSIFYING_ID = new ThreadLocal<>();
+
+    /** F3.7b: pardon-ledger size pins — growth is a reviewed event. */
+    private static final int REFUSAL_ALLOW_TOTAL = 8;
+    private static final int MODEL_REFUSE_ALLOW_TOTAL = 4;   // 2026-08-16 F3.7b: 67 stale rows pruned (the ledger predated full section parity)
+
+    /** F3.7: the ledger's exact size — a new claim is a reviewed event. */
+    private static final int SKEW_CLAIMS_TOTAL = 25;
 
     private static boolean versionSkewClaim(Throwable ignored) {
         String id = CLASSIFYING_ID.get();

@@ -64,7 +64,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 30
                     #->groupBy(~grp, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "total");
+            var byGrp = CheckerResults.collect(result, "grp", "total");
             assertEquals(30L, ((Number) byGrp.get(1)).longValue());
             assertEquals(30L, ((Number) byGrp.get(2)).longValue());
         }
@@ -81,7 +81,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 40
                     #->groupBy(~grp, ~cnt:x|1:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "cnt");
+            var byGrp = CheckerResults.collect(result, "grp", "cnt");
             assertEquals(3L, ((Number) byGrp.get(1)).longValue());
             assertEquals(1L, ((Number) byGrp.get(2)).longValue());
         }
@@ -99,7 +99,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 40
                     #->groupBy(~grp, ~minVal:x|$x.val:y|$y->min())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "minVal");
+            var byGrp = CheckerResults.collect(result, "grp", "minVal");
             assertEquals(10L, ((Number) byGrp.get(1)).longValue());
             assertEquals(40L, ((Number) byGrp.get(2)).longValue());
         }
@@ -117,7 +117,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 40
                     #->groupBy(~grp, ~maxVal:x|$x.val:y|$y->max())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "maxVal");
+            var byGrp = CheckerResults.collect(result, "grp", "maxVal");
             assertEquals(30L, ((Number) byGrp.get(1)).longValue());
             assertEquals(50L, ((Number) byGrp.get(2)).longValue());
         }
@@ -133,7 +133,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 20
                     #->groupBy(~grp, ~avgVal:x|$x.val:y|$y->average())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "avgVal");
+            var byGrp = CheckerResults.collect(result, "grp", "avgVal");
             assertEquals(20.0, ((Number) byGrp.get(1)).doubleValue(), 0.001);
             assertEquals(20.0, ((Number) byGrp.get(2)).doubleValue(), 0.001);
         }
@@ -149,7 +149,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     3, 300
                     #->groupBy(~grp, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(3, result.rowCount());
-            var byGrp = collectResults(result, "grp", "total");
+            var byGrp = CheckerResults.collect(result, "grp", "total");
             assertEquals(100L, ((Number) byGrp.get(1)).longValue());
             assertEquals(200L, ((Number) byGrp.get(2)).longValue());
             assertEquals(300L, ((Number) byGrp.get(3)).longValue());
@@ -230,8 +230,8 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     #->groupBy(~grp, ~[total:x|$x.val:y|$y->plus(), cnt:x|1:y|$y->plus()])""");
             assertEquals(2, result.rowCount());
             assertEquals(3, result.columns().size(), "grp, total, cnt");
-            var totals = collectResults(result, "grp", "total");
-            var counts = collectResults(result, "grp", "cnt");
+            var totals = CheckerResults.collect(result, "grp", "total");
+            var counts = CheckerResults.collect(result, "grp", "cnt");
             assertEquals(60L, ((Number) totals.get(1)).longValue());
             assertEquals(90L, ((Number) totals.get(2)).longValue());
             assertEquals(3L, ((Number) counts.get(1)).longValue());
@@ -251,9 +251,9 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     #->groupBy(~grp, ~[s:x|$x.val:y|$y->plus(), lo:x|$x.val:y|$y->min(), hi:x|$x.val:y|$y->max()])""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size());
-            var sums = collectResults(result, "grp", "s");
-            var mins = collectResults(result, "grp", "lo");
-            var maxs = collectResults(result, "grp", "hi");
+            var sums = CheckerResults.collect(result, "grp", "s");
+            var mins = CheckerResults.collect(result, "grp", "lo");
+            var maxs = CheckerResults.collect(result, "grp", "hi");
             assertEquals(60L, ((Number) sums.get(1)).longValue());
             assertEquals(10L, ((Number) mins.get(1)).longValue());
             assertEquals(30L, ((Number) maxs.get(1)).longValue());
@@ -270,7 +270,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 30
                     #->groupBy(~grp, ~[total:x|$x.val:y|$y->plus(), avg:x|$x.val:y|$y->average()])""");
             assertEquals(2, result.rowCount());
-            var avgs = collectResults(result, "grp", "avg");
+            var avgs = CheckerResults.collect(result, "grp", "avg");
             assertEquals(15.0, ((Number) avgs.get(1)).doubleValue(), 0.001);
             assertEquals(30.0, ((Number) avgs.get(2)).doubleValue(), 0.001);
         }
@@ -309,7 +309,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 5, 10
                     #->groupBy(~grp, ~revenue:x|$x.price * $x.qty:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "revenue");
+            var byGrp = CheckerResults.collect(result, "grp", "revenue");
             // grp1: 10*2 + 20*3 = 80, grp2: 5*10 = 50
             assertEquals(80L, ((Number) byGrp.get(1)).longValue());
             assertEquals(50L, ((Number) byGrp.get(2)).longValue());
@@ -326,7 +326,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 30, 15
                     #->groupBy(~grp, ~sumAB:x|$x.a + $x.b:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "sumAB");
+            var byGrp = CheckerResults.collect(result, "grp", "sumAB");
             // grp1: (10+5)+(20+10) = 45, grp2: 30+15 = 45
             assertEquals(45L, ((Number) byGrp.get(1)).longValue());
             assertEquals(45L, ((Number) byGrp.get(2)).longValue());
@@ -344,7 +344,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     B, 4
                     #->groupBy(~grp, ~cnt:x|1:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "cnt");
+            var byGrp = CheckerResults.collect(result, "grp", "cnt");
             assertEquals(3L, ((Number) byGrp.get("A")).longValue());
             assertEquals(1L, ((Number) byGrp.get("B")).longValue());
         }
@@ -362,7 +362,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     mkt, Eve
                     #->groupBy(~dept, ~cnt:x|1:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "dept", "cnt");
+            var byGrp = CheckerResults.collect(result, "dept", "cnt");
             assertEquals(3L, ((Number) byGrp.get("eng")).longValue());
             assertEquals(2L, ((Number) byGrp.get("mkt")).longValue());
         }
@@ -389,7 +389,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 100, 0.5
                     #->groupBy(~grp, ~wavgCol:x|meta::pure::functions::math::mathUtility::rowMapper($x.quantity, $x.weight):y|$y->wavg())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "wavgCol");
+            var byGrp = CheckerResults.collect(result, "grp", "wavgCol");
             // grp1: (100*0.45 + 500*0.15 + 150*0.4) / (0.45+0.15+0.4) = 180.0
             assertEquals(180.0, ((Number) byGrp.get(1)).doubleValue(), 0.01);
             // grp2: (200*0.5 + 100*0.5) / (0.5+0.5) = 150.0
@@ -407,8 +407,8 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 300, 1.0, 1.0
                     #->groupBy(~grp, ~[wa1:x|meta::pure::functions::math::mathUtility::rowMapper($x.qty, $x.w1):y|$y->wavg(), wa2:x|meta::pure::functions::math::mathUtility::rowMapper($x.qty, $x.w2):y|$y->wavg()])""");
             assertEquals(2, result.rowCount());
-            var wa1 = collectResults(result, "grp", "wa1");
-            var wa2 = collectResults(result, "grp", "wa2");
+            var wa1 = CheckerResults.collect(result, "grp", "wa1");
+            var wa2 = CheckerResults.collect(result, "grp", "wa2");
             // grp1 wa1: (100*0.5 + 200*0.5) / 1.0 = 150
             assertEquals(150.0, ((Number) wa1.get(1)).doubleValue(), 0.01);
             // grp1 wa2: (100*0.3 + 200*0.7) / 1.0 = 170
@@ -428,7 +428,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, Eve, 13000
                     #->groupBy(~grp, ~winner:x|meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.employeeNumber):y|$y->maxBy())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "winner");
+            var byGrp = CheckerResults.collect(result, "grp", "winner");
             assertEquals("Charlie", byGrp.get(1).toString());
             assertEquals("Eve", byGrp.get(2).toString());
         }
@@ -446,7 +446,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, Eve, 8000
                     #->groupBy(~grp, ~loser:x|meta::pure::functions::math::mathUtility::rowMapper($x.name, $x.employeeNumber):y|$y->minBy())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "loser");
+            var byGrp = CheckerResults.collect(result, "grp", "loser");
             assertEquals("Bob", byGrp.get(1).toString());
             assertEquals("Eve", byGrp.get(2).toString());
         }
@@ -465,7 +465,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 3, 10
                     #->groupBy(~grp, ~corrAB:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->corr())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "corrAB");
+            var byGrp = CheckerResults.collect(result, "grp", "corrAB");
             // grp1: perfect positive correlation
             assertEquals(1.0, ((Number) byGrp.get(1)).doubleValue(), 0.0001);
             // grp2: perfect negative correlation
@@ -484,7 +484,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 4, 15
                     #->groupBy(~grp, ~cov:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->covarSample())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "cov");
+            var byGrp = CheckerResults.collect(result, "grp", "cov");
             assertEquals(5.0, ((Number) byGrp.get(1)).doubleValue(), 0.0001);
             assertEquals(-25.0, ((Number) byGrp.get(2)).doubleValue(), 0.0001);
         }
@@ -501,7 +501,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 4, 15
                     #->groupBy(~grp, ~covPop:x|meta::pure::functions::math::mathUtility::rowMapper($x.a, $x.b):y|$y->covarPopulation())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "covPop");
+            var byGrp = CheckerResults.collect(result, "grp", "covPop");
             assertEquals(2.5, ((Number) byGrp.get(1)).doubleValue(), 0.0001);
             assertEquals(-12.5, ((Number) byGrp.get(2)).doubleValue(), 0.0001);
         }
@@ -528,7 +528,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 200
                     #->groupBy(~grp, ~sd:x|$x.val:y|$y->stdDev())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "sd");
+            var byGrp = CheckerResults.collect(result, "grp", "sd");
             assertEquals(10.0, ((Number) byGrp.get(1)).doubleValue(), 0.01);
             // stdDev of [100, 200] = ~70.71
             assertEquals(70.71, ((Number) byGrp.get(2)).doubleValue(), 0.1);
@@ -584,7 +584,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 5
                     #->groupBy(~grp, ~v:x|$x.val:y|$y->variance())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "v");
+            var byGrp = CheckerResults.collect(result, "grp", "v");
             // variance of [10,20,30] = ~66.67 (pop) or 100 (sample)
             assertNotNull(byGrp.get(1));
             // variance of [5,5] = 0
@@ -652,7 +652,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     #->groupBy(~dept, ~[avg:x|$x.salary:y|$y->average(), sd:x|$x.salary:y|$y->stdDev()])""");
             assertEquals(2, result.rowCount());
             assertEquals(3, result.columns().size());
-            var avgs = collectResults(result, "dept", "avg");
+            var avgs = CheckerResults.collect(result, "dept", "avg");
             assertEquals(120.0, ((Number) avgs.get("eng")).doubleValue(), 0.001);
             assertEquals(100.0, ((Number) avgs.get("mkt")).doubleValue(), 0.001);
         }
@@ -782,7 +782,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     #->filter(x|$x.val < 100)
                     ->groupBy(~grp, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "total");
+            var byGrp = CheckerResults.collect(result, "grp", "total");
             assertEquals(30L, ((Number) byGrp.get(1)).longValue());
             assertEquals(30L, ((Number) byGrp.get(2)).longValue());
         }
@@ -843,7 +843,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     marketing, 85
                     #->groupBy(~dept, ~totalSalary:x|$x.salary:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "dept", "totalSalary");
+            var byGrp = CheckerResults.collect(result, "dept", "totalSalary");
             assertEquals(220L, ((Number) byGrp.get("engineering")).longValue());
             assertEquals(255L, ((Number) byGrp.get("marketing")).longValue());
         }
@@ -883,7 +883,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 3.0
                     #->groupBy(~grp, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "total");
+            var byGrp = CheckerResults.collect(result, "grp", "total");
             assertEquals(4.0, ((Number) byGrp.get(1)).doubleValue(), 0.001);
             assertEquals(3.0, ((Number) byGrp.get(2)).doubleValue(), 0.001);
         }
@@ -900,7 +900,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     2, 10.0
                     #->groupBy(~grp, ~avg:x|$x.val:y|$y->average())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "avg");
+            var byGrp = CheckerResults.collect(result, "grp", "avg");
             assertEquals(2.0, ((Number) byGrp.get(1)).doubleValue(), 0.001);
             assertEquals(10.0, ((Number) byGrp.get(2)).doubleValue(), 0.001);
         }
@@ -934,7 +934,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     5, 120
                     #->groupBy(~grp, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(5, result.rowCount());
-            var byGrp = collectResults(result, "grp", "total");
+            var byGrp = CheckerResults.collect(result, "grp", "total");
             assertEquals(30L, ((Number) byGrp.get(1)).longValue());
             assertEquals(120L, ((Number) byGrp.get(2)).longValue());
             assertEquals(60L, ((Number) byGrp.get(3)).longValue());
@@ -1093,7 +1093,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     #->extend(~revenue:x|$x.price * $x.qty)
                     ->groupBy(~grp, ~totalRev:x|$x.revenue:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "grp", "totalRev");
+            var byGrp = CheckerResults.collect(result, "grp", "totalRev");
             assertEquals(80L, ((Number) byGrp.get(1)).longValue());
             assertEquals(50L, ((Number) byGrp.get(2)).longValue());
         }
@@ -1113,7 +1113,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     ->sort(~val->ascending())
                     ->groupBy(~grp, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(3, result.rowCount());
-            var byGrp = collectResults(result, "grp", "total");
+            var byGrp = CheckerResults.collect(result, "grp", "total");
             assertEquals(10L, ((Number) byGrp.get(1)).longValue());
             assertEquals(50L, ((Number) byGrp.get(2)).longValue());
             assertEquals(40L, ((Number) byGrp.get(3)).longValue());
@@ -1232,7 +1232,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~totalAge:x|$x.age:y|$y->plus())""");
             assertEquals(2, result.rowCount()); // Smith, Jones
-            var byGrp = collectResults(result, "lastName", "totalAge");
+            var byGrp = CheckerResults.collect(result, "lastName", "totalAge");
             assertEquals(58L, ((Number) byGrp.get("Smith")).longValue()); // John(30) + Jane(28)
             assertEquals(45L, ((Number) byGrp.get("Jones")).longValue()); // Bob(45)
         }
@@ -1245,7 +1245,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~cnt:x|1:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "lastName", "cnt");
+            var byGrp = CheckerResults.collect(result, "lastName", "cnt");
             assertEquals(2L, ((Number) byGrp.get("Smith")).longValue());
             assertEquals(1L, ((Number) byGrp.get("Jones")).longValue());
         }
@@ -1280,7 +1280,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~avgAge:x|$x.age:y|$y->average())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "lastName", "avgAge");
+            var byGrp = CheckerResults.collect(result, "lastName", "avgAge");
             assertEquals(29.0, ((Number) byGrp.get("Smith")).doubleValue(), 0.001); // (30+28)/2
             assertEquals(45.0, ((Number) byGrp.get("Jones")).doubleValue(), 0.001);
         }
@@ -1293,8 +1293,8 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     ->project(~[lastName:p|$p.lastName, age:p|$p.age])
                     ->groupBy(~lastName, ~[youngest:x|$x.age:y|$y->min(), oldest:x|$x.age:y|$y->max()])""");
             assertEquals(2, result.rowCount());
-            var mins = collectResults(result, "lastName", "youngest");
-            var maxs = collectResults(result, "lastName", "oldest");
+            var mins = CheckerResults.collect(result, "lastName", "youngest");
+            var maxs = CheckerResults.collect(result, "lastName", "oldest");
             assertEquals(28L, ((Number) mins.get("Smith")).longValue());
             assertEquals(30L, ((Number) maxs.get("Smith")).longValue());
         }
@@ -1400,7 +1400,7 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                     Bob, 30
                     #->groupBy(~name, ~total:x|$x.val:y|$y->plus())""");
             assertEquals(2, result.rowCount());
-            var byGrp = collectResults(result, "name", "total");
+            var byGrp = CheckerResults.collect(result, "name", "total");
             assertTrue(byGrp.containsKey("Alice"));
             assertTrue(byGrp.containsKey("Bob"));
         }
@@ -1425,18 +1425,6 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
     // ========================================================================
 
     /** Collects results into a map keyed by the group column value. */
-    private <K> java.util.Map<K, Object> collectResults(
-            com.legend.exec.ExecutionResult result, String keyCol, String valCol) {
-        int keyIdx = columnIndex(result, keyCol);
-        int valIdx = columnIndex(result, valCol);
-        java.util.Map<K, Object> map = new java.util.HashMap<>();
-        for (var row : result.rows()) {
-            @SuppressWarnings("unchecked")
-            K key = (K) row.get(keyIdx);
-            map.put(key, row.get(valIdx));
-        }
-        return map;
-    }
 
     /** Finds column index by name. */
     private int columnIndex(com.legend.exec.ExecutionResult result, String name) {

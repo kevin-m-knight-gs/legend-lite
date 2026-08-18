@@ -5,7 +5,6 @@ import org.finos.legend.engine.nlq.ModelSchemaExtractor;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ParsedModel;
 import org.finos.legend.engine.nlq.NlqModel;
-import com.gs.legend.model.m3.*;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;

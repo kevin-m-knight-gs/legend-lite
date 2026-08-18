@@ -56,7 +56,7 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             // ORIGINAL let-bound instances back (assertIs / address-equal) —
             // reference identity cannot cross a value serialization boundary;
             // the reference adapter excludes this family too.
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "no typed conversion for org.duckdb.DuckDBArray (type=ClassType[fqn=meta::pure::functions::collection::tests::map::model::M_Location])"),   // F5.5: the wall moved EARLIER and got specific — the old text was the downstream instanceOf error reached through the deleted stringify fallback
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // (OneToOne is HARNESS SERIALIZATION LOSS, not an identity assert:
             // the captured $address never reaches the serialized text)

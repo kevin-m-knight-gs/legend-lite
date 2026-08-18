@@ -530,6 +530,20 @@ one owner plus documented exemptions.
 **Expected red:** possible in `server/` tests if any pinned a `double`-rounded value.
 **That red is the bug.**
 
+> **LANDED ENDPOINT (2026-08-16, second pass — the Phase-3 deep audit caught c/d/e
+> unlanded after F3.7's commit prematurely declared the phase complete):**
+> **c)** the WRITE table lives once in `protocol/Escapes.jsonEscape(out, s, upperHex)` —
+> the three spellings (server/Json.escapeTo, ProtocolEmitter.str, ResultJson.writeString)
+> differed ONLY in control-escape hex case, so Jackson's uppercase is the one parameter;
+> all three delegate (JsonSerializer already rode ResultJson). Byte parity pre-flighted
+> (CorpusSweepTest green) before the chain.
+> **d)** the READ table for string bodies is `sql/Json.unescapeString` (drop-backslash —
+> the platform reader's and the Pure unescape family's shared terminal rule);
+> `Executor.jsonUnescape`'s keep-the-backslash twin lost the adjudication and delegates.
+> **e)** the MongoDB exemption is recorded AT THE SITE (token-level, no escape decoding,
+> loud on floats). `sql/Json`'s header claim is now TRUE with two documented exemptions
+> (server/Json strict HTTP reader; MongoDB). The five-readers table above is history.
+
 ### F3.2 — Substitution: delete the harness copy
 
 **Files:** delete `core/src/main/java/com/legend/harness/HarnessSubstitution.java`; repoint
@@ -550,6 +564,29 @@ diff. An empty diff retires the urgency; a non-empty diff names the bug and its 
 **Acceptance:** one substitution engine. The quoted-code fold at `HarnessSubstitution:71-87`
 (which hard-codes `Dialect.LEGEND_ENGINE`, something `SourceSubst:66-70` **explicitly refuses**
 with a stated reason) is deleted, not ported.
+
+> **RE-SCOPED after a reverted first attempt (2026-08-16).** The full swap+delete
+> was tried and REVERTED under §0.3 rule 3: red exceeded the declaration —
+> tds/tests fell 253→237 and M1 text-matches 325→291, because
+> HarnessSubstitution is TWO things fused: the substitution ENGINE (duplicated,
+> killable — F3.2a already killed its dynamic scoping at the binding sites) and
+> a FOLD PASS (pair `.first/.second` projections + the late quote-fold) that
+> ~16 tds tests and ~34 golden-text extractions genuinely consume. The plan's
+> "deleted, not ported" underestimated the folds' blast radius. New sequence:
+> LANDED ENDPOINT (same day): a fourth fused concern surfaced during
+> extraction — ElqSplice.keyAlias inside the ColSpec arm, a src/test type
+> the src/main owner structurally cannot call — so the folds cannot become
+> a clean post-pass without platformizing them first. The honest landing:
+> (1) SourceSubst GAINED the lambda-local-let shadow-stop the harness copy
+> had right and the owner lacked (pinned in SourceSubstTest); (2)
+> SubstitutionParityTest BINDS the two engines equal on the shared
+> substitution semantics — A8's "nothing binds the halves" is answered
+> mechanically; (3) HarnessSubstitution carries an explicit charter naming
+> its three extras and their retirement owners (quote-fold → platform
+> quote folding; pair fold → typed-level StaticFold; keyAlias →
+> harness-coupled), with "new semantics go in SourceSubst, never here."
+> Full deletion is BLOCKED on platformizing the extras — recorded, not
+> forced.
 
 ### F3.3 — Multiplicity: delete the second engine
 
@@ -779,6 +816,24 @@ permanent differential test shrinks to covering only the LiteralFold-admitted id
 **Acceptance:** ONE implementation of every value print form, and it runs in the database.
 PCT exercises `floatRepr`.
 
+> **ATTEMPTED AND REVERTED (2026-08-17), design lesson recorded:** a post-hoc
+> plan rewrite (`RenderOption` ThreadLocal + `Render.pctPrintCells` over the
+> FINAL SqlQuery at the orchestrator seam) was built and iterated through ~10
+> shape classes — empty-projection `starOf` selects, star/`StarExcept`
+> expansion, VALUES-backed selects (the dialect COLLAPSES a Subselect over
+> VALUES), DuckDB lateral projection aliasing (extend chains), order-scope
+> hoists — each fix surfacing the next structural interaction. The measured
+> conclusion: the final plan's construction discipline cannot be safely
+> rewritten FROM OUTSIDE. The correct integration is a LOWERER ROOT MODE
+> (the `withStreamingGraphRoot` precedent): the print projection emitted at
+> root construction where aliases/scopes/order are still owned. Also
+> measured on the way: the PCT wire's DateTime spelling is fixed-3-millis
+> `+0000` (the upstream deephaven parser's accepted form — minimal
+> subseconds demote the column to STRING), and an abstract-Date slot needs
+> `typeof()`-style column reflection because OutputCol's slot claim is
+> unreliable (the mechanism-3 deviation). F4.4 proceeds as its OWN leg with
+> the Lowerer-mode design; Phases 6-8 do not depend on it.
+
 ---
 
 ## 6. Phase 5 — The result bridge (type fidelity)
@@ -900,6 +955,16 @@ Audit §5 A1.
 
 **Expected red:** up to 71 reads. Adjudicate as blocked-on-feature.
 
+**LANDED ENDPOINT (2026-08-17):** both fabrications deleted — the `[]` fold (and its
+filter-over-activities variant) and the UUID trace comment; those reads now wall with
+`NotImplementedException("execution activities are not recorded")`. The aggregationAware
+`rewrittenQuery` arm SURVIVES: it is a derived read (routed print recomputed from the frame's
+actual chain via `AggAwareActivities`), not fabrication — which is why the realized red is
+**13**, not 71 (the derived arm still answers the rewrite-print asserts). Deltas, all the wall:
+`aggregationAware/test/rewrite` 13→9, `…/rewrite/NOP` 15→7, `functions/tests` 238→237
+(`testSQLComments`). Verdicts in docs/BURNDOWN_EXPLANATIONS.md (blocked-on-feature); corpus
+total 2347→2334, scoreboard re-frozen. Un-red path = recording REAL activities (§9 backlog).
+
 ### F6.2 — Delete the `u_map__` null strip
 
 **Files:** `EngineTestExecutor.java:2507-2521`
@@ -927,6 +992,18 @@ above.** Audit §5 A3.
 **Probe first:** instrument `H2Verify.java:315` to print the declared type, value, and side. Any
 hit on a side that came from an `execute()` binding is a masked typing bug — likely fixed by F5.4.
 
+**LANDED ENDPOINT (2026-08-17):** the probe ADJUDICATED, then the coercion was RESCOPED, not
+deleted. Firings: DuckDB full sweep **0** (nothing masked on the scoreboard backend); h2 full
+sweep **71**, every one the **JSON collection carrier** — H2 has no native list type, so
+collection reads ride `JSON_ARRAYAGG`, and JSON has no temporal types (verified by SQL dump:
+`SELECT (SELECT JSON_ARRAYAGG(t1."from" …))` on testMilestoningColumnProjectionForRoot). That
+decode is a carrier convention, not a masked typing bug. Fix: the side-agnostic
+`coerceTemporal` wrappers in `Eval.values()` are GONE; the decode now lives ONLY in
+`Eval.flatten`'s `byte[]` JSON-carrier branch (the one arrival whose provenance proves the
+carrier typeless), so a String-where-Date on ANY other path now reaches `wireEquals`'s
+typing-bug refusal — the audit's demand, honored without breaking the carrier. Referees: DuckDB
+scoreboard byte-identical, h2 sweep 2282/2575 (identical to pre-change), full chain GREEN.
+
 ### F6.4 — Fix `hostEquals`'s numeric arm (one line)
 
 **Files:** `exec/HostEval.java:244-247`
@@ -949,6 +1026,21 @@ hit on a side that came from an `execute()` binding is a masked typing bug — l
 a collapse the primary `wireEquals:3325-3335` **explicitly refuses**. Whether an assert gets the
 strict comparator or a permissive one is decided by **which spelling the test happened to use.**
 
+**LANDED ENDPOINT (2026-08-17):** three sites adjudicated, two fixed, one already dead:
+`csvRowEquals` was DELETED by F4.3b's render cutover (nothing left to fix);
+`TdsEquivalence` cell fallback `String.valueOf(x)==String.valueOf(y)` → `Objects.equals`
+(same kind, same value — no cross-kind bridge); **A7** `JsonAssertCanon.sortByKey` lexical
+sort → pure `sortBy` comparator semantics (numbers numerically, strings lexically, mixed
+kinds WALL). The A7 sort SITE stays allow-listed — it re-creates the TEST'S OWN
+`^JSONArray(values=…->sortBy(getValue('K')))` canonicalization (the JSON metamodel never
+executes through the SQL pipeline), so the site is the test's, not harness compensation;
+the discipline ledger's "LEDGERED VIOLATION" label is retired to RESOLVED.
+`H2Verify.norm` was inspected and STAYS: it is the cross-ENGINE oracle channel (two live
+engines, different SQL texts — database-level VALUE equality is its documented contract;
+the audit's `Double.parseDouble` was already replaced by the exact-integral/10-sig-digit
+BigDecimal arms in H2_BACKEND §12). Referees: DuckDB scoreboard byte-identical, full
+chain GREEN.
+
 ### F6.6 — Re-site the `executeInDb` READ path
 
 **Files:** `exec/HostEval.java:376-382`, `exec/DbMetaData.java:89-99`, `:104-127`
@@ -961,6 +1053,19 @@ CSV seeds and generator inserts are **absent** from that shadow DB, and rejected
 **Change:** route reads to the ambient connection (`Executor.executeRaw` already owns raw
 statements) or restore the refusal and ledger the one test. Make the replay skip **throw**.
 
+**LANDED ENDPOINT (2026-08-17):** reads re-sited to the AMBIENT session (`HostEval.Ambient`
+record bound by the full entry; both StatementExecutor call sites pass it; the read refuses
+loudly without one). `DbMetaData.query` now executes on the supplied connection — the shadow
+replay for reads is DELETED; the metadata-channel replay that survives THROWS on a rejected
+statement (the old skip printed and answered from a partial shadow). The raw boundary gained
+ONE naming rule: an unaliased `count(*)` projection item aliases to H2's observable
+`"COUNT(*)"` (witness: ddl::dropAndCreateTable reads `.value('COUNT(*)')`; DuckDB names the
+column `count_star()`) — naming is raw-H2 observable behavior, squarely the translator's
+charter. Referee: +1 GAIN (`H2Test` — its read ERRORED only because the shadow H2 rejected a
+boolean-vs-varchar comparison the ambient session executes; declared in
+BURNDOWN_EXPLANATIONS), corpus 2334→2335; h2 sweep 2282/2575 unchanged; the two old
+`h2-meta-replay skip` lines on DuckDB sweeps are gone (those replays no longer happen).
+
 ### F6.7 — Fix the H2 extension wiring gap
 
 **Files:** `harness/H2Verify.java:273` (`aliases()` is called in the *fresh-replay* branch only)
@@ -968,6 +1073,14 @@ statements) or restore the refusal and ledger the one test. Make the replay skip
 **Why:** `Runner.java:1855` makes the incremental **mirror** the default path for DuckDB sweeps,
 and the mirror never registers the aliases — so the C1 fix this class exists for is not in effect
 on the default path.
+
+**LANDED ENDPOINT (2026-08-17):** `H2Verify.mirrorBegin` now registers
+`H2ExtensionFunctions.aliases()` on the mirror connection before attaching it — the mirror and
+the fresh-replay branch install identically (a failed registration is a loud
+IllegalStateException, never a silent partial mirror). Measured delta today: ZERO (both sweeps
+carry no `legend_h2_extension_*` declines — h2-exec 320+632/0/155 identical before and after),
+so this is wiring parity, not a rescue: the gap would have surfaced the moment an
+extension-calling golden hit the default mirror path. Full chain GREEN.
 
 ### F6.8 — Fix the emptiness-guard ordering hole
 
@@ -1010,6 +1123,27 @@ downgrade a red assertion to advisory.** Audit §5.2.
 **Expected direction: GREEN.** This converts unverifiable → verifiable. It is the one task in the
 plan likely to *raise* the honest pass count.
 
+**LANDED ENDPOINT (2026-08-17):** adjudicated in two halves.
+*Transactions:* already BUILT AND MEASURED by the perf program (task #14, recorded at
+`Runner.openSession`): DML txn-batching saved zero (DuckDB's per-statement cost is
+parse+plan+JNI, not commit), and the DDL-bearing variant hit a **DuckDB 1.1.3 native abort**
+(`DuckTransaction::Commit → std::terminate` through JNI — kills the JVM). Seed atomicity via
+transactions is NOT available on the primary backend at this engine version; revisit on DuckDB
+upgrade (§9). A failed CREATE is per-statement atomic already; the half-populated-DB window the
+audit feared is otherwise covered by fail-loud below.
+*The apparatus:* measured, then deleted to its one honest residue. The `rawSqlFailureSink`
+per-statement tolerance channel fired ZERO times on both full sweeps — DELETED end to end
+(Compiler overload, ExecEnv field, executeInDb + runtime-setups + print-effectful arms, the two
+harness sink args): a failed raw statement now THROWS; the runner's per-SETUP-UNIT catch still
+records into `failedSeeds`, so `emptinessUnverifiable` keeps its (stricter-grained) feed. The
+module-DDL loop's catch NARROWED to exactly one named gap: `already exists` — a same-named
+table from another database's DDL already living in the family session (6 on the h2 sweep, 0 on
+DuckDB; all six spelled in the sweep log via the new seed-fail detail print) — anything else is
+a loud `IllegalStateException`. Referees: DuckDB scoreboard byte-identical, failed seeds 0;
+h2 2282/2575 with the same 6 named rows. The plan's GREEN prediction did not materialize as new
+passes (the unverifiables were not seed-gated on the referee backend); the honest gain is the
+deleted tolerance surface.
+
 ### F7.2 — CSV values: copy the fix that already exists
 
 **Files:** `exec/CsvSeed.java:93-107`; `harness/EngineTestExecutor.java:2732`
@@ -1028,6 +1162,16 @@ explicit-per-variant switch. Copy it, or switch to a typed `PreparedStatement`.
 **Expected red:** real, where the regex was papering over a type mismatch. **Those reds are the
 finding.**
 
+**LANDED ENDPOINT (2026-08-17):** the value-side regex is gone — every CSV value now rides as
+a QUOTED literal and the database casts it to the model's column type (the exact
+`TestDataGenerator.loadSide` policy, copied). Realized red: ZERO on both full sweeps (DuckDB
+scoreboard byte-identical at 2335, h2 2282/2575) — the regex was live host-side type dispatch
+but was not currently papering over any mismatch. The `:2732` `sqls(csv, null, ctx)` complaint
+was adjudicated STALE: null dbFqn deliberately selects the DELETE+INSERT branch — the inline
+`testDataSetupCsv` override seeds over family-DDL tables that already exist, so `ddlType`'s
+loudness is not bypassed, it is out of scope by design (documented at the call site). Full
+chain GREEN.
+
 ### F7.3 — JSON ingress through the database
 
 **Files:** `resolver/JsonSourceFrame.java:75`, `:109-119`
@@ -1040,6 +1184,19 @@ every JSON type back to text**, which `Scalars.tdsCell` re-parses (`Long.parseLo
 **The DB path exists and is fully wired end-to-end** and is simply not used:
 `SourceUrlChecker.java:38` → `Lowerer.java:323-324` → `SqlSource.SourceUrl` →
 `DuckDb.java:171-185` (`unnest(CAST(… AS JSON[]))`). 27 occurrences / 5 files. Audit §5 A12.
+
+**LANDED ENDPOINT (2026-08-17):** both concrete bugs fixed AT THE PRODUCER; the full SourceUrl
+re-platform is scoped and filed (§9). `JsonSourceFrame.cellText` now types every cell by the
+DECLARED column: a **Variant** property IS a column (the frame no longer skips it with the
+class-typed ones) and its value re-emits as REAL JSON via `ResultJson.jsonText` (quote-wrapped
+for `Scalars.tdsCell`'s variant arm — nested objects never ride `Map.toString` again); a
+structured value under a SCALAR column WALLS; a JSON string spelling the grid's null tokens
+(`"null"`, empty, `---null---`) WALLS instead of silently becoming SQL NULL — the
+`List<List<String>>` grid genuinely cannot carry it, which is the honest boundary of this
+carrier. Four pins in `JsonSourceFrameCellTest`. Residue → §9: realize the frame OVER
+`SqlSource.SourceUrl` + typed variant extraction (`variant::navigation::get` +
+`variant::convert::to` exist; the missing piece is the FRAME_ORDINAL row-identity channel in
+the sourceUrl spelling). Referees: DuckDB scoreboard byte-identical, full chain GREEN.
 
 ### F7.4 — End the self-inflicted SQL rewrite loop
 
@@ -1065,12 +1222,41 @@ and `"`-quoted identifiers containing `;`.
 **Acceptance:** `RawSqlBoundary`'s stated contract becomes **true for the first time**, and
 F1.6's ledger drops to its one legitimate entry.
 
+**LANDED ENDPOINT (2026-08-17):** the loop is dead. `Ddl.createTable(def, schema, duckTarget)`
+spells the EXECUTION form for its target from the TYPE (`duckSpell`: FLOAT→DOUBLE, BIT→BOOLEAN
+— exactly where H2's type semantics differ from its names); the H2 flavor survives as the
+mirror-replay/h2-backend spelling. Both model-derived channels route DIRECTLY to execution
+(`dropAndCreateTableInDb` via `Executor.executeRaw`; Runner's module-DDL loop executes the
+pre-spelled unit), the H2 advisory mirror gets its stream by SPELLING THE MODEL A SECOND TIME
+— recorded only after the session executed, so the recording still mirrors executed reality —
+and `splitStatements` left the model-derived path (each unit IS one statement). Adjudications
+against the plan text: `mapColumnTypes` STAYS — its witness (`relationalSetUp` testTable's
+literal `float` column) is HAND-WRITTEN corpus text, the translator's actual charter; the
+loop-justifying comments died instead. `recordMeta` was NOT the right channel for CREATEs —
+the row-replay mirror needs the tables (only constraints ride the meta channel, as before).
+F1.6's ledger: Runner LEFT — now `{StatementExecutor, HostEval}`, both corpus-authored text
+(the F6.6 read direction joined after the plan was written); the boundary's stated contract is
+true at last. Referees: DuckDB scoreboard byte-identical, h2-exec 320+632/0/155 identical, h2
+sweep 2282/2575 identical, full chain GREEN.
+
 ### F7.5 — Batch the seeds
 
 `CsvSeed.java:85-108`, `Ddl.setUpDataSqlsText:157-162`, `TestDataGenerator.loadSide:1212-1226`
 (twice per table), `Runner.java:1934-1956`. Multi-row `INSERT … VALUES` or `executeBatch()`.
 Also fold the effectful `map` arm (`StatementExecutor.java:3174-3185`), which materialises a
 collection, calls `executeTyped` per element, and **keeps only the last result**.
+
+**LANDED ENDPOINT (2026-08-17):** batched where the platform OWNS the text, then measured —
+and the measurement closes the item. `CsvSeed` emits ONE multi-row `INSERT … VALUES` per
+block; `TestDataGenerator.loadSide` likewise (both H2-mirror-replayable and DuckDB-valid).
+`Ddl.setUpDataSqlsText` is EXEMPT — it is the golden-asserted engine TEXT surface, not an
+execution stream. Runner's module DDL was already one-statement units after F7.4. Measured on
+the full sweep: raw jdbc statements 980,068 → 979,780 (−288, 0.03%) — the seed stream is
+overwhelmingly CORPUS-AUTHORED executeInDb text, whose per-statement execution IS the fidelity
+contract (task #14's finding again: the cost is the statement stream itself). The effectful-map
+fold was left alone: its per-element `executeTyped` is the same corpus-text channel and its
+"last result" is semantically discarded setup output. The real speed lever remains family
+sharding (recorded, out of scope). Scoreboard byte-identical; full chain GREEN.
 
 ### F7.6 — `DynamicPivot`: add typed arms, make `default` throw
 
@@ -1080,6 +1266,12 @@ collection, calls `executeTyped` per element, and **keeps only the last result**
 `TIMESTAMP` pivot key into a **string literal** in the regenerated `IN` list. `SqlExpr` already
 has `DateLit`/`DecimalLit`/`TimestampLit`. **Do not regress this class's placement** — its
 two-phase run at the execution seam, rewriting IR via `SqlRewriter`, is the target design.
+
+**LANDED ENDPOINT (2026-08-17):** every JDBC pivot-key kind has its TYPED literal arm
+(BigDecimal→DecimalLit, Double/Float→FloatLit, Date/LocalDate→DateLit,
+Timestamp/LocalDateTime→TimestampLit, String→StringLit); an unmapped kind THROWS
+(`NotImplementedException` naming the JDBC class). Placement untouched. Scoreboard
+byte-identical, full chain GREEN.
 
 ### F7.7 — `planWalk`: exact FQN dispatch, loud default
 
@@ -1092,6 +1284,20 @@ states the opposite rule at `:2057-2058` (*"EXACT FQN (never suffix matching)"*)
 throw, not return null. Delete the `LL_TMP_DEBUG` breadcrumbs that exist only because the silence
 was undiagnosable.
 
+**LANDED ENDPOINT (2026-08-17):** the walk vocabulary now dispatches on EXACT FQN.
+`MetamodelSteps.metamodelStep`/`mappingNav` take the full qualified name; every case label is
+the real engine FQN — censused LIVE over the full sweep (`[F77-PROBE]`, 19 distinct FQNs
+observed) and the unfired residue (`filter`/`cast`/`map`/`toOneMany`/`schema`/`table`/
+`superMapping`) verified against `Pure.java` registered signatures and the real legend-pure
+sources (`meta::pure::mapping::superMapping` at functions_PropertyMappingsImplementation.pure:19).
+A user function sharing a simple name can no longer shadow the metamodel vocabulary. The three
+planWalk `LL_TMP_DEBUG` breadcrumbs died. ADJUDICATED, not changed: planWalk's terminal `null`
+is a ROUTING signal — the statement falls through to the execute-frame / SQL pipeline channels
+(`:312`), so throwing there would break the architecture, and `WALK_UNRECOGNIZED` already
+separates "not my vocabulary" from Pure-empty; the `constructOp`/`constructNode` simple-name
+switches sit INSIDE the four-package `startsWith` namespace guard (`:1160-1168` — platform-owned
+namespaces), so no user shape reaches them. Scoreboard byte-identical, full chain GREEN.
+
 ### F7.8 — The `normalizer/`'s 31 silent defaults
 
 **Files:** 31 `orElse(null)` sites in `normalizer/`, 11 in `resolver/`. Start with
@@ -1103,6 +1309,17 @@ predicates from the plan** — wrong rows, no error. Contradicts AGENTS.md commo
 **Probe:** make it throw and run the referee. **Green → it was never reachable and the
 defensiveness should be deleted (all 31). Red → each red names a real gap.** Either outcome is
 a result.
+
+**LANDED ENDPOINT (2026-08-17):** probed ALL 33 `findClass(...).orElse(null)` sites in
+`normalizer/` (the audit's 31 had grown) with a per-site funnel over the full sweep. Verdict
+split: **23 sites never fired → `orElseThrow`** (the named `isBitemporalClass:1507` among them —
+the feared silent milestoning omission is now loud); **10 sites fire legitimately** and funnel
+through the documented `MissProbe.knownMiss`: UnionSynthesis's metamodel probe (20,808 misses,
+every key an engine metamodel/protocol class FQN — the miss IS the answer) and nine sites whose
+keys are BARE super-class simple names — a REAL name-resolution gap, filed in the §9 backlog
+(no corpus case bites today). The `resolver/` 51 `orElse(null)` are post-audit code written
+under the null-policy decision procedure and were not part of this census. Referees: DuckDB
+scoreboard byte-identical, h2 sweep 2282/2575 identical.
 
 ---
 
@@ -1118,7 +1335,88 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
 (`DuckDBVariantLoadTest`, `DuckDBUnnestSyntaxTest`, `ProbeWireShapes`) — convert to
 `experiments/backend-probes/` shape or give them assertions.
 
+**Phase-8 progress ledger (2026-08-17):** `A17` retired by F7.6, `A18` by F7.8. **`A19`
+LANDED:** `ConnectionSpecification.EmbeddedH2(databaseName, directory, autoServerMode)` —
+carried WHOLE (the old fold to `LocalH2(null,null,null)` discarded all three fields and every
+embedded connection shared one fixed `jdbc:h2:mem:testdb`); the resolver gives each
+`databaseName` a DISTINCT in-memory db (the engine's directory-backed isolation without disk
+side effects — deliberate divergence, spelled at the resolver). Referee zero-delta, chain
+GREEN.
+**Zero-assertion trio LANDED:** `DuckDBUnnestSyntaxTest`/`DuckDBVariantLoadTest` moved to
+`experiments/backend-probes/duckdb-syntax/` as named PROBES with a README (a test that cannot
+fail is not a test; as recorded probes they keep their evidentiary value); `ProbeWireShapes`
+was already gone — only comment references remain. Chain GREEN.
+**Executor decode cluster (V1.7–V1.9) LANDED:** V1.9's prefix matching is dead — the
+parameter suffix strips once (`DECIMAL(38,9)` → `DECIMAL`), then the table is EXACT-match with
+the loud default (NUMERIC added). V1.7 ADJUDICATED resolved-by-design: the `endsWith("D")`
+parse is the mixed-identity carrier's decode (the print form IS the wire contract for
+NUMBER-rooted mixed collections — the burn-down chose it over the audit's typed-sibling
+column); documented at the site. V1.8 ADJUDICATED: the string arm already delegates to the one
+unescape table (F3.1d); the number arm must NOT delegate to `sql/Json.num` — an Any-rooted
+decimal JSON number is a pure Float (`Double`), while the strict JSON bridge deliberately reads
+`BigDecimal` (audit 18); same grammar, different target kinds by design, documented at the
+site. Referee zero-delta, chain GREEN.
+**A20 (double-encode half) LANDED:** `/engine/execute` and `/engine/sql` responses carry
+`data` as a REAL JSON array node (`Json.parse` of the ResultJson text into the response tree) —
+the old put of the `toJsonArray` STRING double-encoded the payload; the integration test now
+PINS `"data":[` and refutes `"data":"[` (the substring check that passed identically for both
+forms is superseded). The STREAMING half — `Executor.stream` is correct and no HTTP route uses
+it — is product-surface wiring, filed in the §9 backlog. Chain GREEN.
+**A22 LANDED:** nlq validation is COMPILE, not parse — `NlqService` now REQUIRES the model
+source (4-arg constructor, all nine sites migrated) and the generation retry loop calls
+`Compiler.compileQuery` (type check against the model); the generator prompt demands fully
+qualified class names. On its FIRST run the compile validator caught a real fixture bug — a
+mock query reading `VaRResult.var95`, a property that never existed (the audit's exact
+scenario). `NlqEvalMetrics`: `scoreQueryAccuracy` compiles when a model source is supplied;
+the sort-coverage tautology is dead (the key must appear IN the sort section — the old
+`contains("sort")` clause scored 1.0 for any sorted query); judge ERRORS count as UNJUDGED and
+the report prints `judged M of N; K judge error(s)` (the old `overall() > 0` filter silently
+shrank the denominator). Also un-rotted: a dead `com.gs.legend.model.m3` import had kept the
+whole nlq test module from COMPILING outside the gates — 223 module tests green again. Chain
+GREEN (nlq is not yet a gate — its module tests are the referee here).
+**A21 (collectResults half) LANDED:** the three copy-pasted `collectResults` helpers are ONE
+`CheckerResults.collect` — a duplicate key THROWS (the old `HashMap.put` silently kept the last
+row, so a query wrongly returning two rows for one group key passed), insertion order kept
+(LinkedHashMap). 68 call sites migrated, 137 checker tests green — no query returns duplicate
+keys today, and now none can silently. The broader `rows().stream()` sorted/filter idiom sweep
+(48 of 80 sites) is test-idiom hygiene of the same class, left to the ongoing correctness lane.
+**A13 ADJUDICATED merged into the §9 TDS-to-many leg:** the host-side row explosion at
+`Executor.shapeRow` is the EGRESS half of the same design (`OutputCol`/slot reconciliation —
+emit the engine's union-subselect/LEFT-join explosion in SQL); the host path is loud-guarded
+meanwhile (a second many-valued column throws; empty streams keep the LEFT-join row). **A5/A6**
+(testdatagen `Fetched` per-column `SqlExpr`) remains the one substantial open Phase-8 build.
+**A5/A6 LANDED (2026-08-17):** `hashStrings` and the CSV scrub are SQL. The dump's SELECT
+spells the engine's hashString per text column (`repeat(substr(sha256(c),1,5), len//5) ||
+right(…, len%5)` — first-5-hex tiled, engine testDataGeneration.pure:656) and the
+quote/comma/newline scrub as nested `replace`; text columns learn from the union's SCHEMA (a
+LIMIT-0 metadata read). The Java `MessageDigest` hashString and the display-string replace
+chain are DELETED — the tenet's oldest open breach (survived 691 commits) is closed. Row
+values cross into Java as display strings only. The full `Fetched` per-column-SqlExpr
+re-plumbing proved unnecessary: the projection layer was the one seam that needed typing.
+Referee zero-delta, chain GREEN. **Phase 8's build items are done**; residue = §9 backlog
+(F4.4 Lowerer root mode, TDS-to-many + A13, HostEval re-platforming, SourceUrl frame,
+streaming route, CorpusDifferentialTest gate wiring, reflection retirements, bare-super-name
+resolution, DuckDB-upgrade txn revisit).
+
 **Backlog (append new findings here, do not act on them mid-plan):**
+- **HTTP streaming route (A20 residue):** `Executor.stream` (JSON straight
+  to the wire, no materialization) is correct and unreachable — no HTTP
+  endpoint uses it. Wire `/engine/execute` (or a streaming variant) through
+  it when the server surface gets its product pass.
+- **Normalizer bare super-name resolution (F7.8 census find):** nine
+  `findClass` sites receive BARE super-class simple names ("Person",
+  "Firm" — `TypeExpression.NameRef` never import-resolved), so
+  superclass traversal silently contributes nothing at those sites (a
+  temporal superclass referenced by bare name would drop its
+  milestoning). No corpus case bites today; the sites are enumerable
+  via `normalizer/MissProbe.knownMiss`. Fix = resolve super names
+  through the import scope before the normalizer walks them.
+- **TDS project to-many column contract (F4.3 probe find):** a to-many
+  project lambda types a TO-ONE TDS column but LOWERS to a list-valued
+  slot (OutputCol VARCHAR, wire array) that the Executor unwraps at
+  egress — the one CSV-render residue (`testConcatenateWithFilter`,
+  docs/CSV_DIFFERENTIAL.md mechanism 3). Reconcile OutputCol with the
+  emitted slot (or emit the to-one coercion in SQL).
 - `scripts/outstanding.py:14` / `walldepth.py:7` hardcode `/Users/neema/...` — another account's
   checkout. `docs/RUNNABILITY_PLAN.md:129-133,184` derives its re-forecast from their artifacts,
   so **those numbers cannot be reproduced from this checkout.**
@@ -1172,12 +1470,34 @@ tautological sort-coverage metric; the F1.9 orphan-test reds; `Executor`'s decod
   GenerativeDualParseTest), both now gated; the other orphans are
   zero-assertion report/census printers (ProbeWireShapes et al. are the
   Phase-8 zero-assert item).
-- **HostEval eviction (F0.3 census result):** the channel's demand is 100% harness (all four
-  admission gates serve corpus vocabulary; no production entry point routes host today) —
-  after F1.2, move the host-channel dispatch behind a harness-installed seam so production
-  `StatementExecutor` carries no interpreter. Requires one referee cycle of arm-usage counter
-  data first (`LL_HOST_ARM_COUNT` pattern); rides only after F1.5's pin exists. Census:
-  `FOUNDATIONS_BASELINE.md` §7.
+- **HostEval RE-PLATFORMING (F0.3 census result; reframed 2026-08-16, user directive):** the
+  channel's demand is 100% harness (all four admission gates serve corpus vocabulary; no
+  production entry point routes host today). The goal is NOT to relocate the interpreter — it
+  is to make its vocabularies USE THE PLATFORM instead of reimplementing evaluation, the same
+  move F3.2 (substitution → SourceSubst), F3.3 (multiplicity walk → Typer), and F3.4 (ASOR →
+  AsorRef) made for their harness twins. Run it like a Phase-3 leg:
+  1. **Instrument first:** one full referee cycle of per-arm demand data
+     (`LL_HOST_ARM_COUNT` pattern) — the gates admit whole chains, so per-arm deadness is
+     not statically decidable.
+  2. **Convert arm-FAMILIES onto real platform capabilities**, deleting arms as they empty,
+     corpus as referee per step:
+     - `executeInDb` grid chains → compile the Pure chain, lower over the grid as a
+       relation (grid → VALUES source); exec already owns the SQL round trip;
+     - `schema()`/`table()` store navigation → compile-time metamodel constants answered
+       by `ModelContext` (the F3.3 move, applied to reflection);
+     - the curated typeInference construction set (`^DynaFunction`/`Literal`/`Alias`/…
+       + property reads) → the landed STRUCT-values design (typed construction,
+       DB-lowered values);
+     - `containsFetchDb` JDBC-metadata grids → `information_schema` queries lowered like
+       any relation.
+  3. **Endgame, not goal:** whatever residue remains moves behind a harness-installed seam
+     so production `StatementExecutor` carries no interpreter — the charter-3 invariant
+     becomes vacuously true in production. Comparison POLICY stays harness-owned
+     (orchestration, not evaluation — it must not migrate into the platform).
+  Rides only after F1.5's pin exists (it does) and with the counter data; the admission
+  predicate has collapsed the sweep twice, so every family conversion is its own gated
+  task. Each conversion doubles as a product capability (relation-from-grid, compile-time
+  reflection, struct values). Census: `FOUNDATIONS_BASELINE.md` §7.
 
 ---
 

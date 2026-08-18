@@ -24,16 +24,21 @@ final class MetamodelSteps {
      * the map-lambda body (ledger cluster 56 — walkMapBody was a
      * hand-maintained 3-entry copy that silently dropped everything
      * else). Null = recognized head but unserved shape / Pure-empty. */
-    static @com.legend.Nullable Object metamodelStep(String simple,
+    static @com.legend.Nullable Object metamodelStep(String fqn,
             Object recv, com.legend.compiler.spec.typed.TypedNativeCall c,
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
-            switch (simple) {
-                case "allNodes" -> {
+            // F7.7: EXACT FQN dispatch (never suffix matching) — the FQN
+            // set was censused live over the full sweep and verified
+            // against the registered signatures / real legend-pure
+            // sources; a user function sharing a simple name can no
+            // longer shadow the metamodel vocabulary.
+            switch (fqn) {
+                case "meta::pure::executionPlan::allNodes" -> {
                     if (recv instanceof com.legend.plan.PlanNode pn) {
                         return new java.util.ArrayList<Object>(pn.allNodes());
                     }
                 }
-                case "filter" -> {
+                case "meta::pure::functions::collection::filter" -> {
                     if (recv instanceof java.util.List<?> l
                             && c.args().get(1)
                                     instanceof com.legend.compiler.spec.typed
@@ -41,10 +46,12 @@ final class MetamodelSteps {
                         return StatementExecutor.walkFilter(l, lam2);
                     }
                 }
-                case "cast", "toOne", "toOneMany" -> {
+                case "meta::pure::functions::lang::cast",
+                        "meta::pure::functions::multiplicity::toOne",
+                        "meta::pure::functions::multiplicity::toOneMany" -> {
                     return recv;
                 }
-                case "at" -> {
+                case "meta::pure::functions::collection::at" -> {
                     if (recv instanceof java.util.List<?> l
                             && c.args().get(1)
                                     instanceof com.legend.compiler.spec.typed
@@ -52,12 +59,13 @@ final class MetamodelSteps {
                         return l.get((int) (long) ix.value());
                     }
                 }
-                case "first" -> {
+                case "meta::pure::functions::collection::first" -> {
                     if (recv instanceof java.util.List<?> l) {
                         return l.isEmpty() ? null : l.get(0);
                     }
                 }
-                case "schema" -> {
+                case com.legend.compiler.element.type.PlatformTypes
+                        .STORE_SCHEMA_NAV -> {
                     if (c.args().size() == 2 && c.args().get(1)
                             instanceof com.legend.compiler.spec.typed
                                     .TypedCString sn9) {
@@ -65,7 +73,8 @@ final class MetamodelSteps {
                                 sn9.value());
                     }
                 }
-                case "table" -> {
+                case com.legend.compiler.element.type.PlatformTypes
+                        .STORE_TABLE_NAV -> {
                     if (c.args().size() == 2 && c.args().get(1)
                             instanceof com.legend.compiler.spec.typed
                                     .TypedCString tn9) {
@@ -73,11 +82,12 @@ final class MetamodelSteps {
                                 tn9.value());
                     }
                 }
-                case "convertElement" -> {
+                case "meta::relational::functions::toPostgresModel::convertElement" -> {
                     return com.legend.exec.MetamodelWalk
                             .convertElement(recv);
                 }
-                case "convertSelectSqlQuery" -> {
+                case "meta::relational::functions::toPostgresModel"
+                        + "::convertSelectSqlQuery" -> {
                     Object body = com.legend.exec.MetamodelWalk
                             .convertElement(recv);
                     return body == null ? null
@@ -85,7 +95,7 @@ final class MetamodelSteps {
                                     new java.util.TreeMap<>(java.util.Map
                                             .of("queryBody", body)));
                 }
-                case "view" -> {
+                case "meta::relational::metamodel::view" -> {
                     if (c.args().size() == 2 && c.args().get(1)
                             instanceof com.legend.compiler.spec.typed
                                     .TypedCString vn) {
@@ -93,7 +103,7 @@ final class MetamodelSteps {
                                 vn.value());
                     }
                 }
-                case "map" -> {
+                case "meta::pure::functions::collection::map" -> {
                     if (recv instanceof java.util.List<?> l
                             && c.args().get(1) instanceof
                                     com.legend.compiler.spec.typed
@@ -101,7 +111,7 @@ final class MetamodelSteps {
                         return walkMapOver(l, ml, specs, env);
                     }
                 }
-                case "_classMappingByClass" -> {
+                case "meta::pure::mapping::_classMappingByClass" -> {
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
                                     .TypedPackageableRef cref2) {
@@ -109,7 +119,7 @@ final class MetamodelSteps {
                                 .classMappingsByClass(recv, cref2.fullPath());
                     }
                 }
-                case "rootClassMappingByClass" -> {
+                case "meta::pure::mapping::rootClassMappingByClass" -> {
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
                                     .TypedPackageableRef cref) {
@@ -118,12 +128,14 @@ final class MetamodelSteps {
                                         cref.fullPath());
                     }
                 }
-                case "classMappingById", "superMapping",
-                        "allSuperSetImplementations", "mainTable",
-                        "resolvePrimaryKey" -> {
-                    return mappingNav(simple, recv, c, specs, env);
+                case "meta::pure::mapping::classMappingById",
+                        "meta::pure::mapping::superMapping",
+                        "meta::pure::mapping::allSuperSetImplementations",
+                        "meta::relational::metamodel::mainTable",
+                        "meta::relational::mapping::resolvePrimaryKey" -> {
+                    return mappingNav(fqn, recv, c, specs, env);
                 }
-                case "propertyMappingsByPropertyName" -> {
+                case "meta::pure::mapping::propertyMappingsByPropertyName" -> {
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
                                     .TypedCString pn) {
@@ -131,10 +143,10 @@ final class MetamodelSteps {
                                 .propertyMappingsByName(recv, pn.value());
                     }
                 }
-                case "inferRelationalType" -> {
+                case "meta::relational::functions::typeInference::inferRelationalType" -> {
                     return com.legend.exec.MetamodelWalk.infer(recv);
                 }
-                case "dataTypeToSqlText" -> {
+                case "meta::relational::metamodel::datatype::dataTypeToSqlText" -> {
                     return com.legend.exec.MetamodelWalk.sqlText(recv);
                 }
                 default -> {
@@ -160,9 +172,8 @@ final class MetamodelSteps {
                 || !mv.name().equals(ml.parameters().get(0))) {
             return WALK_UNRECOGNIZED;
         }
-        String mfn = mb.callee().qualifiedName();
-        String msimple = mfn.substring(mfn.lastIndexOf(':') + 1);
-        return metamodelStep(msimple, e, mb, specs, env);
+        return metamodelStep(mb.callee().qualifiedName(), e, mb, specs,
+                env);
     }
 
     /** {@code ->map(x|...)} over walked handles; a single IS a [1]
@@ -195,26 +206,26 @@ final class MetamodelSteps {
     /** The extends-chain mapping-metamodel natives (classMappingById /
      * superMapping / allSuperSetImplementations / mainTable /
      * resolvePrimaryKey) — recv-dispatched to MetamodelWalk. */
-    private static @com.legend.Nullable Object mappingNav(String simple, Object recv,
+    private static @com.legend.Nullable Object mappingNav(String fqn, Object recv,
             com.legend.compiler.spec.typed.TypedNativeCall c,
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
-        return switch (simple) {
-            case "classMappingById" -> c.args().size() == 2
+        return switch (fqn) {
+            case "meta::pure::mapping::classMappingById" -> c.args().size() == 2
                     && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed.TypedCString mid
                     ? com.legend.exec.MetamodelWalk.classMappingById(recv,
                             mid.value())
                     : null;
-            case "superMapping" ->
+            case "meta::pure::mapping::superMapping" ->
                     com.legend.exec.MetamodelWalk.superMapping(recv);
-            case "allSuperSetImplementations" -> c.args().size() == 2
+            case "meta::pure::mapping::allSuperSetImplementations" -> c.args().size() == 2
                     ? com.legend.exec.MetamodelWalk
                             .allSuperSetImplementations(recv,
                                     StatementExecutor.planWalk(c.args().get(1), specs, env))
                     : null;
-            case "mainTable" ->
+            case "meta::relational::metamodel::mainTable" ->
                     com.legend.exec.MetamodelWalk.mainTable(recv);
-            case "resolvePrimaryKey" ->
+            case "meta::relational::mapping::resolvePrimaryKey" ->
                     com.legend.exec.MetamodelWalk.resolvePrimaryKey(recv);
             default -> null;
         };

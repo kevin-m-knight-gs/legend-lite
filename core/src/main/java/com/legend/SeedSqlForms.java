@@ -44,7 +44,8 @@ final class SeedSqlForms {
             if (db2 != null) {
                 return new ExecutionResult.Collection(new java.util.ArrayList<>(
                         com.legend.exec.Ddl.setUpDataSqlsTextFromRecords(
-                                records, db2)),
+                                records, db2,
+                                f -> env.ctx().findDatabase(f))),
                         com.legend.compiler.element.type.Type.Primitive.STRING);
             }
         }
@@ -55,7 +56,8 @@ final class SeedSqlForms {
         var dbDef = dbFqn == null ? null
                 : env.ctx().findDatabase(dbFqn).orElse(null);
         return new ExecutionResult.Collection(new java.util.ArrayList<>(
-                dbDef != null ? com.legend.exec.Ddl.setUpDataSqlsText(csv, dbDef)
+                dbDef != null ? com.legend.exec.Ddl.setUpDataSqlsText(csv,
+                        dbDef, f -> env.ctx().findDatabase(f))
                         : com.legend.exec.CsvSeed.sqls(csv, dbFqn, env.ctx())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }

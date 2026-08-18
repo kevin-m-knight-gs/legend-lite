@@ -19,7 +19,8 @@ import java.util.List;
  */
 public record PlanNode(String kind, List<PlanNode> children,
                        @com.legend.Nullable String sqlQuery, List<Param> functionParameters,
-                       @com.legend.Nullable String sqlComment) {
+                       @com.legend.Nullable String sqlComment,
+                       @com.legend.Nullable PlanConn connection) {
 
     /** The engine's default post-processor stamps EVERY SelectSQLQuery
      * with this comment and generateSQLExecutionNode copies it
@@ -30,7 +31,14 @@ public record PlanNode(String kind, List<PlanNode> children,
     public PlanNode(String kind, List<PlanNode> children,
             @com.legend.Nullable String sqlQuery,
             List<Param> functionParameters) {
-        this(kind, children, sqlQuery, functionParameters, null);
+        this(kind, children, sqlQuery, functionParameters, null, null);
+    }
+
+    public PlanNode(String kind, List<PlanNode> children,
+            @com.legend.Nullable String sqlQuery,
+            List<Param> functionParameters,
+            @com.legend.Nullable String sqlComment) {
+        this(kind, children, sqlQuery, functionParameters, sqlComment, null);
     }
 
     public PlanNode {

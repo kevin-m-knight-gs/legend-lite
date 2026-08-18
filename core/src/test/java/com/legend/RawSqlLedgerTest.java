@@ -42,9 +42,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class RawSqlLedgerTest {
 
+    // F6.6: HostEval joined — the executeInDb READ path adapts the SAME
+    // corpus-authored raw H2 the write path does, before running it on
+    // the ambient session (the R0 contract holds: corpus-authored text
+    // only, now symmetrically on both directions of the boundary).
+    // F7.4: Runner LEFT — module DDL is model-derived and is now spelled
+    // for its target directly (Ddl.createTable duck flavor); only
+    // corpus-AUTHORED text crosses the translator, which is the stated
+    // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
-            "Runner.java", 1);
+            // interpreter deletion (oracle-not-runtime): the one
+            // remaining site is tryLower's executeInDb READ bottom —
+            // the same corpus-authored text class (F6.6), never a new
+            // text source (preResolve died with the interpreter)
+            "GridReads.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");

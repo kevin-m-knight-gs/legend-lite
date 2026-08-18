@@ -431,3 +431,155 @@ every non-passing row carries a STATUS verdict —
 | testToSQLStringWithAbs | transform/fromPure/tests | OPEN — fix site named | `TypedNewInstance` unresolvable when a field holds a class-query lambda — `StoreResolver.java:509-512` (arm beside `:506`); `Anch | class query under TypedNewInstance is not resolvable yet (H2 vocabulary) |
 | testToSQLStringWithAggregation | transform/fromPure/tests | OPEN | wall pending cause-group triage | no execute(\|...) call [calls meta::relational::tests::functions::sqlstring] — wall: class query under TypedNew |
 | testToSQLStringWithCodeBlock | transform/fromPure/tests | OPEN — fix site named | `^Duration(…)` unknown class *(exception swallowed — see `ExecCallFinder.java:136-141`)* — catalog | sql-only: 1 advisory golden-SQL assert(s), no row verification |
+
+## 2026-08-17 — F4.3 render cutover (§0.4 declared, exactly one)
+
+`functions/tests` 239 → 238: `testConcatenateWithFilter` — the ONE named
+residue from the F4.2b differential (docs/CSV_DIFFERENTIAL.md mechanism 3).
+The platform's DB-side toCSV spells a to-many projection cell `[Firm X]`
+where the engine golden says `Firm X`; the root cause is a pre-existing
+type-contract deviation (a to-many project lambda types a to-one TDS
+column but lowers to a list-valued slot the Executor unwraps at egress) —
+the render cannot see it statically, and the old harness renderer only
+"passed" it via the Java-side unwrap. Fix = the OutputCol/slot
+reconciliation, filed in FOUNDATIONS_PLAN §9. VERDICT: honest red; the
+test was previously green only through the deleted compensation.
+
+Also in the same re-freeze: `tests/mapping/embedded` 62 → 63 —
+`testIsEmpty` now PASSES: the engine golden ('name,firm\n\n') is
+byte-identical to the platform's empty shape; the deleted harness render
+was the thing breaking it. Net corpus total unchanged (2347).
+
+## 2026-08-17 — F6.1 execution-activities honesty (§0.4 declared, 13)
+
+The fabrication apparatus is gone (FOUNDATIONS_PLAN F6.1, audit §5 A1):
+`$r.activities` no longer folds to `[]` (its filters' predicates never
+evaluated — absence asserts passed for the wrong reason) and the
+Java-manufactured `-- "executionTraceID" : "<uuid>"` trace comment is no
+longer synthesized. Any activities read the platform cannot DERIVE (the
+aggregationAware `rewrittenQuery` routed print remains, recomputed from
+the actual chain) now walls loudly:
+`NotImplementedException("execution activities are not recorded")`.
+
+All 13 deltas are that wall — VERDICT: blocked-on-feature
+(MISSING_FEATURE: an execution-activity trail the platform does not
+record). Every one was previously green only through fabrication.
+
+- `aggregationAware/test/rewrite` 13 → 9 (4): `testRewrite::objectGroupBy::
+  testRewriteEmployeeToSales`, `…SalesBackToEmployee`, `…SalesToProduct`,
+  `…SalesToProductToProdLine` — object-side rewrite asserts the derived
+  arm cannot answer.
+- `aggregationAware/test/rewrite/NOP` 15 → 7 (8): `testRewriteAsNOP::
+  nonAggregationAware::testRewriteFilter`, `…GetAllQuery`,
+  `…ProjectCol`, `…ProjectColMulti`, `…ProjectFunction`,
+  `…ProjectFunctionMulti`, `…TDSGroupBy`, `…TDSOperation` — absence
+  asserts over the activity trail (the exact pass-for-the-wrong-reason
+  class the audit named).
+- `functions/tests` 238 → 237 (1): `query::simple::testSQLComments` —
+  the UUID trace-comment consumer.
+
+Corpus total 2347 → 2334. Un-red path: record real execution activities
+(a platform feature, §9 backlog), not a fold.
+
+## 2026-08-17 — F6.6 executeInDb READ re-site (§0.4 declared, one gain)
+
+executeInDb READS now run on the AMBIENT session — the database the raw
+writes actually seeded — through the same raw-H2 boundary adaptation as
+the write path (HostEval.Ambient); the fresh-H2 shadow replay for reads
+is deleted, and the surviving metadata-channel replay THROWS on a
+rejected statement instead of skipping (a partially-populated shadow can
+no longer answer quietly). One naming rule joined the boundary
+translator: an unaliased `count(*)` projection item gains its H2
+observable alias `AS "COUNT(*)"` (witness ddl::dropAndCreateTable reads
+`.value('COUNT(*)')`; DuckDB spells the column `count_star()`).
+
+`functions/tests/projection` 145 → 146: `H2Test` now PASSES — its
+executeInDb READ (`SELECT case when false = 'false' ...`) previously
+ERRORED because the replay shadow's H2 rejected the boolean-vs-varchar
+comparison; the ambient session executes it and the asserted values
+match. The old red was an artifact of the shadow, not of the platform.
+Corpus total 2334 → 2335.
+
+## 2026-08-17 — E2 scalar-stream row explosion in SQL (§0.4 declared, 2 gains)
+
+A concatenate-rooted TO-MANY scalar funcCol in `project` now EXPLODES
+ROWS IN SQL (JAVA_EVICTION_PLAN E2): the correlated list expression
+rides a one-row inner select as a local column and the outer select
+UNNESTs it under a LEFT LATERAL join — one row per element, row-major,
+an empty stream keeping one parent row with a NULL cell (the engine's
+scalar-stream rule). The Executor's host-side row explosion (audit A13,
+CSV_DIFFERENTIAL mechanism 3) is probe-proven dead (zero firings on the
+full referee) and DELETED — a many-valued cell reaching a scalar TDS
+slot is now a loud wall, and `arrayAsList` is gone. Detection keys on
+the concatenate root, not the typed multiplicity alone (the first draft
+keyed on multiplicity and broke 28 association to-many navigations that
+already explode through the join machinery).
+
+- `functions/tests/projection`: `testConcatenateWithFilter` PASSES —
+  the F4.3 named residue; its differential was exactly the host-side
+  explosion the SQL now performs.
+- `functions/tests/projection`: `testConcatenateFlatWithOtherProperty`
+  PASSES — same mechanism, a second concatenate stream beside a plain
+  property column.
+
+Registry note: 'sql-text side' H2-oracle declines 56 → 57 — the
+LEFT-LATERAL explosion shape is not H2-replayable through the raw
+boundary; the row is tied to a GAINED test, not a loss.
+Corpus total 2337 → 2339.
+
+## 2026-08-18 — the interpreter is DELETED (§0.4 declared, 9 declines)
+
+The ORACLE-NOT-RUNTIME principle (user-ratified): engine and
+legend-pure code is oracle material — models, goldens, parity checks —
+and NEVER executes in our runtime. HostEval's evaluator interpreted the
+ENGINE'S OWN compiler source (wrapH2Boolean and kin — the engine's
+compiler is written in Pure) to pass the engine's unit tests of its own
+internals; that is deleted wholesale. What remains: the routing
+predicate, GridReads (grid chains compile into SQL), and StoreNav
+(store navigation resolves against the COMPILED MODEL — our Java over
+our model facts, the include-closure rule).
+
+Nine tests DECLINE, each with the same verdict — an
+engine-implementation unit test of `wrapH2Boolean`, the engine's H2
+boolean-wrapping dialect pass; our platform implements the FEATURE
+natively in its dialect rules, refereed by the end-to-end SQL-text
+goldens; the tests assert tree-to-tree over the engine's internal pass
+and are satisfiable only by executing engine source:
+
+- `sqlQueryToString::debugPrint::testSomeAST_thenIsWrapped`
+- `…testWhenJustCase_thenIsWrapped`
+- `…testWhenCaseNestedByAnd_thenIsWrapped`
+- `…testWhenCaseEqualBooleanLit_thenBothWrapped`
+- `…testWhenCaseEqualTrue_thenNoOp`
+- `…testWhenCaseEqualYesNoLit_thenNoOp`
+- `…testWhenCaseNestedByNot_thenIsWrapped`
+- `…testWhenCaseNestedByOr_thenIsWrapped`
+- `…testWhenCaseNestedByGroup_thenIsWrapped`
+
+Rescued natively in the same change (no delta): `H2Test` and
+`ddl::dropAndCreateTable` (grid-read chains — the `.rows.values`
+auto-map, the `rows->at(k).value('NAME')` single-cell read — compile
+into SQL at the seam) and `ddl::findTableByName` (StoreNav model
+lookup). Corpus total 2339 → 2330.
+
+## 2026-08-18 — temp-table IN protocol, plan text (§0.4 declared, 2 gains)
+
+The engine's processInOperation protocol lands on the PLAN-TEXT surface
+(plan/InProtocol + the PlanText block emitters + the TempTableInSplice /
+RAW-param plan vocabulary): an `in` whose collection exceeds the
+connection threshold (test 50, DB2 32767; real H2 none — the timezone
+golden pins protocol-off) becomes RelationalBlockExecutionNode wrapping
+Allocation / CreateAndPopulateTempTable /
+FreeMarkerConditionalExecutionNode ahead of the Relational node.
+
+- `executionPlan/tests`: `testExecutionPlanGenerationForInWithVarAndConstantInputs`
+  PASSES byte-exact (the engine-ordinal `_4` naming, the H2 test grid).
+- `executionPlan/tests`: `testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs`
+  PASSES byte-exact (DB2: SESSION. temp-table prefix, the 32767
+  conditional, name-based suffixes, the refined DB2 where-paren rule —
+  wrap only or-rooted conjuncts incl. render-time null-safe expansions;
+  the FilterEqualsWithOptionalParameter pinning pair stays green).
+
+Corpus total 2330 → 2332. Remaining protocol demand: the PureExp
+let-allocation seam (testFilterInWithResultSorcedFromAnExpression) and
+the temp-table EXECUTION shapes — next batches.

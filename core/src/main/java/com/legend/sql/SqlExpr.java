@@ -18,6 +18,7 @@ public sealed interface SqlExpr
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
+                SqlExpr.TempTableInSplice,
                 SqlAgg.Reducer {
 
     /**
@@ -53,6 +54,7 @@ public sealed interface SqlExpr
             case TimestampLit ignored -> List.of();
             case FormatLit ignored -> List.of();
             case PlanParam ignored -> List.of();
+            case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
             case OrderedListAgg o -> List.of(o.value(), o.orderBy());
@@ -131,6 +133,7 @@ public sealed interface SqlExpr
             case TimestampLit ignored -> this;
             case FormatLit ignored -> this;
             case PlanParam ignored -> this;
+            case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
             case Group ignored -> new Group(cs.get(0));
@@ -310,8 +313,11 @@ public sealed interface SqlExpr
      * executable dialect. */
     record PlanParam(String name, Kind kind, boolean optional,
             @com.legend.Nullable String enumMapFn) implements SqlExpr {
+        /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
+         * protocol's {@code inFilterClause_X} wrapper variable
+         * (processInOperation.pure); plan-text vocabulary only. */
         public enum Kind { STRING, DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
-            OTHER }
+            OTHER, RAW }
 
         public PlanParam(String name, Kind kind, boolean optional) {
             this(name, kind, optional, null);
@@ -384,6 +390,18 @@ public sealed interface SqlExpr
 
     /** A single-value subquery in scalar position. */
     record ScalarSubquery(SqlQuery subquery) implements SqlExpr {
+    }
+
+    /**
+     * The temp-table IN splice (the engine's
+     * {@code generateTempTableSelectSQLQuery} — processInOperation's
+     * over-threshold arm): renders as the fixed temp-select template
+     * {@code select "<t>_0".ColumnForStoringInCollection as
+     * ColumnForStoringInCollection from <t> as "<t>_0"} inside
+     * {@code in (...)}. Plan-text vocabulary only — a loud error in any
+     * executable dialect.
+     */
+    record TempTableInSplice(String tempTableName) implements SqlExpr {
     }
 
     /**

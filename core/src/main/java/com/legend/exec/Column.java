@@ -4,10 +4,21 @@ import com.legend.compiler.element.type.Type;
 
 /**
  * One result column: the name, an informational SQL type name, and the
- * PURE type — the OBJECT, not a name string. Consumers SHOULD convert
- * values by pureType and never sniff sqlType — H2Verify does; PCT still
- * sniffs sqlType() at two sites (audit P2/T5) until F5.1 lands. F5.2
- * adds the multiplicity the bridge currently drops.
+ * PURE type — the OBJECT, not a name string. Consumers convert values
+ * by pureType and never sniff sqlType (§11 close: the two PCT sniff
+ * sites the audit named died with F5.1/F5.3B; no {@code .sqlType()}
+ * consumer remains — the field is display metadata only). The
+ * multiplicity rides since F5.2.
  */
-public record Column(String name, @com.legend.Nullable String sqlType, Type pureType) {
+public record Column(String name, @com.legend.Nullable String sqlType,
+        Type pureType,
+        com.legend.compiler.element.type.@com.legend.Nullable Multiplicity
+                multiplicity) {
+
+    /** Pre-F5.2 arity — multiplicity unknown at this construction site
+     * (scalar envelopes, pivot-rebuilt schemas). */
+    public Column(String name, @com.legend.Nullable String sqlType,
+            Type pureType) {
+        this(name, sqlType, pureType, null);
+    }
 }

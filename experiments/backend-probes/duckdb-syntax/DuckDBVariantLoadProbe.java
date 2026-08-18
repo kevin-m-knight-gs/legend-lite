@@ -6,7 +6,7 @@ import java.sql.*;
 /**
  * Exploratory test: can we use read_json_objects() + ::VARIANT as a base table?
  */
-class DuckDBVariantLoadTest {
+class DuckDBVariantLoadProbe {
 
     @Test
     void testReadJsonObjects() throws Exception {

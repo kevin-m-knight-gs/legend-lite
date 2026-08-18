@@ -228,3 +228,54 @@ mvn -pl pct -am test
 # ratchets
 grep -rn "static final int [A-Z_]* = [0-9]" parser-equivalence/src/test/java
 ```
+
+---
+
+## 9. CLOSING NUMBERS — §11 definition of done (2026-08-17)
+
+The pause ends here. Every phase (0–8) is landed or adjudicated in
+`docs/FOUNDATIONS_PLAN.md` (each item carries a **LANDED ENDPOINT** or an explicit
+adjudication with its evidence); the §9 backlog holds the named residue.
+
+### 9.1 Corpus referee — every family move explained
+
+**PASS 2347 → 2335** (runnable 2575 unchanged). The delta is exactly four §0.4-declared
+events, each with a verdict in `docs/BURNDOWN_EXPLANATIONS.md`:
+
+| family | move | cause |
+|---|---|---|
+| functions/tests | 239 → 237 | F4.3 `testConcatenateWithFilter` (−1, OutputCol/slot contract deviation, §9-filed); F6.1 `testSQLComments` (−1, fabricated UUID trace comment deleted) |
+| tests/mapping/embedded | 62 → 63 | F4.3 `testIsEmpty` (+1 — the deleted harness renderer was breaking it) |
+| aggregationAware/test/rewrite | 13 → 9 | F6.1 (−4, activity-trail fabrication deleted; blocked-on-feature) |
+| aggregationAware/test/rewrite/NOP | 15 → 7 | F6.1 (−8, absence-asserts that passed for the wrong reason) |
+| functions/tests/projection | 145 → 146 | F6.6 `H2Test` (+1 — its executeInDb READ errored only in the deleted shadow replay) |
+
+Every other family is byte-identical to the F0.1 baseline through ~20 green full chains.
+
+### 9.2 The five §0.2 metrics
+
+| Metric | At F0.1 | Closing |
+|---|---|---|
+| **Unexplained rows** | unknown — inexpressible | **0, mechanically gated**: the scoreboard's soft-pass columns (F2.1) make passing-with-unverified-elements expressible; every non-passing row carries a verdict (adjudication ledger + BURNDOWN_EXPLANATIONS for §0.4 deltas); the regression assert refuses any undeclared red; the five pardon ledgers assert staleness and totals (F3.7/F3.7b) |
+| **Duplicate implementations** | 5 readers, 4 writers, 2 substitution, 2 multiplicity, 2 ASOR, 3 quoting, 5 renderers | **one owner each**: JSON read `sql/Json` (F3.1d, 2 documented exemptions), JSON write `Escapes.jsonEscape` (F3.1c), substitution `SourceSubst` (F3.2), multiplicity `Typer` (F3.3), ASOR `AsorRef` (F3.4/b), quoting = engine's exact H2 rule (F3.5), rendering `lowering/Render` in SQL (F4.1–F4.3; deep-audit precision 2026-08-17: the CORPUS render is platform-owned — the PCT wire formatter (`ExecuteLegendLiteQuery.formatAsTds/formatValue`) remains a deliberate host-side formatter until the §9 F4.4 Lowerer-root-mode leg) |
+| **Unguarded tenet surface** | total | **funnelled + positively constrained**: `java.sql` pinned to the chartered seam (ArchUnit, F1.3/F1.3b probe-proven), reflection ban (bytecode-level, frozen shrink-only), harness reorder/discipline allowlists exact-match |
+| **Falsified self-claims** | 9 | **0** — nine headers corrected (F2.5); the last two (`RawSqlBoundary` contract, `Column.java`) closed by F7.4 and this commit |
+| **Uncounted concealment channels** | 2 of 3 | **0** — H2Verify declines censused + registry-gated, ExecCallFinder declines counted+gated (F2.3), rescue counter (F2.2), LL_TOL float-tolerance counted (F4.3b) |
+
+### 9.3 Companion surfaces
+
+- h2-exec oracle: **320 text-matched + 632 text-divergent-rescued row-verified / 0 diverged /
+  155 unverifiable** (baseline 307/0/154 — the mirror gained the F6.7 extension parity and
+  the F7.4 model-spelled DDL stream).
+- h2-backend sweep: 2282/2575, the six named `already exists` DDL collisions (F7.1's one
+  tolerated, named gap).
+- PCT: 1109/1109 (unchanged through the pause; renderer work F4.4 recorded as a §9 leg).
+- Seed stream: 979,780 raw jdbc statements — measured corpus-authored text (F7.5); the
+  tolerance apparatus is deleted to one named gap.
+
+### 9.4 What resumes
+
+`passed + explained = 2793` remains the burn-down's definition of done. The left term is now
+trustworthy: **passed means passed** (no strips, no fabricated activities, no side-agnostic
+coercions, no silent seed repair), and **explained is mechanically enforced**. Task #18
+(burn-to-zero) resumes against this scoreboard.

@@ -186,3 +186,15 @@ informational), and the buildTypedHeader [1]-spelling normalization
    1 '[F5.3A] declared=city:String,country:String,'\'2000__|__newCol\'':Integer,'\'2011__|__newCol\'':Integer | wire=city:String[1],country:String[1],'\''2000__|__newCol'\'':Integer[1],'\''2011__|__newCol'\'':Integer[1]'
    1 '[F5.3A] declared=_col_one_num:Integer,colTwoLetter:String,_Col_3mix_:Integer | wire=_col_one_num:Integer[1],colTwoLetter:String[1],_Col_3mix_:Integer[1]'
 ```
+
+## Stage B closure (2026-08-16)
+
+Overlay + `buildTypedHeader` DELETED; null-scan DELETED (multiplicity is the
+column's typed fact, F5.2); the flip surfaced 38 reds, every one fixed at the
+PRODUCER, none by re-widening: temporals spell their pure names (the
+"TestTDS cannot build Date columns" claim was stale — class 1 dissolved),
+Variant spells its FQN (the header parser scans no imports), the pivot-name
+quoting rule moved into the one wire writer, and **`median`'s registered
+signature was a mis-transcription (`Number[1]` where BOTH engine overloads
+say `Float[1]`) — a real platform bug the overlay had concealed** (6 tests).
+PCT 1,110/1,110 green with the wire header as THE header.

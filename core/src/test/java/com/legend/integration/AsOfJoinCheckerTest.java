@@ -89,7 +89,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             // trade_id=1 (10:30) > closest quote_time → 10:15 → price=100
             // trade_id=2 (11:30) > closest quote_time → 11:15 → price=105
             // trade_id=3 (12:30) > closest quote_time → 12:00 → price=108
-            var byTrade = collectResults(result, "trade_id", "price");
+            var byTrade = CheckerResults.collect(result, "trade_id", "price");
             assertEquals(100L, ((Number) byTrade.get(1)).longValue(), "trade_id=1 → price=100");
             assertEquals(105L, ((Number) byTrade.get(2)).longValue(), "trade_id=2 → price=105");
             assertEquals(108L, ((Number) byTrade.get(3)).longValue(), "trade_id=3 → price=108");
@@ -117,7 +117,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             // id=1 (et=10) > ts=5 → value=100
             // id=2 (et=20) > ts=15 → value=200
             // id=3 (et=30) > ts=25 → value=300
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue());
             assertEquals(200L, ((Number) byId.get(2)).longValue());
             assertEquals(300L, ((Number) byId.get(3)).longValue());
@@ -231,7 +231,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             // id=1 (et=10) >= ts → exact match ts=10, value=100
             // id=2 (et=20) >= ts → exact match ts=20, value=200
             // id=3 (et=30) >= ts → closest ts<=30 is ts=25, value=300
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue(), "id=1: exact match ts=10");
             assertEquals(200L, ((Number) byId.get(2)).longValue(), "id=2: exact match ts=20");
             assertEquals(300L, ((Number) byId.get(3)).longValue(), "id=3: closest ts=25");
@@ -254,7 +254,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {t, q | $t.trade_time >= $q.quote_time}
                     )""");
             assertEquals(2, result.rowCount());
-            var byTrade = collectResults(result, "trade_id", "price");
+            var byTrade = CheckerResults.collect(result, "trade_id", "price");
             // trade_id=1 (10:00) >= quote_time → exact match at 10:00 → price=100
             assertEquals(100L, ((Number) byTrade.get(1)).longValue(), "Exact timestamp match");
             // trade_id=2 (11:00) >= quote_time → closest is 10:30 → price=110
@@ -284,7 +284,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             // id=1 (et=5) < ts → closest ts>5 is ts=10, value=100
             // id=2 (et=15) < ts → closest ts>15 is ts=20, value=200
             // id=3 (et=25) < ts → closest ts>25 is ts=30, value=300
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue(), "id=1: closest ts=10");
             assertEquals(200L, ((Number) byId.get(2)).longValue(), "id=2: closest ts=20");
             assertEquals(300L, ((Number) byId.get(3)).longValue(), "id=3: closest ts=30");
@@ -313,7 +313,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             // id=1 (et=10) <= ts → exact match ts=10, value=100
             // id=2 (et=20) <= ts → exact match ts=20, value=200
             // id=3 (et=25) <= ts → closest ts>=25 is ts=30, value=300
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue(), "id=1: exact match ts=10");
             assertEquals(200L, ((Number) byId.get(2)).longValue(), "id=2: exact match ts=20");
             assertEquals(300L, ((Number) byId.get(3)).longValue(), "id=3: closest ts=30");
@@ -348,7 +348,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {t, q | $t.symbol == $q.quote_symbol}
                     )""");
             assertEquals(3, result.rowCount());
-            var byTrade = collectResults(result, "trade_id", "price");
+            var byTrade = CheckerResults.collect(result, "trade_id", "price");
             // trade_id=1 AAPL 10:30 → closest AAPL quote before 10:30 = A(10:00) →
             // price=180
             assertEquals(180L, ((Number) byTrade.get(1)).longValue(), "AAPL trade matched AAPL quote");
@@ -380,7 +380,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {t, q | $t.symbol == $q.quote_symbol}
                     )""");
             assertEquals(2, result.rowCount());
-            var byTrade = collectResults(result, "trade_id", "price");
+            var byTrade = CheckerResults.collect(result, "trade_id", "price");
             // trade_id=1 AAPL t=15 → closest AAPL quote_time<15 is 12 → price=152
             assertEquals(152L, ((Number) byTrade.get(1)).longValue(), "AAPL picks closest quote at t=12");
             // trade_id=2 GOOG t=20 → closest GOOG quote_time<20 is 18 → price=2810
@@ -470,7 +470,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                     )""");
             assertEquals(2, result.rowCount());
             assertEquals(4, result.columns().size(), "id, event_time, ts, value");
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue());
             assertEquals(200L, ((Number) byId.get(2)).longValue());
         }
@@ -587,7 +587,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.event_time > $r.ts}
                     )->filter(x | $x.value > 150)""");
             assertEquals(2, result.rowCount());
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             // id=1(value=100) filtered out, id=2(value=200) and id=3(value=300) remain
             assertFalse(byId.containsKey(1), "id=1 with value=100 should be filtered out");
             assertEquals(200L, ((Number) byId.get(2)).longValue());
@@ -614,7 +614,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
             var colNames = result.columns().stream().map(c -> c.name()).toList();
             assertTrue(colNames.contains("id"));
             assertTrue(colNames.contains("value"));
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue());
             assertEquals(200L, ((Number) byId.get(2)).longValue());
         }
@@ -639,7 +639,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.event_time > $r.ts}
                     )""");
             assertEquals(2, result.rowCount(), "Only active rows (id=1,3) participate");
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertTrue(byId.containsKey(1));
             assertTrue(byId.containsKey(3));
             assertFalse(byId.containsKey(2), "Inactive id=2 filtered out before join");
@@ -695,7 +695,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {l, r | $l.event_time > $r.ts}
                     )->extend(~total: x | $x.qty * $x.price)""");
             assertEquals(2, result.rowCount());
-            var byId = collectResults(result, "id", "total");
+            var byId = CheckerResults.collect(result, "id", "total");
             // id=1: qty=5 * price=100 = 500
             assertEquals(500L, ((Number) byId.get(1)).longValue());
             // id=2: qty=3 * price=200 = 600
@@ -726,7 +726,7 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
                         {trade, quote | $trade.event_time > $quote.ts}
                     )""");
             assertEquals(2, result.rowCount());
-            var byId = collectResults(result, "id", "value");
+            var byId = CheckerResults.collect(result, "id", "value");
             assertEquals(100L, ((Number) byId.get(1)).longValue());
             assertEquals(200L, ((Number) byId.get(2)).longValue());
         }
@@ -796,18 +796,6 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
     // ==================== Utilities ====================
 
     /** Collects results into a map keyed by the group column value. */
-    private <K> Map<K, Object> collectResults(
-            ExecutionResult result, String keyCol, String valCol) {
-        int keyIdx = columnIndex(result, keyCol);
-        int valIdx = columnIndex(result, valCol);
-        Map<K, Object> map = new HashMap<>();
-        for (var row : result.rows()) {
-            @SuppressWarnings("unchecked")
-            K key = (K) row.get(keyIdx);
-            map.put(key, row.get(valIdx));
-        }
-        return map;
-    }
 
     /** Finds column index by name. */
     private int columnIndex(ExecutionResult result, String name) {

@@ -83,50 +83,6 @@ function meta::legend::lite::pct::getSimpleTypeName(gt:GenericType[1]):String[1]
   );
 }
 
-// Build typed column header from expected return type's RelationType
-// Format: col1:Type,col2:Type (no multiplicity — stringToTDS uses just Type names)
-function meta::legend::lite::pct::buildTypedHeader(funcReturnType:GenericType[1]):String[0..1]
-{
-  if ($funcReturnType.rawType->toOne()->subTypeOf(Relation) && 
-      $funcReturnType.typeArguments->at(0).rawType->toOne()->instanceOf(RelationType),
-    | let relType = $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>)->toOne();
-      let columns = $relType.columns->map(col |
-        let colName = $col.name->toOne();
-        // Column IDENTITY may include quotes ('2011__|__newCol'): the TDS
-        // parser strips ONE outer layer, so quote-bearing names wrap in an
-        // ESCAPED outer pair, and bare pivot-spread names gain the embedded
-        // pair (matching the result decode's spelling).
-        let quotedName = if($colName->startsWith('\''),
-          | '\'' + $colName->replace('\'', '\\\'') + '\'',
-          | if($colName->contains('__|__'),
-              | '\'\\\'' + $colName + '\\\'\'',
-              | if($colName->contains(' '),
-                  | '\'' + $colName + '\'',
-                  | $colName
-                )
-            )
-        );
-        let colType = getSimpleTypeName($col->functionReturnType());
-        // Pure 5.88 RelationType columns carry MULTIPLICITY — a header
-        // without it builds Integer[0..1]-shaped columns that no longer
-        // cast to the declared Integer[1] (the 115-test cast bucket).
-        let colMult = $col->functionReturnMultiplicity();
-        // The 5.88 TDS header parser supports ONLY [1] and [0..1]
-        // (processMultiplicity throws otherwise) — anything else stays bare.
-        let multStr = if($colMult->isToOne(),
-          | '[1]',
-          | if($colMult->hasLowerBound() && $colMult->getLowerBound() == 0
-                  && $colMult->hasUpperBound() && $colMult->getUpperBound() == 1,
-              | '[0..1]',
-              | '')
-        );
-        $quotedName + ':' + $colType + $multStr;
-      );
-      $columns->joinStrings(',');,
-    | []
-  );
-}
-
 // Substitute open (captured) variables in the function's expression sequence
 // This replaces VariableExpression nodes with their captured values from outer scope
 function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1]):FunctionDefinition<Any>[1]
@@ -280,24 +236,14 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
             | // Single-value result: could be TDS or typed scalar
               let single = $result->toOne();
               if($single->instanceOf(TDSResult),
-                | // TDS: overlay Pure-typed header from function return type if available
-                  let tdsData = $single->cast(@TDSResult).tdsString;
-                  let typedHeader = buildTypedHeader($f->functionReturnType());
-                  let tdsString = if($typedHeader->isEmpty(),
-                    | $tdsData,
-                    | // Replace first line (compiler-inferred types) with Pure types from return type
-                      let lines = $tdsData->split('\n');
-                      // F5.3 STAGE A (compare-and-log; overlay still applies):
-                      // every mismatch line is a wrong type/multiplicity/name
-                      // PCT currently cannot see — the concealment inventory.
-                      if($lines->size() > 0 && ($typedHeader->toOne() != $lines->at(0)),
-                        | println('[F5.3A] declared=' + $typedHeader->toOne() + ' | wire=' + $lines->at(0)),
-                        | true);
-                      if($lines->size() > 1,
-                        | $typedHeader->toOne() + '\n' + $lines->tail()->joinStrings('\n'),
-                        | $typedHeader->toOne()
-                      );
-                  );
+                | // F5.3 STAGE B: the WIRE header IS the header. The
+                  // declared-header overlay (405 results overlaid, 322
+                  // multiplicities rewritten — audit §4.1) is DELETED:
+                  // PCT now sees the platform's own column types,
+                  // multiplicities, and names. Stage A's differential
+                  // (docs/PCT_HEADER_DIFFERENTIAL.md) adjudicated the
+                  // classes; the producers were fixed, never the overlay.
+                  let tdsString = $single->cast(@TDSResult).tdsString;
                   $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
                 | // Scalar: dates travel as PRINT-FORM STRINGS from the wire
                   // (parseDate restores their PARTIAL precision: '2015-03');

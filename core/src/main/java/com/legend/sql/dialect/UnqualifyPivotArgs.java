@@ -26,12 +26,13 @@ final class UnqualifyPivotArgs extends SqlRewriter {
                 p.on().stream().map(UnqualifyPivotArgs::unqualify).toList(),
                 p.in(),
                 p.usings().stream().map(u -> new SqlSource.Pivot.Using(
-                        (SqlAgg.Reducer) unqualify(u.agg()), u.alias())).toList(),
+                        (SqlAgg.Reducer) unqualify(u.agg()), u.alias(), u.type())).toList(),
                 p.alias(), p.outputs());
     }
 
     private static SqlExpr unqualify(SqlExpr e) {
         return switch (e) {
+            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Column c -> new SqlExpr.Column(null, c.name());
             case SqlExpr.RowOrder ignored -> new SqlExpr.RowOrder(null);
             case SqlExpr.ReduceCollection rc -> rc;

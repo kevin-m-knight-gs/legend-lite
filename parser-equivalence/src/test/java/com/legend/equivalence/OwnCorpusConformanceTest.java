@@ -236,19 +236,15 @@ class OwnCorpusConformanceTest {
                 Map.entry("PURE-DIALECT-signatures", 16),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
-        List<String> overflows = new ArrayList<>();
-        for (Map.Entry<String, Integer> e : byClass.entrySet()) {
-            int pin = pins.getOrDefault(e.getKey(), 0);
-            if (e.getValue() > pin) {
-                overflows.add(e.getKey() + " " + e.getValue() + " > pin "
-                        + pin);
-            }
-        }
-        assertTrue(overflows.isEmpty(),
-                () -> "own-corpus leniency GREW (the ratchet only goes"
-                        + " down — conform the new test text to the oracle,"
-                        + " or re-pin with review):\n  "
-                        + String.join("\n  ", overflows));
+        // F3.7: EXACT accounting, both directions (the FixtureCorpusParity
+        // shape) — overflow-only let a class shrink or vanish while its
+        // pin sat stale, leaving silent headroom for new rows
+        org.junit.jupiter.api.Assertions.assertEquals(pins,
+                new TreeMap<>(byClass),
+                "own-corpus leniency ledger drifted — GROWTH means conform"
+                        + " the new test text to the oracle (or re-pin with"
+                        + " review); SHRINKAGE means the pin is stale —"
+                        + " ratchet it down in the same commit");
         assertTrue(unclassified.isEmpty(),
                 () -> "OUR OWN test Pure contains grammar that is neither"
                         + " engine nor named pure-dialect (lite-only"

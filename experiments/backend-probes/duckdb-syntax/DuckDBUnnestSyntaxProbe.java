@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.*;
 
-public class DuckDBUnnestSyntaxTest {
+public class DuckDBUnnestSyntaxProbe {
 
     @Test
     void testMultipleUnnestDifferentSizes() throws Exception {

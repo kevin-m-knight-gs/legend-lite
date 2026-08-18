@@ -151,17 +151,22 @@ public class LegendHttpServer {
                 System.out.println("Query: " + query);
                 System.out.println("Runtime: " + runtimeName);
 
-                // Execute using QueryService - uses Connection from Runtime
-                var result = queryService.execute(
-                        modelSource,
-                        query,
-                        runtimeName);
+                // E5: the data payload is PLAN-RENDERED JSON (the
+                // database composed the bytes); parsing it back for the
+                // envelope is ingress of DB output, not value
+                // serialization. Columns are a typed plan fact — correct
+                // even for a zero-row result. (A20 stands: data is a
+                // REAL JSON array node, never a double-encoded string.)
+                var wire = queryService.executeWireJson(
+                        modelSource, query, runtimeName);
+                Json.Node data = Json.parse(wire.json());
 
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", true);
-                response.put("data", com.legend.exec.ResultJson.toJsonArray(result));
-                response.put("columns", result.columns().stream().map(c -> c.name()).toList());
-                response.put("rowCount", result.rowCount());
+                response.put("data", data);
+                response.put("columns", wire.columns());
+                response.put("rowCount", data instanceof Json.Arr a
+                        ? a.items().size() : 0);
 
                 sendResponse(exchange, 200, Json.toCompact(response));
 
@@ -226,19 +231,14 @@ public class LegendHttpServer {
                 }
 
                 // Execute using QueryService
-                var result = queryService.executeSql(pureSource, sql, runtimeName);
+                queryService.executeSql(pureSource, sql, runtimeName);
 
                 Map<String, Object> response = new LinkedHashMap<>();
                 response.put("success", true);
-                if (result.columns().isEmpty()) {
-                    // DDL/DML statement - no result set
-                    response.put("message", "SQL executed successfully");
-                } else {
-                    // SELECT - return results
-                    response.put("data", com.legend.exec.ResultJson.toJsonArray(result));
-                    response.put("columns", result.columns().stream().map(c -> c.name()).toList());
-                    response.put("rowCount", result.rowCount());
-                }
+                // executeSql's contract is statement execution (its
+                // result is ALWAYS the empty relation — the old SELECT
+                // branch here was dead code the E5 sweep removed)
+                response.put("message", "SQL executed successfully");
 
                 sendResponse(exchange, 200, Json.toCompact(response));
 

@@ -72,18 +72,43 @@ final class JsonAssertCanon {
 
     /** The parsed structure with LIST-of-OBJECT elements sorted by
      * {@code key} (stable; missing keys sort first). Non-list values
-     * pass through unchanged. */
+     * pass through unchanged.
+     *
+     * <p>F6.5 (audit A7): the comparator is pure {@code sortBy}
+     * semantics over the JSON value — numbers compare NUMERICALLY
+     * (the old {@code String.valueOf} sort put "10" before "2"),
+     * strings lexically, booleans false-first. Mixed key kinds in one
+     * array wall loudly — the engine's own sortBy would not compare
+     * them either. */
     static Object sortByKey(Object parsed, String key) {
         if (!(parsed instanceof List<?> l)) {
             return parsed;
         }
         List<Object> out = new ArrayList<>(l);
-        out.sort(java.util.Comparator.comparing(
-                e -> e instanceof Map<?, ?> m
-                        && m.get(key) instanceof Comparable<?> c
-                        ? String.valueOf(c) : "",
-                java.util.Comparator.naturalOrder()));
+        out.sort((a, b) -> keyCompare(
+                a instanceof Map<?, ?> ma ? ma.get(key) : null,
+                b instanceof Map<?, ?> mb ? mb.get(key) : null));
         return out;
+    }
+
+    private static int keyCompare(@com.legend.Nullable Object x,
+            @com.legend.Nullable Object y) {
+        if (x == null || y == null) {
+            return x == null ? (y == null ? 0 : -1) : 1;
+        }
+        if (x instanceof Number nx && y instanceof Number ny) {
+            return new java.math.BigDecimal(nx.toString())
+                    .compareTo(new java.math.BigDecimal(ny.toString()));
+        }
+        if (x instanceof String sx && y instanceof String sy) {
+            return sx.compareTo(sy);
+        }
+        if (x instanceof Boolean bx && y instanceof Boolean by) {
+            return Boolean.compare(bx, by);
+        }
+        throw new IllegalStateException("JSONArray sort key mixes kinds: "
+                + x.getClass().getSimpleName() + " vs "
+                + y.getClass().getSimpleName());
     }
 
     /** JSON-METAMODEL PLUMBING: a let RHS that only canonicalizes an

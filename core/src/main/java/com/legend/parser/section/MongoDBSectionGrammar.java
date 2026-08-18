@@ -151,6 +151,11 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
         return schemaOf(m, true, c);
     }
 
+    /** F3.1e EXEMPTION (recorded): this stays a separate JSON walk on
+     *  purpose — it is TOKEN-level (it rides the section lexer's tokens,
+     *  never raw chars), decodes no escapes of its own, and is LOUD on
+     *  floats; collapsing it into the char-level platform reader would
+     *  mean re-lexing text the cursor already tokenized. */
     private static Object parseJsonValue(TokenStreamCursor c) {
         switch (c.peek()) {
             case BRACE_OPEN -> {

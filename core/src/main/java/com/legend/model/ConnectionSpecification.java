@@ -11,6 +11,7 @@ public sealed interface ConnectionSpecification
         permits ConnectionSpecification.InMemory,
                 ConnectionSpecification.LocalFile,
                 ConnectionSpecification.LocalH2,
+                ConnectionSpecification.EmbeddedH2,
                 ConnectionSpecification.StaticDatasource,
                 ConnectionSpecification.Snowflake,
                 ConnectionSpecification.Spanner,
@@ -44,6 +45,18 @@ public sealed interface ConnectionSpecification
         public LocalH2(@com.legend.Nullable String url) {
             this(url, null, null);
         }
+    }
+
+    /** Engine's EmbeddedH2DatasourceSpecification — carried WHOLE
+     * (A19: the old fold to {@code LocalH2(null,null,null)} discarded
+     * databaseName/directory/autoServerMode, and every such connection
+     * then shared one fixed {@code jdbc:h2:mem:testdb} instance).
+     * Lite execution semantics: a DISTINCT in-memory database per
+     * {@code databaseName} — the engine's directory-backed isolation
+     * without test-run disk side effects (deliberate divergence,
+     * spelled at the resolver). */
+    record EmbeddedH2(String databaseName, String directory,
+            boolean autoServerMode) implements ConnectionSpecification {
     }
 
     /**

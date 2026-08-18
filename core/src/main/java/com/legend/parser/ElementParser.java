@@ -1905,7 +1905,7 @@ public final class ElementParser implements TokenStreamCursor {
             while (q2 < n && body.charAt(q2) != '\'') {
                 q2 += body.charAt(q2) == '\\' && q2 + 1 < n ? 2 : 1;
             }
-            StringBuilder v = new StringBuilder(TokenStreamCursor
+            StringBuilder v = new StringBuilder(com.legend.protocol.Escapes
                     .unescapeJavaLike(body.substring(q1 + 1, q2)));
             if (key.equals("contentType")) {
                 contentType = v.toString();
@@ -1987,7 +1987,7 @@ public final class ElementParser implements TokenStreamCursor {
                 while (close < to && source.charAt(close) != '\'') {
                     close += source.charAt(close) == '\\' && close + 1 < to ? 2 : 1;
                 }
-                values.append(TokenStreamCursor.unescapeJavaLike(
+                values.append(com.legend.protocol.Escapes.unescapeJavaLike(
                         source.substring(q, close)));
                 valEnd = close;
                 i = close + 1;

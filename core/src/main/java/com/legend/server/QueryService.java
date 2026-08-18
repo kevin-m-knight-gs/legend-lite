@@ -1,7 +1,5 @@
 package com.legend.server;
 
-import com.legend.server.serial.ResultSerializer;
-import com.legend.server.serial.SerializerRegistry;
 import com.legend.exec.ExecutionResult;
 
 import java.io.IOException;
@@ -91,9 +89,35 @@ public class QueryService {
             Connection connection, OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        ExecutionResult result = execute(pureSource, query, runtimeName, connection);
-        ResultSerializer serializer = SerializerRegistry.get(format.id());
-        serializer.serialize(result, out);
+        // E5: the wire text is PLAN-RENDERED — the database composes the
+        // CSV/JSON bytes (Compiler.executeWire); the registry stays the
+        // format-metadata surface (id/contentType/streaming capability)
+        Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        com.legend.Compiler.executeWire(pureSource, query, runtimeName,
+                connection,
+                format == OutputFormat.CSV
+                        ? com.legend.lowering.WireRender.Format.CSV
+                        : com.legend.lowering.WireRender.Format.JSON,
+                writer);
+        writer.flush();
+    }
+
+    /** The wire JSON plus its typed column names (a PLAN fact — correct
+     * even for a zero-row result): the HTTP response envelope's inputs. */
+    public record WireData(String json, List<String> columns) {
+    }
+
+    /** E5: the /execute endpoint's data payload — plan-rendered JSON
+     * with the envelope's column names; the connection auto-resolves
+     * from the Runtime. */
+    public WireData executeWireJson(String pureSource, String query,
+            String runtimeName) throws SQLException, IOException {
+        Connection conn = ConnectionResolver.resolve(pureSource, runtimeName);
+        var sw = new java.io.StringWriter();
+        List<String> cols = com.legend.Compiler.executeWire(pureSource, query,
+                runtimeName, conn,
+                com.legend.lowering.WireRender.Format.JSON, sw);
+        return new WireData(sw.toString(), cols);
     }
 
     /**

@@ -113,6 +113,15 @@ public final class RawSqlBoundary {
 
     private static final Pattern FLOAT_KIND = Pattern.compile("(?i)\\bFLOAT\\b");
 
+    /** An UNALIASED {@code count(*)} projection item (followed by a comma
+     * or FROM — never inside a larger expression, where an alias would be
+     * a syntax error). H2's JDBC names it {@code COUNT(*)} and the engine
+     * tests read {@code .value('COUNT(*)')} (F6.6 witness:
+     * ddl::dropAndCreateTable); DuckDB names it {@code count_star()} —
+     * the alias preserves H2's OBSERVABLE naming on the DuckDB target. */
+    private static final Pattern COUNT_STAR_ITEM = Pattern.compile(
+            "(?i)\\bcount\\(\\s*\\*\\s*\\)(?=\\s*(,|from\\b))");
+
     private static final Pattern BIT_KIND = Pattern.compile("(?i)\\bBIT\\b");
 
     private static final Pattern CLOB_KIND = Pattern.compile("(?i)\\bCLOB\\b");
@@ -145,6 +154,8 @@ public final class RawSqlBoundary {
             sink.add(sql);
         }
         String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
+        out = COUNT_STAR_ITEM.matcher(out)
+                .replaceAll("count(*) AS \"COUNT(*)\"");
         // H2 accepts name-first `Drop schema <name> if exists cascade`
         // (corpus testTDSJoin.pure:1047); DuckDB only parses IF EXISTS
         // before the name

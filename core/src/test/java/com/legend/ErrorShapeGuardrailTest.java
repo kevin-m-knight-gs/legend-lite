@@ -40,6 +40,12 @@ class ErrorShapeGuardrailTest {
      * anywhere, including in these files, fails until reviewed.
      */
     private static final Map<String, Integer> BROAD_CATCH_COUNTS = Map.ofEntries(
+            // F3.1b (2026-08-16): isValidJson delegates the VARIANT gate
+            // to the platform reader; ANY parse failure means not-JSON —
+            // a designed total catch (the reader throws ISE/SIOOBE/NFE
+            // on garbage and the set is the reader's business, not the
+            // gate's)
+            Map.entry("TdsChecker.java", 1),
             Map.entry("ClassSources.java", 1),
             Map.entry("Compiler.java", 2),
             // sideSqlText's generation probe (reviewed): rebuilding a

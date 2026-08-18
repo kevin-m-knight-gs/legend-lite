@@ -14,6 +14,16 @@ import java.util.Objects;
 /**
  * Canonical zero-dependency JSON utility for legend-lite.
  *
+ * <p><b>Two-parser adjudication (Pile-1 audit, 2026-08-18):</b> this is
+ * the STRICT RFC 8259 boundary parser (Node AST, depth limits, the
+ * rejection set its tests pin) — {@code com.legend.sql.Json} is the
+ * deliberately LENIENT data-bridge decoder (plain Java values, the
+ * leading-zero/trailing-dot leniencies TdsChecker's validator depends
+ * on, audit-18 BigDecimal exactness). Two contracts, each behavior-
+ * pinned; registered as distinct owners on purpose — a merge would need
+ * a mode flag and would move corpus classifications. Keep the two docs
+ * cross-referenced; grammar fixes must consider both.
+ *
  * <h2>Design</h2>
  * <ul>
  *   <li><b>Zero external deps</b> — GraalVM native-image friendly.</li>
@@ -32,8 +42,12 @@ import java.util.Objects;
  *       control characters in strings.</li>
  *   <li><b>Configurable depth limit</b> (default 64) — prevents stack overflow from
  *       malicious deeply-nested input.</li>
- *   <li><b>Public escape/unescape</b> — one source of truth for JSON string escaping
- *       across the whole codebase.</li>
+ *   <li><b>Public escape/unescape</b> — the escape TABLE itself lives once in
+ *       {@code protocol/Escapes.jsonEscape} (F3.1c); this class exposes the
+ *       server-facing wrappers. The strict READER here is the documented
+ *       HTTP-boundary exemption to the platform's one reader
+ *       ({@code sql/Json}) — different policy on purpose (fail-fast with
+ *       positions vs lenient wire reading).</li>
  * </ul>
  *
  * <h2>Typical usage</h2>
@@ -625,32 +639,14 @@ public final class Json {
         return out.toString();
     }
 
-    /** Streaming escape — emits escaped characters directly to an Appendable. */
+    /** Streaming escape — emits escaped characters directly to an
+     *  Appendable. F3.1c: the table lives ONCE in
+     *  {@link com.legend.protocol.Escapes#jsonEscape} (lowercase hex —
+     *  the protocol emitter's Jackson-parity uppercase is the one knob). */
     public static void escapeTo(Appendable out, String s) {
         if (s == null) return;
         try {
-            for (int i = 0; i < s.length(); i++) {
-                char c = s.charAt(i);
-                switch (c) {
-                    case '"'  -> out.append("\\\"");
-                    case '\\' -> out.append("\\\\");
-                    case '\n' -> out.append("\\n");
-                    case '\r' -> out.append("\\r");
-                    case '\t' -> out.append("\\t");
-                    case '\b' -> out.append("\\b");
-                    case '\f' -> out.append("\\f");
-                    default -> {
-                        if (c < 0x20) {
-                            out.append("\\u");
-                            String hex = Integer.toHexString(c);
-                            for (int p = hex.length(); p < 4; p++) out.append('0');
-                            out.append(hex);
-                        } else {
-                            out.append(c);
-                        }
-                    }
-                }
-            }
+            com.legend.protocol.Escapes.jsonEscape(out, s, false);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

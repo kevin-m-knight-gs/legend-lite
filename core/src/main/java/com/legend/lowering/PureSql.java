@@ -66,7 +66,14 @@ final class PureSql {
                 // its SQL kind is TIMESTAMP wherever a type is demanded
                 // (the toSQLString re-render path types projections
                 // BEFORE values fold; milestoning PREDICATES never get
-                // here — TemporalFrame owns them)
+                // here — TemporalFrame owns them).
+                // F5.4: STRICT_DATE carries its kind as SQL DATE (the
+                // driver returns java.sql.Date — the fact rides the
+                // COLUMN type); an ABSTRACT Date slot rides TIMESTAMP
+                // and decodes as a DateTime, faithfully — the Executor's
+                // midnight-narrowing compensation is DELETED BY PROOF
+                // (zero firings across the DuckDB corpus, the H2 corpus,
+                // and the full PCT suite).
                 case DATE_TIME, DATE, LATEST_DATE -> SqlType.Scalar.TIMESTAMP;
                 case BYTE, STRICT_TIME -> throw new IllegalStateException(
                         "no SQL type for Pure primitive " + p + " at the lowering boundary");

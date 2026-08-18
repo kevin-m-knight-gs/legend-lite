@@ -883,7 +883,7 @@ public final class MappingNormalizer {
     private static boolean routedTargetGainsOperation(LegacyMappingDefinition md,
             LegacyMappingDefinition defining, ClassMapping.Relational rcm,
             ModelBuilder model) {
-        ClassDefinition owner = model.findClass(rcm.className()).orElse(null);
+        ClassDefinition owner = model.findClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
         if (owner == null) {
             return false;
         }
@@ -1335,7 +1335,7 @@ public final class MappingNormalizer {
             // Terminal: map(src | ^Class(...)).
             Variable srcBind = new Variable("src");
             Map<String, KeyExpression> fields = new LinkedHashMap<>();
-            ClassDefinition tgt = model.findClass(pcm.className()).orElse(null);
+            ClassDefinition tgt = MissProbe.knownMiss(model.findClass(pcm.className()));
             for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
                 // Audit 21a: the parsed mappingLine heads are honored or
                 // poisoned by DESIGN — never dropped. A local (+prop) is
@@ -1504,7 +1504,7 @@ public final class MappingNormalizer {
         if (!visited.add(classFqn)) {
             return false;
         }
-        ClassDefinition cd = model.findClass(classFqn).orElse(null);
+        ClassDefinition cd = model.findClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
         if (cd == null) {
             return false;
         }
@@ -1534,7 +1534,7 @@ public final class MappingNormalizer {
         if (!visited.add(classFqn)) {
             return false;   // superclass cycle guard
         }
-        ClassDefinition cd = model.findClass(classFqn).orElse(null);
+        ClassDefinition cd = model.findClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#4 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
         if (cd == null) {
             return false;
         }
@@ -2366,7 +2366,7 @@ public final class MappingNormalizer {
         if (ownerClassFqn == null) {
             return null;
         }
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+        ClassDefinition owner = MissProbe.knownMiss(model.findClass(ownerClassFqn));
         TypeExpression t = owner == null ? null
                 : findPropertyTypeDeep(owner, propName, model);
         String name = t instanceof TypeExpression.NameRef nr ? nr.name() : null;
@@ -2540,7 +2540,7 @@ public final class MappingNormalizer {
 
     private static void validatePmNames(ClassMapping.Relational rcm,
                                        ModelBuilder model, LegacyMappingDefinition md) {
-        ClassDefinition cd = model.findClass(rcm.className()).orElse(null);
+        ClassDefinition cd = MissProbe.knownMiss(model.findClass(rcm.className()));
         if (cd == null) return;
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (pm instanceof PropertyMapping.LocalProperty) continue;
@@ -2671,7 +2671,7 @@ public final class MappingNormalizer {
             Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
             ModelBuilder model, Set<String> cycleStack,
             @com.legend.Nullable String innerOverride) {
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+        ClassDefinition owner = MissProbe.knownMiss(model.findClass(ownerClassFqn));
         if (owner == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
@@ -3004,7 +3004,7 @@ public final class MappingNormalizer {
             // type. Names are FQNs here (NameResolver runs before the
             // normalizer). Two mappings for the SAME enum need the id
             // spelled — loud, never arbitrary.
-            ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+            ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#8 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
             TypeExpression propType = owner == null ? null
                     : findPropertyTypeDeep(owner, propertyName, model);
             String enumFqn = propType instanceof TypeExpression.NameRef nr ? nr.name() : null;
@@ -3361,7 +3361,7 @@ public final class MappingNormalizer {
     static ValueSpecification buildNewInstanceToOne(@com.legend.Nullable String classFqn,
                                                             Map<String, KeyExpression> fields,
                                                             ModelBuilder model) {
-        ClassDefinition cd = model.findClass(classFqn).orElse(null);
+        ClassDefinition cd = MissProbe.knownMiss(model.findClass(classFqn));
         Map<String, KeyExpression> wrapped = new LinkedHashMap<>();
         fields.forEach((name, key) -> {
             ClassDefinition.PropertyDefinition prop =
@@ -3450,7 +3450,7 @@ public final class MappingNormalizer {
         for (TypeExpression sup : cd.superClasses()) {
             if (sup instanceof TypeExpression.NameRef nr) {
                 ClassDefinition.PropertyDefinition inherited = findPropertyDefDeep(
-                        model.findClass(nr.name()).orElse(null), propName, model, visited);
+                        model.findClass(nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#10 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name())), propName, model, visited);
                 if (inherited != null) return inherited;
             }
         }
@@ -3498,7 +3498,7 @@ public final class MappingNormalizer {
         if (assoc != null) return assoc;
         for (TypeExpression sup : cd.superClasses()) {
             if (sup instanceof TypeExpression.NameRef nr) {
-                ClassDefinition superCd = model.findClass(nr.name()).orElse(null);
+                ClassDefinition superCd = model.findClass(nr.name()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#11 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + nr.name()));
                 TypeExpression inherited = findPropertyTypeDeep(superCd, propName, model, visited);
                 if (inherited != null) return inherited;
             }

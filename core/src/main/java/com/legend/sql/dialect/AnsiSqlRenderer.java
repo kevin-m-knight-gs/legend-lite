@@ -287,6 +287,10 @@ public class AnsiSqlRenderer implements SqlDialect {
     protected String expr(SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> "(" + expr(g.inner(), 0) + ")";
+            case SqlExpr.TempTableInSplice t -> throw new IllegalStateException(
+                    "temp-table IN splice '" + t.tempTableName() + "'"
+                    + " reached an executable dialect — plan-text"
+                    + " vocabulary only");
             case SqlExpr.PlanParam p -> throw new IllegalStateException(
                     "plan parameter '${" + p.name() + "}' reached an"
                     + " executable dialect — plan templates render via the"

@@ -82,14 +82,24 @@ public final class CsvSeed {
         } else {
             out.add("DELETE FROM " + qualified);
         }
+        // F7.5: ONE multi-row INSERT per block — the statement count is
+        // the seed cost (task #14: per-statement parse+plan+JNI), and
+        // both H2 (mirror replay) and DuckDB accept multi-row VALUES
+        StringBuilder sql = null;
         for (int i = 3; i < lines.length; i++) {
             if (lines[i].isBlank()) {
                 continue;
             }
             String[] vals = lines[i].split(",", -1);
-            StringBuilder sql = new StringBuilder("INSERT INTO ")
-                    .append(qualified).append(" (")
-                    .append(String.join(", ", cols)).append(") VALUES (");
+            if (sql == null) {
+                sql = new StringBuilder("INSERT INTO ")
+                        .append(qualified).append(" (")
+                        .append(String.join(", ", cols))
+                        .append(") VALUES ");
+            } else {
+                sql.append(", ");
+            }
+            sql.append('(');
             for (int c = 0; c < cols.length; c++) {
                 String tok = c < vals.length ? vals[c].strip() : "";
                 if (c > 0) {
@@ -98,14 +108,20 @@ public final class CsvSeed {
                 if (tok.isEmpty() || tok.equals("---null---")) {
                     // ---null--- is the testDataGeneration CSV null token
                     sql.append("NULL");
-                } else if (tok.matches("[+-]?\\d+(\\.\\d+)?")) {
-                    sql.append(tok);
                 } else {
+                    // F7.2: uniform policy (same as TestDataGenerator
+                    // .loadSide) — every value rides as a QUOTED literal
+                    // and the DATABASE casts it to the model's column
+                    // type; the old numeric-looking-token regex was
+                    // host-side type dispatch from the token's TEXT
                     sql.append("'").append(tok.replace("'", "''"))
                             .append("'");
                 }
             }
-            out.add(sql.append(")").toString());
+            sql.append(')');
+        }
+        if (sql != null) {
+            out.add(sql.toString());
         }
     }
 

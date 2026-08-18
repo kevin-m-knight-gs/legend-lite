@@ -58,6 +58,7 @@ final class FoldToListReduce extends SqlRewriter {
      */
     private static SqlExpr unwrapElemRefs(SqlExpr e, String elem) {
         return switch (e) {
+            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Column c when c.table() == null && elem.equals(c.name()) ->
                     SqlExpr.Call.of(SqlFn.LIST_GET,
                             new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));

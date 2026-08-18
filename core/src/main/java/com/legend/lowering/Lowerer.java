@@ -169,6 +169,7 @@ public final class Lowerer {
         return this;
     }
 
+
     public Lowerer bindPlanParam(String name, boolean stringTyped) {
         letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
         return this;
@@ -247,13 +248,8 @@ public final class Lowerer {
                 return proj;
             }
             String sub = nextAlias();
-            return SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
-                    .withProjections(List.of(new SqlSelect.Projection(
-                                    SqlExpr.Call.of(SqlFn.UNNEST,
-                                            new SqlExpr.Column(sub, "value")),
-                                    "value")),
-                            List.of(new OutputCol("value",
-                                    sqlTypeOf(spec.info().type()), true)));
+            return Fold.unnestColumn(new SqlSource.Subselect(proj, sub, null),
+                    sub, "value", "value", sqlTypeOf(spec.info().type()));
         }
         return scalarRoot(spec);
     }
@@ -1177,6 +1173,26 @@ public final class Lowerer {
     private @com.legend.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting, String[] miss) {
+        // E2 (JAVA_EVICTION_PLAN): a TO-MANY scalar funcCol EXPLODES ROWS
+        // IN SQL — the engine's scalar-stream rule (one row per element,
+        // row-major; an EMPTY stream keeps one parent row with a NULL
+        // cell — the LEFT LATERAL). The declared TDS column is to-one and
+        // the emitted slot matches it; the Executor's host-side explosion
+        // (audit A13) is dead. ONE such column per project (engine wall).
+        List<TypedFuncCol> manyCols = columns.stream()
+                .filter(Fold::isManyScalarCol).toList();
+        if (manyCols.size() > 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "two many-valued TDS columns in one project ('"
+                    + manyCols.get(0).name() + "', '"
+                    + manyCols.get(1).name()
+                    + "') — only single-column row explosion is built");
+        }
+        if (!manyCols.isEmpty()
+                && (!base.groupBy().isEmpty() || base.distinct())) {
+            base = isolate(base);
+        }
+        SqlSelect target = base;
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
             // starProjections handles the JOIN-source case (no single alias:
@@ -1185,8 +1201,30 @@ public final class Lowerer {
         }
         for (TypedFuncCol c : columns) {
             TypedSpec body = CastPolicy.cellRootUnwrapWire(last(c.fn()));
-            switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(base, name)))) {
-                case Resolution.Resolved r -> ps.add(new SqlSelect.Projection(r.expr(), c.name()));
+            SqlSelect resolveBase = base;
+            switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(resolveBase, name)))) {
+                case Resolution.Resolved r -> {
+                    if (manyCols.contains(c)) {
+                        Type elemT = info.type() instanceof Type.RelationType rt
+                                ? rt.columns().stream()
+                                        .filter(cc -> cc.name().equals(c.name()))
+                                        .findFirst().map(Type.Column::type)
+                                        .orElse(Type.Primitive.STRING)
+                                : Type.Primitive.STRING;
+                        String lat = nextAlias();
+                        target = target.withFrom(new SqlSource.Join(
+                                target.from(),
+                                Fold.lateralElem(r.expr(),
+                                        PureSql.type(elemT),
+                                        nextAlias(), lat),
+                                SqlSource.Join.Kind.LEFT_LATERAL,
+                                new SqlExpr.BoolLit(true)));
+                        ps.add(new SqlSelect.Projection(
+                                new SqlExpr.Column(lat, "elem"), c.name()));
+                        continue;
+                    }
+                    ps.add(new SqlSelect.Projection(r.expr(), c.name()));
+                }
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();
                     miss[1] = u.column();   // the caller reports the miss
@@ -1194,7 +1232,7 @@ public final class Lowerer {
                 }
             }
         }
-        return base.withProjections(ps, outputsOf(info));
+        return target.withProjections(ps, outputsOf(info));
     }
 
     private SqlSelect filter(TypedFilter f) {
@@ -1442,52 +1480,16 @@ public final class Lowerer {
      */
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
                                      ExprType info) {
-        List<SqlSelect.Projection> ps = tryProjectAll(base, columns);
+        List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns);
         if (ps == null) {
             base = isolate(base);
-            ps = tryProjectAll(base, columns);
+            ps = Fold.tryProjectAll(base, columns);
             if (ps == null) {
                 throw new IllegalStateException("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
             }
         }
         return base.withProjections(ps, outputsOf(info));
-    }
-
-    /** All columns resolved against {@code base}, or null if any misses. */
-    private static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
-        List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
-        for (String c : columns) {
-            SqlExpr e = Fold.resolveInto(base, c);
-            if (e == null) {
-                // PROJECTION position may inline a COMPUTED projection
-                // (window calls included): the caller REPLACES the whole
-                // projection list, so this is a narrowing/reorder of the
-                // same select — never a recomputation in a filtering
-                // position (the restrict-over-window-cols corpus pin;
-                // resolveInto's computed-decline serves the WHERE sites).
-                for (SqlSelect.Projection p : base.projections()) {
-                    if (c.equals(p.outputName())) {
-                        e = p.expr();
-                        break;
-                    }
-                }
-            }
-            if (e == null) {
-                return null;
-            }
-            // self-aliased reads drop the alias — EXCEPT reads of a
-            // union frame's outputs, which keep it (tds union goldens:
-            // "unionalias_0"."lhs_lastName" as "lhs_lastName")
-            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && "unionAlias".equals(sub.frameName())
-                    && e instanceof SqlExpr.Column uc
-                    && sub.alias().equals(uc.table());
-            ps.add(new SqlSelect.Projection(e,
-                    !unionRead && e instanceof SqlExpr.Column col
-                            && col.name().equals(c) ? null : c));
-        }
-        return ps;
     }
 
     /** Single-column relation removeDuplicates (rule owned by
@@ -2658,28 +2660,27 @@ public final class Lowerer {
                     when ValueCollectionOps.relationSpaceRewrite(n) != null ->
                     scalar(Objects.requireNonNull(
                             ValueCollectionOps.relationSpaceRewrite(n)), columns);
+            // F4.2 (RENDER): toCSV is a plan PROJECTION the DB executes
+            case TypedNativeCall tc when PlatformTypes.TO_CSV
+                    .equals(tc.callee().qualifiedName()) ->
+                Render.lowerToCsv(tc, this::relation, nextAlias());
+            // F4.2c (RENDER): relation toString — the '#TDS' text form
+            case TypedNativeCall tc when
+                    "meta::pure::functions::relation::toString"
+                            .equals(tc.callee().qualifiedName()) ->
+                Render.lowerToString(tc, this::relation, nextAlias());
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the
-            // PCT contract). A TDS-relation accessor destination has no
-            // physical table — the write is vacuous and only the count is
-            // observable; a REAL store destination stays loud until the
-            // insert path exists.
+            // PCT contract) — Render.writeCount; a REAL store destination
+            // stays loud until the insert path exists.
             case TypedWrite w -> {
-                boolean accessor = w.destination().isEmpty()
-                        || !containsStoreTable(w.destination().get());
-                if (!accessor) {
+                if (!(w.destination().isEmpty()
+                        || !containsStoreTable(w.destination().get()))) {
                     throw new NotImplementedException(
                             "TypedWrite to a store destination is not yet implemented");
                 }
-                SqlSelect src = relation(w.source());
-                SqlSelect count = SqlSelect.starOf(
-                                new SqlSource.Subselect(src, nextAlias(), null))
-                        .withProjections(List.of(new SqlSelect.Projection(
-                                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, java.util.List.of()), null)),
-                                List.of(new OutputCol("count",
-                                        SqlType.Scalar.BIGINT, false)));
-                yield new SqlExpr.ScalarSubquery(count);
+                yield Render.writeCount(relation(w.source()), nextAlias());
             }
             // A CLASS REFERENCE in scalar position carries its SIMPLE name
             // (PCT: STR_Person->toString() == 'STR_Person').
@@ -2931,15 +2932,8 @@ public final class Lowerer {
                                 ? new SqlExpr.NullLit()
                                 : new SqlExpr.ArrayLit(many.elements().stream()
                                         .map(e -> scalar(e, noScope())).toList());
-                        SqlSelect unnest = new SqlSelect(
-                                List.of(new SqlSelect.Projection(
-                                        SqlExpr.Call.of(SqlFn.UNNEST, array),
-                                        "elem")),
-                                false, new SqlSource.Dual(), null, List.of(),
-                                null, null, List.of(), null, null,
-                                List.of(new OutputCol("elem",
-                                        SqlType.Scalar.VARCHAR, true)));
-                        SqlSource right = new SqlSource.Subselect(unnest, alias, null);
+                        SqlSource right = Fold.lateralElem(array,
+                                SqlType.Scalar.VARCHAR, nextAlias(), alias);
                         src = src == null
                                 ? anchorJoin(right)
                                 : new SqlSource.Join(src, right,
@@ -3089,7 +3083,13 @@ public final class Lowerer {
         List<SqlSource.Pivot.Using> usings = new ArrayList<>();
         SqlSelect forAgg = SqlSelect.starOf(inner);
         for (TypedAggCol a : pv.aggs()) {
-            usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a), a.name()));
+            // the using carries its LOWERING-typed result slot — the
+            // typed fact pivot-generated columns inherit (E1)
+            Type aggT = a.reduce().info().type()
+                    instanceof Type.FunctionType ft
+                    ? ft.result().type() : Type.Primitive.STRING;
+            usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a),
+                    a.name(), PureSql.type(aggT)));
         }
         // Static pivot values pin the output columns via PIVOT ... IN (v…).
         List<SqlExpr> in = pv.values().stream()
