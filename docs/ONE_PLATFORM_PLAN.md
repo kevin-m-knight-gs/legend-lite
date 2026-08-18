@@ -244,6 +244,53 @@ instrumentation about our platform, not Pure semantics.*
 
 ---
 
+## The bucket rule: what we implement, what we build differently, what we refuse
+
+This program will implement many Pure functions in Java. Not every function the engine
+has deserves implementing — some of what looks like "the platform" is really the engine's
+own plumbing showing through. Every function we meet gets sorted into one of three
+buckets, and the sort is recorded:
+
+**Bucket 1 — Platform surface: implement it.**
+Semantics a user's model can legitimately depend on: the assert family, dates, relation
+operations, `executeInDb`, the `meta::pure` functions users call. These are the language.
+Java natives, engine source as the verified spec.
+
+**Bucket 2 — Engine mechanism: never implement it as-shaped; build the capability
+natively where the capability is real.**
+Functions like `wrapH2Boolean` (an internal helper of the engine's H2 emitter) or the
+plan/SQL-metamodel transformation passes are the engine's *implementation*, not the
+language. We already own those capabilities in our own shape — dialect rewrite rules,
+the one compiler. Tests that assert the engine's internal mechanism (the nine
+`debugPrint` tree-transformation tests) are **declined with a verdict naming where our
+native equivalent lives** — that is the standing precedent, and it stands. Implementing
+the engine's mechanism to pass its unit tests would be building a museum replica inside
+a working factory.
+
+**Bucket 3 — Mechanism-as-API: the hard middle. Support the enumerated declarative
+uses; refuse the general hook.**
+Sometimes the engine exposed its internals as an extension surface — connection
+post-processors are the canonical case (`cteReplacePostProcessor`, the
+`sqlQueryPostProcessors` hooks). Two things are true at once: the *capabilities* users
+actually reach for (replace tables for test isolation, schema qualification, CTE
+injection) are legitimate product features — and we implement those natively and
+declaratively (`testReplaceTablesPostProcessor` already works this way). But the
+*general mechanism* — running arbitrary user Pure lambdas over the engine's SQL
+metamodel — we refuse: it would freeze an internal IR into a public API, and executing
+user Pure over metamodel objects is the interpreter we deleted, wearing a hat. Each
+refused hook-shape test carries a verdict (the seven "hook shape is not a replaceTables
+lambda" walls are this bucket, recorded).
+
+The discipline that makes the buckets honest: **no silent gaps.** A bucket-2 or
+bucket-3 refusal is always a written verdict in the burn-down explanations — "not the
+way we build this, here is our native equivalent (or the declarative form we support
+instead)" — never a quiet exclusion. And the sort itself is falsifiable: if a real
+user model (not an engine unit test) turns out to depend on something we bucketed as
+mechanism, that is evidence it belongs in bucket 1 or a declarative bucket-3 feature,
+and we re-sort it.
+
+---
+
 ## Guardrails while we travel
 
 1. **The referee rules.** Full corpus + full PCT green at every landing; the scoreboard's
