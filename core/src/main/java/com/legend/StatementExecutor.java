@@ -503,16 +503,32 @@ final class StatementExecutor {
         return new EngineSql(plan, text, body);
     }
 
-    /** The executeTyped-tail host seam (final-burn design): every
-     * literal grid subtree executes HERE via GridReads.preResolve — the
-     * one JDBC pass; the interpreter receives finished values only. */
+    /** The host-channel dispatch (oracle-not-runtime principle,
+     * user-ratified): recognized grid-read chains COMPILE INTO SQL
+     * (GridReads), store navigation resolves against the COMPILED MODEL
+     * (StoreNav), and anything else walls with the principle's name —
+     * the interpreter that executed engine compiler source is DELETED. */
     private static ExecutionResult hostEvalAtSeam(TypedSpec root,
-            ExecEnv env) throws java.sql.SQLException {
-        return com.legend.exec.HostEval.evalToResult(root, env.ctx(),
-                null, java.util.Map.of(),
-                com.legend.exec.GridReads.preResolve(root,
-                        java.util.Map.of(), env.ctx(),
-                        env.connection(), env.dialect()));
+            java.util.Map<String, TypedSpec> lets, ExecEnv env)
+            throws java.sql.SQLException {
+        ExecutionResult lowered = com.legend.exec.GridReads.tryLower(
+                root, lets, env.ctx(), env.connection(), env.dialect());
+        if (lowered != null) {
+            return lowered;
+        }
+        ExecutionResult nav = com.legend.exec.StoreNav.tryEval(
+                root, lets, env.ctx());
+        if (nav != null) {
+            return nav;
+        }
+        throw new com.legend.error.NotImplementedException(
+                "host channel: this chain would need interpreted engine"
+                + " code — engine/legend-pure source is ORACLE material,"
+                + " never our runtime (user-ratified 2026-08-18); build"
+                + " the feature natively (GridReads/StoreNav/walk family)"
+                + " or decline the test with a verdict"
+                + (System.getenv("LL_TMP_DEBUG") != null
+                        ? " [root=" + root + "]" : ""));
     }
 
     /** HOST channel BEFORE the inliner: recursive corpus functions over
@@ -543,22 +559,7 @@ final class StatementExecutor {
         if (!com.legend.exec.HostEval.wantsHostEval(bare, hostLets)) {
             return null;
         }
-        // E4.e: a recognized grid-read chain COMPILES INTO SQL — the
-        // database produces the chain's values; anything else falls
-        // through to the interpreter (per-shape eviction)
-        com.legend.exec.ExecutionResult lowered =
-                com.legend.exec.GridReads.tryLower(bare, hostLets,
-                        env.ctx(), env.connection(), env.dialect());
-        if (lowered != null) {
-            return lowered;
-        }
-        // final-burn design: ALL JDBC happens HERE (the seam) — every
-        // literal grid subtree executes now; the interpreter receives
-        // finished values and performs no JDBC of its own
-        return com.legend.exec.HostEval.evalToResult(
-                bare, env.ctx(), specs, hostLets,
-                com.legend.exec.GridReads.preResolve(bare, hostLets,
-                        env.ctx(), env.connection(), env.dialect()));
+        return hostEvalAtSeam(bare, hostLets, env);
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
@@ -2974,7 +2975,7 @@ final class StatementExecutor {
         // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
         // HOST-SIDE against the H2 second target (task #43 slice B2)
         if (com.legend.exec.HostEval.wantsHostEval(root)) {
-            return hostEvalAtSeam(root, env);
+            return hostEvalAtSeam(root, java.util.Map.of(), env);
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB

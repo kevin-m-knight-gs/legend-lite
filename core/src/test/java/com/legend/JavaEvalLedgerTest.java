@@ -57,7 +57,12 @@ class JavaEvalLedgerTest {
      * splicing, the scalar bridge, the H4 message remap). */
     private static final Map<String, Integer> EVICT_SIZE = Map.of(
             "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101,
-            "core/src/main/java/com/legend/exec/HostEval.java", 863,
+            // the INTERPRETER IS DELETED (oracle-not-runtime principle,
+            // user-ratified 2026-08-18): HostEval is the routing
+            // predicate only — grid chains compile into SQL (GridReads),
+            // store nav resolves against the compiled model (StoreNav),
+            // everything else walls with the principle's name
+            "core/src/main/java/com/legend/exec/HostEval.java", 181,
             "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
             "core/src/main/java/com/legend/plan/PlanText.java", 888,

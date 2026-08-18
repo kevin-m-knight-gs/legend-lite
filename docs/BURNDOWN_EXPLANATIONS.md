@@ -526,3 +526,38 @@ Registry note: 'sql-text side' H2-oracle declines 56 → 57 — the
 LEFT-LATERAL explosion shape is not H2-replayable through the raw
 boundary; the row is tied to a GAINED test, not a loss.
 Corpus total 2337 → 2339.
+
+## 2026-08-18 — the interpreter is DELETED (§0.4 declared, 9 declines)
+
+The ORACLE-NOT-RUNTIME principle (user-ratified): engine and
+legend-pure code is oracle material — models, goldens, parity checks —
+and NEVER executes in our runtime. HostEval's evaluator interpreted the
+ENGINE'S OWN compiler source (wrapH2Boolean and kin — the engine's
+compiler is written in Pure) to pass the engine's unit tests of its own
+internals; that is deleted wholesale. What remains: the routing
+predicate, GridReads (grid chains compile into SQL), and StoreNav
+(store navigation resolves against the COMPILED MODEL — our Java over
+our model facts, the include-closure rule).
+
+Nine tests DECLINE, each with the same verdict — an
+engine-implementation unit test of `wrapH2Boolean`, the engine's H2
+boolean-wrapping dialect pass; our platform implements the FEATURE
+natively in its dialect rules, refereed by the end-to-end SQL-text
+goldens; the tests assert tree-to-tree over the engine's internal pass
+and are satisfiable only by executing engine source:
+
+- `sqlQueryToString::debugPrint::testSomeAST_thenIsWrapped`
+- `…testWhenJustCase_thenIsWrapped`
+- `…testWhenCaseNestedByAnd_thenIsWrapped`
+- `…testWhenCaseEqualBooleanLit_thenBothWrapped`
+- `…testWhenCaseEqualTrue_thenNoOp`
+- `…testWhenCaseEqualYesNoLit_thenNoOp`
+- `…testWhenCaseNestedByNot_thenIsWrapped`
+- `…testWhenCaseNestedByOr_thenIsWrapped`
+- `…testWhenCaseNestedByGroup_thenIsWrapped`
+
+Rescued natively in the same change (no delta): `H2Test` and
+`ddl::dropAndCreateTable` (grid-read chains — the `.rows.values`
+auto-map, the `rows->at(k).value('NAME')` single-cell read — compile
+into SQL at the seam) and `ddl::findTableByName` (StoreNav model
+lookup). Corpus total 2339 → 2330.

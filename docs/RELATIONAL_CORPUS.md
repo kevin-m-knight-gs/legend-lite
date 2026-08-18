@@ -58,7 +58,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 253 | 2 | 4 | 7 | 6 | 12 | 0 | 85 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2339** | 72 | 80 | 84 | 247 | 293 | 27 | 613 |
+| **total** | 2575 | **2330** | 72 | 80 | 93 | 247 | 293 | 27 | 613 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2339 PASS = 1414 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
+SOFT-PASS RECONCILIATION (F2.1): 2330 PASS = 1405 clean + 925 carrying softness (sqldiff 247, advisory 293, 0-asserts 27, text-rescued 613; flags overlap — the union is 925).
 
 ### mapping walls (dropped at assembly)
 
@@ -1289,6 +1289,15 @@ SOFT-PASS RECONCILIATION (F2.1): 2339 PASS = 1414 clean + 925 carrying softness 
 - SHAPE testCompositionInMultiStatementPureExpressions [router/tests]: no execute(|...) call — wall: no overload of 'meta::relational::tests::query::routing::routeInternal' matches the argument types
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testProcessIdentifierWithQuoteChar [sqlQueryToString]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::h2::v2_1_214] — wall: Unknown type: 'CoreDataType' is not a known primitive, class, or enum
+- SHAPE testSomeAST_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseEqualBooleanLit_thenBothWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseEqualTrue_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseEqualYesNoLit_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseNestedByAnd_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseNestedByGroup_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseNestedByNot_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenCaseNestedByOr_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
+- SHAPE testWhenJustCase_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call — wall: host channel: this chain would need interpreted engine code — engine/legend-pure source is ORACLE material, never our runtime (user-ratified 2026-08-18); build the feature natively (GridReads/StoreNav/walk family) or decline the test with a verdict
 - SHAPE testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

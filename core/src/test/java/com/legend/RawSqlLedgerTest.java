@@ -52,12 +52,11 @@ class RawSqlLedgerTest {
     // contract, true at last.
     private static final Map<String, Integer> LEDGER = Map.of(
             "StatementExecutor.java", 1,
-            // E4 final burn: the interpreter performs NO JDBC — its
-            // read-arm caller MOVED to the GridReads seam (tryLower's
-            // executeInDb bottom + preResolve, the one JDBC pass); both
-            // adapt the SAME corpus-authored READ text class (F6.6),
-            // never a new text source
-            "GridReads.java", 2);
+            // interpreter deletion (oracle-not-runtime): the one
+            // remaining site is tryLower's executeInDb READ bottom —
+            // the same corpus-authored text class (F6.6), never a new
+            // text source (preResolve died with the interpreter)
+            "GridReads.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");
