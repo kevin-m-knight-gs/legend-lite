@@ -38,6 +38,28 @@
 > legend-pure source): the relabel preserves the value. Suite totals confirmed; the commit
 > touched no expected-failure registry, so the green deletion of the Integer branch is
 > genuine.
+>
+> **Tier-2 guard audit (2026-08-18, user-directed):** the guard layer re-probed with NINE
+> deliberate violations on a clean baseline, each reverted after firing — **9/9 RED**:
+> new exec class (closed register), driver-native `org.sqlite` string in resolver (census),
+> `getNString` accessor (extended ratchet), shadow SQL literal (text ratchet), dead
+> RECURSIVE private method (span-masked rule), reflection growth inside pardoned
+> `server/Json` (F1.11b site count), soft-ceiling bump, adapter `->sort(` spelling, and the
+> §3.1 cheapest-green itself — comments deleted AND `gridMax` added, ledger RED at 142>132
+> because stripped counting means comment deletion funds nothing. Bonus fence found:
+> NullAway rejected the naive `gridMax` before any guard ran. Structural changes: stripped
+> non-blank ledger counts (all rows re-seeded), the exec class register, the sound
+> state-machine source stripper for the dead-method rule (the regex version false-flagged
+> 25 live methods via `'"'`/URL-quote mangling — a guard-correctness bug found BY auditing
+> the guard), whose honest count then found and deleted ALL TWELVE dead private methods
+> (pin now ZERO), pardoned-reflection site pins, extremum spellings in both discipline
+> guards, and the `default ->` adjudication (numeric fabricators pinned at zero; the 22
+> predicate booleans and 59 not-found nulls ruled out of C2.4 with reasoning in the rule).
+> **Residual limits, recorded**: the census is FILE-grained (code added to an
+> already-registered file is the ledger pins' job); pure-Java aggregation over
+> project-typed carriers with zero JDBC spellings remains statically invisible — deletion
+> (Batch B) is the durable fix; the GuardCoverage floors are logic-reviewed but not
+> probe-tested (probing requires moving source roots).
 
 > **Method.** Eight auditors, null hypothesis = *the claim is false*, rubric = `TENET_REMEDIATION.md`
 > §6, adjudication authority = `docs/TENET_CHARTER.md`. One auditor was permitted to build and
