@@ -11,6 +11,33 @@
 > re-seed are deliberately deferred: guards catch drift, not adversaries. Tier 4 is
 > REPLACED by the relation-typed `fetchDb` leg — GridReads/HostEval/`HostResultSet` are
 > DELETED wholesale rather than taught MIR (Batch B).
+>
+> **Tier-1 remediation audit (2026-08-18, user-directed):** each fix re-verified
+> adversarially, with regression pins that FAIL on the old code (`AuditTier1PipelineTest`,
+> `DynamicPivotKeyLiteralTest`, `PureReprTest` — the full-corpus byte-match proves only
+> non-regression; none of the fixed behaviors had prior coverage, which is why they were
+> live).
+> **B** — pipeline-pinned: a NULL grid cell through `->toString()` is EMPTY, never the text
+> `"null"`; control chain still reads. Audit found two arms (ROWS, CELLS-stream) that
+> silently IGNORED the peel — both now fall through to the wall instead.
+> **D** — REAL keys pin to the float's printed value (the old widen spliced
+> `3.140000104904175`); timestamp keys keep `:00` seconds and exact subseconds; the
+> `DateLit` arm audited safe (`LocalDate.toString` is always ISO).
+> **E** — the correct spec is the engine's `toRepresentation()` (platform pure), NOT this
+> report's suggested `lit()` — `lit()` is the SQL speller and doubles quotes where Pure
+> source backslash-escapes. Ported with the spec's replace order; NULL pk cells wall.
+> **F** — the wall fires on a `[1..*]` shrink and a satisfied bound flows (pipeline pins).
+> Residuals recorded: the SCALAR zero-row path is pre-existing behavior outside F's scope;
+> and integer egress is driver-kinded (`Integer` vs `Long` by path — adjudicated looseness,
+> all consumers compare numerically) — a candidate row for the carrier lane, noted so it
+> cannot vanish into a passing test.
+> **N** — no dedicated unit pin (a walk needs a full plan model); verified by the
+> executionPlan family byte-match plus the read that `info().type()` is the element type by
+> construction. Recorded as reasoning-plus-referee, not test-pinned.
+> **G** — the interpreted `ToFloat` re-wraps the Decimal's exact `BigDecimal` (verified in
+> legend-pure source): the relabel preserves the value. Suite totals confirmed; the commit
+> touched no expected-failure registry, so the green deletion of the Integer branch is
+> genuine.
 
 > **Method.** Eight auditors, null hypothesis = *the claim is false*, rubric = `TENET_REMEDIATION.md`
 > §6, adjudication authority = `docs/TENET_CHARTER.md`. One auditor was permitted to build and

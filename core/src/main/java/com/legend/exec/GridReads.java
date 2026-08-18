@@ -100,6 +100,12 @@ public final class GridReads {
             case CELLS -> {
                 // flattened row-major cells: at(k) is row k/n, col k%n
                 if (at == null) {
+                    if (asString) {
+                        // a toString peel over the WHOLE stream has no
+                        // projection to ride — unrecognized, wall
+                        // (Tier-1 audit: never silently ignore the peel)
+                        yield null;
+                    }
                     // the whole cell stream: every value DB-produced,
                     // Java reshapes 2D to row-major 1D (decode-class)
                     String base = c.baseSql();
@@ -127,8 +133,11 @@ public final class GridReads {
             case ROWS -> {
                 // bare rows reach only EMPTINESS asserts in the corpus:
                 // the first column's values are size- and value-faithful
-                // for that consumer; positional reads went through at()
-                yield at != null || c.row() != null ? null
+                // for that consumer; positional reads went through at().
+                // asString cannot form over Row[*] (the peel matches
+                // direct 1-arg calls only) — guarded anyway: wall over
+                // silently dropping the peel (Tier-1 audit)
+                yield at != null || c.row() != null || asString ? null
                         : result(root, columnValues(c, c.names().get(0),
                                 false, conn));
             }

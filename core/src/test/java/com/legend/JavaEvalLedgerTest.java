@@ -81,7 +81,10 @@ class JavaEvalLedgerTest {
             // rows pin it until the relation-typed fetchDb leg DELETES
             // GridReads + DbMetaData's carrier wholesale (delete the
             // rows with the files, never bump them)
-            Map.entry("core/src/main/java/com/legend/exec/GridReads.java", 465),
+            // 465 -> 474 (2026-08-18 Tier-1 audit): defensive asString
+            // walls on the ROWS/CELLS-stream arms — a toString peel is
+            // never silently ignored, it falls through to the wall
+            Map.entry("core/src/main/java/com/legend/exec/GridReads.java", 474),
             Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 136),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 163),
             Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 303));

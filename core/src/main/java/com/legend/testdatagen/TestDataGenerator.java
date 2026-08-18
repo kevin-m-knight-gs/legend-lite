@@ -1348,8 +1348,9 @@ public final class TestDataGenerator {
      * decimals the {@code D} suffix. (Audit 2026-08-18 finding E: the
      * old inline speller had NO escaping and JDBC-default spellings;
      * the fix is this spec port, not the SQL {@code lit()} speller —
-     * SQL doubles quotes, Pure backslash-escapes them.) */
-    private static String pureRepr(@com.legend.Nullable Object v) {
+     * SQL doubles quotes, Pure backslash-escapes them.)
+     * Package-private for the Tier-1 regression pin (PureReprTest). */
+    static String pureRepr(@com.legend.Nullable Object v) {
         return switch (v) {
             case String s -> "'" + s.replace("\\", "\\\\")
                     .replace("'", "\\'").replace("\n", "\\n") + "'";

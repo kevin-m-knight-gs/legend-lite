@@ -90,6 +90,13 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/TenetRatchetTest.java",
             "core/src/test/java/com/legend/builtin/NativeFunctionTest.java",
             "core/src/test/java/com/legend/compiler/spec/UserCallInlinerTest.java",
+            // Tier-1 audit regression pins (2026-08-18): drive the fixed
+            // findings through the real pipeline / real connections —
+            // they verify egress spelling and wall behavior, computing
+            // no values in Java
+            "core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java",
+            "core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java",
+            "core/src/test/java/com/legend/testdatagen/PureReprTest.java",
             "core/src/test/java/com/legend/exec/ExecuteFrameTest.java",
             "core/src/test/java/com/legend/exec/ExecuteInDbTest.java",
             "core/src/test/java/com/legend/exec/ExecutorTest.java",
