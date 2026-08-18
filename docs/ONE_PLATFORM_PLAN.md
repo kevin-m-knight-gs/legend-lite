@@ -430,6 +430,22 @@ everything not yet written work for free; ResultNav's recognition arms DELETE. T
 **Phase 3a**, merged with Phase 3 (the Result envelope rides the same Class modeling).
 Phase 2 (platform asserts) does not depend on it and proceeds first.
 
+*Phase 1c progress (slices 1–3, 2026-08-18):* `.rows->size()`, the spec-accessor
+`filter`, positional cells (`rows->at(k).value('N')`), `.columnNames`, and fetchDb catalog
+grids all execute through the ordinary pipeline — the database does the work, the surface
+stays spec-exact. **What GridSplice IS, honestly:** the migration bridge — a shape
+translator running in the compiler's inliner pass that rewrites `ResultSet` navigation
+spellings into ordinary relation IR (relation source, filter, slice+project, constants),
+holding no connection and computing no values. It is real progress (recognized shapes
+now COMPOSE with everything; unrecognized ones fall through to the pipeline instead of
+walling) but it is still a list of shapes, one layer earlier than the ResultNav arms it
+replaces. It dissolves entirely when the typer knows the ordered-relation kind for
+`.rows` natively (the reuse-TDS-kind-or-minimal-subtype design) — then `.rows` types as
+a relation from the start and `value('N')` is a declared operation, no rewrite needed.
+The arm-deletion audit (measured by bypassing the arms under the referee) names exactly
+what the pipeline still lacks: the fold column-collect idiom and `executeInDb` in scalar
+position — slice 4. Arms stay until the referee proves them dead.
+
 *Process defect recorded:* one batch briefly landed on the remote as two commits (a
 silently failed `git add` — stderr was suppressed; remote was unbuildable for ~1
 minute). Rule adopted: never silence stderr on staging commands; verify `git status`
