@@ -93,14 +93,15 @@ class Phase1AuditTest {
      * when slice 2 lands. Note {@code $r.A} is NON-spec and its type
      * error is correct forever, not a gap. */
     @Test
-    @DisplayName("tripwire #2: filter via the SPEC accessor value('A') awaits slice 2")
-    void filterViaSpecAccessorAwaitsSlice2() {
-        assertThrows(Exception.class,
-                () -> Compiler.execute("", CONN_LET
-                        + "meta::relational::metamodel::execute::executeInDb("
-                        + "'select 1 as A union all select 2 union all select 3',"
-                        + " $c, 0, 1000)"
-                        + ".rows->filter(r | $r.value('A')->cast(@Integer) > 1)"
-                        + "->size();}", conn));
+    @DisplayName("tripwire #2 FLIPPED (slice 2): filter via the SPEC accessor value('A') composes")
+    void filterViaSpecAccessorComposes() throws Exception {
+        ExecutionResult r = Compiler.execute("", CONN_LET
+                + "meta::relational::metamodel::execute::executeInDb("
+                + "'select 1 as A union all select 2 union all select 3',"
+                + " $c, 0, 1000)"
+                + ".rows->filter(r | $r.value('A')->cast(@Integer) > 1)"
+                + "->size();}", conn);
+        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
+                .longValue());
     }
 }

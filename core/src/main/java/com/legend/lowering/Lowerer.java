@@ -323,9 +323,8 @@ public final class Lowerer {
 
             case TypedTds tds -> tdsLiteral(tds);
 
-            // Phase 1c: authored-SQL relation source (quarantined ctor)
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw ->
-                    SqlSelect.starOf(new SqlSource.RawSql(
+                    SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c
                             raw.sql(), nextAlias(), java.util.List.of()));
 
             case TypedFilter f -> filter(f);

@@ -2366,7 +2366,7 @@ final class StatementExecutor {
                 execFrames = new java.util.LinkedHashMap<>(allFrames);
                 execFrames.keySet().removeAll(boundVars);
             }
-            TypedSpec rawGrid = com.legend.GridSplice.rawGridRelation(n);
+            TypedSpec rawGrid = com.legend.GridSplice.spliceAny(n);
             if (rawGrid != null) { return rawGrid; }
                         // $result.rows->size(): POST-EXECUTE row count. The engine
             // counts the MATERIALIZED rows in memory; the in-query

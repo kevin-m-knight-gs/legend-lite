@@ -397,6 +397,13 @@ final class Fold {
                     + " did not name its column");
         }
         SqlExpr r = resolveIntoExact(s, column);
+        if (r == null && s.projections().isEmpty() && s.from()
+                instanceof com.legend.sql.SqlSource.RawSql raw) {
+            // Phase 1c: an authored-SQL grid's columns are LATE-BOUND —
+            // a by-name read trusts the written name (the database
+            // adjudicates unknown names at execution, as in any SQL)
+            return new SqlExpr.Column(raw.alias(), column);
+        }
         if (r == null) {
             // A pivot dynamic column's PURE identity carries quotes
             // ('2011__|__newCol'); its SQL name is the bare inner text —
