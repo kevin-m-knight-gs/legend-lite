@@ -151,6 +151,15 @@ def build(c: model.Corpus, seeded: set[str],
             sub = _scalars(c, target, 3, tables)
             if len(sub) >= 2:
                 tree[prop] = {p: None for p in sub}
+                # A THIRD level, where the model offers one. Every generated tree was two
+                # deep, which is the shallowest shape that still counts as a tree -- and the
+                # question graph fetch actually raises is what happens to a sub-object of a
+                # sub-object when the middle one is absent. Two levels cannot ask it: there
+                # is nothing under the missing object to be missing.
+                for sub_prop, sub_target in _branches(c, target, seeded)[:1]:
+                    leaves = _scalars(c, sub_target, 2, tables)
+                    if len(leaves) >= 2:
+                        tree[prop][sub_prop] = {q: None for q in leaves}
         if not any(isinstance(v, dict) for v in tree.values()):
             # No sub-object: a flat read, already covered far better by the projection
             # corpus. Graph fetch earns its place only where a tree exists.
