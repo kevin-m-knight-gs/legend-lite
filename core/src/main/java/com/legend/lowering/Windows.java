@@ -96,6 +96,7 @@ final class Windows {
             List<SqlSelect.SortKey> orderBy,
             SqlExpr.WindowCall.@com.legend.Nullable Frame frame) {
         return switch (e) {
+            case SqlExpr.TempTableInSplice t -> t;
             case SqlAgg.Reducer r ->
                     new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()

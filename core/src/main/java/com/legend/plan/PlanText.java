@@ -156,12 +156,67 @@ public final class PlanText {
      * declaration order at 4-space indent. */
     public static String sequence(String typeBlock,
             java.util.List<String> children) {
-        StringBuilder sb = new StringBuilder("Sequence\n(\n")
+        return headedBlock("Sequence", typeBlock, children);
+    }
+
+    /** {@code RelationalBlockExecutionNode} — the temp-table IN
+     * protocol's envelope (the engine's processInOperation.pure); the
+     * same layout as {@link #sequence} under a different head. */
+    public static String relationalBlock(String typeBlock,
+            java.util.List<String> children) {
+        return headedBlock("RelationalBlockExecutionNode", typeBlock,
+                children);
+    }
+
+    private static String headedBlock(String head, String typeBlock,
+            java.util.List<String> children) {
+        StringBuilder sb = new StringBuilder(head).append("\n(\n")
                 .append(typeBlock).append("  (\n");
         for (String c : children) {
             sb.append(indent(c, "    "));
         }
         return sb.append("  )\n)\n").toString();
+    }
+
+    /** {@code CreateAndPopulateTempTable} (processInOperation): the
+     * temp-table population step — Void-typed, its column metadata the
+     * engine's ColumnForStoringInCollection with the db-specific type. */
+    public static String createAndPopulateTempTable(
+            java.util.List<String> inputVarNames, String tempTableName,
+            String columnType, String connName) {
+        return "CreateAndPopulateTempTable\n(\n"
+                + "  type = Void\n"
+                + "  inputVarNames = ["
+                + String.join(", ", inputVarNames) + "]\n"
+                + "  tempTableName = " + tempTableName + "\n"
+                + "  tempTableColumns = [(ColumnForStoringInCollection, "
+                + columnType + ")]\n"
+                + "  connection = " + connName + "\n)\n";
+    }
+
+    /** {@code FreeMarkerConditionalExecutionNode} (processInOperation):
+     * the size-threshold conditional — String-typed, the freemarker
+     * boolean prints as {@code condition}. */
+    public static String freeMarkerConditional(String condition,
+            String trueBlock, String falseBlock) {
+        return "FreeMarkerConditionalExecutionNode\n(\n"
+                + "  type = String\n"
+                + "  condition = " + condition + "\n"
+                + "  trueBlock = \n    (\n"
+                + indent(trueBlock, "      ")
+                + "    )\n"
+                + "  falseBlock = \n    (\n"
+                + indent(falseBlock, "      ")
+                + "    )\n)\n";
+    }
+
+    /** {@code Constant} WITHOUT a resultSizeRange line — the temp-table
+     * protocol's value lists (processInOperation spells only
+     * type/values). */
+    public static String constantBare(String typeName, String valueText) {
+        return "Constant\n(\n"
+                + "  type = " + typeName + "\n"
+                + "  values=[" + valueText + "]\n)\n";
     }
 
     /** {@code FunctionParametersValidationNode} — parameterized plan

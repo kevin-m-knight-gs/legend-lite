@@ -32,6 +32,7 @@ final class UnqualifyPivotArgs extends SqlRewriter {
 
     private static SqlExpr unqualify(SqlExpr e) {
         return switch (e) {
+            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Column c -> new SqlExpr.Column(null, c.name());
             case SqlExpr.RowOrder ignored -> new SqlExpr.RowOrder(null);
             case SqlExpr.ReduceCollection rc -> rc;

@@ -116,6 +116,7 @@ public abstract class SqlRewriter {
         SqlExpr out = switch (e) {
             case SqlExpr.Column c -> c;
             case SqlExpr.RowOrder r -> r;
+            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Membership m -> {
                 SqlExpr n2 = rewriteExpr(m.needle());
                 SqlExpr c2 = rewriteExpr(m.collection());

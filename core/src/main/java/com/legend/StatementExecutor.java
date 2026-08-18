@@ -945,17 +945,27 @@ final class StatementExecutor {
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
                 env, planDialect(dbType, quote, timeZone), params,
                 java.util.function.UnaryOperator.identity());
-        children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
-                mappingFqn, es.plan(), es.sql(), java.util.List.of(term),
-                connName));
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
-        return new ExecutionResult.Scalar(
-                com.legend.plan.PlanText.sequence(
-                        com.legend.plan.PlanText.typeBlock(env.ctx(),
-                                rootClass, impl, es.plan(),
-                                java.util.List.of(term), mappingFqn),
-                        children),
+        // temp-table IN protocol (processInOperation)
+        var inp = com.legend.plan.InProtocol.apply(es.plan(),
+                com.legend.plan.InProtocol.thresholdFor(connName, dbType),
+                dbType);
+        var pd = (com.legend.sql.dialect.EngineStyleH2) planDialect(dbType, quote, timeZone);
+        if (inp != null) {
+            children.addAll(com.legend.plan.InProtocol.allNodeTexts(inp,
+                    connName, dbType, pd::collectionSplice));
+        }
+        var planOut = inp != null ? inp.plan() : es.plan();
+        children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
+                mappingFqn, planOut,
+                inp != null ? pd.render(planOut) : es.sql(),
+                java.util.List.of(term), connName));
+        String tb = com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
+                impl, es.plan(), java.util.List.of(term), mappingFqn);
+        return new ExecutionResult.Scalar(inp != null
+                ? com.legend.plan.PlanText.relationalBlock(tb, children)
+                : com.legend.plan.PlanText.sequence(tb, children),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 

@@ -60,9 +60,35 @@ public class EngineStyleDB2 extends EngineStyleH2 {
 
     @Override
     protected String whereSql(SqlExpr w) {
-        return w instanceof SqlExpr.Call c
+        // DB2 plan goldens wrap a top-level AND only when a conjunct is
+        // OR-ROOTED (the null-safe expansions) — 'where ((A) and (B))';
+        // plain conjuncts render bare ('where A in (...) and B in (...)'
+        // — the temp-table IN protocol golden pins the bare form)
+        boolean wrap = w instanceof SqlExpr.Call c
                 && c.fn() == com.legend.sql.SqlFn.AND
-                ? "(" + expr(w, 0) + ")" : expr(w, 0);
+                && c.args().stream().anyMatch(EngineStyleDB2::orRooted);
+        return wrap ? "(" + expr(w, 0) + ")" : expr(w, 0);
+    }
+
+    /** An OR-rooted conjunct — explicit or/null-safe nodes AND the
+     * equality-over-OPTIONAL-param form, whose null-safe or-expansion
+     * happens at RENDER time ({@code nullSafeEq}); Groups unwrap. */
+    private static boolean orRooted(SqlExpr a) {
+        if (a instanceof SqlExpr.Group g) {
+            return orRooted(g.inner());
+        }
+        if (!(a instanceof SqlExpr.Call oc)) {
+            return false;
+        }
+        if (oc.fn() == com.legend.sql.SqlFn.OR
+                || oc.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL
+                || oc.fn() == com.legend.sql.SqlFn.NULL_SAFE_NOT_EQUAL) {
+            return true;
+        }
+        return (oc.fn() == com.legend.sql.SqlFn.EQUAL
+                        || oc.fn() == com.legend.sql.SqlFn.NOT_EQUAL)
+                && oc.args().stream().anyMatch(x ->
+                        x instanceof SqlExpr.PlanParam p && p.optional());
     }
 
     @Override

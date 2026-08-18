@@ -575,8 +575,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return l + " is not distinct from " + r;
     }
 
+    /** The engine's renderCollection template for a MANY plan param —
+     * ONE spelling shared by the plain in-collection rendering and the
+     * temp-table protocol's falseBlock (processInOperation). */
+    public String collectionSplice(SqlExpr.PlanParam cp) {
+        return "${renderCollection(" + cp.name() + "![] \",\" "
+                + holderArgs(cp.kind()) + " \"null\")}";
+    }
+
     protected String holderArgs(SqlExpr.PlanParam.Kind k) {
         return switch (k) {
+            case RAW -> throw new IllegalStateException(
+                    "RAW plan params are bare splices, never collections");
             case STRING -> "\"'\" \"'\" {\"'\" : \"''\"}";
             case DATE -> "\"'\" \"'\" {}";
             case DATETIME -> "\"TIMESTAMP'\" \"'\" {}";
@@ -987,6 +997,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 return holder(p);
             }
             return switch (p.kind()) {
+                case RAW -> "${" + p.name() + "}";
                 case STRING -> "'${" + p.name()
                         + "?replace(\"'\", \"''\")}'";
                 // h2New spells date-typed placeholders with the type
@@ -1129,12 +1140,33 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     }
                 }
                 case IN -> {
+                    // the temp-table IN splice (processInOperation's
+                    // over-threshold arm): the engine's fixed
+                    // generateTempTableSelectSQLQuery template
+                    if (bc.args().size() == 2
+                            && bc.args().get(1)
+                                    instanceof SqlExpr.TempTableInSplice ts) {
+                        String a = ts.tempTableName().toLowerCase(
+                                java.util.Locale.ROOT) + "_0";
+                        return expr(bc.args().get(0), 4)
+                                + " in (select \"" + a
+                                + "\".ColumnForStoringInCollection as"
+                                + " ColumnForStoringInCollection from "
+                                + ts.tempTableName() + " as \"" + a
+                                + "\")";
+                    }
                     // a COLLECTION-typed plan parameter spells the
                     // engine's renderCollection template — separator ","
                     // plus the SAME per-kind prefix/suffix/escape args as
                     // varPlaceHolderToString (in-collection plan goldens)
                     if (bc.args().size() == 2
                             && bc.args().get(1) instanceof SqlExpr.PlanParam cp) {
+                        // the temp-table protocol's wrapper variable —
+                        // a bare splice, never a collection template
+                        if (cp.kind() == SqlExpr.PlanParam.Kind.RAW) {
+                            return expr(bc.args().get(0), 4)
+                                    + " in (${" + cp.name() + "})";
+                        }
                         // a non-default connection timeZone spells the
                         // TZ-SHIFTING template (renderCollectionWithTz —
                         // tz second, no escape map) over datetime params
@@ -1149,9 +1181,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                     + " \"null\")})";
                         }
                         return expr(bc.args().get(0), 4)
-                                + " in (${renderCollection(" + cp.name()
-                                + "![] \",\" " + holderArgs(cp.kind())
-                                + " \"null\")})";
+                                + " in (" + collectionSplice(cp) + ")";
                     }
                     // the engine collapses a SINGLETON literal in-list
                     // to equality ('x in ([v])' text = 'x = v')

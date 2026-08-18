@@ -561,3 +561,25 @@ Rescued natively in the same change (no delta): `H2Test` and
 auto-map, the `rows->at(k).value('NAME')` single-cell read — compile
 into SQL at the seam) and `ddl::findTableByName` (StoreNav model
 lookup). Corpus total 2339 → 2330.
+
+## 2026-08-18 — temp-table IN protocol, plan text (§0.4 declared, 2 gains)
+
+The engine's processInOperation protocol lands on the PLAN-TEXT surface
+(plan/InProtocol + the PlanText block emitters + the TempTableInSplice /
+RAW-param plan vocabulary): an `in` whose collection exceeds the
+connection threshold (test 50, DB2 32767; real H2 none — the timezone
+golden pins protocol-off) becomes RelationalBlockExecutionNode wrapping
+Allocation / CreateAndPopulateTempTable /
+FreeMarkerConditionalExecutionNode ahead of the Relational node.
+
+- `executionPlan/tests`: `testExecutionPlanGenerationForInWithVarAndConstantInputs`
+  PASSES byte-exact (the engine-ordinal `_4` naming, the H2 test grid).
+- `executionPlan/tests`: `testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs`
+  PASSES byte-exact (DB2: SESSION. temp-table prefix, the 32767
+  conditional, name-based suffixes, the refined DB2 where-paren rule —
+  wrap only or-rooted conjuncts incl. render-time null-safe expansions;
+  the FilterEqualsWithOptionalParameter pinning pair stays green).
+
+Corpus total 2330 → 2332. Remaining protocol demand: the PureExp
+let-allocation seam (testFilterInWithResultSorcedFromAnExpression) and
+the temp-table EXECUTION shapes — next batches.
