@@ -210,6 +210,20 @@ public final class PlanText {
                 + "    )\n)\n";
     }
 
+    /** {@code PureExp} — a NON-RELATIONAL let value carried as a plan
+     * expression (the engine's PureExpressionPlatformExecutionNode):
+     * type/sizeRange, the free plan variables it requires, and the PURE
+     * SOURCE of the expression. */
+    public static String pureExp(String typeName,
+            @com.legend.Nullable String sizeRange, String requiresSpell,
+            String exprSource) {
+        return "PureExp\n(\n"
+                + "  type = " + typeName + "\n"
+                + "  resultSizeRange = " + sizeRange + "\n"
+                + "  requires = [" + requiresSpell + "]\n"
+                + "  expression = " + exprSource + "\n)\n";
+    }
+
     /** {@code Constant} WITHOUT a resultSizeRange line — the temp-table
      * protocol's value lists (processInOperation spells only
      * type/values). */

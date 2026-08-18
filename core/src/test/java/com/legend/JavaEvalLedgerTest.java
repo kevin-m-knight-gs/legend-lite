@@ -65,12 +65,14 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/exec/HostEval.java", 181,
             "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580,
             "core/src/main/java/com/legend/MetamodelSteps.java", 234,
-            // pin bumped 888 -> 943 (2026-08-18, burn batch 1): the
-            // temp-table IN protocol's engine-envelope emitters
-            // (RelationalBlockExecutionNode / CreateAndPopulateTempTable
-            // / FreeMarkerConditionalExecutionNode / bare Constant) —
-            // engine-parity plan TEXT, the register's own class
-            "core/src/main/java/com/legend/plan/PlanText.java", 943,
+            // pin bumped 888 -> 943 -> 957 (2026-08-18, burn batches
+            // 1-2): the temp-table IN protocol's engine-envelope
+            // emitters (RelationalBlockExecutionNode /
+            // CreateAndPopulateTempTable /
+            // FreeMarkerConditionalExecutionNode / bare Constant) plus
+            // the PureExp let-allocation emitter — engine-parity plan
+            // TEXT, the register's own class
+            "core/src/main/java/com/legend/plan/PlanText.java", 957,
             "core/src/main/java/com/legend/AggAwareActivities.java", 265);
     // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
     // shadow-H2 replay is DELETED and every metadata VALUE is now

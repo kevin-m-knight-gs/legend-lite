@@ -10,6 +10,26 @@ final class PlanAllocations {
     private PlanAllocations() {
     }
 
+    /** The free PLAN VARIABLES the expression reads, in first-read
+     * order, spelled {@code name(Type[mult])}. */
+    private static void collectRequires(
+            com.legend.compiler.spec.typed.TypedSpec n,
+            java.util.Map<String, String> paramSpells, StringBuilder out,
+            java.util.Set<String> seen) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && paramSpells.containsKey(v.name())
+                && seen.add(v.name())) {
+            if (out.length() > 0) {
+                out.append(", ");
+            }
+            out.append(v.name()).append('(')
+                    .append(paramSpells.get(v.name())).append(')');
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
+            collectRequires(c, paramSpells, out, seen);
+        }
+    }
+
     /** An Allocation child for one plan let: LITERAL values print as
      * Constant nodes, scalar query values as SCALAR-projection
      * Relational nodes (bare-typed, alias-less select), and CLASS query
@@ -19,6 +39,7 @@ final class PlanAllocations {
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
+            java.util.Map<String, String> paramSpells,
             boolean quote, @com.legend.Nullable String timeZone, @com.legend.Nullable String dbType) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
@@ -42,8 +63,20 @@ final class PlanAllocations {
         }
         String rootClass = StatementExecutor.rootGetAllClass(java.util.List.of(let.value()));
         if (rootClass == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: Allocation value without a getAll root");
+            // NON-RELATIONAL expression let — the engine's
+            // PureExpressionPlatformExecutionNode: the expression rides
+            // as PURE SOURCE with its required plan variables
+            String typeName = com.legend.plan.PlanText
+                    .pureTypeName(let.info().type());
+            String size = StatementExecutor.sizeRange(let.info().multiplicity());
+            StringBuilder req = new StringBuilder();
+            collectRequires(let.value(), paramSpells, req,
+                    new java.util.LinkedHashSet<>());
+            return com.legend.plan.PlanText.allocation(let.name(),
+                    com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
+                    com.legend.plan.PlanText.pureExp(typeName, size,
+                            req.toString(),
+                            com.legend.plan.PurePrint.source(let.value())));
         }
         StatementExecutor.EngineSql es = StatementExecutor.engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env,

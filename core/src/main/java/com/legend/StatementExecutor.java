@@ -877,6 +877,8 @@ final class StatementExecutor {
                 lam.info().type();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
+        java.util.LinkedHashMap<String, String> paramSpells =
+                new java.util.LinkedHashMap<>();
         java.util.List<String> children = new java.util.ArrayList<>();
         if (!lam.parameters().isEmpty()) {
             StringBuilder ps = new StringBuilder();
@@ -889,6 +891,9 @@ final class StatementExecutor {
                         .append(com.legend.plan.PlanText
                                 .pureTypeName(p.type()))
                         .append(multBracket(p.multiplicity()));
+                paramSpells.put(lam.parameters().get(i),
+                        com.legend.plan.PlanText.pureTypeName(p.type())
+                                + multBracket(p.multiplicity()));
                 boolean opt = p.multiplicity() instanceof
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded ob
@@ -915,7 +920,7 @@ final class StatementExecutor {
                         "plan: non-let intermediate statement");
             }
             children.add(PlanAllocations.node(let, mappingFqn, specs, env,
-                    params, quote, timeZone, dbType));
+                    params, paramSpells, quote, timeZone, dbType));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
@@ -927,8 +932,8 @@ final class StatementExecutor {
             // emits Sequence only when clusters != 1) — a lone let IS
             // the plan, no Sequence envelope.
             children.add(java.util.Objects.requireNonNull(PlanAllocations
-                    .node(tlet, mappingFqn, specs, env, params, quote,
-                            timeZone, dbType)));
+                    .node(tlet, mappingFqn, specs, env, params, paramSpells,
+                            quote, timeZone, dbType)));
             if (children.size() != 1) {
                 throw new com.legend.error.NotImplementedException(
                         "plan: trailing let in a multi-node sequence"
@@ -947,28 +952,14 @@ final class StatementExecutor {
                 java.util.function.UnaryOperator.identity());
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
-        // temp-table IN protocol (processInOperation)
-        var inp = com.legend.plan.InProtocol.apply(es.plan(),
-                com.legend.plan.InProtocol.thresholdFor(connName, dbType),
-                dbType);
-        var pd = (com.legend.sql.dialect.EngineStyleH2) planDialect(dbType, quote, timeZone);
-        if (inp != null) {
-            children.addAll(com.legend.plan.InProtocol.allNodeTexts(inp,
-                    connName, dbType, pd::collectionSplice));
-        }
-        var planOut = inp != null ? inp.plan() : es.plan();
-        children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
-                mappingFqn, planOut,
-                inp != null ? pd.render(planOut) : es.sql(),
-                java.util.List.of(term), connName));
-        String tb = com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
-                impl, es.plan(), java.util.List.of(term), mappingFqn);
-        return new ExecutionResult.Scalar(inp != null
-                ? com.legend.plan.PlanText.relationalBlock(tb, children)
-                : com.legend.plan.PlanText.sequence(tb, children),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
+        // temp-table IN protocol + envelope assembly (extracted at the
+        // file guardrail — PlanEnvelope owns the block-vs-sequence rule)
+        return PlanEnvelope.emit(es, children, env, rootClass, impl,
+                mappingFqn, term, connName, dbType,
+                (com.legend.sql.dialect.EngineStyleH2)
+                        planDialect(dbType, quote, timeZone),
+                !lam.parameters().isEmpty());
     }
-
 
     private static @com.legend.Nullable String multBracket(
             com.legend.compiler.element.type.Multiplicity m) {
