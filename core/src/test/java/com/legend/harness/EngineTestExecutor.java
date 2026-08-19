@@ -2523,14 +2523,6 @@ public final class EngineTestExecutor {
         return null;
     }
 
-    /** Deep JSON equality with NUMERIC BigDecimal compare (scale drops:
-     * the engine prints 5.0 where our envelope prints 5.000000000 for the
-     * same DECIMAL(38,9) value). Long-vs-BigDecimal stays UNEQUAL on
-     * purpose — an integer-typed expectation against a decimal wire value
-     * is a typing bug this compare must catch, same stance as wireEquals'
-     * int/fp split. */
-
-
     static String simpleName(String fn) {
         int cut = fn.lastIndexOf("::");
         return cut < 0 ? fn : fn.substring(cut + 2);

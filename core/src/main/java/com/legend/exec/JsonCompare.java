@@ -96,8 +96,13 @@ public final class JsonCompare {
                         + ", got " + abbreviate(String.valueOf(a));
     }
 
-    /** The DOCUMENT leaf rule: numbers numerically within kind, all
-     * else strict — the engine's own parse-and-compare strictness. */
+    /** The DOCUMENT leaf rule: numbers numerically WITHIN kind
+     * (BigDecimal by compareTo — scale drops: the engine prints 5.0
+     * where our envelope prints 5.000000000 for the same DECIMAL(38,9)
+     * value), all else strict. Long-vs-BigDecimal stays UNEQUAL on
+     * purpose — an integer-typed expectation against a decimal wire
+     * value is a typing bug this compare must catch (the migrated
+     * harness rationale, verbatim). */
     private static boolean documentLeaf(@com.legend.Nullable Object e,
             @com.legend.Nullable Object a) {
         if (e instanceof java.math.BigDecimal be
