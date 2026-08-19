@@ -134,7 +134,11 @@ fi
 
 if want 6; then
   g "GATE6 PCT full DuckDB"
-  ( cd pct && mvn "${OFF[@]}" clean test ) > "$OUT/g6.out" 2>&1
+  # $R2 is REQUIRED: the channel-B suites compile the REAL legend-pure
+  # sources at legend.pure.root; without the property they fall back to
+  # ~/legend/legend-pure — a DIFFERENT checkout (the grammar discovery
+  # pin caught exactly that skew, 136 != 137, 2026-08-19).
+  ( cd pct && mvn "${OFF[@]}" clean test "$R2" ) > "$OUT/g6.out" 2>&1
   rec 6 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g6.out" | tail -1 >> "$L"
 fi
 
@@ -144,7 +148,7 @@ fi
 G7_MIN_RUN=348; G7_MAX_FAIL=1; G7_MAX_ERR=22
 if want 7; then
   g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"
-  ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn "${OFF[@]}" test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 ) > "$OUT/g7.out" 2>&1
+  ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn "${OFF[@]}" test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 "$R2" ) > "$OUT/g7.out" 2>&1
   # Anchor on the SUITE line, not `tail -1`. Surefire prints a trailing
   # "Tests run: 1, Failures: 0, Errors: 1" summarising failing CLASSES, and
   # taking the last match picks that instead of the 348-test result — which

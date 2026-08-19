@@ -84,6 +84,30 @@ final class Scalars {
         for (String name : List.of("equal", "eq")) {
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {
+                    // ENGINE-VERBATIM empty ladder (pureToSQLQuery.pure
+                    // nullSafeEqualsOperation: "a literal empty ([])
+                    // operand degenerates to a null check on the other
+                    // side ([] == [] is statically true)"; frontier
+                    // witness testEqualEmpty — the engine's relational
+                    // DuckDB executor passes it). Scoped to the LITERAL
+                    // empty collection: the engine's [0..0] criterion is
+                    // honest post-routing, but OUR checker types some
+                    // subtype navigations [0..0] that still read real
+                    // columns (the gate-4 mapping-family regression
+                    // pinned that narrowing at burn slice 4).
+                    boolean le = n.args().get(0) instanceof
+                            com.legend.compiler.spec.typed.TypedCollection lc
+                            && lc.elements().isEmpty();
+                    boolean re = n.args().get(1) instanceof
+                            com.legend.compiler.spec.typed.TypedCollection rc
+                            && rc.elements().isEmpty();
+                    if (le || re) {
+                        if (le && re) {
+                            return new SqlExpr.BoolLit(true);
+                        }
+                        return SqlExpr.Call.of(SqlFn.IS_NULL,
+                                args.get(le ? 1 : 0));
+                    }
                     Integer p0 = partialPrecision(n.args().get(0));
                     Integer p1 = partialPrecision(n.args().get(1));
                     if (p0 != null || p1 != null) {
@@ -201,8 +225,12 @@ final class Scalars {
                 }
                 // plus<T>(values:T[*]) is the COLLECTION SUM (real pure) —
                 // the infix renderer would emit a lone list bare (audit).
+                // A NUMBER-LUB mixed literal rides the variant carrier:
+                // numList unwraps it for the aggregate (sum(JSON) is a
+                // Binder error; grammar witness testPlusNumber).
                 if (args.size() == 1) {
-                    return new SqlExpr.Call(SqlFn.LIST_SUM, args);
+                    return new SqlExpr.Call(SqlFn.LIST_SUM,
+                            List.of(numList(args.get(0))));
                 }
                 return new SqlExpr.Call(SqlFn.PLUS, hugeWiden(args));
             });
@@ -214,9 +242,12 @@ final class Scalars {
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     return args.get(0);
                 }
-                // times<T>(values:T[*]) is the COLLECTION PRODUCT (real pure).
+                // times<T>(values:T[*]) is the COLLECTION PRODUCT (real
+                // pure); numList unwraps the mixed carrier (same defect
+                // class as plus — the aggregate needs raw numerics).
                 if (args.size() == 1) {
-                    return new SqlExpr.Call(SqlFn.LIST_PRODUCT, args);
+                    return new SqlExpr.Call(SqlFn.LIST_PRODUCT,
+                            List.of(numList(args.get(0))));
                 }
                 return new SqlExpr.Call(SqlFn.TIMES, hugeWiden(args));
             });

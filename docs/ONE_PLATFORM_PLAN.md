@@ -416,6 +416,26 @@ direction; PureAsserts ledger 250→264 justified). Census **PASS=290/327**, dif
 B-FIXES-A→AGREE-FAIL (source-info vanity, not conformance). Referee byte-identical,
 core 4156 green, ALLGATES GREEN.
 
+*GRAMMAR SUITE LIVE (2026-08-19, the second channel-B scope):* the same runner over
+`platform/pure/grammar/functions` (137 tests, discovery pinned exact), diffed by the
+extracted per-suite `ChannelBDiff` (channel-A ledger + engine frontier manifest).
+Fresh measurement under the redesign found TWO true wire bugs; both burned as
+engine-source-grounded platform fixes: (1) the **empty-equality ladder** — the
+engine's own `nullSafeEqualsOperation` (pureToSQLQuery.pure) verbatim: `[] == []`
+is statically TRUE, a one-side-empty literal is `isNull(other)` — scoped to LITERAL
+empty collections (the engine's [0..0] criterion is honest post-routing; ours types
+some subtype navigations [0..0] that read real columns, the pinned gate-4 lesson);
+witness testEqualEmpty. (2) the **mixed-numeric aggregate unwrap** — collection
+sum/product now apply the chartered `numList` variant-carrier unwrap (sum(JSON) was
+a Binder error); witness testPlusNumber. A third row fell out with the burns:
+census **PASS=123/137**, diff **AGREE-PASS=120 AGREE-FAIL=7 WIRE-BUG=5 B-FIXES-A=3
+DECLINED=2**, frontier **ENGINE-FRONTIER=5, TRUE-WIRE-BUG=0 — pinned at zero like
+essential**. Bonus catch: the grammar discovery pin (== 137) caught G6 running
+channel B against the STALE ~/legend/legend-pure checkout — `allgates.sh` now
+threads `-Dlegend.pure.root` into G6/G7. Essential re-verified untouched
+(290/286/14/0); referee byte-identical; ALLGATES GREEN. Remaining suites:
+Standard/Relation/Unclassified.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine
