@@ -484,9 +484,16 @@ final class ArchitectureTest {
                                     "com.legend.builtin", "com.legend.sql..",
                                     "com.legend.values",
                                     "com.legend.error", "java..")
+                            // SourceInfo rides typed nodes (the span
+                            // component, Phase 4) — the ONE protocol type
+                            // the HIR's surface carries; the parse-product
+                            // AST itself stays out
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.protocol.SourceInfo.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
-              + "nothing else, ever")
+              + "nothing else, ever (plus the SourceInfo span component)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -694,11 +701,16 @@ final class ArchitectureTest {
             // nested classes (StatementExecutor$ExecEnv, ...) ride with
             // their owner — the pin is per top-level class
             .and().haveNameNotMatching("com\\.legend\\.(Compiler"
-                    + "|StatementExecutor|SeedSqlForms)(\\$.*)?")
+                    + "|StatementExecutor|SeedSqlForms"
+                    // the assertError K-arm (Phase 4): catches the
+                    // database-raised error and adjudicates — the same
+                    // orchestration charter as StatementExecutor
+                    + "|AssertErrorNative)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Compiler, StatementExecutor, SeedSqlForms} —"
+                    + " {Compiler, StatementExecutor, SeedSqlForms,"
+                    + " AssertErrorNative} —"
                     + " shrink-only; the split is backlogged")
             .check(CORE_PROD_CLASSES);
     }

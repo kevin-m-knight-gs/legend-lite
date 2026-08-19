@@ -1210,10 +1210,9 @@ final class Pipelines {
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     rewriteRowReads(pa.source(), rowVar, prefixes, stripped, varRewrite),
                     pa.property(), pa.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a ->
+            case TypedNativeCall c -> c.withChildren(c.args().stream().map(a ->
                             rewriteRowReads(a, rowVar, prefixes, stripped, varRewrite))
-                            .toList(), c.info());
+                            .toList());
             case TypedCollection c ->
                     new TypedCollection(
                             c.elements().stream().map(e ->
@@ -1312,9 +1311,8 @@ final class Pipelines {
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     prefixColumns(pa.source(), rowVar, colPrefix, varRewrite),
                     pa.property(), pa.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
-                            .toList(), c.info());
+            case TypedNativeCall c -> c.withChildren(c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
+                            .toList());
             case TypedCollection c ->
                     new TypedCollection(
                             c.elements().stream().map(e ->
@@ -1446,8 +1444,8 @@ final class Pipelines {
                         instanceof Type.ClassType ct)) {
             return nc;
         }
-        return new TypedNativeCall(nc.callee(),
-                List.of(constantProjectOver(nc.args().get(0), ct)), nc.info());
+        return (TypedNativeCall) nc.withChildren(
+                List.of(constantProjectOver(nc.args().get(0), ct)));
     }
 
     /** {@code chain->project([_e|1],['c'])} — the RELATION form of a class

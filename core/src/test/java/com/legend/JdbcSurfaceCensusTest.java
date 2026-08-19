@@ -69,6 +69,10 @@ class JdbcSurfaceCensusTest {
     private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
+            // Phase 4: the assertError K-arm — catches the DATABASE-raised
+            // error (the inner body still executes in the database) and
+            // adjudicates with the pure spec's failure spellings
+            "core/src/main/java/com/legend/AssertErrorNative.java",
             "core/src/main/java/com/legend/Compiler.java",
             "core/src/main/java/com/legend/SeedSqlForms.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
@@ -95,6 +99,9 @@ class JdbcSurfaceCensusTest {
 
     private static final Set<String> TEST_REGISTER = new TreeSet<>(List.of(
             "core/src/test/java/com/legend/ArchitectureTest.java",
+            // Phase 4: assertError spec tests — a DuckDB session + the
+            // SQLException surface IS the feature under test
+            "core/src/test/java/com/legend/AssertErrorNativeTest.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             "core/src/test/java/com/legend/AuditRound5Test.java",

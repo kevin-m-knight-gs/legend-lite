@@ -513,7 +513,7 @@ final class AssociationJoins {
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = c.args().stream()
                     .map(a -> rewriteTwoHop(a, var, byAliasCol, hit)).toList();
-            return new TypedNativeCall(c.callee(), args, c.info());
+            return c.withChildren(args);
         }
         return n;
     }
@@ -1925,7 +1925,7 @@ final class AssociationJoins {
             for (TypedSpec a : c2.args()) {
                 args.add(nestedCondRead(a, tgtVar, pfx, row));
             }
-            return new TypedNativeCall(c2.callee(), args, c2.info());
+            return c2.withChildren(args);
         }
         return n;
     }

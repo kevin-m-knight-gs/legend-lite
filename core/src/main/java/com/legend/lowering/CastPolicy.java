@@ -100,7 +100,7 @@ final class CastPolicy {
             if (inner != nc.args().get(0)) {
                 List<TypedSpec> na = new ArrayList<>(nc.args());
                 na.set(0, inner);
-                return new TypedNativeCall(nc.callee(), na, nc.info());
+                return nc.withChildren(na);
             }
         }
         return b;

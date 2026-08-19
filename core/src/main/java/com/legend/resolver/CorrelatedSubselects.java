@@ -1590,8 +1590,7 @@ record CompositeChain(TypedSpec pipeline,
         }
         TypedSpec acc = terms.get(0);
         for (int i = 1; i < terms.size(); i++) {
-            acc = new TypedNativeCall(orCallee.callee(),
-                    List.of(acc, terms.get(i)), orCallee.info());
+            acc = orCallee.withChildren(List.of(acc, terms.get(i)));
         }
         return acc;
     }
@@ -1878,7 +1877,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         && pl0.parameters().size() == 1) {
                     newArgs.set(1, renameSubTypeReads(pl0, sct0.fqn(), t0));
                 }
-                return new TypedNativeCall(em.callee(), newArgs, em.info());
+                return em.withChildren(newArgs);
             }
         }
         if (!(n instanceof TypedPropertyAccess pa)
@@ -2295,8 +2294,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                     && c.callee().qualifiedName().equals(
                             "meta::pure::functions::multiplicity::toOne")) {
                 final TypedNativeCall cc = c;
-                shell.push(x -> new TypedNativeCall(cc.callee(),
-                        List.of(x), cc.info()));
+                shell.push(x -> cc.withChildren(List.of(x)));
                 cur = c.args().get(0);
                 continue;
             }

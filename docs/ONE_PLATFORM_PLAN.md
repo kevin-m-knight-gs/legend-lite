@@ -276,6 +276,21 @@ shrinks-only. Remaining phase work: the wire-bug burn (feeds Phase 6's census), 
 remaining suites (Grammar/Relation/Standard/Unclassified ride the same runner), and the
 adapter split.
 
+*BURN SLICE 1 — assertError (2026-08-19):* the platform native landed (the /2 and /4
+message forms; the matcher native is m3-reflective, platform-owned doctrine) — the
+K-orchestrator runs f's body IN the database, catches the database error, and
+adjudicates with assertError.pure:24-26's exact spellings. It brought the SOURCE-INFO
+channel with it: TypedNativeCall now carries the parser's name-token span (semantic
+equality excludes it — two referee regressions pinned that the day it landed), guards
+embed it behind U+001E (Scalars.withSrc), and the catcher verifies line/column against
+real coordinates. The date ctor's day guard became month-aware
+(DateFunctions.validateDay: 'Invalid day: 2016-12-32'). All 11 assertError rows burned:
+census **PASS=259**, diff **AGREE-PASS=252 AGREE-FAIL=18 WIRE-BUG=48 B-FIXES-A=7** —
+six of the eleven are tests the reference adapter CANNOT pass (its re-spelled sources
+break the source-info expectations); channel B, compiling the real .pure files, passes
+them. The adapter's remapErrorMessage strips the span channel (its coordinates describe
+adapter text, not the file).
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

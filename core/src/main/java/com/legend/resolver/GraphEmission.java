@@ -91,7 +91,7 @@ final class GraphEmission {
                 wrapped.add(new TypedNativeCall(toOneFn(), List.of(a),
                         new ExprType(a.info().type(), one)));
             }
-            return new TypedNativeCall(nc.callee(), wrapped, nc.info());
+            return nc.withChildren(wrapped);
         }
         return n.mapChildren(this::toOneJoinEquals);
     }
@@ -723,7 +723,7 @@ final class GraphEmission {
             List<TypedSpec> args = c.args().stream().map(a ->
                     rewriteNavReads(a, cs, rowVar, rowType, stripped,
                             navSteps, context, rewrote)).toList();
-            return new TypedNativeCall(c.callee(), args, c.info());
+            return c.withChildren(args);
         }
         return n;
     }
@@ -2218,8 +2218,7 @@ final class GraphEmission {
                             TypedSpec out2 = v0;
                             for (int wi = wraps2.size() - 1; wi >= 0; wi--) {
                                 TypedNativeCall w3 = wraps2.get(wi);
-                                out2 = new TypedNativeCall(w3.callee(),
-                                        List.of(out2), w3.info());
+                                out2 = w3.withChildren(List.of(out2));
                             }
                             return out2;
                         };
@@ -2387,7 +2386,7 @@ final class GraphEmission {
                 new ExprType(oneCol,
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
-        return new TypedNativeCall(agg.callee(), List.of(proj), agg.info());
+        return agg.withChildren(List.of(proj));
     }
 
     /** Each maximal row-var-rooted navigation CHAIN sub-expression
@@ -2960,7 +2959,7 @@ final class GraphEmission {
             for (TypedSpec a : c.args()) {
                 args.add(inlineThis(a, thisVar, binds, bindings, classFqn, prop, env));
             }
-            return new TypedNativeCall(c.callee(), args, c.info());
+            return c.withChildren(args);
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedIf i) {
             return new com.legend.compiler.spec.typed.TypedIf(
@@ -3434,9 +3433,7 @@ final class GraphEmission {
                             ma.dates().stream().map(d2 -> substVars(d2, sub))
                                     .toList(),
                             ma.sweep(), ma.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a -> substVars(a, sub)).toList(),
-                    c.info());
+            case TypedNativeCall c -> c.withChildren(c.args().stream().map(a -> substVars(a, sub)).toList());
             case TypedFilter f -> new TypedFilter(substVars(f.source(), sub),
                     (TypedLambda) substVars(f.predicate(), sub), f.info());
             case TypedLambda l -> {

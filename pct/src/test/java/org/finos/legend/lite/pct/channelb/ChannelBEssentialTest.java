@@ -49,9 +49,9 @@ class ChannelBEssentialTest {
         assertTrue(out.size() == 327,
                 "essential discovery moved: " + out.size() + " != 327");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
-        assertTrue(pass >= 248,
+        assertTrue(pass >= 259,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 248");
+                        + pass + " < 259");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
@@ -89,11 +89,11 @@ class ChannelBEssentialTest {
         System.out.println("[chB] diff: AGREE-PASS=" + agreePass
                 + " AGREE-FAIL=" + agreeFail + " WIRE-BUG=" + wireBug
                 + " B-FIXES-A=" + bFixesA + " DECLINED=" + declined);
-        // measured 2026-08-19 (AGREE-PASS=247 AGREE-FAIL=24 WIRE-BUG=53
-        // B-FIXES-A=1 DECLINED=2): the wire-bug census may only SHRINK;
-        // agreement may only GROW
-        assertTrue(agreePass >= 247, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 53, "WIRE-BUG census grew: " + wireBug);
+        // measured 2026-08-19, post-assertError burn (AGREE-PASS=252
+        // AGREE-FAIL=18 WIRE-BUG=48 B-FIXES-A=7 DECLINED=2): the wire-bug
+        // census may only SHRINK; agreement may only GROW
+        assertTrue(agreePass >= 252, "AGREE-PASS fell: " + agreePass);
+        assertTrue(wireBug <= 48, "WIRE-BUG census grew: " + wireBug);
     }
 
     /** Channel A's per-test outcome ledger — the suite's

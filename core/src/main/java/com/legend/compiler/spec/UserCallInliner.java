@@ -454,7 +454,7 @@ public final class UserCallInliner {
                         keepRt.add(i == 2 ? c.args().get(i)
                                 : rewrite(c.args().get(i), env));
                     }
-                    yield new TypedNativeCall(c.callee(), keepRt, c.info());
+                    yield c.withChildren(keepRt);
                 }
                 List<TypedSpec> args = list(c.args(), env);
                 // HIGHER-ORDER map: substitution revealed a literal lambda
@@ -490,7 +490,7 @@ public final class UserCallInliner {
                     }
                     yield new TypedMap(args.get(0), lam, c.info());
                 }
-                yield new TypedNativeCall(c.callee(), args, c.info());
+                yield c.withChildren(args);
             }
             // Resolver OUTPUT vocabulary — never present pre-H; fails loud
             // here on a pipeline reordering rather than silently rebuilding.

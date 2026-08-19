@@ -433,7 +433,7 @@ final class TemporalFrame {
                     changed |= inner != null;
                 }
             }
-            return changed ? new TypedNativeCall(c.callee(), args, c.info())
+            return changed ? c.withChildren(args)
                     : null;
         }
         return null;

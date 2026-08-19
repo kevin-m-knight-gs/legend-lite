@@ -1065,9 +1065,14 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         java.util.regex.Pattern.DOTALL)
                 .matcher(message);
         if (m.matches()) {
-            return m.group(1);
+            message = m.group(1);
         }
-        return message;
+        // The SOURCE-INFO channel (Phase 4, Scalars.withSrc): a guard's
+        // error carries its call-site span behind U+001E. This adapter
+        // RE-SPELLS test sources, so the encoded coordinates describe the
+        // adapter's text, not the .pure file — meaningless to the
+        // reference matcher; the message part alone is the pure error.
+        return message.replaceFirst("\u001E\\d{1,9}:\\d{1,9}$", "");
     }
 
     /**

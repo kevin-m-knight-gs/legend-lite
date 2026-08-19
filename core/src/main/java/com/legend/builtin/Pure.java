@@ -1964,6 +1964,17 @@ public final class Pure {
     // parsed/corpus pure definitions suppress.
     public static final NativeFunctionDefinition TO_REPRESENTATION__ANY_1 = signature("native function meta::pure::functions::string::toRepresentation(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::metamodel::type::Number[1], actual:meta::pure::metamodel::type::Number[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
+    // assertError (REAL essential/tests/assertError.pure:21/:30 — the
+    // message forms; the matcher-lambda native at :18 is PCT.platformOnly
+    // and needs a SourceInformation VALUE our model does not carry, so
+    // the message forms ARE the platform natives). PLATFORM natives
+    // (Phase 4): run f in the database, the K-orchestrator catches the
+    // database error and adjudicates message + line/column against the
+    // error's embedded source-info channel — the interpreted
+    // AssertError.java contract. Platform-owned: the parsed pure bodies
+    // (which call the matcher native) suppress.
+    public static final NativeFunctionDefinition ASSERT_ERROR__FN_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertError(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_ERROR__FN_1__STRING_1__INTEGER_01__INTEGER_01 = signature("native function meta::pure::functions::asserts::assertError(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], message:meta::pure::metamodel::type::String[1], line:meta::pure::metamodel::type::Integer[0..1], column:meta::pure::metamodel::type::Integer[0..1]):meta::pure::metamodel::type::Boolean[1];");
 
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
 

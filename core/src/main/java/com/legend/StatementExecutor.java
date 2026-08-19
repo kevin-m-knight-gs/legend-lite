@@ -275,7 +275,7 @@ final class StatementExecutor {
                         com.legend.plan.PlanSupportFunctions
                                 .relationalPlanSupportFunctions(
                                         pep.args().size() > 2
-                                                ? timeZoneOf(
+                                                ? ConnectionFlags.timeZoneOf(
                                                         pep.args().get(2))
                                                 : null));
                 // enum-typed plan parameters ADD their dynamic enum-map
@@ -315,6 +315,17 @@ final class StatementExecutor {
             Object walked = planWalk(preRoot, specs, env);
             if (walked != null) {
                 result = walkResult(walked, preRoot.info().type());
+                continue;
+            }
+            // assertError(f, msg[, line, col]) — the PCT.platformOnly
+            // native's K-arm: f's body runs in the database through this
+            // same pipeline; the orchestrator catches the database error
+            // and adjudicates (AssertErrorNative owns the contract)
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall aec
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .ASSERT_ERROR.equals(aec.callee().qualifiedName())) {
+                result = AssertErrorNative.run(aec, letPrefix, specs, env,
+                        frames);
                 continue;
             }
             // execute() in RESULT position: the eager frame run IS the value
@@ -391,7 +402,7 @@ final class StatementExecutor {
         TypedSpec dbArg = call.args().get(2);
         String db = dbArg instanceof com.legend.compiler.spec.typed.TypedEnumValue
                 ? typedEnumTail(dbArg)
-                : String.valueOf(databaseTypeOf(dbArg));
+                : String.valueOf(ConnectionFlags.databaseTypeOf(dbArg));
         com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
             case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
             case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
@@ -642,17 +653,17 @@ final class StatementExecutor {
                         .inlineBody(java.util.List.of(ep.args().get(2)))
                         .get(0)
                 : null;
-        boolean quote = rtArg != null && quoteIdentifiersOf(rtArg);
-        String tz = rtArg != null ? timeZoneOf(rtArg) : null;
+        boolean quote = rtArg != null && ConnectionFlags.quoteIdentifiersOf(rtArg);
+        String tz = rtArg != null ? ConnectionFlags.timeZoneOf(rtArg) : null;
         String fromConn = rtArg == null
                 ? firstFromConnectionName(
                         lam.body().get(lam.body().size() - 1))
                 : null;
         String connName = rtArg != null
-                ? connectionNameOf(rtArg)
+                ? ConnectionFlags.connectionNameOf(rtArg)
                 : fromConn != null ? fromConn
                 : "TestDatabaseConnection(type = \"H2\")";
-        String dbType = rtArg != null ? databaseTypeOf(rtArg) : "H2";
+        String dbType = rtArg != null ? ConnectionFlags.databaseTypeOf(rtArg) : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
                 // a lone LET is a sequence too (E2E §4.4 cluster 1):
                 // the engine prints Allocation, never bare Relational
@@ -985,162 +996,6 @@ final class StatementExecutor {
                 "plan: multiplicity spelling for " + m + " pending");
     }
 
-    /** The engine connection's quoteIdentifiers flag, read off the
-     * executionPlan call's RUNTIME argument (a Runtime instance literal
-     * carrying a TestDatabaseConnection(quoteIdentifiers=true)). */
-    private static boolean quoteIdentifiersOf(TypedSpec runtimeArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(runtimeArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
-                    && ni.properties().get("quoteIdentifiers")
-                            instanceof TypedSpec qv) {
-                Boolean b2 = staticBool(qv);
-                if (b2 != null) {
-                    return b2;
-                }
-            }
-            // the PLATFORM-NATIVE testRuntime(quoteIdentifiers:Boolean[1])
-            // overload (relationalSetUp.pure:1223 is the corpus contract;
-            // the user body is platform-suppressed, so the flag rides the
-            // call's own argument)
-            if (t instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && nc.callee().qualifiedName().equals(
-                            "meta::external::store::relational::tests::testRuntime")
-                    && nc.args().size() == 1
-                    && nc.args().get(0) instanceof
-                            com.legend.compiler.spec.typed.TypedCBoolean fb) {
-                return fb.value();
-            }
-            work.addAll(t.children());
-        }
-        return false;
-    }
-
-    /** Bounded constant-fold of the corpus connection-builder idiom
-     * ({@code if($q->isEmpty(), |false, |$q->toOne())} over an INLINED
-     * literal — relationalSetUp.pure testDatabaseConnection). Null =
-     * not statically known; never guesses. */
-    private static @com.legend.Nullable Boolean staticBool(TypedSpec t) {
-        return switch (t) {
-            case com.legend.compiler.spec.typed.TypedCBoolean b -> b.value();
-            case com.legend.compiler.spec.typed.TypedNativeCall nc
-                    when nc.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
-                    && nc.args().size() >= 1 -> staticBool(nc.args().get(0));
-            case com.legend.compiler.spec.typed.TypedIf i -> {
-                Boolean empt = staticIsEmpty(i.condition());
-                if (empt == null) {
-                    yield null;
-                }
-                TypedSpec branch = empt ? i.thenBranch()
-                        : i.elseBranch().orElse(null);
-                if (branch instanceof
-                        com.legend.compiler.spec.typed.TypedLambda l
-                        && !l.body().isEmpty()) {
-                    branch = l.body().get(l.body().size() - 1);
-                }
-                yield branch == null ? null : staticBool(branch);
-            }
-            default -> null;
-        };
-    }
-
-    /** {@code isEmpty(x)} over a statically known operand; null else. */
-    private static @com.legend.Nullable Boolean staticIsEmpty(TypedSpec cond) {
-        if (!(cond instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && nc.callee().qualifiedName().equals(
-                "meta::pure::functions::collection::isEmpty")
-                && nc.args().size() == 1)) {
-            return null;
-        }
-        TypedSpec x = nc.args().get(0);
-        if (x instanceof com.legend.compiler.spec.typed.TypedCollection c) {
-            return c.elements().isEmpty();
-        }
-        // any scalar LITERAL is a one-element collection: not empty
-        if (x instanceof com.legend.compiler.spec.typed.TypedCBoolean
-                || x instanceof com.legend.compiler.spec.typed.TypedCString
-                || x instanceof com.legend.compiler.spec.typed.TypedCInteger) {
-            return false;
-        }
-        return null;
-    }
-
-    /** The engine connection's timeZone, read off the RUNTIME argument
-     * (an inline DatabaseConnection(timeZone='US/Arizona')). Null when
-     * absent — the default-zone connection. */
-    private static @com.legend.Nullable String timeZoneOf(TypedSpec runtimeArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(runtimeArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
-                    && ni.properties().get("timeZone")
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString tzs) {
-                return tzs.value();
-            }
-            work.addAll(t.children());
-        }
-        return null;
-    }
-
-    /** The runtime connection's plan spelling — the instance's own CLASS
-     * simple name (exact-FQN dispatch) with its declared DatabaseType
-     * ({@code DatabaseConnection(type = "DB2")}). */
-    private static @com.legend.Nullable String connectionNameOf(TypedSpec runtimeArg) {
-        var ni = connectionInstanceOf(runtimeArg);
-        if (ni == null) {
-            return "TestDatabaseConnection(type = \"H2\")";
-        }
-        String simple = switch (ni.classFqn()) {
-            case "meta::external::store::relational::runtime"
-                    + "::DatabaseConnection" -> "DatabaseConnection";
-            case "meta::external::store::relational::runtime"
-                    + "::RelationalDatabaseConnection" ->
-                    "RelationalDatabaseConnection";
-            default -> "TestDatabaseConnection";
-        };
-        return simple + "(type = \"" + dbTypeOf(ni) + "\")";
-    }
-
-    /** The FIRST connection instance under {@code runtimeArg} (exact-FQN
-     * dispatch), or null. */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNewInstance
-            connectionInstanceOf(TypedSpec runtimeArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(runtimeArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed
-                            .TypedNewInstance ni
-                    && ("meta::external::store::relational::runtime::DatabaseConnection"
-                                    .equals(ni.classFqn())
-                        || "meta::external::store::relational::runtime::TestDatabaseConnection"
-                                    .equals(ni.classFqn())
-                        || "meta::external::store::relational::runtime::RelationalDatabaseConnection"
-                                    .equals(ni.classFqn()))) {
-                return ni;
-            }
-            work.addAll(t.children());
-        }
-        return null;
-    }
-
-    private static @com.legend.Nullable String dbTypeOf(
-            com.legend.compiler.spec.typed.TypedNewInstance ni) {
-        return ni.properties().get("type") instanceof
-                com.legend.compiler.spec.typed.TypedEnumValue ev
-                ? String.valueOf(ev.value()) : "H2";
-    }
-
-    /** The runtime connection's DatabaseType name ("H2" when absent). */
-    private static @com.legend.Nullable String databaseTypeOf(TypedSpec runtimeArg) {
-        var ni = connectionInstanceOf(runtimeArg);
-        return ni == null ? "H2" : dbTypeOf(ni);
-    }
 
     /** The plan connection handle (cluster 60): the engine's generated
      * plan carries the runtime connection on SQLExecutionNode, with
@@ -1156,7 +1011,7 @@ final class StatementExecutor {
                     "TestDatabaseConnection", "H2", null,
                     java.util.List.of(), null);
         }
-        var ni = connectionInstanceOf(rtArg);
+        var ni = ConnectionFlags.connectionInstanceOf(rtArg);
         String storeFqn = connectionStoreElementOf(rtArg);
         com.legend.model.DatabaseDefinition db = storeFqn == null ? null
                 : env.ctx().findDatabase(storeFqn).orElse(null);
@@ -1180,7 +1035,7 @@ final class StatementExecutor {
                     "plan connection: unmatched connection class "
                     + ni.classFqn());
         };
-        String type = String.valueOf(dbTypeOf(ni));
+        String type = String.valueOf(ConnectionFlags.dbTypeOf(ni));
         String csv = ni.properties().get("testDataSetupCsv")
                 instanceof com.legend.compiler.spec.typed.TypedCString c
                 ? c.value() : null;
@@ -1855,8 +1710,8 @@ final class StatementExecutor {
                         .inlineBody(java.util.List.of(ep.args().get(2)))
                         .get(0)
                 : null;
-        boolean quote = rtArg2 != null && quoteIdentifiersOf(rtArg2);
-        String tz = rtArg2 != null ? timeZoneOf(rtArg2) : null;
+        boolean quote = rtArg2 != null && ConnectionFlags.quoteIdentifiersOf(rtArg2);
+        String tz = rtArg2 != null ? ConnectionFlags.timeZoneOf(rtArg2) : null;
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>

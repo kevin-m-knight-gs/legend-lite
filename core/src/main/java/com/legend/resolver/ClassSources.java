@@ -1025,10 +1025,8 @@ public final class ClassSources {
                                     false)).toList(),
                             ma.sweep(), ma.info());
             case TypedNativeCall c ->
-                    new TypedNativeCall(c.callee(),
-                            c.args().stream().map(a -> substituteSourceReads(a,
-                                    srcVar, inner, classFqn, mappingFqn, false)).toList(),
-                            c.info());
+                    c.withChildren(c.args().stream().map(a -> substituteSourceReads(a,
+                                    srcVar, inner, classFqn, mappingFqn, false)).toList());
             case TypedCollection c ->
                     new TypedCollection(
                             c.elements().stream().map(a -> substituteSourceReads(a,
