@@ -23,10 +23,11 @@ import java.util.List;
  * ("No error was thrown"); a caught error hands (message, source info) to
  * the matcher. Here {@code f}'s body executes IN THE DATABASE through the
  * ordinary statement pipeline (tenet #1 — the database raises the error);
- * the orchestrator catches the database error, decodes the message and
- * the source-info channel ({@code com.legend.lowering.Scalars#withSrc} —
- * the U+001E-separated span a guard embedded), and adjudicates with the
- * pure {@code assertError/4} body's EXACT failure spellings
+ * the orchestrator catches the database error, decodes the message
+ * (backend error-kind prefix strip only — the Clause-2c redesign deleted
+ * the span channel; source position is unobservable from database
+ * errors, so line/column expectations refuse loudly), and adjudicates
+ * with the pure {@code assertError/4} body's EXACT failure spellings
  * (assertError.pure:24-26). Adjudication of orchestration artifacts is
  * host-side by charter (the {@code exec.PureAsserts} precedent).
  */

@@ -1134,7 +1134,7 @@ final class Scalars {
             for (String f : Pure.nativeKeysAt(name)) {
                 // a to-one value is its own mean but the KIND is Float
                 // (pure average: Float[1]) — the bare identity kept the
-                // column's INTEGER and wireEquals refuses int-vs-float
+                // column's INTEGER, the wrong declared kind on the wire
                 // (adjudication ledger cluster 10)
                 RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                         ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
@@ -1148,7 +1148,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, numList(args.get(0))));
         }
-        ScalarStats.register(RULES);   // stat reductions + tolerance assert
+        ScalarStats.register(RULES);   // stat reductions
         // variance(list, isBiasCorrected): true => sample, false => population.
         for (String f : Pure.nativeKeysAt("variance")) {
             RULES.put(f, (n, args) -> {
@@ -1350,8 +1350,6 @@ final class Scalars {
         // RegexpParameter enums translated to RE2 option chars —
         // CASE_SENSITIVE 'c', CASE_INSENSITIVE 'i', MULTILINE 'm',
         // NON_NEWLINE_SENSITIVE 's' (POSIX '.' matches newline).
-        // assert in VALUE position: TRUE or raise (real asserts.pure —
-        // the failure message keeps the pure spelling)
         // toRepresentation (Phase 4 platform native; host owner
         // PureAsserts.repr, THIS is the SQL owner): the pure-source
         // spelling — strings quote+escape, dates take the % form,

@@ -22,15 +22,6 @@ final class ScalarStats {
     }
 
     static void register(Map<String, Scalars.Rule> rules) {
-        // assertEqWithinTolerance(e, a, d) = abs(e - a) <= d (platform
-        // assertEqWithinTolerance.pure:19 — the boolean IS the assert)
-        for (String f : Pure.nativeKeysAt("assertEqWithinTolerance")) {
-            rules.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS_EQUAL,
-                    SqlExpr.Call.of(SqlFn.ABS,
-                            SqlExpr.Call.of(SqlFn.MINUS, args.get(0),
-                                    args.get(1))),
-                    args.get(2)));
-        }
         // Statistical reductions: a LIST-shaped value reduces via DuckDB
         // list_aggregate(x, '<agg>'); a SCALAR column read (the mapping
         // dyna stdDevSample(int1) — engine golden stddev_samp(col)) is

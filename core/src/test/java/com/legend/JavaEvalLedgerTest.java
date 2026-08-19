@@ -28,16 +28,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Java-evaluation site and needs a deliberate pin bump with a written
  * justification.
  *
- * <p>THE METAMODEL CHANNEL (ratified adjudication, JAVA_EVICTION_PLAN):
- * HostEval/MetamodelWalk/MetamodelSteps/PlanText/AggAwareActivities
+ * <p>THE METAMODEL CHANNEL (ratified adjudication, JAVA_EVICTION_PLAN;
+ * HostEval evicted whole with Phase 1 — row deleted 2026-08-19 audit):
+ * MetamodelWalk/MetamodelSteps/PlanText/AggAwareActivities
  * evaluate MODEL CONSTANTS (instance construction from {@code ^Class}
  * literals), replicate engine metamodel TRANSFORMATIONS under test
  * (convertElement, wrapH2Boolean — node-to-node assertions, no text),
  * and compose engine-parity TEXT through single-owner spellings (the
  * Ddl ENGINE_TEXT flavor, dataTypeToSqlText, the plan-text envelope).
- * NO DATABASE VALUE can enter the channel: grid chains COMPILE to SQL
- * at the exec seam ({@code GridReads.tryLower} — chartered grid egress,
- * scheduled for deletion by the relation-typed {@code fetchDb} leg) and
+ * NO DATABASE VALUE can enter the channel: grid chains are typed
+ * relations the ordinary pipeline compiles (GridReads DIED with Phase 1;
+ * its ledger rows were deleted with it) and
  * {@code ArchitectureTest.theInterpreterPerformsNoJdbc} makes the
  * boundary mechanical (the channel cannot reach a connection).
  *
@@ -69,12 +70,6 @@ class JavaEvalLedgerTest {
             // exposed the missing StrictDate narrowing) — both shrink
             // ambiguity, not evaluation
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 850),
-            // the INTERPRETER IS DELETED (oracle-not-runtime principle,
-            // user-ratified 2026-08-18): HostEval is the routing
-            // predicate only — grid chains compile into SQL (GridReads),
-            // store nav resolves against the compiled model (StoreNav),
-            // everything else walls with the principle's name
-            Map.entry("core/src/main/java/com/legend/exec/HostEval.java", 132),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
             Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 195),
             // raw-line history: 888 -> 943 -> 957 (burn batches 1-2:
@@ -127,6 +122,19 @@ class JavaEvalLedgerTest {
             // designed partial-precision carrier sits on either side),
             // OffsetDateTime joins repr. Adjudication-layer correctness.
             Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 264),
+            // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
+            // assert-family VERDICT dispatch (World 1). Arguments execute
+            // in the database (StatementExecutor.evalValue); this file
+            // only routes members to PureAsserts and judges the quantified
+            // boolean vector. Adjudication orchestration, never evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 221),
+            // NEW ROW (2026-08-19 cross-phase audit E.2): the
+            // K-ORCHESTRATOR itself. Not host evaluation — statement
+            // routing, session plumbing, verdict dispatch — but it
+            // absorbs by design, and absorption that should have been
+            // COMPILATION is exactly what a silent-growth watch catches.
+            // Shrink-only like every row; bump with written justification.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2695),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -142,9 +150,9 @@ class JavaEvalLedgerTest {
     // information_schema, F6.6's rule; identifier columns upper()'d in
     // SQL for the H2 engine-parity spelling). The residual file is
     // catalog-query ORCHESTRATION + egress decode by contract — the
-    // decision rule's permitted classes. The grid VALUES still flow
-    // into interpreter arms (fold/at chains) — that residue is E4.e's,
-    // pinned by the HostEval rows above.
+    // decision rule's permitted classes. (E4.e's fold/at interpreter
+    // residue DIED with HostEval's Phase-1 eviction — grids are typed
+    // relations now; its stale ledger row was deleted 2026-08-19.)
     // E5 wire rows LANDED (2026-08-17): the product wire is
     // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
     // csvWire/jsonWire — the DB composes the bytes through the ONE
@@ -313,7 +321,12 @@ class JavaEvalLedgerTest {
         for (var e : EVICT_SIZE.entrySet()) {
             Path p = Path.of("..", e.getKey());
             if (!Files.exists(p)) {
-                continue;   // evicted whole — delete the row when seen
+                drift.append("\n  ").append(e.getKey())
+                        .append(": EVICTED WHOLE — delete this ledger row"
+                                + " (a stale row is a register lying about"
+                                + " what exists; found live once:"
+                                + " HostEval.java, 2026-08-19 audit)");
+                continue;
             }
             long lines = Files.readString(p)
                     .replaceAll("(?s)/\\*.*?\\*/", "")

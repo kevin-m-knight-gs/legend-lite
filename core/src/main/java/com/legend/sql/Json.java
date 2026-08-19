@@ -177,7 +177,9 @@ public final class Json {
         // Decimal tokens parse as BigDecimal, NOT double (audit 18):
         // two distinct Decimals beyond 17 significant digits round to
         // the SAME double, so a wrong Decimal wire value would compare
-        // equal — the JSON bridge must stay as strict as wireEquals.
+        // equal — the JSON bridge must stay as strict as the
+        // platform equality owner (PureAsserts.equalScalar keeps
+        // Decimal comparison exact, never through double).
         return t.contains(".") || t.contains("e") || t.contains("E")
                 ? (Object) new java.math.BigDecimal(t)
                 : (Object) Long.parseLong(t);

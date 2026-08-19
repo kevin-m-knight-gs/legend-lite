@@ -39,18 +39,18 @@ class CarrierPurityRatchetTest {
             // 34→36 (2026-08-19): ListEncodings.map's singleton-wrap and
             // empty-list spellings — the map SEMANTIC NODE's wire-shape
             // rule (scalar sources wrap; [0..1] empties stay empty),
-            // not new ad-hoc idioms. 36→37: equalityWireOperand's dual
-            // wrap (scalar literal vs many-typed value compares as its
-            // singleton — total-equality semantics).
-            "new SqlExpr\\.ArrayLit\\(", 37,
+            // not new ad-hoc idioms. 37→36 (2026-08-19 Clause-2c
+            // redesign): equalityWireOperand's dual wrap DELETED —
+            // verdicts moved to World 1.
+            "new SqlExpr\\.ArrayLit\\(", 36,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
             // unwraps from its singleton transform; Phase 4 channel B),
-            // not a new ad-hoc idiom. 137→138: Scalars.emptinessOf's
-            // LIST_LENGTH — the equal rule's static-empty arm ([] == x
-            // is isEmpty(x), a total-equality semantic rule).
-            "SqlFn\\.LIST_", 138,
+            // not a new ad-hoc idiom. 138→137 (2026-08-19 Clause-2c
+            // redesign): Scalars.emptinessOf's static-empty arm DELETED —
+            // verdicts moved to World 1.
+            "SqlFn\\.LIST_", 137,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

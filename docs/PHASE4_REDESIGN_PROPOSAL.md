@@ -135,3 +135,63 @@ rows added; ChannelBEssentialTest re-pinned at measured.
 B-FIXES-A→AGREE-FAIL exactly as predicted. Better than the seam-arm era
 (280/15/20/10) on every honest axis. Functions referee byte-identical (FAILS and
 SHAPES) vs the frozen baseline; core suite 4156/4156; ALLGATES GREEN (1,2,4,5,6,7,8).
+
+### E.1 Post-push re-audit (2026-08-19, the phases-1&2 loop)
+
+Six findings, all fixed and re-verified (referee byte-identical, census
+290/286/14/0 unchanged, core 4156):
+
+1. **ScalarStats still registered a SQL rule for `assertEqWithinTolerance`**
+   (`abs(e-a) <= d` — a verdict computed in SQL, the exact Clause-2c shape).
+   DELETED; the witnesses (times/plus/pow/cbrt PCT tests) are statement-root —
+   the K-arm's territory — and the census confirmed the rule was dead code.
+2. **`TypedNativeCall`'s source-span channel was write-only** — burn slice 1
+   threaded the parser's name-token span in solely for the sentinel embedder,
+   which this redesign deleted. The `pos` field, the 4-arg `emitCall`, AND the
+   custom semantic-equality override (which existed only to exclude `pos` and
+   had caused two referee regressions) all DELETED — the record is back to
+   default (fully semantic) equality. Protocol nodes keep their spans; a
+   future diagnostics leg re-threads from there.
+3. Orphaned "assert in VALUE position" comment in Scalars — deleted.
+4. `AssertErrorNative` javadoc still cited the deleted `Scalars#withSrc`
+   sentinel — rewritten to the message-only contract.
+5. `CarrierPurityRatchetTest` pins tightened back (ArrayLit 37→36,
+   SqlFn.LIST_ 138→137) — the deleted seam arms were their justification.
+6. `AssertVerdicts` registered in `JavaEvalLedgerTest` (221 stripped lines,
+   adjudication orchestration — arguments still execute in the database).
+
+### E.2 Cross-phase zoom-out (2026-08-19, user-directed: audit phases 1-4 as one arc)
+
+Promise-vs-reality sweep over every phase's contract:
+
+- **Phase 1 promises**: GridReads/HostEval/HostResultSet — files GONE, zero live
+  refs (survivors are provenance comments). BUT the "ledger rows deleted, not
+  bumped" clause was not honored: `JavaEvalLedgerTest` still carried
+  `HostEval.java, 132` and its missing-file arm silently `continue`d, so the
+  stale row was invisible. FIXED: row deleted, and a missing file now FAILS
+  loudly ("EVICTED WHOLE — delete this ledger row") — the cleanup contract is
+  mechanical, not cultural. Channel-list and E4.e comments updated.
+- **Phase 2 promises**: wireEquals GONE (file and refs); two comments still
+  cited it as the LIVING spec (Scalars' mean-cast rationale, Json's Decimal
+  strictness) — reworded to the live semantics/owner (PureAsserts.equalScalar).
+  One-owner check: harness TdsEquivalence is a 53-line delegating shim to
+  GridCompare; EngineTestExecutor delegates equality — no third impl anywhere.
+- **Phase 3 promises**: GridSplice/ResultNav GONE, ResultSet platform class
+  live, tripwire green in-suite. Open items are exactly the PARKED findings
+  batch (at-fold deletion, single-query design, skip census) — nothing new.
+- **Phase 4**: this document's §E/§E.1.
+- **Boundary crossings adjudicated legal**: `PureAsserts.repr` used by
+  TestDataGenerator/builtin (SPELLING reuse, not verdict logic); GridCompare
+  main-with-harness-consumers is Clause 2b by design (platform owns the
+  policy, harness consumes it).
+- **StatementExecutor size pin PULLED FORWARD** (was first recorded as an
+  observation; the standing don't-defer directive says otherwise): registered
+  in `JavaEvalLedgerTest` at 2,695 stripped lines, shrink-only — the
+  K-orchestrator absorbs by design, and absorption that should have been
+  COMPILATION is exactly what a silent-growth watch catches. The ledger's own
+  javadoc still cited deleted `GridReads.tryLower` as live — fixed with it.
+- **Observation (no action, recorded)**: AssertVerdicts declines Tabular/Graph
+  loudly today; GridCompare is the designed route for grid verdicts when a
+  witness appears. Z2 (wire-policy scope: equalScalar applies TDSNull/2-ULP/
+  temporal-bridge unconditionally — should a product caller get test-path
+  tolerances?) remains the most consequential open ruling.

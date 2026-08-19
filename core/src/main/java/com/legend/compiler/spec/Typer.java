@@ -1239,7 +1239,7 @@ final class Typer {
         if (requiresNormalization(a.chosen())) {
             return inlineNormalized(af, a.chosen(), env);
         }
-        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out(), af.pos()));
+        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out()));
     }
 
     /** Phase 1c (One-Platform Plan): {@code executeInDb} with a LITERAL
@@ -1547,16 +1547,8 @@ final class Typer {
 
     /** Build the call node for the chosen overload &mdash; the resolved callee rides the node, never a name. */
     static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
-        return emitCall(chosen, args, out, null);
-    }
-
-    /** With the protocol call's source span (name-token position) — native
-     * calls carry it so database-raised guards can speak real pure's error
-     * source-info language (assertError's line/column matcher). */
-    static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out,
-            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
         return chosen.isNative()
-                ? new TypedNativeCall(chosen, args, out, pos)
+                ? new TypedNativeCall(chosen, args, out)
                 : new TypedUserCall(chosen, args, out);
     }
 
