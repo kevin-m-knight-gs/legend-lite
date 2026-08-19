@@ -91,6 +91,22 @@ DECLARED divergence (SQL null-vs-pure-true, dialect coercions) — is pinned by 
 `EqualityWorldsConformanceTest` fixture: drift in either world is a red test, never a
 discovery made three phases later.
 
+**Z2 ruling — verdict-channel scope (ratified 2026-08-19).** World 1's equality
+(`PureAsserts.equalScalar`/`equal`) carries three kinds of arm, adjudicated separately:
+**SPEC** arms (integral×Decimal numeric equality, scale-blind Decimal, IEEE
+non-finite — witnessed pure semantics, sound for any caller); **CARRIER-DECODE**
+bridges (the temporal string carrier — the platform's designed wire representation,
+sound for any consumer of the wire); and **TEST-CHANNEL TOLERANCES** (the TDSNull
+sentinel, the 2-ULP dialect-arithmetic leniency — sound ONLY because every caller is
+an adjudicator). The ruling: `PureAsserts` equality is the VERDICT CHANNEL and nothing
+else. Product equality is World 2 — an in-query `equal()` lowers to SQL and the
+database is the authority — so no product surface may route value equality through
+`PureAsserts`; if a genuine product host-side equality need ever appears, it gets its
+own SPEC-ONLY comparator (no tolerance arms) as a witnessed design leg. Enforced
+mechanically: `VerdictChannelRegisterTest` pins the caller file set (comment-stripped
+source scan) to the adjudication cluster — a new caller is a red build until
+consciously registered here with its tenet argument.
+
 ## Clause 3 — Provenance, not arms (the host channel)
 
 **No `ResultSet`-derived value may be EVALUATED in Java on the host channel.** The
@@ -146,6 +162,7 @@ Ingress obeys the same split in reverse:
 |---|---|
 | C1/C2 boundary | F1.3 `java.sql` funnel (+ F1.3b root class-list pin); F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
 | C2.3 | F1.4 positive harness rule (`sortedChain()`-gated, enumerated allowlist) |
+| Clause 2c Z2 | `VerdictChannelRegisterTest` (caller file-set pin over `PureAsserts.equal*`) |
 | Clause 3 | F1.5 `HostChannelPredicateTest` |
 | Clause 4 | `ConstantPlanParityTest` (exists); Phase 4 render arm cites it |
 | C5.2 | F1.6 R0 ledger (shrink-only) → F7.4 makes the contract true |
