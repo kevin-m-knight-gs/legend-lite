@@ -29,7 +29,10 @@ final class ListShapes {
             SqlFn.LIST_CONCAT, SqlFn.LIST_TRANSFORM, SqlFn.LIST_SORT,
             SqlFn.LIST_FILTER, SqlFn.LIST_TAIL, SqlFn.LIST_INIT,
             SqlFn.LIST_SLICE, SqlFn.LIST_APPEND, SqlFn.LIST_FLATTEN,
-            SqlFn.LIST_DISTINCT, SqlFn.LIST_REVERSE, SqlFn.LIST_ZIP);
+            SqlFn.LIST_DISTINCT, SqlFn.LIST_REVERSE, SqlFn.LIST_ZIP,
+            // map readers produce LISTS (values()->sort() wrapped a
+            // nested list without them — Phase 4 channel B testValues)
+            SqlFn.MAP_KEYS, SqlFn.MAP_VALUES);
 
     /** A scalar subquery whose single projection is a LIST-building
      * aggregate (the values-collection reader) — its VALUE is a list. */

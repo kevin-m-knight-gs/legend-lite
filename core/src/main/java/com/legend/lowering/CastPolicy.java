@@ -91,6 +91,33 @@ final class CastPolicy {
         return lowered;
     }
 
+    /** {@link #comparisonWireOperand} PLUS the EQUALITY-only dual: a
+     * to-one SCALAR literal against a MANY-typed VALUE side wraps as its
+     * singleton list — x[many] == 1 IS x == [1] (map_values(...) == 1;
+     * Phase 4 channel B testValues/testKeys). EQUAL-rule exclusive: the
+     * IN rule shares the base seam for its needle, where wrapping is
+     * membership-breaking (testInPrimitive), and a PROPERTY-NAVIGATION
+     * other side keeps the bare compare — a relational to-many column is
+     * scalar-per-row wire, never a list
+     * (testFilterOnSimpleTypePropertyEq). */
+    static SqlExpr equalityWireOperand(TypedSpec typed,
+            SqlExpr lowered, TypedSpec other) {
+        SqlExpr base = comparisonWireOperand(typed, lowered, other);
+        if (base == lowered
+                && !(other instanceof com.legend.compiler.spec.typed.TypedPropertyAccess)
+                && literalish(typed)
+                && !(typed instanceof com.legend.compiler.spec.typed.TypedCollection)
+                && typed.info().multiplicity()
+                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded tb
+                && tb.upper() != null && tb.upper() == 1
+                && !(other.info().multiplicity()
+                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded om
+                        && om.upper() != null && om.upper() <= 1)) {
+            return new SqlExpr.ArrayLit(List.of(lowered));
+        }
+        return base;
+    }
+
     static boolean literalish(TypedSpec v) {
         return switch (v) {
             case TypedCString ignored -> true;

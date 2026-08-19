@@ -334,6 +334,22 @@ types [0..0] still read real columns) and were narrowed, gate-verified. Census
 detail channel flattens multi-line assert messages (first() clipped them at the
 first newline — the census could not speak).
 
+*BURN SLICE 5 — TRUE WIRE BUGS = ZERO (2026-08-19):* the last three burned. (1) The
+equality DUAL wrap (CastPolicy.equalityWireOperand, EQUAL-rule exclusive — the IN rule
+shares the base seam for its needle where wrapping breaks membership): a to-one scalar
+literal against a many-typed VALUE side compares as its singleton list; property
+navigations keep the bare compare. (2) MAP_KEYS/MAP_VALUES joined ListShapes'
+LIST_PRODUCERS (values()->sort() had wrapped a nested list). (3) A PROMOTED decimal
+literal (no D suffix) beyond the DECIMAL(38) carrier ROUNDS to the carrier's edge —
+5e-39 error, ~10^21x tighter than the double it was promoted from; explicit D-suffixed
+decimals keep the loud reject. Census **PASS=290/327**, diff **AGREE-PASS=280
+AGREE-FAIL=15 WIRE-BUG=20 B-FIXES-A=10 DECLINED=2**, frontier **ENGINE-FRONTIER=20,
+TRUE-WIRE-BUG=0 — pinned at zero**: every remaining essential failure is corroborated
+by a reference channel (channel A's interpreted ledger, or the engine's own
+relational-DuckDB manifest). The essential-suite burn is COMPLETE; remaining Phase-4
+work: the remaining suites (Grammar/Relation/Standard/Unclassified) and the adapter
+split.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

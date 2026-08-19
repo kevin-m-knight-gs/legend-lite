@@ -49,9 +49,9 @@ class ChannelBEssentialTest {
         assertTrue(out.size() == 327,
                 "essential discovery moved: " + out.size() + " != 327");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
-        assertTrue(pass >= 286,
+        assertTrue(pass >= 290,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 286");
+                        + pass + " < 290");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
@@ -116,16 +116,17 @@ class ChannelBEssentialTest {
         }
         System.out.println("[chB] frontier: ENGINE-FRONTIER=" + frontier
                 + " TRUE-WIRE-BUG=" + trueWireBug);
-        // measured 2026-08-19, post empty-equality burn (AGREE-PASS=276
-        // AGREE-FAIL=15 WIRE-BUG=24 B-FIXES-A=10 DECLINED=2): the
-        // wire-bug census may only SHRINK; agreement may only GROW
-        assertTrue(agreePass >= 276, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 24, "WIRE-BUG census grew: " + wireBug);
-        // the sharpest number: rows OUR platform fails that BOTH
-        // reference channels pass (measured 2026-08-19: testValues/
-        // testKeys Map-get + testComplexPow decimal scale)
-        assertTrue(trueWireBug <= 3,
-                "TRUE wire-bug census grew: " + trueWireBug);
+        // measured 2026-08-19, post dual-wrap + map-reader-shapes +
+        // decimal-edge burns (AGREE-PASS=280 AGREE-FAIL=15 WIRE-BUG=20
+        // B-FIXES-A=10 DECLINED=2): the wire-bug census may only SHRINK;
+        // agreement may only GROW
+        assertTrue(agreePass >= 280, "AGREE-PASS fell: " + agreePass);
+        assertTrue(wireBug <= 20, "WIRE-BUG census grew: " + wireBug);
+        // THE PHASE-4 MILESTONE NUMBER: rows OUR platform fails that BOTH
+        // reference channels pass. ZERO (2026-08-19) — every remaining
+        // failure is corroborated by a reference channel. Stays zero.
+        assertTrue(trueWireBug == 0,
+                "TRUE wire-bug census grew from ZERO: " + trueWireBug);
     }
 
     /** The engine's relational-DuckDB essential manifest exclusions

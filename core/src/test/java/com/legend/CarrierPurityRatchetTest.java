@@ -39,8 +39,10 @@ class CarrierPurityRatchetTest {
             // 34→36 (2026-08-19): ListEncodings.map's singleton-wrap and
             // empty-list spellings — the map SEMANTIC NODE's wire-shape
             // rule (scalar sources wrap; [0..1] empties stay empty),
-            // not new ad-hoc idioms
-            "new SqlExpr\\.ArrayLit\\(", 36,
+            // not new ad-hoc idioms. 36→37: equalityWireOperand's dual
+            // wrap (scalar literal vs many-typed value compares as its
+            // singleton — total-equality semantics).
+            "new SqlExpr\\.ArrayLit\\(", 37,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

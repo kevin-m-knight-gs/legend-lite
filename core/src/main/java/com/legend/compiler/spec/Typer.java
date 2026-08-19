@@ -153,7 +153,25 @@ final class Typer {
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));
             case CFloat lit -> new TypedCFloat(lit.value(), ExprType.one(Type.Primitive.FLOAT));
-            case CDecimal lit -> new TypedCDecimal(lit.value(), ExprType.one(decimalType(lit.value())));
+            case CDecimal lit -> {
+                BigDecimal dv = lit.value();
+                // a PROMOTED literal (no D suffix — the parser's
+                // precision-promotion of a bare float literal) beyond the
+                // DECIMAL(38) carrier ROUNDS to the carrier's edge: the
+                // exact tail is physically unrepresentable, and 38 digits
+                // is still ~10^21x tighter than the double it was promoted
+                // from (essential testComplexPow's 44-digit literal). An
+                // EXPLICIT D-suffixed decimal keeps the loud reject —
+                // silent truncation of a declared decimal lies.
+                if (dv.scale() > Type.PrecisionDecimal.MAX_PRECISION
+                        && (lit.written() == null
+                                || !lit.written().toUpperCase(java.util.Locale.ROOT)
+                                        .endsWith("D"))) {
+                    dv = dv.setScale(Type.PrecisionDecimal.MAX_PRECISION,
+                            java.math.RoundingMode.HALF_EVEN);
+                }
+                yield new TypedCDecimal(dv, ExprType.one(decimalType(dv)));
+            }
             // Date literals type by PRECISION (engine's CStrictDate/CDateTime split):
             // year/year-month -> Date, full day -> StrictDate, any time part -> DateTime.
             case CDate lit -> new TypedCDate(lit.value(), ExprType.one(dateType(lit.value())));

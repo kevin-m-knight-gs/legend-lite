@@ -87,6 +87,18 @@ class MapOptionalSourceTest {
         assertEquals(true, run("{|equal([1,2], [1,2])}"));
     }
 
+    // the DUAL wrap: a to-one scalar literal against a many-typed VALUE
+    // side compares as its singleton list; property navigations keep the
+    // bare compare (testFilterOnSimpleTypePropertyEq stays engine-exact)
+    @Test
+    @DisplayName("equal: scalar literal vs many-typed value compares as singleton")
+    void scalarVsManyTypedValue() throws Exception {
+        assertEquals(true,
+                run("{|equal(1, newMap(pair('key1', 1))->values())}"));
+        assertEquals(false,
+                run("{|equal(3, newMap(pair('key1', 1))->values())}"));
+    }
+
     // equal is TOTAL: a statically empty side is the other side's
     // emptiness test — [] == [] is TRUE, never SQL NULL (the Scalars
     // equal rule's static-empty arm; the 10-row essential family)

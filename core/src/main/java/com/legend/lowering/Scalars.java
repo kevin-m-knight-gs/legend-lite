@@ -141,9 +141,9 @@ final class Scalars {
                         }
                     }
                     List<SqlExpr> cargs = List.of(
-                            CastPolicy.comparisonWireOperand(n.args().get(0),
+                            CastPolicy.equalityWireOperand(n.args().get(0),
                                     args.get(0), n.args().get(1)),
-                            CastPolicy.comparisonWireOperand(n.args().get(1),
+                            CastPolicy.equalityWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
