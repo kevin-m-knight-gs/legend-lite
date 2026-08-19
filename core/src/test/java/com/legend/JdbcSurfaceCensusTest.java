@@ -102,6 +102,9 @@ class JdbcSurfaceCensusTest {
             // Phase 4: assertError spec tests — a DuckDB session + the
             // SQLException surface IS the feature under test
             "core/src/test/java/com/legend/AssertErrorNativeTest.java",
+            // Phase 4: map wire-shape + rigid-lattice spec pins execute
+            // through a DuckDB session (the wire IS the assertion)
+            "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             "core/src/test/java/com/legend/AuditRound5Test.java",

@@ -2499,11 +2499,20 @@ public final class Lowerer {
             // relation->map value-collection arm below.
             case TypedMap m
                     when !(m.source().info().type() instanceof Type.RelationType) -> {
-                SqlExpr transformed = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                        scalar(m.source(), columns), scalar(m.mapper(), columns));
-                yield ValueCollections.isCollectionMapper(m.mapper())
-                        ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, transformed)
-                        : transformed;
+                // ListEncodings.map owns the wire-shape policy (types
+                // drive construction: scalar sources wrap, scalar results
+                // unwrap, [0..1] null-guards)
+                yield ListEncodings.map(
+                        scalar(m.source(), columns),
+                        scalar(m.mapper(), columns),
+                        !isMany(m.source()),
+                        m.source().info().multiplicity()
+                                        instanceof Multiplicity.Bounded sb
+                                && sb.lower() == 0,
+                        m.info().multiplicity()
+                                        instanceof Multiplicity.Bounded rb
+                                && rb.upper() != null && rb.upper() == 1,
+                        ValueCollections.isCollectionMapper(m.mapper()));
             }
 
             // Variant navigation: get(v, key) -> JSON access. The MAP
@@ -2574,37 +2583,17 @@ public final class Lowerer {
             case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
                     SqlExpr.Call.of(SqlFn.LIST_FILTER,
                             scalar(f.source(), columns), scalar(f.predicate(), columns));
-            // slice(start, stop): 0-based exclusive-stop -> 1-based inclusive
-            // array_slice; a NEGATIVE start clamps to the list head (PCT).
-            case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) -> {
-                SqlExpr lo = clamp0(scalar(s.start(), columns));
-                SqlExpr hi = clamp0(scalar(s.stop(), columns));
-                SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE,
-                        scalar(s.source(), columns), onePlus(lo),
-                        // STOP clamps too: DuckDB reads a negative bound
-                        // FROM THE END (slice(l,0,-1) returned the whole
-                        // list; pure says empty — audit).
-                        hi);
-                // inverted bounds RAISE real pure's message, in the database
-                yield new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
-                        SqlExpr.Call.of(SqlFn.ERROR,
-                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                        SqlExpr.Call.of(SqlFn.CONCAT,
-                                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                                        new SqlExpr.StringLit("The low bound ("),
-                                                        new SqlExpr.Cast(lo, SqlType.Scalar.VARCHAR)),
-                                                new SqlExpr.StringLit(") can't be higher than the high bound (")),
-                                        SqlExpr.Call.of(SqlFn.CONCAT,
-                                                new SqlExpr.Cast(hi, SqlType.Scalar.VARCHAR),
-                                                new SqlExpr.StringLit(") in a slice operation")))))),
-                        sliced);
-            }
+            // slice(start, stop) — ListEncodings.slice owns the bounds
+            // clamps and real pure's inverted-bounds error
+            case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) ->
+                    ListEncodings.slice(scalar(s.source(), columns),
+                            scalar(s.start(), columns),
+                            scalar(s.stop(), columns));
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !(d.source().info().type() instanceof Type.RelationType) -> {
                 SqlExpr src = scalar(d.source(), columns);
                 yield SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
-                        onePlus(clamp0(scalar(d.count(), columns))),
+                        ListEncodings.onePlus(ListEncodings.clamp0(scalar(d.count(), columns))),
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, src));
             }
             // take(n): the prefix; negative n takes nothing (PCT) — the clamp
@@ -2612,7 +2601,7 @@ public final class Lowerer {
             case TypedLimit t when !(t.source().info().type() instanceof Type.RelationType) ->
                     SqlExpr.Call.of(SqlFn.LIST_SLICE,
                             scalar(t.source(), columns), new SqlExpr.IntLit(1),
-                            clamp0(scalar(t.count(), columns)));
+                            ListEncodings.clamp0(scalar(t.count(), columns)));
             // A let in EXPRESSION position (a callee shape the statement
             // folder didn't reach): bind and yield the value — the let IS
             // its value.
@@ -2803,19 +2792,6 @@ public final class Lowerer {
 
 
 
-    /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */
-    private static SqlExpr clamp0(SqlExpr e) {
-        return e instanceof SqlExpr.IntLit i
-                ? new SqlExpr.IntLit(Math.max(0, i.value()))
-                : SqlExpr.Call.of(SqlFn.GREATEST, e, new SqlExpr.IntLit(0));
-    }
-
-    /** 0-based → 1-based shift, constant-folded for literals. */
-    private static SqlExpr onePlus(SqlExpr e) {
-        return e instanceof SqlExpr.IntLit i
-                ? new SqlExpr.IntLit(i.value() + 1)
-                : SqlExpr.Call.of(SqlFn.PLUS, e, new SqlExpr.IntLit(1));
-    }
 
 
     /** Natural ascending order on the stream's one column. */

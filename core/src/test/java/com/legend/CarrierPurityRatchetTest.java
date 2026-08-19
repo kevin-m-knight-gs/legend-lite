@@ -36,9 +36,17 @@ class CarrierPurityRatchetTest {
      * occurrences, comment mentions included — the instrument's own
      * counting semantics). */
     private static final Map<String, Integer> PINS = Map.of(
-            "new SqlExpr\\.ArrayLit\\(", 34,
+            // 34→36 (2026-08-19): ListEncodings.map's singleton-wrap and
+            // empty-list spellings — the map SEMANTIC NODE's wire-shape
+            // rule (scalar sources wrap; [0..1] empties stay empty),
+            // not new ad-hoc idioms
+            "new SqlExpr\\.ArrayLit\\(", 36,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
-            "SqlFn\\.LIST_", 136,
+            // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
+            // map SEMANTIC NODE's wire-shape rule (a to-one result
+            // unwraps from its singleton transform; Phase 4 channel B),
+            // not a new ad-hoc idiom
+            "SqlFn\\.LIST_", 137,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

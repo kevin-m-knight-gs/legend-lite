@@ -291,6 +291,22 @@ break the source-info expectations); channel B, compiling the real .pure files, 
 them. The adapter's remapErrorMessage strips the span channel (its coordinates describe
 adapter text, not the file).
 
+*BURN SLICE 2 — map wire-shape + rigid-lattice conformance (2026-08-19):* two general
+rules burned 21 more rows. (1) ListEncodings.map: WIRE SHAPE FOLLOWS THE TYPE — a
+to-one/[0..1] map source wraps as its singleton list (list_transform over a bare scalar
+is a DuckDB Binder error even in a dead CASE arm), a to-one/[0..1] RESULT unwraps back
+to the scalar wire, [0..1] null-guards both ways, and an already-list-shaped source
+(one-element collection literal) passes through — the whole 12-row list-lambda Binder
+family died. (2) InferenceKernel: a RIGID type-variable binding whose declared type is
+an abstract value head (Number, Date) accepts actuals up the m3 lattice and KEEPS the
+declared type — eval({a:Number[1]|...}, 1.0) is the spec (the 6-row testNumberExp/Log/
+Pow family). Census **PASS=274**, diff **AGREE-PASS=264 AGREE-FAIL=15 WIRE-BUG=36
+B-FIXES-A=10**. Extractions at the guardrails: ListEncodings (map/slice encodings out
+of Lowerer), ConnectionFlags (runtime-argument readers out of StatementExecutor),
+DateCtorRule (out of Scalars). Remaining wire-bug anatomy: 26 real assert-value
+divergences (adjudicate per row), ~5 eval/match inference edges, 11 conversion edges
+(big-number dates, fold-empty casts, match [0..1]), 2 resolution, 2 declines.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

@@ -434,6 +434,17 @@ public final class InferenceKernel {
                 return;
             }
             if (!compatibleRebind(existing, actual)) {
+                // A RIGID/contravariant binding whose DECLARED type is an
+                // abstract value head accepts actuals UP pure's lattice —
+                // the variable KEEPS the declared type: eval over
+                // {a:Number[1]|...} with a Float argument is the spec
+                // (essential math testNumberExp/Log/Pow family, m3
+                // hierarchy: Integer/Float/Decimal <: Number,
+                // StrictDate/DateTime <: Date).
+                if ((b.isRigid(v.name()) || b.contravariant())
+                        && conformsUpValueLattice(actual, existing)) {
+                    return;
+                }
                 // Real pure covariance closes over VALUE kinds too: two
                 // incompatible value types meet at their LUB — the numeric
                 // lattice for numbers, Any otherwise (mixed collections
@@ -475,6 +486,21 @@ public final class InferenceKernel {
             return Type.Primitive.NUMBER;
         }
         return new Type.ClassType(ANY_FQN);
+    }
+
+    /** {@code actual} conforms to a DECLARED abstract value head via
+     * the m3 primitive hierarchy (Number and Date are the abstract
+     * heads; everything else is exact — {@code compatibleRebind}'s
+     * business). */
+    private static boolean conformsUpValueLattice(Type actual, Type declared) {
+        if (declared == Type.Primitive.NUMBER) {
+            return isNumeric(actual);
+        }
+        if (declared == Type.Primitive.DATE) {
+            return actual == Type.Primitive.STRICT_DATE
+                    || actual == Type.Primitive.DATE_TIME;
+        }
+        return false;
     }
 
     private static boolean isNumeric(Type t) {
