@@ -29,6 +29,8 @@ Mapping stress::AllMapping
     include marketdata::MarketdataMapping
     include funding::FundingMapping
     include accounting::AccountingMapping
+    include fixedincome::FixedIncomeMapping
+    include derivatives::OtcMapping
     include clearing::ClearingMapping
     include tax::TaxMapping
     include research::ResearchMapping

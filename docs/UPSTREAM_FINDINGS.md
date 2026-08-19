@@ -1501,22 +1501,36 @@ transform's type signature.
 
 `repro/regexp-arity/`.
 
-## F47 — An association cannot be navigated to a class mapped in a non-default schema
+## F47 — A missing set id on an association end fails as "Void not supported!"
 
     meta::pure::router::store::routing::Void not supported!
 
-Two classes in one mapping, over one database, joined by a plain foreign-key equality. The
-only thing unusual about the target is that its table is in the `analytics` schema rather than
-`default`. A service projecting `rootId, summary.summaryId` fails during plan generation with
-that assertion — a router internal naming no class, no association and no schema.
+An association end pointing at a class that is mapped with an explicit SET ID must name the
+source and target set ids:
 
-Not caused by the join, which is a simple column equality; not by the data, which is seeded
-with real values; and not by the class being unqueryable, since a service ROOTED at it passes
-today. It is reaching it by navigation that fails.
+    legs: [store::DB]@OtcTrade_Leg                              -- compiles, then fails
+    legs[otcBase, derivatives_SwapLeg]: [store::DB]@OtcTrade_Leg -- works
 
-A schema is the usual way a warehouse separates a mart from its sources, so joining across one
-is not an exotic shape. `repro/schema-qualified-navigation/`.
+The unqualified form compiles cleanly and fails at plan generation with the assertion above.
+It names no association, no class, no set and no mapping, and its text has nothing to do with
+what is wrong.
 
-Found while closing a coverage gap rather than by looking for it: `Schema` was the construct
-with the most uncovered feature pairs, for the plain reason that nothing in the model could
-reach the only class carrying it.
+This matters because a class needs a set id exactly when it is the root of a subtype
+hierarchy — which is how any product taxonomy is modelled. So the shape that requires the
+qualified spelling is also the shape most likely to have several associations hanging off it,
+and every one of them will fail this way until each end is qualified by hand.
+
+### Correction
+
+This finding was first published as "an association cannot be navigated to a class mapped in
+a non-default schema", which is wrong. The failing case happened to involve a schema, and I
+generalised from one example without testing the generalisation. Two later cases produced the
+identical error with no schema anywhere — an OTC trade to its legs, and a trade to its option
+terms — and a minimal two-class model then reproduced it with one set implementation, no
+subtypes and no schema at all. Naming the set ids fixed all three.
+
+What is left is a real finding, and a smaller one: the diagnostic. The engine knows which end
+it could not resolve and says `Void not supported!` instead. The schema part was my error, and
+the corpus now navigates schema-qualified tables in `CB_SchemaReach` without complaint.
+
+`repro/association-set-id-routing/`.

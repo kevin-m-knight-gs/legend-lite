@@ -41,7 +41,7 @@ import model
 # The ratchet, updated deliberately when coverage improves. Raised from the numbers this
 # corpus reached the day spread.py was written: 175 pairs and 422 triples before it, these
 # after.
-SURFACE_BASELINE = {"pairs": 240, "triples": 745}
+SURFACE_BASELINE = {"pairs": 250, "triples": 790}
 
 
 def spec_features(c: model.Corpus, spec, byclass, bymapping, closure) -> set[str]:

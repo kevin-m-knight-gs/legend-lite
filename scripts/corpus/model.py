@@ -440,7 +440,19 @@ class Corpus:
             if end is None:
                 return None
             cls = end.target
-        d = self.classes.get(cls, Klass(cls)).derived.get(path[-1])
+        # Walk the inheritance chain. A subclass has its supertype's derived properties --
+        # `extends [base]` in the mapping inherits the property MAPPINGS, and the class
+        # inherits the property itself -- but the reader records `derived` per class, so a
+        # subclass of a class with a derived property had none of its own and the resolver
+        # reported the property as neither a column nor an association. Columns were already
+        # propagated to subclasses; derived properties were not, and nothing had noticed
+        # because no subclass in the corpus carried one until the OTC taxonomy did.
+        d, owner = None, cls
+        while owner:
+            d = self.classes.get(owner, Klass(owner)).derived.get(path[-1])
+            if d is not None:
+                break
+            owner = self.classes.get(owner, Klass(owner)).supertype
         if d is None:
             return None
         hops = self.resolve_assoc(root, path[:-1])[0] if len(path) > 1 else []

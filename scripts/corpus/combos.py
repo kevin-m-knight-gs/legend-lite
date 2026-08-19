@@ -801,8 +801,8 @@ def build_source() -> str:
         "   {",
         "      AssociationMapping",
         "      (",
-        f"         summary[c0, summary]: [{DB}]@{J_SUMMARY},",
-        f"         summarised[summary, c0]: [{DB}]@{J_SUMMARY}",
+        f"         summary[c0, combo_Summary]: [{DB}]@{J_SUMMARY},",
+        f"         summarised[combo_Summary, c0]: [{DB}]@{J_SUMMARY}",
         "      )",
         "   }",
         "",
@@ -859,7 +859,8 @@ def specs(c: model.Corpus) -> list[Spec]:
         spec.connection, spec.data_element = CONN_ID, DATA
         out.append(spec)
     extra = predicate_specs(c)
-    for maker in (schema_spec, scope_spec, assoc_ids_spec, otherwise_spec):
+    for maker in (schema_spec, schema_reach_spec, scope_spec, assoc_ids_spec,
+                  otherwise_spec):
         s = maker(c)
         if s is not None:
             extra.append(s)
@@ -940,19 +941,12 @@ def assoc_ids_spec(c: model.Corpus):
 
 
 def schema_reach_spec(c: model.Corpus):
-    """NOT EMITTED -- see F47. Kept because the model it needs is real and still here.
+    """Reaches the schema-qualified table BY NAVIGATION, from a matrix root.
 
-    Navigating to a class whose main table sits in a non-default SCHEMA fails in the router:
-
-        meta::pure::router::store::routing::Void not supported!
-
-    The association, the join and the foreign key are all in the corpus and correct; it is
-    the navigation that the engine will not plan. The service is reproduced standalone in
-    repro/schema-qualified-navigation/ rather than emitted here, because a service that
-    cannot produce a plan takes its whole batch down with it and the run costs thirteen
-    minutes.
-
-    Reaches the schema-qualified table BY NAVIGATION, from a matrix root.
+    This was briefly filed as a defect in schema navigation (F47), which it was not. The
+    failure was that the association ends did not NAME their set ids, and combo::C0 is one of
+    eight sets over COMBO_ROOT; the schema was a coincidence of where I happened to be
+    looking. See F47 for what the message actually means.
 
     schema_spec below is rooted AT the schema table, which proves a mapping can resolve
     `[db]schema.TABLE.COL` and nothing more -- one service, and `Schema` sat at three of its

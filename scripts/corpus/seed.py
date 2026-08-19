@@ -668,6 +668,271 @@ EXT_LEGAL_ENTITY = [
          JURISDICTION="Luxembourg", IS_SANCTIONED=False),
 ]
 
+
+# ------------------------------------------------------- fixed income: coupons
+#
+# Six real debt securities, with their real ISINs, coupons and maturities. The corpus had
+# `products::Bond` already, but its rows come from the generic expansion -- a 325% coupon
+# paid 52 times a year, issued the day it matures -- which is fine for exercising a join and
+# useless for asking whether an accrual is right.
+#
+# The TERMS are written by hand. The SCHEDULE is computed from them, because that is what a
+# schedule is: nobody types out forty coupon dates, they fall out of an issue date, a
+# frequency and a maturity. Computing them here keeps the oracle honest -- the expectations
+# still come from this file rather than from the engine -- while giving the corpus its first
+# genuinely deep one-to-many, where a parent has sixteen children rather than three.
+DEBT_SECURITY = [
+    dict(SECURITY_ID="US912828YY08", DESCRIPTION="US Treasury Note 1.75% 2029",
+         ISSUER_NAME="United States Treasury", ISSUER_COUNTRY="US", CURRENCY="USD",
+         COUPON_RATE=1.750, COUPON_FREQUENCY=2, DAY_COUNT_BASIS="ACT/ACT",
+         FACE_VALUE=1000.00, ISSUE_DATE=_iso(2019, 11, 30), MATURITY_DATE=_iso(2029, 11, 30),
+         SENIORITY="SOVEREIGN", IS_CALLABLE=False, WITHHOLDING_RATE=0.000),
+    dict(SECURITY_ID="US912810TM08", DESCRIPTION="US Treasury Bond 2.375% 2049",
+         ISSUER_NAME="United States Treasury", ISSUER_COUNTRY="US", CURRENCY="USD",
+         COUPON_RATE=2.375, COUPON_FREQUENCY=2, DAY_COUNT_BASIS="ACT/ACT",
+         FACE_VALUE=1000.00, ISSUE_DATE=_iso(2019, 5, 31), MATURITY_DATE=_iso(2049, 5, 31),
+         SENIORITY="SOVEREIGN", IS_CALLABLE=False, WITHHOLDING_RATE=0.000),
+    dict(SECURITY_ID="US037833DX90", DESCRIPTION="Apple Inc 2.05% 2026",
+         ISSUER_NAME="Apple Inc", ISSUER_COUNTRY="US", CURRENCY="USD",
+         COUPON_RATE=2.050, COUPON_FREQUENCY=2, DAY_COUNT_BASIS="30/360",
+         FACE_VALUE=1000.00, ISSUE_DATE=_iso(2020, 8, 20), MATURITY_DATE=_iso(2026, 9, 11),
+         SENIORITY="SENIOR_UNSECURED", IS_CALLABLE=True, WITHHOLDING_RATE=0.000),
+    dict(SECURITY_ID="XS2056430215", DESCRIPTION="HSBC Holdings 3.0% 2030",
+         ISSUER_NAME="HSBC Holdings plc", ISSUER_COUNTRY="GB", CURRENCY="GBP",
+         COUPON_RATE=3.000, COUPON_FREQUENCY=1, DAY_COUNT_BASIS="ACT/365",
+         FACE_VALUE=1000.00, ISSUE_DATE=_iso(2019, 9, 20), MATURITY_DATE=_iso(2030, 9, 20),
+         SENIORITY="SENIOR_UNSECURED", IS_CALLABLE=False, WITHHOLDING_RATE=0.200),
+    dict(SECURITY_ID="DE000A289N78", DESCRIPTION="Siemens 0.375% 2027",
+         ISSUER_NAME="Siemens AG", ISSUER_COUNTRY="DE", CURRENCY="EUR",
+         COUPON_RATE=0.375, COUPON_FREQUENCY=1, DAY_COUNT_BASIS="ACT/ACT",
+         FACE_VALUE=1000.00, ISSUE_DATE=_iso(2020, 6, 5), MATURITY_DATE=_iso(2027, 6, 5),
+         SENIORITY="SENIOR_UNSECURED", IS_CALLABLE=False, WITHHOLDING_RATE=0.265),
+    # A perpetual: no maturity date at all. Every schedule query has to cope with a security
+    # whose MATURITY_DATE is NULL, which is a real shape and not an adversarial invention.
+    dict(SECURITY_ID="XS1002801758", DESCRIPTION="Barclays 8.0% Perpetual AT1",
+         ISSUER_NAME="Barclays plc", ISSUER_COUNTRY="GB", CURRENCY="USD",
+         COUPON_RATE=8.000, COUPON_FREQUENCY=2, DAY_COUNT_BASIS="30/360",
+         FACE_VALUE=1000.00, ISSUE_DATE=_iso(2019, 12, 15), MATURITY_DATE=None,
+         SENIORITY="SUBORDINATED", IS_CALLABLE=True, WITHHOLDING_RATE=0.000),
+]
+
+# The corpus's "today". Coupons on or before it have been paid; after it they have not, which
+# is what gives COUPON_PAYMENT its realistic holes rather than a seeded NULL.
+_VALUATION_DATE = _iso(2024, 6, 28)
+
+
+def _add_months(iso: str, n: int) -> str:
+    y, m, d = (int(x) for x in iso.split("-"))
+    m += n
+    y += (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    # Coupon dates roll to the last day of a shorter month -- a 31 May bond pays 30 November.
+    while True:
+        try:
+            import datetime
+            datetime.date(y, m, d)
+            return _iso(y, m, d)
+        except ValueError:
+            d -= 1
+
+
+def _day_count(basis: str, start: str, end: str) -> int:
+    import datetime
+    s = datetime.date(*(int(x) for x in start.split("-")))
+    e = datetime.date(*(int(x) for x in end.split("-")))
+    if basis == "30/360":
+        # The bond-basis convention: every month is 30 days, every year 360.
+        d1 = min(s.day, 30)
+        d2 = min(e.day, 30) if d1 == 30 else e.day
+        return (e.year - s.year) * 360 + (e.month - s.month) * 30 + (d2 - d1)
+    return (e - s).days
+
+
+def _coupon_schedule():
+    """Accrual periods and the payments actually made against them.
+
+    Periods run from the issue date to maturity, or to ten years out for the perpetual --
+    a perpetual has no last coupon, so the schedule has to be bounded by something other
+    than the terms.
+    """
+    periods, payments = [], []
+    for sec in DEBT_SECURITY:
+        months = 12 // sec["COUPON_FREQUENCY"]
+        last = sec["MATURITY_DATE"] or _iso(2029, 12, 15)
+        start, n = sec["ISSUE_DATE"], 0
+        while True:
+            end = _add_months(start, months)
+            if end > last:
+                break
+            n += 1
+            days = _day_count(sec["DAY_COUNT_BASIS"], start, end)
+            amount = round(sec["FACE_VALUE"] * sec["COUPON_RATE"] / 100
+                           / sec["COUPON_FREQUENCY"], 2)
+            pid = f"{sec['SECURITY_ID']}-{n:03d}"
+            periods.append(dict(
+                PERIOD_ID=pid, SECURITY_ID=sec["SECURITY_ID"], PERIOD_NUMBER=n,
+                ACCRUAL_START_DATE=start, ACCRUAL_END_DATE=end, PAYMENT_DATE=end,
+                ACCRUAL_DAYS=days, NOTIONAL=sec["FACE_VALUE"],
+                COUPON_RATE=sec["COUPON_RATE"], COUPON_AMOUNT=amount,
+                IS_PAID=end <= _VALUATION_DATE))
+            if end <= _VALUATION_DATE:
+                tax = round(amount * sec["WITHHOLDING_RATE"], 2)
+                payments.append(dict(
+                    PAYMENT_ID=f"PAY-{pid}", PERIOD_ID=pid, SECURITY_ID=sec["SECURITY_ID"],
+                    PAYMENT_DATE=end, GROSS_AMOUNT=amount, WITHHOLDING_TAX=tax,
+                    NET_AMOUNT=round(amount - tax, 2), CURRENCY=sec["CURRENCY"],
+                    STATUS="SETTLED"))
+            start = end
+    return periods, payments
+
+
+COUPON_PERIOD, COUPON_PAYMENT = _coupon_schedule()
+
+
+
+# ------------------------------------------------------------- OTC derivatives
+#
+# The product taxonomy, modelled the way a firm actually models it: ONE table of shared
+# economics with a product-type discriminator, and the parts that differ per family in their
+# own tables. A swap has legs; an option has a strike and an expiry; neither has the other's
+# columns, and putting them all in one wide table is how you get forty nulls a row.
+#
+# Real trades, real conventions: SOFR replaced LIBOR for USD, EURIBOR is still 6M in Europe,
+# a payer swaption pays fixed, a CDS spread is quoted in basis points, and an NDF settles in
+# USD against a non-deliverable currency.
+OTC_TRADE = [
+    dict(OTC_ID="OTC-000001", PRODUCT_TYPE="IRS", ASSET_CLASS="RATES",
+         COUNTERPARTY_ID="CP-0001", TRADE_DATE=_iso(2024, 3, 15),
+         EFFECTIVE_DATE=_iso(2024, 3, 19), TERMINATION_DATE=_iso(2029, 3, 19),
+         NOTIONAL=50000000.00, CURRENCY="USD", CLEARING_STATUS="CLEARED",
+         CLEARING_HOUSE="LCH", MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000002", PRODUCT_TYPE="OIS", ASSET_CLASS="RATES",
+         COUNTERPARTY_ID="CP-0002", TRADE_DATE=_iso(2024, 4, 2),
+         EFFECTIVE_DATE=_iso(2024, 4, 4), TERMINATION_DATE=_iso(2026, 4, 4),
+         NOTIONAL=25000000.00, CURRENCY="USD", CLEARING_STATUS="CLEARED",
+         CLEARING_HOUSE="LCH", MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000003", PRODUCT_TYPE="BASIS_SWAP", ASSET_CLASS="RATES",
+         COUNTERPARTY_ID="CP-0001", TRADE_DATE=_iso(2024, 2, 8),
+         EFFECTIVE_DATE=_iso(2024, 2, 12), TERMINATION_DATE=_iso(2027, 2, 12),
+         NOTIONAL=75000000.00, CURRENCY="EUR", CLEARING_STATUS="CLEARED",
+         CLEARING_HOUSE="EUREX", MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000004", PRODUCT_TYPE="FRA", ASSET_CLASS="RATES",
+         COUNTERPARTY_ID="CP-0003", TRADE_DATE=_iso(2024, 5, 20),
+         EFFECTIVE_DATE=_iso(2024, 8, 20), TERMINATION_DATE=_iso(2024, 11, 20),
+         NOTIONAL=100000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000005", PRODUCT_TYPE="SWAPTION", ASSET_CLASS="RATES",
+         COUNTERPARTY_ID="CP-0002", TRADE_DATE=_iso(2024, 1, 30),
+         EFFECTIVE_DATE=_iso(2025, 1, 30), TERMINATION_DATE=_iso(2030, 1, 30),
+         NOTIONAL=40000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000006", PRODUCT_TYPE="CAP", ASSET_CLASS="RATES",
+         COUNTERPARTY_ID="CP-0004", TRADE_DATE=_iso(2024, 4, 18),
+         EFFECTIVE_DATE=_iso(2024, 4, 22), TERMINATION_DATE=_iso(2027, 4, 22),
+         NOTIONAL=30000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=False),
+    dict(OTC_ID="OTC-000007", PRODUCT_TYPE="CDS", ASSET_CLASS="CREDIT",
+         COUNTERPARTY_ID="CP-0001", TRADE_DATE=_iso(2024, 3, 20),
+         EFFECTIVE_DATE=_iso(2024, 3, 21), TERMINATION_DATE=_iso(2029, 6, 20),
+         NOTIONAL=10000000.00, CURRENCY="USD", CLEARING_STATUS="CLEARED",
+         CLEARING_HOUSE="ICE", MASTER_AGREEMENT="ISDA_2014", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000008", PRODUCT_TYPE="CDS_INDEX", ASSET_CLASS="CREDIT",
+         COUNTERPARTY_ID="CP-0002", TRADE_DATE=_iso(2024, 3, 20),
+         EFFECTIVE_DATE=_iso(2024, 3, 21), TERMINATION_DATE=_iso(2029, 6, 20),
+         NOTIONAL=250000000.00, CURRENCY="EUR", CLEARING_STATUS="CLEARED",
+         CLEARING_HOUSE="ICE", MASTER_AGREEMENT="ISDA_2014", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000009", PRODUCT_TYPE="NDF", ASSET_CLASS="FX",
+         COUNTERPARTY_ID="CP-0003", TRADE_DATE=_iso(2024, 6, 3),
+         EFFECTIVE_DATE=_iso(2024, 6, 5), TERMINATION_DATE=_iso(2024, 12, 5),
+         NOTIONAL=20000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000010", PRODUCT_TYPE="FX_OPTION", ASSET_CLASS="FX",
+         COUNTERPARTY_ID="CP-0004", TRADE_DATE=_iso(2024, 5, 7),
+         EFFECTIVE_DATE=_iso(2024, 5, 9), TERMINATION_DATE=_iso(2025, 5, 9),
+         NOTIONAL=15000000.00, CURRENCY="EUR", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=False),
+    dict(OTC_ID="OTC-000011", PRODUCT_TYPE="EQUITY_SWAP", ASSET_CLASS="EQUITY",
+         COUNTERPARTY_ID="CP-0001", TRADE_DATE=_iso(2024, 2, 26),
+         EFFECTIVE_DATE=_iso(2024, 2, 28), TERMINATION_DATE=_iso(2025, 2, 28),
+         NOTIONAL=35000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=True),
+    dict(OTC_ID="OTC-000012", PRODUCT_TYPE="VARIANCE_SWAP", ASSET_CLASS="EQUITY",
+         COUNTERPARTY_ID="CP-0002", TRADE_DATE=_iso(2024, 4, 11),
+         EFFECTIVE_DATE=_iso(2024, 4, 15), TERMINATION_DATE=_iso(2024, 10, 15),
+         NOTIONAL=5000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT="ISDA_2002", COLLATERALISED=False),
+    # An uncollateralised commodity swap with no clearing house: the row where three of the
+    # optional columns are genuinely absent rather than absent to be difficult.
+    dict(OTC_ID="OTC-000013", PRODUCT_TYPE="COMMODITY_SWAP", ASSET_CLASS="COMMODITY",
+         COUNTERPARTY_ID="CP-0005", TRADE_DATE=_iso(2024, 1, 15),
+         EFFECTIVE_DATE=_iso(2024, 2, 1), TERMINATION_DATE=_iso(2025, 1, 31),
+         NOTIONAL=8000000.00, CURRENCY="USD", CLEARING_STATUS="BILATERAL",
+         CLEARING_HOUSE=None, MASTER_AGREEMENT=None, COLLATERALISED=False),
+]
+
+# Legs. A swap has two; an option has none, which is why they are a separate table and not
+# columns. Pay/receive is from the firm's side.
+OTC_SWAP_LEG = [
+    # IRS: pay fixed 3.85%, receive SOFR flat.
+    dict(LEG_ID="OTC-000001-1", OTC_ID="OTC-000001", LEG_NUMBER=1, LEG_TYPE="FIXED",
+         PAY_RECEIVE="PAY", FIXED_RATE=3.8500, FLOATING_INDEX=None, SPREAD_BP=None,
+         RESET_FREQUENCY=None, PAYMENT_FREQUENCY="SEMI_ANNUAL", DAY_COUNT="30/360",
+         LEG_NOTIONAL=50000000.00, LEG_CURRENCY="USD"),
+    dict(LEG_ID="OTC-000001-2", OTC_ID="OTC-000001", LEG_NUMBER=2, LEG_TYPE="FLOATING",
+         PAY_RECEIVE="RECEIVE", FIXED_RATE=None, FLOATING_INDEX="USD-SOFR", SPREAD_BP=0.0,
+         RESET_FREQUENCY="DAILY", PAYMENT_FREQUENCY="QUARTERLY", DAY_COUNT="ACT/360",
+         LEG_NOTIONAL=50000000.00, LEG_CURRENCY="USD"),
+    dict(LEG_ID="OTC-000002-1", OTC_ID="OTC-000002", LEG_NUMBER=1, LEG_TYPE="FIXED",
+         PAY_RECEIVE="RECEIVE", FIXED_RATE=4.1000, FLOATING_INDEX=None, SPREAD_BP=None,
+         RESET_FREQUENCY=None, PAYMENT_FREQUENCY="ANNUAL", DAY_COUNT="ACT/360",
+         LEG_NOTIONAL=25000000.00, LEG_CURRENCY="USD"),
+    dict(LEG_ID="OTC-000002-2", OTC_ID="OTC-000002", LEG_NUMBER=2, LEG_TYPE="FLOATING",
+         PAY_RECEIVE="PAY", FIXED_RATE=None, FLOATING_INDEX="USD-SOFR-OIS", SPREAD_BP=0.0,
+         RESET_FREQUENCY="DAILY", PAYMENT_FREQUENCY="ANNUAL", DAY_COUNT="ACT/360",
+         LEG_NOTIONAL=25000000.00, LEG_CURRENCY="USD"),
+    # Basis swap: floating against floating, which is the case a "one leg is fixed"
+    # assumption gets wrong.
+    dict(LEG_ID="OTC-000003-1", OTC_ID="OTC-000003", LEG_NUMBER=1, LEG_TYPE="FLOATING",
+         PAY_RECEIVE="PAY", FIXED_RATE=None, FLOATING_INDEX="EUR-EURIBOR-3M",
+         SPREAD_BP=0.0, RESET_FREQUENCY="QUARTERLY", PAYMENT_FREQUENCY="QUARTERLY",
+         DAY_COUNT="ACT/360", LEG_NOTIONAL=75000000.00, LEG_CURRENCY="EUR"),
+    dict(LEG_ID="OTC-000003-2", OTC_ID="OTC-000003", LEG_NUMBER=2, LEG_TYPE="FLOATING",
+         PAY_RECEIVE="RECEIVE", FIXED_RATE=None, FLOATING_INDEX="EUR-EURIBOR-6M",
+         SPREAD_BP=-4.5, RESET_FREQUENCY="SEMI_ANNUAL", PAYMENT_FREQUENCY="SEMI_ANNUAL",
+         DAY_COUNT="ACT/360", LEG_NOTIONAL=75000000.00, LEG_CURRENCY="EUR"),
+    dict(LEG_ID="OTC-000011-1", OTC_ID="OTC-000011", LEG_NUMBER=1, LEG_TYPE="EQUITY",
+         PAY_RECEIVE="RECEIVE", FIXED_RATE=None, FLOATING_INDEX="SPX-TOTAL-RETURN",
+         SPREAD_BP=None, RESET_FREQUENCY="QUARTERLY", PAYMENT_FREQUENCY="QUARTERLY",
+         DAY_COUNT="ACT/365", LEG_NOTIONAL=35000000.00, LEG_CURRENCY="USD"),
+    dict(LEG_ID="OTC-000011-2", OTC_ID="OTC-000011", LEG_NUMBER=2, LEG_TYPE="FLOATING",
+         PAY_RECEIVE="PAY", FIXED_RATE=None, FLOATING_INDEX="USD-SOFR", SPREAD_BP=35.0,
+         RESET_FREQUENCY="QUARTERLY", PAYMENT_FREQUENCY="QUARTERLY", DAY_COUNT="ACT/360",
+         LEG_NOTIONAL=35000000.00, LEG_CURRENCY="USD"),
+    dict(LEG_ID="OTC-000013-1", OTC_ID="OTC-000013", LEG_NUMBER=1, LEG_TYPE="FIXED",
+         PAY_RECEIVE="PAY", FIXED_RATE=78.5000, FLOATING_INDEX=None, SPREAD_BP=None,
+         RESET_FREQUENCY=None, PAYMENT_FREQUENCY="MONTHLY", DAY_COUNT="ACT/365",
+         LEG_NOTIONAL=8000000.00, LEG_CURRENCY="USD"),
+    dict(LEG_ID="OTC-000013-2", OTC_ID="OTC-000013", LEG_NUMBER=2, LEG_TYPE="COMMODITY",
+         PAY_RECEIVE="RECEIVE", FIXED_RATE=None, FLOATING_INDEX="WTI-NYMEX-FRONT",
+         SPREAD_BP=None, RESET_FREQUENCY="MONTHLY", PAYMENT_FREQUENCY="MONTHLY",
+         DAY_COUNT="ACT/365", LEG_NOTIONAL=8000000.00, LEG_CURRENCY="USD"),
+]
+
+# Option terms, for the trades that have them. Six of thirteen trades do, so the join to
+# this table is empty for the other seven.
+OTC_OPTION_TERMS = [
+    dict(OTC_ID="OTC-000005", OPTION_STYLE="EUROPEAN", CALL_PUT="PAYER", STRIKE=4.0000,
+         PREMIUM=385000.00, PREMIUM_CURRENCY="USD", EXPIRY_DATE=_iso(2025, 1, 28),
+         UNDERLYING_TENOR="5Y", BARRIER_LEVEL=None, BARRIER_TYPE=None),
+    dict(OTC_ID="OTC-000006", OPTION_STYLE="EUROPEAN", CALL_PUT="CALL", STRIKE=5.2500,
+         PREMIUM=142000.00, PREMIUM_CURRENCY="USD", EXPIRY_DATE=_iso(2027, 4, 22),
+         UNDERLYING_TENOR="3M", BARRIER_LEVEL=None, BARRIER_TYPE=None),
+    dict(OTC_ID="OTC-000010", OPTION_STYLE="EUROPEAN", CALL_PUT="CALL", STRIKE=1.0850,
+         PREMIUM=218000.00, PREMIUM_CURRENCY="EUR", EXPIRY_DATE=_iso(2025, 5, 7),
+         UNDERLYING_TENOR=None, BARRIER_LEVEL=1.1500, BARRIER_TYPE="UP_AND_OUT"),
+]
+
+
 TABLES: dict[str, list[dict]] = {
     "EXT_LEGAL_ENTITY": EXT_LEGAL_ENTITY,
     "CPTY_RATING_MS": CPTY_RATING_MS,
@@ -678,6 +943,10 @@ TABLES: dict[str, list[dict]] = {
     "SETTLEMENT": SETTLEMENT, "CONFIRMATION": CONFIRMATION,
     "SALES_CREDIT": SALES_CREDIT, "TRADE_REPORT": TRADE_REPORT,
     "DAILY_PN_L": DAILY_PN_L, "COLLATERAL_AGREEMENT": COLLATERAL_AGREEMENT,
+    "DEBT_SECURITY": DEBT_SECURITY, "COUPON_PERIOD": COUPON_PERIOD,
+    "COUPON_PAYMENT": COUPON_PAYMENT,
+    "OTC_TRADE": OTC_TRADE, "OTC_SWAP_LEG": OTC_SWAP_LEG,
+    "OTC_OPTION_TERMS": OTC_OPTION_TERMS,
 }
 
 

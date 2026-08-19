@@ -1,0 +1,348 @@
+###Pure
+// OTC derivatives: the product taxonomy.
+//
+// Thirteen products over three tables, which is how a firm actually models this. The terms
+// every OTC trade shares -- counterparty, notional, dates, clearing, master agreement -- sit
+// in one table with a PRODUCT_TYPE discriminator; the parts that differ per family sit in
+// their own. A swap has legs, an option has a strike and an expiry, a variance swap has
+// neither, and a single wide table would carry forty nulls a row.
+//
+// Each subtype carries the risk measure its own desk quotes, which is the honest difference
+// between these products at this level of detail: a rates swap is sized in DV01, a basis
+// swap in spread DV01 an order of magnitude smaller, a CDS in loss-given-default net of
+// recovery, a variance swap in vega notional. None of it is a pricing model -- these are the
+// crude pre-trade numbers a limit check uses.
+Class derivatives::OtcTrade
+{
+   otcId: String[1];
+   productType: String[1];
+   assetClass: String[1];
+   counterpartyId: String[1];
+   tradeDate: StrictDate[1];
+   effectiveDate: StrictDate[1];
+   terminationDate: StrictDate[1];
+   notional: Float[1];
+   currency: String[1];
+   clearingStatus: String[1];
+   // Null for a bilateral trade: there is no clearing house, rather than an unknown one.
+   clearingHouse: String[0..1];
+   masterAgreement: String[0..1];
+   collateralised: Boolean[1];
+
+   // Tenor in years, which every risk number below is a function of.
+   //
+   // The unit is the DurationUnit enum, fully qualified. A relational mapping takes the
+   // string 'DAYS' -- its lowering strips the quotes -- but a Pure expression will not:
+   // "Can't find a match for function dateDiff(StrictDate[1],StrictDate[1],String[1])".
+   // The same function, spelled two ways depending on which side of the mapping it is on.
+   tenorYears() { dateDiff($this.effectiveDate, $this.terminationDate, meta::pure::functions::date::DurationUnit.DAYS) / 365.0 } : Float[1];
+   // Notional converted at a caller-supplied rate. FX is never a property of the trade.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// A vanilla fixed-for-floating swap -- the most traded OTC product there is.
+Class derivatives::InterestRateSwap extends derivatives::OtcTrade
+{
+   // DV01 per basis point, the way a rates desk sizes a swap: notional x tenor x 0.0001.
+   // The tenor is written out rather than calling tenorYears(): a derived property calling
+   // another derived property is not in the oracle's expression grammar, and inlining is
+   // honest where pretending would not be.
+   dv01() { $this.notional * (dateDiff($this.effectiveDate, $this.terminationDate, meta::pure::functions::date::DurationUnit.DAYS) / 365.0) * 0.0001 } : Float[1];
+}
+
+// Fixed against a compounded overnight index. Since the LIBOR transition this is what
+// the discounting curve is built from.
+Class derivatives::OvernightIndexSwap extends derivatives::OtcTrade
+{
+   dv01() { $this.notional * (dateDiff($this.effectiveDate, $this.terminationDate, meta::pure::functions::date::DurationUnit.DAYS) / 365.0) * 0.0001 } : Float[1];
+}
+
+// Floating against floating on two tenors of the same index. NEITHER leg is fixed, which
+// is the case a 'one leg is fixed' assumption gets wrong.
+Class derivatives::BasisSwap extends derivatives::OtcTrade
+{
+   // A basis swap carries no outright rate risk; the exposure is the spread between
+   // the two tenors, which is an order of magnitude smaller.
+   spreadDv01() { $this.notional * (dateDiff($this.effectiveDate, $this.terminationDate, meta::pure::functions::date::DurationUnit.DAYS) / 365.0) * 0.00001 } : Float[1];
+}
+
+// A single forward period, cash settled against the rate fixing. No legs at all.
+Class derivatives::ForwardRateAgreement extends derivatives::OtcTrade
+{
+   settlementRisk() { $this.notional * 0.0025 } : Float[1];
+}
+
+// An option to enter a swap. A payer swaption pays fixed if it is exercised.
+Class derivatives::Swaption extends derivatives::OtcTrade
+{
+   // Premium at risk is capped at the notional for the buyer; this is the crude
+   // pre-trade limit check, not a pricing model.
+   maxLoss() { $this.notional * 0.05 } : Float[1];
+}
+
+// A strip of caplets on a floating index, one per reset.
+Class derivatives::InterestRateCap extends derivatives::OtcTrade
+{
+   maxLoss() { $this.notional * 0.03 } : Float[1];
+}
+
+// Protection on a single reference entity. The premium is quoted in basis points and the
+// exposure on default is the notional less recovery.
+Class derivatives::CreditDefaultSwap extends derivatives::OtcTrade
+{
+   // Standard 40% recovery assumption for senior unsecured.
+   lossGivenDefault() { $this.notional * 0.60 } : Float[1];
+}
+
+// Protection on a standardised index basket. Notionals are large because the risk is
+// diversified across the constituents.
+Class derivatives::CreditIndexTrade extends derivatives::OtcTrade
+{
+   // Diversified, so the single-name equivalent is a fraction of the notional.
+   singleNameEquivalent() { $this.notional / 125.0 } : Float[1];
+}
+
+// An FX forward on a currency that cannot be delivered, cash settled in USD.
+Class derivatives::NonDeliverableForward extends derivatives::OtcTrade
+{
+   settlementRisk() { $this.notional * 0.02 } : Float[1];
+}
+
+// An FX option, here with a knock-out barrier.
+Class derivatives::FxOption extends derivatives::OtcTrade
+{
+   maxLoss() { $this.notional * 0.04 } : Float[1];
+}
+
+// Total return on an equity index against a funding leg.
+Class derivatives::EquitySwap extends derivatives::OtcTrade
+{
+   // Equity delta is the whole notional: a total return swap is fully directional.
+   equityDelta() { $this.notional } : Float[1];
+}
+
+// Realised variance against a strike. No legs: the payoff is a formula, not a schedule.
+Class derivatives::VarianceSwap extends derivatives::OtcTrade
+{
+   // Vega notional, which is how a variance swap is actually sized and quoted.
+   vegaNotional() { $this.notional / 2.0 } : Float[1];
+}
+
+// A fixed price against a floating commodity index.
+Class derivatives::CommoditySwap extends derivatives::OtcTrade
+{
+   commodityDelta() { $this.notional } : Float[1];
+}
+
+// A swap's legs. Two for a swap, none for an option or a variance swap.
+Class derivatives::SwapLeg
+{
+   legId: String[1];
+   otcId: String[1];
+   legNumber: Integer[1];
+   legType: String[1];
+   payReceive: String[1];
+   // Null on a floating leg, and the floating fields are null on a fixed one. Both are
+   // genuinely absent rather than unknown.
+   fixedRate: Float[0..1];
+   floatingIndex: String[0..1];
+   spreadBp: Float[0..1];
+   resetFrequency: String[0..1];
+   paymentFrequency: String[1];
+   dayCount: String[1];
+   legNotional: Float[1];
+   legCurrency: String[1];
+}
+
+// Option terms, for the three trades that have them.
+Class derivatives::OptionTerms
+{
+   otcId: String[1];
+   optionStyle: String[1];
+   callPut: String[1];
+   strike: Float[1];
+   premium: Float[1];
+   premiumCurrency: String[1];
+   expiryDate: StrictDate[1];
+   underlyingTenor: String[0..1];
+   barrierLevel: Float[0..1];
+   barrierType: String[0..1];
+}
+
+Association derivatives::TradeLegs
+{
+   trade: derivatives::OtcTrade[0..1];
+   legs: derivatives::SwapLeg[*];
+}
+
+Association derivatives::TradeOptionTerms
+{
+   optionTrade: derivatives::OtcTrade[0..1];
+   optionTerms: derivatives::OptionTerms[0..1];
+}
+
+###Mapping
+Mapping derivatives::OtcMapping
+(
+   // The ROOT set. A class mapped by more than one set implementation needs exactly one
+   // root, or compilation fails with "mapped by N set implementations and has 0 roots".
+   *derivatives::OtcTrade[otcBase]: Relational
+   {
+      ~primaryKey ( [store::DB]OTC_TRADE.OTC_ID )
+      ~mainTable [store::DB]OTC_TRADE
+      otcId: [store::DB]OTC_TRADE.OTC_ID,
+      productType: [store::DB]OTC_TRADE.PRODUCT_TYPE,
+      assetClass: [store::DB]OTC_TRADE.ASSET_CLASS,
+      counterpartyId: [store::DB]OTC_TRADE.COUNTERPARTY_ID,
+      tradeDate: [store::DB]OTC_TRADE.TRADE_DATE,
+      effectiveDate: [store::DB]OTC_TRADE.EFFECTIVE_DATE,
+      terminationDate: [store::DB]OTC_TRADE.TERMINATION_DATE,
+      notional: [store::DB]OTC_TRADE.NOTIONAL,
+      currency: [store::DB]OTC_TRADE.CURRENCY,
+      clearingStatus: [store::DB]OTC_TRADE.CLEARING_STATUS,
+      clearingHouse: [store::DB]OTC_TRADE.CLEARING_HOUSE,
+      masterAgreement: [store::DB]OTC_TRADE.MASTER_AGREEMENT,
+      collateralised: [store::DB]OTC_TRADE.COLLATERALISED
+   }
+
+   // `extends [otcBase]` inherits every property mapping above, so each subtype declares
+   // only its discriminator. Thirteen products, thirteen filters, one table.
+   // InterestRateSwap
+   derivatives::InterestRateSwap[otcIrs] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcIrsRows
+   }
+
+   // OvernightIndexSwap
+   derivatives::OvernightIndexSwap[otcOis] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcOisRows
+   }
+
+   // BasisSwap
+   derivatives::BasisSwap[otcBasisSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcBasisSwapRows
+   }
+
+   // ForwardRateAgreement
+   derivatives::ForwardRateAgreement[otcFra] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFraRows
+   }
+
+   // Swaption
+   derivatives::Swaption[otcSwaption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcSwaptionRows
+   }
+
+   // InterestRateCap
+   derivatives::InterestRateCap[otcCap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCapRows
+   }
+
+   // CreditDefaultSwap
+   derivatives::CreditDefaultSwap[otcCds] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCdsRows
+   }
+
+   // CreditIndexTrade
+   derivatives::CreditIndexTrade[otcCdsIndex] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCdsIndexRows
+   }
+
+   // NonDeliverableForward
+   derivatives::NonDeliverableForward[otcNdf] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcNdfRows
+   }
+
+   // FxOption
+   derivatives::FxOption[otcFxOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxOptionRows
+   }
+
+   // EquitySwap
+   derivatives::EquitySwap[otcEquitySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcEquitySwapRows
+   }
+
+   // VarianceSwap
+   derivatives::VarianceSwap[otcVarianceSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcVarianceSwapRows
+   }
+
+   // CommoditySwap
+   derivatives::CommoditySwap[otcCommoditySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCommoditySwapRows
+   }
+
+   derivatives::SwapLeg: Relational
+   {
+      ~primaryKey ( [store::DB]OTC_SWAP_LEG.LEG_ID )
+      ~mainTable [store::DB]OTC_SWAP_LEG
+      legId: [store::DB]OTC_SWAP_LEG.LEG_ID,
+      otcId: [store::DB]OTC_SWAP_LEG.OTC_ID,
+      legNumber: [store::DB]OTC_SWAP_LEG.LEG_NUMBER,
+      legType: [store::DB]OTC_SWAP_LEG.LEG_TYPE,
+      payReceive: [store::DB]OTC_SWAP_LEG.PAY_RECEIVE,
+      fixedRate: [store::DB]OTC_SWAP_LEG.FIXED_RATE,
+      floatingIndex: [store::DB]OTC_SWAP_LEG.FLOATING_INDEX,
+      spreadBp: [store::DB]OTC_SWAP_LEG.SPREAD_BP,
+      resetFrequency: [store::DB]OTC_SWAP_LEG.RESET_FREQUENCY,
+      paymentFrequency: [store::DB]OTC_SWAP_LEG.PAYMENT_FREQUENCY,
+      dayCount: [store::DB]OTC_SWAP_LEG.DAY_COUNT,
+      legNotional: [store::DB]OTC_SWAP_LEG.LEG_NOTIONAL,
+      legCurrency: [store::DB]OTC_SWAP_LEG.LEG_CURRENCY
+   }
+
+   derivatives::OptionTerms: Relational
+   {
+      ~primaryKey ( [store::DB]OTC_OPTION_TERMS.OTC_ID )
+      ~mainTable [store::DB]OTC_OPTION_TERMS
+      otcId: [store::DB]OTC_OPTION_TERMS.OTC_ID,
+      optionStyle: [store::DB]OTC_OPTION_TERMS.OPTION_STYLE,
+      callPut: [store::DB]OTC_OPTION_TERMS.CALL_PUT,
+      strike: [store::DB]OTC_OPTION_TERMS.STRIKE,
+      premium: [store::DB]OTC_OPTION_TERMS.PREMIUM,
+      premiumCurrency: [store::DB]OTC_OPTION_TERMS.PREMIUM_CURRENCY,
+      expiryDate: [store::DB]OTC_OPTION_TERMS.EXPIRY_DATE,
+      underlyingTenor: [store::DB]OTC_OPTION_TERMS.UNDERLYING_TENOR,
+      barrierLevel: [store::DB]OTC_OPTION_TERMS.BARRIER_LEVEL,
+      barrierType: [store::DB]OTC_OPTION_TERMS.BARRIER_TYPE
+   }
+
+   // The ends NAME their source and target set ids. They have to: OtcTrade is mapped with
+   // an explicit set id, because a class with subtype sets needs one, and an unqualified end
+   // pointing at such a class compiles cleanly and then fails at plan generation with
+   //
+   //     meta::pure::router::store::routing::Void not supported!
+   //
+   // which names no association, no class and no set. The default set id of an unnamed class
+   // mapping is its package path with :: replaced by _, hence derivatives_SwapLeg.
+   derivatives::TradeLegs: Relational
+   {
+      AssociationMapping
+      (
+         legs[otcBase, derivatives_SwapLeg]: [store::DB]@OtcTrade_Leg,
+         trade[derivatives_SwapLeg, otcBase]: [store::DB]@OtcTrade_Leg
+      )
+   }
+
+   derivatives::TradeOptionTerms: Relational
+   {
+      AssociationMapping
+      (
+         optionTerms[otcBase, derivatives_OptionTerms]: [store::DB]@OtcTrade_OptionTerms,
+         optionTrade[derivatives_OptionTerms, otcBase]: [store::DB]@OtcTrade_OptionTerms
+      )
+   }
+)

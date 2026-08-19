@@ -731,6 +731,31 @@ def _guarded(f, ok, why, arity=1):
     return impl
 
 
+def _exact_sum(vals):
+    """Sum the way a DECIMAL column sums, not the way a float does.
+
+    Adding sixty coupons of 11.88 gives 712.8000000000001 in binary floating point and
+    712.80 in the database, because the column is DECIMAL(18,2) and the database adds
+    decimals exactly. The difference is invisible on a three-row fan-out and appears the
+    moment a real coupon schedule is aggregated -- which is what a thirty-year bond paying
+    semi-annually is for.
+
+    Summed as Decimal when every value is expressible as one, and left alone otherwise, so
+    a genuinely floating-point column (a price, a rate) is not silently rounded. This is not
+    deference to the engine: money adds exactly, and a corpus that sums it in binary is the
+    one that is wrong.
+    """
+    from decimal import Decimal, InvalidOperation
+    if not vals:
+        return 0
+    try:
+        total = sum((Decimal(str(v)) for v in vals), Decimal(0))
+    except (InvalidOperation, TypeError):
+        return sum(vals)
+    as_float = float(total)
+    return int(total) if all(isinstance(v, int) for v in vals) else as_float
+
+
 def _agg(f, empty=None):
     """An aggregate over a COLLECTION argument: the single argument is a list."""
     def impl(vals):
@@ -1104,7 +1129,7 @@ IMPL = {
     # The EMPTY case is stated, not left to fall out: sum of nothing is 0, but max of
     # nothing is absent rather than 0, and conflating the two is how an empty group starts
     # reporting a value it does not have.
-    "sum": _agg(sum, empty=0),
+    "sum": _agg(_exact_sum, empty=0),
     "max": _agg(max), "min": _agg(min),
     "average": _agg(lambda xs: sum(xs) / len(xs)),
     "count": lambda vals: len([v for v in (vals[0] if isinstance(vals[0], list) else vals)]),
@@ -1730,8 +1755,9 @@ _TOKEN = re.compile(
     r"|[\w:]+::\w+\.\w+"                      # enum literal, e.g. trading::Side.BUY
     r"|\$\w+(?:\.\w+)*"                        # $var, $var.path.to.prop
     r"|'[^']*'"                                  # string literal
+    r"|\w+(?=\()"                                # a FUNCTION name, e.g. dateDiff(
     r"|<=|>=|==|!=|<|>"
-    r"|[-+*/()]|-?\d+\.\d+|-?\d+)")
+    r"|[-+*/(),]|-?\d+\.\d+|-?\d+)")
 
 
 def _tokenise(expr: str) -> list[str]:
@@ -1823,6 +1849,23 @@ class _Eval:
 
     def factor(self):
         tok = self.take()
+        # A FUNCTION CALL. Derived properties call the library all the time -- a tenor is a
+        # dateDiff, a label is a toUpper -- and the grammar accepted only arithmetic, so any
+        # such property was Unsupported and its class could carry no derived property at all.
+        # Dispatched into the same registry every other function goes through, so a function
+        # the oracle refuses is refused here too rather than quietly evaluated differently.
+        if tok and re.fullmatch(r"\w+", tok) and not tok[0].isdigit() \
+                and self.peek() == "(":
+            self.take()                                   # '('
+            args = []
+            if self.peek() != ")":
+                args.append(self.expr())
+                while self.peek() == ",":
+                    self.take()
+                    args.append(self.expr())
+            if self.take() != ")":
+                raise Unsupported(f"unbalanced parentheses in call to {tok}")
+            return _dynafunction(tok, args)
         if tok == "(":
             v = self.expr()
             if self.take() != ")":
@@ -2107,7 +2150,7 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
         for name, src, fn in spec.aggs:
             vals = [m[src] for m in members if m[src] is not None]
             row[name] = (len(vals) if fn == "count"
-                         else sum(vals) if fn == "sum"
+                         else _exact_sum(vals) if fn == "sum"
                          else max(vals) if fn == "max"
                          else min(vals) if fn == "min" else None)
             if fn != "count" and not vals:

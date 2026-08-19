@@ -326,6 +326,222 @@ def _confluence_spec():
 CONFLUENCE = _confluence_spec()
 
 
+def _fixed_income_specs():
+    """Queries a fixed-income desk actually runs, over the coupon schedule.
+
+    Written by hand rather than generated because the point is that they are the REAL
+    questions: what is scheduled, what has been paid, what is still owed, and which
+    securities have holes in their payment history. A generated projection of five columns
+    off DebtSecurity would exercise the same joins and ask nothing.
+    """
+    out = []
+
+    # The securities master, with the derived annual coupon a desk quotes rather than the
+    # rate, and the same figure converted at a supplied rate. The perpetual's maturityDate
+    # is null and has to survive the projection.
+    terms = Spec("stress::FI0_SecurityTerms", "/stress/fi0",
+                 "Debt securities with their terms, the derived annual coupon, and that "
+                 "coupon converted at a caller-supplied FX rate. One security is perpetual, "
+                 "so maturityDate is null for it.",
+                 "fixedincome::DebtSecurity")
+    terms.projections = [Proj("securityId", ["securityId"]),
+                         Proj("description", ["description"]),
+                         Proj("issuerName", ["issuerName"]),
+                         Proj("currency", ["currency"]),
+                         Proj("couponRate", ["couponRate"]),
+                         Proj("maturityDate", ["maturityDate"]),
+                         Proj("annualCoupon", ["annualCoupon"]),
+                         Proj("annualCouponGbp", ["annualCouponIn"], args=[0.79])]
+    terms.sort = ("securityId", False)
+    out.append(terms)
+
+    # The schedule itself, deepest-fanning join in the corpus: 130 periods over 6 securities.
+    # Sorted by security then period so the order is the schedule's own.
+    sched = Spec("stress::FI1_CouponSchedule", "/stress/fi1",
+                 "The accrual schedule: every coupon period with its accrual window, day "
+                 "count and amount, and the payment against it where one exists. 130 rows "
+                 "over 6 securities -- the deepest fan-out in the corpus -- and 87 of them "
+                 "have no payment because the coupon is not due yet.",
+                 "fixedincome::CouponPeriod")
+    sched.projections = [Proj("periodId", ["periodId"]),
+                         Proj("securityId", ["securityId"]),
+                         Proj("periodNumber", ["periodNumber"]),
+                         Proj("accrualStart", ["accrualStartDate"]),
+                         Proj("accrualEnd", ["accrualEndDate"]),
+                         Proj("accrualDays", ["accrualDays"]),
+                         Proj("couponAmount", ["couponAmount"]),
+                         Proj("dailyAccrual", ["dailyAccrual"]),
+                         Proj("netPaid", ["payment", "netAmount"])]
+    sched.sort = ("periodId", False)
+    out.append(sched)
+
+    # What a coupon actually pays after withholding, by issuer domicile. The German and
+    # British issuers withhold; the US ones do not, so gross and net differ on some rows and
+    # not others -- which is the case a `gross - tax = net` assertion has to see both of.
+    paid = Spec("stress::FI2_CouponPayments", "/stress/fi2",
+                "Coupons actually paid, with withholding. Withholding is a function of the "
+                "issuer's domicile, so gross and net differ for the German and British "
+                "issuers and agree for the US ones.",
+                "fixedincome::CouponPayment")
+    paid.projections = [Proj("paymentId", ["paymentId"]),
+                        Proj("paymentDate", ["paymentDate"]),
+                        Proj("grossAmount", ["grossAmount"]),
+                        Proj("withholdingTax", ["withholdingTax"]),
+                        Proj("netAmount", ["netAmount"]),
+                        Proj("currency", ["currency"]),
+                        Proj("issuer", ["period", "security", "issuerName"])]
+    paid.sort = ("paymentId", False)
+    out.append(paid)
+
+    # Per-security totals. groupBy over a 60-deep fan-out, which is where an aggregate that
+    # double-counts a join shows up and a 3-row fan-out hides it.
+    totals = Spec("stress::FI3_ScheduleTotals", "/stress/fi3",
+                  "Scheduled coupon totals per security: how many periods, how much is "
+                  "scheduled in total. Aggregated over a fan-out sixty deep at its widest, "
+                  "which is where an aggregate that double-counts its join stops hiding.",
+                  "fixedincome::CouponPeriod")
+    totals.projections = [Proj("securityId", ["securityId"]),
+                          Proj("couponAmount", ["couponAmount"])]
+    totals.group_by = ["securityId"]
+    totals.aggs = [("periodCount", "couponAmount", "count"),
+                   ("totalScheduled", "couponAmount", "sum"),
+                   ("largestCoupon", "couponAmount", "max")]
+    totals.sort = ("securityId", False)
+    out.append(totals)
+
+    # Which periods have no payment. isEmpty over a zero-or-one end, where the empty half is
+    # the majority rather than an edge case.
+    unpaid = Spec("stress::FI4_UnpaidPeriods", "/stress/fi4",
+                  "Coupon periods with no payment against them. The empty half of this "
+                  "association is 87 of 130 rows, so emptiness is the common case here "
+                  "rather than the exception it is everywhere else in the corpus.",
+                  "fixedincome::CouponPeriod")
+    unpaid.projections = [Proj("periodId", ["periodId"]),
+                          Proj("paymentDate", ["paymentDate"]),
+                          Proj("isPaid", ["isPaid"]),
+                          Proj("awaitingPayment", ["payment"], agg="isEmpty")]
+    unpaid.sort = ("periodId", False)
+    out.append(unpaid)
+    return out
+
+
+FIXED_INCOME = _fixed_income_specs()
+
+
+def _otc_specs():
+    """The questions a derivatives middle office actually asks.
+
+    Not projections chosen to exercise a join -- the trade book, the leg detail, the risk
+    roll-up by asset class, and the compliance query that looks for uncollateralised trades
+    with no master agreement. Each is a real report, and each happens to stack several
+    constructs because real reports do.
+    """
+    out = []
+
+    book = Spec("stress::OT0_TradeBook", "/stress/ot0",
+                "The OTC book: every trade with its tenor and its notional converted at a "
+                "supplied rate. clearingHouse and masterAgreement are null for the "
+                "bilateral trades, which is most of them.",
+                "derivatives::OtcTrade")
+    book.projections = [Proj("otcId", ["otcId"]),
+                        Proj("productType", ["productType"]),
+                        Proj("assetClass", ["assetClass"]),
+                        Proj("notional", ["notional"]),
+                        Proj("currency", ["currency"]),
+                        Proj("clearingHouse", ["clearingHouse"]),
+                        Proj("masterAgreement", ["masterAgreement"]),
+                        Proj("tenorYears", ["tenorYears"]),
+                        Proj("notionalGbp", ["notionalIn"], args=[0.79])]
+    book.sort = ("otcId", False)
+    out.append(book)
+
+    # Leg detail, navigating back up to the parent trade. A basis swap has a floating leg on
+    # both sides, so fixedRate is null on both -- the row that breaks a "one leg is fixed"
+    # assumption.
+    legs = Spec("stress::OT1_SwapLegs", "/stress/ot1",
+                "Swap legs with their parent's product type. Fixed legs carry a rate and "
+                "no index; floating legs the reverse; a basis swap has floating on BOTH "
+                "sides, so neither of its legs has a fixed rate.",
+                "derivatives::SwapLeg")
+    legs.projections = [Proj("legId", ["legId"]),
+                        Proj("legNumber", ["legNumber"]),
+                        Proj("legType", ["legType"]),
+                        Proj("payReceive", ["payReceive"]),
+                        Proj("fixedRate", ["fixedRate"]),
+                        Proj("floatingIndex", ["floatingIndex"]),
+                        Proj("spreadBp", ["spreadBp"]),
+                        Proj("dayCount", ["dayCount"]),
+                        Proj("productType", ["trade", "productType"]),
+                        Proj("counterpartyId", ["trade", "counterpartyId"])]
+    legs.sort = ("legId", False)
+    out.append(legs)
+
+    # Risk roll-up. Notional by asset class is the first slide of every derivatives risk
+    # pack, and it aggregates over a discriminated taxonomy rather than a flat table.
+    risk = Spec("stress::OT2_NotionalByAssetClass", "/stress/ot2",
+                "Notional by asset class and clearing status: the roll-up a derivatives "
+                "risk pack opens with.",
+                "derivatives::OtcTrade")
+    risk.projections = [Proj("assetClass", ["assetClass"]),
+                        Proj("clearingStatus", ["clearingStatus"]),
+                        Proj("notional", ["notional"])]
+    risk.group_by = ["assetClass", "clearingStatus"]
+    risk.aggs = [("tradeCount", "notional", "count"),
+                 ("totalNotional", "notional", "sum"),
+                 ("largestTrade", "notional", "max")]
+    risk.sort = ("assetClass", False)
+    out.append(risk)
+
+    # The subtype query. This is what the thirteen discriminator filters are FOR: asking for
+    # swaps and getting swaps. If a ~filter is wrong the set returns the whole table, and the
+    # only way to notice is to ask a subclass for its own rows and count them.
+    irs = Spec("stress::OT3_InterestRateSwaps", "/stress/ot3",
+               "Interest rate swaps only, with the DV01 a rates desk sizes them by. The "
+               "discriminator is the point: if the ~filter were wrong this would return all "
+               "thirteen OTC trades rather than the one that is an IRS.",
+               "derivatives::InterestRateSwap")
+    irs.projections = [Proj("otcId", ["otcId"]),
+                       Proj("productType", ["productType"]),
+                       Proj("notional", ["notional"]),
+                       Proj("tenorYears", ["tenorYears"]),
+                       Proj("dv01", ["dv01"])]
+    irs.sort = ("otcId", False)
+    out.append(irs)
+
+    # Credit, where the subtype's own risk measure is a different formula entirely.
+    cds = Spec("stress::OT4_CreditProtection", "/stress/ot4",
+               "Single-name CDS with loss-given-default at the standard 40% recovery. A "
+               "different subtype, a different risk measure, the same base table.",
+               "derivatives::CreditDefaultSwap")
+    cds.projections = [Proj("otcId", ["otcId"]),
+                       Proj("counterpartyId", ["counterpartyId"]),
+                       Proj("notional", ["notional"]),
+                       Proj("lossGivenDefault", ["lossGivenDefault"])]
+    cds.sort = ("otcId", False)
+    out.append(cds)
+
+    # Compliance: uncollateralised trades, and which of them have no master agreement. A real
+    # query, and it lands on the row seeded with three genuinely absent optional columns.
+    compliance = Spec("stress::OT5_UncollateralisedTrades", "/stress/ot5",
+                      "Uncollateralised OTC trades and whether they have option terms. The "
+                      "commodity swap has no clearing house and no master agreement -- three "
+                      "optional columns genuinely absent on one row.",
+                      "derivatives::OtcTrade")
+    compliance.projections = [Proj("otcId", ["otcId"]),
+                              Proj("productType", ["productType"]),
+                              Proj("collateralised", ["collateralised"]),
+                              Proj("masterAgreement", ["masterAgreement"]),
+                              Proj("noOptionTerms", ["optionTerms"], agg="isEmpty")]
+    # `==`, not `=`. The corpus's predicate vocabulary is Pure's, and `=` is not in it.
+    compliance.filters = [Pred(["collateralised"], "==", False)]
+    compliance.sort = ("otcId", False)
+    out.append(compliance)
+    return out
+
+
+OTC = _otc_specs()
+
+
 def _m2m_enum_probe():
     """The same chain plus the enum-mapped property. Quarantined: F12."""
     s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
@@ -763,7 +979,7 @@ DERIVED = [
 
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

@@ -195,6 +195,63 @@ Database store::DB
     // fallback FK is a SEPARATE column.
     Table TRADE_FLAT_PARTIAL (TRADE_ID VARCHAR(200) PRIMARY KEY, NOTIONAL DOUBLE, STATUS VARCHAR(200), CPTY_FK VARCHAR(200), CPTY_ID_INLINE VARCHAR(200), CPTY_NAME_INLINE VARCHAR(200), CPTY_LEI_INLINE VARCHAR(200))
 
+    // ---- OTC derivatives: shared economics, per-family extensions ----
+    //
+    // One table of the terms every OTC trade has -- counterparty, notional, dates, clearing
+    // -- with a PRODUCT_TYPE discriminator, and the parts that differ per family in their
+    // own tables. A swap has legs and an option has a strike; neither has the other's
+    // columns, and a single wide table would carry forty nulls a row.
+    //
+    // This is how a firm models a product taxonomy, and it is why thirteen product classes
+    // need three tables rather than thirteen.
+    Table OTC_TRADE (OTC_ID VARCHAR(12) PRIMARY KEY, PRODUCT_TYPE VARCHAR(20),
+        ASSET_CLASS VARCHAR(12), COUNTERPARTY_ID VARCHAR(12), TRADE_DATE DATE,
+        EFFECTIVE_DATE DATE, TERMINATION_DATE DATE, NOTIONAL DECIMAL(18,2),
+        CURRENCY VARCHAR(3), CLEARING_STATUS VARCHAR(12), CLEARING_HOUSE VARCHAR(10),
+        MASTER_AGREEMENT VARCHAR(12), COLLATERALISED BIT)
+
+    // Two legs for a swap, none for an option. Pay/receive is from the firm's side, and a
+    // basis swap has a floating leg on BOTH sides -- the case a "one leg is fixed"
+    // assumption gets wrong.
+    Table OTC_SWAP_LEG (LEG_ID VARCHAR(16) PRIMARY KEY, OTC_ID VARCHAR(12),
+        LEG_NUMBER INTEGER, LEG_TYPE VARCHAR(12), PAY_RECEIVE VARCHAR(8),
+        FIXED_RATE DECIMAL(9,4), FLOATING_INDEX VARCHAR(24), SPREAD_BP DECIMAL(9,4),
+        RESET_FREQUENCY VARCHAR(14), PAYMENT_FREQUENCY VARCHAR(14), DAY_COUNT VARCHAR(10),
+        LEG_NOTIONAL DECIMAL(18,2), LEG_CURRENCY VARCHAR(3))
+
+    // Three of thirteen trades have option terms, so this join is empty for the other ten.
+    Table OTC_OPTION_TERMS (OTC_ID VARCHAR(12) PRIMARY KEY, OPTION_STYLE VARCHAR(12),
+        CALL_PUT VARCHAR(8), STRIKE DECIMAL(12,4), PREMIUM DECIMAL(18,2),
+        PREMIUM_CURRENCY VARCHAR(3), EXPIRY_DATE DATE, UNDERLYING_TENOR VARCHAR(6),
+        BARRIER_LEVEL DECIMAL(12,4), BARRIER_TYPE VARCHAR(16))
+
+    // ---- Fixed income: a security's coupon schedule and what has been paid ----
+    //
+    // The deepest one-to-many in the corpus, and it is deep because a coupon schedule
+    // genuinely is: a thirty-year Treasury paying semi-annually has sixty accrual periods.
+    // Everything else here fans out three or four ways, which is enough to exercise a join
+    // and not enough to be a schedule.
+    //
+    // COUPON_PERIOD is the accrual calendar and exists for the whole life of the bond;
+    // COUPON_PAYMENT exists only where a coupon has actually been paid, so the outer join
+    // is empty for every future period. That hole is the shape a real query has to handle,
+    // not a NULL put there to be awkward.
+    Table DEBT_SECURITY (SECURITY_ID VARCHAR(12) PRIMARY KEY, DESCRIPTION VARCHAR(120),
+        ISSUER_NAME VARCHAR(80), ISSUER_COUNTRY VARCHAR(2), CURRENCY VARCHAR(3),
+        COUPON_RATE DECIMAL(9,4), COUPON_FREQUENCY INTEGER, DAY_COUNT_BASIS VARCHAR(10),
+        FACE_VALUE DECIMAL(18,2), ISSUE_DATE DATE, MATURITY_DATE DATE,
+        SENIORITY VARCHAR(20), IS_CALLABLE BIT, WITHHOLDING_RATE DECIMAL(6,4))
+
+    Table COUPON_PERIOD (PERIOD_ID VARCHAR(20) PRIMARY KEY, SECURITY_ID VARCHAR(12),
+        PERIOD_NUMBER INTEGER, ACCRUAL_START_DATE DATE, ACCRUAL_END_DATE DATE,
+        PAYMENT_DATE DATE, ACCRUAL_DAYS INTEGER, NOTIONAL DECIMAL(18,2),
+        COUPON_RATE DECIMAL(9,4), COUPON_AMOUNT DECIMAL(18,2), IS_PAID BIT)
+
+    Table COUPON_PAYMENT (PAYMENT_ID VARCHAR(24) PRIMARY KEY, PERIOD_ID VARCHAR(20),
+        SECURITY_ID VARCHAR(12), PAYMENT_DATE DATE, GROSS_AMOUNT DECIMAL(18,2),
+        WITHHOLDING_TAX DECIMAL(18,2), NET_AMOUNT DECIMAL(18,2), CURRENCY VARCHAR(3),
+        STATUS VARCHAR(20))
+
     // ---- L3: business-temporal (SCD2) reference data ----
     // A counterparty's credit rating changes over time and the history is kept. This is
     // the single most common temporal shape in a bank, and it is the one that makes
@@ -584,6 +641,31 @@ Database store::DB
     // three, so one book resolves to nothing -- a NULL to-one, which is the case the corpus
     // wants reachable rather than a tidy one-to-one.
     Join Book_Rollup(BOOK.BOOK_ID = NOTIONAL_BY_BOOK.BOOK_ID)
+
+    // The coupon schedule. Security to period is one-to-sixty at the deep end; period to
+    // payment is one-to-zero-or-one, and the zero half is every coupon not yet due.
+    Join OtcTrade_Leg(OTC_TRADE.OTC_ID = OTC_SWAP_LEG.OTC_ID)
+    Join OtcTrade_OptionTerms(OTC_TRADE.OTC_ID = OTC_OPTION_TERMS.OTC_ID)
+    Join OtcTrade_Counterparty(OTC_TRADE.COUNTERPARTY_ID = COUNTERPARTY.COUNTERPARTY_ID)
+
+    // The product-type discriminators. One per class in the taxonomy, which is what makes
+    // thirteen subclasses over one table possible.
+    Filter OtcIrsRows(OTC_TRADE.PRODUCT_TYPE = 'IRS')
+    Filter OtcOisRows(OTC_TRADE.PRODUCT_TYPE = 'OIS')
+    Filter OtcBasisSwapRows(OTC_TRADE.PRODUCT_TYPE = 'BASIS_SWAP')
+    Filter OtcFraRows(OTC_TRADE.PRODUCT_TYPE = 'FRA')
+    Filter OtcSwaptionRows(OTC_TRADE.PRODUCT_TYPE = 'SWAPTION')
+    Filter OtcCapRows(OTC_TRADE.PRODUCT_TYPE = 'CAP')
+    Filter OtcCdsRows(OTC_TRADE.PRODUCT_TYPE = 'CDS')
+    Filter OtcCdsIndexRows(OTC_TRADE.PRODUCT_TYPE = 'CDS_INDEX')
+    Filter OtcNdfRows(OTC_TRADE.PRODUCT_TYPE = 'NDF')
+    Filter OtcFxOptionRows(OTC_TRADE.PRODUCT_TYPE = 'FX_OPTION')
+    Filter OtcEquitySwapRows(OTC_TRADE.PRODUCT_TYPE = 'EQUITY_SWAP')
+    Filter OtcVarianceSwapRows(OTC_TRADE.PRODUCT_TYPE = 'VARIANCE_SWAP')
+    Filter OtcCommoditySwapRows(OTC_TRADE.PRODUCT_TYPE = 'COMMODITY_SWAP')
+
+    Join Security_CouponPeriod(DEBT_SECURITY.SECURITY_ID = COUPON_PERIOD.SECURITY_ID)
+    Join CouponPeriod_Payment(COUPON_PERIOD.PERIOD_ID = COUPON_PAYMENT.PERIOD_ID)
     // Reach the MILESTONED tables from the entities they describe. Both were islands, so the
     // only services carrying `milestoning` and `composite PK` were the nine rooted at them,
     // and each construct sat at five of its forty possible pairs. The FROM_Z/THRU_Z columns

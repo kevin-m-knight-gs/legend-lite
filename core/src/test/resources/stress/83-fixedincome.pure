@@ -1,0 +1,162 @@
+###Pure
+// Fixed income: a debt security, its coupon schedule, and what has actually been paid.
+//
+// The corpus already had `products::Bond`, but only as a row in a securities master. What it
+// did not have is the thing that makes fixed income fixed income: a SCHEDULE. A thirty-year
+// Treasury paying semi-annually has sixty accrual periods, each with its own start, end,
+// day count and amount, and a payment against it only once the date has passed.
+//
+// That gives the corpus three things it was short of:
+//
+//   * a genuinely deep one-to-many. Everything else here fans out three or four ways; this
+//     fans out sixty, and 130 coupon periods make COUPON_PERIOD the largest table in the
+//     corpus by a factor of six.
+//   * a real zero-or-one. Every future coupon has no payment row, so the outer join is empty
+//     for 87 of 130 periods -- a hole that exists because the coupon is not due yet, not
+//     because a NULL was placed to be awkward.
+//   * a NULL that means something. The Barclays AT1 is perpetual: MATURITY_DATE is null
+//     because there is no maturity, and any query about time to maturity has to survive it.
+Class fixedincome::DebtSecurity
+{
+   securityId: String[1];
+   description: String[1];
+   issuerName: String[1];
+   issuerCountry: String[1];
+   currency: String[1];
+   couponRate: Float[1];
+   couponFrequency: Integer[1];
+   dayCountBasis: String[1];
+   faceValue: Float[1];
+   issueDate: StrictDate[1];
+   // Null for a perpetual. Not [1].
+   maturityDate: StrictDate[0..1];
+   seniority: String[1];
+   isCallable: Boolean[1];
+   withholdingRate: Float[1];
+
+   // The annual coupon in currency, which is what a desk quotes rather than the rate.
+   annualCoupon() { $this.faceValue * $this.couponRate / 100.0 } : Float[1];
+   // A qualified property: the same coupon converted at a rate the caller supplies. FX is
+   // never a property of the bond, so it has to be an argument.
+   annualCouponIn(fxRate: Float[1]) { ($this.faceValue * $this.couponRate / 100.0) * $fxRate } : Float[1];
+}
+
+Class fixedincome::CouponPeriod
+{
+   periodId: String[1];
+   securityId: String[1];
+   periodNumber: Integer[1];
+   accrualStartDate: StrictDate[1];
+   accrualEndDate: StrictDate[1];
+   paymentDate: StrictDate[1];
+   accrualDays: Integer[1];
+   notional: Float[1];
+   couponRate: Float[1];
+   couponAmount: Float[1];
+   isPaid: Boolean[1];
+
+   // The daily accrual on this period -- what an accrued-interest calculation multiplies by
+   // elapsed days. Derived because it is arithmetic on the row, not a stored figure.
+   dailyAccrual() { $this.couponAmount / $this.accrualDays } : Float[1];
+}
+
+Class fixedincome::CouponPayment
+{
+   paymentId: String[1];
+   periodId: String[1];
+   securityId: String[1];
+   paymentDate: StrictDate[1];
+   grossAmount: Float[1];
+   withholdingTax: Float[1];
+   netAmount: Float[1];
+   currency: String[1];
+   status: String[1];
+}
+
+// One security, many periods. The deep end is sixty.
+Association fixedincome::SecurityCoupons
+{
+   security: fixedincome::DebtSecurity[0..1];
+   couponPeriods: fixedincome::CouponPeriod[*];
+}
+
+// One period, zero or one payment. The zero half is every coupon not yet due -- 87 of 130.
+Association fixedincome::PeriodPayment
+{
+   period: fixedincome::CouponPeriod[0..1];
+   payment: fixedincome::CouponPayment[0..1];
+}
+
+###Mapping
+Mapping fixedincome::FixedIncomeMapping
+(
+   fixedincome::DebtSecurity: Relational
+   {
+      ~primaryKey ( [store::DB]DEBT_SECURITY.SECURITY_ID )
+      ~mainTable [store::DB]DEBT_SECURITY
+      securityId: [store::DB]DEBT_SECURITY.SECURITY_ID,
+      description: [store::DB]DEBT_SECURITY.DESCRIPTION,
+      issuerName: [store::DB]DEBT_SECURITY.ISSUER_NAME,
+      issuerCountry: [store::DB]DEBT_SECURITY.ISSUER_COUNTRY,
+      currency: [store::DB]DEBT_SECURITY.CURRENCY,
+      couponRate: [store::DB]DEBT_SECURITY.COUPON_RATE,
+      couponFrequency: [store::DB]DEBT_SECURITY.COUPON_FREQUENCY,
+      dayCountBasis: [store::DB]DEBT_SECURITY.DAY_COUNT_BASIS,
+      faceValue: [store::DB]DEBT_SECURITY.FACE_VALUE,
+      issueDate: [store::DB]DEBT_SECURITY.ISSUE_DATE,
+      maturityDate: [store::DB]DEBT_SECURITY.MATURITY_DATE,
+      seniority: [store::DB]DEBT_SECURITY.SENIORITY,
+      isCallable: [store::DB]DEBT_SECURITY.IS_CALLABLE,
+      withholdingRate: [store::DB]DEBT_SECURITY.WITHHOLDING_RATE
+   }
+
+   fixedincome::CouponPeriod: Relational
+   {
+      ~primaryKey ( [store::DB]COUPON_PERIOD.PERIOD_ID )
+      ~mainTable [store::DB]COUPON_PERIOD
+      periodId: [store::DB]COUPON_PERIOD.PERIOD_ID,
+      securityId: [store::DB]COUPON_PERIOD.SECURITY_ID,
+      periodNumber: [store::DB]COUPON_PERIOD.PERIOD_NUMBER,
+      accrualStartDate: [store::DB]COUPON_PERIOD.ACCRUAL_START_DATE,
+      accrualEndDate: [store::DB]COUPON_PERIOD.ACCRUAL_END_DATE,
+      paymentDate: [store::DB]COUPON_PERIOD.PAYMENT_DATE,
+      accrualDays: [store::DB]COUPON_PERIOD.ACCRUAL_DAYS,
+      notional: [store::DB]COUPON_PERIOD.NOTIONAL,
+      couponRate: [store::DB]COUPON_PERIOD.COUPON_RATE,
+      couponAmount: [store::DB]COUPON_PERIOD.COUPON_AMOUNT,
+      isPaid: [store::DB]COUPON_PERIOD.IS_PAID
+   }
+
+   fixedincome::CouponPayment: Relational
+   {
+      ~primaryKey ( [store::DB]COUPON_PAYMENT.PAYMENT_ID )
+      ~mainTable [store::DB]COUPON_PAYMENT
+      paymentId: [store::DB]COUPON_PAYMENT.PAYMENT_ID,
+      periodId: [store::DB]COUPON_PAYMENT.PERIOD_ID,
+      securityId: [store::DB]COUPON_PAYMENT.SECURITY_ID,
+      paymentDate: [store::DB]COUPON_PAYMENT.PAYMENT_DATE,
+      grossAmount: [store::DB]COUPON_PAYMENT.GROSS_AMOUNT,
+      withholdingTax: [store::DB]COUPON_PAYMENT.WITHHOLDING_TAX,
+      netAmount: [store::DB]COUPON_PAYMENT.NET_AMOUNT,
+      currency: [store::DB]COUPON_PAYMENT.CURRENCY,
+      status: [store::DB]COUPON_PAYMENT.STATUS
+   }
+
+   fixedincome::SecurityCoupons: Relational
+   {
+      AssociationMapping
+      (
+         couponPeriods: [store::DB]@Security_CouponPeriod,
+         security: [store::DB]@Security_CouponPeriod
+      )
+   }
+
+   fixedincome::PeriodPayment: Relational
+   {
+      AssociationMapping
+      (
+         payment: [store::DB]@CouponPeriod_Payment,
+         period: [store::DB]@CouponPeriod_Payment
+      )
+   }
+)

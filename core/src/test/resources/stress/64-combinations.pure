@@ -2776,8 +2776,8 @@ Mapping combo::ComboMapping
    {
       AssociationMapping
       (
-         summary[c0, summary]: [combo::ComboDB]@Combo_Summary,
-         summarised[summary, c0]: [combo::ComboDB]@Combo_Summary
+         summary[c0, combo_Summary]: [combo::ComboDB]@Combo_Summary,
+         summarised[combo_Summary, c0]: [combo::ComboDB]@Combo_Summary
       )
    }
 
