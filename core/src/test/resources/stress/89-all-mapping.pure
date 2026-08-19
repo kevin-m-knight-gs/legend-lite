@@ -34,6 +34,9 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include messaging::MessagingMapping
+    include esg::EsgMapping
+    include custody::CustodyMapping
     include portfolios::PortfoliosMapping
     include taxregimes::TaxregimesMapping
     include benchmarks::BenchmarksMapping
