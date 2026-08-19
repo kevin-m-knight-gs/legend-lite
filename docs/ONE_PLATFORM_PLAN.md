@@ -535,6 +535,20 @@ Relation **PASS=212/287, TRUE 28→24**. Channel-B totals after four slices:
 **919/1,050**, TRUE census 49→28, every row named. Referee byte-identical;
 core 4166; ALLGATES GREEN.
 
+*BURN QUEUE SLICE 5 (2026-08-19, user-prompted architecture check):* the user asked
+whether the formatting fixes were adapter-compensation (the ExecuteLegendLiteQuery
+disease) or platform. Adjudication: they are W2 — toString's #TDS text is spec'd by
+engine toString.pure and COMPOSED BY THE DATABASE; every product caller gets it. But
+the question caught a real forming smell: tdsCell and pctCell were DRIFTING TWINS
+with duplicated per-type spelling arms (the drift is exactly why tdsCell lacked the
+DateTime arm pctCell carried). Fixed structurally: ONE print-form owner
+(dateTimeText/strictDateText/dateOnly helpers); each renderer keeps only its
+channel-specific quoting. The restored DateTime arm burned the date min/max extend,
+dayOfWeek, and asOf-temporal rows in one stroke. Standard **PASS=202/204, TRUE 4→1
+(only the columns() reflection pair remains)**, Relation **PASS=214/287, TRUE 22**.
+Totals: **924/1,050**, TRUE census 49→23. Referee byte-identical; core 4166;
+ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

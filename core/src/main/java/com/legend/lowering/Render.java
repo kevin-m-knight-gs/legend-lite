@@ -401,6 +401,40 @@ public final class Render {
     }
 
     /** The engine {@code s()} cell (s.pure:23-38). */
+    /** THE per-type cell PRINT FORMS — one owner (audit 2026-08-19:
+     * tdsCell and pctCell were drifting twins; tdsCell lacked the
+     * DateTime arm pctCell carried — the third-implementation disease
+     * in miniature). Channel-specific QUOTING/ESCAPING stays with each
+     * renderer; the SPELLING of a value lives here once. */
+    private static SqlExpr dateTimeText(SqlExpr c) {
+        // fixed THREE millisecond digits + '+0000' — the engine's own
+        // DateTime wire spelling (measured in the F4.4 attempt)
+        return cat(
+                SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                        new SqlExpr.FormatLit(
+                                com.legend.sql.DateFmt.ISO_DOT)),
+                SqlExpr.Call.of(SqlFn.SUBSTRING,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                                new SqlExpr.FormatLit(List.of(
+                                        com.legend.sql.DateFmt.Part
+                                                .SUBSEC_MICRO))),
+                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
+                new SqlExpr.StringLit("+0000"));
+    }
+
+    private static SqlExpr strictDateText(SqlExpr c) {
+        return SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+    }
+
+    /** Whether the DATE-family value prints date-only (a DATE slot) or
+     * as a full DateTime. */
+    private static boolean dateOnly(Type t, @com.legend.Nullable SqlType slot) {
+        return t == Type.Primitive.STRICT_DATE
+                || (t == Type.Primitive.DATE
+                        && slot == SqlType.Scalar.DATE);
+    }
+
     private static SqlExpr tdsCell(SqlExpr c, Type t, SqlType slot) {
         boolean variant = t instanceof Type.ClassType vc
                 && com.legend.compiler.element.type.PlatformTypes
@@ -429,11 +463,14 @@ public final class Render {
                                     new SqlExpr.StringLit("\\'")),
                             new SqlExpr.StringLit("'")))),
                     c);
-        } else if (t == Type.Primitive.STRICT_DATE
-                || (t == Type.Primitive.DATE
-                        && slot == SqlType.Scalar.DATE)) {
-            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                    new SqlExpr.FormatLit(DateFmt.DATE));
+        } else if (dateOnly(t, slot)) {
+            rendered = strictDateText(c);
+        } else if (t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.DATE) {
+            // the missing arm the drift hid (witness testExtendMax/
+            // MinDate: raw '2026-01-07 00:00:00' where pure prints the
+            // ISO+ms+0000 form)
+            rendered = dateTimeText(c);
         } else if ((t == Type.Primitive.NUMBER
                         || t == Type.Primitive.FLOAT)
                 && (slot == null
@@ -682,26 +719,11 @@ public final class Render {
                             new SqlExpr.StringLit("\""),
                             new SqlExpr.StringLit("\"\"")),
                     new SqlExpr.StringLit("\""));
-        } else if (t == Type.Primitive.STRICT_DATE
-                || (t == Type.Primitive.DATE
-                        && slot == SqlType.Scalar.DATE)) {
-            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+        } else if (dateOnly(t, slot)) {
+            rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE) {
-            // fixed THREE millisecond digits + '+0000' (the deephaven
-            // parser's accepted form — measured in the F4.4 attempt)
-            rendered = cat(
-                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(
-                                    com.legend.sql.DateFmt.ISO_DOT)),
-                    SqlExpr.Call.of(SqlFn.SUBSTRING,
-                            SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                                    new SqlExpr.FormatLit(List.of(
-                                            com.legend.sql.DateFmt.Part
-                                                    .SUBSEC_MICRO))),
-                            new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
-                    new SqlExpr.StringLit("+0000"));
+            rendered = dateTimeText(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING

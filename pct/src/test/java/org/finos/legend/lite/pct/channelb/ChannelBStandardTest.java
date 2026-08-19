@@ -69,14 +69,13 @@ class ChannelBStandardTest {
         // slices.
         assertTrue(out.size() == 204,
                 "standard discovery moved: " + out.size() + " != 204");
-        assertTrue(c.pass() >= 199, "standard PASS fell: " + c.pass());
-        // 24→20 (slice 1) →17 (slice 2) →5 (slice 3: the DECIMAL-wire
-        // float spelling — trailing zeros were masking 12 CORRECT
-        // window tests). Remaining: date min/max extend, dayOfWeek,
-        // columns() ×2.
-        assertTrue(c.wireBug() <= 5,
+        assertTrue(c.pass() >= 202, "standard PASS fell: " + c.pass());
+        // 24→20→17→5→2 (slice 5: the ONE-OWNER print-form unification
+        // restored the DateTime arm the tdsCell/pctCell drift had
+        // dropped). Remaining: the columns() reflection pair only.
+        assertTrue(c.wireBug() <= 2,
                 "standard WIRE-BUG census grew: " + c.wireBug());
-        assertTrue(c.trueWireBug() <= 4,
+        assertTrue(c.trueWireBug() <= 1,
                 "standard TRUE wire-bug census grew: " + c.trueWireBug());
     }
 }
