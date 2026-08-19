@@ -51,7 +51,11 @@ class ParserBoundaryArchTest {
             "com/legend/testing/Platform.java",
             "com/legend/rcorpus/Runner.java",
             "com/legend/harness/EngineTestExecutorTest.java",
-            "com/legend/equivalence/Surfaces.java");
+            "com/legend/equivalence/Surfaces.java",
+            // Phase 4 entry gate: channel B's front door IS a dialect
+            // decision — the PCT sources are the M3 surface, parsed at
+            // LEGEND_PLATFORM (the census names that fact deliberately)
+            "com/legend/equivalence/PctParseCensusTest.java");
 
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {

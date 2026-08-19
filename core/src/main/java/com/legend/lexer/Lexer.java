@@ -511,6 +511,15 @@ public final class Lexer {
         }
 
         char next = source.charAt(pos);
+        // NEGATIVE-year date literal (%-799997984-02-29 — m3 pure's BC
+        // dates, PCT adjust.pure): '%-' before a digit joins the date
+        // token. Previously INVALID, so no existing lex is changed.
+        if (next == '-' && pos + 1 < length
+                && source.charAt(pos + 1) >= '0'
+                && source.charAt(pos + 1) <= '9') {
+            pos++;
+            next = source.charAt(pos);
+        }
         if (next >= '0' && next <= '9') {
             boolean hasDash = false;
             boolean hasColon = false;

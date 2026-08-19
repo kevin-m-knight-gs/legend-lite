@@ -900,9 +900,22 @@ public final class ElementParser implements TokenStreamCursor {
         if (peek() != TokenType.LESS_THAN) return List.of();
         advance(); // consume <
         List<String> params = new ArrayList<>();
-        params.add(parseIdentifier());
-        while (match(TokenType.COMMA)) {
+        // M3 DIALECT: `<T|m>` / `<|m>` — multiplicity parameters after
+        // the pipe (PCT map.pure's M_MultiplicityHolder<|m>). The names
+        // join the parameter list (the checker's late-binding treats
+        // them nominally); the exact-engine surface refuses at the
+        // caller's gate as before.
+        if (peek() != TokenType.PIPE) {
             params.add(parseIdentifier());
+            while (match(TokenType.COMMA)) {
+                params.add(parseIdentifier());
+            }
+        }
+        if (!dialect.refusesPlatformDialect() && match(TokenType.PIPE)) {
+            params.add(parseIdentifier());
+            while (match(TokenType.COMMA)) {
+                params.add(parseIdentifier());
+            }
         }
         expect(TokenType.GREATER_THAN);
         return params;
@@ -2683,6 +2696,24 @@ public final class ElementParser implements TokenStreamCursor {
         // Unquote AND unescape: the wire carries the LOGICAL string ("it's", not "it\\'s") —
         // quote-stripping alone left escapes behind (harness DIFF on dateExtension.pure).
         String value = TokenStreamCursor.unquoteAndUnescape(rawValue, this);
+        // M3 DIALECT (Phase 4 entry gate — the PCT sources spell long doc
+        // strings as 'a' + 'b' + ...): fold the concatenation at parse;
+        // the exact-engine surface refuses engine-verbatim
+        if (!dialect.refusesPlatformDialect()) {
+            StringBuilder folded = null;
+            while (peek() == TokenType.PLUS
+                    && peek(1) == TokenType.STRING) {
+                advance();   // +
+                if (folded == null) {
+                    folded = new StringBuilder(value);
+                }
+                folded.append(TokenStreamCursor.unquoteAndUnescape(
+                        consume(TokenType.STRING), this));
+            }
+            if (folded != null) {
+                value = folded.toString();
+            }
+        }
         // NOTE the asymmetry, verified against legend-engine: a TAG's sourceInformation covers only
         // the tag name, while a STEREOTYPE's covers the whole profile.name.
         return new com.legend.protocol.Protocol.PTaggedValue(
