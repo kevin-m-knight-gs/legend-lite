@@ -96,15 +96,18 @@ class JavaEvalLedgerTest {
             // shaping DIED (execution rides MIR + the standard Executor)
             // +77 (Phase 1 batch 2): HostEval's fold-in — owns()/chainBottom
             // moved to their owner (the shim's 132 lines net -30)
-            // 511 -> 522 (slice 3): gridSql + probeNamesUnchecked exposed for
-            // GridSplice (the arms' own text/probe helpers, shared on the
-            // way to their deletion)
-            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 522),
+            // 522 -> 534 (Phase 1c): the TYPED grid leaf
+            // (TypedRawSqlRelation) joins the chain grammar — GridSplice
+            // (577 lines of shape rewriters) is DELETED; the arms
+            // themselves die with Phase 3
+            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 534),
             // +25 (Phase 1 batch 2): owns() + the curated construction set
             Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 135),
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
-            // 235 -> 188 (Phase 1): HostResultSet + query/grid died
-            Map.entry("core/src/main/java/com/legend/exec/DbMetaData.java", 188));
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118));
+    // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
+    // content was always pure catalog-SQL composition (zero JDBC), now
+    // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
+    // registered catalog SQL; Invariant 6e forbids compiler->exec)
     // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
     // shadow-H2 replay is DELETED and every metadata VALUE is now
     // database-produced (catalog queries over the AMBIENT session's
@@ -202,13 +205,18 @@ class JavaEvalLedgerTest {
      * surface and registers consciously. Exact in both directions. */
     private static final java.util.Set<String> EXEC_CLASSES =
             java.util.Set.of(
-                    "Column.java", "CsvSeed.java", "DbMetaData.java",
+                    "Column.java", "CsvSeed.java",
                     "Ddl.java", "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java", "ResultNav.java",
                     "H2Settings.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
                     "QueryPlan.java",
+                    // Phase 1c: the execution-boundary schema stamp — the
+                    // DynamicPivot.staticize model (a FIRST query pins a
+                    // late-bound raw grid's columns; schema read only,
+                    // through ResultNav's chartered probe, never values)
+                    "RawGridSchema.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
                     "TimingLedger.java", "package-info.java");
 

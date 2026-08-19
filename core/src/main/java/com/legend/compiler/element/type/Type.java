@@ -350,6 +350,41 @@ public sealed interface Type permits
         /** Separator between a pivoted data value and its aggregate-template name. */
         public static final String PIVOT_SEPARATOR = "__|__";
 
+        /** The LATE-BOUND schema wildcard (One-Platform Plan Phase 1c):
+         * a raw-SQL grid's columns first exist at execution — the
+         * dynamic-pivot rule ({@link #dynamicColumns()} carry names the
+         * static schema cannot enumerate). One template named {@code *}
+         * typed {@code Any[0..1]} marks the WHOLE schema late-bound:
+         * by-name reads trust their name (the pivot claim-any rule),
+         * and the execution boundary stamps the real columns before
+         * lowering. */
+        public static final String LATE_BOUND_WILDCARD = "*";
+
+        /** A relation whose columns are late-bound (raw-SQL grids). */
+        public static RelationType lateBound() {
+            return new RelationType(java.util.List.of(), java.util.List.of(
+                    new Column(LATE_BOUND_WILDCARD,
+                            new ClassType(PlatformTypes.ANY),
+                            Multiplicity.Bounded.ZERO_ONE)));
+        }
+
+        /** True iff this schema is the late-bound wildcard (columns
+         * unknown until the execution boundary stamps them). */
+        public boolean isLateBound() {
+            return columns().isEmpty() && dynamicColumns().size() == 1
+                    && dynamicColumns().get(0).name()
+                            .equals(LATE_BOUND_WILDCARD);
+        }
+
+        /** THE TRUST-NAME RULE (the one place it is defined): a by-name
+         * read over a late-bound schema is trusted — typed
+         * {@code Any[0..1]}, resolved by the database (pivot's claim-any
+         * rule). Callers gate on {@link #isLateBound()}. */
+        public static Column trustedColumn(String name) {
+            return new Column(name, new ClassType(PlatformTypes.ANY),
+                    Multiplicity.Bounded.ZERO_ONE);
+        }
+
         public RelationType(List<Column> columns) {
             this(columns, List.of());
         }

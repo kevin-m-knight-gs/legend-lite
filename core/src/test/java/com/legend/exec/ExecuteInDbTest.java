@@ -141,14 +141,29 @@ class ExecuteInDbTest {
     }
 
     @Test
-    @DisplayName("READING an executeInDb result binding refuses loudly (no host-side ResultSet)")
+    @DisplayName("READING a STATEMENT-shaped executeInDb binding refuses loudly (no host-side ResultSet)")
     void effectfulLetReadIsLoud() {
+        // Phase 1c re-pin: the refusal is the EFFECT shape's (DDL/blob —
+        // an opaque execute-once handle). A query shape is a VALUE now
+        // (the typed-relation channel) — pinned green below.
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> Compiler.execute(SETUP_MODEL, CONN_LET
                         + "let rs = meta::relational::metamodel::execute::executeInDb("
-                        + "'select 1;', $c, 0, 1000);\nlet n = $rs;\ntrue;}", conn));
+                        + "'create table EFFECT_LET_T(x int);', $c, 0, 1000);\n"
+                        + "let n = $rs;\ntrue;}", conn));
         assertTrue(String.valueOf(ex.getMessage()).contains("executeInDb result binding"),
                 ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Phase 1c FLIP: a QUERY-shaped executeInDb binding is a VALUE — it reads back")
+    void queryShapedLetReadsBack() throws Exception {
+        ExecutionResult r = Compiler.execute(SETUP_MODEL, CONN_LET
+                + "let rs = meta::relational::metamodel::execute::executeInDb("
+                + "'select 1 as A;', $c, 0, 1000);\n"
+                + "$rs.rows->size();}", conn);
+        assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
+                .longValue());
     }
 
     @Test

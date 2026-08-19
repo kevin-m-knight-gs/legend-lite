@@ -40,4 +40,21 @@ public record TypedRawSqlRelation(String sql, ExprType info)
         TypedSpec.expectChildren(kids, 0, "TypedRawSqlRelation");
         return this;
     }
+
+    /** The property read behind a (possibly toOne-wrapped) LATE-BOUND
+     * grid cell expression — the trust-name rule's read shape; null
+     * otherwise. Consumers treat such a cell as PHYSICAL (the
+     * database's own value, never the Any-JSON carrier). */
+    public static @com.legend.Nullable TypedPropertyAccess lateBoundCellRead(
+            TypedSpec n) {
+        while (n instanceof TypedNativeCall w && w.args().size() == 1
+                && "meta::pure::functions::multiplicity::toOne"
+                        .equals(w.callee().qualifiedName())) {
+            n = w.args().get(0);
+        }
+        return n instanceof TypedPropertyAccess pa
+                && pa.source().info().type() instanceof
+                        com.legend.compiler.element.type.Type.RelationType rt
+                && rt.isLateBound() ? pa : null;
+    }
 }

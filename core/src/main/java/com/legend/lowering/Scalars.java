@@ -1944,6 +1944,15 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toString")) {
             RULES.put(f, (n, args) -> {
                 Type t = n.args().get(0).info().type();
+                // A LATE-BOUND grid cell read (Phase 1c) is PHYSICAL —
+                // present it as the map-binder scalar cell (the
+                // single-cell collapse convention below)
+                if (com.legend.compiler.spec.typed.TypedRawSqlRelation
+                        .lateBoundCellRead(n.args().get(0)) != null) {
+                    t = new Type.RelationType(java.util.List.of(
+                            Type.RelationType.trustedColumn(
+                                    com.legend.sql.SqlSelect.SYNTH_MAP_COL)));
+                }
                 // A DATE LITERAL's print form is fully static — subsecond
                 // DIGIT COUNT is part of the value (%2014-01-01T00:00:00.00
                 // prints '.00', which no timestamp carrier can retain).

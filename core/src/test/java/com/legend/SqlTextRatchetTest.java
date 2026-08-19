@@ -64,7 +64,10 @@ class SqlTextRatchetTest {
     static {
         REGISTER.put("StatementExecutor.java", 2);
         REGISTER.put("exec/CsvSeed.java", 4);
-        REGISTER.put("exec/DbMetaData.java", 9);
+        // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
+        // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
+        // text composition, no JDBC)
+        REGISTER.put("compiler/spec/CatalogGrids.java", 9);
         REGISTER.put("exec/Ddl.java", 3);
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);

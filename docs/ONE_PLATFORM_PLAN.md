@@ -446,6 +446,25 @@ The arm-deletion audit (measured by bypassing the arms under the referee) names 
 what the pipeline still lacks: the fold column-collect idiom and `executeInDb` in scalar
 position — slice 4. Arms stay until the referee proves them dead.
 
+*Phase 1c LANDED (2026-08-18, the playbook restart):* **GridSplice is DELETED** — the
+typer knows the grid kind natively. The design, exactly the dynamic-pivot model:
+`executeInDb('literal single READ')` and `fetchDb*(literal patterns)` TYPE as
+`TypedRawSqlRelation` with **late-bound columns** (`Type.RelationType.lateBound()` — a
+wildcard template in pivot's own `dynamicColumns` field); by-name reads **trust the
+name** (`Type.RelationType.trustedColumn`, pivot's claim-any rule at typing);
+`Row.value` is TDSRow's getter twin (one word in the getter set; `.rows.value('N')`
+auto-maps per pure's dot rule); the execution boundary pins the real schema by a FIRST
+query (`exec/RawGridSchema` — the `DynamicPivot.staticize` model; tested alternative:
+relaxing the SQL layer's stamped-outputs invariant instead erodes a deliberate loud
+guarantee — rejected). Late-bound cells are PHYSICAL, never the Any-JSON carrier
+(`TypedRawSqlRelation.lateBoundCellRead`). Statement/DDL blobs keep the opaque
+execute-once path (`RawSql.isSingleQuery` gates); a query-shaped `let` READS BACK.
+`DbMetaData` moved to `compiler/spec/CatalogGrids` (pure catalog-SQL composition —
+Invariant 6e made the compiler-visible home mandatory). ResultNav keeps its marker-chain
+arms (`.columnNames`, row-major `.values`) until Phase 3 and learned the typed leaf.
+Gates: full suite 4117/0; functions referee byte-identical (239/146, fail+shape
+name-sets).
+
 *Process defect recorded:* one batch briefly landed on the remote as two commits (a
 silently failed `git add` — stderr was suppressed; remote was unbuildable for ~1
 minute). Rule adopted: never silence stderr on staging commands; verify `git status`

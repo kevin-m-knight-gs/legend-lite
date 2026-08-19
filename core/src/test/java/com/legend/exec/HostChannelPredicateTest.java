@@ -47,23 +47,43 @@ class HostChannelPredicateTest {
     // ---- admitted shapes (must route host) ------------------------------
 
     @Test
-    void executeInDbBottomRoutesHost() {
+    void queryShapedExecuteInDbChainIsAPipelineExpression() {
+        // Phase 1c FLIP: a literal single-READ executeInDb types as its
+        // RELATION (late-bound columns), so a composable chain over it
+        // (.rows->size()) is an ORDINARY pipeline expression — COUNT in
+        // the database, no host channel. The seam still serves the
+        // MARKER chains (.columnNames / .values) below.
         TypedSpec n = typed("meta::relational::metamodel::execute"
                 + "::executeInDb('select 1', " + CONN + ", 0, 100)"
                 + ".rows->size()");
-        assertTrue(routesHost(n),
-                "a chain BOTTOMING at executeInDb is the host channel's"
-                        + " charter case");
+        assertFalse(routesHost(n),
+                "a query-grid chain is a pipeline expression now"
+                        + " (Phase 1c — the typed-relation channel)");
     }
 
     @Test
-    void fetchDbContainmentRoutesHost() {
+    void gridMarkerChainStillRoutesHost() {
+        // .columnNames over a late-bound grid: the names first exist at
+        // execution — the marker chain is the seam's (until Phase 3)
+        TypedSpec n = typed("meta::relational::metamodel::execute"
+                + "::executeInDb('select 1', " + CONN + ", 0, 100)"
+                + ".columnNames");
+        assertTrue(routesHost(n),
+                "the columnNames marker chain bottoms at the typed grid"
+                        + " leaf — the seam serves it");
+    }
+
+    @Test
+    void fetchDbGridChainIsAPipelineExpression() {
+        // Phase 1c FLIP (S4): a fetchDb catalog call with literal
+        // patterns types as its relation too — the composable chain is
+        // an ordinary pipeline expression, same as executeInDb's.
         TypedSpec n = typed("meta::relational::metamodel::execute"
                 + "::fetchDbColumnsMetaData(" + CONN + ", 'S', 'T', '%')"
                 + ".rows->size()");
-        assertTrue(routesHost(n),
-                "fetchDb anywhere routes: its only corpus shapes are"
-                        + " grid reads");
+        assertFalse(routesHost(n),
+                "a catalog-grid chain is a pipeline expression now"
+                        + " (Phase 1c — the typed-relation channel)");
     }
 
     @Test

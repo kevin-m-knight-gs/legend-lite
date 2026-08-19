@@ -73,8 +73,12 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/SeedSqlForms.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/builtin/Pure.java",
-            "core/src/main/java/com/legend/exec/DbMetaData.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
+            // Phase 1c: the boundary schema stamp — carries Connection to
+            // ResultNav's chartered LIMIT-0 probe (schema, never values);
+            // performs no JDBC of its own. (DbMetaData row RETIRED: moved
+            // to compiler/spec/CatalogGrids — pure SQL-text composition.)
+            "core/src/main/java/com/legend/exec/RawGridSchema.java",
             "core/src/main/java/com/legend/exec/Executor.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
             "core/src/main/java/com/legend/exec/ResultNav.java",

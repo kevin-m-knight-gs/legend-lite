@@ -169,9 +169,11 @@ final class StatementExecutor {
             // a trailing let IS its value (real pure)
             TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet l
                     ? l.value() : stmt;
+            // (Phase 1c: a grid VALUE READ never reaches here as a user
+            // call — the Typer types it as a relation property read; the
+            // TYPE decides, no recognizer needed)
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
-                    && containsEffect(call, specs, effectMemo)
-                    && !com.legend.GridSplice.isRowValueRead(call)) {   // grid READ ≠ effect
+                    && containsEffect(call, specs, effectMemo)) {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }
@@ -2366,11 +2368,7 @@ final class StatementExecutor {
                 execFrames = new java.util.LinkedHashMap<>(allFrames);
                 execFrames.keySet().removeAll(boundVars);
             }
-            TypedSpec rawGrid = com.legend.GridSplice.spliceAny(n, env.ctx(),
-                    java.util.Map.of(), sql -> com.legend.exec.ResultNav
-                            .probeNamesUnchecked(sql, env.connection(), env.dialect()));
-            if (rawGrid != null) { return rawGrid; }
-                        // $result.rows->size(): POST-EXECUTE row count. The engine
+            // $result.rows->size(): POST-EXECUTE row count. The engine
             // counts the MATERIALIZED rows in memory; the in-query
             // single-column count(col) rule (processRowCount, null-
             // skipping) must not apply to this splice — a nullable
@@ -2956,6 +2954,8 @@ final class StatementExecutor {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
         java.sql.Connection connection = env.connection();
+        body = com.legend.exec.RawGridSchema.stamp(body, connection,
+                env.dialect());   // late-bound grids: FIRST-query schema pin
         TypedSpec root = body.get(body.size() - 1);
         // from() is context-only, but its info is the PRE-RESOLUTION
         // declared type — kept: a primitive-many declared root whose

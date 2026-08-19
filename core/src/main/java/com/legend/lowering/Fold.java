@@ -584,6 +584,26 @@ final class Fold {
                         .equals(nc.callee().qualifiedName());
     }
 
+    /** The named column of a relation consumed by a SCALAR read — or,
+     * over a LATE-BOUND raw grid (Phase 1c), the trust-name rule
+     * ({@code Type.RelationType.trustedColumn}: the stamped source
+     * resolves the name in SQL). */
+    static com.legend.compiler.element.type.Type.RelationType.Column
+            scalarReadColumn(com.legend.compiler.element.type.Type
+                    .RelationType prt, String name) {
+        return prt.columns().stream()
+                .filter(x -> x.name().equals(name)).findFirst()
+                .orElseGet(() -> {
+                    if (prt.isLateBound()) {
+                        return com.legend.compiler.element.type.Type
+                                .RelationType.trustedColumn(name);
+                    }
+                    throw new com.legend.error.NotImplementedException(
+                            "relation has no column '" + name
+                                    + "' in scalar read");
+                });
+    }
+
     static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src, String column) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —

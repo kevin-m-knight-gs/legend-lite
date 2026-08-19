@@ -306,35 +306,15 @@ final class Typer {
                     com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER),
                     env);
         }
-        // $r.getString('COL') / getInteger / ... — TDSRow typed accessors
-        // read the named COLUMN of the relation row (a plain property
-        // access post-desugar; a type mismatch is loud downstream). The
-        // CELL is one value whatever the column's declared multiplicity —
-        // an auto-mapped to-many path types its column [*] but projection
-        // explodes it row-wise (engine TDSRow getters return T[1]) — so a
-        // non-[1] column read conforms BY EMISSION (toOne; lowering is
-        // erasure).
+        // $r.getString('COL') / Row.value('COL') — the typed row-cell
+        // accessors (TDSRow + the ResultSet Row twin, one owner below)
         if ((TDS_ROW_GETTERS.contains(af.function())
                     || af.function().equals("getNullableString"))
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null
                 && synth(af.parameters().get(0), env).info().type()
                         instanceof Type.RelationType) {
-            String colRef = java.util.Objects.requireNonNull(
-                    literalColName(af.parameters().get(1)),
-                    "TDS cell read requires a literal column name");
-            TypedSpec cell = synth(new AppliedProperty(
-                    af.parameters().get(0), colRef), env);
-            // getNullableString returns String[0..1] (tds.pure:82/112) —
-            // the optional cell read IS the semantics, no strictening
-            if (af.function().equals("getNullableString")
-                    || (cell.info().multiplicity() instanceof Multiplicity.Bounded b
-                            && Integer.valueOf(1).equals(b.upper())
-                            && b.lower() == 1)) {
-                return cell;
-            }
-            return synth(new AppliedFunction("toOne", List.of(
-                    new AppliedProperty(af.parameters().get(0), colRef))), env);
+            return rowCellRead(af, env);
         }
         // $r.isNotNull('COL') / isNull — TDSRow null tests on the named
         // cell (tds.pure); the cell read is optional-typed, so the tests
@@ -931,10 +911,16 @@ final class Typer {
         return null;
     }
 
-    /** The legacy TDSRow typed column accessors (getString('COL') et al). */
+    /** The legacy TDSRow typed column accessors (getString('COL') et al).
+     * {@code value} is {@code execute::Row}'s own accessor
+     * (functions.pure: {@code value(name) = at($this.values,
+     * indexOf($this.parent.columnNames, $name))}) — a relation row's
+     * by-name cell read exactly like TDSRow's getters (Phase 1c: Row and
+     * TDSRow are convergent spec twins; both bind a relation's row). */
     private static final java.util.Set<String> TDS_ROW_GETTERS = java.util.Set.of(
             "getString", "getInteger", "getFloat", "getDecimal", "getNumber",
-            "getBoolean", "getDate", "getDateTime", "getStrictDate", "getEnum");
+            "getBoolean", "getDate", "getDateTime", "getStrictDate", "getEnum",
+            "value");
 
     /** The single-row PICKS whose result a `.values` read treats as ONE
      * TDSRow (cells in column order), not a relation to flatten. */
@@ -1235,7 +1221,40 @@ final class Typer {
         if (requiresNormalization(a.chosen())) {
             return inlineNormalized(af, a.chosen(), env);
         }
-        return emitCall(a.chosen(), a.args(), a.out());
+        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out()));
+    }
+
+    /** Phase 1c (One-Platform Plan): {@code executeInDb} with a LITERAL
+     * single READ — and a {@code fetchDb*} catalog call with literal
+     * patterns — types as the RELATION it produces, columns late-bound
+     * (the dynamic-pivot rule; the execution boundary stamps the real
+     * schema). The spec surface stays byte-identical
+     * ({@code executeInDb: ResultSet[1]}); the TYPE is the platform's,
+     * exactly as TDS types as its relation. Statement shapes (DDL, DML,
+     * multi-statement blobs) keep the declared opaque handle — they are
+     * EFFECTS and ride the execute-once path. */
+    private TypedSpec rawGridOrSelf(TypedSpec call) {
+        if (!(call instanceof TypedNativeCall nc)) {
+            return call;
+        }
+        String fqn = nc.callee().qualifiedName();
+        String sql = null;
+        if (com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
+                        .equals(fqn)
+                && !nc.args().isEmpty()
+                && nc.args().get(0) instanceof
+                        com.legend.compiler.spec.typed.TypedCString lit
+                && com.legend.sql.RawSql.isSingleQuery(lit.value())) {
+            sql = com.legend.sql.RawSql.splitStatements(lit.value()).get(0);
+        } else if (com.legend.compiler.element.type.PlatformTypes
+                .isFetchDbFn(fqn)) {
+            sql = CatalogGrids.sql(nc, ctx);
+        }
+        if (sql == null) {
+            return call;
+        }
+        return new com.legend.compiler.spec.typed.TypedRawSqlRelation(
+                sql, ExprType.one(Type.RelationType.lateBound()));
     }
 
     /**
@@ -2311,6 +2330,75 @@ final class Typer {
      * multiplicity with the property's along the path.
      */
     /** The relation's column NAMES or pure TYPE NAMES as a static string collection. */
+    /** The typed row-cell read ({@code $r.getString('COL')},
+     * {@code Row.value('COL')} — TDSRow and its ResultSet twin): the
+     * named COLUMN of the relation row (a plain property access
+     * post-desugar; a type mismatch is loud downstream). The CELL is
+     * one value whatever the column's declared multiplicity — a non-[1]
+     * column read conforms BY EMISSION (toOne; lowering is erasure).
+     * Over the ROWS COLLECTION itself ({@code $rs.rows.value('N')} —
+     * Row[*] in pure terms) the read AUTO-MAPS per pure's own dot rule
+     * (map.pure grammarDoc): the column's values, one per row — never a
+     * single-row read over many rows. */
+    private TypedSpec rowCellRead(AppliedFunction af, Env env) {
+        if (af.parameters().get(0) instanceof AppliedProperty rowsP
+                && rowsP.property().equals(com.legend.compiler.element
+                        .type.PlatformTypes.ROWS_MARKER)) {
+            return synth(new AppliedFunction("map", List.of(
+                    af.parameters().get(0),
+                    new LambdaFunction(List.of(new Variable("_amc")),
+                            List.of(new AppliedFunction(af.function(),
+                                    List.of(new Variable("_amc"),
+                                            af.parameters().get(1))))))),
+                    env);
+        }
+        String colRef = java.util.Objects.requireNonNull(
+                literalColName(af.parameters().get(1)),
+                "TDS cell read requires a literal column name");
+        TypedSpec cell = synth(new AppliedProperty(
+                af.parameters().get(0), colRef), env);
+        // getNullableString returns String[0..1] (tds.pure:82/112) —
+        // the optional cell read IS the semantics, no strictening
+        if (af.function().equals("getNullableString")
+                || (cell.info().multiplicity() instanceof Multiplicity.Bounded b
+                        && Integer.valueOf(1).equals(b.upper())
+                        && b.lower() == 1)) {
+            return cell;
+        }
+        return synth(new AppliedFunction("toOne", List.of(
+                new AppliedProperty(af.parameters().get(0), colRef))), env);
+    }
+
+    /** LATE-BOUND grid reads that cannot resolve statically (Phase 1c):
+     * {@code .values} (the cells — count unknown) and
+     * {@code .columnNames} (the names — first exist at execution)
+     * SURVIVE as identity-preserving MARKERS, the same node shapes the
+     * ResultSet class declaration produced pre-retype; the ResultNav
+     * execution seam serves them, and reaching the Lowerer instead is a
+     * loud wall, never a silent guess. Null = not such a read. */
+    private static @com.legend.Nullable TypedSpec lateBoundGridMarker(
+            TypedSpec source, AppliedProperty ap, Type.RelationType rt2) {
+        if (!rt2.isLateBound()) {
+            return null;
+        }
+        if (ap.property().equals("values")) {
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    source, "values",
+                    new ExprType(new Type.ClassType(
+                            com.legend.compiler.element.type.PlatformTypes.ANY),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ZERO_MANY));
+        }
+        if (ap.property().equals("columnNames")) {
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    source, "columnNames",
+                    new ExprType(Type.Primitive.STRING,
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ZERO_MANY));
+        }
+        return null;
+    }
+
     private static TypedSpec columnsMeta(Type.RelationType rt, boolean typeNames) {
         ExprType one = ExprType.one(Type.Primitive.STRING);
         List<TypedSpec> items = new java.util.ArrayList<>(rt.columns().size());
@@ -2405,6 +2493,10 @@ final class Typer {
                 // disambiguation; no other consumer sees it.
                 return new com.legend.compiler.spec.typed.TypedPropertyAccess(
                         source, "rows", source.info());
+            }
+            TypedSpec lateBound = lateBoundGridMarker(source, ap, rt2);
+            if (lateBound != null) {
+                return lateBound;
             }
             if (ap.property().equals("values")) {
                 // On a ROW VARIABLE ($r inside map/filter): TDSRow.values =
@@ -2589,8 +2681,13 @@ final class Typer {
                         .filter(c -> stripColQuotes(c.name())
                                 .equals(stripColQuotes(name)))
                         .findFirst()
-                        .orElseThrow(() -> new TypeInferenceException(
-                                "relation has no column '" + name + "'")));
+                        .orElseGet(() -> {
+                            if (rel.isLateBound()) {
+                                return Type.RelationType.trustedColumn(name);
+                            }
+                            throw new TypeInferenceException(
+                                    "relation has no column '" + name + "'");
+                        }));
     }
 
     /**

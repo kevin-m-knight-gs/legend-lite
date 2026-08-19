@@ -5,6 +5,7 @@ package com.legend.exec;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.spec.CatalogGrids;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
@@ -398,6 +399,13 @@ public final class ResultNav {
                 default -> null;
             };
         }
+        // the TYPED grid bottom (Phase 1c): the Typer types a literal
+        // single-READ executeInDb as its relation directly — the chain
+        // grammar is unchanged, only the leaf spelling moved
+        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation r) {
+            return new Chain(Kind.ROWS, r.sql(),
+                    probeNames(r.sql(), conn, dialect), null);
+        }
         // the grid bottom: a fetchDb* call with literal patterns
         if (n instanceof TypedNativeCall nc
                 && PlatformTypes.isFetchDbFn(nc.callee().qualifiedName())) {
@@ -457,8 +465,7 @@ public final class ResultNav {
 
     /** The catalog grid's SQL text for a fetchDb* call with literal
      * patterns (null = not compile-time recognizable, or the empty
-     * no-facts PK grid). Slice 3: shared with GridSplice so fetchDb
-     * bottoms splice to the relation node too. */
+     * no-facts PK grid). */
     public static @com.legend.Nullable String gridSql(TypedNativeCall nc,
             Map<String, TypedSpec> lets, ModelContext ctx) {
         Chain c = grid(nc, lets, ctx);
@@ -475,13 +482,13 @@ public final class ResultNav {
             return null;    // a non-literal pattern is not a grid read
         }
         PlatformTypes.FetchDbKind kind = PlatformTypes.fetchDbKind(fqn);
-        List<String> names = DbMetaData.gridColumns(kind);
+        List<String> names = CatalogGrids.gridColumns(kind);
         String sql = switch (kind) {
-            case SCHEMAS -> DbMetaData.fetchSql(fqn, a1, null, null);
-            case TABLES -> DbMetaData.fetchSql(fqn, a1, a2, null);
-            case COLUMNS -> DbMetaData.fetchSql(fqn, a1, a2, a3);
-            case PRIMARY_KEYS -> DbMetaData.pkSql(
-                    DbMetaData.pkFacts(ctx, nc.args().get(0), lets),
+            case SCHEMAS -> CatalogGrids.fetchSql(fqn, a1, null, null);
+            case TABLES -> CatalogGrids.fetchSql(fqn, a1, a2, null);
+            case COLUMNS -> CatalogGrids.fetchSql(fqn, a1, a2, a3);
+            case PRIMARY_KEYS -> CatalogGrids.pkSql(
+                    CatalogGrids.pkFacts(ctx, nc.args().get(0), lets),
                     a1, a2);
         };
         return new Chain(Kind.ROWS, sql, names, null);
@@ -563,6 +570,10 @@ public final class ResultNav {
      * collapsed the sweep once (2096->408) — bottoming is the pin. */
     public static boolean owns(TypedSpec root, Map<String, TypedSpec> lets) {
         TypedSpec bottom = chainBottom(root, lets);
+        if (bottom instanceof
+                com.legend.compiler.spec.typed.TypedRawSqlRelation) {
+            return true;   // the Phase 1c typed grid leaf
+        }
         if (bottom instanceof TypedNativeCall b
                 && PlatformTypes.EXECUTE_IN_DB
                         .equals(b.callee().qualifiedName())) {
@@ -625,6 +636,9 @@ public final class ResultNav {
                         return v;
                     }
                     n = bound;
+                }
+                case com.legend.compiler.spec.typed.TypedRawSqlRelation r -> {
+                    return r;   // the Phase 1c typed grid leaf
                 }
                 case TypedNativeCall nc -> {
                     String fqn = nc.callee().qualifiedName();
