@@ -1,0 +1,270 @@
+###Pure
+// Benchmarks: what performance is measured against, and how each is constructed.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class benchmarks::BenchmarkIndex
+{
+   indexId: String[1];
+   indexType: String[1];
+   indexName: String[1];
+   assetClass: String[1];
+   currency: String[1];
+   weightingScheme: String[1];
+   level: Float[1];
+   constituentCount: Integer[1];
+   provider: String[1];
+   previousLevel: Float[0..1];
+
+   // Day-on-day return in percent. A first observation reads as no move -- stated,
+   // because a performance report that showed the whole level as a return would
+   // be worse than useless.
+   dailyReturnPct() { ($this.level - $this.previousLevel->orElse($this.level)) * 100.0 / $this.level } : Float[1];
+}
+
+// The US large-cap benchmark most equity risk is measured against.
+Class benchmarks::SandP500Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// Tech-weighted, and far more volatile than its size suggests.
+Class benchmarks::Nasdaq100Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// US small caps, reconstituted annually in a well-known squeeze.
+Class benchmarks::Russell2000Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// UK large caps, and mostly foreign earnings.
+Class benchmarks::Ftse100Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// German blue chips, historically a total-return index.
+Class benchmarks::DaxIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// French large caps.
+Class benchmarks::Cac40Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// The eurozone benchmark for derivatives.
+Class benchmarks::EuroStoxx50Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// Price-weighted, which makes it behave oddly.
+Class benchmarks::Nikkei225Index extends benchmarks::BenchmarkIndex
+{
+}
+
+// Capitalisation-weighted, and the one Japanese institutions use.
+Class benchmarks::TopixIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// Hong Kong, with heavy mainland exposure.
+Class benchmarks::HangSengIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// Developed markets, the global allocation default.
+Class benchmarks::MsciWorldIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// Emerging markets, with inclusion decisions that move billions.
+Class benchmarks::MsciEmergingMarketsIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// The US investment-grade bond benchmark.
+Class benchmarks::BloombergAggregateIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// US high yield.
+Class benchmarks::IceBofaHighYieldIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// European corporates.
+Class benchmarks::IboxxEuroCorporateIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// North American investment-grade credit default swaps.
+Class benchmarks::CdxInvestmentGradeIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// The European equivalent.
+Class benchmarks::ItraxxEuropeIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// Production-weighted, so heavily energy.
+Class benchmarks::GoldmanSachsCommodityIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// Capped weights, so more diversified.
+Class benchmarks::BloombergCommodityIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// Thirty-day implied volatility on the S&P, and itself tradeable.
+Class benchmarks::VixIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// The rates equivalent.
+Class benchmarks::MoveIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+// A compounded overnight index, published daily.
+Class benchmarks::SofrIndex extends benchmarks::BenchmarkIndex
+{
+}
+
+###Mapping
+Mapping benchmarks::BenchmarksMapping
+(
+   *benchmarks::BenchmarkIndex[benchmarksBase]: Relational
+   {
+      ~primaryKey ( [store::DB]BENCHMARK_INDEX.INDEX_ID )
+      ~mainTable [store::DB]BENCHMARK_INDEX
+      indexId: [store::DB]BENCHMARK_INDEX.INDEX_ID,
+      indexType: [store::DB]BENCHMARK_INDEX.INDEX_TYPE,
+      indexName: [store::DB]BENCHMARK_INDEX.INDEX_NAME,
+      assetClass: [store::DB]BENCHMARK_INDEX.ASSET_CLASS,
+      currency: [store::DB]BENCHMARK_INDEX.CURRENCY,
+      weightingScheme: [store::DB]BENCHMARK_INDEX.WEIGHTING_SCHEME,
+      level: [store::DB]BENCHMARK_INDEX.LEVEL,
+      constituentCount: [store::DB]BENCHMARK_INDEX.CONSTITUENT_COUNT,
+      provider: [store::DB]BENCHMARK_INDEX.PROVIDER,
+      previousLevel: [store::DB]BENCHMARK_INDEX.PREVIOUS_LEVEL
+   }
+
+   benchmarks::SandP500Index[bmkSp500] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkSp500Rows
+   }
+
+   benchmarks::Nasdaq100Index[bmkNasdaq100] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkNasdaq100Rows
+   }
+
+   benchmarks::Russell2000Index[bmkRussell2000] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkRussell2000Rows
+   }
+
+   benchmarks::Ftse100Index[bmkFtse100] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkFtse100Rows
+   }
+
+   benchmarks::DaxIndex[bmkDax] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkDaxRows
+   }
+
+   benchmarks::Cac40Index[bmkCac40] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkCac40Rows
+   }
+
+   benchmarks::EuroStoxx50Index[bmkEurostoxx50] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkEurostoxx50Rows
+   }
+
+   benchmarks::Nikkei225Index[bmkNikkei225] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkNikkei225Rows
+   }
+
+   benchmarks::TopixIndex[bmkTopix] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkTopixRows
+   }
+
+   benchmarks::HangSengIndex[bmkHangSeng] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkHangSengRows
+   }
+
+   benchmarks::MsciWorldIndex[bmkMsciWorld] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkMsciWorldRows
+   }
+
+   benchmarks::MsciEmergingMarketsIndex[bmkMsciEm] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkMsciEmRows
+   }
+
+   benchmarks::BloombergAggregateIndex[bmkBloombergAgg] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkBloombergAggRows
+   }
+
+   benchmarks::IceBofaHighYieldIndex[bmkIceBofaHy] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkIceBofaHyRows
+   }
+
+   benchmarks::IboxxEuroCorporateIndex[bmkIboxxEur] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkIboxxEurRows
+   }
+
+   benchmarks::CdxInvestmentGradeIndex[bmkCdxIg] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkCdxIgRows
+   }
+
+   benchmarks::ItraxxEuropeIndex[bmkItraxxEurope] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkItraxxEuropeRows
+   }
+
+   benchmarks::GoldmanSachsCommodityIndex[bmkGsci] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkGsciRows
+   }
+
+   benchmarks::BloombergCommodityIndex[bmkBcom] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkBcomRows
+   }
+
+   benchmarks::VixIndex[bmkVix] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkVixRows
+   }
+
+   benchmarks::MoveIndex[bmkMove] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkMoveRows
+   }
+
+   benchmarks::SofrIndex[bmkSofrIndex] extends [benchmarksBase]: Relational
+   {
+      ~filter [store::DB]BmkSofrIndexRows
+   }
+)

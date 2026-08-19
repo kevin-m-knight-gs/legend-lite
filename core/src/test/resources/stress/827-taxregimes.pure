@@ -1,0 +1,228 @@
+###Pure
+// Tax: which regime applied to a flow, at what rate, and what was reclaimable.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class taxregimes::TaxRegimeApplication
+{
+   applicationId: String[1];
+   regimeType: String[1];
+   jurisdiction: String[1];
+   counterpartyId: String[1];
+   grossAmount: Float[1];
+   taxRatePct: Float[1];
+   taxWithheld: Float[1];
+   currency: String[1];
+   appliedOn: StrictDate[1];
+   reclaimableAmount: Float[0..1];
+
+   // What the counterparty actually receives after withholding.
+   netReceived() { $this.grossAmount - $this.taxWithheld } : Float[1];
+}
+
+// Thirty percent on US-source income unless a treaty reduces it.
+Class taxregimes::UsWithholdingRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Half a percent on UK share purchases, with exemptions.
+Class taxregimes::UkStampDutyRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// On large French issuers, charged to the buyer.
+Class taxregimes::FrenchFttRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Similar, with a separate derivatives charge.
+Class taxregimes::ItalianFttRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Introduced in 2021, narrow scope.
+Class taxregimes::SpanishFttRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Kapitalertragsteuer, with a solidarity surcharge.
+Class taxregimes::GermanWithholdingRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// On dividends and interest to non-residents.
+Class taxregimes::JapaneseWithholdingRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Thirty-five percent, reclaimable under treaty.
+Class taxregimes::SwissWithholdingRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// With significant fund exemptions.
+Class taxregimes::IrishWithholdingRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Why so many funds are domiciled there.
+Class taxregimes::LuxembourgFundRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// US reporting on foreign accounts, with a punitive withholding backstop.
+Class taxregimes::FatcaRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// The multilateral equivalent.
+Class taxregimes::CommonReportingStandard extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Mandatory disclosure of cross-border arrangements.
+Class taxregimes::Dac6Regime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Lets a non-US bank withhold on the IRS's behalf.
+Class taxregimes::QualifiedIntermediaryRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Reduced rates where a double-taxation treaty applies.
+Class taxregimes::TreatyReliefRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// Mostly exempt, and the exemptions are the complexity.
+Class taxregimes::VatOnFinancialServices extends taxregimes::TaxRegimeApplication
+{
+}
+
+// On disposal rather than on income.
+Class taxregimes::CapitalGainsRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+// How profit is attributed between group entities.
+Class taxregimes::TransferPricingRegime extends taxregimes::TaxRegimeApplication
+{
+}
+
+###Mapping
+Mapping taxregimes::TaxregimesMapping
+(
+   *taxregimes::TaxRegimeApplication[taxregimesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]TAX_REGIME_APPLICATION.APPLICATION_ID )
+      ~mainTable [store::DB]TAX_REGIME_APPLICATION
+      applicationId: [store::DB]TAX_REGIME_APPLICATION.APPLICATION_ID,
+      regimeType: [store::DB]TAX_REGIME_APPLICATION.REGIME_TYPE,
+      jurisdiction: [store::DB]TAX_REGIME_APPLICATION.JURISDICTION,
+      counterpartyId: [store::DB]TAX_REGIME_APPLICATION.COUNTERPARTY_ID,
+      grossAmount: [store::DB]TAX_REGIME_APPLICATION.GROSS_AMOUNT,
+      taxRatePct: [store::DB]TAX_REGIME_APPLICATION.TAX_RATE_PCT,
+      taxWithheld: [store::DB]TAX_REGIME_APPLICATION.TAX_WITHHELD,
+      currency: [store::DB]TAX_REGIME_APPLICATION.CURRENCY,
+      appliedOn: [store::DB]TAX_REGIME_APPLICATION.APPLIED_ON,
+      reclaimableAmount: [store::DB]TAX_REGIME_APPLICATION.RECLAIMABLE_AMOUNT
+   }
+
+   taxregimes::UsWithholdingRegime[taxUsWithholding] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxUsWithholdingRows
+   }
+
+   taxregimes::UkStampDutyRegime[taxUkStamp] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxUkStampRows
+   }
+
+   taxregimes::FrenchFttRegime[taxFrenchFtt] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxFrenchFttRows
+   }
+
+   taxregimes::ItalianFttRegime[taxItalianFtt] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxItalianFttRows
+   }
+
+   taxregimes::SpanishFttRegime[taxSpanishFtt] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxSpanishFttRows
+   }
+
+   taxregimes::GermanWithholdingRegime[taxGermanWht] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxGermanWhtRows
+   }
+
+   taxregimes::JapaneseWithholdingRegime[taxJapaneseWht] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxJapaneseWhtRows
+   }
+
+   taxregimes::SwissWithholdingRegime[taxSwissWht] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxSwissWhtRows
+   }
+
+   taxregimes::IrishWithholdingRegime[taxIrishWht] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxIrishWhtRows
+   }
+
+   taxregimes::LuxembourgFundRegime[taxLuxRegime] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxLuxRegimeRows
+   }
+
+   taxregimes::FatcaRegime[taxFatcaRegime] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxFatcaRegimeRows
+   }
+
+   taxregimes::CommonReportingStandard[taxCrsRegime] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxCrsRegimeRows
+   }
+
+   taxregimes::Dac6Regime[taxDac6] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxDac6Rows
+   }
+
+   taxregimes::QualifiedIntermediaryRegime[taxQiRegime] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxQiRegimeRows
+   }
+
+   taxregimes::TreatyReliefRegime[taxTreatyRelief] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxTreatyReliefRows
+   }
+
+   taxregimes::VatOnFinancialServices[taxVatFinancial] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxVatFinancialRows
+   }
+
+   taxregimes::CapitalGainsRegime[taxCapitalGains] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxCapitalGainsRows
+   }
+
+   taxregimes::TransferPricingRegime[taxTransferPricing] extends [taxregimesBase]: Relational
+   {
+      ~filter [store::DB]TaxTransferPricingRows
+   }
+)

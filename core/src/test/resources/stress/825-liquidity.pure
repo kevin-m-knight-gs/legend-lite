@@ -1,0 +1,229 @@
+###Pure
+// Liquidity: the metrics treasury and the regulator both watch, and their limits.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class liquidity::LiquidityMetric
+{
+   metricId: String[1];
+   metricType: String[1];
+   cobDate: StrictDate[1];
+   entity: String[1];
+   value: Float[1];
+   regulatoryMinimum: Float[1];
+   currency: String[1];
+   isBreached: Boolean[1];
+   horizonDays: Integer[0..1];
+   commentary: String[0..1];
+
+   // Distance above the regulatory floor. Negative is a breach and stays negative,
+   // for the same reason limit headroom does.
+   bufferOverMinimum() { $this.value - $this.regulatoryMinimum } : Float[1];
+}
+
+// High-quality assets against thirty days of stressed outflow.
+Class liquidity::LiquidityCoverageRatioMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Stable funding against illiquid assets over a year.
+Class liquidity::NetStableFundingRatioMetric extends liquidity::LiquidityMetric
+{
+}
+
+// How many days the firm lasts under a named stress.
+Class liquidity::SurvivalHorizonMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Projected cash by bucket, which is the operational view.
+Class liquidity::CashLadderMetric extends liquidity::LiquidityMetric
+{
+}
+
+// The unencumbered high-quality stock itself.
+Class liquidity::HqlaBufferMetric extends liquidity::LiquidityMetric
+{
+}
+
+// How much of the balance sheet is already pledged.
+Class liquidity::AssetEncumbranceMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Peak usage during the day, which the daily average hides.
+Class liquidity::IntradayLiquidityMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Reliance on a small number of providers.
+Class liquidity::FundingConcentrationMetric extends liquidity::LiquidityMetric
+{
+}
+
+// How much of the deposit base runs in a stress.
+Class liquidity::DepositStickinessMetric extends liquidity::LiquidityMetric
+{
+}
+
+// The least sticky funding there is.
+Class liquidity::WholesaleFundingMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Repo and similar, which survives longer than unsecured.
+Class liquidity::SecuredFundingMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Committed lines that may be drawn.
+Class liquidity::ContingentOutflowMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Margin calls under a two-notch downgrade.
+Class liquidity::CollateralOutflowMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Liquid in one currency and short in another.
+Class liquidity::FxLiquidityGapMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Borrowing short and lending long, quantified.
+Class liquidity::MaturityMismatchMetric extends liquidity::LiquidityMetric
+{
+}
+
+// Modelled outflow under a named scenario.
+Class liquidity::StressOutflowMetric extends liquidity::LiquidityMetric
+{
+}
+
+// VaR with the cost of unwinding included.
+Class liquidity::LiquidityAdjustedVarMetric extends liquidity::LiquidityMetric
+{
+}
+
+// What liquidation would cost at current spreads.
+Class liquidity::BidAskCostMetric extends liquidity::LiquidityMetric
+{
+}
+
+###Mapping
+Mapping liquidity::LiquidityMapping
+(
+   *liquidity::LiquidityMetric[liquidityBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LIQUIDITY_METRIC.METRIC_ID )
+      ~mainTable [store::DB]LIQUIDITY_METRIC
+      metricId: [store::DB]LIQUIDITY_METRIC.METRIC_ID,
+      metricType: [store::DB]LIQUIDITY_METRIC.METRIC_TYPE,
+      cobDate: [store::DB]LIQUIDITY_METRIC.COB_DATE,
+      entity: [store::DB]LIQUIDITY_METRIC.ENTITY,
+      value: [store::DB]LIQUIDITY_METRIC.VALUE,
+      regulatoryMinimum: [store::DB]LIQUIDITY_METRIC.REGULATORY_MINIMUM,
+      currency: [store::DB]LIQUIDITY_METRIC.CURRENCY,
+      isBreached: [store::DB]LIQUIDITY_METRIC.IS_BREACHED,
+      horizonDays: [store::DB]LIQUIDITY_METRIC.HORIZON_DAYS,
+      commentary: [store::DB]LIQUIDITY_METRIC.COMMENTARY
+   }
+
+   liquidity::LiquidityCoverageRatioMetric[liqLcr] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqLcrRows
+   }
+
+   liquidity::NetStableFundingRatioMetric[liqNsfr] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqNsfrRows
+   }
+
+   liquidity::SurvivalHorizonMetric[liqSurvivalHorizon] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqSurvivalHorizonRows
+   }
+
+   liquidity::CashLadderMetric[liqCashLadder] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqCashLadderRows
+   }
+
+   liquidity::HqlaBufferMetric[liqHqlaBuffer] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqHqlaBufferRows
+   }
+
+   liquidity::AssetEncumbranceMetric[liqEncumbrance] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqEncumbranceRows
+   }
+
+   liquidity::IntradayLiquidityMetric[liqIntradayLiquidity] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqIntradayLiquidityRows
+   }
+
+   liquidity::FundingConcentrationMetric[liqFundingConcentration] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqFundingConcentrationRows
+   }
+
+   liquidity::DepositStickinessMetric[liqDepositStickiness] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqDepositStickinessRows
+   }
+
+   liquidity::WholesaleFundingMetric[liqWholesaleFunding] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqWholesaleFundingRows
+   }
+
+   liquidity::SecuredFundingMetric[liqSecuredFunding] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqSecuredFundingRows
+   }
+
+   liquidity::ContingentOutflowMetric[liqContingentOutflow] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqContingentOutflowRows
+   }
+
+   liquidity::CollateralOutflowMetric[liqCollateralOutflow] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqCollateralOutflowRows
+   }
+
+   liquidity::FxLiquidityGapMetric[liqFxLiquidityGap] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqFxLiquidityGapRows
+   }
+
+   liquidity::MaturityMismatchMetric[liqMaturityMismatch] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqMaturityMismatchRows
+   }
+
+   liquidity::StressOutflowMetric[liqStressOutflow] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqStressOutflowRows
+   }
+
+   liquidity::LiquidityAdjustedVarMetric[liqLiquidityVar] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqLiquidityVarRows
+   }
+
+   liquidity::BidAskCostMetric[liqBidAskCost] extends [liquidityBase]: Relational
+   {
+      ~filter [store::DB]LiqBidAskCostRows
+   }
+)
