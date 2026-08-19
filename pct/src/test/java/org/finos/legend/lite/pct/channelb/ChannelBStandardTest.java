@@ -69,12 +69,14 @@ class ChannelBStandardTest {
         // slices.
         assertTrue(out.size() == 204,
                 "standard discovery moved: " + out.size() + " != 204");
-        assertTrue(c.pass() >= 187, "standard PASS fell: " + c.pass());
-        // 24→20 (slice 1: least/greatest) →17 (slice 2: the singleton-
-        // list-literal CLASS closed — sum/mean/mode/median/list guards)
-        assertTrue(c.wireBug() <= 17,
+        assertTrue(c.pass() >= 199, "standard PASS fell: " + c.pass());
+        // 24→20 (slice 1) →17 (slice 2) →5 (slice 3: the DECIMAL-wire
+        // float spelling — trailing zeros were masking 12 CORRECT
+        // window tests). Remaining: date min/max extend, dayOfWeek,
+        // columns() ×2.
+        assertTrue(c.wireBug() <= 5,
                 "standard WIRE-BUG census grew: " + c.wireBug());
-        assertTrue(c.trueWireBug() <= 16,
+        assertTrue(c.trueWireBug() <= 4,
                 "standard TRUE wire-bug census grew: " + c.trueWireBug());
     }
 }

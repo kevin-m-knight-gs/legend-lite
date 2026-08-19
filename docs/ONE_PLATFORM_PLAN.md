@@ -516,6 +516,16 @@ testAverage_Integers: `average([1])` emitted `CAST([1] AS DOUBLE)`). Standard
 **PASS=187/204, WIRE 20→17, ENGINE-FRONTIER 4→1**. Referee byte-identical;
 core 4166; ALLGATES GREEN.
 
+*BURN QUEUE SLICE 3 (2026-08-19):* the "window semantics" bucket was a SPELLING
+bug — a Number/Float cell on a FRACTION-KIND wire (the DECIMAL an aggregate
+collapses to) printed the DECIMAL cast's fixed scale (81.180 where pure prints
+81.18). One slot-directed arm in `tdsCell` (the pure Float spelling via DOUBLE;
+integer slots and the VARCHAR mixed-identity carrier keep their own forms)
+unmasked TWELVE correct window tests. Standard **PASS=199/204, WIRE 17→5,
+TRUE 16→4** — the whole remaining standard tail is four named rows: date
+min/max extend, dayOfWeek, columns() ×2. Referee byte-identical; core 4166;
+ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

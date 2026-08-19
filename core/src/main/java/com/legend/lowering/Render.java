@@ -434,6 +434,20 @@ public final class Render {
                         && slot == SqlType.Scalar.DATE)) {
             rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
                     new SqlExpr.FormatLit(DateFmt.DATE));
+        } else if ((t == Type.Primitive.NUMBER
+                        || t == Type.Primitive.FLOAT)
+                && (slot == null
+                        || slot instanceof SqlType.Decimal
+                        || slot == SqlType.Scalar.DOUBLE)) {
+            // a Number/Float cell on a FRACTION-KIND wire (a DECIMAL an
+            // aggregate collapsed to, or a DOUBLE): the pure print form
+            // is the Float spelling — a DECIMAL cast's fixed scale
+            // fabricates trailing zeros (81.180 where pure prints 81.18;
+            // witness testMax_Floats/Numbers_Relation_Aggregate).
+            // INTEGER slots (an all-int Number column) and the VARCHAR
+            // mixed-identity carrier keep their own spellings.
+            rendered = Scalars.pureToString(Type.Primitive.FLOAT,
+                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE));
         } else {
             rendered = Scalars.pureToString(t, c);
         }
