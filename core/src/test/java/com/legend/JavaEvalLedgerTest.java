@@ -164,7 +164,13 @@ class JavaEvalLedgerTest {
             // absorbs by design, and absorption that should have been
             // COMPILATION is exactly what a silent-growth watch catches.
             // Shrink-only like every row; bump with written justification.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2695),
+            // 2695→2724 (2026-08-19 deferred-TDS): the orchestrator's share
+            // of the dynamic-pivot toString — supplies the LIMIT-0 probe
+            // to the LOWERING-owned composition pass (invariant 6d kept
+            // the layers honest: exec never calls the middle-end, so the
+            // orchestrator bridges with a probe function). Plumbing, not
+            // evaluation — the '#TDS' text still composes IN SQL.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2724),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

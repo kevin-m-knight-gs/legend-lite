@@ -330,6 +330,10 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Case c -> caseExpr(c);
             case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
             case SqlExpr.ScalarSubquery sq -> "(" + inline(sq.subquery()) + ")";
+            case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
+                    "deferred relation-toString reached the renderer — the"
+                    + " execution boundary must resolve the dynamic column"
+                    + " list first (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(w);
             case SqlExpr.Lambda l -> lambda(l);
             case SqlExpr.Cast c -> variantAwareCast(c);

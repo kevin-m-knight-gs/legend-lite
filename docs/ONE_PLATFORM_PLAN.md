@@ -549,6 +549,23 @@ dayOfWeek, and asOf-temporal rows in one stroke. Standard **PASS=202/204, TRUE 4
 Totals: **924/1,050**, TRUE census 49→23. Referee byte-identical; core 4166;
 ALLGATES GREEN.
 
+*BURN QUEUE SLICE 6 (2026-08-19):* **deferred relation-toString** — a dynamic
+pivot's '#TDS' column list only exists at the execution boundary, so the
+composition DEFERS: a types-free `SqlExpr.DeferredTdsString` IR node (sealed-
+interface exhaustiveness extended all six walkers; a renderer reaching it walls),
+the Lowerer's side registry carries the typed schema, and post-staticize the
+LOWERING-owned pass rebuilds the composition from the LIMIT-0 probe (the
+dynamic-pivot two-phase discipline's second consumer). THREE architecture guards
+shaped the design in-flight: the 250-line shape guard split executeTyped
+(`lowerAndPrepare`); **invariant 6d rejected the first cut** (an exec-layer
+resolver calling Render) — the final design has the lowering own the pass with
+the orchestrator bridging via probe+decode FUNCTIONS (the PctTdsWrap pattern);
+the pivot-column matching rule moved to its one owner (`Type.RelationType`,
+nullable — each caller owns its fallback, and the suite pins caught the
+too-strict wall on downstream-rebuilt schemas before it landed). Relation
+**PASS=217/287, TRUE 22→19**. StatementExecutor 2695→2724 justified (probe
+plumbing, not evaluation). Referee byte-identical; core 4166; ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

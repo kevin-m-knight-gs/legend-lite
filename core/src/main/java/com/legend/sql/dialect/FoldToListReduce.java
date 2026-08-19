@@ -109,6 +109,7 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.FormatLit v -> v;
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery x -> x;
+            case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             // JSON envelope nodes never appear inside fold bodies (the
             // serialize envelope is a projection-level construct).

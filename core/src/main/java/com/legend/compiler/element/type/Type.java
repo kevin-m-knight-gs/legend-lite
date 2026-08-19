@@ -376,6 +376,37 @@ public sealed interface Type permits
                             .equals(LATE_BOUND_WILDCARD);
         }
 
+        /** THE PIVOT-COLUMN MATCHING RULE (one owner — the exec egress
+         * and the lowering's deferred-TDS resolver both consume it): a
+         * statically known name matches by NAME; a
+         * {@code <value>__|__<template>} name inherits its aggregate
+         * TEMPLATE's type; a suffixed name matching NO template while
+         * templates are present is a naming-contract bug — loud, never
+         * guessed. Null = no static/template match (each caller owns
+         * its fallback: the egress decodes the SQL type, the deferred
+         * resolver walls). */
+        public @com.legend.Nullable Type pivotColumnType(String name) {
+            var byName = columns().stream()
+                    .filter(c -> c.name().equals(name)).findFirst();
+            if (byName.isPresent()) {
+                return byName.get().type();
+            }
+            int sep = name.lastIndexOf(PIVOT_SEPARATOR);
+            if (sep >= 0 && !dynamicColumns().isEmpty()) {
+                String template = name.substring(
+                        sep + PIVOT_SEPARATOR.length());
+                return dynamicColumns().stream()
+                        .filter(c -> c.name().equals(template)).findFirst()
+                        .map(Column::type)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "pivot column '" + name + "' matches no"
+                                + " aggregate template "
+                                + dynamicColumns().stream()
+                                        .map(Column::name).toList()));
+            }
+            return null;
+        }
+
         /** THE TRUST-NAME RULE (the one place it is defined): a by-name
          * read over a late-bound schema is trusted — typed
          * {@code Any[0..1]}, resolved by the database (pivot's claim-any

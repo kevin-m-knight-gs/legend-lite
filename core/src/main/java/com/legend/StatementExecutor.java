@@ -2811,6 +2811,50 @@ final class StatementExecutor {
     /** ONE VALUE expression through the ordinary back half (G½ inline →
      * H resolve → lower/execute) — the assert-verdict arm's side
      * evaluator. The same sequence as the generic statement tail. */
+    /** LOWER → post-process → two-phase dynamic pivot → deferred
+     * relation-toString resolution: the whole plan-preparation ladder
+     * (split from executeTyped at the 250-line shape guard). */
+    private static com.legend.sql.SqlQuery lowerAndPrepare(
+            java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection) throws java.sql.SQLException {
+        com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
+        com.legend.sql.SqlQuery plan =
+                lowerer.lower(withQueryLetPrefix(body, env, ctx));
+        // post-process, then two-phase dynamic pivot (DynamicPivot doc)
+        plan = com.legend.exec.DynamicPivot.staticize(
+                com.legend.lowering.SqlPostProcessors.apply(plan,
+                        env.tableReplace()), dialect, connection);
+        // DEFERRED relation-toString (dynamic-pivot inners): the column
+        // list exists only NOW, post-staticize. The LOWERING layer owns
+        // the composition pass (invariant 6d — exec never calls the
+        // middle-end); THIS orchestrator supplies the LIMIT-0 probe
+        // (a SCHEMA read, DynamicPivot's two-phase discipline).
+        if (!lowerer.deferredTds().isEmpty()) {
+            final var fDialect = dialect;
+            final var fConn = connection;
+            class ProbeFailed extends RuntimeException {
+                ProbeFailed(java.sql.SQLException c) { super(c); }
+            }
+            try {
+                plan = com.legend.lowering.Render.resolveAllDeferredTds(
+                        plan, lowerer.deferredTds(), inner -> {
+                            try {
+                                return com.legend.exec.PctProbe.probe(
+                                        inner, fDialect, fConn);
+                            } catch (java.sql.SQLException ex) {
+                                throw new ProbeFailed(ex);
+                            }
+                        }, com.legend.exec.Executor::pureOfSqlType);
+            } catch (ProbeFailed pf) {
+                throw (java.sql.SQLException) pf.getCause();
+            }
+        }
+        return plan;
+    }
+
     static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
@@ -3041,15 +3085,9 @@ final class StatementExecutor {
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
             System.err.println("[resolved] " + body);
         }
-        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm()
-                .lower(withQueryLetPrefix(body, env, ctx));
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-        // post-process, then two-phase dynamic pivot (DynamicPivot doc)
-        plan = com.legend.exec.DynamicPivot.staticize(
-                com.legend.lowering.SqlPostProcessors.apply(plan,
-                        env.tableReplace()), dialect, connection);
+        com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
+                dialect, connection);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive

@@ -101,6 +101,22 @@ import java.util.function.Supplier;
 public final class Lowerer {
 
     private int aliasCounter = 0;
+
+    /** The DEFERRED relation-toString registry (dynamic-pivot inners
+     * whose '#TDS' column list only exists at the execution boundary):
+     * id → the typed relation schema the boundary resolver needs for
+     * per-column print forms. The SQL IR node itself is TYPES-FREE
+     * (the sql package's standalone wall); this side channel is the
+     * lowering layer's own. */
+    private final java.util.Map<Integer,
+            com.legend.compiler.element.type.Type.RelationType>
+            deferredTds = new java.util.LinkedHashMap<>();
+
+    public java.util.Map<Integer,
+            com.legend.compiler.element.type.Type.RelationType>
+            deferredTds() {
+        return deferredTds;
+    }
     private int tdsCounter;
 
     /**
@@ -2656,7 +2672,8 @@ public final class Lowerer {
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                Render.lowerToString(tc, this::relation, nextAlias());
+                Render.lowerToString(tc, this::relation, nextAlias(),
+                        deferredTds);
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the

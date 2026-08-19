@@ -680,22 +680,12 @@ public final class Executor {
      * templates are present is a naming-contract bug — loud, never guessed.
      */
     private static Type pivotColumnType(Type.RelationType schema, String name, String sqlType) {
-        var byName = schema.columns().stream()
-                .filter(c -> c.name().equals(name)).findFirst();
-        if (byName.isPresent()) {
-            return byName.get().type();
-        }
-        int sep = name.lastIndexOf(Type.RelationType.PIVOT_SEPARATOR);
-        if (sep >= 0 && !schema.dynamicColumns().isEmpty()) {
-            String template = name.substring(sep + Type.RelationType.PIVOT_SEPARATOR.length());
-            return schema.dynamicColumns().stream()
-                    .filter(c -> c.name().equals(template)).findFirst()
-                    .map(Type.Column::type)
-                    .orElseThrow(() -> new IllegalStateException("pivot column '" + name
-                            + "' matches no aggregate template " + schema.dynamicColumns().stream()
-                                    .map(Type.Column::name).toList()));
-        }
-        return pureOfSqlType(sqlType);
+        // the ONE matching rule lives on Type.RelationType (the
+        // deferred-TDS resolver shares it); the SQL-type decode is THIS
+        // caller's fallback — schemas rebuilt downstream of the pivot,
+        // where the templates no longer ride
+        Type t = schema.pivotColumnType(name);
+        return t != null ? t : pureOfSqlType(sqlType);
     }
 
     /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries.

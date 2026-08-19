@@ -195,6 +195,12 @@ public abstract class SqlRewriter {
                 yield sub == sq.subquery() ? sq
                         : new SqlExpr.ScalarSubquery(sub);
             }
+            case SqlExpr.DeferredTdsString d -> {
+                SqlQuery sub = rewrite(d.inner());
+                yield sub == d.inner() ? d
+                        : new SqlExpr.DeferredTdsString((SqlSelect) sub,
+                                d.alias(), d.id());
+            }
             case SqlExpr.JsonObject j -> {
                 List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);
                 yield kv == j.kv() ? j : new SqlExpr.JsonObject(kv);
