@@ -245,6 +245,26 @@ surfaces in the diff — the regex model-scanner (`extractClassMetadata`, a shad
 by another name), the error remapper, the embedded classifiers. Size: **M–L**, phased
 suite by suite (Essential's 327 first).
 
+*Phase 4 CHANNEL B FIRST MILESTONE (2026-08-19):* the runner EXISTS and the Essential
+census is pinned. `pct/channelb/ChannelB`: our parser compiles the PCT sources at
+LEGEND_PLATFORM (iterative model-wall collection over the platform tree; parsed native
+declarations drop — the registry is the definition), discovers `<<PCT.test>>` functions,
+β-reduces the IDENTITY adapter (`$f->eval(|expr)` → `expr` — our platform IS the
+executor; non-identity shapes DECLINE with their spelling), and executes each body in a
+fresh DuckDB session — asserts lower to `CASE WHEN … error(msg)` and run IN THE
+DATABASE. **Essential: 327 discovered (exactly channel A's count) — 189 PASS / 107
+FAIL / 2 DECLINED / 29 ERROR**, pinned (discovery exact, PASS grows-only). Three
+platform fixes fell out and referee-gated clean: the asserts package joined the
+implicit-import list (spec fact: PCT sources call `assertFalse` bare); the
+message-LAMBDA assert overload unwraps to its body in SQL (CASE ELSE is already lazy —
+`error()` was receiving a DuckDB lambda); `toRepresentation` became a platform native
+(the pure body is m3-reflective and unportable; `lowering/Repr` is the SQL owner,
+`PureAsserts.repr` the host owner, the `%r` directive rides the same emission with the
+dead-branch VARCHAR cast). Burn list for the next batches: 92× DuckDB list-lambda
+binding (`put`/Map territory), 12× assertError (needs the error-catching assert), 6×
+eval-with-args adapter shapes, primitive-extension declines, then the THREE-BUCKET DIFF
+against channel A's expected-failure ledger and the adapter split.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

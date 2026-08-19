@@ -219,8 +219,14 @@ public final class PlatformTypes {
      *  M3-reflective body never joins the overload set. */
     public static final String TO_CSV = "meta::relational::tests::csv::toCSV";
 
+    /** toRepresentation: the platform native (Phase 4 — the pure body is
+     * m3-reflective and unportable; the native is the definition). */
+    public static final String TO_REPRESENTATION =
+            "meta::pure::functions::string::toRepresentation";
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || TO_REPRESENTATION.equals(fqn)
                 || TO_CSV.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)

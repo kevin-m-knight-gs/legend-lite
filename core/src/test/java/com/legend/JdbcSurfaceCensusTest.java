@@ -109,6 +109,9 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java",
             "core/src/test/java/com/legend/exec/Phase1AuditTest.java",
             "core/src/test/java/com/legend/exec/RawGridSchemaTest.java",
+            // Phase 4: channel B's runner — one fresh DuckDB session per
+            // PCT test (the platform executes; the runner orchestrates)
+            "pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelB.java",
             "core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java",
             "core/src/test/java/com/legend/testdatagen/PureReprTest.java",
             "core/src/test/java/com/legend/exec/ExecuteFrameTest.java",

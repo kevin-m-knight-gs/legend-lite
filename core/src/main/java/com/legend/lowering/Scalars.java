@@ -1351,13 +1351,34 @@ final class Scalars {
         // NON_NEWLINE_SENSITIVE 's' (POSIX '.' matches newline).
         // assert in VALUE position: TRUE or raise (real asserts.pure —
         // the failure message keeps the pure spelling)
+        // toRepresentation (Phase 4 platform native; host owner
+        // PureAsserts.repr, THIS is the SQL owner): the pure-source
+        // spelling — strings quote+escape, dates take the % form,
+        // Decimal the D suffix, numbers/booleans their text. Statically
+        // typed args emit exactly; an Any-typed arg takes the carrier's
+        // best-effort text (message-position cosmetics only — pass/fail
+        // never rides this).
+        for (String f : Pure.nativeKeysAt("toRepresentation")) {
+            RULES.put(f, (n, args) -> Repr.of(
+                    n.args().get(0).info().type(), args.get(0)));
+        }
         for (String f : Pure.nativeKeysAt("assert")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Case(
-                    List.of(new SqlExpr.Case.When(args.get(0),
-                            new SqlExpr.BoolLit(true))),
-                    SqlExpr.Call.of(SqlFn.ERROR,
-                            args.size() > 1 ? args.get(1)
-                                    : new SqlExpr.StringLit("assert failed"))));
+            RULES.put(f, (n, args) -> {
+                SqlExpr msg = args.size() > 1 ? args.get(1)
+                        : new SqlExpr.StringLit("assert failed");
+                // the MESSAGE-LAMBDA overload (assert(cond, |msg) —
+                // spec: deferred evaluation): SQL's CASE ELSE is already
+                // lazy, so the lambda unwraps to its body — error()
+                // takes the string, never a DuckDB lambda
+                if (msg instanceof SqlExpr.Lambda ml
+                        && ml.params().isEmpty()) {
+                    msg = ml.body();
+                }
+                return new SqlExpr.Case(
+                        List.of(new SqlExpr.Case.When(args.get(0),
+                                new SqlExpr.BoolLit(true))),
+                        SqlExpr.Call.of(SqlFn.ERROR, msg));
+            });
         }
         for (String f : Pure.nativeKeysAt("regexpLike")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
@@ -2843,7 +2864,7 @@ final class Scalars {
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 
-    private static SqlExpr cat(SqlExpr... parts) {
+    static SqlExpr cat(SqlExpr... parts) {
         SqlExpr out = parts[0];
         for (int i = 1; i < parts.length; i++) {
             out = SqlExpr.Call.of(SqlFn.CONCAT, out, parts[i]);
@@ -3236,7 +3257,7 @@ final class Scalars {
             // %r: pure's REPR — a string in quotes with \-escapes, a date
             // with its % literal prefix.
             if (d == 'r') {
-                spread.set(argIdx, reprOf(typed, spread.get(argIdx)));
+                spread.set(argIdx, Repr.of(typed, spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
                 i += 2;
@@ -3334,7 +3355,7 @@ final class Scalars {
     }
 
     /** Pure's default date print for a format slot, or null when not a date. */
-    private static @com.legend.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
+    static @com.legend.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
         Type t = typed.info().type();
         SqlExpr lit = dateLiteralPrint(typed, t);
         if (lit != null) {
@@ -3346,22 +3367,6 @@ final class Scalars {
         }
         return null;
     }
-
-    /** %r: strings quote with \-escapes; dates carry their % literal prefix. */
-    private static SqlExpr reprOf(@com.legend.Nullable TypedSpec typed, SqlExpr e) {
-        if (typed != null) {
-            SqlExpr dp = datePrintOf(typed, e);
-            if (dp != null) {
-                return cat(new SqlExpr.StringLit("%"), dp);
-            }
-        }
-        SqlExpr escaped = SqlExpr.Call.of(SqlFn.REPLACE,
-                SqlExpr.Call.of(SqlFn.REPLACE, e,
-                        new SqlExpr.StringLit("\\"), new SqlExpr.StringLit("\\\\")),
-                new SqlExpr.StringLit("'"), new SqlExpr.StringLit("\\'"));
-        return cat(new SqlExpr.StringLit("'"), escaped, new SqlExpr.StringLit("'"));
-    }
-
 
     private static boolean isClassish(Type t) {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)

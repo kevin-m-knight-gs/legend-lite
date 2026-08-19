@@ -83,6 +83,10 @@ final class FunctionCompiler {
             "meta::pure::functions::boolean",
             "meta::pure::functions::lang",
             "meta::pure::functions::multiplicity",
+            // real pure's implicit imports include the assert family —
+            // PCT sources call assertFalse/assertEquals BARE with no
+            // asserts import (Phase 4 channel B verified the spec fact)
+            "meta::pure::functions::asserts",
             "meta::pure::tds",
             "meta::pure::tds::extensions");
 

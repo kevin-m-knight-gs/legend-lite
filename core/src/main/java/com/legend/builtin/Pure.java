@@ -1956,6 +1956,13 @@ public final class Pure {
     // spirit; see IfChecker.thunkBody)
     public static final NativeFunctionDefinition FAIL = signature("native function meta::pure::functions::asserts::fail():meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition FAIL__STRING_1 = signature("native function meta::pure::functions::asserts::fail(message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    // toRepresentation (REAL essential/string/toString/toRepresentation.pure)
+    // — the pure-source spelling of a value. A PLATFORM NATIVE (Phase 4:
+    // the pure body is m3-reflective — match over PackageableElement/
+    // elementToPath — and cannot compile in our model; PureAsserts.repr
+    // is the host owner, the Scalars rule the SQL owner). Platform-owned:
+    // parsed/corpus pure definitions suppress.
+    public static final NativeFunctionDefinition TO_REPRESENTATION__ANY_1 = signature("native function meta::pure::functions::string::toRepresentation(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::metamodel::type::Number[1], actual:meta::pure::metamodel::type::Number[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
 
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");

@@ -55,7 +55,10 @@ class ParserBoundaryArchTest {
             // Phase 4 entry gate: channel B's front door IS a dialect
             // decision — the PCT sources are the M3 surface, parsed at
             // LEGEND_PLATFORM (the census names that fact deliberately)
-            "com/legend/equivalence/PctParseCensusTest.java");
+            "com/legend/equivalence/PctParseCensusTest.java",
+            // Phase 4: channel B parses the PCT M3 sources — the same
+            // front-door dialect decision the census names
+            "org/finos/legend/lite/pct/channelb/ChannelB.java");
 
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {
