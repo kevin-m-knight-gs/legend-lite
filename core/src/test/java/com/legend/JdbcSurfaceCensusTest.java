@@ -73,6 +73,10 @@ class JdbcSurfaceCensusTest {
             // error (the inner body still executes in the database) and
             // adjudicates with the pure spec's failure spellings
             "core/src/main/java/com/legend/AssertErrorNative.java",
+            // Clause 2c: the assert-family verdict arm — argument values
+            // compute in the database; the SQLException surface carries
+            // the verdict to the runner
+            "core/src/main/java/com/legend/AssertVerdicts.java",
             "core/src/main/java/com/legend/Compiler.java",
             "core/src/main/java/com/legend/SeedSqlForms.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
@@ -105,6 +109,9 @@ class JdbcSurfaceCensusTest {
             // Phase 4: assertError spec tests — a DuckDB session + the
             // SQLException surface IS the feature under test
             "core/src/test/java/com/legend/AssertErrorNativeTest.java",
+            // Clause 2c: the verdict-arm spec tests — a DuckDB session
+            // computes the argument sides; the verdict IS the test
+            "core/src/test/java/com/legend/AssertVerdictsTest.java",
             // Phase 4: map wire-shape + rigid-lattice spec pins execute
             // through a DuckDB session (the wire IS the assertion)
             "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",

@@ -371,6 +371,30 @@ relational-DuckDB manifest). The essential-suite burn is COMPLETE; remaining Pha
 work: the remaining suites (Grammar/Relation/Standard/Unclassified) and the adapter
 split.
 
+*CLAUSE-2c REDESIGN — the burn slices re-judged and the seam arms DELETED
+(2026-08-19, docs/PHASE4_REDESIGN_PROPOSAL.md EXECUTED):* the Phase-2 deep audit
+found the five slices had taught the SQL world verdict tricks (Clause 2c's named
+violation); the homework retired "position decides" — legend-engine has NO SQL
+translation for ANY assert, so **asserts are verdicts, always**. The replacement is
+the K-arm: `AssertVerdicts` intercepts statement-root assert-family calls PRE-INLINE
+in `StatementExecutor` (or the spec bodies would compile to SQL), executes the
+ARGUMENTS in the database (`evalValue`), and adjudicates in World 1 (`PureAsserts`);
+`map(f|assert(pred, msg))` is the QUANTIFIED verdict — the predicate vectorizes in
+SQL, the boolean vector is judged host-side. DELETED wholesale: the Scalars SQL
+assert rule, the U+001E sentinel span channel end-to-end (assertError line/col now
+refuses loudly — position is unobservable from database errors), and the equality
+seam arms (`equalityWireOperand` dual-wrap, static-empty, `[1]==1` unwrap —
+CastPolicy/Scalars reverted to their pre-Phase-4 shape). World-1 completeness the
+honest crossing exposed (all spec-witnessed): array-cell flattening, OffsetDateTime
+repr, integral×Decimal equality is NUMERIC (testIntToDecimal), the temporal
+string-carrier bridge is SYMMETRIC (the parse is the typing-bug catch, not the
+direction; PureAsserts ledger 250→264 justified). Census **PASS=290/327**, diff
+**AGREE-PASS=286 AGREE-FAIL=21 WIRE-BUG=14 B-FIXES-A=4 DECLINED=2**, frontier
+**ENGINE-FRONTIER=14, TRUE-WIRE-BUG=0** — better than the seam-arm era
+(280/15/20/10) on every honest axis; the 6 line/col rows reclassified
+B-FIXES-A→AGREE-FAIL (source-info vanity, not conformance). Referee byte-identical,
+core 4156 green, ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

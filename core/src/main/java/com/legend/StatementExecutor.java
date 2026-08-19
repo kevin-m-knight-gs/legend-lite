@@ -177,6 +177,16 @@ final class StatementExecutor {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }
+            // Clause 2c: a STATEMENT-ROOT assert-family call is a
+            // VERDICT — arguments execute in the database, the judgment
+            // is World 1's (AssertVerdicts; pre-inline so the assert
+            // library's pure bodies never β-inline into SQL)
+            ExecutionResult verdict = AssertVerdicts.tryAdjudicate(
+                    bare, letPrefix, specs, env);
+            if (verdict != null) {
+                result = verdict;
+                continue;
+            }
             ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
             if (hosted != null) {
                 result = hosted;
@@ -2796,6 +2806,24 @@ final class StatementExecutor {
                 }
             }
         }
+    }
+
+    /** ONE VALUE expression through the ordinary back half (G½ inline →
+     * H resolve → lower/execute) — the assert-verdict arm's side
+     * evaluator. The same sequence as the generic statement tail. */
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
+            throws java.sql.SQLException {
+        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+        single.add(value);
+        var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
+        java.util.List<TypedSpec> body = inliner.inlineBody(single);
+        env.queryLets().putAll(inliner.queryLets());
+        body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                .withLetBindings(env.queryLets())
+                .resolve(body, env.runtimeFqn());
+        return executeTyped(body, env);
     }
 
     static ExecutionResult executeTyped(

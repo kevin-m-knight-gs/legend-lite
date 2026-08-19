@@ -126,16 +126,22 @@ class PureAssertsTest {
     }
 
     @Test
-    @DisplayName("policy: temporal bridge is expected-string direction only")
+    @DisplayName("policy: temporal string-carrier bridge is SYMMETRIC (re-adjudicated 2026-08-19)")
     void temporalBridge() {
         assertTrue(PureAsserts.equalScalar("2014-01-01",
                 java.time.LocalDate.of(2014, 1, 1)));
         assertTrue(PureAsserts.equalScalar("2014-01-01T00:00:00Z",
                 java.time.LocalDateTime.of(2014, 1, 1, 0, 0)));
+        // RE-ADJUDICATED at the Clause-2c redesign: the platform's
+        // DESIGNED carrier for partial-precision temporals is a STRING,
+        // so a carrier string legitimately sits on EITHER side; the
+        // typing-bug catch is the PARSE (a non-parsing string still
+        // fails), not the direction.
+        assertTrue(PureAsserts.equalScalar(
+                java.time.LocalDate.of(2014, 1, 1), "2014-01-01"));
         assertFalse(PureAsserts.equalScalar(
-                java.time.LocalDate.of(2014, 1, 1), "2014-01-01"),
-                "actual-side string where a Date belongs is a typing bug"
-                        + " — never bridged");
+                java.time.LocalDate.of(2014, 1, 1), "not-a-date"),
+                "a non-parsing string still fails — the typing-bug catch");
     }
 
     // ---- toRepresentation (the one owner) -----------------------------

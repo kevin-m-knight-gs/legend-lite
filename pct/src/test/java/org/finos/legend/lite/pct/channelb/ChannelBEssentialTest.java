@@ -116,12 +116,16 @@ class ChannelBEssentialTest {
         }
         System.out.println("[chB] frontier: ENGINE-FRONTIER=" + frontier
                 + " TRUE-WIRE-BUG=" + trueWireBug);
-        // measured 2026-08-19, post dual-wrap + map-reader-shapes +
-        // decimal-edge burns (AGREE-PASS=280 AGREE-FAIL=15 WIRE-BUG=20
-        // B-FIXES-A=10 DECLINED=2): the wire-bug census may only SHRINK;
-        // agreement may only GROW
-        assertTrue(agreePass >= 280, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 20, "WIRE-BUG census grew: " + wireBug);
+        // measured 2026-08-19 under the CLAUSE-2c REDESIGN (verdicts in
+        // World 1, zero verdict-in-SQL machinery): AGREE-PASS=286
+        // AGREE-FAIL=21 WIRE-BUG=14 B-FIXES-A=4 DECLINED=2 — better on
+        // every honest axis than the seam-arm era (280/15/20/10). The 6
+        // assertError line/col rows reclassified B-FIXES-A→AGREE-FAIL
+        // (source position is unobservable from database errors; channel
+        // A cannot pass them either). Wire-bug census SHRINKS only;
+        // agreement GROWS only.
+        assertTrue(agreePass >= 286, "AGREE-PASS fell: " + agreePass);
+        assertTrue(wireBug <= 14, "WIRE-BUG census grew: " + wireBug);
         // THE PHASE-4 MILESTONE NUMBER: rows OUR platform fails that BOTH
         // reference channels pass. ZERO (2026-08-19) — every remaining
         // failure is corroborated by a reference channel. Stays zero.

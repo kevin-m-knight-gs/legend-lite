@@ -16,13 +16,14 @@ import java.sql.DriverManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Phase 4 channel-B fixes, pinned as core semantics:
+ * KEPT platform fixes from the Phase-4 arc (the redesign's re-judgment,
+ * 2026-08-19 — the equality seam arms this file once also pinned are
+ * DELETED under Charter Clause 2c; verdicts live in World 1):
  *
  * <p>1. {@code map} over a TO-ONE/[0..1] source wraps as a singleton
- * list — {@code list_transform} over a bare scalar is a DuckDB BINDER
- * error even inside a dead CASE arm (assertEquals' many-path over a
- * {@code head()} actual walled 12 essential tests); a [0..1] source
- * null-guards (map over EMPTY is EMPTY, never {@code [f(NULL)]}).
+ * list and a to-one RESULT unwraps back to the scalar wire
+ * ({@code ListEncodings.map}) — a real user-visible fix:
+ * {@code head()->map(...)} was a DuckDB Binder error.
  *
  * <p>2. A RIGID type-variable binding whose declared type is an
  * abstract value head (Number, Date) accepts actuals up the m3 lattice
@@ -73,43 +74,6 @@ class MapOptionalSourceTest {
     @DisplayName("rigid Number parameter accepts a Float actual (m3 lattice)")
     void rigidNumberAcceptsFloat() throws Exception {
         assertEquals(2.0, run("{|{a:Number[1]|$a + 1}->eval(1.0)}"));
-    }
-
-    // pure equality is COLLECTION equality: [x] IS x — the one-element
-    // collection literal meets a to-one scalar literal at the element
-    // (CastPolicy.comparisonWireOperand; the match-arm [1] shape)
-    @Test
-    @DisplayName("equal: a one-element collection literal equals its element")
-    void oneElementCollectionEquality() throws Exception {
-        assertEquals(true, run("{|equal(1, [1])}"));
-        assertEquals(true, run("{|equal([1], 1)}"));
-        assertEquals(false, run("{|equal([2], 1)}"));
-        assertEquals(true, run("{|equal([1,2], [1,2])}"));
-    }
-
-    // the DUAL wrap: a to-one scalar literal against a many-typed VALUE
-    // side compares as its singleton list; property navigations keep the
-    // bare compare (testFilterOnSimpleTypePropertyEq stays engine-exact)
-    @Test
-    @DisplayName("equal: scalar literal vs many-typed value compares as singleton")
-    void scalarVsManyTypedValue() throws Exception {
-        assertEquals(true,
-                run("{|equal(1, newMap(pair('key1', 1))->values())}"));
-        assertEquals(false,
-                run("{|equal(3, newMap(pair('key1', 1))->values())}"));
-    }
-
-    // equal is TOTAL: a statically empty side is the other side's
-    // emptiness test — [] == [] is TRUE, never SQL NULL (the Scalars
-    // equal rule's static-empty arm; the 10-row essential family)
-    @Test
-    @DisplayName("equal over empties: [] == [] is TRUE; x == [] is isEmpty(x)")
-    void emptyEquality() throws Exception {
-        assertEquals(true, run("{|equal([], [])}"));
-        assertEquals(true, run("{|equal([], [1,2]->filter(x|$x > 5))}"));
-        assertEquals(false, run("{|equal([], [1,2])}"));
-        assertEquals(true, run("{|equal([]->head(), [])}"));
-        assertEquals(false, run("{|equal([1,2]->head(), [])}"));
     }
 
     @Test

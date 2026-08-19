@@ -702,15 +702,15 @@ final class ArchitectureTest {
             // their owner — the pin is per top-level class
             .and().haveNameNotMatching("com\\.legend\\.(Compiler"
                     + "|StatementExecutor|SeedSqlForms"
-                    // the assertError K-arm (Phase 4): catches the
-                    // database-raised error and adjudicates — the same
-                    // orchestration charter as StatementExecutor
-                    + "|AssertErrorNative)(\\$.*)?")
+                    // the assert K-arms (Clause 2c): argument values
+                    // compute in the database, verdicts adjudicate here —
+                    // the same orchestration charter as StatementExecutor
+                    + "|AssertErrorNative|AssertVerdicts)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
                     + " {Compiler, StatementExecutor, SeedSqlForms,"
-                    + " AssertErrorNative} —"
+                    + " AssertErrorNative, AssertVerdicts} —"
                     + " shrink-only; the split is backlogged")
             .check(CORE_PROD_CLASSES);
     }

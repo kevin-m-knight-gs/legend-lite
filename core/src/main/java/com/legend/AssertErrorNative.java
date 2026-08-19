@@ -50,8 +50,15 @@ final class AssertErrorNative {
                     + " literal");
         }
         String expected = exp.value();
-        Long expLine = optionalInt(ae, 2);
-        Long expCol = optionalInt(ae, 3);
+        // SOURCE POSITION is NOT OBSERVABLE from a database error (the
+        // Phase-4 redesign deleted the U+001E in-message span channel —
+        // production error text carries no wire protocol): non-empty
+        // line/column expectations refuse LOUDLY
+        if (optionalInt(ae, 2) != null || optionalInt(ae, 3) != null) {
+            throw new com.legend.error.NotImplementedException(
+                    "assertError line/column: source position is not"
+                    + " observable from database errors");
+        }
         java.sql.SQLException caught = null;
         try {
             StatementExecutor.executeStatements(f.body(),
@@ -65,42 +72,14 @@ final class AssertErrorNative {
             // thrown") — a FAIL, not an orchestration error
             throw new java.sql.SQLException("No error was thrown");
         }
-        Decoded d = decode(String.valueOf(caught.getMessage()));
-        if (!d.message().equals(expected)) {
+        String actual = decode(String.valueOf(caught.getMessage()));
+        if (!actual.equals(expected)) {
             // assertError.pure:24 — the /4 body's assertEquals format,
             // verbatim
             throw new java.sql.SQLException(
                     "Execution error message mismatch.\nThe actual message"
-                    + " was \"" + d.message() + "\"\nwhere the expected"
+                    + " was \"" + actual + "\"\nwhere the expected"
                     + " message was:\"" + expected + "\"");
-        }
-        if (expLine != null) {
-            if (d.line() == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "assertError line/column: the raising site carried"
-                        + " no source-info channel (span-less guard — the"
-                        + " typed-tree span channel grows per guard site)");
-            }
-            if (!expLine.equals(d.line())) {
-                // assertError.pure:25 — verbatim
-                throw new java.sql.SQLException("Execution error line"
-                        + " mismatch. Actual: " + d.line()
-                        + " where expected: " + expLine);
-            }
-        }
-        if (expCol != null) {
-            if (d.column() == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "assertError line/column: the raising site carried"
-                        + " no source-info channel (span-less guard — the"
-                        + " typed-tree span channel grows per guard site)");
-            }
-            if (!expCol.equals(d.column())) {
-                // assertError.pure:26 — verbatim
-                throw new java.sql.SQLException("Execution error column"
-                        + " mismatch. Actual: " + d.column()
-                        + " where expected: " + expCol);
-            }
         }
         return new ExecutionResult.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
@@ -125,40 +104,14 @@ final class AssertErrorNative {
                 + " literal or []");
     }
 
-    /** The decoded database error: pure-level message, and the raising
-     * call's source position when the guard embedded one. */
-    record Decoded(String message, @com.legend.Nullable Long line,
-            @com.legend.Nullable Long column) {
-    }
-
     /** Strip the backend's error-kind prefix ({@code "Invalid Input
-     * Error: "} etc. — single-line kind, anchored at the start) and split
-     * the U+001E source-info suffix. */
-    static Decoded decode(String raw) {
-        String msg = raw;
-        java.util.regex.Matcher m = PREFIX.matcher(msg);
-        if (m.find()) {
-            msg = msg.substring(m.end());
-        }
-        int rs = msg.indexOf('\u001E');
-        if (rs < 0) {
-            return new Decoded(msg, null, null);
-        }
-        String src = msg.substring(rs + 1);
-        msg = msg.substring(0, rs);
-        // the channel is machine-written (withSrc emits line:col digits);
-        // anything else is NOT the channel — the sentinel char appeared in
-        // ordinary message text, keep the split-off part as message
-        if (!SPAN.matcher(src).matches()) {
-            return new Decoded(msg + '\u001E' + src, null, null);
-        }
-        int colon = src.indexOf(':');
-        return new Decoded(msg, Long.parseLong(src.substring(0, colon)),
-                Long.parseLong(src.substring(colon + 1)));
+     * Error: "} etc. — single-line kind, anchored at the start): the
+     * pure-level MESSAGE is what the spec compares. */
+    static String decode(String raw) {
+        java.util.regex.Matcher m = PREFIX.matcher(raw);
+        return m.find() ? raw.substring(m.end()) : raw;
     }
 
     private static final java.util.regex.Pattern PREFIX =
             java.util.regex.Pattern.compile("^[A-Za-z]+(?: [A-Za-z]+)* Error: ");
-    private static final java.util.regex.Pattern SPAN =
-            java.util.regex.Pattern.compile("\\d{1,9}:\\d{1,9}");
 }

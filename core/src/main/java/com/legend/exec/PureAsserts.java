@@ -186,8 +186,19 @@ public final class PureAsserts {
         boolean eInt = isIntegral(e);
         boolean aInt = isIntegral(a);
         if (eInt || aInt) {
-            // SPEC: integral kinds compare by value; cross-kind
-            // (integral vs anything else) is FALSE
+            // SPEC: integral kinds compare by value. Integral vs DECIMAL
+            // is NUMERIC — the spec's own witness is PCT testIntToDecimal
+            // (assertEquals(8, 8->toDecimal()) passes interpreted);
+            // integral vs FLOAT stays FALSE (no witness grants it — the
+            // two-worlds fixture pins the divergence from SQL coercion).
+            if (eInt && a instanceof BigDecimal ad) {
+                return BigDecimal.valueOf(((Number) e).longValue())
+                        .compareTo(ad) == 0;
+            }
+            if (aInt && e instanceof BigDecimal ed) {
+                return ed.compareTo(BigDecimal.valueOf(
+                        ((Number) a).longValue())) == 0;
+            }
             return eInt && aInt
                     && ((Number) e).longValue() == ((Number) a).longValue();
         }
@@ -231,10 +242,19 @@ public final class PureAsserts {
             }
             return false;
         }
-        // POLICY: temporal Any-carrier bridge (expected-string vs
-        // actual-temporal ONLY)
+        // POLICY: the temporal string-carrier bridge, SYMMETRIC — the
+        // platform's DESIGNED carrier for partial-precision temporals is
+        // a STRING, so a string may legitimately sit on EITHER side of a
+        // temporal compare (2026-08-19 redesign: the K-arm's wire
+        // crossing witnessed actual-side carrier strings; the old
+        // one-direction rule predated the designed carrier). A
+        // non-parsing string still fails — the typing-bug catch is the
+        // parse, not the direction.
         if (e instanceof String es && isTemporal(a)) {
             return temporalEquals(es, a);
+        }
+        if (a instanceof String as2 && isTemporal(e)) {
+            return temporalEquals(as2, e);
         }
         // WIRE-VALUE TREES (struct cells decoded to maps at egress, and
         // any lists nested inside them): the ONE walker owns the
@@ -316,6 +336,12 @@ public final class PureAsserts {
             case java.time.LocalDate d -> "%" + d;
             case java.sql.Timestamp ts -> "%" + ts.toLocalDateTime();
             case java.time.LocalDateTime ldt -> "%" + ldt;
+            // pure prints offset datetimes with the +HHMM form
+            // (%2014-02-27T10:01:35.231+0000 — parseDate.pure's own
+            // expectations)
+            case java.time.OffsetDateTime odt -> "%" + odt.toLocalDateTime()
+                    + odt.getOffset().getId().replace(":", "")
+                            .replace("Z", "+0000");
             default -> throw new com.legend.error.NotImplementedException(
                     "toRepresentation for " + v.getClass().getName()
                     + " is not modeled (spec: '<id instanceOf Type>' —"

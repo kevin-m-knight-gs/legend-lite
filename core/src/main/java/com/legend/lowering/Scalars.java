@@ -82,43 +82,8 @@ final class Scalars {
         // vs pure true) is the reference engine's own behavior (bare =;
         // IS NOT DISTINCT FROM appears in no golden).
         for (String name : List.of("equal", "eq")) {
-            boolean isEqual = name.equals("equal");
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {
-                    // equal is COLLECTION equality and TOTAL: a STATICALLY
-                    // empty side makes it the other side's EMPTINESS test
-                    // ([] == [] is TRUE; x == [] is isEmpty(x)) — the bare
-                    // SQL '=' spells NULL there (Phase 4 channel B: the
-                    // 10-row essential empty-equality family). eq is the
-                    // strict [1]-arg operator — empties never reach it.
-                    if (isEqual) {
-                        boolean se0 = CastPolicy.staticallyEmpty(n.args().get(0));
-                        boolean se1 = CastPolicy.staticallyEmpty(n.args().get(1));
-                        if (se0 && se1) {
-                            return new SqlExpr.BoolLit(true);
-                        }
-                        if (se0 || se1) {
-                            TypedSpec other = n.args().get(se0 ? 1 : 0);
-                            Type ot = other.info().type();
-                            // VALUE kinds only (Nil = the []-born element
-                            // type — value-safe, never a navigation):
-                            // class/Any-typed sides keep the bare '=' —
-                            // relational navigations own their emptiness
-                            // in the exists machinery (gate-4 association/
-                            // inheritance/union regression when this arm
-                            // overreached)
-                            if (ot instanceof Type.Primitive
-                                    || ot instanceof Type.PrecisionDecimal
-                                    || ot instanceof Type.EnumType
-                                    || PlatformTypes.isNil(ot)
-                                    // Any = the value/variant carrier
-                                    // (class chains type as ClassType,
-                                    // never Any)
-                                    || PlatformTypes.isAny(ot)) {
-                                return CastPolicy.emptinessOf(other, args.get(se0 ? 1 : 0));
-                            }
-                        }
-                    }
                     Integer p0 = partialPrecision(n.args().get(0));
                     Integer p1 = partialPrecision(n.args().get(1));
                     if (p0 != null || p1 != null) {
@@ -141,9 +106,9 @@ final class Scalars {
                         }
                     }
                     List<SqlExpr> cargs = List.of(
-                            CastPolicy.equalityWireOperand(n.args().get(0),
+                            CastPolicy.comparisonWireOperand(n.args().get(0),
                                     args.get(0), n.args().get(1)),
-                            CastPolicy.equalityWireOperand(n.args().get(1),
+                            CastPolicy.comparisonWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
@@ -1010,9 +975,9 @@ final class Scalars {
                             datePrecisionOrUnknown(n.args().get(0));
                     if (prec != null && !prec.atLeast(needed)) {
                         return SqlExpr.Call.of(SqlFn.ERROR,
-                                withSrc(n, cat(new SqlExpr.StringLit(
+                                cat(new SqlExpr.StringLit(
                                                 "Cannot get " + label + " for "),
-                                        str(args.get(0)))));
+                                        str(args.get(0))));
                     }
                     // A PARTIAL date that HAS the component carries as its
                     // print-form string ('2015-04') — the component is a
@@ -1287,11 +1252,11 @@ final class Scalars {
                         SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), size),
                         SqlExpr.Call.of(SqlFn.LESS, args.get(1), new SqlExpr.IntLit(0)));
                 return guarded(oob,
-                        withSrc(n, cat(new SqlExpr.StringLit(
+                        cat(new SqlExpr.StringLit(
                                         "The system is trying to get an element at offset "),
                                 str(args.get(1)),
                                 new SqlExpr.StringLit(" where the collection is of size "),
-                                str(size))),
+                                str(size)),
                         new SqlExpr.Call(SqlFn.LIST_GET,
                                 List.of(args.get(0), plusOne(args.get(1)))));
             });
@@ -1397,24 +1362,6 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toRepresentation")) {
             RULES.put(f, (n, args) -> Repr.of(
                     n.args().get(0).info().type(), args.get(0)));
-        }
-        for (String f : Pure.nativeKeysAt("assert")) {
-            RULES.put(f, (n, args) -> {
-                SqlExpr msg = args.size() > 1 ? args.get(1)
-                        : new SqlExpr.StringLit("assert failed");
-                // the MESSAGE-LAMBDA overload (assert(cond, |msg) —
-                // spec: deferred evaluation): SQL's CASE ELSE is already
-                // lazy, so the lambda unwraps to its body — error()
-                // takes the string, never a DuckDB lambda
-                if (msg instanceof SqlExpr.Lambda ml
-                        && ml.params().isEmpty()) {
-                    msg = ml.body();
-                }
-                return new SqlExpr.Case(
-                        List.of(new SqlExpr.Case.When(args.get(0),
-                                new SqlExpr.BoolLit(true))),
-                        SqlExpr.Call.of(SqlFn.ERROR, msg));
-            });
         }
         for (String f : Pure.nativeKeysAt("regexpLike")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
@@ -2807,20 +2754,6 @@ final class Scalars {
     static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 SqlExpr.Call.of(SqlFn.ERROR, msg))), value);
-    }
-
-    /** The database error's SOURCE-INFO channel: real pure errors carry
-     * message and SourceInformation separately (interpreted
-     * AssertError.java reads {@code e.getInfo()} vs
-     * {@code e.getSourceInformation()}); a database-raised guard has one
-     * string, so the call's compile-time span (the parser's name-token
-     * position — the same convention the engine reports) rides BEHIND the
-     * U+001E record separator. {@code AssertErrorNative} decodes and
-     * strips it; a span-less synthesized call sends the message alone. */
-    static SqlExpr withSrc(TypedNativeCall n, SqlExpr msg) {
-        com.legend.protocol.SourceInfo p = n.pos();
-        return p == null ? msg : cat(msg, new SqlExpr.StringLit(
-                "\u001E" + p.startLine() + ":" + p.startColumn()));
     }
 
     static SqlExpr str(SqlExpr x) {

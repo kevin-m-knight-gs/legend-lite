@@ -120,7 +120,13 @@ class JavaEvalLedgerTest {
             // refusal (P2-5 — eq is identity, unobservable on a wire),
             // tree arms delegate to JsonCompare (P2-4/P2-6).
             // Adjudication-layer correctness, not new evaluation surface.
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 250),
+            // 250→264 (2026-08-19 Clause-2c redesign — the K-arm's honest
+            // wire crossing exposed World-1 completeness gaps): integral×
+            // Decimal equality is NUMERIC (spec witness testIntToDecimal),
+            // the temporal string-carrier bridge is SYMMETRIC (the
+            // designed partial-precision carrier sits on either side),
+            // OffsetDateTime joins repr. Adjudication-layer correctness.
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 264),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

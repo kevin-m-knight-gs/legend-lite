@@ -74,39 +74,18 @@ class AssertErrorNativeTest {
         assertEquals("No error was thrown", e.getMessage());
     }
 
-    // assertError.pure:41 testSimpleAssertErrorLine shape — line/column
-    // verify against the database error's embedded source-info channel
-    // (the at call's name token: line 1, column 23 of this query text)
+    // the Phase-4 redesign DELETED the U+001E span channel: source
+    // position is not observable from a database error — non-empty
+    // line/column expectations refuse LOUDLY (never a silent pass)
     @Test
-    @DisplayName("line/column match against the error's source-info channel")
-    void lineColumnMatch() throws Exception {
-        ExecutionResult r = run("{|assertError(|[1,2]->at(3),"
-                + "'The system is trying to get an element at offset 3"
-                + " where the collection is of size 2', 1, 23)}");
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
-    }
-
-    @Test
-    @DisplayName("line mismatch fails with assertError.pure:25's exact spelling")
-    void lineMismatch() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
+    @DisplayName("line/column expectations refuse loudly — position is unobservable")
+    void lineColumnRefusesLoudly() {
+        assertThrows(com.legend.error.NotImplementedException.class, () -> run(
                 "{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
-                + " where the collection is of size 2', 9, 23)}"));
-        assertEquals("Execution error line mismatch."
-                + " Actual: 1 where expected: 9", e.getMessage());
+                + " where the collection is of size 2', 1, 23)}"));
     }
 
-    @Test
-    @DisplayName("column mismatch fails with assertError.pure:26's exact spelling")
-    void columnMismatch() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
-                "{|assertError(|[1,2]->at(3),"
-                + "'The system is trying to get an element at offset 3"
-                + " where the collection is of size 2', 1, 99)}"));
-        assertEquals("Execution error column mismatch."
-                + " Actual: 23 where expected: 99", e.getMessage());
-    }
 
     // assertError.pure:30 — the /2 overload delegates with [] line/[] col:
     // empty expectations skip the source-info checks
@@ -136,33 +115,19 @@ class AssertErrorNativeTest {
         assertEquals("No error was thrown", e.getMessage());
     }
 
-    // ---- the decoder (the U+001E source-info channel) ----
+    // ---- the decoder (backend prefix strip only — the U+001E span
+    // channel is DELETED; source position is unobservable) ----
 
     @Test
-    @DisplayName("decode strips the backend prefix and splits the span suffix")
-    void decodeSpan() {
-        var d = AssertErrorNative.decode(
-                "Invalid Input Error: Cannot get hour for 2017\u001E29:36");
-        assertEquals("Cannot get hour for 2017", d.message());
-        assertEquals(29L, d.line());
-        assertEquals(36L, d.column());
-    }
-
-    @Test
-    @DisplayName("decode without a span suffix yields a channel-less message")
-    void decodeNoSpan() {
-        var d = AssertErrorNative.decode(
-                "Conversion Error: Could not convert string 'x' to INT64");
-        assertEquals("Could not convert string 'x' to INT64", d.message());
-        assertNull(d.line());
-        assertNull(d.column());
-    }
-
-    @Test
-    @DisplayName("decode keeps multi-line messages whole (prefix is single-line, anchored)")
-    void decodeMultiLine() {
-        var d = AssertErrorNative.decode(
-                "Invalid Input Error: expected:\nA\nactual:\nB");
-        assertEquals("expected:\nA\nactual:\nB", d.message());
+    @DisplayName("decode strips the backend's single-line error-kind prefix")
+    void decodePrefix() {
+        assertEquals("Cannot get hour for 2017", AssertErrorNative.decode(
+                "Invalid Input Error: Cannot get hour for 2017"));
+        assertEquals("expected:\nA\nactual:\nB", AssertErrorNative.decode(
+                "Invalid Input Error: expected:\nA\nactual:\nB"));
+        assertEquals("Could not convert string 'x' to INT64",
+                AssertErrorNative.decode(
+                        "Conversion Error: Could not convert string 'x'"
+                        + " to INT64"));
     }
 }
