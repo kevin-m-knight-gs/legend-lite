@@ -152,7 +152,12 @@ class JavaEvalLedgerTest {
             // database and cell-zips host-side via GridCompare (Clause
             // 2c's chartered route; the 79-row relation witness). Verdict
             // orchestration over DB-produced frames, never evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 300),
+            // 300→304 (2026-08-19 burn slice 1): the side-flatten's
+            // ONE-CARRIER normalization — raw JDBC array elements arrive
+            // as driver temporals; java.time is the platform convention
+            // (the invisible-diff bug: a Timestamp reprs identically to
+            // the LocalDateTime it never equals). Decode, not evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 304),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -299,7 +299,17 @@ final class AssertVerdicts {
                     // the collection IS the side, flattened
                     try {
                         for (Object el : (Object[]) arr.getArray()) {
-                            out.add(el);
+                            // ONE-CARRIER normalization: raw JDBC array
+                            // elements arrive as driver temporals — the
+                            // java.time carrier is the platform's one
+                            // convention (the invisible-diff bug: a
+                            // Timestamp reprs identically to the
+                            // LocalDateTime it never equals)
+                            out.add(el instanceof java.sql.Timestamp ts
+                                    ? ts.toLocalDateTime()
+                                    : el instanceof java.sql.Date sd
+                                            ? sd.toLocalDate()
+                                            : el);
                         }
                     } catch (java.sql.SQLException ex) {
                         throw new IllegalStateException(

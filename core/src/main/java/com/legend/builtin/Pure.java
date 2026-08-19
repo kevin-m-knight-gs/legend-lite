@@ -1962,6 +1962,11 @@ public final class Pure {
     // elementToPath — and cannot compile in our model; PureAsserts.repr
     // is the host owner, the Scalars rule the SQL owner). Platform-owned:
     // parsed/corpus pure definitions suppress.
+    // chunk (REAL core_functions_unclassified string/split/chunk.pure:
+    // declared native there, called by the relation suite): fixed-size
+    // string chunking — SQL owner is the regexp engine.
+    public static final NativeFunctionDefinition CHUNK__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::chunk(source:meta::pure::metamodel::type::String[1], val:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[*];");
+
     public static final NativeFunctionDefinition TO_REPRESENTATION__ANY_1 = signature("native function meta::pure::functions::string::toRepresentation(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::metamodel::type::Number[1], actual:meta::pure::metamodel::type::Number[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
     // assertError (REAL essential/tests/assertError.pure:21/:30 — the

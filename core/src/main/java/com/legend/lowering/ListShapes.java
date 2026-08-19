@@ -32,7 +32,10 @@ final class ListShapes {
             SqlFn.LIST_DISTINCT, SqlFn.LIST_REVERSE, SqlFn.LIST_ZIP,
             // map readers produce LISTS (values()->sort() wrapped a
             // nested list without them — Phase 4 channel B testValues)
-            SqlFn.MAP_KEYS, SqlFn.MAP_VALUES);
+            SqlFn.MAP_KEYS, SqlFn.MAP_VALUES,
+            // the regexp sweep produces a LIST (chunk()->sort() wrapped
+            // a nested list without it — same precedent)
+            SqlFn.REGEXP_EXTRACT_ALL);
 
     /** A scalar subquery whose single projection is a LIST-building
      * aggregate (the values-collection reader) — its VALUE is a list. */

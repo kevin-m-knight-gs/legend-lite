@@ -489,6 +489,24 @@ spelling. AssertVerdicts 246→300 justified (the grid-verdict arm). Referee
 byte-identical; core 4166; ALLGATES GREEN. Remaining Phase-4 work: the burn
 queue (49 TRUE rows) and the adapter split.
 
+*BURN QUEUE SLICE 1 (2026-08-19):* three general fixes. (1) The EXTREME family's
+identity arm (min/max/least/greatest, 6 sites) now carries the minus rule's
+singleton-list-literal guard — the reduction of [x] is x, never [x] (witness
+testLeast/Greatest_Single, where the whole DuckDB array came back as the value).
+(2) The K-arm's side-flatten normalizes raw JDBC array elements to the java.time
+ONE-CARRIER convention — the INVISIBLE-DIFF bug: a java.sql.Timestamp reprs
+identically to the LocalDateTime it never equals, so expected and actual printed
+the same text while failing. (3) `chunk` is a platform native (signature verbatim
+from core_functions_unclassified chunk.pure; the SQL owner is the regexp sweep
+'.{1,n}' with the pattern composed IN SQL so computed sizes work), and
+REGEXP_EXTRACT_ALL joins ListShapes' LIST_PRODUCERS (chunk()->sort() wrapped a
+nested list without it — the map-reader precedent). Census: Relation
+**PASS=208/287 (TRUE 33→28)**, Standard **PASS=184/204 (WIRE 24→20)**; pins
+tightened to the new floors. AssertVerdicts 300→304 justified (carrier decode).
+Referee byte-identical; core 4166; ALLGATES GREEN. Queue remainder: window frame
+semantics, pivot column orders, columns(), temporal-precision rows,
+INTEGER[]→DOUBLE casts, the 51 shaped declines.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

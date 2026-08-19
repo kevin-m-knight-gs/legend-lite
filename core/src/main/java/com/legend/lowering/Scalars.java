@@ -1039,8 +1039,12 @@ final class Scalars {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
-                    // a TO-ONE collection is its own extreme
-                    return isToOne(n.args().get(0)) ? args.get(0)
+                    // a TO-ONE collection is its own extreme — but a
+                    // SINGLETON LIST LITERAL is a list; its reduction is
+                    // the element (the minus rule's convention)
+                    return isToOne(n.args().get(0))
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                            ? args.get(0)
                             : Comparators.select(args.get(0), cmp, false);
                 }
                 if (args.size() > 1) {
@@ -1049,7 +1053,9 @@ final class Scalars {
                             ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
                 }
-                return isToOne(n.args().get(0)) ? args.get(0)
+                return isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                        ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MIN, args);
             });
         }
@@ -1060,8 +1066,10 @@ final class Scalars {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
-                    // a TO-ONE collection is its own extreme
-                    return isToOne(n.args().get(0)) ? args.get(0)
+                    // (same singleton-list-literal guard as min)
+                    return isToOne(n.args().get(0))
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                            ? args.get(0)
                             : Comparators.select(args.get(0), cmp, true);
                 }
                 if (args.size() > 1) {
@@ -1070,7 +1078,9 @@ final class Scalars {
                             ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
                 }
-                return isToOne(n.args().get(0)) ? args.get(0)
+                return isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                        ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MAX, args);
             });
         }
@@ -1096,7 +1106,9 @@ final class Scalars {
                 if (mx != null) {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
-                return isToOne(n.args().get(0)) ? args.get(0)
+                return isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                        ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MAX, args);
             });
         }
@@ -1106,7 +1118,9 @@ final class Scalars {
                 if (mx != null) {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
-                return isToOne(n.args().get(0)) ? args.get(0)
+                return isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                        ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MIN, args);
             });
         }
@@ -1391,6 +1405,19 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toRepresentation")) {
             RULES.put(f, (n, args) -> Repr.of(
                     n.args().get(0).info().type(), args.get(0)));
+        }
+        // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
+        // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =
+        // abcde|fghij|klmno|p; a short string is one chunk) — the
+        // pattern composes in SQL so a computed n works too.
+        for (String f : Pure.nativeKeysAt("chunk")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(
+                    SqlFn.REGEXP_EXTRACT_ALL, args.get(0),
+                    SqlExpr.Call.of(SqlFn.CONCAT,
+                            new SqlExpr.StringLit(".{1,"),
+                            new SqlExpr.Cast(args.get(1),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                            new SqlExpr.StringLit("}"))));
         }
         for (String f : Pure.nativeKeysAt("regexpLike")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
