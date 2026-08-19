@@ -198,7 +198,8 @@ public final class UserCallInliner {
                     widened = true;
                 }
             }
-            TypedSpec reduced = reduceStatements(body, callEnv);
+            TypedSpec reduced = deepFoldInlined(
+                    reduceStatements(body, callEnv));
             if (widened && call.info().type()
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
                 reduced = new com.legend.compiler.spec.typed.TypedSelect(reduced,
@@ -300,6 +301,26 @@ public final class UserCallInliner {
     // The rewriter — exhaustive over the sealed vocabulary (javac-enforced)
     // =====================================================================
 
+    /** Deep literal-if prune over an INLINED body (see
+     * NormalizeFolds.foldInlined — engine parity keeps user-authored
+     * query ifs; inlined platform plumbing folds). */
+    private static TypedSpec deepFoldInlined(TypedSpec n) {
+        java.util.List<TypedSpec> kids = n.children();
+        if (!kids.isEmpty()) {
+            java.util.List<TypedSpec> out = new java.util.ArrayList<>(kids.size());
+            boolean changed = false;
+            for (TypedSpec k : kids) {
+                TypedSpec f = deepFoldInlined(k);
+                changed |= f != k;
+                out.add(f);
+            }
+            if (changed) {
+                n = n.withChildren(out);
+            }
+        }
+        return NormalizeFolds.foldInlined(n);
+    }
+
     private TypedSpec rewrite(TypedSpec n, Map<String, TypedSpec> env) {
         if (hook != null) {
             TypedSpec h = hook.apply(n, bound.keySet());
@@ -307,6 +328,10 @@ public final class UserCallInliner {
                 return rewrite(h, env);
             }
         }
+        return rewriteSwitch(n, env);
+    }
+
+    private TypedSpec rewriteSwitch(TypedSpec n, Map<String, TypedSpec> env) {
         return switch (n) {
             case TypedUserCall uc -> inlineCall(uc, env);
 

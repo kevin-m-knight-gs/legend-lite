@@ -49,8 +49,8 @@ class ChannelBEssentialTest {
         assertTrue(out.size() == 327,
                 "essential discovery moved: " + out.size() + " != 327");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
-        assertTrue(pass >= 189,
+        assertTrue(pass >= 248,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 189");
+                        + pass + " < 248");
     }
 }
