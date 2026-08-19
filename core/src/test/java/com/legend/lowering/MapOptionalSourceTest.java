@@ -75,6 +75,18 @@ class MapOptionalSourceTest {
         assertEquals(2.0, run("{|{a:Number[1]|$a + 1}->eval(1.0)}"));
     }
 
+    // pure equality is COLLECTION equality: [x] IS x — the one-element
+    // collection literal meets a to-one scalar literal at the element
+    // (CastPolicy.comparisonWireOperand; the match-arm [1] shape)
+    @Test
+    @DisplayName("equal: a one-element collection literal equals its element")
+    void oneElementCollectionEquality() throws Exception {
+        assertEquals(true, run("{|equal(1, [1])}"));
+        assertEquals(true, run("{|equal([1], 1)}"));
+        assertEquals(false, run("{|equal([2], 1)}"));
+        assertEquals(true, run("{|equal([1,2], [1,2])}"));
+    }
+
     @Test
     @DisplayName("rigid Number parameter accepts an Integer actual")
     void rigidNumberAcceptsInteger() throws Exception {

@@ -307,6 +307,16 @@ DateCtorRule (out of Scalars). Remaining wire-bug anatomy: 26 real assert-value
 divergences (adjudicate per row), ~5 eval/match inference edges, 11 conversion edges
 (big-number dates, fold-empty casts, match [0..1]), 2 resolution, 2 declines.
 
+*BURN SLICE 3 — collection equality (2026-08-19):* pure equality is COLLECTION
+equality — [x] IS x. The one-element-collection-vs-scalar reconciliation landed in its
+chartered owner, CastPolicy.comparisonWireOperand (a match-arm [1] against the expected
+1), narrow to a literal scalar other side (a non-literal to-one may itself ride the
+list wire — take(1) — and list = list stays untouched). A first attempt as a
+NormalizeFolds [x]→x rewrite regressed 4 rows (collection ops keep the LIST wire;
+folding the literal broke list = list) and was reverted — the wire-convention
+unification remains a future design leg. Census **PASS=277**, diff **AGREE-PASS=267
+AGREE-FAIL=15 WIRE-BUG=33 B-FIXES-A=10**.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

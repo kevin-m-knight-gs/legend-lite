@@ -72,6 +72,20 @@ final class CastPolicy {
                 && !other.info().type().equals(tc.target())) {
             return sc.value();
         }
+        // pure equality is COLLECTION equality: [x] IS x — a ONE-element
+        // collection literal meets a to-one SCALAR literal at the element
+        // (a match-arm [1] against the expected 1; Phase 4 channel B
+        // testMatch* family). Narrow to a literal scalar other side: a
+        // non-literal to-one may itself ride the list wire (take(1)), and
+        // list = list must stay untouched.
+        if (lowered instanceof SqlExpr.ArrayLit al && al.elements().size() == 1
+                && literalish(other)
+                && !(other instanceof com.legend.compiler.spec.typed.TypedCollection)
+                && other.info().multiplicity()
+                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded ob
+                && ob.upper() != null && ob.upper() == 1) {
+            return al.elements().get(0);
+        }
         return lowered;
     }
 
