@@ -265,6 +265,17 @@ binding (`put`/Map territory), 12× assertError (needs the error-catching assert
 eval-with-args adapter shapes, primitive-extension declines, then the THREE-BUCKET DIFF
 against channel A's expected-failure ledger and the adapter split.
 
+*THE THREE-BUCKET DIFF IS LIVE (2026-08-19):* after the inlined-body constant folds
+(189→248 PASS; the provenance rule engine-verified both directions), the diff against
+channel A's own ledger reads **AGREE-PASS=247, AGREE-FAIL=24, WIRE-BUG=53, B-FIXES-A=1,
+DECLINED=2** — 271/327 corroborated by two fully independent channels, the 53 wire-bug
+rows are the named census the phase exists to produce (24 real assert divergences +
+list-lambda/cast/temporal-range gaps), and one B-FIXES-A finding (our platform passes
+where the reference adapter could not). Pinned: AGREE-PASS grows-only, WIRE-BUG
+shrinks-only. Remaining phase work: the wire-bug burn (feeds Phase 6's census), the
+remaining suites (Grammar/Relation/Standard/Unclassified ride the same runner), and the
+adapter split.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine
