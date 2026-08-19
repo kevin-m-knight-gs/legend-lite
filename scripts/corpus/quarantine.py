@@ -107,7 +107,6 @@ ENGINE_QUARANTINE.update({
         # Confirmations have the same shape, so the middle-office one displaced the ops one
         # that used to be here as GG_ConfirmationTree. Adding a class can therefore remove a
         # service, which is worth knowing before reading the count.
-        "GG_MiddleofficeConfirmationTree",
         "GG_TradeTree",
         "GG_ClearedTradeTree",
         "GG_TradeExceptionTree",

@@ -1592,14 +1592,31 @@ def check(c: Corpus) -> list[str]:
     # reports a column that plainly is in the file as missing. That is how a fresh
     # market-risk store collided with the risk domain's own RISK_FACTOR and STRESS_SCENARIO,
     # and the error pointed at the new file rather than at the duplication.
-    seen_tables: dict[str, str] = {}
+    # Counted per OCCURRENCE, not per file. The first version compared file names, so two
+    # declarations in the SAME file -- which is what a 700-line store DDL invites -- slipped
+    # through and cost the same debugging twice.
+    # Keyed by (DATABASE, table), not by table alone. Two databases declaring the same table
+    # is how store substitution is written -- hier::IssuerDB and hier::IssuerProdDB both
+    # declare HIER_ISSUER on purpose -- so flagging that would be flagging a feature. Two
+    # declarations inside ONE database is the mistake, and it is invisible: the reader keeps
+    # one, and every property mapped to a column of the other reports as missing from a file
+    # where it is plainly present.
+    seen_tables: dict[tuple, list[str]] = {}
     for f in sorted(STRESS.glob("*.pure")):
-        for m in re.finditer(r"^\s*Table\s+(\w+)\s*[\(\n]", f.read_text(), re.M):
-            name = m.group(1)
-            if name in seen_tables and seen_tables[name] != f.name:
-                bad.append(f"table {name} is declared in BOTH {seen_tables[name]} and "
-                           f"{f.name}; the reader keeps one and silently drops the other")
-            seen_tables.setdefault(name, f.name)
+        db = None
+        for line in f.read_text().splitlines():
+            m = re.match(r"^\s*Database\s+([\w:]+)", line)
+            if m:
+                db = m.group(1)
+                continue
+            m = re.match(r"^\s*Table\s+(\w+)\s*[\(]?\s*$|^\s*Table\s+(\w+)\s*\(", line)
+            if m and db:
+                seen_tables.setdefault((db, m.group(1) or m.group(2)), []).append(f.name)
+    for (db, name), where in sorted(seen_tables.items()):
+        if len(where) > 1:
+            bad.append(f"table {name} is declared {len(where)} times in {db} "
+                       f"({', '.join(sorted(set(where)))}); the reader keeps one and "
+                       f"silently drops the other")
 
     prev = "###Pure"
     for f in sorted(STRESS.glob("*.pure")):

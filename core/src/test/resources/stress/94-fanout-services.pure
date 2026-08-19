@@ -2859,6 +2859,367 @@ Service stress::MO5_CleanTrades
   ]
 }
 
+Service stress::BO0_PaymentBlotter
+{
+    pattern: '/stress/bo0';
+    documentation: 'Payments with the instruction that routed each and the trade behind it. Failed, cancelled and pending payments have no settlement time and the failed one carries a reason.';
+    execution: Single
+    {
+    query: |backoffice::Payment.all()
+        ->project(~[
+            paymentId:x|$x.paymentId,
+            paymentType:x|$x.paymentType,
+            direction:x|$x.direction,
+            amount:x|$x.amount,
+            signedAmount:x|$x.signedAmount,
+            status:x|$x.status,
+            settledAt:x|$x.settledAt,
+            failReason:x|$x.failReason,
+            correspondentBic:x|$x.instruction.correspondentBic
+        ])
+        ->sort(~paymentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BO0_PaymentBlotter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"paymentId":"PMT-000001","paymentType":"SWIFT_MT202","direction":"OUT","amount":666400.0,"signedAmount":-666400.0,"status":"SETTLED","settledAt":"2024-06-19T09:12:00.000000000+0000","failReason":null,"correspondentBic":"CHASUS33"},{"paymentId":"PMT-000002","paymentType":"TARGET2","direction":"IN","amount":725812.5,"signedAmount":725812.5,"status":"SETTLED","settledAt":"2024-05-13T08:40:00.000000000+0000","failReason":null,"correspondentBic":"DEUTDEFF"},{"paymentId":"PMT-000003","paymentType":"SWIFT_MT202","direction":"OUT","amount":84500.0,"signedAmount":-84500.0,"status":"FAILED","settledAt":null,"failReason":"Beneficiary account closed","correspondentBic":"CHASUS33"},{"paymentId":"PMT-000004","paymentType":"BOOK_TRANSFER","direction":"IN","amount":112000.0,"signedAmount":112000.0,"status":"CANCELLED","settledAt":null,"failReason":"Underlying termination cancelled","correspondentBic":"BOFAUS3N"},{"paymentId":"PMT-000005","paymentType":"FEDWIRE","direction":"OUT","amount":41250.0,"signedAmount":-41250.0,"status":"PENDING","settledAt":null,"failReason":null,"correspondentBic":"BOFAUS3N"},{"paymentId":"PMT-000006","paymentType":"TARGET2","direction":"OUT","amount":312500.0,"signedAmount":-312500.0,"status":"SETTLED","settledAt":"2024-06-20T14:05:00.000000000+0000","failReason":null,"correspondentBic":"DEUTDEFF"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BO1_Reconciliation
+{
+    pattern: '/stress/bo1';
+    documentation: 'The nostro reconciliation. An unmatched STATEMENT item has no payment behind it and an unmatched LEDGER item has no movement, so the two null columns are the finding rather than missing data.';
+    execution: Single
+    {
+    query: |backoffice::ReconciliationItem.all()
+        ->project(~[
+            reconId:x|$x.reconId,
+            itemType:x|$x.itemType,
+            amount:x|$x.amount,
+            status:x|$x.status,
+            assignedTo:x|$x.assignedTo,
+            ageDays:x|$x.ageDays,
+            paymentId:x|$x.paymentId,
+            movementId:x|$x.movementId,
+            accountName:x|$x.reconNostro.accountName
+        ])
+        ->sort(~reconId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BO1_Reconciliation_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reconId":"REC-00001","itemType":"MATCHED","amount":666400.0,"status":"CLOSED","assignedTo":null,"ageDays":0,"paymentId":"PMT-000001","movementId":"MOV-000001","accountName":"USD clearing - JPM"},{"reconId":"REC-00002","itemType":"MATCHED","amount":725812.5,"status":"CLOSED","assignedTo":null,"ageDays":0,"paymentId":"PMT-000002","movementId":"MOV-000002","accountName":"EUR clearing - DB"},{"reconId":"REC-00003","itemType":"UNMATCHED_STATEMENT","amount":9350.0,"status":"OPEN","assignedTo":"bo.recon.ny","ageDays":6,"paymentId":null,"movementId":"MOV-000003","accountName":"USD clearing - JPM"},{"reconId":"REC-00004","itemType":"UNMATCHED_LEDGER","amount":84500.0,"status":"OPEN","assignedTo":"bo.recon.ny","ageDays":44,"paymentId":"PMT-000003","movementId":null,"accountName":"USD clearing - JPM"},{"reconId":"REC-00005","itemType":"VALUE_DATE_MISMATCH","amount":312500.0,"status":"INVESTIGATING","assignedTo":"bo.recon.frankfurt","ageDays":6,"paymentId":"PMT-000006","movementId":"MOV-000004","accountName":"EUR clearing - DB"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BO2_ValueDateBreaks
+{
+    pattern: '/stress/bo2';
+    documentation: 'Value-date mismatches only: matched on money, broken on timing. The break an amount-only reconciliation misses entirely.';
+    execution: Single
+    {
+    query: |backoffice::ValueDateMismatchItem.all()
+        ->project(~[
+            reconId:x|$x.reconId,
+            amount:x|$x.amount,
+            assignedTo:x|$x.assignedTo,
+            ageDays:x|$x.ageDays
+        ])
+        ->sort(~reconId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BO2_ValueDateBreaks_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reconId":"REC-00005","amount":312500.0,"assignedTo":"bo.recon.frankfurt","ageDays":6}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BO3_StandingInstructions
+{
+    pattern: '/stress/bo3';
+    documentation: 'Standing settlement instructions. The superseded one carries an end date and the securities one has no currency -- it settles a position, not an amount.';
+    execution: Single
+    {
+    query: |backoffice::SettlementInstruction.all()
+        ->project(~[
+            ssiId:x|$x.ssiId,
+            currency:x|$x.currency,
+            instrumentType:x|$x.instrumentType,
+            correspondentBic:x|$x.correspondentBic,
+            isDefault:x|$x.isDefault,
+            effectiveTo:x|$x.effectiveTo,
+            status:x|$x.status,
+            legalName:x|$x.ssiCounterparty.legalName
+        ])
+        ->sort(~ssiId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BO3_StandingInstructions_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"ssiId":"SSI-EUR-CP0001","currency":"EUR","instrumentType":"CASH","correspondentBic":"DEUTDEFF","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Meridian Asset Management"},{"ssiId":"SSI-SEC-CP0003","currency":null,"instrumentType":"SECURITIES","correspondentBic":"ECLRLULL","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"O\'Neill Capital Partners"},{"ssiId":"SSI-USD-CP0001","currency":"USD","instrumentType":"CASH","correspondentBic":"CHASUS33","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Meridian Asset Management"},{"ssiId":"SSI-USD-CP0002","currency":"USD","instrumentType":"CASH","correspondentBic":"BOFAUS3N","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Halberd Securities"},{"ssiId":"SSI-USD-CP0002-OLD","currency":"USD","instrumentType":"CASH","correspondentBic":"CITIUS33","isDefault":false,"effectiveTo":"2021-05-31","status":"SUPERSEDED","legalName":"Halberd Securities"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BO4_CashByCurrency
+{
+    pattern: '/stress/bo4';
+    documentation: 'Payments by currency and status: the treasury cash ladder.';
+    execution: Single
+    {
+    query: |backoffice::Payment.all()
+        ->project(~[
+            currency:x|$x.currency,
+            status:x|$x.status,
+            amount:x|$x.amount
+        ])
+        ->groupBy(~[currency, status], ~[
+            paymentCount: x|$x.amount : agg|$agg->count(),
+            totalAmount: x|$x.amount : agg|$agg->sum(),
+            largest: x|$x.amount : agg|$agg->max()
+        ])
+        ->sort(~currency->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BO4_CashByCurrency_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"currency":"EUR","status":"SETTLED","paymentCount":2,"totalAmount":1038312.5,"largest":725812.5},{"currency":"USD","status":"SETTLED","paymentCount":1,"totalAmount":666400.0,"largest":666400.0},{"currency":"USD","status":"FAILED","paymentCount":1,"totalAmount":84500.0,"largest":84500.0},{"currency":"USD","status":"CANCELLED","paymentCount":1,"totalAmount":112000.0,"largest":112000.0},{"currency":"USD","status":"PENDING","paymentCount":1,"totalAmount":41250.0,"largest":41250.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BO5_NostroAccounts
+{
+    pattern: '/stress/bo5';
+    documentation: 'Nostro accounts with whether anything is outstanding against them. The inactive GBP account has no movements and no reconciliation items, which is two empty to-manys on one row.';
+    execution: Single
+    {
+    query: |backoffice::NostroAccount.all()
+        ->project(~[
+            nostroId:x|$x.nostroId,
+            accountName:x|$x.accountName,
+            isActive:x|$x.isActive,
+            noMovements:x|$x.movements->isEmpty(),
+            noReconItems:x|$x.reconItems->isEmpty()
+        ])
+        ->sort(~nostroId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BO5_NostroAccounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 4 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"nostroId":"NOS-EUR-DEUT","accountName":"EUR clearing - DB","isActive":true,"noMovements":false,"noReconItems":false},{"nostroId":"NOS-GBP-BARC","accountName":"GBP clearing - Barclays","isActive":false,"noMovements":true,"noReconItems":true},{"nostroId":"NOS-USD-CHAS","accountName":"USD clearing - JPM","isActive":true,"noMovements":false,"noReconItems":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -5047,9 +5408,9 @@ Service stress::D_SettlementFailDense
   ]
 }
 
-Service stress::D_SettlementInstructionDense
+Service stress::D_SettlementSettlementInstructionDense
 {
-    pattern: '/stress/d_settlementinstruction';
+    pattern: '/stress/d_settlementsettlementinstruction';
     documentation: 'Dense stack on settlement::SettlementInstruction: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -5071,7 +5432,7 @@ Service stress::D_SettlementInstructionDense
     }
   testSuites:
   [
-    D_SettlementInstructionDense_suite:
+    D_SettlementSettlementInstructionDense_suite:
     {
       data:
       [
@@ -6356,6 +6717,67 @@ Service stress::D_OrderRouteDense
                   #{
                     contentType: 'application/json';
                     data: '[{"routeId":"OR-0001","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0003","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0004","orderInstrumentSectorName":null,"orderInstrumentInstrumentCurrencyName":null,"orderInstrumentExchangeName":null},{"routeId":"OR-0005","orderInstrumentSectorName":"Information Technology","orderInstrumentInstrumentCurrencyName":"US Dollar","orderInstrumentExchangeName":"Nasdaq Stock Market"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_PaymentDense
+{
+    pattern: '/stress/d_payment';
+    documentation: 'Dense stack on backoffice::Payment: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |backoffice::Payment.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            paymentId:x|$x.paymentId,
+            instructionSsiCounterpartyCountryName:x|$x.instruction.ssiCounterparty.country.name,
+            paidTradeOptionTermsOptionTradeCurrency:x|$x.paidTrade.optionTerms.optionTrade.currency,
+            instructionSsiCounterpartyLegalName:x|$x.instruction.ssiCounterparty.legalName,
+            signedAmount:x|$x.signedAmount,
+            paidTradeOptionTermsOptionTradeNotionalInQ:x|$x.paidTrade.optionTerms.optionTrade.notionalIn(0.5)
+        ])
+        ->sort(~paymentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_PaymentDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"paymentId":"PMT-000001","instructionSsiCounterpartyCountryName":"United States","paidTradeOptionTermsOptionTradeCurrency":null,"instructionSsiCounterpartyLegalName":"Meridian Asset Management","signedAmount":-666400.0,"paidTradeOptionTermsOptionTradeNotionalInQ":null},{"paymentId":"PMT-000002","instructionSsiCounterpartyCountryName":"United States","paidTradeOptionTermsOptionTradeCurrency":null,"instructionSsiCounterpartyLegalName":"Meridian Asset Management","signedAmount":725812.5,"paidTradeOptionTermsOptionTradeNotionalInQ":null},{"paymentId":"PMT-000003","instructionSsiCounterpartyCountryName":"United States","paidTradeOptionTermsOptionTradeCurrency":null,"instructionSsiCounterpartyLegalName":"Meridian Asset Management","signedAmount":-84500.0,"paidTradeOptionTermsOptionTradeNotionalInQ":null},{"paymentId":"PMT-000004","instructionSsiCounterpartyCountryName":"United Kingdom","paidTradeOptionTermsOptionTradeCurrency":null,"instructionSsiCounterpartyLegalName":"Halberd Securities","signedAmount":112000.0,"paidTradeOptionTermsOptionTradeNotionalInQ":null},{"paymentId":"PMT-000005","instructionSsiCounterpartyCountryName":"United Kingdom","paidTradeOptionTermsOptionTradeCurrency":null,"instructionSsiCounterpartyLegalName":"Halberd Securities","signedAmount":-41250.0,"paidTradeOptionTermsOptionTradeNotionalInQ":null},{"paymentId":"PMT-000006","instructionSsiCounterpartyCountryName":"United States","paidTradeOptionTermsOptionTradeCurrency":null,"instructionSsiCounterpartyLegalName":"Meridian Asset Management","signedAmount":-312500.0,"paidTradeOptionTermsOptionTradeNotionalInQ":null}]';
                   }#;
               }#
           ]
@@ -9073,6 +9495,117 @@ Service stress::GG_JournalEntryTree
   ]
 }
 
+Service stress::GG_PaymentTree
+{
+    pattern: '/stress/gg_payment';
+    documentation: 'Generated graph fetch on backoffice::Payment: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |backoffice::Payment.all()
+        ->graphFetch(#{
+  backoffice::Payment
+  {
+    paymentId,
+    amount,
+    currency,
+    direction,
+    instruction
+    {
+      ssiId,
+      accountNumber,
+      correspondentBic,
+      ssiCounterparty
+      {
+        counterpartyId,
+        counterpartyType
+      }
+    },
+    paidTrade
+    {
+      otcId,
+      assetClass,
+      clearingHouse,
+      optionTerms
+      {
+        otcId,
+        barrierLevel
+      }
+    }
+  }
+}#)
+        ->serialize(#{
+  backoffice::Payment
+  {
+    paymentId,
+    amount,
+    currency,
+    direction,
+    instruction
+    {
+      ssiId,
+      accountNumber,
+      correspondentBic,
+      ssiCounterparty
+      {
+        counterpartyId,
+        counterpartyType
+      }
+    },
+    paidTrade
+    {
+      otcId,
+      assetClass,
+      clearingHouse,
+      optionTerms
+      {
+        otcId,
+        barrierLevel
+      }
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_PaymentTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"paymentId":"PMT-000001","amount":666400.0,"currency":"USD","direction":"OUT","instruction":{"ssiId":"SSI-USD-CP0001","accountNumber":"8-901-2345","correspondentBic":"CHASUS33","ssiCounterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"paidTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"paymentId":"PMT-000002","amount":725812.5,"currency":"EUR","direction":"IN","instruction":{"ssiId":"SSI-EUR-CP0001","accountNumber":"400-88231","correspondentBic":"DEUTDEFF","ssiCounterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"paidTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"paymentId":"PMT-000003","amount":84500.0,"currency":"USD","direction":"OUT","instruction":{"ssiId":"SSI-USD-CP0001","accountNumber":"8-901-2345","correspondentBic":"CHASUS33","ssiCounterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"paidTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"paymentId":"PMT-000004","amount":112000.0,"currency":"USD","direction":"IN","instruction":{"ssiId":"SSI-USD-CP0002","accountNumber":"7-556-0012","correspondentBic":"BOFAUS3N","ssiCounterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}},"paidTrade":{"otcId":"OTC-000013","assetClass":"COMMODITY","clearingHouse":null,"optionTerms":null}},{"paymentId":"PMT-000005","amount":41250.0,"currency":"USD","direction":"OUT","instruction":{"ssiId":"SSI-USD-CP0002","accountNumber":"7-556-0012","correspondentBic":"BOFAUS3N","ssiCounterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}},"paidTrade":{"otcId":"OTC-000002","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"paymentId":"PMT-000006","amount":312500.0,"currency":"EUR","direction":"OUT","instruction":{"ssiId":"SSI-EUR-CP0001","accountNumber":"400-88231","correspondentBic":"DEUTDEFF","ssiCounterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"paidTrade":{"otcId":"OTC-000008","assetClass":"CREDIT","clearingHouse":"ICE","optionTerms":null}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::GG_ClearedTradeTree
 {
     pattern: '/stress/gg_clearedtrade';
@@ -11047,6 +11580,253 @@ Service stress::GG_AccountingRuleTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"ruleId":"AR-0001","condition":null,"description":"primary record","expiryDate":"2024-02-02","glAccount":null},{"ruleId":"AR-0002","condition":"CONDITION-002","description":null,"expiryDate":"2024-03-03","glAccount":null},{"ruleId":"AR-0003","condition":"CONDITION-003","description":"archived record","expiryDate":null,"glAccount":{"accountId":"GLA-0001","closeDate":"2024-02-02","description":"primary record"}},{"ruleId":"AR-0004","condition":"CONDITION-004","description":"pending review","expiryDate":"2024-05-05","glAccount":{"accountId":"GLA-0002","closeDate":null,"description":"secondary record"}},{"ruleId":"AR-0005","condition":"CONDITION-005","description":"closed","expiryDate":"2024-06-06","glAccount":{"accountId":"GLA-0003","closeDate":"2024-04-04","description":null}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_NostroMovementTree
+{
+    pattern: '/stress/gg_nostromovement';
+    documentation: 'Generated graph fetch on backoffice::NostroMovement: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |backoffice::NostroMovement.all()
+        ->graphFetch(#{
+  backoffice::NostroMovement
+  {
+    movementId,
+    amount,
+    currency,
+    narrative,
+    nostro
+    {
+      nostroId,
+      accountName,
+      accountNumber
+    }
+  }
+}#)
+        ->serialize(#{
+  backoffice::NostroMovement
+  {
+    movementId,
+    amount,
+    currency,
+    narrative,
+    nostro
+    {
+      nostroId,
+      accountName,
+      accountNumber
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_NostroMovementTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"movementId":"MOV-000001","amount":-666400.0,"currency":"USD","narrative":"OUR REF PMT24061900123","nostro":{"nostroId":"NOS-USD-CHAS","accountName":"USD clearing - JPM","accountNumber":"8-901-2345"}},{"movementId":"MOV-000002","amount":725812.5,"currency":"EUR","narrative":"OUR REF T2-24051200077","nostro":{"nostroId":"NOS-EUR-DEUT","accountName":"EUR clearing - DB","accountNumber":"400-88231"}},{"movementId":"MOV-000003","amount":9350.0,"currency":"USD","narrative":"UNIDENTIFIED CREDIT","nostro":{"nostroId":"NOS-USD-CHAS","accountName":"USD clearing - JPM","accountNumber":"8-901-2345"}},{"movementId":"MOV-000004","amount":-312500.0,"currency":"EUR","narrative":"OUR REF T2-24062000199","nostro":{"nostroId":"NOS-EUR-DEUT","accountName":"EUR clearing - DB","accountNumber":"400-88231"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_BackofficeReconciliationItemTree
+{
+    pattern: '/stress/gg_backofficereconciliationitem';
+    documentation: 'Generated graph fetch on backoffice::ReconciliationItem: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |backoffice::ReconciliationItem.all()
+        ->graphFetch(#{
+  backoffice::ReconciliationItem
+  {
+    reconId,
+    ageDays,
+    amount,
+    assignedTo,
+    reconNostro
+    {
+      nostroId,
+      accountName,
+      accountNumber
+    }
+  }
+}#)
+        ->serialize(#{
+  backoffice::ReconciliationItem
+  {
+    reconId,
+    ageDays,
+    amount,
+    assignedTo,
+    reconNostro
+    {
+      nostroId,
+      accountName,
+      accountNumber
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_BackofficeReconciliationItemTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"reconId":"REC-00001","ageDays":0,"amount":666400.0,"assignedTo":null,"reconNostro":{"nostroId":"NOS-USD-CHAS","accountName":"USD clearing - JPM","accountNumber":"8-901-2345"}},{"reconId":"REC-00002","ageDays":0,"amount":725812.5,"assignedTo":null,"reconNostro":{"nostroId":"NOS-EUR-DEUT","accountName":"EUR clearing - DB","accountNumber":"400-88231"}},{"reconId":"REC-00003","ageDays":6,"amount":9350.0,"assignedTo":"bo.recon.ny","reconNostro":{"nostroId":"NOS-USD-CHAS","accountName":"USD clearing - JPM","accountNumber":"8-901-2345"}},{"reconId":"REC-00004","ageDays":44,"amount":84500.0,"assignedTo":"bo.recon.ny","reconNostro":{"nostroId":"NOS-USD-CHAS","accountName":"USD clearing - JPM","accountNumber":"8-901-2345"}},{"reconId":"REC-00005","ageDays":6,"amount":312500.0,"assignedTo":"bo.recon.frankfurt","reconNostro":{"nostroId":"NOS-EUR-DEUT","accountName":"EUR clearing - DB","accountNumber":"400-88231"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_BackofficeSettlementInstructionTree
+{
+    pattern: '/stress/gg_backofficesettlementinstruction';
+    documentation: 'Generated graph fetch on backoffice::SettlementInstruction: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |backoffice::SettlementInstruction.all()
+        ->graphFetch(#{
+  backoffice::SettlementInstruction
+  {
+    ssiId,
+    accountNumber,
+    correspondentBic,
+    counterpartyId,
+    ssiCounterparty
+    {
+      counterpartyId,
+      counterpartyType,
+      creditRating,
+      country
+      {
+        countryCode,
+        capitalCity
+      }
+    }
+  }
+}#)
+        ->serialize(#{
+  backoffice::SettlementInstruction
+  {
+    ssiId,
+    accountNumber,
+    correspondentBic,
+    counterpartyId,
+    ssiCounterparty
+    {
+      counterpartyId,
+      counterpartyType,
+      creditRating,
+      country
+      {
+        countryCode,
+        capitalCity
+      }
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_BackofficeSettlementInstructionTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"ssiId":"SSI-USD-CP0001","accountNumber":"8-901-2345","correspondentBic":"CHASUS33","counterpartyId":"CP-0001","ssiCounterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"ssiId":"SSI-EUR-CP0001","accountNumber":"400-88231","correspondentBic":"DEUTDEFF","counterpartyId":"CP-0001","ssiCounterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"ssiId":"SSI-USD-CP0002","accountNumber":"7-556-0012","correspondentBic":"BOFAUS3N","counterpartyId":"CP-0002","ssiCounterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"ssiId":"SSI-USD-CP0002-OLD","accountNumber":"3-221-9087","correspondentBic":"CITIUS33","counterpartyId":"CP-0002","ssiCounterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"ssiId":"SSI-SEC-CP0003","accountNumber":"EOC-11923","correspondentBic":"ECLRLULL","counterpartyId":"CP-0003","ssiCounterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
                   }#;
               }#
           ]
@@ -13587,342 +14367,6 @@ Service stress::GG_SecuritiesLoanTree
   ]
 }
 
-Service stress::GG_BenchmarkRateTree
-{
-    pattern: '/stress/gg_benchmarkrate';
-    documentation: 'Generated graph fetch on marketdata::BenchmarkRate: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |marketdata::BenchmarkRate.all()
-        ->graphFetch(#{
-  marketdata::BenchmarkRate
-  {
-    rateId,
-    changeAmount,
-    fixingTime,
-    previousRate,
-    yieldCurve
-    {
-      curveId,
-      oneYearRate,
-      overnightRate
-    }
-  }
-}#)
-        ->serialize(#{
-  marketdata::BenchmarkRate
-  {
-    rateId,
-    changeAmount,
-    fixingTime,
-    previousRate,
-    yieldCurve
-    {
-      curveId,
-      oneYearRate,
-      overnightRate
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_BenchmarkRateTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"rateId":"BR-0001","changeAmount":137.5,"fixingTime":"FIXING-TIME-001","previousRate":null,"yieldCurve":null},{"rateId":"BR-0002","changeAmount":null,"fixingTime":null,"previousRate":175.0,"yieldCurve":null},{"rateId":"BR-0003","changeAmount":212.5,"fixingTime":"FIXING-TIME-003","previousRate":212.5,"yieldCurve":{"curveId":"YC-0001","oneYearRate":700.0,"overnightRate":null}},{"rateId":"BR-0004","changeAmount":250.0,"fixingTime":"FIXING-TIME-004","previousRate":250.0,"yieldCurve":{"curveId":"YC-0002","oneYearRate":null,"overnightRate":737.5}},{"rateId":"BR-0005","changeAmount":287.5,"fixingTime":"FIXING-TIME-005","previousRate":287.5,"yieldCurve":{"curveId":"YC-0003","oneYearRate":775.0,"overnightRate":775.0}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_ImpliedVolPointTree
-{
-    pattern: '/stress/gg_impliedvolpoint';
-    documentation: 'Generated graph fetch on marketdata::ImpliedVolPoint: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |marketdata::ImpliedVolPoint.all()
-        ->graphFetch(#{
-  marketdata::ImpliedVolPoint
-  {
-    pointId,
-    askVol,
-    bidVol,
-    delta,
-    surface
-    {
-      surfaceId,
-      butterfly25D,
-      riskReversal25D
-    }
-  }
-}#)
-        ->serialize(#{
-  marketdata::ImpliedVolPoint
-  {
-    pointId,
-    askVol,
-    bidVol,
-    delta,
-    surface
-    {
-      surfaceId,
-      butterfly25D,
-      riskReversal25D
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_ImpliedVolPointTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"pointId":"IVP-0001","askVol":587.5,"bidVol":587.5,"delta":587.5,"surface":null},{"pointId":"IVP-0002","askVol":625.0,"bidVol":null,"delta":null,"surface":null},{"pointId":"IVP-0003","askVol":null,"bidVol":662.5,"delta":662.5,"surface":{"surfaceId":"VS-0001","butterfly25D":812.5,"riskReversal25D":812.5}},{"pointId":"IVP-0004","askVol":700.0,"bidVol":700.0,"delta":700.0,"surface":{"surfaceId":"VS-0002","butterfly25D":850.0,"riskReversal25D":850.0}},{"pointId":"IVP-0005","askVol":737.5,"bidVol":737.5,"delta":737.5,"surface":{"surfaceId":"VS-0003","butterfly25D":null,"riskReversal25D":887.5}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_MiddleofficeConfirmationTree
-{
-    pattern: '/stress/gg_middleofficeconfirmation';
-    documentation: 'Generated graph fetch on middleoffice::Confirmation: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |middleoffice::Confirmation.all()
-        ->graphFetch(#{
-  middleoffice::Confirmation
-  {
-    confirmationId,
-    affirmedBy,
-    chaseCount,
-    matchedAt,
-    confirmedTrade
-    {
-      otcId,
-      assetClass,
-      clearingHouse,
-      optionTerms
-      {
-        otcId,
-        barrierLevel
-      }
-    }
-  }
-}#)
-        ->serialize(#{
-  middleoffice::Confirmation
-  {
-    confirmationId,
-    affirmedBy,
-    chaseCount,
-    matchedAt,
-    confirmedTrade
-    {
-      otcId,
-      assetClass,
-      clearingHouse,
-      optionTerms
-      {
-        otcId,
-        barrierLevel
-      }
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_MiddleofficeConfirmationTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"confirmationId":"CNF-00001","affirmedBy":"mo.ops.london","chaseCount":0,"matchedAt":"2024-03-15T16:44:00.000000000+0000","confirmedTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"confirmationId":"CNF-00002","affirmedBy":"mo.ops.london","chaseCount":0,"matchedAt":"2024-02-08T11:21:00.000000000+0000","confirmedTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"confirmationId":"CNF-00003","affirmedBy":null,"chaseCount":3,"matchedAt":null,"confirmedTrade":{"otcId":"OTC-000005","assetClass":"RATES","clearingHouse":null,"optionTerms":{"otcId":"OTC-000005","barrierLevel":null}}},{"confirmationId":"CNF-00004","affirmedBy":null,"chaseCount":2,"matchedAt":null,"confirmedTrade":{"otcId":"OTC-000010","assetClass":"FX","clearingHouse":null,"optionTerms":{"otcId":"OTC-000010","barrierLevel":1.15}}},{"confirmationId":"CNF-00005","affirmedBy":"mo.ops.singapore","chaseCount":5,"matchedAt":"2024-01-22T10:02:00.000000000+0000","confirmedTrade":{"otcId":"OTC-000013","assetClass":"COMMODITY","clearingHouse":null,"optionTerms":null}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_LifecycleEventTree
-{
-    pattern: '/stress/gg_lifecycleevent';
-    documentation: 'Generated graph fetch on middleoffice::LifecycleEvent: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |middleoffice::LifecycleEvent.all()
-        ->graphFetch(#{
-  middleoffice::LifecycleEvent
-  {
-    eventId,
-    cashFlow,
-    counterpartyRef,
-    effectiveDate,
-    eventTrade
-    {
-      otcId,
-      assetClass,
-      clearingHouse,
-      optionTerms
-      {
-        otcId,
-        barrierLevel
-      }
-    }
-  }
-}#)
-        ->serialize(#{
-  middleoffice::LifecycleEvent
-  {
-    eventId,
-    cashFlow,
-    counterpartyRef,
-    effectiveDate,
-    eventTrade
-    {
-      otcId,
-      assetClass,
-      clearingHouse,
-      optionTerms
-      {
-        otcId,
-        barrierLevel
-      }
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_LifecycleEventTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"eventId":"EVT-000001","cashFlow":null,"counterpartyRef":"HSBC-24-0315-A","effectiveDate":"2024-03-19","eventTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000002","cashFlow":666400.0,"counterpartyRef":null,"effectiveDate":"2024-06-19","eventTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000003","cashFlow":-84500.0,"counterpartyRef":"HSBC-24-0510-T","effectiveDate":"2024-05-14","eventTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000004","cashFlow":null,"counterpartyRef":"DB-24-0402-AM","effectiveDate":"2024-04-02","eventTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"eventId":"EVT-000005","cashFlow":null,"counterpartyRef":null,"effectiveDate":"2024-06-11","eventTrade":{"otcId":"OTC-000007","assetClass":"CREDIT","clearingHouse":"ICE","optionTerms":null}},{"eventId":"EVT-000006","cashFlow":null,"counterpartyRef":"NOV-24-0522","effectiveDate":"2024-05-24","eventTrade":{"otcId":"OTC-000011","assetClass":"EQUITY","clearingHouse":null,"optionTerms":null}},{"eventId":"EVT-000007","cashFlow":null,"counterpartyRef":"TRIOPT-24-06","effectiveDate":"2024-06-17","eventTrade":{"otcId":"OTC-000002","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000008","cashFlow":null,"counterpartyRef":null,"effectiveDate":"2024-06-27","eventTrade":{"otcId":"OTC-000005","assetClass":"RATES","clearingHouse":null,"optionTerms":{"otcId":"OTC-000005","barrierLevel":null}}},{"eventId":"EVT-000009","cashFlow":112000.0,"counterpartyRef":null,"effectiveDate":"2024-06-24","eventTrade":{"otcId":"OTC-000013","assetClass":"COMMODITY","clearingHouse":null,"optionTerms":null}},{"eventId":"EVT-000010","cashFlow":null,"counterpartyRef":"INC-24-0430","effectiveDate":"2024-05-02","eventTrade":{"otcId":"OTC-000008","assetClass":"CREDIT","clearingHouse":"ICE","optionTerms":null}},{"eventId":"EVT-000011","cashFlow":725812.5,"counterpartyRef":null,"effectiveDate":"2024-05-12","eventTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"eventId":"EVT-000012","cashFlow":null,"counterpartyRef":null,"effectiveDate":"2024-06-05","eventTrade":{"otcId":"OTC-000009","assetClass":"FX","clearingHouse":null,"optionTerms":null}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::AA_TraderCounts
 {
     pattern: '/stress/aa_trader';
@@ -15019,6 +15463,68 @@ Service stress::TM_CollateralAgreementEmpty
   ]
 }
 
+Service stress::TM_OtcTradeEmpty
+{
+    pattern: '/stress/tm_otctrade';
+    documentation: 'Emptiness of 4 to-many association(s) on derivatives::OtcTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    execution: Single
+    {
+    query: |derivatives::OtcTrade.all()
+        ->project(~[
+            otcId:x|$x.otcId,
+            breaksEmpty:x|$x.breaks->isEmpty(),
+            breaksAny:x|$x.breaks->isNotEmpty(),
+            confirmationsEmpty:x|$x.confirmations->isEmpty(),
+            confirmationsAny:x|$x.confirmations->isNotEmpty(),
+            legsEmpty:x|$x.legs->isEmpty(),
+            legsAny:x|$x.legs->isNotEmpty(),
+            lifecycleEventsEmpty:x|$x.lifecycleEvents->isEmpty(),
+            lifecycleEventsAny:x|$x.lifecycleEvents->isNotEmpty()
+        ])
+        ->sort(~otcId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TM_OtcTradeEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 52 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000002","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000003","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000004","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000005","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000006","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000007","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000008","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000009","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000010","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000011","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000012","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000013","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TM_DeskEmpty
 {
     pattern: '/stress/tm_desk';
@@ -15134,68 +15640,6 @@ Service stress::TM_PositionEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"positionId":"POS-0001","breaksEmpty":false,"breaksAny":true,"greeksEmpty":false,"greeksAny":true,"lotsEmpty":false,"lotsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"positionId":"POS-0002","breaksEmpty":false,"breaksAny":true,"greeksEmpty":false,"greeksAny":true,"lotsEmpty":false,"lotsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"positionId":"POS-0003","breaksEmpty":false,"breaksAny":true,"greeksEmpty":true,"greeksAny":false,"lotsEmpty":false,"lotsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"positionId":"POS-0004","breaksEmpty":true,"breaksAny":false,"greeksEmpty":true,"greeksAny":false,"lotsEmpty":true,"lotsAny":false,"reconItemsEmpty":true,"reconItemsAny":false},{"positionId":"POS-0005","breaksEmpty":true,"breaksAny":false,"greeksEmpty":false,"greeksAny":true,"lotsEmpty":true,"lotsAny":false,"reconItemsEmpty":true,"reconItemsAny":false},{"positionId":"POS-0006","breaksEmpty":true,"breaksAny":false,"greeksEmpty":true,"greeksAny":false,"lotsEmpty":true,"lotsAny":false,"reconItemsEmpty":true,"reconItemsAny":false}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::TM_OtcTradeEmpty
-{
-    pattern: '/stress/tm_otctrade';
-    documentation: 'Emptiness of 4 to-many association(s) on derivatives::OtcTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
-    execution: Single
-    {
-    query: |derivatives::OtcTrade.all()
-        ->project(~[
-            otcId:x|$x.otcId,
-            breaksEmpty:x|$x.breaks->isEmpty(),
-            breaksAny:x|$x.breaks->isNotEmpty(),
-            confirmationsEmpty:x|$x.confirmations->isEmpty(),
-            confirmationsAny:x|$x.confirmations->isNotEmpty(),
-            legsEmpty:x|$x.legs->isEmpty(),
-            legsAny:x|$x.legs->isNotEmpty(),
-            lifecycleEventsEmpty:x|$x.lifecycleEvents->isEmpty(),
-            lifecycleEventsAny:x|$x.lifecycleEvents->isNotEmpty()
-        ])
-        ->sort(~otcId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    TM_OtcTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 13 rows; 52 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"otcId":"OTC-000001","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000002","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000003","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000004","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000005","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000006","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000007","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000008","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000009","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000010","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000011","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000012","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000013","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true}]';
                   }#;
               }#
           ]
@@ -15860,6 +16304,64 @@ Service stress::TM_TrialBalanceEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"trialBalanceId":"TB-0001","balanceSheetsEmpty":false,"balanceSheetsAny":true,"incomeStatementsEmpty":false,"incomeStatementsAny":true},{"trialBalanceId":"TB-0002","balanceSheetsEmpty":false,"balanceSheetsAny":true,"incomeStatementsEmpty":false,"incomeStatementsAny":true},{"trialBalanceId":"TB-0003","balanceSheetsEmpty":false,"balanceSheetsAny":true,"incomeStatementsEmpty":false,"incomeStatementsAny":true},{"trialBalanceId":"TB-0004","balanceSheetsEmpty":true,"balanceSheetsAny":false,"incomeStatementsEmpty":true,"incomeStatementsAny":false},{"trialBalanceId":"TB-0005","balanceSheetsEmpty":true,"balanceSheetsAny":false,"incomeStatementsEmpty":true,"incomeStatementsAny":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TM_BackofficeNostroAccountEmpty
+{
+    pattern: '/stress/tm_backofficenostroaccount';
+    documentation: 'Emptiness of 2 to-many association(s) on backoffice::NostroAccount. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    execution: Single
+    {
+    query: |backoffice::NostroAccount.all()
+        ->project(~[
+            nostroId:x|$x.nostroId,
+            movementsEmpty:x|$x.movements->isEmpty(),
+            movementsAny:x|$x.movements->isNotEmpty(),
+            reconItemsEmpty:x|$x.reconItems->isEmpty(),
+            reconItemsAny:x|$x.reconItems->isNotEmpty()
+        ])
+        ->sort(~nostroId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TM_BackofficeNostroAccountEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 6 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"nostroId":"NOS-EUR-DEUT","movementsEmpty":false,"movementsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"nostroId":"NOS-GBP-BARC","movementsEmpty":true,"movementsAny":false,"reconItemsEmpty":true,"reconItemsAny":false},{"nostroId":"NOS-USD-CHAS","movementsEmpty":false,"movementsAny":true,"reconItemsEmpty":false,"reconItemsAny":true}]';
                   }#;
               }#
           ]
@@ -16853,25 +17355,25 @@ Service stress::TM_JournalEntryEmpty
   ]
 }
 
-Service stress::TM_ClearedTradeEmpty
+Service stress::TM_BackofficeSettlementInstructionEmpty
 {
-    pattern: '/stress/tm_clearedtrade';
-    documentation: 'Emptiness of 1 to-many association(s) on clearing::ClearedTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    pattern: '/stress/tm_backofficesettlementinstruction';
+    documentation: 'Emptiness of 1 to-many association(s) on backoffice::SettlementInstruction. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
     execution: Single
     {
-    query: |clearing::ClearedTrade.all()
+    query: |backoffice::SettlementInstruction.all()
         ->project(~[
-            clearedTradeId:x|$x.clearedTradeId,
-            novationRequestsEmpty:x|$x.novationRequests->isEmpty(),
-            novationRequestsAny:x|$x.novationRequests->isNotEmpty()
+            ssiId:x|$x.ssiId,
+            paymentsEmpty:x|$x.payments->isEmpty(),
+            paymentsAny:x|$x.payments->isNotEmpty()
         ])
-        ->sort(~clearedTradeId->ascending());
+        ->sort(~ssiId->ascending());
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    TM_ClearedTradeEmpty_suite:
+    TM_BackofficeSettlementInstructionEmpty_suite:
     {
       data:
       [
@@ -16899,63 +17401,7 @@ Service stress::TM_ClearedTradeEmpty
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","novationRequestsEmpty":false,"novationRequestsAny":true},{"clearedTradeId":"CT-0002","novationRequestsEmpty":false,"novationRequestsAny":true},{"clearedTradeId":"CT-0003","novationRequestsEmpty":false,"novationRequestsAny":true},{"clearedTradeId":"CT-0004","novationRequestsEmpty":true,"novationRequestsAny":false},{"clearedTradeId":"CT-0005","novationRequestsEmpty":true,"novationRequestsAny":false}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::TM_DebtSecurityEmpty
-{
-    pattern: '/stress/tm_debtsecurity';
-    documentation: 'Emptiness of 1 to-many association(s) on fixedincome::DebtSecurity. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
-    execution: Single
-    {
-    query: |fixedincome::DebtSecurity.all()
-        ->project(~[
-            securityId:x|$x.securityId,
-            couponPeriodsEmpty:x|$x.couponPeriods->isEmpty(),
-            couponPeriodsAny:x|$x.couponPeriods->isNotEmpty()
-        ])
-        ->sort(~securityId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    TM_DebtSecurityEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 6 rows; 6 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"securityId":"DE000A289N78","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"US037833DX90","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"US912810TM08","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"US912828YY08","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"XS1002801758","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"XS2056430215","couponPeriodsEmpty":false,"couponPeriodsAny":true}]';
+                    data: '[{"ssiId":"SSI-EUR-CP0001","paymentsEmpty":false,"paymentsAny":true},{"ssiId":"SSI-SEC-CP0003","paymentsEmpty":true,"paymentsAny":false},{"ssiId":"SSI-USD-CP0001","paymentsEmpty":false,"paymentsAny":true},{"ssiId":"SSI-USD-CP0002","paymentsEmpty":false,"paymentsAny":true},{"ssiId":"SSI-USD-CP0002-OLD","paymentsEmpty":true,"paymentsAny":false}]';
                   }#;
               }#
           ]

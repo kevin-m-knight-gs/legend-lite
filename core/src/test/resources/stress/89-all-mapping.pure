@@ -33,6 +33,7 @@ Mapping stress::AllMapping
     include derivatives::OtcMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
+    include backoffice::BackOfficeMapping
     include clearing::ClearingMapping
     include tax::TaxMapping
     include research::ResearchMapping

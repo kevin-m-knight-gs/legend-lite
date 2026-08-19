@@ -1779,7 +1779,7 @@ _TOKEN = re.compile(
     r"|'[^']*'"                                  # string literal
     r"|\w+(?=\()"                                # a FUNCTION name, e.g. dateDiff(
     r"|<=|>=|==|!=|<|>"
-    r"|[-+*/(),]|-?\d+\.\d+|-?\d+)")
+    r"|[-+*/(),|]|-?\d+\.\d+|-?\d+)")
 
 
 def _tokenise(expr: str) -> list[str]:
@@ -1871,6 +1871,14 @@ class _Eval:
 
     def factor(self):
         tok = self.take()
+        # UNARY MINUS. The tokeniser's operator class is matched before its signed-number
+        # rule, so `* -1.0` comes through as `*`, `-`, `1.0` rather than `*`, `-1.0`. That
+        # was latent until a derived property multiplied by a negative literal, and handling
+        # it here is right regardless: `-$this.amount` is an expression Pure allows and the
+        # grammar did not.
+        if tok == "-":
+            v = self.factor()
+            return None if v is None else -v
         # A FUNCTION CALL. Derived properties call the library all the time -- a tenor is a
         # dateDiff, a label is a toUpper -- and the grammar accepted only arithmetic, so any
         # such property was Unsupported and its class could carry no derived property at all.
@@ -1879,12 +1887,22 @@ class _Eval:
         if tok and re.fullmatch(r"\w+", tok) and not tok[0].isdigit() \
                 and self.peek() == "(":
             self.take()                                   # '('
+            # A `|` before an argument is Pure's lambda marker, as in
+            # `if($x > 0, |'yes', |'no')`. The branches are lambdas so that only the taken
+            # one evaluates; here both are already values, so the marker is consumed and
+            # ignored. Without this the commonest conditional in Pure could not appear in a
+            # derived property at all.
+            def arg():
+                if self.peek() == "|":
+                    self.take()
+                return self.expr()
+
             args = []
             if self.peek() != ")":
-                args.append(self.expr())
+                args.append(arg())
                 while self.peek() == ",":
                     self.take()
-                    args.append(self.expr())
+                    args.append(arg())
             if self.take() != ")":
                 raise Unsupported(f"unbalanced parentheses in call to {tok}")
             return _dynafunction(tok, args)

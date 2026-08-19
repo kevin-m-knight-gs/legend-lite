@@ -195,6 +195,40 @@ Database store::DB
     // fallback FK is a SEPARATE column.
     Table TRADE_FLAT_PARTIAL (TRADE_ID VARCHAR(200) PRIMARY KEY, NOTIONAL DOUBLE, STATUS VARCHAR(200), CPTY_FK VARCHAR(200), CPTY_ID_INLINE VARCHAR(200), CPTY_NAME_INLINE VARCHAR(200), CPTY_LEI_INLINE VARCHAR(200))
 
+    // ---- Back office: where cash actually moves ----
+    //
+    // Standing instructions say where to send things, payments are the instructions to move
+    // them, nostro movements are what the correspondent says happened, and reconciliation
+    // items are the differences between the last two -- which is the entire job.
+    //
+    // PAYMENT and NOSTRO_MOVEMENT are deliberately NOT mirrors of each other. One statement
+    // line has no payment behind it, one payment never reached the statement, and one pair
+    // agrees on amount and disagrees on value date. Those three are what a reconciliation
+    // exists to find, and a seed where both sides match is a seed that tests nothing.
+    Table BO_SSI (SSI_ID VARCHAR(24) PRIMARY KEY,
+        COUNTERPARTY_ID VARCHAR(12), CURRENCY VARCHAR(3), INSTRUMENT_TYPE VARCHAR(12),
+        CORRESPONDENT_BIC VARCHAR(11), ACCOUNT_NUMBER VARCHAR(24),
+        PLACE_OF_SETTLEMENT VARCHAR(2), IS_DEFAULT BIT, EFFECTIVE_FROM DATE,
+        EFFECTIVE_TO DATE, STATUS VARCHAR(12))
+
+    Table PAYMENT (PAYMENT_ID VARCHAR(16) PRIMARY KEY, OTC_ID VARCHAR(12),
+        SSI_ID VARCHAR(24), PAYMENT_TYPE VARCHAR(16), DIRECTION VARCHAR(4),
+        AMOUNT DECIMAL(18,2), CURRENCY VARCHAR(3), VALUE_DATE DATE, STATUS VARCHAR(12),
+        SETTLED_AT TIMESTAMP, REFERENCE VARCHAR(24), FAIL_REASON VARCHAR(60))
+
+    Table BO_NOSTRO (NOSTRO_ID VARCHAR(16) PRIMARY KEY, CORRESPONDENT_BIC VARCHAR(11),
+        CURRENCY VARCHAR(3), ACCOUNT_NUMBER VARCHAR(24), ACCOUNT_NAME VARCHAR(40),
+        OPENING_BALANCE DECIMAL(18,2), IS_ACTIVE BIT, LAST_RECONCILED DATE)
+
+    Table NOSTRO_MOVEMENT (MOVEMENT_ID VARCHAR(16) PRIMARY KEY, NOSTRO_ID VARCHAR(16),
+        VALUE_DATE DATE, AMOUNT DECIMAL(18,2), CURRENCY VARCHAR(3),
+        STATEMENT_REF VARCHAR(20), NARRATIVE VARCHAR(60), POSTED_AT TIMESTAMP)
+
+    Table RECON_ITEM (RECON_ID VARCHAR(16) PRIMARY KEY, NOSTRO_ID VARCHAR(16),
+        PAYMENT_ID VARCHAR(16), MOVEMENT_ID VARCHAR(16), ITEM_TYPE VARCHAR(24),
+        AMOUNT DECIMAL(18,2), CURRENCY VARCHAR(3), RECON_DATE DATE, STATUS VARCHAR(16),
+        ASSIGNED_TO VARCHAR(30), AGE_DAYS INTEGER)
+
     // ---- Middle office: what happens to a trade after it is booked ----
     //
     // The lifecycle event table is the spine. Every amendment, termination, novation, reset
@@ -698,6 +732,23 @@ Database store::DB
 
     // The coupon schedule. Security to period is one-to-sixty at the deep end; period to
     // payment is one-to-zero-or-one, and the zero half is every coupon not yet due.
+    Join Counterparty_Ssi(COUNTERPARTY.COUNTERPARTY_ID = BO_SSI.COUNTERPARTY_ID)
+    Join Ssi_Payment(BO_SSI.SSI_ID = PAYMENT.SSI_ID)
+    Join OtcTrade_Payment(OTC_TRADE.OTC_ID = PAYMENT.OTC_ID)
+    Join Nostro_Movement(BO_NOSTRO.NOSTRO_ID = NOSTRO_MOVEMENT.NOSTRO_ID)
+    Join Nostro_ReconItem(BO_NOSTRO.NOSTRO_ID = RECON_ITEM.NOSTRO_ID)
+    Join ReconItem_Payment(RECON_ITEM.PAYMENT_ID = PAYMENT.PAYMENT_ID)
+    Join ReconItem_Movement(RECON_ITEM.MOVEMENT_ID = NOSTRO_MOVEMENT.MOVEMENT_ID)
+
+    Filter PaySwiftMt202Rows(PAYMENT.PAYMENT_TYPE = 'SWIFT_MT202')
+    Filter PayTarget2Rows(PAYMENT.PAYMENT_TYPE = 'TARGET2')
+    Filter PayFedwireRows(PAYMENT.PAYMENT_TYPE = 'FEDWIRE')
+    Filter PayBookTransferRows(PAYMENT.PAYMENT_TYPE = 'BOOK_TRANSFER')
+    Filter RecMatchedRows(RECON_ITEM.ITEM_TYPE = 'MATCHED')
+    Filter RecUnmatchedStatementRows(RECON_ITEM.ITEM_TYPE = 'UNMATCHED_STATEMENT')
+    Filter RecUnmatchedLedgerRows(RECON_ITEM.ITEM_TYPE = 'UNMATCHED_LEDGER')
+    Filter RecValueDateMismatchRows(RECON_ITEM.ITEM_TYPE = 'VALUE_DATE_MISMATCH')
+
     Join OtcTrade_LifecycleEvent(OTC_TRADE.OTC_ID = LIFECYCLE_EVENT.OTC_ID)
     Join OtcTrade_ConfirmationMo(OTC_TRADE.OTC_ID = CONFIRMATION_MO.OTC_ID)
     Join OtcTrade_Break(OTC_TRADE.OTC_ID = TRADE_BREAK.OTC_ID)

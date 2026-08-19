@@ -748,6 +748,110 @@ def _middle_office_specs():
 MIDDLE_OFFICE = _middle_office_specs()
 
 
+def _back_office_specs():
+    """The back office's own reports: the payment blotter, the cash ladder, the standing
+    instructions in force, and the reconciliation -- which is the only one that matters."""
+    out = []
+
+    pmts = Spec("stress::BO0_PaymentBlotter", "/stress/bo0",
+                "Payments with the instruction that routed each and the trade behind it. "
+                "Failed, cancelled and pending payments have no settlement time and the "
+                "failed one carries a reason.",
+                "backoffice::Payment")
+    pmts.projections = [Proj("paymentId", ["paymentId"]),
+                        Proj("paymentType", ["paymentType"]),
+                        Proj("direction", ["direction"]),
+                        Proj("amount", ["amount"]),
+                        Proj("signedAmount", ["signedAmount"]),
+                        Proj("status", ["status"]),
+                        Proj("settledAt", ["settledAt"]),
+                        Proj("failReason", ["failReason"]),
+                        Proj("correspondentBic", ["instruction", "correspondentBic"])]
+    pmts.sort = ("paymentId", False)
+    out.append(pmts)
+
+    # The reconciliation. Three outcomes, three classes, and the null columns are the
+    # evidence: an unmatched statement item has no payment, an unmatched ledger item has no
+    # movement, and a matched item has nobody assigned to it.
+    recon = Spec("stress::BO1_Reconciliation", "/stress/bo1",
+                 "The nostro reconciliation. An unmatched STATEMENT item has no payment "
+                 "behind it and an unmatched LEDGER item has no movement, so the two null "
+                 "columns are the finding rather than missing data.",
+                 "backoffice::ReconciliationItem")
+    recon.projections = [Proj("reconId", ["reconId"]),
+                         Proj("itemType", ["itemType"]),
+                         Proj("amount", ["amount"]),
+                         Proj("status", ["status"]),
+                         Proj("assignedTo", ["assignedTo"]),
+                         Proj("ageDays", ["ageDays"]),
+                         Proj("paymentId", ["paymentId"]),
+                         Proj("movementId", ["movementId"]),
+                         Proj("accountName", ["reconNostro", "accountName"])]
+    recon.sort = ("reconId", False)
+    out.append(recon)
+
+    # The subtype nobody wants to see: right amount, wrong day. An amount-only reconciliation
+    # would call this matched.
+    vdate = Spec("stress::BO2_ValueDateBreaks", "/stress/bo2",
+                 "Value-date mismatches only: matched on money, broken on timing. The break "
+                 "an amount-only reconciliation misses entirely.",
+                 "backoffice::ValueDateMismatchItem")
+    vdate.projections = [Proj("reconId", ["reconId"]),
+                         Proj("amount", ["amount"]),
+                         Proj("assignedTo", ["assignedTo"]),
+                         Proj("ageDays", ["ageDays"])]
+    vdate.sort = ("reconId", False)
+    out.append(vdate)
+
+    ssi = Spec("stress::BO3_StandingInstructions", "/stress/bo3",
+               "Standing settlement instructions. The superseded one carries an end date "
+               "and the securities one has no currency -- it settles a position, not an "
+               "amount.",
+               "backoffice::SettlementInstruction")
+    ssi.projections = [Proj("ssiId", ["ssiId"]),
+                       Proj("currency", ["currency"]),
+                       Proj("instrumentType", ["instrumentType"]),
+                       Proj("correspondentBic", ["correspondentBic"]),
+                       Proj("isDefault", ["isDefault"]),
+                       Proj("effectiveTo", ["effectiveTo"]),
+                       Proj("status", ["status"]),
+                       Proj("legalName", ["ssiCounterparty", "legalName"])]
+    ssi.sort = ("ssiId", False)
+    out.append(ssi)
+
+    # Cash by currency and status -- the treasury view.
+    ladder = Spec("stress::BO4_CashByCurrency", "/stress/bo4",
+                  "Payments by currency and status: the treasury cash ladder.",
+                  "backoffice::Payment")
+    ladder.projections = [Proj("currency", ["currency"]),
+                          Proj("status", ["status"]),
+                          Proj("amount", ["amount"])]
+    ladder.group_by = ["currency", "status"]
+    ladder.aggs = [("paymentCount", "amount", "count"),
+                   ("totalAmount", "amount", "sum"),
+                   ("largest", "amount", "max")]
+    ladder.sort = ("currency", False)
+    out.append(ladder)
+
+    # Accounts with nothing outstanding. The inactive GBP account has no movements at all.
+    accts = Spec("stress::BO5_NostroAccounts", "/stress/bo5",
+                 "Nostro accounts with whether anything is outstanding against them. The "
+                 "inactive GBP account has no movements and no reconciliation items, which "
+                 "is two empty to-manys on one row.",
+                 "backoffice::NostroAccount")
+    accts.projections = [Proj("nostroId", ["nostroId"]),
+                         Proj("accountName", ["accountName"]),
+                         Proj("isActive", ["isActive"]),
+                         Proj("noMovements", ["movements"], agg="isEmpty"),
+                         Proj("noReconItems", ["reconItems"], agg="isEmpty")]
+    accts.sort = ("nostroId", False)
+    out.append(accts)
+    return out
+
+
+BACK_OFFICE = _back_office_specs()
+
+
 def _m2m_enum_probe():
     """The same chain plus the enum-mapped property. Quarantined: F12."""
     s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
@@ -1185,7 +1289,7 @@ DERIVED = [
 
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",
