@@ -29,6 +29,22 @@ public sealed interface ExecutionResult {
         return columns().size();
     }
 
+    /** THE RESULT-ENVELOPE ARITY (One-Platform Plan Phase 3 — the K pin
+     * retires into the model): the engine's {@code Result.values} for a
+     * relation-rooted query holds ONE TabularDataSet carrier; for a
+     * class or scalar root, {@code values} IS the collection
+     * ({@code flatSize} — the produced value count, a carriage fact).
+     * This is the arity rule the harness's {@code tds ? 1 : size}
+     * branch encoded; the MODEL owns it now. */
+    default long envelopeCarriers(long flatSize) {
+        boolean tds = this instanceof Tabular tb
+                && (tb.returnType() instanceof
+                        com.legend.compiler.element.type.Type.RelationType
+                        || com.legend.compiler.element.type.PlatformTypes
+                                .isTdsType(tb.returnType()));
+        return tds ? 1L : flatSize;
+    }
+
     // ===== Typed accessors (ported engine surface) — no cast, clear error =====
 
     default Scalar asScalar() {

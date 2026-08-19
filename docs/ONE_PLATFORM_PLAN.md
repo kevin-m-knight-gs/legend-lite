@@ -206,6 +206,19 @@ PCT channel A green.
 `.values` navigation is compiled; the arity falls out of the model instead of a branch.
 The K pin retires into it. Size: **S** (rides Phase 1's machinery).
 
+*Phase 3 LANDED (2026-08-19):* the B2a/B2b substrate was already in (Result<T>/Activity/
+execute natives, platform-owned; the eager RESULT FRAME with its typed splice), and the
+grid half (3a) landed with Phase 1c's endgame. The remaining K pin — the harness's
+`tds ? 1 : size` arity branch — RETIRED into the model:
+`ExecutionResult.envelopeCarriers` owns the rule (a relation-rooted result is ONE
+TabularDataSet carrier; class/scalar roots ARE the collection), and the harness's
+`envelopeSizeCheck` keeps only recognition + eval (Phase 5's kill list). Honest
+residuals recorded: `Result<T>` collapses real pure's `Result<T|m>` per the
+single-type-param convention (same as `project<K>`); the DEMAND-DRIVEN STAMPING
+follow-up is DECIDED AGAINST for now — the LIMIT-0 probe is planning-only and uniform,
+and resolver demand-analysis would trade real complexity for microseconds (revisit only
+if the perf histogram ever names it). Referee byte-identical; suite 4134/0.
+
 ### Phase 4 — The decoupled PCT channel
 
 **What, plainly:** PCT is the conformance suite — 1,110 tests defined in legend-pure.

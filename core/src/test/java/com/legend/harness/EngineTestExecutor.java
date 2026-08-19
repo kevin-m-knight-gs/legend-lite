@@ -289,13 +289,17 @@ public final class EngineTestExecutor {
         }
         Eval av = eval(peel0, lets, execStmts, execVars, execChains, ctx,
                 imports, runtimeFqn, conn);
-        boolean tds = av.result()
-                instanceof com.legend.exec.ExecutionResult.Tabular tb
-                && (tb.returnType() instanceof com.legend.compiler.element
-                        .type.Type.RelationType || com.legend.compiler
-                        .element.type.PlatformTypes.isTdsType(tb.returnType()));
-        if (peel0 != subst0 && !tds) { return NOT_ENVELOPE; }
-        long carriers = tds ? 1L : av.size();
+        // Phase 3: the envelope-arity RULE is the model's
+        // (ExecutionResult.envelopeCarriers — the K pin retired into it);
+        // this arm keeps only recognition + eval (Phase 5's kill list).
+        // ONE-carrier result == the TDS envelope; a PEELED read over a
+        // non-envelope value is a real element pick (generic path).
+        boolean oneCarrier = av.result() != null
+                && av.result().envelopeCarriers(0) == 1L;
+        if (peel0 != subst0 && !oneCarrier) {
+            return NOT_ENVELOPE;
+        }
+        long carriers = oneCarrier ? 1L : av.size();
         return (n instanceof Number cn && cn.longValue() == carriers) ? null
                 : "assertSize(result.values): expected " + n + ", got "
                         + carriers + " (TDS = one carrier; collections splat)";
