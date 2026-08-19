@@ -526,6 +526,15 @@ TRUE 16→4** — the whole remaining standard tail is four named rows: date
 min/max extend, dayOfWeek, columns() ×2. Referee byte-identical; core 4166;
 ALLGATES GREEN.
 
+*BURN QUEUE SLICE 4 (2026-08-19):* CANONICAL Variant text — the engine prints
+compact JSON with leaf quoting preserved ({"a":1}, '"hello"'), never the source's
+whitespace. The spelling is `to_json` over the JSON-cast value; the first attempt
+('$'-extract) stripped leaf-string quotes and the census caught the regression
+(208→204) before it could land — the pins adjudicated the canonicalizer choice.
+Relation **PASS=212/287, TRUE 28→24**. Channel-B totals after four slices:
+**919/1,050**, TRUE census 49→28, every row named. Referee byte-identical;
+core 4166; ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

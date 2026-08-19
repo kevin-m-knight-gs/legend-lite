@@ -64,13 +64,13 @@ class ChannelBRelationTest {
         // pivot column orders, chunk, temporal precision.
         assertTrue(out.size() == 287,
                 "relation discovery moved: " + out.size() + " != 287");
-        assertTrue(c.pass() >= 208, "relation PASS fell: " + c.pass());
-        // 33→28 (burn slice 1): extreme-family singleton-list guard,
-        // side-flatten carrier normalization, chunk native +
-        // REGEXP_EXTRACT_ALL list-producer
-        assertTrue(c.wireBug() <= 28,
+        assertTrue(c.pass() >= 212, "relation PASS fell: " + c.pass());
+        // 33→28 (slice 1: singleton extremes, carrier norm, chunk)
+        // →24 (slice 4: CANONICAL variant text — to_json over the
+        // JSON-cast value, compact with leaf quoting preserved)
+        assertTrue(c.wireBug() <= 24,
                 "relation WIRE-BUG census grew: " + c.wireBug());
-        assertTrue(c.trueWireBug() <= 28,
+        assertTrue(c.trueWireBug() <= 24,
                 "relation TRUE wire-bug census grew: " + c.trueWireBug());
     }
 }
