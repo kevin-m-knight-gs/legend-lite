@@ -1084,8 +1084,16 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.LIST_MAX, args);
             });
         }
+        // THE SINGLETON-LIST-LITERAL RULE (burn slice 2 closed the CLASS,
+        // not the instance): a TO-ONE argument is its own reduction, but a
+        // SINGLETON LIST LITERAL is a LIST — the reduction of [x] is x,
+        // via the list op (the minus rule's convention; witnesses
+        // testAverage_Integers, testLeast_Single). Every identity arm in
+        // the reduction family carries the ArrayLit guard.
         for (String f : Pure.nativeKeysAt("sum")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                    ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_SUM, numList(args.get(0))));
         }
         // round(Number[1]) RETURNS Integer (real pure) — banker's round,
@@ -1141,7 +1149,9 @@ final class Scalars {
                                     winner));
                     return SqlExpr.Call.of(SqlFn.LIST_GET, mx.idList(), lastPos);
                 }
-                return isToOne(n.args().get(0)) ? args.get(0)
+                return isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                        ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MODE, args);
             });
         }
@@ -1182,6 +1192,7 @@ final class Scalars {
                 // column's INTEGER, the wrong declared kind on the wire
                 // (adjudication ledger cluster 10)
                 RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
                         : SqlExpr.Call.of(SqlFn.LIST_AVG, numList(args.get(0))));
             }
@@ -1190,7 +1201,9 @@ final class Scalars {
         // carrier must unwrap (json ordering is lexicographic — the wrong
         // middle) and a to-one value is its own median.
         for (String f : Pure.nativeKeysAt("median")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                    ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, numList(args.get(0))));
         }
         ScalarStats.register(RULES);   // stat reductions
@@ -1310,6 +1323,7 @@ final class Scalars {
         // itself (a to-one item wraps as a singleton).
         for (String f : Pure.nativeKeysAt("list")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                     : args.get(0));
         }

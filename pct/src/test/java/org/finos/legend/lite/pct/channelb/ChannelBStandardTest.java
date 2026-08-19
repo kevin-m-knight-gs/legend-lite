@@ -69,9 +69,10 @@ class ChannelBStandardTest {
         // slices.
         assertTrue(out.size() == 204,
                 "standard discovery moved: " + out.size() + " != 204");
-        assertTrue(c.pass() >= 184, "standard PASS fell: " + c.pass());
-        // 24→20 (burn slice 1): least/greatest singleton reduction
-        assertTrue(c.wireBug() <= 20,
+        assertTrue(c.pass() >= 187, "standard PASS fell: " + c.pass());
+        // 24→20 (slice 1: least/greatest) →17 (slice 2: the singleton-
+        // list-literal CLASS closed — sum/mean/mode/median/list guards)
+        assertTrue(c.wireBug() <= 17,
                 "standard WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() <= 16,
                 "standard TRUE wire-bug census grew: " + c.trueWireBug());

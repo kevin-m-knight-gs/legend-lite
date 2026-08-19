@@ -507,6 +507,15 @@ Referee byte-identical; core 4166; ALLGATES GREEN. Queue remainder: window frame
 semantics, pivot column orders, columns(), temporal-precision rows,
 INTEGER[]→DOUBLE casts, the 51 shaped declines.
 
+*BURN QUEUE SLICE 2 (2026-08-19):* the singleton-list-literal bug was a CLASS, not
+an instance — the systematic sweep of all 29 `isToOne` identity arms found five
+more reduction rules without the guard (sum, mean/average, mode, median, and
+`list`, which RE-wrapped an already-list-shaped value). All now carry the ArrayLit
+guard with the class rule documented at the family head (witness
+testAverage_Integers: `average([1])` emitted `CAST([1] AS DOUBLE)`). Standard
+**PASS=187/204, WIRE 20→17, ENGINE-FRONTIER 4→1**. Referee byte-identical;
+core 4166; ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine
