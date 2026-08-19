@@ -1,0 +1,249 @@
+###Pure
+// Documents: the paper behind every relationship, and whether it is still current.
+//
+// 20 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 20 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class documents::LegalDocument
+{
+   documentId: String[1];
+   documentType: String[1];
+   counterpartyId: String[1];
+   executedOn: StrictDate[1];
+   governingLaw: String[1];
+   status: String[1];
+   version: String[1];
+   isExecuted: Boolean[1];
+   expiresOn: StrictDate[0..1];
+   custodyRef: String[0..1];
+
+   // Days of validity remaining. Null for a document that does not expire, which
+   // is most of them -- a master agreement runs until it is terminated.
+   daysValid() { dateDiff($this.executedOn, $this.expiresOn, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[0..1];
+}
+
+// The framework every OTC trade with a counterparty sits under.
+Class documents::IsdaMasterAgreement extends documents::LegalDocument
+{
+}
+
+// The collateral terms attached to the master.
+Class documents::CreditSupportAnnex extends documents::LegalDocument
+{
+}
+
+// The repo equivalent.
+Class documents::GlobalMasterRepoAgreement extends documents::LegalDocument
+{
+}
+
+// The lending equivalent.
+Class documents::GlobalMasterSecuritiesLendingAgreement extends documents::LegalDocument
+{
+}
+
+// The legal record of one trade's terms.
+Class documents::TradeConfirmationDocument extends documents::LegalDocument
+{
+}
+
+// The economics before the confirmation exists.
+Class documents::TermSheet extends documents::LegalDocument
+{
+}
+
+// The issuance document for a security.
+Class documents::Prospectus extends documents::LegalDocument
+{
+}
+
+// The retail disclosure required under PRIIPs.
+Class documents::KeyInformationDocument extends documents::LegalDocument
+{
+}
+
+// The issuer's audited accounts.
+Class documents::AnnualReport extends documents::LegalDocument
+{
+}
+
+// Evidence somebody was authorised to sign.
+Class documents::BoardResolution extends documents::LegalDocument
+{
+}
+
+// Proof the entity exists.
+Class documents::CertificateOfIncorporation extends documents::LegalDocument
+{
+}
+
+// US withholding status for a non-US person.
+Class documents::W8BenForm extends documents::LegalDocument
+{
+}
+
+// The US-person equivalent.
+Class documents::W9Form extends documents::LegalDocument
+{
+}
+
+// Tax residency, self-declared.
+Class documents::CrsSelfCertification extends documents::LegalDocument
+{
+}
+
+// Authority to act for another party.
+Class documents::PowerOfAttorney extends documents::LegalDocument
+{
+}
+
+// Who may sign what, and up to which amount.
+Class documents::SignatureMandate extends documents::LegalDocument
+{
+}
+
+// Standing settlement instructions on headed paper.
+Class documents::SsiLetter extends documents::LegalDocument
+{
+}
+
+// Legal advice that netting holds in a jurisdiction.
+Class documents::NettingOpinion extends documents::LegalDocument
+{
+}
+
+// The equivalent for enforceability of collateral.
+Class documents::CollateralOpinion extends documents::LegalDocument
+{
+}
+
+// An external review's findings.
+Class documents::AuditReport extends documents::LegalDocument
+{
+}
+
+###Mapping
+Mapping documents::DocumentsMapping
+(
+   *documents::LegalDocument[documentsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LEGAL_DOCUMENT.DOCUMENT_ID )
+      ~mainTable [store::DB]LEGAL_DOCUMENT
+      documentId: [store::DB]LEGAL_DOCUMENT.DOCUMENT_ID,
+      documentType: [store::DB]LEGAL_DOCUMENT.DOCUMENT_TYPE,
+      counterpartyId: [store::DB]LEGAL_DOCUMENT.COUNTERPARTY_ID,
+      executedOn: [store::DB]LEGAL_DOCUMENT.EXECUTED_ON,
+      governingLaw: [store::DB]LEGAL_DOCUMENT.GOVERNING_LAW,
+      status: [store::DB]LEGAL_DOCUMENT.STATUS,
+      version: [store::DB]LEGAL_DOCUMENT.VERSION,
+      isExecuted: [store::DB]LEGAL_DOCUMENT.IS_EXECUTED,
+      expiresOn: [store::DB]LEGAL_DOCUMENT.EXPIRES_ON,
+      custodyRef: [store::DB]LEGAL_DOCUMENT.CUSTODY_REF
+   }
+
+   documents::IsdaMasterAgreement[docIsdaMaster] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocIsdaMasterRows
+   }
+
+   documents::CreditSupportAnnex[docCsa] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocCsaRows
+   }
+
+   documents::GlobalMasterRepoAgreement[docGmra] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocGmraRows
+   }
+
+   documents::GlobalMasterSecuritiesLendingAgreement[docGmsla] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocGmslaRows
+   }
+
+   documents::TradeConfirmationDocument[docConfirmationDoc] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocConfirmationDocRows
+   }
+
+   documents::TermSheet[docTermSheet] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocTermSheetRows
+   }
+
+   documents::Prospectus[docProspectus] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocProspectusRows
+   }
+
+   documents::KeyInformationDocument[docKid] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocKidRows
+   }
+
+   documents::AnnualReport[docAnnualReport] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocAnnualReportRows
+   }
+
+   documents::BoardResolution[docBoardResolution] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocBoardResolutionRows
+   }
+
+   documents::CertificateOfIncorporation[docCertificateIncorporation] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocCertificateIncorporationRows
+   }
+
+   documents::W8BenForm[docW8Ben] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocW8BenRows
+   }
+
+   documents::W9Form[docW9] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocW9Rows
+   }
+
+   documents::CrsSelfCertification[docCrsSelfCert] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocCrsSelfCertRows
+   }
+
+   documents::PowerOfAttorney[docPowerOfAttorney] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocPowerOfAttorneyRows
+   }
+
+   documents::SignatureMandate[docSignatureMandate] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocSignatureMandateRows
+   }
+
+   documents::SsiLetter[docSsiLetter] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocSsiLetterRows
+   }
+
+   documents::NettingOpinion[docNettingOpinion] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocNettingOpinionRows
+   }
+
+   documents::CollateralOpinion[docCollateralOpinion] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocCollateralOpinionRows
+   }
+
+   documents::AuditReport[docAuditReport] extends [documentsBase]: Relational
+   {
+      ~filter [store::DB]DocAuditReportRows
+   }
+)

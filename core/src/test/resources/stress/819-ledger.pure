@@ -1,0 +1,289 @@
+###Pure
+// The general ledger: every entry type a trading book generates.
+//
+// 24 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 24 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class ledger::AccountingEntry
+{
+   entryId: String[1];
+   entryType: String[1];
+   accountCode: String[1];
+   debitAmount: Float[1];
+   creditAmount: Float[1];
+   currency: String[1];
+   postingDate: StrictDate[1];
+   isReversal: Boolean[1];
+   sourceRef: String[0..1];
+   preparedBy: String[0..1];
+
+   // Net movement. A ledger entry is one side or the other, never both, so this is
+   // the signed amount an account balance actually moves by.
+   netMovement() { $this.debitAmount - $this.creditAmount } : Float[1];
+}
+
+// The double entry raised when a trade is captured.
+Class ledger::TradeBookingEntry extends ledger::AccountingEntry
+{
+}
+
+// Cash and securities moving on value date.
+Class ledger::SettlementLedgerEntry extends ledger::AccountingEntry
+{
+}
+
+// Daily revaluation to the official close.
+Class ledger::MarkToMarketEntry extends ledger::AccountingEntry
+{
+}
+
+// Profit crystallised on closing a position.
+Class ledger::RealisedPnlEntry extends ledger::AccountingEntry
+{
+}
+
+// Profit on paper, reversed each day and re-struck.
+Class ledger::UnrealisedPnlEntry extends ledger::AccountingEntry
+{
+}
+
+// Interest or fee earned but not yet paid.
+Class ledger::AccrualEntry extends ledger::AccountingEntry
+{
+}
+
+// Backing out yesterday's accrual before re-striking it.
+Class ledger::AccrualReversalEntry extends ledger::AccountingEntry
+{
+}
+
+// Retranslating a foreign-currency balance.
+Class ledger::FxRevaluationEntry extends ledger::AccountingEntry
+{
+}
+
+// Consolidating a subsidiary into the reporting currency.
+Class ledger::FxTranslationEntry extends ledger::AccountingEntry
+{
+}
+
+// Brokerage recognised.
+Class ledger::CommissionEntry extends ledger::AccountingEntry
+{
+}
+
+// Custody, clearing and platform charges.
+Class ledger::FeeLedgerEntry extends ledger::AccountingEntry
+{
+}
+
+// Withholding and transaction taxes.
+Class ledger::TaxLedgerEntry extends ledger::AccountingEntry
+{
+}
+
+// Interest on cash balances, positive or negative.
+Class ledger::InterestEntry extends ledger::AccountingEntry
+{
+}
+
+// Income received on a long position.
+Class ledger::DividendEntry extends ledger::AccountingEntry
+{
+}
+
+// Income owed on a short position.
+Class ledger::DividendPayableEntry extends ledger::AccountingEntry
+{
+}
+
+// Bond income.
+Class ledger::CouponEntry extends ledger::AccountingEntry
+{
+}
+
+// Writing an asset down.
+Class ledger::ImpairmentEntry extends ledger::AccountingEntry
+{
+}
+
+// Setting aside for an expected loss.
+Class ledger::ProvisionEntry extends ledger::AccountingEntry
+{
+}
+
+// Recognising the loss is permanent.
+Class ledger::WriteOffEntry extends ledger::AccountingEntry
+{
+}
+
+// Moving a balance between accounts with no economic change.
+Class ledger::ReclassificationEntry extends ledger::AccountingEntry
+{
+}
+
+// Parking something unidentified.
+Class ledger::SuspenseEntry extends ledger::AccountingEntry
+{
+}
+
+// A human override, which is the one every auditor reads.
+Class ledger::ManualAdjustmentEntry extends ledger::AccountingEntry
+{
+}
+
+// Rolling profit into reserves.
+Class ledger::YearEndCloseEntry extends ledger::AccountingEntry
+{
+}
+
+// The brought-forward position.
+Class ledger::OpeningBalanceEntry extends ledger::AccountingEntry
+{
+}
+
+###Mapping
+Mapping ledger::LedgerMapping
+(
+   *ledger::AccountingEntry[ledgerBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LEDGER_ENTRY.ENTRY_ID )
+      ~mainTable [store::DB]LEDGER_ENTRY
+      entryId: [store::DB]LEDGER_ENTRY.ENTRY_ID,
+      entryType: [store::DB]LEDGER_ENTRY.ENTRY_TYPE,
+      accountCode: [store::DB]LEDGER_ENTRY.ACCOUNT_CODE,
+      debitAmount: [store::DB]LEDGER_ENTRY.DEBIT_AMOUNT,
+      creditAmount: [store::DB]LEDGER_ENTRY.CREDIT_AMOUNT,
+      currency: [store::DB]LEDGER_ENTRY.CURRENCY,
+      postingDate: [store::DB]LEDGER_ENTRY.POSTING_DATE,
+      isReversal: [store::DB]LEDGER_ENTRY.IS_REVERSAL,
+      sourceRef: [store::DB]LEDGER_ENTRY.SOURCE_REF,
+      preparedBy: [store::DB]LEDGER_ENTRY.PREPARED_BY
+   }
+
+   ledger::TradeBookingEntry[ledTradeBooking] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedTradeBookingRows
+   }
+
+   ledger::SettlementLedgerEntry[ledSettlementEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedSettlementEntryRows
+   }
+
+   ledger::MarkToMarketEntry[ledMtmRevaluation] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedMtmRevaluationRows
+   }
+
+   ledger::RealisedPnlEntry[ledRealisedPnl] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedRealisedPnlRows
+   }
+
+   ledger::UnrealisedPnlEntry[ledUnrealisedPnl] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedUnrealisedPnlRows
+   }
+
+   ledger::AccrualEntry[ledAccrual] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedAccrualRows
+   }
+
+   ledger::AccrualReversalEntry[ledAccrualReversal] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedAccrualReversalRows
+   }
+
+   ledger::FxRevaluationEntry[ledFxRevaluation] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedFxRevaluationRows
+   }
+
+   ledger::FxTranslationEntry[ledFxTranslation] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedFxTranslationRows
+   }
+
+   ledger::CommissionEntry[ledCommissionEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedCommissionEntryRows
+   }
+
+   ledger::FeeLedgerEntry[ledFeeEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedFeeEntryRows
+   }
+
+   ledger::TaxLedgerEntry[ledTaxEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedTaxEntryRows
+   }
+
+   ledger::InterestEntry[ledInterestEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedInterestEntryRows
+   }
+
+   ledger::DividendEntry[ledDividendEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedDividendEntryRows
+   }
+
+   ledger::DividendPayableEntry[ledDividendPayable] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedDividendPayableRows
+   }
+
+   ledger::CouponEntry[ledCouponEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedCouponEntryRows
+   }
+
+   ledger::ImpairmentEntry[ledImpairment] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedImpairmentRows
+   }
+
+   ledger::ProvisionEntry[ledProvision] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedProvisionRows
+   }
+
+   ledger::WriteOffEntry[ledWriteOff] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedWriteOffRows
+   }
+
+   ledger::ReclassificationEntry[ledReclassification] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedReclassificationRows
+   }
+
+   ledger::SuspenseEntry[ledSuspenseEntry] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedSuspenseEntryRows
+   }
+
+   ledger::ManualAdjustmentEntry[ledManualAdjustment] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedManualAdjustmentRows
+   }
+
+   ledger::YearEndCloseEntry[ledYearEndClose] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedYearEndCloseRows
+   }
+
+   ledger::OpeningBalanceEntry[ledOpeningBalance] extends [ledgerBase]: Relational
+   {
+      ~filter [store::DB]LedOpeningBalanceRows
+   }
+)

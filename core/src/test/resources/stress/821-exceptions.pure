@@ -1,0 +1,269 @@
+###Pure
+// Operational exceptions: what broke, in which system, and whether anyone fixed it.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class exceptions::ProcessingException
+{
+   exceptionId: String[1];
+   exceptionType: String[1];
+   sourceSystem: String[1];
+   severity: String[1];
+   raisedAt: DateTime[1];
+   entityRef: String[1];
+   status: String[1];
+   isAutoRetried: Boolean[1];
+   resolvedAt: DateTime[0..1];
+   message: String[0..1];
+
+   // Minutes to resolution, null while open -- which is the population an ops
+   // dashboard is actually about.
+   minutesToResolve() { dateDiff($this.raisedAt, $this.resolvedAt, meta::pure::functions::date::DurationUnit.MINUTES) } : Integer[0..1];
+}
+
+// A field failed a rule before anything was attempted.
+Class exceptions::ValidationException extends exceptions::ProcessingException
+{
+}
+
+// A code that should resolve does not.
+Class exceptions::ReferenceDataMissingException extends exceptions::ProcessingException
+{
+}
+
+// No mark for an instrument that needs one.
+Class exceptions::PriceMissingException extends exceptions::ProcessingException
+{
+}
+
+// A mark exists and is older than the tolerance.
+Class exceptions::StalePriceException extends exceptions::ProcessingException
+{
+}
+
+// A trade would exceed a limit.
+Class exceptions::LimitBreachException extends exceptions::ProcessingException
+{
+}
+
+// The counterparty has no line or no room on it.
+Class exceptions::CreditCheckFailure extends exceptions::ProcessingException
+{
+}
+
+// Cash or securities did not arrive.
+Class exceptions::SettlementFailure extends exceptions::ProcessingException
+{
+}
+
+// The two sides do not agree.
+Class exceptions::MatchingFailure extends exceptions::ProcessingException
+{
+}
+
+// The same economics booked twice.
+Class exceptions::DuplicateTradeException extends exceptions::ProcessingException
+{
+}
+
+// A trade with no matching order.
+Class exceptions::OrphanTradeException extends exceptions::ProcessingException
+{
+}
+
+// A downstream system did not answer in time.
+Class exceptions::TimeoutException extends exceptions::ProcessingException
+{
+}
+
+// A link is down.
+Class exceptions::ConnectivityException extends exceptions::ProcessingException
+{
+}
+
+// The user may not do this.
+Class exceptions::AuthorisationException extends exceptions::ProcessingException
+{
+}
+
+// A model failed to converge or divided by zero.
+Class exceptions::CalculationException extends exceptions::ProcessingException
+{
+}
+
+// The model could not fit the market.
+Class exceptions::CalibrationFailure extends exceptions::ProcessingException
+{
+}
+
+// The value is present, valid, and wrong.
+Class exceptions::DataQualityException extends exceptions::ProcessingException
+{
+}
+
+// The message does not match the contract.
+Class exceptions::SchemaMismatchException extends exceptions::ProcessingException
+{
+}
+
+// A message is missing from a numbered stream.
+Class exceptions::SequenceGapException extends exceptions::ProcessingException
+{
+}
+
+// The same message arrived twice.
+Class exceptions::ReplayDetectedException extends exceptions::ProcessingException
+{
+}
+
+// Submitted after the window closed.
+Class exceptions::CutoffMissedException extends exceptions::ProcessingException
+{
+}
+
+// Two systems disagree about a balance.
+Class exceptions::ReconciliationBreakException extends exceptions::ProcessingException
+{
+}
+
+// Nothing is wrong; a human has to decide.
+Class exceptions::ManualInterventionRequired extends exceptions::ProcessingException
+{
+}
+
+###Mapping
+Mapping exceptions::ExceptionsMapping
+(
+   *exceptions::ProcessingException[exceptionsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PROCESSING_EXCEPTION.EXCEPTION_ID )
+      ~mainTable [store::DB]PROCESSING_EXCEPTION
+      exceptionId: [store::DB]PROCESSING_EXCEPTION.EXCEPTION_ID,
+      exceptionType: [store::DB]PROCESSING_EXCEPTION.EXCEPTION_TYPE,
+      sourceSystem: [store::DB]PROCESSING_EXCEPTION.SOURCE_SYSTEM,
+      severity: [store::DB]PROCESSING_EXCEPTION.SEVERITY,
+      raisedAt: [store::DB]PROCESSING_EXCEPTION.RAISED_AT,
+      entityRef: [store::DB]PROCESSING_EXCEPTION.ENTITY_REF,
+      status: [store::DB]PROCESSING_EXCEPTION.STATUS,
+      isAutoRetried: [store::DB]PROCESSING_EXCEPTION.IS_AUTO_RETRIED,
+      resolvedAt: [store::DB]PROCESSING_EXCEPTION.RESOLVED_AT,
+      message: [store::DB]PROCESSING_EXCEPTION.MESSAGE
+   }
+
+   exceptions::ValidationException[excValidationError] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcValidationErrorRows
+   }
+
+   exceptions::ReferenceDataMissingException[excReferenceDataMissing] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcReferenceDataMissingRows
+   }
+
+   exceptions::PriceMissingException[excPriceMissing] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcPriceMissingRows
+   }
+
+   exceptions::StalePriceException[excStalePrice] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcStalePriceRows
+   }
+
+   exceptions::LimitBreachException[excLimitBreachEx] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcLimitBreachExRows
+   }
+
+   exceptions::CreditCheckFailure[excCreditCheckFail] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcCreditCheckFailRows
+   }
+
+   exceptions::SettlementFailure[excSettlementFail] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcSettlementFailRows
+   }
+
+   exceptions::MatchingFailure[excMatchingFail] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcMatchingFailRows
+   }
+
+   exceptions::DuplicateTradeException[excDuplicateTrade] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcDuplicateTradeRows
+   }
+
+   exceptions::OrphanTradeException[excOrphanTrade] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcOrphanTradeRows
+   }
+
+   exceptions::TimeoutException[excTimeout] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcTimeoutRows
+   }
+
+   exceptions::ConnectivityException[excConnectivity] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcConnectivityRows
+   }
+
+   exceptions::AuthorisationException[excAuthorisation] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcAuthorisationRows
+   }
+
+   exceptions::CalculationException[excCalculationError] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcCalculationErrorRows
+   }
+
+   exceptions::CalibrationFailure[excCalibrationFail] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcCalibrationFailRows
+   }
+
+   exceptions::DataQualityException[excDataQuality] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcDataQualityRows
+   }
+
+   exceptions::SchemaMismatchException[excSchemaMismatch] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcSchemaMismatchRows
+   }
+
+   exceptions::SequenceGapException[excSequenceGap] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcSequenceGapRows
+   }
+
+   exceptions::ReplayDetectedException[excReplayDetected] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcReplayDetectedRows
+   }
+
+   exceptions::CutoffMissedException[excCutoffMissed] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcCutoffMissedRows
+   }
+
+   exceptions::ReconciliationBreakException[excReconciliationBreakEx] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcReconciliationBreakExRows
+   }
+
+   exceptions::ManualInterventionRequired[excManualIntervention] extends [exceptionsBase]: Relational
+   {
+      ~filter [store::DB]ExcManualInterventionRows
+   }
+)

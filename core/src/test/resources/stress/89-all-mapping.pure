@@ -34,6 +34,12 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include documents::DocumentsMapping
+    include exceptions::ExceptionsMapping
+    include valmodels::ValmodelsMapping
+    include ledger::LedgerMapping
+    include kyc::KycMapping
+    include seclending::SeclendingMapping
     include marks::MarksMapping
     include fees::FeesMapping
     include accounts::AccountsMapping

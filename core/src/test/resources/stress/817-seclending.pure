@@ -1,0 +1,248 @@
+###Pure
+// Securities lending and repo: financing trades, and what they are secured on.
+//
+// 20 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 20 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class seclending::SecuritiesLoan
+{
+   loanId: String[1];
+   loanType: String[1];
+   securityId: String[1];
+   counterpartyId: String[1];
+   quantity: Integer[1];
+   loanValue: Float[1];
+   feeRateBp: Float[1];
+   startDate: StrictDate[1];
+   isOpen: Boolean[1];
+   endDate: StrictDate[0..1];
+
+   // Fee earned per day at the agreed rate.
+   dailyFee() { $this.loanValue * $this.feeRateBp / 10000.0 / 360.0 } : Float[1];
+}
+
+// A share lent against collateral, usually to cover a short.
+Class seclending::EquitySecurityLoan extends seclending::SecuritiesLoan
+{
+}
+
+// Fixed income lending, driven by specials rather than shorts.
+Class seclending::BondSecurityLoan extends seclending::SecuritiesLoan
+{
+}
+
+// Financing where any acceptable bond will do.
+Class seclending::GeneralCollateralRepo extends seclending::SecuritiesLoan
+{
+}
+
+// A specific bond in demand, so the rate goes negative.
+Class seclending::SpecialRepo extends seclending::SecuritiesLoan
+{
+}
+
+// The other side: cash out, collateral in.
+Class seclending::ReverseRepo extends seclending::SecuritiesLoan
+{
+}
+
+// An agent manages allocation and substitution.
+Class seclending::TriPartyRepo extends seclending::SecuritiesLoan
+{
+}
+
+// Economically a repo, documented as two outright trades.
+Class seclending::BuySellBack extends seclending::SecuritiesLoan
+{
+}
+
+// The mirror.
+Class seclending::SellBuyBack extends seclending::SecuritiesLoan
+{
+}
+
+// Swapping lower-quality collateral for higher.
+Class seclending::CollateralUpgradeTrade extends seclending::SecuritiesLoan
+{
+}
+
+// The other direction, for a fee.
+Class seclending::CollateralDowngradeTrade extends seclending::SecuritiesLoan
+{
+}
+
+// The same exposure achieved with a total return swap.
+Class seclending::SyntheticSecurityLoan extends seclending::SecuritiesLoan
+{
+}
+
+// Cash lent against a portfolio.
+Class seclending::MarginLoan extends seclending::SecuritiesLoan
+{
+}
+
+// A fixed maturity rather than open.
+Class seclending::TermSecurityLoan extends seclending::SecuritiesLoan
+{
+}
+
+// Recallable daily, which is most of the market.
+Class seclending::OpenSecurityLoan extends seclending::SecuritiesLoan
+{
+}
+
+// A whole portfolio lent to one borrower for a fee.
+Class seclending::ExclusiveLoan extends seclending::SecuritiesLoan
+{
+}
+
+// An agent lends on behalf of beneficial owners.
+Class seclending::AgencyLoan extends seclending::SecuritiesLoan
+{
+}
+
+// The firm lends its own inventory.
+Class seclending::PrincipalLoan extends seclending::SecuritiesLoan
+{
+}
+
+// The lender wants the security back, usually to vote.
+Class seclending::LoanRecall extends seclending::SecuritiesLoan
+{
+}
+
+// The borrower gives it back.
+Class seclending::LoanReturn extends seclending::SecuritiesLoan
+{
+}
+
+// The cash rebate rate is repriced.
+Class seclending::RebateAdjustment extends seclending::SecuritiesLoan
+{
+}
+
+###Mapping
+Mapping seclending::SeclendingMapping
+(
+   *seclending::SecuritiesLoan[seclendingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SEC_LENDING_TRADE.LOAN_ID )
+      ~mainTable [store::DB]SEC_LENDING_TRADE
+      loanId: [store::DB]SEC_LENDING_TRADE.LOAN_ID,
+      loanType: [store::DB]SEC_LENDING_TRADE.LOAN_TYPE,
+      securityId: [store::DB]SEC_LENDING_TRADE.SECURITY_ID,
+      counterpartyId: [store::DB]SEC_LENDING_TRADE.COUNTERPARTY_ID,
+      quantity: [store::DB]SEC_LENDING_TRADE.QUANTITY,
+      loanValue: [store::DB]SEC_LENDING_TRADE.LOAN_VALUE,
+      feeRateBp: [store::DB]SEC_LENDING_TRADE.FEE_RATE_BP,
+      startDate: [store::DB]SEC_LENDING_TRADE.START_DATE,
+      isOpen: [store::DB]SEC_LENDING_TRADE.IS_OPEN,
+      endDate: [store::DB]SEC_LENDING_TRADE.END_DATE
+   }
+
+   seclending::EquitySecurityLoan[slEquityLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlEquityLoanRows
+   }
+
+   seclending::BondSecurityLoan[slBondLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlBondLoanRows
+   }
+
+   seclending::GeneralCollateralRepo[slGcRepo] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlGcRepoRows
+   }
+
+   seclending::SpecialRepo[slSpecialRepo] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlSpecialRepoRows
+   }
+
+   seclending::ReverseRepo[slReverseRepo] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlReverseRepoRows
+   }
+
+   seclending::TriPartyRepo[slTriPartyRepo] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlTriPartyRepoRows
+   }
+
+   seclending::BuySellBack[slBuySellBack] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlBuySellBackRows
+   }
+
+   seclending::SellBuyBack[slSellBuyBack] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlSellBuyBackRows
+   }
+
+   seclending::CollateralUpgradeTrade[slCollateralUpgrade] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlCollateralUpgradeRows
+   }
+
+   seclending::CollateralDowngradeTrade[slCollateralDowngrade] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlCollateralDowngradeRows
+   }
+
+   seclending::SyntheticSecurityLoan[slSyntheticLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlSyntheticLoanRows
+   }
+
+   seclending::MarginLoan[slMarginLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlMarginLoanRows
+   }
+
+   seclending::TermSecurityLoan[slTermLoanSl] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlTermLoanSlRows
+   }
+
+   seclending::OpenSecurityLoan[slOpenLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlOpenLoanRows
+   }
+
+   seclending::ExclusiveLoan[slExclusiveLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlExclusiveLoanRows
+   }
+
+   seclending::AgencyLoan[slAgencyLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlAgencyLoanRows
+   }
+
+   seclending::PrincipalLoan[slPrincipalLoan] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlPrincipalLoanRows
+   }
+
+   seclending::LoanRecall[slRecall] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlRecallRows
+   }
+
+   seclending::LoanReturn[slReturn] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlReturnRows
+   }
+
+   seclending::RebateAdjustment[slRebateAdjustment] extends [seclendingBase]: Relational
+   {
+      ~filter [store::DB]SlRebateAdjustmentRows
+   }
+)
