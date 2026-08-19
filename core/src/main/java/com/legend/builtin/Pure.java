@@ -1986,6 +1986,16 @@ public final class Pure {
     public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
+    // assertTdsEquivalent (REAL core_functions_relation
+    // relation/functions/tdsEquivalent.pure:26/:31, signatures verbatim;
+    // stereotyped PCT.platformOnly there): the GRID VERDICT — Clause 2c's
+    // chartered GridCompare route. The pure body is m3-reflective
+    // (columns(), classifierGenericType); the K-arm executes both
+    // relations IN THE DATABASE and cell-zips host-side with the spec's
+    // numeric-delta + temporal-seconds policies (GridCompare, one owner).
+    public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1], timeDeltaInSeconds:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
+
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
 
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS

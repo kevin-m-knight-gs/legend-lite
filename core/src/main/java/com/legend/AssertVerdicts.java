@@ -53,7 +53,48 @@ final class AssertVerdicts {
             return quantified(qm, letPrefix, specs, env);
         }
         String fqn = calleeFqn(bare);
-        if (fqn == null || !fqn.startsWith(PKG)) {
+        if (fqn == null) {
+            return null;
+        }
+        // THE GRID VERDICT (Clause 2c — GridCompare's chartered route;
+        // witness: the relation suite's 79 assertTdsEquivalent rows):
+        // both relations execute IN THE DATABASE, the cell-zip
+        // adjudicates host-side (tdsEquivalent.pure's numeric delta +
+        // temporal seconds policies, already the one owner).
+        if (fqn.equals(
+                "meta::pure::functions::relation::assertTdsEquivalent")) {
+            List<TypedSpec> targs = ((bare instanceof TypedUserCall u2)
+                    ? u2.args() : ((TypedNativeCall) bare).args());
+            if (targs.size() < 3 || targs.size() > 4) {
+                return null;
+            }
+            ExecutionResult.Tabular one =
+                    tabular(targs.get(0), letPrefix, specs, env);
+            ExecutionResult.Tabular two =
+                    tabular(targs.get(1), letPrefix, specs, env);
+            if (one == null || two == null) {
+                return null;   // non-tabular shape — fall through, loud later
+            }
+            double delta = ((Number) one(side(targs.get(2), letPrefix,
+                    specs, env), "assertTdsEquivalent delta")).doubleValue();
+            double timeDelta = targs.size() == 4
+                    ? ((Number) one(side(targs.get(3), letPrefix, specs,
+                            env), "assertTdsEquivalent timeDelta"))
+                            .doubleValue()
+                    : 0.0;
+            List<String> c1 = one.columns().stream()
+                    .map(com.legend.exec.Column::name).toList();
+            List<String> c2 = two.columns().stream()
+                    .map(com.legend.exec.Column::name).toList();
+            if (!c1.equals(c2) || one.rows().size() != two.rows().size()) {
+                return fail("\n" + summarize(one) + "\n is not"
+                        + " equivalent to:\n" + summarize(two));
+            }
+            String d = com.legend.exec.GridCompare.tdsEquivalent(
+                    cells(one), cells(two), delta, timeDelta);
+            return d == null ? ok() : fail(d);
+        }
+        if (!fqn.startsWith(PKG)) {
             return null;
         }
         String name = fqn.substring(PKG.length());
@@ -297,6 +338,33 @@ final class AssertVerdicts {
                     pr.fullPath();
             default -> null;
         };
+    }
+
+    /** The relation arg executed in the database, as its TABULAR frame;
+     * null = the value did not execute to a relation (fall through). */
+    private static ExecutionResult.@com.legend.Nullable Tabular tabular(
+            TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+        ExecutionResult r = StatementExecutor.evalValue(arg,
+                letPrefix, specs, env);
+        return r instanceof ExecutionResult.Tabular t ? t : null;
+    }
+
+    /** Row-major cell stream of a tabular frame (the cell-zip input). */
+    private static List<Object> cells(ExecutionResult.Tabular t) {
+        List<Object> out = new java.util.ArrayList<>();
+        for (com.legend.exec.Row r : t.rows()) {
+            out.addAll(r.values());
+        }
+        return out;
+    }
+
+    /** Failure-message sketch of a frame (columns + row count — the
+     * spec's toString(true) grid rendering is message-position only;
+     * no witness pins its spelling). */
+    private static String summarize(ExecutionResult.Tabular t) {
+        return t.columns().stream().map(com.legend.exec.Column::name)
+                .toList() + " (" + t.rows().size() + " rows)";
     }
 
     private static ExecutionResult ok() {

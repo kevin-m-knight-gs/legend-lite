@@ -2700,6 +2700,13 @@ final class Scalars {
             return new SqlExpr.Cast(new SqlExpr.NullLit(),
                     com.legend.sql.SqlType.Scalar.VARCHAR);
         }
+        // Variant.toString IS its JSON text — the carrier's own compact
+        // VARCHAR form (relation-suite witnesses: flatten prints '[1,2]',
+        // map cells their compact object text). The one class type with
+        // a designed text rendering.
+        if (t instanceof Type.ClassType vc && PlatformTypes.isVariant(vc)) {
+            return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        }
         if ((t instanceof Type.RelationType && !scalarCell)
                 || t instanceof Type.FunctionType
                 || t instanceof Type.SchemaAlgebra

@@ -226,20 +226,36 @@ public final class ChannelB {
         }
     }
 
-    /** THE IDENTITY ADAPTER: {@code $f->eval(|expr)} → {@code expr}.
-     * Any OTHER use of the adapter parameter declines with its shape —
+    /** THE IDENTITY ADAPTER: {@code $f->eval(|expr)} → {@code expr},
+     * and the relation suite's ONE-LET INDIRECTION —
+     * {@code let e = {|expr}; $f->eval($e)} → {@code expr} (the same
+     * identity application, the lambda named instead of inline). Any
+     * OTHER use of the adapter parameter declines with its shape —
      * never silently dropped. */
     static List<ValueSpecification> eliminateAdapter(
             List<ValueSpecification> body, String fParam) {
+        java.util.Map<String, LambdaFunction> lets = new java.util.HashMap<>();
+        for (ValueSpecification stmt : body) {
+            if (stmt instanceof AppliedFunction lf
+                    && lf.function().equals("letFunction")
+                    && lf.parameters().size() == 2
+                    && lf.parameters().get(0)
+                            instanceof com.legend.protocol.spec.CString ln
+                    && lf.parameters().get(1) instanceof LambdaFunction lam
+                    && lam.parameters().isEmpty()
+                    && lam.body().size() == 1) {
+                lets.put(ln.value(), lam);
+            }
+        }
         List<ValueSpecification> out = new ArrayList<>(body.size());
         for (ValueSpecification stmt : body) {
-            out.add(rewrite(stmt, fParam));
+            out.add(rewrite(stmt, fParam, lets));
         }
         return out;
     }
 
     private static ValueSpecification rewrite(ValueSpecification n,
-            String fParam) {
+            String fParam, java.util.Map<String, LambdaFunction> lets) {
         if (n instanceof AppliedFunction af
                 && simpleName(af.function()).equals("eval")
                 && af.parameters().size() == 2
@@ -248,13 +264,34 @@ public final class ChannelB {
                 && af.parameters().get(1) instanceof LambdaFunction lam
                 && lam.parameters().isEmpty()
                 && lam.body().size() == 1) {
-            return rewrite(lam.body().get(0), fParam);
+            return rewrite(lam.body().get(0), fParam, lets);
+        }
+        if (n instanceof AppliedFunction af2
+                && simpleName(af2.function()).equals("eval")
+                && af2.parameters().size() == 2
+                && af2.parameters().get(0) instanceof Variable v
+                && v.name().equals(fParam)
+                && af2.parameters().get(1) instanceof Variable ev
+                && lets.containsKey(ev.name())) {
+            return rewrite(lets.get(ev.name()).body().get(0), fParam, lets);
         }
         // any surviving reference to the adapter param is a shape we
-        // do not run — decline with the spelling
+        // do not run — decline WITH the offending call's spelling, so
+        // the decline census distinguishes shapes (audit 2026-08-19:
+        // 51 relation declines shared one blind string)
+        if (n instanceof AppliedFunction afx
+                && afx.parameters().stream().anyMatch(px ->
+                        px instanceof Variable pv
+                        && pv.name().equals(fParam))) {
+            throw new Declined("adapter parameter used outside"
+                    + " $f->eval(|...) — non-identity shape: "
+                    + simpleName(afx.function()) + "/"
+                    + afx.parameters().size());
+        }
         if (n instanceof Variable v2 && v2.name().equals(fParam)) {
             throw new Declined("adapter parameter used outside"
-                    + " $f->eval(|...) — non-identity shape");
+                    + " $f->eval(|...) — non-identity shape: bare"
+                    + " $" + fParam + " reference");
         }
         List<ValueSpecification> kids = n.children();
         if (kids.isEmpty()) {
@@ -263,7 +300,7 @@ public final class ChannelB {
         List<ValueSpecification> rewritten = new ArrayList<>(kids.size());
         boolean changed = false;
         for (ValueSpecification k : kids) {
-            ValueSpecification r = rewrite(k, fParam);
+            ValueSpecification r = rewrite(k, fParam, lets);
             changed |= r != k;
             rewritten.add(r);
         }

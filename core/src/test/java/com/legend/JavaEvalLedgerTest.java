@@ -147,7 +147,12 @@ class JavaEvalLedgerTest {
             // type (spec witness testHashCode; the spec body needs
             // elementToPath, unportable m3 reflection). Verdict dispatch,
             // never evaluation — the instance still computes in the DB.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 246),
+            // 246→300 (2026-08-19 relation-suite landing): the GRID VERDICT
+            // arm — assertTdsEquivalent executes BOTH relations in the
+            // database and cell-zips host-side via GridCompare (Clause
+            // 2c's chartered route; the 79-row relation witness). Verdict
+            // orchestration over DB-produced frames, never evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 300),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

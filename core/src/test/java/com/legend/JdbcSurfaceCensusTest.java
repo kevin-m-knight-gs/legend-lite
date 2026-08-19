@@ -142,6 +142,9 @@ class JdbcSurfaceCensusTest {
             // JDBC surface exists to PIN how little JDBC the platform
             // uses)
             "core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java",
+            // the PCT.function suppression behavior pin (executes model
+            // queries to prove which definition wins — session plumbing)
+            "core/src/test/java/com/legend/compiler/PctFunctionSuppressionTest.java",
             "core/src/test/java/com/legend/exec/ExecutorTest.java",
             "core/src/test/java/com/legend/exec/StructValueTest.java",
             "core/src/test/java/com/legend/harness/AssertLoopForm.java",

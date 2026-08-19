@@ -464,6 +464,31 @@ error → adjudicated verdict). Golden catalog +2 rows; PureAsserts 264→298 an
 AssertVerdicts 221→246 justified. Referee byte-identical; ALLGATES GREEN.
 Remaining scopes: Relation, Unclassified.
 
+*ALL FIVE SUITES LIVE (2026-08-19 — channel B covers the whole PCT surface):*
+**Unclassified is PERFECT out of the box** (95/95, zero declines, zero wire bugs,
+TRUE=0 pinned). **Relation** rides three additions: the LET-INDIRECTION adapter arm
+(`let e = {|expr}; $f->eval($e)` — the same identity application with the lambda
+named; 283 declines became measurable — declines hide, measurements name), the
+**assertTdsEquivalent GRID VERDICT** (Clause 2c's chartered GridCompare route,
+finally witnessed by 79 rows: native signatures verbatim from tdsEquivalent.pure,
+the K-arm executes BOTH relations in the database and cell-zips host-side with the
+spec's numeric-delta + temporal-seconds policies), and **Variant.toString as its
+compact JSON text** (the carrier's own VARCHAR form; 27 rows). Census: Relation
+**PASS=203/287** (TRUE≤33 shrink-only; 51 deeper non-identity declines now carry
+their SHAPE), Standard re-measured **PASS=180/204** (TRUE≤16 shrink-only — the
+un-declined window tail is the RECORDED burn queue: window frame semantics, pivot
+column orders, chunk, temporal-precision equality). Totals across channel B:
+**891 of 1,050 discovered tests pass through our platform alone**, every failure
+oracle-corroborated or on a pinned shrink-only queue. The discovery pins caught
+BOTH stale-root axes in G6 (grammar 136≠137 pure-root, relation 280≠287
+engine-root) — `allgates.sh` threads `$R1` AND `$R2` into G6/G7. Post-landing
+audit fixes folded in: the PCT.function suppression rule has a BEHAVIOR pin
+(`PctFunctionSuppressionTest` — native-owned suppresses, unowned keeps its body),
+the K-arm's new arms have core spec pins, decline messages carry the offending
+spelling. AssertVerdicts 246→300 justified (the grid-verdict arm). Referee
+byte-identical; core 4166; ALLGATES GREEN. Remaining Phase-4 work: the burn
+queue (49 TRUE rows) and the adapter split.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

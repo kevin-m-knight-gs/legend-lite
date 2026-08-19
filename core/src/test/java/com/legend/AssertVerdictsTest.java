@@ -88,6 +88,34 @@ class AssertVerdictsTest {
     }
 
     @Test
+    @DisplayName("assertInstanceOf: RUNTIME carrier kind up the m3 value lattice")
+    void assertInstanceOfVerdict() throws Exception {
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assertInstanceOf(1 + 1, Integer)}")).value());
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assertInstanceOf(1.5, Number)}")).value());
+        SQLException e = assertThrows(SQLException.class, () -> run(
+                "{|assertInstanceOf('x', Integer)}"));
+        assertTrue(e.getMessage().contains(
+                "to be an instance of Integer, actual: String"),
+                e.getMessage());
+    }
+
+    @Test
+    @DisplayName("assertTdsEquivalent: the GRID verdict — relations execute in DB, cells zip host-side")
+    void assertTdsEquivalentVerdict() throws Exception {
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assertTdsEquivalent(#TDS\n"
+                + "  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n"
+                + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}")).value());
+        SQLException e = assertThrows(SQLException.class, () -> run(
+                "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
+                + "  id\n  2\n#, 0.01)}"));
+        assertTrue(e.getMessage().contains("assertTdsEquivalent"),
+                e.getMessage());
+    }
+
+    @Test
     @DisplayName("quantified verdict: map(f|assert(pred)) vectorizes in SQL, judges host-side")
     void quantifiedVerdict() throws Exception {
         assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
