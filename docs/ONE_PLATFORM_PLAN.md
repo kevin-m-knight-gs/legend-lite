@@ -240,6 +240,27 @@ follow-up is DECIDED AGAINST for now — the LIMIT-0 probe is planning-only and 
 and resolver demand-analysis would trade real complexity for microseconds (revisit only
 if the perf histogram ever names it). Referee byte-identical; suite 4134/0.
 
+*PHASE-3 FINDINGS BATCH (2026-08-19, the systematic-audit loop — REVERSES the
+demand-driven-stamping deferral above, measured this time):* three parked findings
+landed as one gated batch. **P3-1**: `RawGridSchema`'s static at-pick DELETED — a
+resolver-side duplicate of the lowering's collection-at rule (one owner; referee
+identical in isolation; ledger 248→237). **P3-2 SINGLE-QUERY**: the LIMIT-0 probe now
+runs ONLY when a `columnNames`/`values` read statically demands the schema
+(`RawGridSchema`'s demand gate); an undemanded grid executes as ONE query — the
+lowering emits the zero-output star-select, `Executor.resolveColumns`' late-bound arm
+(gated on `schema.isLateBound()`, the TYPE, never an outputs-emptiness proxy) adopts
+the result-set headers as trusted columns, the wire KIND drives cell decode
+(`sqlTypeOf` threads the flag), and `Fold`'s claim rule grants a late-bound grid frame
+the trust-name claim (pivot's claim-any precedent; empty outputs anywhere ELSE keep
+the loud construction wall — the full suite caught exactly that seam). PINNED BY
+OBSERVATION: `ExecuteInDbProbeCountTest` counts real JDBC traffic through a proxy —
+0 probes for bare `.rows`/named reads, exactly 1 under `columnNames` demand (ledger
+237→261: demand ANALYSIS, not evaluation — it deletes a query from the common path).
+**P3-5**: `SkipCensusTest` — every `@Disabled` must name its gap (`GAP: ...`, pinned
+15 shrink-only with the stale-row rule) and the `Assumptions.assume*` FILE SET is
+pinned exactly (2) — the suite can no longer go quiet silently. Suite 4161/0, referee
+byte-identical, ALLGATES GREEN.
+
 ### Phase 4 — The decoupled PCT channel
 
 **What, plainly:** PCT is the conformance suite — 1,110 tests defined in legend-pure.

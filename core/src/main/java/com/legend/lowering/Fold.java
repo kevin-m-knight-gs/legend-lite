@@ -647,9 +647,18 @@ final class Fold {
             case SqlSource.Table t -> claims(t.outputs(), column)
                     ? new SqlExpr.Column(t.alias(), column) : null;
             case SqlSource.VarSetPlaceholder vp -> null;
-            case SqlSource.RawSql raw -> null;
-            case SqlSource.Subselect sub -> claims(sub.outputs(), column)
-                    ? new SqlExpr.Column(sub.alias(), column) : null;
+            // LATE-BOUND grid (P3-2 single-query): an undemanded raw
+            // grid skipped the schema probe, so its outputs are empty
+            // BY DESIGN — the trust-name rule applies (pivot's
+            // claim-any precedent): a by-name read claims its name and
+            // the database resolves it. A STAMPED grid keeps the old
+            // behavior (never claims — resolution rides its subselect).
+            case SqlSource.RawSql raw -> raw.outputs().isEmpty()
+                    ? new SqlExpr.Column(raw.alias(), column) : null;
+            case SqlSource.Subselect sub -> lateBoundGrid(sub)
+                    ? new SqlExpr.Column(sub.alias(), column)
+                    : claims(sub.outputs(), column)
+                            ? new SqlExpr.Column(sub.alias(), column) : null;
             case SqlSource.Values v -> claims(v.outputs(), column)
                     ? new SqlExpr.Column(v.alias(), column) : null;
             case SqlSource.SourceUrl u -> claims(u.outputs(), column)
@@ -672,6 +681,23 @@ final class Fold {
      * every source; an UNSTAMPED source is a construction bug and fails
      * loudly rather than silently claiming everything.
      */
+    /** P3-2 SINGLE-QUERY: a source is a LATE-BOUND grid frame when its
+     * (empty) outputs trace to a raw-SQL leaf that skipped the schema
+     * probe. Empty outputs anywhere ELSE remain {@code claims}' loud
+     * construction wall — this predicate is the only exemption. */
+    private static boolean lateBoundGrid(com.legend.sql.SqlSource src) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.RawSql raw ->
+                    raw.outputs().isEmpty();
+            case com.legend.sql.SqlSource.Subselect sub ->
+                    sub.outputs().isEmpty()
+                            && sub.inner() instanceof
+                                    com.legend.sql.SqlSelect ss
+                            && lateBoundGrid(ss.from());
+            default -> false;
+        };
+    }
+
     private static boolean claims(List<OutputCol> outputs, String column) {
         if (outputs.isEmpty()) {
             throw new IllegalStateException(

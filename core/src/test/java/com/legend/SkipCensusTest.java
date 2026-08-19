@@ -1,0 +1,127 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * THE SKIP CENSUS (P3-5, phases-3 audit): a skipped test is a claim the
+ * suite quietly stops making — so every skip is REGISTERED, named, and
+ * shrink-only, the same discipline as every other ledger. Two channels:
+ *
+ * <ol>
+ * <li>{@code @Disabled} rows — each must carry a {@code GAP: ...} reason
+ * (the named feature gap it waits on); the per-file count is pinned MAX
+ * (burn a gap, tighten the pin — never add a skip without a pin bump
+ * and a written justification here).</li>
+ * <li>{@code Assumptions.assume*} sites — environment-conditional
+ * skips; the FILE SET is pinned exactly (a new assumption-skipping file
+ * is a new way for the suite to go quiet).</li>
+ * </ol>
+ */
+class SkipCensusTest {
+
+    /** file basename -> pinned MAX {@code @Disabled(} count. */
+    private static final Map<String, Integer> DISABLED_PINS = Map.of(
+            // the 15 named grammar/builder GAP rows (2026-08-19 census):
+            // extends clause, store substitution x2, scope keyword,
+            // Database filters, local property prefix, Relation class
+    // mapping, set IDs, extends+filter, include+join, view+join+filter,
+            // filter stacking, local property+join+filter, scope+embedded,
+            // AggregationAware+join
+            "RelationalMappingIntegrationTest.java", 15);
+
+    /** Files permitted to carry {@code Assumptions.assume*} sites. */
+    private static final List<String> ASSUMPTION_FILES = List.of(
+            // harness scoping (rcorpus.only et al) — the runner's own
+            // scoping mechanism, not a suite claim going quiet
+            "RelationalCorpusRunner.java",
+            // skips when the generated expected/ dir is absent — the
+            // differential needs its oracle materialized first
+            "CorpusDifferentialTest.java");
+
+    private static final Pattern DISABLED =
+            Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");
+
+    @Test
+    void disabledRowsAreNamedGapsAndShrinkOnly() throws IOException {
+        Map<String, Integer> found = new TreeMap<>();
+        List<String> badReasons = new ArrayList<>();
+        for (Path f : testSources()) {
+            String src = Files.readString(f);
+            Matcher m = DISABLED.matcher(src);
+            int c = 0;
+            while (m.find()) {
+                c++;
+                if (!m.group(1).startsWith("GAP: ")) {
+                    badReasons.add(f.getFileName() + ": @Disabled(\""
+                            + m.group(1) + "\")");
+                }
+            }
+            if (c > 0) {
+                found.merge(f.getFileName().toString(), c, Integer::sum);
+            }
+        }
+        assertTrue(badReasons.isEmpty(),
+                "every @Disabled must name its gap (reason starts 'GAP: ' —"
+                + " a skip is a registered claim, not a shrug):" + badReasons);
+        for (var e : found.entrySet()) {
+            Integer pin = DISABLED_PINS.get(e.getKey());
+            assertTrue(pin != null && e.getValue() <= pin,
+                    e.getKey() + " has " + e.getValue() + " @Disabled rows"
+                    + " (pin " + pin + ") — a NEW skip needs a pin bump"
+                    + " with a written justification in this register");
+            if (e.getValue() < pin) {
+                System.out.println("[skip-census] " + e.getKey()
+                        + " shrank to " + e.getValue() + " (pin " + pin
+                        + ") — tighten the pin");
+            }
+        }
+        // pins for files with no skips left must be deleted (stale-row rule)
+        for (String pinned : DISABLED_PINS.keySet()) {
+            assertTrue(found.containsKey(pinned),
+                    pinned + " no longer has @Disabled rows — delete its"
+                    + " pin (a stale row is a register lying)");
+        }
+    }
+
+    @Test
+    void assumptionSkipFilesArePinnedExactly() throws IOException {
+        List<String> found = new ArrayList<>();
+        for (Path f : testSources()) {
+            String src = Files.readString(f);
+            if (src.contains("Assumptions.assume")
+                    && !f.getFileName().toString().equals("SkipCensusTest.java")) {
+                found.add(f.getFileName().toString());
+            }
+        }
+        found.sort(String::compareTo);
+        List<String> pinned = new ArrayList<>(ASSUMPTION_FILES);
+        pinned.sort(String::compareTo);
+        assertEquals(pinned, found,
+                "the assumption-skip FILE SET is pinned exactly — a new"
+                + " assumption-skipping file is a new way for the suite"
+                + " to go quiet; register it here with its justification");
+    }
+
+    private static List<Path> testSources() throws IOException {
+        try (Stream<Path> s = Files.walk(Path.of("src/test/java"))) {
+            return s.filter(p -> p.toString().endsWith(".java")).toList();
+        }
+    }
+}

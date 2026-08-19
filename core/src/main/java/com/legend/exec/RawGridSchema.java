@@ -61,10 +61,23 @@ public final class RawGridSchema {
     }
 
     /** The tree with every late-bound raw grid stamped and its
-     * late-bound reads resolved. */
+     * late-bound reads resolved.
+     *
+     * <p>SINGLE-QUERY RULE (P3-2): the LIMIT-0 probe runs ONLY when the
+     * tree DEMANDS the schema statically — a {@code columnNames} or
+     * {@code values} read, whose resolution needs the column names at
+     * compile time. An undemanded grid stays late-bound through lowering
+     * (a zero-output star-select) and the ONE executed query is its own
+     * schema authority: the egress adopts the result-set headers
+     * ({@code Executor.resolveColumns}' late-bound arm, gated on
+     * {@code schema.isLateBound()}). Two queries only when the second
+     * is genuinely needed. */
     public static List<TypedSpec> stamp(List<TypedSpec> body,
             Connection conn, com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
+        if (!demandsSchema(body)) {
+            return body;
+        }
         List<TypedSpec> out = new ArrayList<>(body.size());
         boolean changed = false;
         Map<String, Type.RelationType> binders = new HashMap<>();
@@ -74,6 +87,35 @@ public final class RawGridSchema {
             out.add(s);
         }
         return changed ? out : body;
+    }
+
+    /** Whether any node statically demands a late-bound grid's schema:
+     * a {@code columnNames}/{@code values} property read anywhere in the
+     * tree (lambda bodies included — children() recursion enters them).
+     * Conservative on purpose: a values-read over a NON-grid source
+     * still triggers the probe (old behavior, never wrong); absence is
+     * PROOF no resolution needs names before execution. */
+    private static boolean demandsSchema(List<TypedSpec> body) {
+        for (TypedSpec n : body) {
+            if (demands(n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean demands(TypedSpec n) {
+        if (n instanceof TypedPropertyAccess pa
+                && (pa.property().equals("columnNames")
+                        || pa.property().equals("values"))) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (demands(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static TypedSpec resolve(TypedSpec n, Connection conn,
@@ -136,18 +178,6 @@ public final class RawGridSchema {
                         new ExprType(new Type.ClassType(PlatformTypes.ANY),
                                 Multiplicity.Bounded.ZERO_MANY));
             }
-        }
-        // at(<resolved cell collection>, k) picks its element statically
-        if (n instanceof TypedNativeCall at
-                && "meta::pure::functions::collection::at"
-                        .equals(at.callee().qualifiedName())
-                && at.args().size() == 2
-                && at.args().get(0) instanceof TypedCollection cc
-                && at.args().get(1) instanceof
-                        com.legend.compiler.spec.typed.TypedCInteger k
-                && k.value().longValue() >= 0
-                && k.value().longValue() < cc.elements().size()) {
-            return cc.elements().get((int) k.value().longValue());
         }
         return n;
     }

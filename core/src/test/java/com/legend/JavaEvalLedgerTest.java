@@ -104,7 +104,16 @@ class JavaEvalLedgerTest {
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
             // silently grows back into a recognizer)
-            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 248),
+            // 248→237 (2026-08-19 P3-1): the static at-pick DELETED — a
+            // resolver-side duplicate of the lowering's collection-at rule
+            // (one owner: the compiler lowers at()); referee identical.
+            // 237→261 (2026-08-19 P3-2 single-query): the DEMAND GATE —
+            // the LIMIT-0 probe now runs ONLY when a columnNames/values
+            // read statically demands the schema; an undemanded grid is
+            // ONE query (egress adopts result headers). The growth is
+            // demand ANALYSIS (a tree scan), not evaluation — it exists
+            // to DELETE a whole query from the common path.
+            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 261),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)

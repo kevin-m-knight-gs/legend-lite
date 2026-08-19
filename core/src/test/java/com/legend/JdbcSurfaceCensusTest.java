@@ -136,6 +136,12 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/testdatagen/PureReprTest.java",
             "core/src/test/java/com/legend/exec/ExecuteFrameTest.java",
             "core/src/test/java/com/legend/exec/ExecuteInDbTest.java",
+            // P3-2 single-query pin: a JDBC PROXY that COUNTS wire
+            // traffic — the probe-count discipline enforced by
+            // observation, not narration (tenet argument: the test's
+            // JDBC surface exists to PIN how little JDBC the platform
+            // uses)
+            "core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java",
             "core/src/test/java/com/legend/exec/ExecutorTest.java",
             "core/src/test/java/com/legend/exec/StructValueTest.java",
             "core/src/test/java/com/legend/harness/AssertLoopForm.java",

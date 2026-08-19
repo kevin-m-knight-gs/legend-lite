@@ -557,6 +557,22 @@ public final class Executor {
     private static List<Column> resolveColumns(ResultSet rs, SqlQuery plan,
             Type.RelationType schema, int n) throws SQLException {
         List<Column> columns = new ArrayList<>();
+        if (schema.isLateBound()) {
+            // SINGLE-QUERY RULE (P3-2): an UNDEMANDED raw grid skipped
+            // the LIMIT-0 probe — the ONE executed query is its own
+            // schema authority. Adopt the result-set headers as trusted
+            // columns (Any[0..1], the trust-name rule); the wire KIND
+            // drives cell decode (the plan carries no outputs to
+            // consult). Gate is the TYPE (schema.isLateBound()), never
+            // an outputs.isEmpty() proxy.
+            for (int i = 1; i <= n; i++) {
+                Type.Column tc = Type.RelationType.trustedColumn(
+                        rs.getMetaData().getColumnName(i));
+                columns.add(new Column(tc.name(), tc.type(),
+                        tc.multiplicity()));
+            }
+            return columns;
+        }
         if (n == schema.columns().size()) {
             // POSITIONAL on both sides (schemas are ordered); no null types.
             for (int i = 1; i <= n; i++) {
@@ -594,9 +610,10 @@ public final class Executor {
             com.legend.sql.dialect.SqlDialect dialect, Type.RelationType schema,
             List<Column> columns) throws SQLException {
         List<Object> cells = new ArrayList<>(n);
+        boolean lateBound = schema.isLateBound();
         for (int i = 1; i <= n; i++) {
-            Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
-                    sqlTypeOf(plan, i - 1), dialect);
+            Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1, lateBound)),
+                    sqlTypeOf(plan, i - 1, lateBound), dialect);
             // E2 (JAVA_EVICTION_PLAN): the host-side row explosion is
             // DEAD — the scalar-stream projection explodes IN SQL
             // (LEFT LATERAL UNNEST at project lowering; probe: zero
@@ -604,7 +621,7 @@ public final class Executor {
             // matches the emitted one. A list cell in a primitive
             // schema slot is a lowering defect, never repaired here.
             if ((cell instanceof List<?> || cell instanceof java.sql.Array)
-                    && schema.columns().get(i - 1).type()
+                    && columns.get(i - 1).pureType()
                             instanceof Type.Primitive) {
                 throw new IllegalStateException("a many-valued cell"
                         + " reached a scalar TDS slot ('"
@@ -618,8 +635,21 @@ public final class Executor {
     }
 
     private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
+        return sqlTypeOf(plan, index, false);
+    }
+
+    /** {@code lateBound} is threaded from the TYPED schema
+     * ({@code schema.isLateBound()} — P3-2's explicit gate, never an
+     * outputs-emptiness proxy): an undemanded raw grid's zero-output
+     * star-select has no static SQL type per column, and the wire KIND
+     * drives decode. */
+    private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index,
+            boolean lateBound) {
         List<OutputCol> outputs = plan.outputs();
         if (index >= outputs.size()) {
+            if (lateBound) {
+                return null; // late-bound grid column: the wire kind decides
+            }
             if (hasPivot(plan)) {
                 return null; // dynamic pivot column: no static SQL type exists
             }
