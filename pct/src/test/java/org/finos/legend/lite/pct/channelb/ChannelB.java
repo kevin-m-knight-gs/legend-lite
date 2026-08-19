@@ -181,10 +181,12 @@ public final class ChannelB {
         }
     }
 
+    /** The census detail line: assert messages are MULTI-LINE
+     * ('\nexpected: …\nactual: …') — newlines flatten so the row keeps
+     * its whole story; long tails clip. */
     private static String first(@com.legend.Nullable String msg) {
-        String m = String.valueOf(msg);
-        int nl = m.indexOf('\n');
-        return nl < 0 ? m : m.substring(0, nl);
+        String m = String.valueOf(msg).replace("\n", " ⏎ ").trim();
+        return m.length() <= 400 ? m : m.substring(0, 400) + "…";
     }
 
     private static final class Declined extends RuntimeException {

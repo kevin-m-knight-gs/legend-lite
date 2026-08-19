@@ -317,6 +317,23 @@ folding the literal broke list = list) and was reverted — the wire-convention
 unification remains a future design leg. Census **PASS=277**, diff **AGREE-PASS=267
 AGREE-FAIL=15 WIRE-BUG=33 B-FIXES-A=10**.
 
+*BURN SLICE 4 — the FRONTIER ORACLE + empty equality (2026-08-19):* the census gained
+its THIRD channel: the engine's OWN relational-DuckDB PCT manifest (pinned snapshot,
+legend-engine 943d38b3/2026-08-06) names the tests the reference RELATIONAL executor
+itself cannot pass — indexOf/substring 0-vs-1-base, partial-precision dates,
+mixed-type Any. A wire-bug row the engine also excludes is the RELATIONAL FRONTIER,
+corroborated — not ours to fix toward interpreted semantics. The split:
+**ENGINE-FRONTIER=21, TRUE-WIRE-BUG=3** (testValues/testKeys Map-get,
+testComplexPow decimal scale) — pinned shrink-only. And the equal rule became TOTAL
+over empties: a statically empty side ([] literal, or Nil-typed [0..0]) makes it the
+other side's emptiness test — [] == [] is TRUE, never SQL NULL — scoped to VALUE
+kinds (Primitive/Enum/Nil/Any); the [0..0]-multiplicity criterion alone and the
+unscoped arm each regressed gate-4 mapping families (subtype navigations the checker
+types [0..0] still read real columns) and were narrowed, gate-verified. Census
+**PASS=286**, diff **AGREE-PASS=276 AGREE-FAIL=15 WIRE-BUG=24 B-FIXES-A=10**. The
+detail channel flattens multi-line assert messages (first() clipped them at the
+first newline — the census could not speak).
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

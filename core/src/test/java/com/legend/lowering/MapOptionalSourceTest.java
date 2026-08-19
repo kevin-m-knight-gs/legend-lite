@@ -87,6 +87,19 @@ class MapOptionalSourceTest {
         assertEquals(true, run("{|equal([1,2], [1,2])}"));
     }
 
+    // equal is TOTAL: a statically empty side is the other side's
+    // emptiness test — [] == [] is TRUE, never SQL NULL (the Scalars
+    // equal rule's static-empty arm; the 10-row essential family)
+    @Test
+    @DisplayName("equal over empties: [] == [] is TRUE; x == [] is isEmpty(x)")
+    void emptyEquality() throws Exception {
+        assertEquals(true, run("{|equal([], [])}"));
+        assertEquals(true, run("{|equal([], [1,2]->filter(x|$x > 5))}"));
+        assertEquals(false, run("{|equal([], [1,2])}"));
+        assertEquals(true, run("{|equal([]->head(), [])}"));
+        assertEquals(false, run("{|equal([1,2]->head(), [])}"));
+    }
+
     @Test
     @DisplayName("rigid Number parameter accepts an Integer actual")
     void rigidNumberAcceptsInteger() throws Exception {

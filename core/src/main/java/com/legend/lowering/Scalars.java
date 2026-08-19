@@ -82,8 +82,43 @@ final class Scalars {
         // vs pure true) is the reference engine's own behavior (bare =;
         // IS NOT DISTINCT FROM appears in no golden).
         for (String name : List.of("equal", "eq")) {
+            boolean isEqual = name.equals("equal");
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {
+                    // equal is COLLECTION equality and TOTAL: a STATICALLY
+                    // empty side makes it the other side's EMPTINESS test
+                    // ([] == [] is TRUE; x == [] is isEmpty(x)) — the bare
+                    // SQL '=' spells NULL there (Phase 4 channel B: the
+                    // 10-row essential empty-equality family). eq is the
+                    // strict [1]-arg operator — empties never reach it.
+                    if (isEqual) {
+                        boolean se0 = CastPolicy.staticallyEmpty(n.args().get(0));
+                        boolean se1 = CastPolicy.staticallyEmpty(n.args().get(1));
+                        if (se0 && se1) {
+                            return new SqlExpr.BoolLit(true);
+                        }
+                        if (se0 || se1) {
+                            TypedSpec other = n.args().get(se0 ? 1 : 0);
+                            Type ot = other.info().type();
+                            // VALUE kinds only (Nil = the []-born element
+                            // type — value-safe, never a navigation):
+                            // class/Any-typed sides keep the bare '=' —
+                            // relational navigations own their emptiness
+                            // in the exists machinery (gate-4 association/
+                            // inheritance/union regression when this arm
+                            // overreached)
+                            if (ot instanceof Type.Primitive
+                                    || ot instanceof Type.PrecisionDecimal
+                                    || ot instanceof Type.EnumType
+                                    || PlatformTypes.isNil(ot)
+                                    // Any = the value/variant carrier
+                                    // (class chains type as ClassType,
+                                    // never Any)
+                                    || PlatformTypes.isAny(ot)) {
+                                return CastPolicy.emptinessOf(other, args.get(se0 ? 1 : 0));
+                            }
+                        }
+                    }
                     Integer p0 = partialPrecision(n.args().get(0));
                     Integer p1 = partialPrecision(n.args().get(1));
                     if (p0 != null || p1 != null) {

@@ -45,8 +45,10 @@ class CarrierPurityRatchetTest {
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
             // unwraps from its singleton transform; Phase 4 channel B),
-            // not a new ad-hoc idiom
-            "SqlFn\\.LIST_", 137,
+            // not a new ad-hoc idiom. 137→138: Scalars.emptinessOf's
+            // LIST_LENGTH — the equal rule's static-empty arm ([] == x
+            // is isEmpty(x), a total-equality semantic rule).
+            "SqlFn\\.LIST_", 138,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

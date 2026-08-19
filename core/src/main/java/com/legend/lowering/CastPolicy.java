@@ -1,5 +1,6 @@
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCDate;
@@ -9,6 +10,7 @@ import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -118,5 +120,48 @@ final class CastPolicy {
             }
         }
         return b;
+    }
+
+    /** A compile-time-EMPTY operand: the LITERAL empty collection, or a
+     * [0..0]-typed NIL value (the []-born bottom — a value computation
+     * over empties, never a navigation). A [0..0]-typed value of any
+     * OTHER type deliberately does not count — inheritance corpus models
+     * carry subtype navigations the checker types [0..0] that still read
+     * real columns (gate-4 association/inheritance regression when the
+     * bare multiplicity criterion joined). */
+    static boolean staticallyEmpty(TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedCollection c
+                && c.elements().isEmpty()) {
+            return true;
+        }
+        return PlatformTypes.isNil(t.info().type())
+                && t.info().multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded b
+                && b.upper() != null && b.upper() == 0;
+    }
+
+    /** {@code isEmpty(x)} in SQL, wire-shape by TYPE: a many-typed value
+     * rides the list wire (NULL list = empty), a to-one/[0..1] value is
+     * scalar (NULL = empty), a [1..n]-typed value is statically
+     * non-empty. */
+    static SqlExpr emptinessOf(TypedSpec t, SqlExpr e) {
+        var m = t.info().multiplicity();
+        if (m instanceof com.legend.compiler.element.type.Multiplicity
+                        .Bounded b
+                && b.lower() >= 1) {
+            return new SqlExpr.BoolLit(false);
+        }
+        boolean many = !(m instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded b2)
+                || b2.upper() == null || b2.upper() > 1;
+        if (many) {
+            return SqlExpr.Call.of(SqlFn.EQUAL,
+                    SqlExpr.Call.of(SqlFn.COALESCE,
+                            SqlExpr.Call.of(SqlFn.LIST_LENGTH, e),
+                            new SqlExpr.IntLit(0)),
+                    new SqlExpr.IntLit(0));
+        }
+        return SqlExpr.Call.of(SqlFn.IS_NULL, e);
     }
 }

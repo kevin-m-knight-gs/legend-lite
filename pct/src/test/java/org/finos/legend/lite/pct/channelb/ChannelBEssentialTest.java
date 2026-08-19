@@ -49,9 +49,9 @@ class ChannelBEssentialTest {
         assertTrue(out.size() == 327,
                 "essential discovery moved: " + out.size() + " != 327");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
-        assertTrue(pass >= 277,
+        assertTrue(pass >= 286,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 277");
+                        + pass + " < 286");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
@@ -89,12 +89,65 @@ class ChannelBEssentialTest {
         System.out.println("[chB] diff: AGREE-PASS=" + agreePass
                 + " AGREE-FAIL=" + agreeFail + " WIRE-BUG=" + wireBug
                 + " B-FIXES-A=" + bFixesA + " DECLINED=" + declined);
-        // measured 2026-08-19, post collection-equality burn
-        // (AGREE-PASS=267 AGREE-FAIL=15 WIRE-BUG=33 B-FIXES-A=10
-        // DECLINED=2): the wire-bug census may only SHRINK; agreement may
-        // only GROW
-        assertTrue(agreePass >= 267, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 33, "WIRE-BUG census grew: " + wireBug);
+
+        // THE FRONTIER ORACLE (third channel): the engine's OWN
+        // relational-DuckDB PCT manifest (snapshot from legend-engine
+        // 943d38b3 / 2026-08-06 — the oracle-pin discipline) names the
+        // tests the reference RELATIONAL executor itself cannot pass
+        // (indexOf 0-vs-1-base, partial-precision dates, mixed-type Any
+        // …). A wire-bug row the engine also excludes is the RELATIONAL
+        // frontier, corroborated — not our bug; the TRUE wire-bug count
+        // is what burns.
+        java.util.Set<String> engineExcluded = engineDuckDbExclusions();
+        int frontier = 0;
+        int trueWireBug = 0;
+        for (ChannelB.Outcome o : out) {
+            if (o.status() == ChannelB.Status.PASS
+                    || o.status() == ChannelB.Status.DECLINED
+                    || aFail.contains(o.testFqn())) {
+                continue;
+            }
+            if (engineExcluded.contains(o.testFqn())) {
+                frontier++;
+            } else {
+                trueWireBug++;
+                System.out.println("[chB] TRUE-WIRE-BUG " + o.testFqn());
+            }
+        }
+        System.out.println("[chB] frontier: ENGINE-FRONTIER=" + frontier
+                + " TRUE-WIRE-BUG=" + trueWireBug);
+        // measured 2026-08-19, post empty-equality burn (AGREE-PASS=276
+        // AGREE-FAIL=15 WIRE-BUG=24 B-FIXES-A=10 DECLINED=2): the
+        // wire-bug census may only SHRINK; agreement may only GROW
+        assertTrue(agreePass >= 276, "AGREE-PASS fell: " + agreePass);
+        assertTrue(wireBug <= 24, "WIRE-BUG census grew: " + wireBug);
+        // the sharpest number: rows OUR platform fails that BOTH
+        // reference channels pass (measured 2026-08-19: testValues/
+        // testKeys Map-get + testComplexPow decimal scale)
+        assertTrue(trueWireBug <= 3,
+                "TRUE wire-bug census grew: " + trueWireBug);
+    }
+
+    /** The engine's relational-DuckDB essential manifest exclusions
+     * (pinned oracle snapshot; names carry the reference suffix —
+     * stripped to plain FQNs). */
+    private static java.util.Set<String> engineDuckDbExclusions()
+            throws java.io.IOException {
+        Path manifest = Path.of("src/test/resources/oracle/"
+                + "EssentialFunctions_manifest.duckdb.json");
+        java.util.Set<String> names = new java.util.HashSet<>();
+        var m = java.util.regex.Pattern
+                .compile("\"test\"\\s*:\\s*\"(meta::[a-zA-Z:_0-9]+?)_Function_")
+                .matcher(java.nio.file.Files.readString(manifest));
+        while (m.find()) {
+            names.add(m.group(1));
+        }
+        if (names.isEmpty()) {
+            throw new IllegalStateException(
+                    "engine DuckDB manifest scan found nothing — the oracle"
+                    + " snapshot moved");
+        }
+        return names;
     }
 
     /** Channel A's per-test outcome ledger — the suite's
