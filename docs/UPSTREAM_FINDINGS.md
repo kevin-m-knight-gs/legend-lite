@@ -1561,3 +1561,33 @@ Found by `scripts/corpus/probe_functions.py`, which compares every registered fu
 result against an independently computed one. These three cannot agree with the oracle by
 construction — they read the clock — but the probe still runs them, and the SHAPE of the
 disagreement is what surfaced this.
+
+## F49 — An inherited association cannot be navigated from a subtype set
+
+    meta::pure::router::store::routing::Void not supported!
+
+A class mapped with subtype sets declares its associations once, on the base:
+
+    derivatives::TradeLegs: Relational
+    {
+       AssociationMapping ( legs[otcBase, derivatives_SwapLeg]: [store::DB]@OtcTrade_Leg, ... )
+    }
+
+Every subtype inherits `legs` -- that is what inheritance means, and Pure agrees. But the end
+names the BASE's set id, so a query ROOTED at a subtype set and navigating `legs` fails during
+plan generation with the same assertion as F47, which names nothing.
+
+The workaround is not obvious either, because the association cannot simply be re-declared per
+subtype: there is one association, and its ends already name a source and target. With
+fifty-eight subtypes over one base, qualifying every end for every subtype is not a
+workaround so much as a different model.
+
+What makes this worth reporting separately from F47 is that the same navigation succeeds from
+some shapes and not others. The corpus's taxonomy services reach `legs` and `optionTerms`
+from a subtype root without complaint; the to-many generator's shape over the identical ends
+does not. So it is not "subtypes cannot navigate" -- it is narrower than that, and the error
+message distinguishes neither case.
+
+Found while adding 93 reference-data subtypes: the corpus reader had just been taught to
+propagate associations to subclasses (which Legend semantics require and it was not doing),
+and forty generated services appeared and failed at once.

@@ -31,6 +31,9 @@ TAXONOMIES = [
     ("middleoffice::TradeBreak", "breakType", "TXB"),
     ("backoffice::Payment", "paymentType", "TXP"),
     ("backoffice::ReconciliationItem", "itemType", "TXI"),
+    ("corpactions::CorporateActionEvent", "actionType", "TXC"),
+    ("securities::MasterSecurity", "securityType", "TXM"),
+    ("orders::OrderTicket", "orderType", "TXO"),
 ]
 
 # What each subtype service STACKS on top of the discriminator.
@@ -83,6 +86,24 @@ EXTRAS = {
         ("accountName", ["reconNostro", "accountName"], None, []),
         ("correspondentBic", ["reconNostro", "correspondentBic"], None, []),
     ],
+    "corpactions::CorporateActionEvent": [
+        ("noticeDays", ["noticeDays"], None, []),
+        ("isMandatory", ["isMandatory"], None, []),
+        ("cashRate", ["cashRate"], None, []),
+        ("payDate", ["payDate"], None, []),
+    ],
+    "securities::MasterSecurity": [
+        ("daysToMaturity", ["daysToMaturity"], None, []),
+        ("issuerName", ["issuerName"], None, []),
+        ("faceValue", ["faceValue"], None, []),
+        ("isListed", ["isListed"], None, []),
+    ],
+    "orders::OrderTicket": [
+        ("fillRatio", ["fillRatio"], None, []),
+        ("side", ["side"], None, []),
+        ("limitPrice", ["limitPrice"], None, []),
+        ("timeInForce", ["timeInForce"], None, []),
+    ],
 }
 
 # An identifier per base, so the service has something stable to sort on.
@@ -94,6 +115,9 @@ IDENT = {
     "middleoffice::TradeBreak": "breakId",
     "backoffice::Payment": "paymentId",
     "backoffice::ReconciliationItem": "reconId",
+    "corpactions::CorporateActionEvent": "actionId",
+    "securities::MasterSecurity": "securityKey",
+    "orders::OrderTicket": "ticketId",
 }
 
 

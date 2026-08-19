@@ -1,0 +1,415 @@
+###Pure
+// MasterSecurity: 36 types over one table.
+//
+// A reference-data taxonomy, which is where discriminated subtypes earn their keep: the
+// types differ in what they MEAN rather than in what columns they carry, so one table with a
+// discriminator is the honest shape and 36 tables would be ceremony.
+//
+// Two of every three types carry rows. The rest are types the firm can process and does not
+// have today, which is the normal state of reference data and the sharpest test of a
+// ~filter -- an empty result is only correct if the filter works, and the failure mode is
+// returning the whole table.
+Class securities::MasterSecurity
+{
+   securityKey: String[1];
+   securityType: String[1];
+   description: String[1];
+   issuerName: String[1];
+   currency: String[1];
+   issueDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   faceValue: Float[0..1];
+   isListed: Boolean[1];
+   exchangeMic: String[1];
+   assetClass: String[1];
+
+   // DAYS to maturity, null for anything perpetual or undated -- which is most of the
+   // equity side of this table.
+   //
+   // Days rather than years, because dividing is what breaks it: maturityDate is [0..1], so
+   // dateDiff returns Integer[0..1], and `divide(Integer[0..1], Float[1])` has no match.
+   // Optionality has to be discharged before arithmetic, and here there is nothing sensible
+   // to discharge it TO -- a perpetual has no years to maturity, and zero would be a lie.
+   daysToMaturity() { dateDiff($this.issueDate, $this.maturityDate, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[0..1];
+}
+
+// Ordinary equity with voting rights.
+Class securities::CommonStock extends securities::MasterSecurity
+{
+}
+
+// Ranks ahead of common on dividends and in liquidation.
+Class securities::PreferredStock extends securities::MasterSecurity
+{
+}
+
+// A US-listed claim on foreign shares held by a depositary.
+Class securities::AmericanDepositaryReceipt extends securities::MasterSecurity
+{
+}
+
+// The same idea outside the US, usually London or Luxembourg.
+Class securities::GlobalDepositaryReceipt extends securities::MasterSecurity
+{
+}
+
+// Must distribute most of its income, so it is priced on yield.
+Class securities::RealEstateInvestmentTrust extends securities::MasterSecurity
+{
+}
+
+// Partnership units with pass-through tax treatment.
+Class securities::MasterLimitedPartnership extends securities::MasterSecurity
+{
+}
+
+// A fixed share count that trades away from net asset value.
+Class securities::ClosedEndFund extends securities::MasterSecurity
+{
+}
+
+// Creation and redemption keep it near net asset value.
+Class securities::ExchangeTradedFund extends securities::MasterSecurity
+{
+}
+
+// An unsecured note tracking an index -- issuer credit risk, not a fund.
+Class securities::ExchangeTradedNote extends securities::MasterSecurity
+{
+}
+
+// A long-dated call issued by the company itself, which dilutes on exercise.
+Class securities::Warrant extends securities::MasterSecurity
+{
+}
+
+// A tradeable right from a rights issue, with a short life.
+Class securities::SubscriptionRight extends securities::MasterSecurity
+{
+}
+
+// Sovereign debt in its own currency.
+Class securities::GovernmentBond extends securities::MasterSecurity
+{
+}
+
+// Discount paper under a year, quoted on yield not price.
+Class securities::TreasuryBill extends securities::MasterSecurity
+{
+}
+
+// Principal indexed to a published inflation series.
+Class securities::InflationLinkedBond extends securities::MasterSecurity
+{
+}
+
+// Government-sponsored issuer, not quite sovereign.
+Class securities::AgencyBond extends securities::MasterSecurity
+{
+}
+
+// Sub-sovereign, and usually tax-advantaged.
+Class securities::MunicipalBond extends securities::MasterSecurity
+{
+}
+
+// Senior unsecured company debt.
+Class securities::CorporateBond extends securities::MasterSecurity
+{
+}
+
+// Below investment grade, priced on spread and covenant.
+Class securities::HighYieldBond extends securities::MasterSecurity
+{
+}
+
+// Debt with an embedded equity call.
+Class securities::ConvertibleBond extends securities::MasterSecurity
+{
+}
+
+// Coupon resets to an index plus a margin.
+Class securities::FloatingRateNote extends securities::MasterSecurity
+{
+}
+
+// No coupons, so all the duration sits at maturity.
+Class securities::ZeroCouponBond extends securities::MasterSecurity
+{
+}
+
+// Dual recourse: the issuer and a ring-fenced pool.
+Class securities::CoveredBond extends securities::MasterSecurity
+{
+}
+
+// No maturity date, so no natural pull to par.
+Class securities::PerpetualBond extends securities::MasterSecurity
+{
+}
+
+// Ranks behind senior debt in a wind-up.
+Class securities::SubordinatedNote extends securities::MasterSecurity
+{
+}
+
+// Backed by a pool of receivables.
+Class securities::AssetBackedSecurity extends securities::MasterSecurity
+{
+}
+
+// Backed by mortgages, so prepayment is the risk.
+Class securities::MortgageBackedSecurity extends securities::MasterSecurity
+{
+}
+
+// Tranched exposure to a loan pool.
+Class securities::CollateralisedLoanObligation extends securities::MasterSecurity
+{
+}
+
+// Short-term unsecured corporate funding.
+Class securities::CommercialPaper extends securities::MasterSecurity
+{
+}
+
+// A negotiable bank deposit.
+Class securities::CertificateOfDeposit extends securities::MasterSecurity
+{
+}
+
+// A financing trade dressed as a sale and buyback.
+Class securities::RepurchaseAgreementSecurity extends securities::MasterSecurity
+{
+}
+
+// Priced once a day at net asset value.
+Class securities::MutualFundUnit extends securities::MasterSecurity
+{
+}
+
+// Constant or low-volatility net asset value.
+Class securities::MoneyMarketFundUnit extends securities::MasterSecurity
+{
+}
+
+// Exchange traded, margined daily.
+Class securities::FutureContract extends securities::MasterSecurity
+{
+}
+
+// Exchange traded option with standardised terms.
+Class securities::ListedOption extends securities::MasterSecurity
+{
+}
+
+// A note whose redemption follows a derivative payoff.
+Class securities::StructuredNoteSecurity extends securities::MasterSecurity
+{
+}
+
+// A local wrapper letting a foreign security settle domestically.
+Class securities::DepositaryInterest extends securities::MasterSecurity
+{
+}
+
+###Mapping
+Mapping securities::SecuritiesMapping
+(
+   *securities::MasterSecurity[securitiesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SECURITY_MASTER.SECURITY_KEY )
+      ~mainTable [store::DB]SECURITY_MASTER
+      securityKey: [store::DB]SECURITY_MASTER.SECURITY_KEY,
+      securityType: [store::DB]SECURITY_MASTER.SECURITY_TYPE,
+      description: [store::DB]SECURITY_MASTER.DESCRIPTION,
+      issuerName: [store::DB]SECURITY_MASTER.ISSUER_NAME,
+      currency: [store::DB]SECURITY_MASTER.CURRENCY,
+      issueDate: [store::DB]SECURITY_MASTER.ISSUE_DATE,
+      maturityDate: [store::DB]SECURITY_MASTER.MATURITY_DATE,
+      faceValue: [store::DB]SECURITY_MASTER.FACE_VALUE,
+      isListed: [store::DB]SECURITY_MASTER.IS_LISTED,
+      exchangeMic: [store::DB]SECURITY_MASTER.EXCHANGE_MIC,
+      assetClass: [store::DB]SECURITY_MASTER.ASSET_CLASS
+   }
+
+   securities::CommonStock[secCommonStock] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecCommonStockRows
+   }
+
+   securities::PreferredStock[secPreferredStock] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecPreferredStockRows
+   }
+
+   securities::AmericanDepositaryReceipt[secAdr] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecAdrRows
+   }
+
+   securities::GlobalDepositaryReceipt[secGdr] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecGdrRows
+   }
+
+   securities::RealEstateInvestmentTrust[secReit] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecReitRows
+   }
+
+   securities::MasterLimitedPartnership[secMlp] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecMlpRows
+   }
+
+   securities::ClosedEndFund[secClosedEndFund] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecClosedEndFundRows
+   }
+
+   securities::ExchangeTradedFund[secEtfShare] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecEtfShareRows
+   }
+
+   securities::ExchangeTradedNote[secEtn] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecEtnRows
+   }
+
+   securities::Warrant[secWarrant] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecWarrantRows
+   }
+
+   securities::SubscriptionRight[secSubscriptionRight] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecSubscriptionRightRows
+   }
+
+   securities::GovernmentBond[secGovernmentBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecGovernmentBondRows
+   }
+
+   securities::TreasuryBill[secTreasuryBill] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecTreasuryBillRows
+   }
+
+   securities::InflationLinkedBond[secInflationLinkedBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecInflationLinkedBondRows
+   }
+
+   securities::AgencyBond[secAgencyBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecAgencyBondRows
+   }
+
+   securities::MunicipalBond[secMunicipalBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecMunicipalBondRows
+   }
+
+   securities::CorporateBond[secCorporateBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecCorporateBondRows
+   }
+
+   securities::HighYieldBond[secHighYieldBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecHighYieldBondRows
+   }
+
+   securities::ConvertibleBond[secConvertibleBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecConvertibleBondRows
+   }
+
+   securities::FloatingRateNote[secFloatingRateNote] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecFloatingRateNoteRows
+   }
+
+   securities::ZeroCouponBond[secZeroCouponBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecZeroCouponBondRows
+   }
+
+   securities::CoveredBond[secCoveredBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecCoveredBondRows
+   }
+
+   securities::PerpetualBond[secPerpetualBond] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecPerpetualBondRows
+   }
+
+   securities::SubordinatedNote[secSubordinatedNote] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecSubordinatedNoteRows
+   }
+
+   securities::AssetBackedSecurity[secAssetBackedSecurity] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecAssetBackedSecurityRows
+   }
+
+   securities::MortgageBackedSecurity[secMortgageBackedSecurity] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecMortgageBackedSecurityRows
+   }
+
+   securities::CollateralisedLoanObligation[secCollateralisedLoanObligation] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecCollateralisedLoanObligationRows
+   }
+
+   securities::CommercialPaper[secCommercialPaper] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecCommercialPaperRows
+   }
+
+   securities::CertificateOfDeposit[secCertificateOfDeposit] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecCertificateOfDepositRows
+   }
+
+   securities::RepurchaseAgreementSecurity[secRepoSecurity] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecRepoSecurityRows
+   }
+
+   securities::MutualFundUnit[secMutualFundUnit] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecMutualFundUnitRows
+   }
+
+   securities::MoneyMarketFundUnit[secMoneyMarketFund] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecMoneyMarketFundRows
+   }
+
+   securities::FutureContract[secFutureContract] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecFutureContractRows
+   }
+
+   securities::ListedOption[secListedOption] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecListedOptionRows
+   }
+
+   securities::StructuredNoteSecurity[secStructuredNote] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecStructuredNoteRows
+   }
+
+   securities::DepositaryInterest[secDepositaryInterest] extends [securitiesBase]: Relational
+   {
+      ~filter [store::DB]SecDepositaryInterestRows
+   }
+)

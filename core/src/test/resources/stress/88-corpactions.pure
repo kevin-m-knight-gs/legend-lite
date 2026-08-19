@@ -1,0 +1,374 @@
+###Pure
+// CorporateActionEvent: 32 types over one table.
+//
+// A reference-data taxonomy, which is where discriminated subtypes earn their keep: the
+// types differ in what they MEAN rather than in what columns they carry, so one table with a
+// discriminator is the honest shape and 32 tables would be ceremony.
+//
+// Two of every three types carry rows. The rest are types the firm can process and does not
+// have today, which is the normal state of reference data and the sharpest test of a
+// ~filter -- an empty result is only correct if the filter works, and the failure mode is
+// returning the whole table.
+Class corpactions::CorporateActionEvent
+{
+   actionId: String[1];
+   actionType: String[1];
+   securityId: String[1];
+   announcedDate: StrictDate[1];
+   exDate: StrictDate[1];
+   recordDate: StrictDate[1];
+   payDate: StrictDate[1];
+   status: String[1];
+   isMandatory: Boolean[1];
+   cashRate: Float[0..1];
+   ratioOld: Integer[0..1];
+   ratioNew: Integer[0..1];
+   currency: String[1];
+
+   // Days from announcement to ex-date. A short window is an operational problem: every
+   // holder has to elect before it closes.
+   noticeDays() { dateDiff($this.announcedDate, $this.exDate, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[1];
+}
+
+// Cash paid per share. The commonest action there is.
+Class corpactions::CashDividend extends corpactions::CorporateActionEvent
+{
+}
+
+// A one-off distribution outside the normal cycle, which usually adjusts option strikes.
+Class corpactions::SpecialDividend extends corpactions::CorporateActionEvent
+{
+}
+
+// Paid in shares rather than cash, so the holding grows and the price falls.
+Class corpactions::StockDividend extends corpactions::CorporateActionEvent
+{
+}
+
+// Cash or shares at the holder's election.
+Class corpactions::ScripDividend extends corpactions::CorporateActionEvent
+{
+}
+
+// Dividend automatically reinvested into more shares.
+Class corpactions::DividendReinvestmentPlan extends corpactions::CorporateActionEvent
+{
+}
+
+// More shares, proportionally lower price. No economic change.
+Class corpactions::StockSplit extends corpactions::CorporateActionEvent
+{
+}
+
+// Fewer shares, higher price -- usually to keep a listing.
+Class corpactions::ReverseStockSplit extends corpactions::CorporateActionEvent
+{
+}
+
+// Free shares from reserves. A split by another name in most markets.
+Class corpactions::BonusIssue extends corpactions::CorporateActionEvent
+{
+}
+
+// Existing holders get the right to buy new shares below market.
+Class corpactions::RightsIssue extends corpactions::CorporateActionEvent
+{
+}
+
+// Like a rights issue but the entitlement cannot be traded.
+Class corpactions::OpenOffer extends corpactions::CorporateActionEvent
+{
+}
+
+// Two issuers become one. The security is replaced by cash, stock, or both.
+Class corpactions::Merger extends corpactions::CorporateActionEvent
+{
+}
+
+// One issuer absorbs another.
+Class corpactions::Acquisition extends corpactions::CorporateActionEvent
+{
+}
+
+// A subsidiary is distributed to holders as a separate security.
+Class corpactions::Spinoff extends corpactions::CorporateActionEvent
+{
+}
+
+// The issuer splits into two or more listed entities.
+Class corpactions::Demerger extends corpactions::CorporateActionEvent
+{
+}
+
+// An offer to buy shares at a price, which holders elect into.
+Class corpactions::TenderOffer extends corpactions::CorporateActionEvent
+{
+}
+
+// An offer to swap one security for another.
+Class corpactions::ExchangeOffer extends corpactions::CorporateActionEvent
+{
+}
+
+// A court-sanctioned restructuring, common in UK takeovers.
+Class corpactions::SchemeOfArrangement extends corpactions::CorporateActionEvent
+{
+}
+
+// Capital paid back to holders without a dividend's tax treatment.
+Class corpactions::CapitalReturn extends corpactions::CorporateActionEvent
+{
+}
+
+// Reduces the cost basis rather than counting as income.
+Class corpactions::ReturnOfCapital extends corpactions::CorporateActionEvent
+{
+}
+
+// A bond repaid at maturity.
+Class corpactions::Redemption extends corpactions::CorporateActionEvent
+{
+}
+
+// Part of a bond's principal repaid early, pro rata or by lottery.
+Class corpactions::PartialRedemption extends corpactions::CorporateActionEvent
+{
+}
+
+// The issuer exercises its right to repay early.
+Class corpactions::IssuerCall extends corpactions::CorporateActionEvent
+{
+}
+
+// The holder exercises its right to be repaid early.
+Class corpactions::HolderPut extends corpactions::CorporateActionEvent
+{
+}
+
+// A convertible is exchanged for equity.
+Class corpactions::Conversion extends corpactions::CorporateActionEvent
+{
+}
+
+// A scheduled interest payment, seen from the custody side.
+Class corpactions::CouponPaymentAction extends corpactions::CorporateActionEvent
+{
+}
+
+// The issuer renames. No economics, and every downstream system has to follow.
+Class corpactions::NameChange extends corpactions::CorporateActionEvent
+{
+}
+
+// The identifier changes, which breaks every key that used it.
+Class corpactions::IsinChange extends corpactions::CorporateActionEvent
+{
+}
+
+// The security stops trading on its venue.
+Class corpactions::Delisting extends corpactions::CorporateActionEvent
+{
+}
+
+// The issuer enters insolvency proceedings.
+Class corpactions::Bankruptcy extends corpactions::CorporateActionEvent
+{
+}
+
+// Assets are distributed and the security is cancelled.
+Class corpactions::Liquidation extends corpactions::CorporateActionEvent
+{
+}
+
+// Holders are asked to approve a change to the terms.
+Class corpactions::ConsentSolicitation extends corpactions::CorporateActionEvent
+{
+}
+
+// A warrant is exercised into shares.
+Class corpactions::WarrantExercise extends corpactions::CorporateActionEvent
+{
+}
+
+###Mapping
+Mapping corpactions::CorpactionsMapping
+(
+   *corpactions::CorporateActionEvent[corpactionsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CA_EVENT.ACTION_ID )
+      ~mainTable [store::DB]CA_EVENT
+      actionId: [store::DB]CA_EVENT.ACTION_ID,
+      actionType: [store::DB]CA_EVENT.ACTION_TYPE,
+      securityId: [store::DB]CA_EVENT.SECURITY_ID,
+      announcedDate: [store::DB]CA_EVENT.ANNOUNCED_DATE,
+      exDate: [store::DB]CA_EVENT.EX_DATE,
+      recordDate: [store::DB]CA_EVENT.RECORD_DATE,
+      payDate: [store::DB]CA_EVENT.PAY_DATE,
+      status: [store::DB]CA_EVENT.STATUS,
+      isMandatory: [store::DB]CA_EVENT.IS_MANDATORY,
+      cashRate: [store::DB]CA_EVENT.CASH_RATE,
+      ratioOld: [store::DB]CA_EVENT.RATIO_OLD,
+      ratioNew: [store::DB]CA_EVENT.RATIO_NEW,
+      currency: [store::DB]CA_EVENT.CURRENCY
+   }
+
+   corpactions::CashDividend[caCashDividend] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaCashDividendRows
+   }
+
+   corpactions::SpecialDividend[caSpecialDividend] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaSpecialDividendRows
+   }
+
+   corpactions::StockDividend[caStockDividend] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaStockDividendRows
+   }
+
+   corpactions::ScripDividend[caScripDividend] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaScripDividendRows
+   }
+
+   corpactions::DividendReinvestmentPlan[caDrip] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaDripRows
+   }
+
+   corpactions::StockSplit[caStockSplit] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaStockSplitRows
+   }
+
+   corpactions::ReverseStockSplit[caReverseSplit] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaReverseSplitRows
+   }
+
+   corpactions::BonusIssue[caBonusIssue] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaBonusIssueRows
+   }
+
+   corpactions::RightsIssue[caRightsIssue] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaRightsIssueRows
+   }
+
+   corpactions::OpenOffer[caOpenOffer] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaOpenOfferRows
+   }
+
+   corpactions::Merger[caMerger] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaMergerRows
+   }
+
+   corpactions::Acquisition[caAcquisition] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaAcquisitionRows
+   }
+
+   corpactions::Spinoff[caSpinoff] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaSpinoffRows
+   }
+
+   corpactions::Demerger[caDemerger] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaDemergerRows
+   }
+
+   corpactions::TenderOffer[caTenderOffer] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaTenderOfferRows
+   }
+
+   corpactions::ExchangeOffer[caExchangeOffer] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaExchangeOfferRows
+   }
+
+   corpactions::SchemeOfArrangement[caSchemeOfArrangement] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaSchemeOfArrangementRows
+   }
+
+   corpactions::CapitalReturn[caCapitalReturn] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaCapitalReturnRows
+   }
+
+   corpactions::ReturnOfCapital[caReturnOfCapital] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaReturnOfCapitalRows
+   }
+
+   corpactions::Redemption[caRedemption] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaRedemptionRows
+   }
+
+   corpactions::PartialRedemption[caPartialRedemption] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaPartialRedemptionRows
+   }
+
+   corpactions::IssuerCall[caCall] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaCallRows
+   }
+
+   corpactions::HolderPut[caPut] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaPutRows
+   }
+
+   corpactions::Conversion[caConversion] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaConversionRows
+   }
+
+   corpactions::CouponPaymentAction[caCouponPayment] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaCouponPaymentRows
+   }
+
+   corpactions::NameChange[caNameChange] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaNameChangeRows
+   }
+
+   corpactions::IsinChange[caIsinChange] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaIsinChangeRows
+   }
+
+   corpactions::Delisting[caDelisting] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaDelistingRows
+   }
+
+   corpactions::Bankruptcy[caBankruptcy] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaBankruptcyRows
+   }
+
+   corpactions::Liquidation[caLiquidation] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaLiquidationRows
+   }
+
+   corpactions::ConsentSolicitation[caConsentSolicitation] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaConsentSolicitationRows
+   }
+
+   corpactions::WarrantExercise[caWarrantExercise] extends [corpactionsBase]: Relational
+   {
+      ~filter [store::DB]CaWarrantExerciseRows
+   }
+)

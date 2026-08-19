@@ -1,0 +1,302 @@
+###Pure
+// OrderTicket: 25 types over one table.
+//
+// A reference-data taxonomy, which is where discriminated subtypes earn their keep: the
+// types differ in what they MEAN rather than in what columns they carry, so one table with a
+// discriminator is the honest shape and 25 tables would be ceremony.
+//
+// Two of every three types carry rows. The rest are types the firm can process and does not
+// have today, which is the normal state of reference data and the sharpest test of a
+// ~filter -- an empty result is only correct if the filter works, and the failure mode is
+// returning the whole table.
+Class orders::OrderTicket
+{
+   ticketId: String[1];
+   orderType: String[1];
+   securityId: String[1];
+   side: String[1];
+   quantity: Integer[1];
+   limitPrice: Float[0..1];
+   timeInForce: String[1];
+   venue: String[1];
+   placedAt: DateTime[1];
+   status: String[1];
+   filledQuantity: Integer[1];
+   traderId: String[1];
+
+   // Fill ratio, which is how an execution desk judges an order type. A market order is
+   // one; a hidden order is whatever the queue gave it.
+   fillRatio() { $this.filledQuantity / $this.quantity } : Float[1];
+}
+
+// Fills at whatever is there. Certain execution, uncertain price.
+Class orders::MarketOrder extends orders::OrderTicket
+{
+}
+
+// A price bound. Certain price, uncertain execution.
+Class orders::LimitOrder extends orders::OrderTicket
+{
+}
+
+// Becomes a market order once a trigger trades.
+Class orders::StopOrder extends orders::OrderTicket
+{
+}
+
+// Becomes a limit order at the trigger, so it can miss entirely.
+Class orders::StopLimitOrder extends orders::OrderTicket
+{
+}
+
+// Participates in the closing auction only.
+Class orders::MarketOnClose extends orders::OrderTicket
+{
+}
+
+// Closing auction with a price bound.
+Class orders::LimitOnClose extends orders::OrderTicket
+{
+}
+
+// The opening auction equivalent.
+Class orders::MarketOnOpen extends orders::OrderTicket
+{
+}
+
+// Only part of the size is displayed.
+Class orders::IcebergOrder extends orders::OrderTicket
+{
+}
+
+// None of the size is displayed, and it usually gives up queue priority.
+Class orders::HiddenOrder extends orders::OrderTicket
+{
+}
+
+// Tracks a reference price rather than naming one.
+Class orders::PeggedOrder extends orders::OrderTicket
+{
+}
+
+// Pegged to the midpoint, so it never crosses the spread.
+Class orders::MidpointPegOrder extends orders::OrderTicket
+{
+}
+
+// Slices evenly over a window.
+Class orders::TwapAlgo extends orders::OrderTicket
+{
+}
+
+// Slices along the historical volume curve.
+Class orders::VwapAlgo extends orders::OrderTicket
+{
+}
+
+// Tracks a share of live volume, so it speeds up when the market does.
+Class orders::PercentOfVolumeAlgo extends orders::OrderTicket
+{
+}
+
+// Trades off market impact against timing risk.
+Class orders::ImplementationShortfallAlgo extends orders::OrderTicket
+{
+}
+
+// Hunts for blocks across venues.
+Class orders::LiquiditySeekingAlgo extends orders::OrderTicket
+{
+}
+
+// Routes only to non-displayed venues.
+Class orders::DarkAggregatorAlgo extends orders::OrderTicket
+{
+}
+
+// Works into the close across the day.
+Class orders::CloseAuctionAlgo extends orders::OrderTicket
+{
+}
+
+// All of it immediately, or none of it.
+Class orders::FillOrKillOrder extends orders::OrderTicket
+{
+}
+
+// Whatever fills now; the rest is cancelled.
+Class orders::ImmediateOrCancelOrder extends orders::OrderTicket
+{
+}
+
+// No partial fills, but it can rest.
+Class orders::AllOrNoneOrder extends orders::OrderTicket
+{
+}
+
+// Rests until filled or pulled.
+Class orders::GoodTillCancelledOrder extends orders::OrderTicket
+{
+}
+
+// Rests until a stated date.
+Class orders::GoodTillDateOrder extends orders::OrderTicket
+{
+}
+
+// Expires at the close.
+Class orders::DayOrder extends orders::OrderTicket
+{
+}
+
+// Opening auction only, or it is cancelled.
+Class orders::AtTheOpenOrder extends orders::OrderTicket
+{
+}
+
+###Mapping
+Mapping orders::OrdersMapping
+(
+   *orders::OrderTicket[ordersBase]: Relational
+   {
+      ~primaryKey ( [store::DB]ORDER_TICKET.TICKET_ID )
+      ~mainTable [store::DB]ORDER_TICKET
+      ticketId: [store::DB]ORDER_TICKET.TICKET_ID,
+      orderType: [store::DB]ORDER_TICKET.ORDER_TYPE,
+      securityId: [store::DB]ORDER_TICKET.SECURITY_ID,
+      side: [store::DB]ORDER_TICKET.SIDE,
+      quantity: [store::DB]ORDER_TICKET.QUANTITY,
+      limitPrice: [store::DB]ORDER_TICKET.LIMIT_PRICE,
+      timeInForce: [store::DB]ORDER_TICKET.TIME_IN_FORCE,
+      venue: [store::DB]ORDER_TICKET.VENUE,
+      placedAt: [store::DB]ORDER_TICKET.PLACED_AT,
+      status: [store::DB]ORDER_TICKET.STATUS,
+      filledQuantity: [store::DB]ORDER_TICKET.FILLED_QUANTITY,
+      traderId: [store::DB]ORDER_TICKET.TRADER_ID
+   }
+
+   orders::MarketOrder[ordMarket] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdMarketRows
+   }
+
+   orders::LimitOrder[ordLimit] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdLimitRows
+   }
+
+   orders::StopOrder[ordStop] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdStopRows
+   }
+
+   orders::StopLimitOrder[ordStopLimit] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdStopLimitRows
+   }
+
+   orders::MarketOnClose[ordMarketOnClose] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdMarketOnCloseRows
+   }
+
+   orders::LimitOnClose[ordLimitOnClose] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdLimitOnCloseRows
+   }
+
+   orders::MarketOnOpen[ordMarketOnOpen] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdMarketOnOpenRows
+   }
+
+   orders::IcebergOrder[ordIceberg] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdIcebergRows
+   }
+
+   orders::HiddenOrder[ordHidden] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdHiddenRows
+   }
+
+   orders::PeggedOrder[ordPegged] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdPeggedRows
+   }
+
+   orders::MidpointPegOrder[ordMidpointPeg] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdMidpointPegRows
+   }
+
+   orders::TwapAlgo[ordTwap] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdTwapRows
+   }
+
+   orders::VwapAlgo[ordVwap] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdVwapRows
+   }
+
+   orders::PercentOfVolumeAlgo[ordPov] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdPovRows
+   }
+
+   orders::ImplementationShortfallAlgo[ordImplementationShortfall] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdImplementationShortfallRows
+   }
+
+   orders::LiquiditySeekingAlgo[ordLiquiditySeeking] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdLiquiditySeekingRows
+   }
+
+   orders::DarkAggregatorAlgo[ordDarkAggregator] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdDarkAggregatorRows
+   }
+
+   orders::CloseAuctionAlgo[ordCloseAuctionAlgo] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdCloseAuctionAlgoRows
+   }
+
+   orders::FillOrKillOrder[ordFillOrKill] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdFillOrKillRows
+   }
+
+   orders::ImmediateOrCancelOrder[ordImmediateOrCancel] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdImmediateOrCancelRows
+   }
+
+   orders::AllOrNoneOrder[ordAllOrNone] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdAllOrNoneRows
+   }
+
+   orders::GoodTillCancelledOrder[ordGoodTillCancelled] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdGoodTillCancelledRows
+   }
+
+   orders::GoodTillDateOrder[ordGoodTillDate] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdGoodTillDateRows
+   }
+
+   orders::DayOrder[ordDayOrder] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdDayOrderRows
+   }
+
+   orders::AtTheOpenOrder[ordAtTheOpen] extends [ordersBase]: Relational
+   {
+      ~filter [store::DB]OrdAtTheOpenRows
+   }
+)

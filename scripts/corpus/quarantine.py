@@ -113,7 +113,6 @@ ENGINE_QUARANTINE.update({
         "GG_SalesCreditTree",
         "GG_CashSettlementTree",
         "GG_AllocationTree",
-        "GG_SanctionsCheckTree",
     )
 })
 

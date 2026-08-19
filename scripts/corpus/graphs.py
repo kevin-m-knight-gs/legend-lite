@@ -144,6 +144,19 @@ def build(c: model.Corpus, seeded: set[str],
     """
     specs, seen = [], set()
     for n, root in enumerate(roots(c, seeded, tables)):
+        # Subtypes are skipped. A subclass inherits its supertype's associations -- the
+        # reader propagates them, correctly -- so every one of the 58 derivative subtypes
+        # suddenly offered `legs` and `optionTerms` and this generator produced a service
+        # for each. They add nothing: the association is the SAME association over the same
+        # table, and the base already has a service for it.
+        #
+        # They also do not run. Navigating an inherited association from a subtype set fails
+        # with "Void not supported!" -- the association mapping names the BASE's set id, and
+        # a query rooted at a subtype set is not it. The taxonomy services reach the same
+        # ends without trouble, so this is a property of these generated shapes rather than
+        # of the model.
+        if c.classes.get(root) is not None and c.classes[root].supertype:
+            continue
         tree: dict = {p: None for p in _scalars(c, root, MAX_SCALARS, tables)}
         if len(tree) < MIN_SCALARS:
             continue
