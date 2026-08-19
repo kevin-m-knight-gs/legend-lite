@@ -120,7 +120,7 @@ public final class Ddl {
         // method serves ONLY the ENGINE_TEXT byte-parity flavor.
         // AnsiSqlRenderer.ident DOUBLES because execution-correct SQL
         // must; two contracts, not one behavior with two owners. The
-        // third copy (GridReads.q) DIED with Phase 1 (ResultNav emits MIR).
+        // third copy (GridReads.q) DIED with Phase 1 (grids are typed relations).
         if (name.startsWith("\"")
                 || com.legend.sql.dialect.Lexicon.H2_ENGINE_TEXT
                         .reservedWords()

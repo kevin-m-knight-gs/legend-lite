@@ -96,14 +96,20 @@ class JavaEvalLedgerTest {
             // shaping DIED (execution rides MIR + the standard Executor)
             // +77 (Phase 1 batch 2): HostEval's fold-in — owns()/chainBottom
             // moved to their owner (the shim's 132 lines net -30)
-            // 522 -> 534 (Phase 1c): the TYPED grid leaf
-            // (TypedRawSqlRelation) joins the chain grammar — GridSplice
-            // (577 lines of shape rewriters) is DELETED; the arms
-            // themselves die with Phase 3
-            Map.entry("core/src/main/java/com/legend/exec/ResultNav.java", 534),
+            // Phase 1c ENDGAME: ResultNav is DELETED WHOLESALE — grid
+            // chains are typed relations the pipeline serves; the probe
+            // moved to RawGridSchema, chainBottom to StoreNav (its row
+            // below absorbs the walker)
             // +25 (Phase 1 batch 2): owns() + the curated construction set
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 135),
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118));
+            // +~50 (Phase 1c endgame): chainBottom moved in from deleted
+            // ResultNav (this predicate is the walker's last consumer)
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 196),
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
+            // Phase 1c endgame: the boundary resolver (stamp + marker
+            // substitution over stamped schema — the DynamicPivot model;
+            // audit 2026-08-18 Tier-3: size-pinned so the resolver never
+            // silently grows back into a recognizer)
+            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 248));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -207,7 +213,7 @@ class JavaEvalLedgerTest {
             java.util.Set.of(
                     "Column.java", "CsvSeed.java",
                     "Ddl.java", "DynamicPivot.java",
-                    "ExecutionResult.java", "Executor.java", "ResultNav.java",
+                    "ExecutionResult.java", "Executor.java",
                     "H2Settings.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",

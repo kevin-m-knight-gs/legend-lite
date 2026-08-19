@@ -2373,9 +2373,10 @@ final class Typer {
      * {@code .values} (the cells — count unknown) and
      * {@code .columnNames} (the names — first exist at execution)
      * SURVIVE as identity-preserving MARKERS, the same node shapes the
-     * ResultSet class declaration produced pre-retype; the ResultNav
-     * execution seam serves them, and reaching the Lowerer instead is a
-     * loud wall, never a silent guess. Null = not such a read. */
+     * ResultSet class declaration produced pre-retype; the execution
+     * BOUNDARY RESOLVER (RawGridSchema) substitutes them against the
+     * stamped schema, and reaching the Lowerer instead is a loud wall,
+     * never a silent guess. Null = not such a read. */
     private static @com.legend.Nullable TypedSpec lateBoundGridMarker(
             TypedSpec source, AppliedProperty ap, Type.RelationType rt2) {
         if (!rt2.isLateBound()) {

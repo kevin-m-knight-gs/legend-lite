@@ -74,14 +74,13 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/builtin/Pure.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
-            // Phase 1c: the boundary schema stamp — carries Connection to
-            // ResultNav's chartered LIMIT-0 probe (schema, never values);
-            // performs no JDBC of its own. (DbMetaData row RETIRED: moved
-            // to compiler/spec/CatalogGrids — pure SQL-text composition.)
+            // Phase 1c: the boundary schema resolver — owns the LIMIT-0
+            // probe (schema, never values; moved from deleted ResultNav).
+            // (DbMetaData row RETIRED: moved to compiler/spec/CatalogGrids
+            // — pure SQL-text composition.)
             "core/src/main/java/com/legend/exec/RawGridSchema.java",
             "core/src/main/java/com/legend/exec/Executor.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
-            "core/src/main/java/com/legend/exec/ResultNav.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
             "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java"
@@ -102,6 +101,7 @@ class JdbcSurfaceCensusTest {
             // no values in Java
             "core/src/test/java/com/legend/exec/AuditTier1PipelineTest.java",
             "core/src/test/java/com/legend/exec/Phase1AuditTest.java",
+            "core/src/test/java/com/legend/exec/RawGridSchemaTest.java",
             "core/src/test/java/com/legend/exec/DynamicPivotKeyLiteralTest.java",
             "core/src/test/java/com/legend/testdatagen/PureReprTest.java",
             "core/src/test/java/com/legend/exec/ExecuteFrameTest.java",

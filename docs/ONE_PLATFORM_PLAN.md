@@ -465,6 +465,30 @@ arms (`.columnNames`, row-major `.values`) until Phase 3 and learned the typed l
 Gates: full suite 4117/0; functions referee byte-identical (239/146, fail+shape
 name-sets).
 
+*GRID ENDGAME (same day, user-directed "don't wait for Phase 3"):* **ResultNav is
+DELETED WHOLESALE.** The boundary stamp grew into the boundary RESOLVER
+(`RawGridSchema`): late-bound reads substitute against the FIRST-query stamped schema
+— `.columnNames` → the string collection; grid `.values` → the per-row cells map (the
+collection-mapper flatten channel); binder `.values` → the TDS row-var cells rule
+applied late (scope-tracked, shadow-safe — audit T1.1); `at(cells, k)` picks
+statically. The fold column-collect idiom lowers as the per-row MAP it is
+(`TypedFold.columnCollectBody` + `Fold.columnCollectAsMap`; prepend order noted). The
+2-arg `executeInDb` became a platform native (real pure's wrapper,
+relationalExtension.pure:31 — Clause 2b). `chainBottom` moved to StoreNav (its last
+consumer), the LIMIT-0 probe to RawGridSchema (the chartered RawSql site). The seam is
+StoreNav's model-fact channel alone. Kill-switch bypass audit named 5 live consumers;
+all 5 came over to the pipeline; ALLGATES GREEN across every family with the seam dead.
+
+*Adversarial audit (2026-08-18, this feature):* T1.1 binder-shadowing hole FIXED +
+pinned; T1.2 stale prose fixed; Tier-2 loud divergences recorded (parenthesized
+queries and trailing-comment texts classify as effects; `.rows->at(k).values`
+transposition walls; empty-PK catalog grids wall; duplicate probe names wall —
+all corpus-silent, all loud). **Follow-up (user-raised, ratified direction):
+DEMAND-DRIVEN STAMPING** — probe only when the resolver actually consumes schema
+(columnNames/values/positional reads); bare and by-name chains ride the single
+query with headers read from the result (the DuckDB native-pivot one-call model).
+Phase 3 refinement.
+
 *Process defect recorded:* one batch briefly landed on the remote as two commits (a
 silently failed `git add` — stderr was suppressed; remote was unbuildable for ~1
 minute). Rule adopted: never silence stderr on staging commands; verify `git status`

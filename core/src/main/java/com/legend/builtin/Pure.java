@@ -1542,6 +1542,12 @@ public final class Pure {
     // connectionByElement type the connection-resolution chains
     // (execution-context elements are Any[1] — the from() convention).
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
+    // the 2-arg overload — REAL pure's wrapper (relationalExtension.pure:31,
+    // executeInDb($sql, $conn, 0, 1000)) as a platform native (Clause 2b:
+    // engine pure is the spec, the platform's definition is Java): same FQN,
+    // user definitions suppress; the K dispatch and the Phase 1c retype key
+    // on the FQN and the sql literal, indifferent to arity
+    public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::relational::metamodel::execute::ResultSet[1];");
     // JDBC DatabaseMetaData reads (REAL platform_store_relational/
     // functions.pure:34-41) — evaluated HOST-SIDE against the H2 second
     // target (engine-parity metadata casing), never lowered

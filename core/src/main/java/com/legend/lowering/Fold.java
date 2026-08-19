@@ -584,6 +584,37 @@ final class Fold {
                         .equals(nc.callee().qualifiedName());
     }
 
+    /** The column-collect fold over relation rows as the MAP it is
+     * (Phase 1c; the recognizer is
+     * {@code TypedFold.columnCollectBody}): {@code fold({e,a|
+     * concatenate(elemExpr, $a)}, [])} = per-row elemExpr collection.
+     * Null = not that shape. */
+    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
+            columnCollectAsMap(com.legend.compiler.spec.typed.TypedFold f) {
+        com.legend.compiler.spec.typed.TypedSpec body = f.columnCollectBody();
+        if (body == null) {
+            return null;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var anyMany = new com.legend.compiler.element.type.ExprType(
+                new com.legend.compiler.element.type.Type.ClassType(
+                        com.legend.compiler.element.type.PlatformTypes.ANY),
+                com.legend.compiler.element.type.Multiplicity.Bounded
+                        .ZERO_MANY);
+        var lam = new com.legend.compiler.spec.typed.TypedLambda(
+                List.of(f.reducer().parameters().get(0)), List.of(body),
+                com.legend.compiler.element.type.ExprType.one(
+                        new com.legend.compiler.element.type.Type.FunctionType(
+                                List.of(new com.legend.compiler.element.type
+                                        .Type.Param(
+                                                f.source().info().type(), one)),
+                                new com.legend.compiler.element.type.Type.Param(
+                                        anyMany.type(),
+                                        anyMany.multiplicity()))));
+        return new com.legend.compiler.spec.typed.TypedMap(
+                f.source(), lam, anyMany);
+    }
+
     /** The named column of a relation consumed by a SCALAR read — or,
      * over a LATE-BOUND raw grid (Phase 1c), the trust-name rule
      * ({@code Type.RelationType.trustedColumn}: the stamped source

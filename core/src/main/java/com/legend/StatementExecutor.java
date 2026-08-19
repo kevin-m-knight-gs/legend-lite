@@ -508,31 +508,27 @@ final class StatementExecutor {
 
     /** The host-channel dispatch (oracle-not-runtime principle,
      * user-ratified): recognized grid-read chains lower to MIR and
-     * execute through the standard Executor (ResultNav, One-Platform
-     * Plan Phase 1), store navigation resolves against the COMPILED
+     * execute through the standard Executor (typed relations since
+     * Phase 1c), store navigation resolves against the COMPILED
      * MODEL (StoreNav), and anything else walls with the principle's
      * name — the interpreter that executed engine compiler source is
      * DELETED. */
     private static @com.legend.Nullable ExecutionResult hostEvalAtSeam(TypedSpec root,
             java.util.Map<String, TypedSpec> lets, ExecEnv env)
             throws java.sql.SQLException {
-        ExecutionResult lowered = com.legend.exec.ResultNav.tryExec(
-                root, lets, env.ctx(), env.connection(), env.dialect());
-        if (lowered != null) {
-            return lowered;
-        }
+        // (Phase 1c grid endgame: ResultNav is DELETED — grid chains are
+        // typed relations the ordinary pipeline serves; the seam is
+        // StoreNav's model-fact channel alone)
         ExecutionResult nav = com.legend.exec.StoreNav.tryEval(
                 root, lets, env.ctx());
         if (nav != null) {
             return nav;
         }
-        if (com.legend.exec.ResultNav.owns(root, lets)   // Phase 1c fall-through
-                && !com.legend.exec.StoreNav.owns(root, lets)) { return null; }
         throw new com.legend.error.NotImplementedException(
                 "host channel: this chain would need interpreted engine"
                 + " code — engine/legend-pure source is ORACLE material,"
                 + " never our runtime (user-ratified 2026-08-18); build"
-                + " the feature natively (ResultNav/StoreNav/walk family)"
+                + " the feature natively (typed relations/StoreNav/walk family)"
                 + " or decline the test with a verdict"
                 + (System.getenv("LL_TMP_DEBUG") != null
                         ? " [root=" + root + "]" : ""));
@@ -563,8 +559,7 @@ final class StatementExecutor {
                 hostLets.put(hl.name(), hl.value());
             }
         }
-        if (!com.legend.exec.ResultNav.owns(bare, hostLets)
-                && !com.legend.exec.StoreNav.owns(bare, hostLets)) {
+        if (!com.legend.exec.StoreNav.owns(bare, hostLets)) {
             return null;
         }
         return hostEvalAtSeam(bare, hostLets, env);
@@ -2980,10 +2975,10 @@ final class StatementExecutor {
                         .equals(nc.callee().qualifiedName())) {
             return executeInDb(body, nc, env);
         }
-        // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
-        // HOST-SIDE against the H2 second target (task #43 slice B2)
-        if (com.legend.exec.ResultNav.owns(root, java.util.Map.of())
-                || com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
+        // ORCHESTRATION-VALUE channel: store navigation resolves against
+        // the compiled model (grid reads are typed relations now —
+        // Phase 1c endgame; ResultNav deleted)
+        if (com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
             ExecutionResult hosted = hostEvalAtSeam(root, java.util.Map.of(), env);
             if (hosted != null) { return hosted; }
         }

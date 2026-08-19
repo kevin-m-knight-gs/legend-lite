@@ -100,8 +100,10 @@ class RawSqlLedgerTest {
      * source level, and the SQL-text ratchet patrols the composition
      * side. */
     private static final Map<String, Integer> RAW_SOURCE_CTORS = Map.of(
-            // the chain source + the LIMIT-0 probe (itself MIR-rendered)
-            "ResultNav.java", 2,
+            // the LIMIT-0 schema probe (itself MIR-rendered; moved from
+            // ResultNav at its Phase 1c-endgame deletion — the chain-source
+            // ctor died with the recognizer arms)
+            "RawGridSchema.java", 1,
             // Phase 1c: the compiler's TypedRawSqlRelation lowering,
             // carrying the AUTHORED text from the typed node verbatim
             "Lowerer.java", 1,

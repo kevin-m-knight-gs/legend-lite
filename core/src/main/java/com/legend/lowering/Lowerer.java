@@ -3330,6 +3330,11 @@ public final class Lowerer {
      * the dialect). NOTHING here knows how any backend folds. */
     private SqlExpr fold(TypedFold f,
                          ColumnResolver columns) {
+        // Phase 1c: a column-collect fold lowers as its per-row MAP
+        TypedSpec collect = Fold.columnCollectAsMap(f);
+        if (collect != null) {
+            return scalar(collect, columns);
+        }
         SqlExpr source = scalar(f.source(), columns);
         SqlExpr init = scalar(f.init(), columns);
         List<String> ps = f.reducer().parameters();

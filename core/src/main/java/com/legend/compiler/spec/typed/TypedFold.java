@@ -40,4 +40,30 @@ public record TypedFold(TypedSpec source, TypedLambda reducer, TypedSpec init,
                 : strategy;
         return new TypedFold(kids.get(0), (TypedLambda) kids.get(1), kids.get(2), st, info);
     }
+
+    /** The per-row element expression of a COLUMN-COLLECT fold over a
+     * relation — {@code fold({e,a| concatenate(elemExpr, $a)}, [])}
+     * with a relation-typed source (Phase 1c: the corpus's grid idiom;
+     * semantically the per-row map, which is how it lowers). Null
+     * otherwise. */
+    public @com.legend.Nullable TypedSpec columnCollectBody() {
+        if (!(source.info().type() instanceof
+                        com.legend.compiler.element.type.Type.RelationType)
+                || reducer.parameters().size() != 2
+                || reducer.body().isEmpty()
+                || !(init instanceof TypedCollection ic)
+                || !ic.elements().isEmpty()) {
+            return null;
+        }
+        TypedSpec body = reducer.body().get(reducer.body().size() - 1);
+        if (body instanceof TypedNativeCall cc
+                && "meta::pure::functions::collection::concatenate"
+                        .equals(cc.callee().qualifiedName())
+                && cc.args().size() == 2
+                && cc.args().get(1) instanceof TypedVariable acc
+                && acc.name().equals(reducer.parameters().get(1))) {
+            return cc.args().get(0);
+        }
+        return null;
+    }
 }

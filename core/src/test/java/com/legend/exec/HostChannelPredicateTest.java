@@ -28,8 +28,9 @@ class HostChannelPredicateTest {
         // Phase 1 batch 2: HostEval is DELETED — the predicate lives
         // with its owners (ResultNav grids, StoreNav store-nav +
         // curated constructions); the seam ORs them exactly like this
-        return ResultNav.owns(n, java.util.Map.of())
-                || StoreNav.owns(n, java.util.Map.of());
+        // Phase 1c endgame: ResultNav is DELETED — grid chains are typed
+        // relations the pipeline serves; the seam is StoreNav alone
+        return StoreNav.owns(n, java.util.Map.of());
     }
 
     private static final String MODEL = "Class model::Person { name: "
@@ -62,15 +63,17 @@ class HostChannelPredicateTest {
     }
 
     @Test
-    void gridMarkerChainStillRoutesHost() {
-        // .columnNames over a late-bound grid: the names first exist at
-        // execution — the marker chain is the seam's (until Phase 3)
+    void gridMarkerChainIsAPipelineExpression() {
+        // Phase 1c endgame FLIP: .columnNames over a late-bound grid is
+        // resolved by the execution-boundary resolver (RawGridSchema —
+        // the names first exist where the session is), then composes as
+        // an ordinary string collection. No seam.
         TypedSpec n = typed("meta::relational::metamodel::execute"
                 + "::executeInDb('select 1', " + CONN + ", 0, 100)"
                 + ".columnNames");
-        assertTrue(routesHost(n),
-                "the columnNames marker chain bottoms at the typed grid"
-                        + " leaf — the seam serves it");
+        assertFalse(routesHost(n),
+                "the columnNames marker resolves at the boundary — a"
+                        + " pipeline expression, no host channel");
     }
 
     @Test
