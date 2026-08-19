@@ -1566,6 +1566,24 @@ def load() -> Corpus:
                     if name and name.group(1) in SKIP_MAPPINGS:
                         continue
                     _parse_mapping(chunk, c, name.group(1) if name else None)
+    # A subclass has its supertype's ASSOCIATIONS. The reader registers an end against the
+    # class the Association names, so a subtype could not navigate one at all -- resolving
+    # `InterestRateSwap.legs` reported it as neither a mapped property nor an association,
+    # even though `legs` is declared on OtcTrade and every subtype inherits it.
+    #
+    # Propagated here rather than handled in the resolver because six places consult
+    # `c.ends` -- resolve, resolve_assoc, owner_of, to_many_on, the chain builder and the
+    # generators -- and teaching each of them to walk the supertype chain is six chances to
+    # walk it differently. Columns and derived properties are already inherited; this was
+    # the third kind of inheritance and the last one missing.
+    for cls, klass in list(c.classes.items()):
+        parent = klass.supertype
+        while parent:
+            for (owner, prop), end in list(c.ends.items()):
+                if owner == parent and (cls, prop) not in c.ends:
+                    c.ends[(cls, prop)] = end
+            parent = c.classes[parent].supertype if parent in c.classes else None
+
     return c
 
 
