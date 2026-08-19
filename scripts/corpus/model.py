@@ -1321,6 +1321,18 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 # absent rather than unmodelled.
                 c.embedded[(owner, name)] = child
                 c.main_table.setdefault(child, tbl)
+                # An ENUM TRANSFORMER inside an embedded block. Handled here as well as on
+                # the plain path, because _COLMAP left to itself reads
+                # `curveType: EnumerationMapping CurveTypeMapping: [db]T.CURVE_TYPE` as a
+                # property called CurveTypeMapping and drops curveType entirely -- so the
+                # enum came out as a column that does not exist and the real property
+                # resolved against nothing.
+                for prop, mapping, e_tbl, col in _ENUMCOLMAP.findall(line):
+                    if e_tbl != tbl:
+                        raise ValueError(f"{child}.{prop} maps to {e_tbl}, not mainTable {tbl}")
+                    c.columns.setdefault(child, {})[prop] = col
+                    c.enum_props[(child, prop)] = mapping
+                line = _ENUMCOLMAP.sub("", line)
                 rest = _value_forms(line, c, child, tbl)
                 for sub, _sc_tbl, sc_col in _COLMAP.findall(rest):
                     c.columns.setdefault(child, {})[sub] = sc_col
@@ -1576,12 +1588,20 @@ def load() -> Corpus:
     # generators -- and teaching each of them to walk the supertype chain is six chances to
     # walk it differently. Columns and derived properties are already inherited; this was
     # the third kind of inheritance and the last one missing.
+    #
+    # EMBEDDED hops inherit for the same reason and were the fourth kind to need it. A
+    # subtype set written `Sub[sub] extends [base]` inherits the base's whole body,
+    # including any embedded block -- so `QuotedPillar.curveRef` is as real as
+    # `CurvePoint.curveRef`, and looking it up by the subtype's own name found nothing.
     for cls, klass in list(c.classes.items()):
         parent = klass.supertype
         while parent:
             for (owner, prop), end in list(c.ends.items()):
                 if owner == parent and (cls, prop) not in c.ends:
                     c.ends[(cls, prop)] = end
+            for (owner, prop), child in list(c.embedded.items()):
+                if owner == parent and (cls, prop) not in c.embedded:
+                    c.embedded[(cls, prop)] = child
             parent = c.classes[parent].supertype if parent in c.classes else None
 
     return c

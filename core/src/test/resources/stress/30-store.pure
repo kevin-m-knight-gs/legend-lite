@@ -244,6 +244,52 @@ Database store::DB
 
     Table INBOUND_MESSAGE (MESSAGE_ID VARCHAR(60) PRIMARY KEY, MESSAGE_TYPE VARCHAR(60), PROTOCOL VARCHAR(60), SENDER_BIC VARCHAR(60), RECEIVED_AT TIMESTAMP, BYTE_COUNT INTEGER, STATUS VARCHAR(60), IS_DUPLICATE BIT, PARSED_AT TIMESTAMP, ERROR_DETAIL VARCHAR(60))
 
+    Table PRICE_SOURCE_RECORD (RECORD_ID VARCHAR(60) PRIMARY KEY, SOURCE_TYPE VARCHAR(60), INSTRUMENT_REF VARCHAR(60), COB_DATE DATE, PRICE DECIMAL(18,4), CURRENCY VARCHAR(60), CONFIDENCE_SCORE DECIMAL(18,4), IS_PRIMARY BIT, CONTRIBUTOR_COUNT INTEGER, CHALLENGED_BY VARCHAR(60))
+
+    // emitted by refdata for margincalls
+    Table MGN_CALL (CALL_ID VARCHAR(60) PRIMARY KEY, CALL_TYPE VARCHAR(60), COUNTERPARTY_ID VARCHAR(60), CALL_AMOUNT DECIMAL(18,4), AGREED_AMOUNT DECIMAL(18,4), CURRENCY VARCHAR(60), CALLED_ON DATE, STATUS VARCHAR(60), IS_DISPUTED BIT, SETTLED_ON DATE)
+
+    // ---- Market data: series, observations, revisions ----
+    Table TIME_SERIES (SERIES_ID VARCHAR(20) PRIMARY KEY, SERIES_NAME VARCHAR(60),
+                       SOURCE_CODE VARCHAR(20), FREQUENCY VARCHAR(12), UNIT VARCHAR(12),
+                       CURRENCY VARCHAR(4), ASSET_CLASS VARCHAR(12), DECIMAL_PLACES INTEGER,
+                       FIRST_OBS_DATE DATE, IS_ACTIVE BIT)
+
+    Table TS_OBSERVATION (OBS_ID VARCHAR(30) PRIMARY KEY, SERIES_ID VARCHAR(20),
+                          OBS_DATE DATE, OBS_VALUE DECIMAL(18,4), PRIOR_VALUE DECIMAL(18,4),
+                          STATUS VARCHAR(12), IS_INTERPOLATED BIT)
+
+    Table TS_REVISION_BI
+    (
+      milestoning
+      (
+        business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31),
+        processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, INFINITY_DATE = %9999-12-31)
+      )
+      SERIES_ID VARCHAR(20) PRIMARY KEY,
+      FROM_Z DATE PRIMARY KEY,
+      IN_Z DATE PRIMARY KEY,
+      THRU_Z DATE,
+      OUT_Z DATE,
+      REVISED_VALUE DECIMAL(18,4),
+      REVISION_REASON VARCHAR(30)
+    )
+
+    // ---- Yield curves: the composite-key domain ----
+    Table RATE_CURVE (CURVE_ID VARCHAR(20) PRIMARY KEY, CURVE_NAME VARCHAR(40),
+                       CURRENCY VARCHAR(4), CURVE_TYPE VARCHAR(12),
+                       INTERPOLATION VARCHAR(16), DAY_COUNT_BASIS VARCHAR(10), IS_ACTIVE BIT)
+
+    // Keyed by all three of CURVE_ID, COB_DATE and TENOR_LABEL. The last three columns are
+    // the curve's own, denormalized onto the point so the embedded mapping has something to
+    // bind to -- which is what a curve store does, for the same reason.
+    Table RATE_CURVE_POINT (CURVE_ID VARCHAR(20) PRIMARY KEY, COB_DATE DATE PRIMARY KEY,
+                       TENOR_LABEL VARCHAR(6) PRIMARY KEY, TENOR_DAYS INTEGER,
+                       ZERO_RATE DECIMAL(18,4), DISCOUNT_FACTOR DECIMAL(18,8),
+                       IS_INTERPOLATED BIT, SOURCE_SERIES_ID VARCHAR(20),
+                       CURVE_NAME VARCHAR(40), CURVE_CURRENCY VARCHAR(4),
+                       CURVE_TYPE VARCHAR(12))
+
     // ---- Back office: where cash actually moves ----
     //
     // Standing instructions say where to send things, payments are the instructions to move
@@ -1323,6 +1369,51 @@ Database store::DB
     Filter MsgFixCancelRows(INBOUND_MESSAGE.MESSAGE_TYPE = 'FIX_CANCEL')
     Filter MsgFpmlTradeRows(INBOUND_MESSAGE.MESSAGE_TYPE = 'FPML_TRADE')
     Filter MsgFixmlAllocRows(INBOUND_MESSAGE.MESSAGE_TYPE = 'FIXML_ALLOC')
+
+    Filter SrcExchangeFeedRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'EXCHANGE_FEED')
+    Filter SrcConsolidatedTapeRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'CONSOLIDATED_TAPE')
+    Filter SrcVendorCompositeRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'VENDOR_COMPOSITE')
+    Filter SrcBrokerQuoteRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'BROKER_QUOTE')
+    Filter SrcExecutableQuoteRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'EXECUTABLE_QUOTE')
+    Filter SrcEvaluatedPriceRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'EVALUATED_PRICE')
+    Filter SrcMatrixPriceRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'MATRIX_PRICE')
+    Filter SrcInternalMarkRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'INTERNAL_MARK')
+    Filter SrcIpvAdjustedRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'IPV_ADJUSTED')
+    Filter SrcConsensusServiceRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'CONSENSUS_SERVICE')
+    Filter SrcClearingHouseSettleRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'CLEARING_HOUSE_SETTLE')
+    Filter SrcAuctionPriceRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'AUCTION_PRICE')
+    Filter SrcNavPriceRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'NAV_PRICE')
+    Filter SrcBenchmarkFixingRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'BENCHMARK_FIXING')
+    Filter SrcModelPriceRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'MODEL_PRICE')
+    Filter SrcStaleCarryForwardRows(PRICE_SOURCE_RECORD.SOURCE_TYPE = 'STALE_CARRY_FORWARD')
+
+    Filter MgnInitialMarginRows(MGN_CALL.CALL_TYPE = 'INITIAL_MARGIN')
+    Filter MgnVariationMarginRows(MGN_CALL.CALL_TYPE = 'VARIATION_MARGIN')
+    Filter MgnImUmrRows(MGN_CALL.CALL_TYPE = 'IM_UMR')
+    Filter MgnMinimumTransferRows(MGN_CALL.CALL_TYPE = 'MINIMUM_TRANSFER')
+    Filter MgnThresholdCallRows(MGN_CALL.CALL_TYPE = 'THRESHOLD_CALL')
+    Filter MgnIndependentAmountRows(MGN_CALL.CALL_TYPE = 'INDEPENDENT_AMOUNT')
+    Filter MgnIntradayCallRows(MGN_CALL.CALL_TYPE = 'INTRADAY_CALL')
+    Filter MgnConcentrationCallRows(MGN_CALL.CALL_TYPE = 'CONCENTRATION_CALL')
+    Filter MgnLiquidityAddOnRows(MGN_CALL.CALL_TYPE = 'LIQUIDITY_ADD_ON')
+    Filter MgnWrongWayAddOnRows(MGN_CALL.CALL_TYPE = 'WRONG_WAY_ADD_ON')
+    Filter MgnMarginDisputeRows(MGN_CALL.CALL_TYPE = 'MARGIN_DISPUTE')
+    Filter MgnSubstitutionRows(MGN_CALL.CALL_TYPE = 'SUBSTITUTION')
+    Filter MgnReturnCallRows(MGN_CALL.CALL_TYPE = 'RETURN_CALL')
+    Filter MgnInterestCallRows(MGN_CALL.CALL_TYPE = 'INTEREST_CALL')
+    Filter MgnHaircutAdjustmentRows(MGN_CALL.CALL_TYPE = 'HAIRCUT_ADJUSTMENT')
+    Filter MgnDefaultFundRows(MGN_CALL.CALL_TYPE = 'DEFAULT_FUND')
+
+    Join Series_Observation(TIME_SERIES.SERIES_ID = TS_OBSERVATION.SERIES_ID)
+    Join Series_Revision(TIME_SERIES.SERIES_ID = TS_REVISION_BI.SERIES_ID)
+
+    Filter QuotedPillarRows(RATE_CURVE_POINT.IS_INTERPOLATED = 0)
+
+    Join Curve_Point(RATE_CURVE.CURVE_ID = RATE_CURVE_POINT.CURVE_ID)
+    Join Pillar_Series(RATE_CURVE_POINT.SOURCE_SERIES_ID = TIME_SERIES.SERIES_ID)
+    // Same curve, same date, longer tenor. Three columns and the third
+    // an inequality -- the join a forward rate is computed across.
+    Join Pillar_LongerPillar(RATE_CURVE_POINT.CURVE_ID = {target}.CURVE_ID and RATE_CURVE_POINT.COB_DATE = {target}.COB_DATE and RATE_CURVE_POINT.TENOR_DAYS < {target}.TENOR_DAYS)
 
     Join Counterparty_Ssi(COUNTERPARTY.COUNTERPARTY_ID = BO_SSI.COUNTERPARTY_ID)
     Join Ssi_Payment(BO_SSI.SSI_ID = PAYMENT.SSI_ID)

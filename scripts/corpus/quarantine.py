@@ -33,6 +33,32 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
     )
 }
 
+# F50: a derived BOOLEAN compared to a boolean literal cannot be lowered. `$x.isFinal ==
+# false` reaches the database as SQL it rejects with a parser error; `!$x.isFinal`,
+# `$x.isFinal`, and the same comparison over a derived Float or String all run. MD3 is this
+# query written the way that works, so the construct is covered as well as pinned.
+#
+# The corpus had never filtered on a derived property at all before this -- a thousand
+# services projected them constantly, which is a different code path and a working one.
+ENGINE_QUARANTINE["stress::MD7_UnrevisedPrintsEq"] = (
+    "F50", "derived Boolean == boolean literal in a filter generates invalid SQL")
+
+# F51: `isEmpty()` over a to-many end reached by a SELF-join returns the source row once per
+# joined row. The booleans are all correct, so the failure looks like a duplicate-row problem
+# rather than an aggregation one. `count()` over the identical end does NOT duplicate, and
+# `isEmpty()` over a to-many to a DIFFERENT table does not either -- the probe separates all
+# three.
+ENGINE_QUARANTINE["stress::CV6_PillarEmptiness"] = (
+    "F51", "isEmpty() over a to-many self-join returns one row per joined row")
+
+# F52: both ends of a {target} self-join return the same set. `shorterPillars` and
+# `longerPillars` are opposite directions of one inequality and the engine answers the
+# forward one for both. Nothing in the model distinguishes the ends, which is why the oracle
+# has to be TOLD the direction (oracle.SELF_JOIN_REVERSE) -- but the oracle is told, and the
+# engine is not asking.
+ENGINE_QUARANTINE["stress::CV7_PillarsShorter"] = (
+    "F52", "the reverse end of a {target} self-join returns the forward set")
+
 # F35 -- `dayOfYear` lowers to DuckDB's `day()`, so it answers the day of the MONTH. The
 # service asserts 155 for 2024-06-03, which is right, and fails. Kept rather than corrected:
 # an expectation adjusted to 3 would make the suite green by recording the defect as the

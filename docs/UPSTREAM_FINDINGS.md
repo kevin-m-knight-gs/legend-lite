@@ -1591,3 +1591,86 @@ message distinguishes neither case.
 Found while adding 93 reference-data subtypes: the corpus reader had just been taught to
 propagate associations to subclasses (which Legend semantics require and it was not doing),
 and forty generated services appeared and failed at once.
+
+## F50 — A derived Boolean compared to a boolean literal generates invalid SQL
+
+    ->filter({x | $x.isFinal == false})
+
+    java.sql.SQLException: Parser Error: syntax error at or near "="
+
+`isFinal` is a derived property returning `Boolean[1]`. The query compiles, the plan
+generates, and the SQL the plan carries is rejected by the database's own parser -- so nothing
+between writing the filter and running it reports a problem.
+
+Seven variants over one five-row model separate it precisely:
+
+| filter | result |
+| --- | --- |
+| `$x.isFinal == false` | Parser Error |
+| `$x.isFinal == true` | Parser Error |
+| `$x.isFinal` | works |
+| `!$x.isFinal` | works |
+| `$x.doubled > 0.0` (derived Float) | works |
+| `$x.tag == 'FINAL!'` (derived String) | works |
+| `$x.status == 'FINAL'` (the derivation, written out at the call site) | works |
+
+It is not derived properties in filters, and it is not `==` in filters. It is exactly a
+derived Boolean compared with `==` to a boolean literal, in either direction.
+
+The workaround is `!$x.isFinal`. The two forms are not interchangeable on an OPTIONAL boolean
+-- truthiness for an absent value is a different question from `== false` -- so on a `[0..1]`
+property there is no rewrite that is obviously equivalent.
+
+What makes this worth reporting is how ordinary the shape is. A thousand services in this
+corpus projected derived properties constantly and filtered on one never; projecting puts the
+expression in the SELECT list, which is a different path and a working one. Adding a derived
+boolean and then asking for the rows where it is not set is the first thing anyone does with
+one, and it is the case that fails.
+
+Repro: `repro/derived-boolean-equals-literal/`, `scripts/corpus/probe_derived_filter.py`.
+
+## F51 — `isEmpty()` over a to-many SELF-join returns one row per joined row
+
+    Join T_Above(T.GRP = {target}.GRP and T.RNK < {target}.RNK)
+
+    ->project(~[id: x|$x.id, noneAbove: x|$x.above->isEmpty()])
+
+Six input rows produce seven output rows: the row with two rows above it is returned twice.
+The pattern is one row per joined row, floored at one by the outer join — the aggregation
+that should collapse the set was not applied.
+
+Every boolean is correct, which is what makes this expensive to find. It presents as
+duplicate rows rather than as a wrong answer, so it reads like a data-quality problem; and on
+a fan-out of one it does not present at all.
+
+Two controls narrow it to the self-join specifically:
+
+* `->count()` over the identical end returns six rows. Not aggregates in general.
+* `->isEmpty()` over a to-many to a DIFFERENT table returns six rows. Not `isEmpty` in
+  general.
+
+Nor is it the inequality: an equality self-join (`T.GRP = {target}.GRP and T.ID <>
+{target}.ID`) duplicates identically.
+
+Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
+
+## F52 — Both ends of a `{target}` self-join return the same set
+
+    Association ineq::Above { below: ineq::P[*]; above: ineq::P[*]; }
+
+`above` and `below` are opposite directions of one inequality. Navigating `below` returns
+`above`'s rows: the row of rank 1 reports something below it, and the row of rank 3 reports
+nothing below it. Both are exactly backwards.
+
+The join condition is written from one side -- `T.RNK < {target}.RNK` says *the target is
+higher* -- so the reverse end requires swapping which row plays `{target}`. Nothing appears
+to do that.
+
+There is a modelling question underneath: nothing in the model distinguishes the two ends.
+They have the same owner, the same target and the same join, and only their NAMES differ. So
+a reader cannot infer the direction, and this corpus's oracle does not try -- the direction is
+a declared list (`oracle.SELF_JOIN_REVERSE`), on the same footing as its cross-store links,
+because a guess returns a well-formed set from the wrong direction. Whatever the fix, the
+engine needs the same information from somewhere.
+
+Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.

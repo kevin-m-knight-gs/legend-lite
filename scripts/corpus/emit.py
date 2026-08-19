@@ -305,8 +305,17 @@ def query_text(spec: Spec) -> str:
     """
     lines = [f"    query: |{spec.root}.all({_as_of(spec)})"]
     if spec.filters:
+        # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
+        # comparison. They exist because comparing a boolean to a boolean literal with `==`
+        # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
+        # derived Boolean reaches the database as SQL it rejects with "Parser Error: syntax
+        # error at or near =", while the identical `!$x.isFinal` runs. See F50 and
+        # scripts/corpus/probe_derived_filter.py.
         conds = " && ".join(
-            f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})" for f in spec.filters)
+            (f"${VAR}.{'.'.join(f.path)}" if f.op == "is"
+             else f"!${VAR}.{'.'.join(f.path)}" if f.op == "not"
+             else f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})")
+            for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
     def expr(p):
         if p.func:
@@ -355,8 +364,11 @@ def query_text(spec: Spec) -> str:
             for name, src, fn in spec.aggs)
         lines.append(f"        ->groupBy(~[{keys}], ~[\n            {parts}\n        ])")
     if spec.sort:
-        alias, desc = spec.sort
-        lines.append(f"        ->sort(~{alias}->{'descending' if desc else 'ascending'}())")
+        keys = spec.sort if isinstance(spec.sort, list) else [spec.sort]
+        rendered = ", ".join(
+            f"~{alias}->{'descending' if desc else 'ascending'}()" for alias, desc in keys)
+        lines.append(f"        ->sort({rendered})" if len(keys) == 1
+                     else f"        ->sort([{rendered}])")
     if spec.limit is not None:
         lines.append(f"        ->limit({spec.limit})")
     return "\n".join(lines) + ";"

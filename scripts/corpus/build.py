@@ -248,6 +248,7 @@ def generate() -> dict[Path, str]:
     # misleading -- nine taxonomy entries scored present while being declared once and
     # reached by nothing.
     import executed
+    problems += _unreachable_roots(c, generated)
     quarantined = set(quarantine.ENGINE_QUARANTINE) | set(quarantine.HANGS)
     problems += [f"feature no longer executed: {n}" for n in executed.regressions(
         executed.report(c, executed.all_specs(c), quarantined))]
@@ -266,6 +267,43 @@ def generate() -> dict[Path, str]:
             FUNCTEST_FILE: functest.render(c, TABLES),
             EXTERNAL_DATA_FILE: external, HIER_FILE: hier_text,
             COMBO_FILE: combo_text}
+
+
+def _unreachable_roots(c, specs) -> list[str]:
+    """Every class a service roots at must be reachable from the mapping it names.
+
+    A class can be perfectly declared, perfectly mapped and still unreachable, because
+    reachability is a property of the ALL-MAPPING's include list rather than of the class.
+    `timeseries::TimeSeries` was mapped correctly in its own mapping and left out of
+    stress::AllMapping, and nothing said so: model.check passed, the build wrote 961
+    services, and the failure arrived an hour later as an Assert inside plan generation --
+    "Error mapping not found for class TimeSeries" -- which killed the whole batch it was in
+    rather than the one service that caused it.
+
+    The insert that should have added the include had been suppressed by a guard reading
+    `if "include marketdata::" not in text`, and it was in the text: for a DIFFERENT mapping
+    in the same package. So the check here is on the thing that actually matters -- can the
+    named mapping resolve this class -- and not on whether some edit looks like it happened.
+    """
+    import executed
+
+    closure = executed.include_closure()
+    # Parsed rather than taken from c.declared_in, which keeps ONE mapping per class: four
+    # services name an alternative mapping of trading::Trade or hier::Issuer, and against a
+    # one-mapping-per-class map every one of them looks unreachable.
+    mapped_by = executed.class_mappings()
+    out = []
+    for spec in specs:
+        named = spec.mapping or "stress::AllMapping"
+        reach = closure.get(named)
+        # A mapping the closure does not know is an inline or generated one; nothing to say.
+        if reach is None or spec.root not in mapped_by:
+            continue
+        if not (mapped_by[spec.root] & reach):
+            out.append(f"{spec.name.split('::')[-1]} roots at {spec.root}, which "
+                       f"{named} cannot resolve -- it is mapped only in "
+                       f"{', '.join(sorted(mapped_by[spec.root]))}. Add the include.")
+    return out
 
 
 def main() -> None:

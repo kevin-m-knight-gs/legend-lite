@@ -120,8 +120,17 @@ def _condition(c: Corpus, node, binding: dict) -> bool:
     raise Unsupported(f"join condition node {tag!r} has no evaluation rule")
 
 
-def _general_targets(c: Corpus, data, join, from_table: str, src: dict) -> list[dict]:
-    """Every row on the far side of `join` that the condition pairs with `src`."""
+def _general_targets(c: Corpus, data, join, from_table: str, src: dict,
+                     reverse: bool = False) -> list[dict]:
+    """Every row on the far side of `join` that the condition pairs with `src`.
+
+    `reverse` swaps which row plays `{target}`. A {target} self-join is written from ONE
+    side -- `POINT.TENOR_DAYS < {target}.TENOR_DAYS` says "the target is longer" -- and the
+    association's other end means the opposite. Nothing in the model distinguishes the two
+    ends, both being CurvePoint to CurvePoint over the same join, so the direction is
+    DECLARED in SELF_JOIN_REVERSE rather than guessed. Guessing would return the longer
+    pillars for both ends and look entirely reasonable.
+    """
     import rhs
 
     named = rhs.condition_tables(join.condition)
@@ -130,7 +139,8 @@ def _general_targets(c: Corpus, data, join, from_table: str, src: dict) -> list[
     out = []
     for tgt in data.get(to_table, []):
         if "{target}" in named:
-            binding = {from_table: src, "{target}": tgt}
+            binding = ({from_table: tgt, "{target}": src} if reverse
+                       else {from_table: src, "{target}": tgt})
         else:
             binding = {from_table: src, to_table: tgt}
         if _condition(c, join.condition, binding):
@@ -146,7 +156,10 @@ def walk(c: Corpus, data: dict[str, list[dict]], row: dict,
     for join, ftab, fcol, ttab, tcol in hops:
         if cur is None:
             return None
-        if fcol is None:                       # a general condition: no key to index on
+        # `not fcol`, not `fcol is None`: a general join records its columns as EMPTY
+        # STRINGS, so an `is None` test misses every one of them and the hop falls through
+        # to `row.get('')`, which is None -- a broken chain, silently.
+        if not fcol:                           # a general condition: no key to index on
             landed = _general_targets(c, data, c.joins[join], ftab, cur)
             if len(landed) > 1:
                 raise Fanout(
@@ -163,18 +176,29 @@ def walk(c: Corpus, data: dict[str, list[dict]], row: dict,
 
 
 def walk_many(c: Corpus, data: dict[str, list[dict]], row: dict,
-              hops: list[tuple[str, str, str, str, str]]) -> list[dict]:
+              hops: list[tuple[str, str, str, str, str]],
+              reverse_at: set[int] | None = None) -> list[dict]:
     """Follow hops that MAY fan out, returning every landed row.
 
     This is the counterpart to walk(): where a to-one navigation lands on at most one row,
     a to-many lands on a set, and the set may be EMPTY. The empty case is the interesting
     one — it is where `->count()` over a LEFT OUTER JOIN is prone to returning 1 (one
     all-NULL joined row) instead of 0.
+
+    A hop with no from-column is a GENERAL condition -- an inequality, a multi-column
+    predicate, a {target} self-join -- and has to be evaluated row by row. That case was
+    missing: `r.get(None)` is None, the hop was skipped, and every aggregate over such an
+    end answered "no children". Empty is a plausible answer, so nothing looked wrong; the
+    24-pillar self-join reported every pillar as having nothing longer than it.
     """
     cur = [row]
-    for _join, _ftab, fcol, ttab, tcol in hops:
+    for i, (join, ftab, fcol, ttab, tcol) in enumerate(hops):
         nxt = []
         for r in cur:
+            if not fcol:
+                nxt.extend(_general_targets(c, data, c.joins[join], ftab, r,
+                                            reverse=bool(reverse_at and i in reverse_at)))
+                continue
             key = r.get(fcol)
             if key is None:
                 continue
@@ -744,8 +768,17 @@ def _guarded(f, ok, why, arity=1):
     return impl
 
 
+class _Dbl(float):
+    """A float that came out of a division, or out of arithmetic on one.
+
+    A tag rather than a wrapper: it IS a float everywhere -- comparisons, JSON, formatting,
+    further arithmetic -- and the only thing that reads the tag is `*`, which uses it to
+    decide whether the engine would have been in decimal or in double at that point.
+    """
+
+
 def _exact_addsub(op, a, b):
-    """Add or subtract the way a DECIMAL column does.
+    """Add, subtract or multiply the way a DECIMAL column does.
 
     Two DECIMAL(18,4) marks 108.7500 and 107.9000 differ by 0.85 exactly in the database and
     by 0.8499999999999943 in binary floating point. Same lesson as _exact_sum, one level
@@ -753,19 +786,58 @@ def _exact_addsub(op, a, b):
     expressions alone, so it reappeared the moment a derived property subtracted one mark
     from another.
 
-    Only + and -. Multiplication and division raise a scale question a column type does not
-    answer -- what precision should 1/3 have -- and the corpus's money multiplications are
-    already agreeing.
+    Multiplication was left out of the first version on the grounds that the corpus's money
+    multiplications were already agreeing. They were, by luck: every factor in the corpus at
+    the time was a sum of powers of two. A confidence score of 0.5500 scaled to a percentage
+    is not, and 0.55 * 100 is 55.00000000000001 in binary floating point against 55.0000 in
+    the column -- so `*` is here now, on the same reasoning as `+`.
+
+    Division still is not, and it is contagious. It raises a scale question a column type
+    does not answer -- what precision should 1/3 have -- so the engine drops to double the
+    moment one appears, and everything computed FROM that result is a double too. Three
+    services proved it: `faceValue * couponRate / 100.0 * fxRate` gives 2.9625000000000004
+    from the engine, not the 2.9625 exact decimal would produce, because the `/ 100.0` in the
+    middle made the left operand of the last multiply a double. `_Dbl` below is the tag that
+    carries that, and `*` honours it.
+
+    Addition and subtraction do NOT check the tag. They should, by the same argument -- but
+    every one of them agrees with the engine today, and widening a rule past its evidence is
+    how the multiplication case got mis-scoped in the first place. When a sum after a
+    division disagrees, that is the moment to extend this, with the disagreement as the
+    reason.
     """
     from decimal import Decimal, InvalidOperation
+    plain = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "*": lambda x, y: x * y}[op]
+    if op == "*" and (isinstance(a, _Dbl) or isinstance(b, _Dbl)):
+        return _Dbl(plain(a, b))
     if isinstance(a, bool) or isinstance(b, bool):
-        return a + b if op == "+" else a - b
+        return plain(a, b)
     try:
         da, db = Decimal(str(a)), Decimal(str(b))
     except (InvalidOperation, TypeError, ValueError):
-        return a + b if op == "+" else a - b
-    out = da + db if op == "+" else da - db
+        return plain(a, b)
+    out = plain(da, db)
     return int(out) if isinstance(a, int) and isinstance(b, int) else float(out)
+
+
+def _exact_avg(vals):
+    """Average the way AVG over a DECIMAL column does: divide in decimal, then narrow.
+
+    Not sum/count in double. Three CPI prints of 3.4, 3.3 and 3.0 average to
+    3.2333333333333334 from the engine and to 3.233333333333333 from a double division of
+    the same exact sum -- one ulp apart, because the engine divides the exact decimal 9.7 by
+    3 and narrows the RESULT, where a double division narrows first and divides after.
+
+    Both readings agree on the fourteen-element commodity series, so the one-ulp case is the
+    only evidence there is; it is enough, and it points one way.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        total = sum((Decimal(str(v)) for v in vals), Decimal(0))
+        return _Dbl(float(total / Decimal(len(vals))))
+    except (InvalidOperation, TypeError, ValueError):
+        return _Dbl(sum(vals) / len(vals))
 
 
 def _exact_sum(vals):
@@ -1168,7 +1240,7 @@ IMPL = {
     # reporting a value it does not have.
     "sum": _agg(_exact_sum, empty=0),
     "max": _agg(max), "min": _agg(min),
-    "average": _agg(lambda xs: sum(xs) / len(xs)),
+    "average": _agg(_exact_avg),
     "count": lambda vals: len([v for v in (vals[0] if isinstance(vals[0], list) else vals)]),
 }
 
@@ -1888,9 +1960,9 @@ class _Eval:
             if v is None or r is None:
                 v = None
             elif op == "*":
-                v = v * r
+                v = _exact_addsub("*", v, r)
             else:
-                v = None if r == 0 else v / r
+                v = None if r == 0 else _Dbl(v / r)
         return v
 
     def factor(self):
@@ -2030,9 +2102,35 @@ def _derived(c: Corpus, data, row, root: str, path: list[str], hit, args=()):
     return v
 
 
+# Association ends whose navigation runs AGAINST the direction a {target} self-join is
+# written in. Declared rather than inferred: both ends of a self-join have the same owner,
+# the same target and the same join, so there is nothing to infer from -- and the wrong
+# answer is a well-formed set of rows from the other direction.
+#
+# build.py checks every entry names a real end over a real self-join.
+SELF_JOIN_REVERSE = {
+    ("curves::CurvePoint", "shorterPillars"),
+    ("curves::QuotedPillar", "shorterPillars"),
+}
+
+
+def _reverse_hops(c: Corpus, root: str, path: list[str]) -> set[int]:
+    """Indices of hops in `path` that navigate a self-join backwards."""
+    out, cls, i = set(), root, 0
+    for step in path:
+        end = c.ends.get((cls, step))
+        if end is None:
+            continue
+        if (cls, step) in SELF_JOIN_REVERSE:
+            out.add(i)
+        cls = end.target
+        i += 1
+    return out
+
+
 def _agg(c: Corpus, data, row, root: str, proj):
     hops, _target = c.resolve_assoc(root, proj.path)
-    landed = walk_many(c, data, row, hops)
+    landed = walk_many(c, data, row, hops, _reverse_hops(c, root, proj.path))
     if proj.agg == "count":
         # An entity with no children counts 0. Stated plainly because this is the
         # assertion, not an implementation detail.
@@ -2226,14 +2324,49 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
         row = dict(zip(spec.group_by, key))
         for name, src, fn in spec.aggs:
             vals = [m[src] for m in members if m[src] is not None]
-            row[name] = (len(vals) if fn == "count"
-                         else _exact_sum(vals) if fn == "sum"
-                         else max(vals) if fn == "max"
-                         else min(vals) if fn == "min" else None)
-            if fn != "count" and not vals:
-                row[name] = None
+            if fn == "count":
+                row[name] = len(vals)
+            elif fn == "sum":
+                # NULL over an empty group, not 0. SQL's SUM of no rows is NULL, and the
+                # guard that said so was a trailing `if not vals` covering every branch --
+                # dropped when these became explicit cases, which turned one group's total
+                # from null into a plausible zero.
+                row[name] = _exact_sum(vals) if vals else None
+            elif fn == "max":
+                row[name] = max(vals) if vals else None
+            elif fn == "min":
+                row[name] = min(vals) if vals else None
+            elif fn == "average":
+                row[name] = _exact_avg(vals) if vals else None
+            else:
+                # Silence here is how MD2 asked for an average and got a column of nulls
+                # with nothing to say it had not been computed. An aggregate this does not
+                # implement is a gap in the oracle, not a null in the data.
+                raise Unsupported(
+                    f"aggregate {fn!r} is not implemented for a group-by spec. It returned "
+                    f"None silently before, which reads as an empty group rather than as an "
+                    f"oracle that cannot answer.")
         out.append(row)
     return out
+
+
+def _pred(c: Corpus, data, row, root: str, f) -> bool:
+    """One query predicate. `is`/`not` are the bare boolean forms; everything else compares.
+
+    The bare forms exist because `$x.flag == false` is the one filter the engine cannot
+    lower (F50). Treating them here as `== True` / `== False` would be wrong for a NULL:
+    Pure's `!$x.flag` over an absent value is not `$x.flag == false`, so a bare form on an
+    optional boolean is refused rather than guessed at.
+    """
+    v = _value(c, data, row, root, f.path)
+    if f.op in ("is", "not"):
+        if v is None:
+            raise Unsupported(
+                f"a bare boolean filter on {'.'.join(f.path)} met a NULL. Pure's truthiness "
+                f"for an absent boolean is not something this oracle should guess; filter on "
+                f"a required property, or compare explicitly.")
+        return bool(v) if f.op == "is" else not v
+    return _cmp(f.op, v, f.value)
 
 
 def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
@@ -2249,8 +2382,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
     base = _milestoned(c, spec, base)
     kept = [r for r in base
-            if all(_cmp(f.op, _value(c, data, r, spec.root, f.path), f.value)
-                   for f in spec.filters)]
+            if all(_pred(c, data, r, spec.root, f) for f in spec.filters)]
 
     out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
                       else _value(c, data, r, spec.root, p.path, p.args, p.func))
@@ -2259,20 +2391,30 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
 
     if spec.group_by:
         out = _group(spec, out)
-    if spec.sort:
-        alias, desc = spec.sort
+    keys = ([] if not spec.sort
+            else spec.sort if isinstance(spec.sort, list) else [spec.sort])
+    if keys:
         # NULLs sort last ascending / first descending is dialect-dependent, so a case
         # whose sort column contains NULLs cannot have a stable limit. Refuse it.
-        if any(r[alias] is None for r in out):
-            raise Fanout(f"{spec.short}: sort column {alias!r} contains NULL, so the "
-                         f"rows surviving ->limit() are dialect-dependent")
-        out.sort(key=lambda r: r[alias], reverse=desc)
+        for alias, _d in keys:
+            if any(r[alias] is None for r in out):
+                raise Fanout(f"{spec.short}: sort column {alias!r} contains NULL, so the "
+                             f"rows surviving ->limit() are dialect-dependent")
+        # Applied least-significant first, which is what makes a stable sort compose into a
+        # multi-key one. All-ascending and all-descending are the only mixes a single
+        # reverse= can express, so a mixed order is sorted key by key.
+        for alias, desc in reversed(keys):
+            out.sort(key=lambda r: r[alias], reverse=desc)
     if spec.limit is not None:
-        # A tie spanning the limit boundary makes the surviving set ambiguous.
-        if spec.sort and len(out) > spec.limit:
-            alias = spec.sort[0]
-            if out[spec.limit - 1][alias] == out[spec.limit][alias]:
-                raise Fanout(f"{spec.short}: a tie on {alias!r} straddles ->limit("
+        # A tie spanning the limit boundary makes the surviving set ambiguous. With a
+        # composite key it is a tie on ALL of the columns that does it -- which is the
+        # point of sorting by all of them.
+        if keys and len(out) > spec.limit:
+            def k(r):
+                return tuple(r[a] for a, _d in keys)
+            if k(out[spec.limit - 1]) == k(out[spec.limit]):
+                names = ", ".join(a for a, _d in keys)
+                raise Fanout(f"{spec.short}: a tie on ({names}) straddles ->limit("
                              f"{spec.limit}), so the surviving rows are ambiguous")
         out = out[:spec.limit]
     return out
@@ -2333,7 +2475,9 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
         base = _kinds_of_projections(c, spec)
         k = {a: base[a] for a in spec.group_by}
         for name, src, fn in spec.aggs:
-            k[name] = "int" if fn == "count" else base[src]
+            # An average of integers is a float; every other aggregate keeps its source kind.
+            k[name] = ("int" if fn == "count"
+                       else "float" if fn == "average" else base[src])
         return k
     return _kinds_of_projections(c, spec)
 

@@ -1287,9 +1287,334 @@ DERIVED = [
           []),
 ]
 
+def _market_data_specs():
+    """Time series: the questions that are about the SEQUENCE, not about the row.
+
+    A price on a row is a fact anyone can project. What makes a time series a time series is
+    that the interesting quantities -- change, direction, range, staleness, revision -- are
+    relationships between observations, and every one of them lands on a construct the flat
+    corpus exercises weakly:
+
+      * `change` and `changeInBps` are derived properties over a NULLABLE prior value, where
+        the discharge has to be `orElse(obsValue)` and not `orElse(0.0)`. MD0 projects both
+        so the first observation of every series is visible as a zero rather than as a level.
+      * per-series aggregates run over a fan-out that is NOT uniform -- fourteen for a daily
+        series, three for a monthly one. MD2's count column proves the group-by is grouping
+        rather than counting the table.
+      * the bitemporal revisions are the only place in the corpus where the two axes move
+        INDEPENDENTLY. MD4-MD6 ask the same business date on three processing dates and get
+        three answers, one of which is that the row did not exist yet.
+    """
+    out = []
+
+    # The series master. Small, but it carries the qualified property and the boolean
+    # derived, and it is the parent every other query here fans out from.
+    cat = Spec("stress::MD0_SeriesCatalogue", "/stress/md0",
+               "The market-data catalogue: sixteen series across rates, FX, equity, "
+               "commodity and macro, with the vendor ticker built from a caller-supplied "
+               "vendor code and the derived daily/monthly flag.",
+               "timeseries::TimeSeries")
+    cat.projections = [Proj("seriesId", ["seriesId"]),
+                       Proj("seriesName", ["seriesName"]),
+                       Proj("assetClass", ["assetClass"]),
+                       Proj("frequency", ["frequency"]),
+                       Proj("currency", ["currency"]),
+                       Proj("decimalPlaces", ["decimalPlaces"]),
+                       Proj("isDaily", ["isDaily"]),
+                       Proj("bloombergTicker", ["tickerOn"], args=["BBG"])]
+    cat.sort = ("seriesId", False)
+    out.append(cat)
+
+    # Every observation with its move. 191 rows, and 16 of them -- one per series -- have a
+    # null prior value, so the orElse discharge is exercised on 8% of the rows rather than on
+    # a single hand-placed edge case.
+    obs = Spec("stress::MD1_ObservationHistory", "/stress/md1",
+               "Every observation with the move since the previous print, in level and in "
+               "basis points, plus the series it belongs to. Sixteen of the 191 rows are a "
+               "series' first observation and have no prior value: change is zero there "
+               "because the discharge is orElse(obsValue), and would be the entire level if "
+               "it were orElse(0.0).",
+               "timeseries::Observation")
+    obs.projections = [Proj("obsId", ["obsId"]),
+                       Proj("obsDate", ["obsDate"]),
+                       Proj("obsValue", ["obsValue"]),
+                       Proj("priorValue", ["priorValue"]),
+                       Proj("change", ["change"]),
+                       Proj("changeInBps", ["changeInBps"]),
+                       Proj("status", ["status"]),
+                       Proj("seriesName", ["series", "seriesName"]),
+                       Proj("assetClass", ["series", "assetClass"])]
+    obs.sort = ("obsId", False)
+    out.append(obs)
+
+    # Per-series statistics. The count column is the point: it must read 14 for the daily
+    # series and 3 for the monthly ones. A group-by that has silently become a scan of the
+    # whole table returns 191 in every row and is otherwise indistinguishable.
+    stats = Spec("stress::MD2_SeriesStatistics", "/stress/md2",
+                 "Per-series statistics over the observation history: how many prints, the "
+                 "high, the low and the mean. The count is the assertion that matters -- 14 "
+                 "for a daily series and 3 for a monthly one. A group-by that has collapsed "
+                 "into a table scan returns 191 everywhere and looks perfectly reasonable.",
+                 "timeseries::Observation")
+    stats.projections = [Proj("seriesId", ["seriesId"]), Proj("obsValue", ["obsValue"])]
+    stats.group_by = ["seriesId"]
+    stats.aggs = [("observations", "obsValue", "count"),
+                  ("high", "obsValue", "max"),
+                  ("low", "obsValue", "min"),
+                  ("mean", "obsValue", "average")]
+    stats.sort = ("seriesId", False)
+    out.append(stats)
+
+    # The non-final prints. A flash estimate is a forecast sitting in a table of
+    # measurements, and every average that does not exclude it is wrong by however much the
+    # final print moved.
+    prelim = Spec("stress::MD3_UnrevisedPrints", "/stress/md3",
+                  "Observations that are not final: the three monthly series' latest prints "
+                  "are flash estimates and the earliest are restatements. Filtering on "
+                  "status is what separates a measurement from a forecast, and the corpus "
+                  "should not be able to average them together by accident.",
+                  "timeseries::Observation")
+    prelim.projections = [Proj("obsId", ["obsId"]),
+                          Proj("obsDate", ["obsDate"]),
+                          Proj("obsValue", ["obsValue"]),
+                          Proj("status", ["status"]),
+                          Proj("isFinal", ["isFinal"]),
+                          Proj("frequency", ["series", "frequency"])]
+    # `not`, not `== False`. The comparison form is the one shape the engine cannot lower
+    # (F50): `$x.isFinal == false` over a derived Boolean reaches DuckDB as SQL it rejects.
+    # MD7 below pins that; this one asks the question in the form that works.
+    prelim.filters = [Pred(["isFinal"], "not", None)]
+    prelim.sort = ("obsId", False)
+    out.append(prelim)
+
+    # The broken form, pinned. Identical to MD3 in every respect except that the filter is
+    # written as a comparison to a boolean literal rather than as a negation -- which is how
+    # most people would write it, and which the engine cannot lower.
+    broken = Spec("stress::MD7_UnrevisedPrintsEq", "/stress/md7",
+                  "MD3 with the filter written `isFinal == false` instead of `!isFinal`. "
+                  "The two mean the same thing and one of them reaches DuckDB as SQL it "
+                  "rejects with a parser error. Quarantined under F50; the probe at "
+                  "scripts/corpus/probe_derived_filter.py separates this from the four "
+                  "derived-property filter forms that work.",
+                  "timeseries::Observation")
+    broken.projections = list(prelim.projections)
+    broken.filters = [Pred(["isFinal"], "==", False)]
+    broken.sort = ("obsId", False)
+    out.append(broken)
+
+    # The three bitemporal reads. Same business date, three processing dates -- and unlike
+    # the existing B0-B2 over credit ratings, the two axes here are days apart rather than
+    # simultaneous, so a mapping that quietly used one date for both would still pass B0-B2
+    # and fail these.
+    for n, (proc, doc) in enumerate([
+        ("2024-05-20",
+         "April as believed on 20 May: CPI reads 3.4 and unemployment 3.9, the first prints. "
+         "This is what a report run that week would have said, and it is not what the "
+         "current data says."),
+        ("2024-06-20",
+         "The SAME business date after both restatements landed: CPI 3.5, unemployment 4.0. "
+         "The business axis has not moved at all; only what we believe about it has."),
+        ("2024-05-01",
+         "The same business date asked BEFORE the April numbers were published. "
+         "Unemployment exists -- it printed on 3 May, which is still after this -- so the "
+         "processing filter removes CPI entirely and leaves nothing. Absent, not null.")]):
+        b = Spec(f"stress::MD{4 + n}_RevisionAsOf", f"/stress/md{4 + n}", doc,
+                 "timeseries::ObservationRevision")
+        b.as_of = [proc, "2024-04-30"]
+        b.projections = [Proj("seriesId", ["seriesId"]),
+                         Proj("revisedValue", ["revisedValue"]),
+                         Proj("revisionReason", ["revisionReason"])]
+        b.sort = ("seriesId", False)
+        out.append(b)
+
+    return out
+
+
+MARKET_DATA = _market_data_specs()
+
+
+def _curve_specs():
+    """Yield curves: what a three-column primary key can be stacked with.
+
+    `composite PK` had been the corpus's most isolated construct -- two milestoned classes,
+    three properties each, nothing navigating out -- and 33 uncovered feature pairs had it on
+    one side. These put it together with the constructs it had never met, and they are
+    hand-written because the generators cannot reach it: stacks.py chains along to-ONE ends
+    and a curve pillar's only to-one is the embedded curve, so CurvePoint drops out of every
+    generated set the moment the self-join is declared honestly as to-many on both sides.
+
+    That is the division the corpus makes everywhere: the generators supply volume over shapes
+    they understand, and the judgement about what is worth putting next to what is written
+    down by hand.
+    """
+    out = []
+
+    KEY = [Proj("curveId", ["curveId"]), Proj("cobDate", ["cobDate"]),
+           Proj("tenorLabel", ["tenorLabel"])]
+    KEY_SORT = [("curveId", False), ("cobDate", False), ("tenorLabel", False)]
+
+    # The pillar grid. Composite key, the embedded curve (which emits no join at all, because
+    # the columns are on the pillar's own row), the enum through that embedded block, two
+    # derived properties and a qualified one -- six constructs on one row.
+    grid = Spec("stress::CV0_CurvePillars", "/stress/cv0",
+                "Every curve pillar: the three-column key, the rate, the stored discount "
+                "factor, the rate in basis points, the tenor in years, the long-end flag, "
+                "the present value of a million at that factor, and the curve itself read "
+                "through an EMBEDDED mapping -- so the curve's name, currency and enum-mapped "
+                "type come off the pillar's own row with no join emitted.",
+                "curves::CurvePoint")
+    grid.projections = KEY + [
+        Proj("tenorDays", ["tenorDays"]),
+        Proj("zeroRate", ["zeroRate"]),
+        Proj("discountFactor", ["discountFactor"]),
+        Proj("zeroRateBps", ["zeroRateBps"]),
+        Proj("tenorYears", ["tenorYears"]),
+        Proj("isLongEnd", ["isLongEnd"]),
+        Proj("pvOfMillion", ["presentValueOf"], args=[1000000.0]),
+        Proj("curveName", ["curveRef", "curveName"]),
+        Proj("curveCurrency", ["curveRef", "currency"]),
+        Proj("curveType", ["curveRef", "curveType"]),
+        # The SAME three facts reached by join instead of off the row. A denormalization
+        # that has drifted shows up here as two columns disagreeing in one service.
+        Proj("joinedName", ["curve", "curveName"]),
+        Proj("joinedCurrency", ["curve", "currency"]),
+        Proj("joinedType", ["curve", "curveType"])]
+    grid.sort = KEY_SORT
+    out.append(grid)
+
+    # The ~filter subtype. 15Y and 20Y are interpolated on every curve, so this is 160 of the
+    # 192 rows -- a filter doing real work. The failure mode of a wrong ~filter is silent:
+    # it returns the whole table and every column still looks right.
+    quoted = Spec("stress::CV1_QuotedPillars", "/stress/cv1",
+                  "Only the pillars the market actually quotes, through the subtype's "
+                  "~filter. The 15Y and 20Y are interpolated on all eight curves, so this is "
+                  "160 rows of 192 -- and if the filter were wrong it would be 192 with no "
+                  "error and no type mismatch.",
+                  "curves::QuotedPillar")
+    quoted.projections = KEY + [
+        Proj("tenorDays", ["tenorDays"]),
+        Proj("zeroRate", ["zeroRate"]),
+        Proj("isInterpolated", ["isInterpolated"]),
+        Proj("curveName", ["curveRef", "curveName"]),
+        Proj("curveType", ["curveRef", "curveType"])]
+    quoted.sort = KEY_SORT
+    out.append(quoted)
+
+    # Out to the published series a pillar was fitted to. Four of 192 pillars have one, so
+    # 188 rows carry a wholly absent sub-object rather than a null column -- and the two are
+    # the same thing in a projection and different things in a tree.
+    fitted = Spec("stress::CV2_FittedPillars", "/stress/cv2",
+                  "Each pillar and the market-data series it was fitted to, where there is "
+                  "one. Four pillars of 192 have a source series, so the navigation is empty "
+                  "for 188 of them -- the majority case, not an edge case. Reached from a "
+                  "composite-key root, which is the combination nothing executed before.",
+                  "curves::CurvePoint")
+    fitted.projections = KEY + [
+        Proj("sourceSeriesId", ["sourceSeriesId"]),
+        Proj("seriesName", ["sourceSeries", "seriesName"]),
+        Proj("seriesFrequency", ["sourceSeries", "frequency"]),
+        Proj("seriesAssetClass", ["sourceSeries", "assetClass"])]
+    fitted.sort = KEY_SORT
+    out.append(fitted)
+
+    # The self-join, asked the one way that both the engine and the oracle can answer.
+    #
+    # Three constraints shape this. `count()` over an EMPTY to-many returns 1 rather than 0
+    # (F6), so the 30Y pillar -- which has nothing longer than it -- is filtered out rather
+    # than quarantining the whole service. `isEmpty()` would have avoided that, but it
+    # duplicates the source row once per joined row over a self-join (F51). And the REVERSE
+    # end returns the forward set (F52), so `shorterPillars` is not projected here.
+    #
+    # CV6 and CV7 pin the two defects; this one covers the construct.
+    shape = Spec("stress::CV3_PillarNeighbours", "/stress/cv3",
+                 "For each pillar except the longest, how many pillars on the same curve and "
+                 "date sit further out. The join is a three-column self-join with an "
+                 "inequality on the third -- the join a forward rate is computed across, and "
+                 "the first thing in the corpus to put one under a composite primary key. "
+                 "The 30Y is filtered out because it has nothing longer than it and F6 makes "
+                 "count() over an empty to-many return 1.",
+                 "curves::CurvePoint")
+    shape.projections = KEY + [
+        Proj("tenorDays", ["tenorDays"]),
+        Proj("zeroRate", ["zeroRate"]),
+        Proj("pillarsFurtherOut", ["longerPillars"], agg="count")]
+    shape.filters = [Pred(["tenorLabel"], "!=", "30Y")]
+    shape.sort = KEY_SORT
+    out.append(shape)
+
+    # F51, pinned: the same end asked as emptiness. Every boolean is right and the row count
+    # is not -- the source row comes back once per joined row.
+    empty = Spec("stress::CV6_PillarEmptiness", "/stress/cv6",
+                 "CV3 asked as emptiness instead of as a count, over every pillar. The "
+                 "booleans are correct and the ROWS are not: a pillar with three longer "
+                 "pillars is returned three times. Quarantined under F51, which "
+                 "scripts/corpus/probe_ineq_aggregate.py narrows to self-joins -- the same "
+                 "isEmpty over a to-many to a DIFFERENT table returns one row per parent.",
+                 "curves::CurvePoint")
+    empty.projections = KEY + [
+        Proj("tenorDays", ["tenorDays"]),
+        Proj("isLastPillar", ["longerPillars"], agg="isEmpty")]
+    empty.sort = KEY_SORT
+    out.append(empty)
+
+    # F52, pinned: the reverse direction of the same self-join.
+    reverse = Spec("stress::CV7_PillarsShorter", "/stress/cv7",
+                   "How many pillars sit SHORTER than each one -- the other end of the same "
+                   "association, over the same {target} self-join. The 1M pillar is filtered "
+                   "out for the F6 reason CV3 filters out the 30Y. Quarantined under F52: "
+                   "the engine returns the FORWARD set for both ends, so every count here "
+                   "is the number of pillars further out rather than nearer in.",
+                   "curves::CurvePoint")
+    reverse.projections = KEY + [
+        Proj("tenorDays", ["tenorDays"]),
+        Proj("pillarsNearerIn", ["shorterPillars"], agg="count")]
+    reverse.filters = [Pred(["tenorLabel"], "!=", "1M")]
+    reverse.sort = KEY_SORT
+    out.append(reverse)
+
+    # Per-curve statistics over a composite-key table. 24 pillars per curve across the two
+    # cob dates, so a group-by that has collapsed into a table scan returns 192 everywhere.
+    stats = Spec("stress::CV4_CurveShape", "/stress/cv4",
+                 "Per-curve statistics over the pillar grid: how many pillars, the highest "
+                 "and lowest rate on the curve, and the mean. 24 rows per curve over two cob "
+                 "dates; a group-by that has quietly become a scan returns 192 in every row.",
+                 "curves::CurvePoint")
+    stats.projections = [Proj("curveId", ["curveId"]), Proj("zeroRate", ["zeroRate"])]
+    stats.group_by = ["curveId"]
+    stats.aggs = [("pillars", "zeroRate", "count"),
+                  ("highest", "zeroRate", "max"),
+                  ("lowest", "zeroRate", "min"),
+                  ("mean", "zeroRate", "average")]
+    stats.sort = ("curveId", False)
+    out.append(stats)
+
+    # The curve master itself, with the enum read directly rather than through the embedded
+    # block -- so the two readings of curveType must agree.
+    cat = Spec("stress::CV5_CurveCatalogue", "/stress/cv5",
+               "The curve master: eight curves with their interpolation, day count and "
+               "enum-mapped type. The legacy IBOR curve is the inactive one. CV0 reads the "
+               "same enum through an EMBEDDED mapping of a denormalized column; this reads "
+               "it from the curve's own table, and the two must agree.",
+               "curves::YieldCurve")
+    cat.projections = [Proj("curveId", ["curveId"]),
+                       Proj("curveName", ["curveName"]),
+                       Proj("currency", ["currency"]),
+                       Proj("curveType", ["curveType"]),
+                       Proj("interpolation", ["interpolation"]),
+                       Proj("dayCountBasis", ["dayCountBasis"]),
+                       Proj("isActive", ["isActive"])]
+    cat.sort = ("curveId", False)
+    out.append(cat)
+
+    return out
+
+
+CURVES = _curve_specs()
+
+
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

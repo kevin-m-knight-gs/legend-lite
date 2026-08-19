@@ -66,7 +66,9 @@ _SUBSTITUTION = re.compile(r"include\s+[\w:]+\s*\[[\w:]+\s*->")
 # everything it includes, so attributing a feature to the mapping that DECLARES it and
 # comparing against the mapping a service NAMES misses every included one -- which is most
 # of them, since this corpus has one aggregate mapping including the rest.
-_INCLUDE = re.compile(r"^\s*include\s+([\w:]+)\s*$", re.M)
+# The trailing group is a STORE SUBSTITUTION -- `include M [dbA -> dbB]` -- which is still
+# an include, and was not matched while the pattern anchored on end-of-line.
+_INCLUDE = re.compile(r"^\s*include\s+([\w:]+)\s*(?:\[[^\]]*\])?\s*$", re.M)
 
 
 def include_closure() -> dict[str, set[str]]:
@@ -92,7 +94,31 @@ def include_closure() -> dict[str, set[str]]:
     return out
 
 
+def class_mappings() -> dict[str, set[str]]:
+    """class -> every mapping that maps it.
+
+    Not c.declared_in, which holds one mapping per class and so cannot answer "can THIS
+    mapping resolve this class" for the four services that deliberately name an alternative
+    mapping of trading::Trade or hier::Issuer.
+    """
+    import density
+
+    src, _blocks = density.load()
+    out: dict[str, set[str]] = {}
+    heads = list(_MAPPING_HEAD.finditer(src))
+    for i, h in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+        for m in _SET_IMPL.finditer(src[h.start():end]):
+            out.setdefault(m.group(1), set()).add(h.group(1))
+    return out
+
+
 _MAPPING_HEAD = re.compile(r"^Mapping\s+([\w:]+)", re.M)
+# A set implementation head: an optional `*` for the root set, the class, an optional set id,
+# an optional `extends`, then the mapping kind.
+_SET_IMPL = re.compile(
+    r"^\s*\*?([\w:]+)\s*(?:\[\w+\])?\s*(?:extends\s*\[\w+\]\s*)?:\s*"
+    r"(?:Relational|Relation|Operation|Pure|XStore|AggregationAware)\b", re.M)
 
 
 def class_features() -> dict[tuple[str, str], set[str]]:

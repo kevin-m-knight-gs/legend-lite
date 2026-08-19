@@ -51,6 +51,18 @@ def emit(*, table: str, pkg: str, base: str, discriminator: str, tag: str,
     # 2. the store: one table and one filter per type
     p = STRESS / "30-store.pure"
     t = p.read_text()
+    # A table name already in use is an ERROR, not a reason to skip. The first version
+    # treated "already present" as "already emitted" and silently did nothing -- so when
+    # MARGIN_CALL turned out to belong to the collateral domain, the table and its sixteen
+    # filters were quietly not written, and the failure surfaced as sixteen "undeclared
+    # store filter" messages naming the new classes rather than the collision.
+    for other in STRESS.glob("*.pure"):
+        if f"Table {table} (" in other.read_text() and other.name == "30-store.pure":
+            if f"// emitted by refdata for {pkg}" not in t:
+                raise SystemExit(
+                    f"table {table} is already declared in the corpus. refdata will not "
+                    f"reuse a name: pick another, or the reader keeps one declaration and "
+                    f"silently drops the other.")
     if f"Table {table} (" not in t:
         cols = ", ".join(f"{c} {SQL[ty]}" + (" PRIMARY KEY" if i == 0 else "")
                          for i, (_p, c, ty, _m) in enumerate(fields))
@@ -59,7 +71,8 @@ def emit(*, table: str, pkg: str, base: str, discriminator: str, tag: str,
             f"{[c for p_, c, _t, _m in fields if p_ == discriminator][0]} = '{code}')"
             for code, _n, _d in types)
         anchor = "    // ---- Back office: where cash actually moves ----"
-        t = t.replace(anchor, f"    Table {table} ({cols})\n\n{anchor}", 1)
+        t = t.replace(anchor, f"    // emitted by refdata for {pkg}\n"
+                                 f"    Table {table} ({cols})\n\n{anchor}", 1)
         t = t.replace("    Join Counterparty_Ssi(", filters + "\n\n    Join Counterparty_Ssi(", 1)
         p.write_text(t)
 

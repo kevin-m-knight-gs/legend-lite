@@ -1,0 +1,153 @@
+###Pure
+// Time series: a series, its observations, and what the observations used to say.
+//
+// In its OWN package, not in marketdata::. That package already exists and already has a
+// YieldCurve, a MarketQuote and eight other classes; adding a TimeSeries to it compiled
+// perfectly and then failed at plan generation with "Error mapping not found for class
+// TimeSeries", because the all-mapping's `include marketdata::` line was already there
+// for the OTHER mapping and the edit that would have added this one saw it and skipped.
+//
+// The corpus had prices as attributes of a position and marks as attributes of a valuation.
+// What it did not have is a SERIES -- the same measurement repeated on a schedule, where the
+// interesting questions are all about the relationship between one observation and the one
+// before it. Change, direction, range, gap, staleness: none of them are properties of a row.
+//
+// Three things here exist nowhere else in the corpus:
+//
+//   * MIXED FREQUENCY under one parent. Thirteen daily series carry fourteen observations
+//     each and three monthly series carry three, so a count grouped by series returns two
+//     distinct answers and any query that assumes a uniform fan-out is wrong.
+//   * A PRIOR VALUE that is genuinely absent on the first observation, not zero. `change`
+//     has to discharge it, and the honest discharge is `orElse($this.obsValue)` -- no change
+//     on the first print, rather than a change of the entire level.
+//   * A BITEMPORAL revision history that revises something. The corpus's only other
+//     bitemporal class is a credit rating whose two dates move together; here the value FOR
+//     April changed ON a day in June, so the business and processing axes genuinely differ
+//     and `all(%2024-04-30, %2024-06-01)` and `all(%2024-04-30, %2024-06-20)` are two
+//     different answers to two different questions.
+Class timeseries::TimeSeries
+{
+   seriesId: String[1];
+   seriesName: String[1];
+   sourceCode: String[1];
+   frequency: String[1];
+   unit: String[1];
+   currency: String[1];
+   assetClass: String[1];
+   decimalPlaces: Integer[1];
+   firstObsDate: StrictDate[1];
+   isActive: Boolean[1];
+
+   // Whether the series prints every business day. Daily and monthly series behave
+   // differently in every query that reasons about gaps, so the distinction is worth a name.
+   isDaily() { $this.frequency == 'DAILY' } : Boolean[1];
+   // A qualified property: the series name as a vendor ticker, which is source-dependent and
+   // so cannot be stored on the row.
+   tickerOn(vendor: String[1]) { $vendor + '/' + $this.sourceCode + ':' + $this.seriesId } : String[1];
+}
+
+Class timeseries::Observation
+{
+   obsId: String[1];
+   seriesId: String[1];
+   obsDate: StrictDate[1];
+   obsValue: Float[1];
+   // Null on the first observation of every series, because there is no observation before
+   // it. Not zero: a level of zero and no previous level are different facts.
+   priorValue: Float[0..1];
+   status: String[1];
+   isInterpolated: Boolean[1];
+
+   // The move since the previous print. Zero on a first observation -- the discharge has to
+   // be `orElse(obsValue)` rather than `orElse(0.0)`, or the first print of the S&P would
+   // report a rise of 5283.40.
+   change() { $this.obsValue - $this.priorValue->orElse($this.obsValue) } : Float[1];
+   // A flash estimate is not a final one. Any average that includes it is measuring a
+   // forecast alongside a measurement.
+   isFinal() { $this.status == 'FINAL' } : Boolean[1];
+   // Basis points, for the rate series. The unit conversion a rates desk does by reflex.
+   changeInBps() { ($this.obsValue - $this.priorValue->orElse($this.obsValue)) * 100.0 } : Float[1];
+}
+
+// The revision history, bitemporal. FROM_Z/THRU_Z is the period the value describes;
+// IN_Z/OUT_Z is the period we believed it.
+Class <<temporal.bitemporal>> timeseries::ObservationRevision
+{
+   seriesId: String[1];
+   revisedValue: Float[0..1];
+   revisionReason: String[0..1];
+}
+
+// One series, many observations. Fourteen for a daily series and three for a monthly one --
+// the fan-out is not uniform, deliberately.
+Association timeseries::SeriesObservations
+{
+   series: timeseries::TimeSeries[0..1];
+   observations: timeseries::Observation[*];
+}
+
+Association timeseries::SeriesRevisions
+{
+   revisedSeries: timeseries::TimeSeries[0..1];
+   revisions: timeseries::ObservationRevision[*];
+}
+
+###Mapping
+Mapping timeseries::TimeSeriesMapping
+(
+   timeseries::TimeSeries: Relational
+   {
+      ~primaryKey ( [store::DB]TIME_SERIES.SERIES_ID )
+      ~mainTable [store::DB]TIME_SERIES
+      seriesId: [store::DB]TIME_SERIES.SERIES_ID,
+      seriesName: [store::DB]TIME_SERIES.SERIES_NAME,
+      sourceCode: [store::DB]TIME_SERIES.SOURCE_CODE,
+      frequency: [store::DB]TIME_SERIES.FREQUENCY,
+      unit: [store::DB]TIME_SERIES.UNIT,
+      currency: [store::DB]TIME_SERIES.CURRENCY,
+      assetClass: [store::DB]TIME_SERIES.ASSET_CLASS,
+      decimalPlaces: [store::DB]TIME_SERIES.DECIMAL_PLACES,
+      firstObsDate: [store::DB]TIME_SERIES.FIRST_OBS_DATE,
+      isActive: [store::DB]TIME_SERIES.IS_ACTIVE
+   }
+
+   timeseries::Observation: Relational
+   {
+      ~primaryKey ( [store::DB]TS_OBSERVATION.OBS_ID )
+      ~mainTable [store::DB]TS_OBSERVATION
+      obsId: [store::DB]TS_OBSERVATION.OBS_ID,
+      seriesId: [store::DB]TS_OBSERVATION.SERIES_ID,
+      obsDate: [store::DB]TS_OBSERVATION.OBS_DATE,
+      obsValue: [store::DB]TS_OBSERVATION.OBS_VALUE,
+      priorValue: [store::DB]TS_OBSERVATION.PRIOR_VALUE,
+      status: [store::DB]TS_OBSERVATION.STATUS,
+      isInterpolated: [store::DB]TS_OBSERVATION.IS_INTERPOLATED
+   }
+
+   timeseries::ObservationRevision: Relational
+   {
+      ~primaryKey ( [store::DB]TS_REVISION_BI.SERIES_ID, [store::DB]TS_REVISION_BI.FROM_Z, [store::DB]TS_REVISION_BI.IN_Z )
+      ~mainTable [store::DB]TS_REVISION_BI
+      seriesId: [store::DB]TS_REVISION_BI.SERIES_ID,
+      revisedValue: [store::DB]TS_REVISION_BI.REVISED_VALUE,
+      revisionReason: [store::DB]TS_REVISION_BI.REVISION_REASON
+   }
+
+   timeseries::SeriesObservations: Relational
+   {
+      AssociationMapping
+      (
+         observations: [store::DB]@Series_Observation,
+         series: [store::DB]@Series_Observation
+      )
+   }
+
+   timeseries::SeriesRevisions: Relational
+   {
+      AssociationMapping
+      (
+         revisions: [store::DB]@Series_Revision,
+         revisedSeries: [store::DB]@Series_Revision
+      )
+   }
+)

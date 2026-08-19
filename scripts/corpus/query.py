@@ -53,7 +53,10 @@ class Spec:
     as_of: str | None = None
     projections: list[Proj] = field(default_factory=list)
     filters: list[Pred] = field(default_factory=list)
-    sort: tuple[str, bool] | None = None    # (alias, descending)
+    # (alias, descending), or a LIST of them for a composite key. A single column is not a
+    # stable order when the class's primary key has three, and `->limit` on top of an
+    # unstable order is ambiguous rather than wrong -- which the oracle refuses outright.
+    sort: tuple[str, bool] | list[tuple[str, bool]] | None = None
     limit: int | None = None
     # L2 mapping invariance: the same query emitted against a second mapping/runtime.
     # None means the corpus default (stress::AllMapping / stress::RT).
@@ -324,8 +327,10 @@ def _finish(name: str, body: str) -> Spec:
     if len(set(aliases)) != len(aliases):
         dupes = sorted({a for a in aliases if aliases.count(a) > 1})
         raise ValueError(f"service {name}: duplicate aliases {dupes}")
-    if s.sort and s.sort[0] not in aliases:
-        raise ValueError(f"service {name}: sorts on unprojected {s.sort[0]!r}")
+    for alias, _desc in ([] if not s.sort
+                         else s.sort if isinstance(s.sort, list) else [s.sort]):
+        if alias not in aliases:
+            raise ValueError(f"service {name}: sorts on unprojected {alias!r}")
     return s
 
 

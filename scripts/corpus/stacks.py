@@ -46,11 +46,31 @@ def _identifier(c: model.Corpus, root: str) -> str | None:
     """The property mapped to the root table's primary key — used as the stable sort key
     and the first projected column, so a generated service reads like one a person would
     write."""
+    ids = _identifiers(c, root)
+    return ids[0] if ids else None
+
+
+def _identifiers(c: model.Corpus, root: str) -> list[str]:
+    """Every property mapped to a primary-key column, in key order.
+
+    The first column alone was the sort key until a class with a THREE-column key arrived.
+    A curve pillar is keyed by curve, date and tenor, so ordering by the curve leaves 24
+    rows tied and `->limit(25)` cuts through the middle of a tie -- which the oracle refuses
+    outright rather than picking a winner the database has not promised.
+    """
     table = c.tables.get(c.main_table.get(root, ""))
     if table is None or not table.pk:
-        return None
-    pk = table.pk[0]
-    return next((prop for prop, col in c.columns.get(root, {}).items() if col == pk), None)
+        return []
+    cols = c.columns.get(root, {})
+    out = []
+    for pk in table.pk:
+        prop = next((p for p, col in cols.items() if col == pk), None)
+        if prop is None:
+            # A key column with no property is not orderable from a query, so the key
+            # cannot be reconstructed and this root has no stable order.
+            return []
+        out.append(prop)
+    return out
 
 
 # The generated services below build over the trading DOMAIN. The combination matrix and the
@@ -166,7 +186,10 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
         # Prefer chains no earlier service has taken; keep depth as the tiebreak.
         chains.sort(key=lambda pc: (tuple(pc[0]) in used_chains, -len(pc[0])))
 
-        projections = [Proj(ident, [ident])]
+        # Every key column, not just the first: they are what the sort orders by, and a
+        # sort on an unprojected column is not expressible.
+        key = _identifiers(c, root)
+        projections = [Proj(k, [k]) for k in key]
         used_targets: set[str] = set()
         features: set[str] = set()
 
@@ -249,7 +272,7 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
             spec.filters = [Pred([scalar], ">", " ")]
             features.add("queryFilter")
         query.apply_temporal(c, spec)
-        spec.sort = (ident, False)
+        spec.sort = [(k, False) for k in key]
         spec.limit = 25
         features.update({"sort", "limit"})
 
