@@ -1,0 +1,278 @@
+###Pure
+// Market data: every kind of number a valuation consumes, with where it came from.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class marks::MarketDataPoint
+{
+   pointId: String[1];
+   dataType: String[1];
+   instrumentRef: String[1];
+   cobDate: StrictDate[1];
+   value: Float[1];
+   currency: String[1];
+   source: String[1];
+   isStale: Boolean[1];
+   tenor: String[0..1];
+   previousValue: Float[0..1];
+
+   // Day-on-day move, with a first observation treated as no move.
+   //
+   // `$this.value - $this.previousValue` does not compile: previousValue is [0..1] and
+   // `minus` requires [1] on both sides -- "Collection element must have a multiplicity
+   // [1] ... Applying minus". Optionality has to be discharged BEFORE the arithmetic, and
+   // ->orElse is how Pure does it.
+   //
+   // Discharging it to the value itself rather than to zero, so a first observation reads
+   // as a zero move rather than as a move equal to the whole level. That is a convention,
+   // and it is stated rather than hidden: a stale-data check wanting to distinguish "no
+   // previous mark" from "unchanged" has to read previousValue directly.
+   dailyChange() { $this.value - $this.previousValue->orElse($this.value) } : Float[1];
+}
+
+// A last traded or composite spot level.
+Class marks::SpotPriceMark extends marks::MarketDataPoint
+{
+}
+
+// The official close, which is what most valuations use.
+Class marks::ClosingPriceMark extends marks::MarketDataPoint
+{
+}
+
+// Between bid and offer, and not a price anyone traded.
+Class marks::MidPriceMark extends marks::MarketDataPoint
+{
+}
+
+// What a buyer is showing.
+Class marks::BidPriceMark extends marks::MarketDataPoint
+{
+}
+
+// What a seller is showing.
+Class marks::AskPriceMark extends marks::MarketDataPoint
+{
+}
+
+// One tenor of a discount or forward curve.
+Class marks::YieldCurvePoint extends marks::MarketDataPoint
+{
+}
+
+// One tenor of a spread curve.
+Class marks::CreditCurvePoint extends marks::MarketDataPoint
+{
+}
+
+// One expiry and strike of an implied volatility surface.
+Class marks::VolSurfacePoint extends marks::MarketDataPoint
+{
+}
+
+// A currency pair's spot level.
+Class marks::FxSpotRate extends marks::MarketDataPoint
+{
+}
+
+// The forward premium or discount, quoted in pips.
+Class marks::FxForwardPoint extends marks::MarketDataPoint
+{
+}
+
+// The spread between two funding bases.
+Class marks::BasisSpreadMark extends marks::MarketDataPoint
+{
+}
+
+// An equity or commodity index close.
+Class marks::IndexLevelMark extends marks::MarketDataPoint
+{
+}
+
+// A published benchmark fixing such as SOFR or EURIBOR.
+Class marks::FixingRateMark extends marks::MarketDataPoint
+{
+}
+
+// A published CPI or RPI level, which is revised.
+Class marks::InflationIndexMark extends marks::MarketDataPoint
+{
+}
+
+// Expected dividends, which price equity forwards.
+Class marks::DividendForecastMark extends marks::MarketDataPoint
+{
+}
+
+// The cost of borrowing a name to short it.
+Class marks::BorrowRateMark extends marks::MarketDataPoint
+{
+}
+
+// Assumed recovery on default.
+Class marks::RecoveryRateMark extends marks::MarketDataPoint
+{
+}
+
+// A pairwise or base correlation input.
+Class marks::CorrelationMark extends marks::MarketDataPoint
+{
+}
+
+// One contract month of a commodity forward curve.
+Class marks::CommodityCurvePoint extends marks::MarketDataPoint
+{
+}
+
+// VIX and its relatives.
+Class marks::VolatilityIndexMark extends marks::MarketDataPoint
+{
+}
+
+// A single-name or index credit spread.
+Class marks::CdsSpreadMark extends marks::MarketDataPoint
+{
+}
+
+// A par swap rate at a tenor.
+Class marks::SwapRateMark extends marks::MarketDataPoint
+{
+}
+
+###Mapping
+Mapping marks::MarksMapping
+(
+   *marks::MarketDataPoint[marksBase]: Relational
+   {
+      ~primaryKey ( [store::DB]MARKET_DATA_POINT.POINT_ID )
+      ~mainTable [store::DB]MARKET_DATA_POINT
+      pointId: [store::DB]MARKET_DATA_POINT.POINT_ID,
+      dataType: [store::DB]MARKET_DATA_POINT.DATA_TYPE,
+      instrumentRef: [store::DB]MARKET_DATA_POINT.INSTRUMENT_REF,
+      cobDate: [store::DB]MARKET_DATA_POINT.COB_DATE,
+      value: [store::DB]MARKET_DATA_POINT.VALUE,
+      currency: [store::DB]MARKET_DATA_POINT.CURRENCY,
+      source: [store::DB]MARKET_DATA_POINT.SOURCE,
+      isStale: [store::DB]MARKET_DATA_POINT.IS_STALE,
+      tenor: [store::DB]MARKET_DATA_POINT.TENOR,
+      previousValue: [store::DB]MARKET_DATA_POINT.PREVIOUS_VALUE
+   }
+
+   marks::SpotPriceMark[mktSpotPrice] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktSpotPriceRows
+   }
+
+   marks::ClosingPriceMark[mktClosingPrice] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktClosingPriceRows
+   }
+
+   marks::MidPriceMark[mktMidPrice] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktMidPriceRows
+   }
+
+   marks::BidPriceMark[mktBidPrice] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktBidPriceRows
+   }
+
+   marks::AskPriceMark[mktAskPrice] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktAskPriceRows
+   }
+
+   marks::YieldCurvePoint[mktYieldCurvePoint] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktYieldCurvePointRows
+   }
+
+   marks::CreditCurvePoint[mktCreditCurvePoint] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktCreditCurvePointRows
+   }
+
+   marks::VolSurfacePoint[mktVolSurfacePoint] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktVolSurfacePointRows
+   }
+
+   marks::FxSpotRate[mktFxSpotRate] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktFxSpotRateRows
+   }
+
+   marks::FxForwardPoint[mktFxForwardPoint] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktFxForwardPointRows
+   }
+
+   marks::BasisSpreadMark[mktBasisSpread] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktBasisSpreadRows
+   }
+
+   marks::IndexLevelMark[mktIndexLevel] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktIndexLevelRows
+   }
+
+   marks::FixingRateMark[mktFixingRate] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktFixingRateRows
+   }
+
+   marks::InflationIndexMark[mktInflationIndex] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktInflationIndexRows
+   }
+
+   marks::DividendForecastMark[mktDividendForecast] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktDividendForecastRows
+   }
+
+   marks::BorrowRateMark[mktBorrowRate] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktBorrowRateRows
+   }
+
+   marks::RecoveryRateMark[mktRecoveryRate] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktRecoveryRateRows
+   }
+
+   marks::CorrelationMark[mktCorrelation] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktCorrelationRows
+   }
+
+   marks::CommodityCurvePoint[mktCommodityCurvePoint] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktCommodityCurvePointRows
+   }
+
+   marks::VolatilityIndexMark[mktVolatilityIndex] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktVolatilityIndexRows
+   }
+
+   marks::CdsSpreadMark[mktCdsSpread] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktCdsSpreadRows
+   }
+
+   marks::SwapRateMark[mktSwapRate] extends [marksBase]: Relational
+   {
+      ~filter [store::DB]MktSwapRateRows
+   }
+)

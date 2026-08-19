@@ -744,6 +744,30 @@ def _guarded(f, ok, why, arity=1):
     return impl
 
 
+def _exact_addsub(op, a, b):
+    """Add or subtract the way a DECIMAL column does.
+
+    Two DECIMAL(18,4) marks 108.7500 and 107.9000 differ by 0.85 exactly in the database and
+    by 0.8499999999999943 in binary floating point. Same lesson as _exact_sum, one level
+    down: the earlier fix covered the `sum` aggregate and left the arithmetic inside derived
+    expressions alone, so it reappeared the moment a derived property subtracted one mark
+    from another.
+
+    Only + and -. Multiplication and division raise a scale question a column type does not
+    answer -- what precision should 1/3 have -- and the corpus's money multiplications are
+    already agreeing.
+    """
+    from decimal import Decimal, InvalidOperation
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a + b if op == "+" else a - b
+    try:
+        da, db = Decimal(str(a)), Decimal(str(b))
+    except (InvalidOperation, TypeError, ValueError):
+        return a + b if op == "+" else a - b
+    out = da + db if op == "+" else da - db
+    return int(out) if isinstance(a, int) and isinstance(b, int) else float(out)
+
+
 def _exact_sum(vals):
     """Sum the way a DECIMAL column sums, not the way a float does.
 
@@ -1773,7 +1797,7 @@ def _dynafunction(fn, vals):
 # ---------------------------------------------------- derived-property evaluation
 
 _TOKEN = re.compile(
-    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->\w+\(\)"
+    r"\s*(->orElse\(\s*-?\d+(?:\.\d+)?\s*\)|->orElse|->\w+\(\)"
     r"|[\w:]+::\w+\.\w+"                      # enum literal, e.g. trading::Side.BUY
     r"|\$\w+(?:\.\w+)*"                        # $var, $var.path.to.prop
     r"|'[^']*'"                                  # string literal
@@ -1853,7 +1877,7 @@ class _Eval:
         while self.peek() in ("+", "-"):
             op = self.take()
             r = self.term()
-            v = None if v is None or r is None else (v + r if op == "+" else v - r)
+            v = None if v is None or r is None else _exact_addsub(op, v, r)
         return v
 
     def term(self):
@@ -1935,6 +1959,19 @@ class _Eval:
                 default = self.take()[len("->orElse("):-1].strip()
                 if v is None:
                     v = float(default) if "." in default else int(default)
+            elif nxt == "->orElse":
+                # `->orElse(EXPRESSION)`, not just `->orElse(5)`. The literal form above is
+                # kept because it is what the corpus's older derived properties use; this one
+                # arrived with a mark whose default is another property of the same row, and
+                # the default has to be evaluated whether or not it is used.
+                self.take()
+                if self.take() != "(":
+                    raise Unsupported("->orElse must be followed by (")
+                fallback = self.expr()
+                if self.take() != ")":
+                    raise Unsupported("unbalanced parentheses in ->orElse")
+                if v is None:
+                    v = fallback
             else:
                 return v
 

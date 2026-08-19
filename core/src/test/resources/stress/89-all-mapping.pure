@@ -34,6 +34,9 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include marks::MarksMapping
+    include fees::FeesMapping
+    include accounts::AccountsMapping
     include limits::LimitsMapping
     include regreporting::RegreportingMapping
     include collateraltypes::CollateraltypesMapping
