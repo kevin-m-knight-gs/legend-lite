@@ -1,0 +1,291 @@
+###Pure
+// Regulatory reporting: what was submitted, to whom, and whether it was accepted.
+//
+// 24 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 24 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class regreporting::RegulatorySubmission
+{
+   submissionId: String[1];
+   reportType: String[1];
+   regime: String[1];
+   authority: String[1];
+   reportingDate: StrictDate[1];
+   submittedAt: DateTime[1];
+   recordCount: Integer[1];
+   status: String[1];
+   acknowledgedAt: DateTime[0..1];
+   rejectionReason: String[0..1];
+   isLate: Boolean[1];
+
+   // Hours from submission to acknowledgement. Null while a submission is
+   // outstanding, which is exactly the population a reporting desk chases.
+   ackHours() { dateDiff($this.submittedAt, $this.acknowledgedAt, meta::pure::functions::date::DurationUnit.HOURS) } : Integer[0..1];
+}
+
+// MiFID II transaction report, T+1 to the national competent authority.
+Class regreporting::MifidTransactionReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Post-trade transparency, published in near real time.
+Class regreporting::MifidTradeReport extends regreporting::RegulatorySubmission
+{
+}
+
+// EMIR reporting of derivatives to a trade repository.
+Class regreporting::EmirTradeReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Daily mark and collateral, reported alongside the trade.
+Class regreporting::EmirValuationReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Securities financing transactions -- repo, lending, margin lending.
+Class regreporting::SftrReport extends regreporting::RegulatorySubmission
+{
+}
+
+// US swap data repository reporting.
+Class regreporting::DoddFrankSdrReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Real-time public dissemination of swap prices.
+Class regreporting::DoddFrankRealTimeReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Position reporting above a threshold.
+Class regreporting::CftcLargeTraderReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Australian derivative reporting.
+Class regreporting::AsicDerivativeReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Singapore OTC derivatives reporting.
+Class regreporting::MasOtcReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Hong Kong equivalent.
+Class regreporting::HkmaOtcReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Provincial trade repository reporting.
+Class regreporting::CanadianTradeRepositoryReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Quarterly US institutional holdings disclosure.
+Class regreporting::SecThirteenFReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Net short position disclosure above a threshold.
+Class regreporting::ShortSellingDisclosure extends regreporting::RegulatorySubmission
+{
+}
+
+// RTS 28 execution venue analysis.
+Class regreporting::BestExecutionReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Costs and charges, ex ante and ex post.
+Class regreporting::TransactionCostDisclosure extends regreporting::RegulatorySubmission
+{
+}
+
+// LCR, the thirty-day stress metric.
+Class regreporting::LiquidityCoverageReport extends regreporting::RegulatorySubmission
+{
+}
+
+// NSFR, the one-year structural metric.
+Class regreporting::NetStableFundingReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Exposures above 10% of capital.
+Class regreporting::LargeExposureReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Standardised or internal-model market risk capital.
+Class regreporting::FrtbMarketRiskReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Capital held against CVA volatility.
+Class regreporting::CvaCapitalReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Non-risk-weighted exposure measure.
+Class regreporting::LeverageRatioReport extends regreporting::RegulatorySubmission
+{
+}
+
+// Public disclosure of risk and capital.
+Class regreporting::PillarThreeDisclosure extends regreporting::RegulatorySubmission
+{
+}
+
+// Resolution planning data.
+Class regreporting::RecoveryResolutionSubmission extends regreporting::RegulatorySubmission
+{
+}
+
+###Mapping
+Mapping regreporting::RegreportingMapping
+(
+   *regreporting::RegulatorySubmission[regreportingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]REG_SUBMISSION.SUBMISSION_ID )
+      ~mainTable [store::DB]REG_SUBMISSION
+      submissionId: [store::DB]REG_SUBMISSION.SUBMISSION_ID,
+      reportType: [store::DB]REG_SUBMISSION.REPORT_TYPE,
+      regime: [store::DB]REG_SUBMISSION.REGIME,
+      authority: [store::DB]REG_SUBMISSION.AUTHORITY,
+      reportingDate: [store::DB]REG_SUBMISSION.REPORTING_DATE,
+      submittedAt: [store::DB]REG_SUBMISSION.SUBMITTED_AT,
+      recordCount: [store::DB]REG_SUBMISSION.RECORD_COUNT,
+      status: [store::DB]REG_SUBMISSION.STATUS,
+      acknowledgedAt: [store::DB]REG_SUBMISSION.ACKNOWLEDGED_AT,
+      rejectionReason: [store::DB]REG_SUBMISSION.REJECTION_REASON,
+      isLate: [store::DB]REG_SUBMISSION.IS_LATE
+   }
+
+   regreporting::MifidTransactionReport[regMifidTransaction] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegMifidTransactionRows
+   }
+
+   regreporting::MifidTradeReport[regMifidTrade] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegMifidTradeRows
+   }
+
+   regreporting::EmirTradeReport[regEmirTrade] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegEmirTradeRows
+   }
+
+   regreporting::EmirValuationReport[regEmirValuation] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegEmirValuationRows
+   }
+
+   regreporting::SftrReport[regSftr] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegSftrRows
+   }
+
+   regreporting::DoddFrankSdrReport[regDoddFrankSdr] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegDoddFrankSdrRows
+   }
+
+   regreporting::DoddFrankRealTimeReport[regDoddFrankRt] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegDoddFrankRtRows
+   }
+
+   regreporting::CftcLargeTraderReport[regCftcLargeTrader] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegCftcLargeTraderRows
+   }
+
+   regreporting::AsicDerivativeReport[regAsicDerivative] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegAsicDerivativeRows
+   }
+
+   regreporting::MasOtcReport[regMasOtc] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegMasOtcRows
+   }
+
+   regreporting::HkmaOtcReport[regHkmaOtc] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegHkmaOtcRows
+   }
+
+   regreporting::CanadianTradeRepositoryReport[regCanadianTr] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegCanadianTrRows
+   }
+
+   regreporting::SecThirteenFReport[regSec13f] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegSec13fRows
+   }
+
+   regreporting::ShortSellingDisclosure[regShortSelling] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegShortSellingRows
+   }
+
+   regreporting::BestExecutionReport[regBestExecution] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegBestExecutionRows
+   }
+
+   regreporting::TransactionCostDisclosure[regTransactionCost] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegTransactionCostRows
+   }
+
+   regreporting::LiquidityCoverageReport[regLiquidityCoverage] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegLiquidityCoverageRows
+   }
+
+   regreporting::NetStableFundingReport[regNetStableFunding] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegNetStableFundingRows
+   }
+
+   regreporting::LargeExposureReport[regLargeExposure] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegLargeExposureRows
+   }
+
+   regreporting::FrtbMarketRiskReport[regFrtbMarketRisk] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegFrtbMarketRiskRows
+   }
+
+   regreporting::CvaCapitalReport[regCvaCapital] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegCvaCapitalRows
+   }
+
+   regreporting::LeverageRatioReport[regLeverageRatio] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegLeverageRatioRows
+   }
+
+   regreporting::PillarThreeDisclosure[regPillar3] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegPillar3Rows
+   }
+
+   regreporting::RecoveryResolutionSubmission[regRecoveryResolution] extends [regreportingBase]: Relational
+   {
+      ~filter [store::DB]RegRecoveryResolutionRows
+   }
+)

@@ -34,6 +34,9 @@ TAXONOMIES = [
     ("corpactions::CorporateActionEvent", "actionType", "TXC"),
     ("securities::MasterSecurity", "securityType", "TXM"),
     ("orders::OrderTicket", "orderType", "TXO"),
+    ("limits::RiskLimitDefinition", "limitType", "LIMX"),
+    ("regreporting::RegulatorySubmission", "reportType", "REGX"),
+    ("collateraltypes::CollateralHolding", "collateralType", "COLX"),
 ]
 
 # What each subtype service STACKS on top of the discriminator.
@@ -98,6 +101,24 @@ EXTRAS = {
         ("faceValue", ["faceValue"], None, []),
         ("isListed", ["isListed"], None, []),
     ],
+    "collateraltypes::CollateralHolding": [
+        ("collateralValue", ["collateralValue"], None, []),
+        ("haircutPct", ["haircutPct"], None, []),
+        ("custodian", ["custodian"], None, []),
+        ("isEligible", ["isEligible"], None, []),
+    ],
+    "regreporting::RegulatorySubmission": [
+        ("ackHours", ["ackHours"], None, []),
+        ("authority", ["authority"], None, []),
+        ("recordCount", ["recordCount"], None, []),
+        ("rejectionReason", ["rejectionReason"], None, []),
+    ],
+    "limits::RiskLimitDefinition": [
+        ("headroom", ["headroom"], None, []),
+        ("scope", ["scope"], None, []),
+        ("utilisation", ["utilisation"], None, []),
+        ("breachedOn", ["breachedOn"], None, []),
+    ],
     "orders::OrderTicket": [
         ("fillRatio", ["fillRatio"], None, []),
         ("side", ["side"], None, []),
@@ -118,6 +139,9 @@ IDENT = {
     "corpactions::CorporateActionEvent": "actionId",
     "securities::MasterSecurity": "securityKey",
     "orders::OrderTicket": "ticketId",
+    "limits::RiskLimitDefinition": "limitId",
+    "regreporting::RegulatorySubmission": "submissionId",
+    "collateraltypes::CollateralHolding": "holdingId",
 }
 
 

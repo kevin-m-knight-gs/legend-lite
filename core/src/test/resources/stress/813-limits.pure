@@ -1,0 +1,271 @@
+###Pure
+// Limits: what a desk may not exceed, what it is using, and who approved the excess.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class limits::RiskLimitDefinition
+{
+   limitId: String[1];
+   limitType: String[1];
+   scope: String[1];
+   scopeValue: String[1];
+   limitAmount: Float[1];
+   utilisation: Float[1];
+   currency: String[1];
+   effectiveFrom: StrictDate[1];
+   approvedBy: String[1];
+   breachedOn: StrictDate[0..1];
+   isHard: Boolean[1];
+
+   // Headroom left. Negative means a breach, which is why this is not clamped:
+   // a limit report that shows zero for every breach tells nobody how bad it is.
+   headroom() { $this.limitAmount - $this.utilisation } : Float[1];
+}
+
+// A cap on gross notional. Crude and easy to monitor.
+Class limits::NotionalLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on rate sensitivity, which is what a rates desk is actually run on.
+Class limits::Dv01Limit extends limits::RiskLimitDefinition
+{
+}
+
+// Credit spread sensitivity.
+Class limits::Cs01Limit extends limits::RiskLimitDefinition
+{
+}
+
+// Volatility exposure.
+Class limits::VegaLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on value at risk.
+Class limits::VarLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on the loss under a named scenario.
+Class limits::StressLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on exposure to one name or sector.
+Class limits::ConcentrationLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on exposure to one counterparty.
+Class limits::CounterpartyCreditLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on what can settle on one day with one name.
+Class limits::SettlementLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap across every instrument of one issuer.
+Class limits::IssuerLimit extends limits::RiskLimitDefinition
+{
+}
+
+// Sovereign and transfer risk.
+Class limits::CountryLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on an industry.
+Class limits::SectorLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on exposure beyond a maturity.
+Class limits::TenorLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on illiquid positions.
+Class limits::LiquidityLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cumulative loss trigger rather than an exposure cap.
+Class limits::StopLossLimit extends limits::RiskLimitDefinition
+{
+}
+
+// Peak-to-trough loss.
+Class limits::DrawdownLimit extends limits::RiskLimitDefinition
+{
+}
+
+// What may be carried overnight, usually tighter than intraday.
+Class limits::OvernightPositionLimit extends limits::RiskLimitDefinition
+{
+}
+
+// The wider daytime cap.
+Class limits::IntradayPositionLimit extends limits::RiskLimitDefinition
+{
+}
+
+// Longs plus shorts, before netting.
+Class limits::GrossPositionLimit extends limits::RiskLimitDefinition
+{
+}
+
+// After netting, which can hide a large gross book.
+Class limits::NetPositionLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on balance-sheet usage.
+Class limits::LeverageLimit extends limits::RiskLimitDefinition
+{
+}
+
+// A cap on regulatory capital consumed.
+Class limits::CapitalUsageLimit extends limits::RiskLimitDefinition
+{
+}
+
+###Mapping
+Mapping limits::LimitsMapping
+(
+   *limits::RiskLimitDefinition[limitsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RISK_LIMIT_DEF.LIMIT_ID )
+      ~mainTable [store::DB]RISK_LIMIT_DEF
+      limitId: [store::DB]RISK_LIMIT_DEF.LIMIT_ID,
+      limitType: [store::DB]RISK_LIMIT_DEF.LIMIT_TYPE,
+      scope: [store::DB]RISK_LIMIT_DEF.SCOPE,
+      scopeValue: [store::DB]RISK_LIMIT_DEF.SCOPE_VALUE,
+      limitAmount: [store::DB]RISK_LIMIT_DEF.LIMIT_AMOUNT,
+      utilisation: [store::DB]RISK_LIMIT_DEF.UTILISATION,
+      currency: [store::DB]RISK_LIMIT_DEF.CURRENCY,
+      effectiveFrom: [store::DB]RISK_LIMIT_DEF.EFFECTIVE_FROM,
+      approvedBy: [store::DB]RISK_LIMIT_DEF.APPROVED_BY,
+      breachedOn: [store::DB]RISK_LIMIT_DEF.BREACHED_ON,
+      isHard: [store::DB]RISK_LIMIT_DEF.IS_HARD
+   }
+
+   limits::NotionalLimit[limNotionalLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimNotionalLimitRows
+   }
+
+   limits::Dv01Limit[limDv01Limit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimDv01LimitRows
+   }
+
+   limits::Cs01Limit[limCs01Limit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimCs01LimitRows
+   }
+
+   limits::VegaLimit[limVegaLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimVegaLimitRows
+   }
+
+   limits::VarLimit[limVarLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimVarLimitRows
+   }
+
+   limits::StressLimit[limStressLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimStressLimitRows
+   }
+
+   limits::ConcentrationLimit[limConcentrationLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimConcentrationLimitRows
+   }
+
+   limits::CounterpartyCreditLimit[limCounterpartyLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimCounterpartyLimitRows
+   }
+
+   limits::SettlementLimit[limSettlementLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimSettlementLimitRows
+   }
+
+   limits::IssuerLimit[limIssuerLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimIssuerLimitRows
+   }
+
+   limits::CountryLimit[limCountryLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimCountryLimitRows
+   }
+
+   limits::SectorLimit[limSectorLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimSectorLimitRows
+   }
+
+   limits::TenorLimit[limTenorLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimTenorLimitRows
+   }
+
+   limits::LiquidityLimit[limLiquidityLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimLiquidityLimitRows
+   }
+
+   limits::StopLossLimit[limStopLoss] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimStopLossRows
+   }
+
+   limits::DrawdownLimit[limDrawdownLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimDrawdownLimitRows
+   }
+
+   limits::OvernightPositionLimit[limOvernightLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimOvernightLimitRows
+   }
+
+   limits::IntradayPositionLimit[limIntradayLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimIntradayLimitRows
+   }
+
+   limits::GrossPositionLimit[limGrossLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimGrossLimitRows
+   }
+
+   limits::NetPositionLimit[limNetLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimNetLimitRows
+   }
+
+   limits::LeverageLimit[limLeverageLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimLeverageLimitRows
+   }
+
+   limits::CapitalUsageLimit[limCapitalLimit] extends [limitsBase]: Relational
+   {
+      ~filter [store::DB]LimCapitalLimitRows
+   }
+)

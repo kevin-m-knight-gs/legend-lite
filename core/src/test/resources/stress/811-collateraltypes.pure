@@ -1,0 +1,228 @@
+###Pure
+// Collateral: what has actually been pledged, and under what haircut.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class collateraltypes::CollateralHolding
+{
+   holdingId: String[1];
+   collateralType: String[1];
+   counterpartyId: String[1];
+   marketValue: Float[1];
+   haircutPct: Float[1];
+   currency: String[1];
+   valuationDate: StrictDate[1];
+   isEligible: Boolean[1];
+   custodian: String[0..1];
+   maturityDate: StrictDate[0..1];
+
+   // Value after haircut, which is what actually counts against the exposure.
+   collateralValue() { $this.marketValue * (100.0 - $this.haircutPct) / 100.0 } : Float[1];
+}
+
+// Cash in dollars. The cheapest to deliver and the default under most CSAs.
+Class collateraltypes::UsdCashCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Cash in euros, with its own rate of remuneration.
+Class collateraltypes::EurCashCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Cash in sterling.
+Class collateraltypes::GbpCashCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Treasuries, haircut by maturity bucket.
+Class collateraltypes::UsTreasuryCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Bunds, the European high-quality benchmark.
+Class collateraltypes::GermanBundCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Gilts, and the 2022 crisis is why the haircut is watched.
+Class collateraltypes::GiltCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Japanese government bonds.
+Class collateraltypes::JgbCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// EIB, World Bank and similar. Treated close to sovereign.
+Class collateraltypes::SupranationalCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Agency mortgage paper, with prepayment adding to the haircut.
+Class collateraltypes::AgencyMbsCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Investment-grade corporates, haircut by rating.
+Class collateraltypes::InvestmentGradeCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// High yield, accepted rarely and haircut hard.
+Class collateraltypes::HighYieldCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Large-cap index constituents only.
+Class collateraltypes::IndexEquityCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Single names, with concentration limits.
+Class collateraltypes::SingleNameEquityCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Fund units, which raise a same-day liquidity question.
+Class collateraltypes::MoneyMarketFundCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Allocated bullion. Rare, and operationally awkward.
+Class collateraltypes::GoldCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// A bank guarantee rather than an asset.
+Class collateraltypes::LetterOfCreditCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Dual recourse, so a lower haircut than senior unsecured.
+Class collateraltypes::CoveredBondCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+// Structured paper, accepted only under bespoke annexes.
+Class collateraltypes::AssetBackedCollateral extends collateraltypes::CollateralHolding
+{
+}
+
+###Mapping
+Mapping collateraltypes::CollateraltypesMapping
+(
+   *collateraltypes::CollateralHolding[collateraltypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]COLLATERAL_TYPE_HOLDING.HOLDING_ID )
+      ~mainTable [store::DB]COLLATERAL_TYPE_HOLDING
+      holdingId: [store::DB]COLLATERAL_TYPE_HOLDING.HOLDING_ID,
+      collateralType: [store::DB]COLLATERAL_TYPE_HOLDING.COLLATERAL_TYPE,
+      counterpartyId: [store::DB]COLLATERAL_TYPE_HOLDING.COUNTERPARTY_ID,
+      marketValue: [store::DB]COLLATERAL_TYPE_HOLDING.MARKET_VALUE,
+      haircutPct: [store::DB]COLLATERAL_TYPE_HOLDING.HAIRCUT_PCT,
+      currency: [store::DB]COLLATERAL_TYPE_HOLDING.CURRENCY,
+      valuationDate: [store::DB]COLLATERAL_TYPE_HOLDING.VALUATION_DATE,
+      isEligible: [store::DB]COLLATERAL_TYPE_HOLDING.IS_ELIGIBLE,
+      custodian: [store::DB]COLLATERAL_TYPE_HOLDING.CUSTODIAN,
+      maturityDate: [store::DB]COLLATERAL_TYPE_HOLDING.MATURITY_DATE
+   }
+
+   collateraltypes::UsdCashCollateral[colCashUsd] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColCashUsdRows
+   }
+
+   collateraltypes::EurCashCollateral[colCashEur] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColCashEurRows
+   }
+
+   collateraltypes::GbpCashCollateral[colCashGbp] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColCashGbpRows
+   }
+
+   collateraltypes::UsTreasuryCollateral[colGovtBondUs] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColGovtBondUsRows
+   }
+
+   collateraltypes::GermanBundCollateral[colGovtBondDe] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColGovtBondDeRows
+   }
+
+   collateraltypes::GiltCollateral[colGovtBondUk] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColGovtBondUkRows
+   }
+
+   collateraltypes::JgbCollateral[colGovtBondJp] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColGovtBondJpRows
+   }
+
+   collateraltypes::SupranationalCollateral[colSupranational] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColSupranationalRows
+   }
+
+   collateraltypes::AgencyMbsCollateral[colAgencyMbs] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColAgencyMbsRows
+   }
+
+   collateraltypes::InvestmentGradeCollateral[colCorporateIg] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColCorporateIgRows
+   }
+
+   collateraltypes::HighYieldCollateral[colCorporateHy] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColCorporateHyRows
+   }
+
+   collateraltypes::IndexEquityCollateral[colEquityIndex] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColEquityIndexRows
+   }
+
+   collateraltypes::SingleNameEquityCollateral[colEquitySingle] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColEquitySingleRows
+   }
+
+   collateraltypes::MoneyMarketFundCollateral[colMoneyMarketFund] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColMoneyMarketFundRows
+   }
+
+   collateraltypes::GoldCollateral[colGold] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColGoldRows
+   }
+
+   collateraltypes::LetterOfCreditCollateral[colLetterOfCredit] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColLetterOfCreditRows
+   }
+
+   collateraltypes::CoveredBondCollateral[colCoveredBondColl] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColCoveredBondCollRows
+   }
+
+   collateraltypes::AssetBackedCollateral[colAbsColl] extends [collateraltypesBase]: Relational
+   {
+      ~filter [store::DB]ColAbsCollRows
+   }
+)
