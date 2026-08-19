@@ -32,6 +32,7 @@ Mapping stress::AllMapping
     include fixedincome::FixedIncomeMapping
     include derivatives::OtcMapping
     include risk::MarketRiskMapping
+    include middleoffice::MiddleOfficeMapping
     include clearing::ClearingMapping
     include tax::TaxMapping
     include research::ResearchMapping

@@ -492,7 +492,20 @@ def _date_diff(vals):
         raise Unsupported(
             f"dateDiff in {unit} is not implemented: a month and a year are not fixed "
             f"lengths, so the answer depends on a convention the signature does not state")
-    return int((b - a).total_seconds() / 86400 / _FIXED_UNITS[unit])
+    # BOUNDARY COUNTING, not elapsed complete units. `dateDiff` follows the SQL DATEDIFF
+    # convention: truncate both operands to the unit and subtract, so 14:30 to 10:02 seven
+    # days later is 164 hours -- the number of hour boundaries crossed -- and not the 163
+    # complete hours that actually elapsed.
+    #
+    # The two agree whenever both operands are already on a unit boundary, which is why every
+    # date-level case in this corpus agreed for months and a confirmation sent at half past
+    # the hour was the first to disagree. Elapsed-time was my reading; boundary counting is
+    # the documented one, and where a convention is not fixed by the signature the documented
+    # reading wins.
+    step = _FIXED_UNITS[unit] * 86400
+    trunc_a = int(a.timestamp() // step)
+    trunc_b = int(b.timestamp() // step)
+    return trunc_b - trunc_a
 
 
 def _adjust(vals):
@@ -1504,6 +1517,15 @@ def _column_projections_from_root(rows, relation, columns, distinct=None, limit=
 
 
 REFUSED = {
+    # Implemented as Java's String.hashCode -- published, fixed, relied on by serialisation
+    # formats -- and the engine answers -9202738828889248291 for 'alpha' where Java answers
+    # 92909918. A 64-bit hash, and not one the signature names. So the original refusal was
+    # right for the wrong reason: not "hashing is implementation-defined by design" but
+    # "THIS implementation's algorithm is not stated anywhere I can check, and reproducing it
+    # from the answer would be curve-fitting rather than an independent implementation".
+    "hashCode": "the engine returns a 64-bit hash that is not Java's String.hashCode, and "
+                "the algorithm is not named by the signature or the docs -- implementing it "
+                "from observed output would be fitting the oracle to the engine",
     # ---- not computations ------------------------------------------------------------
     # Clock-reading: the answer changes between the oracle's call and the engine's.
 }
@@ -1658,7 +1680,7 @@ IMPL.update({
     "regexpExtract": _regex("regexpExtract"),
     "regexpReplace": _regex("regexpReplace"),
     "hash": _hash,
-    "hashCode": lambda vals: (None if vals[0] is None else _java_hash_code(vals[0])),
+
     "jaroWinklerSimilarity": _jaro_winkler,
     "parseDate": _parse_date,
     "convertTimeZone": _convert_timezone,

@@ -2501,6 +2501,364 @@ Service stress::MR5_StressResults
   ]
 }
 
+Service stress::MO0_LifecycleBlotter
+{
+    pattern: '/stress/mo0';
+    documentation: 'Every lifecycle event with its settlement lag and the trade it belongs to. Which columns are populated depends on the event type: a reset has a fixing and no notional change, a compression the reverse.';
+    execution: Single
+    {
+    query: |middleoffice::LifecycleEvent.all()
+        ->project(~[
+            eventId:x|$x.eventId,
+            eventType:x|$x.eventType,
+            status:x|$x.status,
+            notionalDelta:x|$x.notionalDelta,
+            fixingRate:x|$x.fixingRate,
+            cashFlow:x|$x.cashFlow,
+            settlementLagDays:x|$x.settlementLagDays,
+            productType:x|$x.eventTrade.productType
+        ])
+        ->sort(~eventId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MO0_LifecycleBlotter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"eventId":"EVT-000001","eventType":"NEW_TRADE","status":"COMPLETE","notionalDelta":null,"fixingRate":null,"cashFlow":null,"settlementLagDays":4,"productType":"IRS"},{"eventId":"EVT-000002","eventType":"RATE_RESET","status":"COMPLETE","notionalDelta":null,"fixingRate":5.3312,"cashFlow":666400.0,"settlementLagDays":0,"productType":"IRS"},{"eventId":"EVT-000003","eventType":"PARTIAL_TERMINATION","status":"COMPLETE","notionalDelta":-10000000.0,"fixingRate":null,"cashFlow":-84500.0,"settlementLagDays":4,"productType":"IRS"},{"eventId":"EVT-000004","eventType":"AMENDMENT","status":"COMPLETE","notionalDelta":null,"fixingRate":null,"cashFlow":null,"settlementLagDays":0,"productType":"BASIS_SWAP"},{"eventId":"EVT-000005","eventType":"CREDIT_EVENT","status":"PENDING","notionalDelta":null,"fixingRate":null,"cashFlow":null,"settlementLagDays":0,"productType":"CDS"},{"eventId":"EVT-000006","eventType":"NOVATION","status":"COMPLETE","notionalDelta":null,"fixingRate":null,"cashFlow":null,"settlementLagDays":2,"productType":"EQUITY_SWAP"},{"eventId":"EVT-000007","eventType":"COMPRESSION","status":"COMPLETE","notionalDelta":-5000000.0,"fixingRate":null,"cashFlow":null,"settlementLagDays":3,"productType":"OIS"},{"eventId":"EVT-000008","eventType":"EXERCISE","status":"PENDING","notionalDelta":null,"fixingRate":null,"cashFlow":null,"settlementLagDays":2,"productType":"SWAPTION"},{"eventId":"EVT-000009","eventType":"FULL_TERMINATION","status":"CANCELLED","notionalDelta":-8000000.0,"fixingRate":null,"cashFlow":112000.0,"settlementLagDays":4,"productType":"COMMODITY_SWAP"},{"eventId":"EVT-000010","eventType":"INCREASE","status":"COMPLETE","notionalDelta":50000000.0,"fixingRate":null,"cashFlow":null,"settlementLagDays":2,"productType":"CDS_INDEX"},{"eventId":"EVT-000011","eventType":"RATE_RESET","status":"COMPLETE","notionalDelta":null,"fixingRate":3.871,"cashFlow":725812.5,"settlementLagDays":0,"productType":"BASIS_SWAP"},{"eventId":"EVT-000012","eventType":"FIXING","status":"COMPLETE","notionalDelta":null,"fixingRate":1372.45,"cashFlow":null,"settlementLagDays":2,"productType":"NDF"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MO1_RateResets
+{
+    pattern: '/stress/mo1';
+    documentation: 'Rate resets only: the events that produce a cash flow from a fixing without changing the notional. Two of twelve events.';
+    execution: Single
+    {
+    query: |middleoffice::RateResetEvent.all()
+        ->project(~[
+            eventId:x|$x.eventId,
+            effectiveDate:x|$x.effectiveDate,
+            fixingRate:x|$x.fixingRate,
+            cashFlow:x|$x.cashFlow
+        ])
+        ->sort(~eventId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MO1_RateResets_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"eventId":"EVT-000002","effectiveDate":"2024-06-19","fixingRate":5.3312,"cashFlow":666400.0},{"eventId":"EVT-000011","effectiveDate":"2024-05-12","fixingRate":3.871,"cashFlow":725812.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MO2_Confirmations
+{
+    pattern: '/stress/mo2';
+    documentation: 'Confirmations with hours to match. The outstanding and disputed ones have no match time, so the duration is null rather than large -- which is the distinction an ageing report has to keep.';
+    execution: Single
+    {
+    query: |middleoffice::Confirmation.all()
+        ->project(~[
+            confirmationId:x|$x.confirmationId,
+            method:x|$x.method,
+            platform:x|$x.platform,
+            status:x|$x.status,
+            chaseCount:x|$x.chaseCount,
+            hoursToMatch:x|$x.hoursToMatch,
+            counterpartyId:x|$x.confirmedTrade.counterpartyId
+        ])
+        ->sort(~confirmationId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MO2_Confirmations_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"confirmationId":"CNF-00001","method":"ELECTRONIC","platform":"MarkitWire","status":"MATCHED","chaseCount":0,"hoursToMatch":0,"counterpartyId":"CP-0001"},{"confirmationId":"CNF-00002","method":"ELECTRONIC","platform":"MarkitWire","status":"MATCHED","chaseCount":0,"hoursToMatch":0,"counterpartyId":"CP-0001"},{"confirmationId":"CNF-00003","method":"PAPER","platform":null,"status":"OUTSTANDING","chaseCount":3,"hoursToMatch":null,"counterpartyId":"CP-0002"},{"confirmationId":"CNF-00004","method":"ELECTRONIC","platform":"DTCC","status":"DISPUTED","chaseCount":2,"hoursToMatch":null,"counterpartyId":"CP-0004"},{"confirmationId":"CNF-00005","method":"EMAIL","platform":null,"status":"MATCHED","chaseCount":5,"hoursToMatch":164,"counterpartyId":"CP-0005"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MO3_BreakAgeing
+{
+    pattern: '/stress/mo3';
+    documentation: 'Break ageing with the disputed field and both sides\' values. A confirmation break has no single field in dispute, so those columns are null for it.';
+    execution: Single
+    {
+    query: |middleoffice::TradeBreak.all()
+        ->project(~[
+            breakId:x|$x.breakId,
+            breakType:x|$x.breakType,
+            severity:x|$x.severity,
+            status:x|$x.status,
+            ageDays:x|$x.ageDays,
+            resolvedDate:x|$x.resolvedDate,
+            fieldName:x|$x.fieldName,
+            ourValue:x|$x.ourValue,
+            theirValue:x|$x.theirValue
+        ])
+        ->sort(~breakId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MO3_BreakAgeing_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"breakId":"BRK-00001","breakType":"ECONOMIC_BREAK","severity":"HIGH","status":"OPEN","ageDays":51,"resolvedDate":null,"fieldName":"STRIKE","ourValue":"1.0850","theirValue":"1.0855"},{"breakId":"BRK-00002","breakType":"CONFIRMATION_BREAK","severity":"MEDIUM","status":"OPEN","ageDays":144,"resolvedDate":null,"fieldName":null,"ourValue":null,"theirValue":null},{"breakId":"BRK-00003","breakType":"SETTLEMENT_BREAK","severity":"LOW","status":"RESOLVED","ageDays":4,"resolvedDate":"2024-02-06","fieldName":"SETTLEMENT_DATE","ourValue":"2024-02-01","theirValue":"2024-02-02"},{"breakId":"BRK-00004","breakType":"REFERENCE_DATA_BREAK","severity":"LOW","status":"RESOLVED","ageDays":3,"resolvedDate":"2024-03-25","fieldName":"REFERENCE_ENTITY","ourValue":"RED-8G836G","theirValue":"RED-8G836H"},{"breakId":"BRK-00005","breakType":"VALUATION_BREAK","severity":"HIGH","status":"ESCALATED","ageDays":2,"resolvedDate":null,"fieldName":"MTM","ourValue":"-482150.00","theirValue":"-511900.00"},{"breakId":"BRK-00006","breakType":"COLLATERAL_BREAK","severity":"MEDIUM","status":"OPEN","ageDays":1,"resolvedDate":null,"fieldName":"MARGIN_CALL","ourValue":"1250000.00","theirValue":"1180000.00"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MO4_BreaksBySeverity
+{
+    pattern: '/stress/mo4';
+    documentation: 'Breaks by severity and status: the daily ops call\'s first slide.';
+    execution: Single
+    {
+    query: |middleoffice::TradeBreak.all()
+        ->project(~[
+            severity:x|$x.severity,
+            status:x|$x.status,
+            ageDays:x|$x.ageDays
+        ])
+        ->groupBy(~[severity, status], ~[
+            breakCount: x|$x.ageDays : agg|$agg->count(),
+            oldestDays: x|$x.ageDays : agg|$agg->max(),
+            totalDays: x|$x.ageDays : agg|$agg->sum()
+        ])
+        ->sort(~severity->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MO4_BreaksBySeverity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"severity":"HIGH","status":"OPEN","breakCount":1,"oldestDays":51,"totalDays":51},{"severity":"HIGH","status":"ESCALATED","breakCount":1,"oldestDays":2,"totalDays":2},{"severity":"LOW","status":"RESOLVED","breakCount":2,"oldestDays":4,"totalDays":7},{"severity":"MEDIUM","status":"OPEN","breakCount":2,"oldestDays":144,"totalDays":145}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MO5_CleanTrades
+{
+    pattern: '/stress/mo5';
+    documentation: 'Trades with no break against them. Emptiness over a to-many where the empty side is the good outcome and the common one.';
+    execution: Single
+    {
+    query: |derivatives::OtcTrade.all()
+        ->project(~[
+            otcId:x|$x.otcId,
+            productType:x|$x.productType,
+            noBreaks:x|$x.breaks->isEmpty(),
+            noEvents:x|$x.lifecycleEvents->isEmpty()
+        ])
+        ->sort(~otcId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MO5_CleanTrades_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 15 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","productType":"IRS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000002","productType":"OIS","noBreaks":true,"noEvents":false},{"otcId":"OTC-000003","productType":"BASIS_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000004","productType":"FRA","noBreaks":true,"noEvents":true},{"otcId":"OTC-000005","productType":"SWAPTION","noBreaks":false,"noEvents":false},{"otcId":"OTC-000006","productType":"CAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000007","productType":"CDS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000008","productType":"CDS_INDEX","noBreaks":true,"noEvents":false},{"otcId":"OTC-000009","productType":"NDF","noBreaks":true,"noEvents":false},{"otcId":"OTC-000010","productType":"FX_OPTION","noBreaks":false,"noEvents":true},{"otcId":"OTC-000011","productType":"EQUITY_SWAP","noBreaks":true,"noEvents":false},{"otcId":"OTC-000012","productType":"VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000013","productType":"COMMODITY_SWAP","noBreaks":false,"noEvents":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -4257,9 +4615,9 @@ Service stress::D_TradeDense
   ]
 }
 
-Service stress::D_ConfirmationDense
+Service stress::D_OpsConfirmationDense
 {
-    pattern: '/stress/d_confirmation';
+    pattern: '/stress/d_opsconfirmation';
     documentation: 'Dense stack on ops::Confirmation: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -4281,7 +4639,7 @@ Service stress::D_ConfirmationDense
     }
   testSuites:
   [
-    D_ConfirmationDense_suite:
+    D_OpsConfirmationDense_suite:
     {
       data:
       [
@@ -6066,9 +6424,9 @@ Service stress::D_InstrumentRatingDense
   ]
 }
 
-Service stress::D_OptionDense
+Service stress::D_ProductsOptionDense
 {
-    pattern: '/stress/d_option';
+    pattern: '/stress/d_productsoption';
     documentation: 'Dense stack on products::Option: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
@@ -6087,7 +6445,7 @@ Service stress::D_OptionDense
     }
   testSuites:
   [
-    D_OptionDense_suite:
+    D_ProductsOptionDense_suite:
     {
       data:
       [
@@ -7729,28 +8087,29 @@ Service stress::D_SwapLegDense
   ]
 }
 
-Service stress::D_ScenarioResultDense
+Service stress::D_MiddleofficeConfirmationDense
 {
-    pattern: '/stress/d_scenarioresult';
-    documentation: 'Dense stack on risk::ScenarioResult: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    pattern: '/stress/d_middleofficeconfirmation';
+    documentation: 'Dense stack on middleoffice::Confirmation: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |risk::ScenarioResult.all()
-        ->filter({x|($x.currency > ' ')})
+    query: |middleoffice::Confirmation.all()
+        ->filter({x|($x.status > ' ')})
         ->project(~[
-            resultId:x|$x.resultId,
-            scenarioRunStatus:x|$x.scenarioRun.status,
-            scenarioScenarioId:x|$x.scenario.scenarioId,
-            scenarioRunDurationMinutes:x|$x.scenarioRun.durationMinutes
+            confirmationId:x|$x.confirmationId,
+            confirmedTradeOptionTermsOptionTradeCurrency:x|$x.confirmedTrade.optionTerms.optionTrade.currency,
+            confirmedTradeOptionTermsBarrierType:x|$x.confirmedTrade.optionTerms.barrierType,
+            hoursToMatch:x|$x.hoursToMatch,
+            confirmedTradeOptionTermsOptionTradeNotionalInQ:x|$x.confirmedTrade.optionTerms.optionTrade.notionalIn(0.5)
         ])
-        ->sort(~resultId->ascending())
+        ->sort(~confirmationId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D_ScenarioResultDense_suite:
+    D_MiddleofficeConfirmationDense_suite:
     {
       data:
       [
@@ -7765,7 +8124,7 @@ Service stress::D_ScenarioResultDense
       ]
       tests:
       [
-        // 10 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -7778,7 +8137,127 @@ Service stress::D_ScenarioResultDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"resultId":"SCNR-00001","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-LEHMAN","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00002","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-COVID","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00003","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-GILT","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00004","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-PAR-200BP","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00005","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-STEEP","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00006","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-LEHMAN","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00007","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-COVID","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00008","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-GILT","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00009","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-PAR-200BP","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00010","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-STEEP","scenarioRunDurationMinutes":87}]';
+                    data: '[{"confirmationId":"CNF-00001","confirmedTradeOptionTermsOptionTradeCurrency":null,"confirmedTradeOptionTermsBarrierType":null,"hoursToMatch":0,"confirmedTradeOptionTermsOptionTradeNotionalInQ":null},{"confirmationId":"CNF-00002","confirmedTradeOptionTermsOptionTradeCurrency":null,"confirmedTradeOptionTermsBarrierType":null,"hoursToMatch":0,"confirmedTradeOptionTermsOptionTradeNotionalInQ":null},{"confirmationId":"CNF-00003","confirmedTradeOptionTermsOptionTradeCurrency":"USD","confirmedTradeOptionTermsBarrierType":null,"hoursToMatch":null,"confirmedTradeOptionTermsOptionTradeNotionalInQ":20000000.0},{"confirmationId":"CNF-00004","confirmedTradeOptionTermsOptionTradeCurrency":"EUR","confirmedTradeOptionTermsBarrierType":"UP_AND_OUT","hoursToMatch":null,"confirmedTradeOptionTermsOptionTradeNotionalInQ":7500000.0},{"confirmationId":"CNF-00005","confirmedTradeOptionTermsOptionTradeCurrency":null,"confirmedTradeOptionTermsBarrierType":null,"hoursToMatch":164,"confirmedTradeOptionTermsOptionTradeNotionalInQ":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_LifecycleEventDense
+{
+    pattern: '/stress/d_lifecycleevent';
+    documentation: 'Dense stack on middleoffice::LifecycleEvent: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |middleoffice::LifecycleEvent.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            eventId:x|$x.eventId,
+            eventTradeOptionTermsOptionTradeCurrency:x|$x.eventTrade.optionTerms.optionTrade.currency,
+            eventTradeOptionTermsBarrierType:x|$x.eventTrade.optionTerms.barrierType,
+            settlementLagDays:x|$x.settlementLagDays,
+            eventTradeOptionTermsOptionTradeNotionalInQ:x|$x.eventTrade.optionTerms.optionTrade.notionalIn(0.5)
+        ])
+        ->sort(~eventId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_LifecycleEventDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"eventId":"EVT-000001","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":4,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000002","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":0,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000003","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":4,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000004","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":0,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000005","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":0,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000006","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":2,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000007","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":3,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000008","eventTradeOptionTermsOptionTradeCurrency":"USD","eventTradeOptionTermsBarrierType":null,"settlementLagDays":2,"eventTradeOptionTermsOptionTradeNotionalInQ":20000000.0},{"eventId":"EVT-000009","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":4,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000010","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":2,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000011","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":0,"eventTradeOptionTermsOptionTradeNotionalInQ":null},{"eventId":"EVT-000012","eventTradeOptionTermsOptionTradeCurrency":null,"eventTradeOptionTermsBarrierType":null,"settlementLagDays":2,"eventTradeOptionTermsOptionTradeNotionalInQ":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_TradeBreakDense
+{
+    pattern: '/stress/d_tradebreak';
+    documentation: 'Dense stack on middleoffice::TradeBreak: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |middleoffice::TradeBreak.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            breakId:x|$x.breakId,
+            brokenTradeOptionTermsOptionTradeCurrency:x|$x.brokenTrade.optionTerms.optionTrade.currency,
+            brokenTradeOptionTermsBarrierType:x|$x.brokenTrade.optionTerms.barrierType,
+            brokenTradeOptionTermsOptionTradeTenorYears:x|$x.brokenTrade.optionTerms.optionTrade.tenorYears,
+            brokenTradeOptionTermsOptionTradeNotionalInQ:x|$x.brokenTrade.optionTerms.optionTrade.notionalIn(0.5)
+        ])
+        ->sort(~breakId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_TradeBreakDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"breakId":"BRK-00001","brokenTradeOptionTermsOptionTradeCurrency":"EUR","brokenTradeOptionTermsBarrierType":"UP_AND_OUT","brokenTradeOptionTermsOptionTradeTenorYears":1.0,"brokenTradeOptionTermsOptionTradeNotionalInQ":7500000.0},{"breakId":"BRK-00002","brokenTradeOptionTermsOptionTradeCurrency":"USD","brokenTradeOptionTermsBarrierType":null,"brokenTradeOptionTermsOptionTradeTenorYears":5.002739726027397,"brokenTradeOptionTermsOptionTradeNotionalInQ":20000000.0},{"breakId":"BRK-00003","brokenTradeOptionTermsOptionTradeCurrency":null,"brokenTradeOptionTermsBarrierType":null,"brokenTradeOptionTermsOptionTradeTenorYears":null,"brokenTradeOptionTermsOptionTradeNotionalInQ":null},{"breakId":"BRK-00004","brokenTradeOptionTermsOptionTradeCurrency":null,"brokenTradeOptionTermsBarrierType":null,"brokenTradeOptionTermsOptionTradeTenorYears":null,"brokenTradeOptionTermsOptionTradeNotionalInQ":null},{"breakId":"BRK-00005","brokenTradeOptionTermsOptionTradeCurrency":null,"brokenTradeOptionTermsBarrierType":null,"brokenTradeOptionTermsOptionTradeTenorYears":null,"brokenTradeOptionTermsOptionTradeNotionalInQ":null},{"breakId":"BRK-00006","brokenTradeOptionTermsOptionTradeCurrency":null,"brokenTradeOptionTermsBarrierType":null,"brokenTradeOptionTermsOptionTradeTenorYears":null,"brokenTradeOptionTermsOptionTradeNotionalInQ":null}]';
                   }#;
               }#
           ]
@@ -8101,9 +8580,9 @@ Service stress::GG_PositionTree
   ]
 }
 
-Service stress::GG_InstrumentTree
+Service stress::GG_ProductsInstrumentTree
 {
-    pattern: '/stress/gg_instrument';
+    pattern: '/stress/gg_productsinstrument';
     documentation: 'Generated graph fetch on products::Instrument: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
     execution: Single
     {
@@ -8175,7 +8654,7 @@ Service stress::GG_InstrumentTree
     }
   testSuites:
   [
-    GG_InstrumentTree_suite:
+    GG_ProductsInstrumentTree_suite:
     {
       data:
       [
@@ -11803,9 +12282,9 @@ Service stress::GG_BeneficialOwnerTree
   ]
 }
 
-Service stress::GG_ContactTree
+Service stress::GG_CounterpartyContactTree
 {
-    pattern: '/stress/gg_contact';
+    pattern: '/stress/gg_counterpartycontact';
     documentation: 'Generated graph fetch on counterparty::Contact: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
     execution: Single
     {
@@ -11855,7 +12334,7 @@ Service stress::GG_ContactTree
     }
   testSuites:
   [
-    GG_ContactTree_suite:
+    GG_CounterpartyContactTree_suite:
     {
       data:
       [
@@ -11892,9 +12371,9 @@ Service stress::GG_ContactTree
   ]
 }
 
-Service stress::GG_CounterpartyTree
+Service stress::GG_CounterpartyCounterpartyTree
 {
-    pattern: '/stress/gg_counterparty';
+    pattern: '/stress/gg_counterpartycounterparty';
     documentation: 'Generated graph fetch on counterparty::Counterparty: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
     execution: Single
     {
@@ -11934,7 +12413,7 @@ Service stress::GG_CounterpartyTree
     }
   testSuites:
   [
-    GG_CounterpartyTree_suite:
+    GG_CounterpartyCounterpartyTree_suite:
     {
       data:
       [
@@ -13266,49 +13745,49 @@ Service stress::GG_ImpliedVolPointTree
   ]
 }
 
-Service stress::GG_BreakResolutionTree
+Service stress::GG_MiddleofficeConfirmationTree
 {
-    pattern: '/stress/gg_breakresolution';
-    documentation: 'Generated graph fetch on ops::BreakResolution: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    pattern: '/stress/gg_middleofficeconfirmation';
+    documentation: 'Generated graph fetch on middleoffice::Confirmation: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
     execution: Single
     {
-    query: |ops::BreakResolution.all()
+    query: |middleoffice::Confirmation.all()
         ->graphFetch(#{
-  ops::BreakResolution
+  middleoffice::Confirmation
   {
-    resolutionId,
-    approvedBy,
-    comment,
-    costImpact,
-    tradeException
+    confirmationId,
+    affirmedBy,
+    chaseCount,
+    matchedAt,
+    confirmedTrade
     {
-      exceptionId,
-      ageInDays,
-      assignedTo,
-      incident
+      otcId,
+      assetClass,
+      clearingHouse,
+      optionTerms
       {
-        incidentId,
-        currency
+        otcId,
+        barrierLevel
       }
     }
   }
 }#)
         ->serialize(#{
-  ops::BreakResolution
+  middleoffice::Confirmation
   {
-    resolutionId,
-    approvedBy,
-    comment,
-    costImpact,
-    tradeException
+    confirmationId,
+    affirmedBy,
+    chaseCount,
+    matchedAt,
+    confirmedTrade
     {
-      exceptionId,
-      ageInDays,
-      assignedTo,
-      incident
+      otcId,
+      assetClass,
+      clearingHouse,
+      optionTerms
       {
-        incidentId,
-        currency
+        otcId,
+        barrierLevel
       }
     }
   }
@@ -13318,7 +13797,7 @@ Service stress::GG_BreakResolutionTree
     }
   testSuites:
   [
-    GG_BreakResolutionTree_suite:
+    GG_MiddleofficeConfirmationTree_suite:
     {
       data:
       [
@@ -13345,7 +13824,7 @@ Service stress::GG_BreakResolutionTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"resolutionId":"BR-0001","approvedBy":"APPROVED-BY-001","comment":"COMMENT-001","costImpact":null,"tradeException":null},{"resolutionId":"BR-0002","approvedBy":null,"comment":"COMMENT-002","costImpact":137.5,"tradeException":null},{"resolutionId":"BR-0003","approvedBy":"APPROVED-BY-003","comment":null,"costImpact":175.0,"tradeException":{"exceptionId":"TE-0001","ageInDays":444,"assignedTo":"ASSIGNED-TO-001","incident":null}},{"resolutionId":"BR-0004","approvedBy":"APPROVED-BY-004","comment":"COMMENT-004","costImpact":212.5,"tradeException":{"exceptionId":"TE-0002","ageInDays":null,"assignedTo":"ASSIGNED-TO-002","incident":null}},{"resolutionId":"BR-0005","approvedBy":"APPROVED-BY-005","comment":"COMMENT-005","costImpact":250.0,"tradeException":{"exceptionId":"TE-0003","ageInDays":458,"assignedTo":null,"incident":{"incidentId":"OI-0001","currency":"USD"}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"confirmationId":"CNF-00001","affirmedBy":"mo.ops.london","chaseCount":0,"matchedAt":"2024-03-15T16:44:00.000000000+0000","confirmedTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"confirmationId":"CNF-00002","affirmedBy":"mo.ops.london","chaseCount":0,"matchedAt":"2024-02-08T11:21:00.000000000+0000","confirmedTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"confirmationId":"CNF-00003","affirmedBy":null,"chaseCount":3,"matchedAt":null,"confirmedTrade":{"otcId":"OTC-000005","assetClass":"RATES","clearingHouse":null,"optionTerms":{"otcId":"OTC-000005","barrierLevel":null}}},{"confirmationId":"CNF-00004","affirmedBy":null,"chaseCount":2,"matchedAt":null,"confirmedTrade":{"otcId":"OTC-000010","assetClass":"FX","clearingHouse":null,"optionTerms":{"otcId":"OTC-000010","barrierLevel":1.15}}},{"confirmationId":"CNF-00005","affirmedBy":"mo.ops.singapore","chaseCount":5,"matchedAt":"2024-01-22T10:02:00.000000000+0000","confirmedTrade":{"otcId":"OTC-000013","assetClass":"COMMODITY","clearingHouse":null,"optionTerms":null}}]}';
                   }#;
               }#
           ]
@@ -13355,49 +13834,49 @@ Service stress::GG_BreakResolutionTree
   ]
 }
 
-Service stress::GG_ConfirmationTree
+Service stress::GG_LifecycleEventTree
 {
-    pattern: '/stress/gg_confirmation';
-    documentation: 'Generated graph fetch on ops::Confirmation: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    pattern: '/stress/gg_lifecycleevent';
+    documentation: 'Generated graph fetch on middleoffice::LifecycleEvent: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
     execution: Single
     {
-    query: |ops::Confirmation.all()
+    query: |middleoffice::LifecycleEvent.all()
         ->graphFetch(#{
-  ops::Confirmation
+  middleoffice::LifecycleEvent
   {
-    confirmId,
-    affirmedBy,
-    affirmedDate,
-    confirmMethod,
-    trade
+    eventId,
+    cashFlow,
+    counterpartyRef,
+    effectiveDate,
+    eventTrade
     {
-      tradeId,
-      commission,
-      createdTime,
-      avgPriceTrade
+      otcId,
+      assetClass,
+      clearingHouse,
+      optionTerms
       {
-        avgTradeId,
-        arrivalPrice
+        otcId,
+        barrierLevel
       }
     }
   }
 }#)
         ->serialize(#{
-  ops::Confirmation
+  middleoffice::LifecycleEvent
   {
-    confirmId,
-    affirmedBy,
-    affirmedDate,
-    confirmMethod,
-    trade
+    eventId,
+    cashFlow,
+    counterpartyRef,
+    effectiveDate,
+    eventTrade
     {
-      tradeId,
-      commission,
-      createdTime,
-      avgPriceTrade
+      otcId,
+      assetClass,
+      clearingHouse,
+      optionTerms
       {
-        avgTradeId,
-        arrivalPrice
+        otcId,
+        barrierLevel
       }
     }
   }
@@ -13407,7 +13886,7 @@ Service stress::GG_ConfirmationTree
     }
   testSuites:
   [
-    GG_ConfirmationTree_suite:
+    GG_LifecycleEventTree_suite:
     {
       data:
       [
@@ -13422,7 +13901,7 @@ Service stress::GG_ConfirmationTree
       ]
       tests:
       [
-        // 15 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           asserts:
@@ -13434,7 +13913,7 @@ Service stress::GG_ConfirmationTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"confirmId":"CNF-0001","affirmedBy":"ops.batch","affirmedDate":"2024-06-03","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0002","affirmedBy":"ops.batch","affirmedDate":"2024-06-03","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0003","affirmedBy":null,"affirmedDate":null,"confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0004","affirmedBy":"ops.batch","affirmedDate":"2024-06-03","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0005","affirmedBy":"ops.batch","affirmedDate":"2024-06-03","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0006","affirmedBy":null,"affirmedDate":null,"confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0007","affirmedBy":"ops.batch","affirmedDate":"2024-06-03","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0008","affirmedBy":"ops.batch","affirmedDate":"2024-06-04","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0009","affirmedBy":null,"affirmedDate":null,"confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0010","affirmedBy":"ops.batch","affirmedDate":"2024-06-05","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0013","commission":171.25,"createdTime":"2024-06-05T09:31:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0011","affirmedBy":"ops.batch","affirmedDate":"2024-06-05","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0014","commission":69.0,"createdTime":"2024-06-05T09:38:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0012","affirmedBy":null,"affirmedDate":null,"confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0016","commission":132.3,"createdTime":"2024-06-06T09:52:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0013","affirmedBy":"ops.batch","affirmedDate":"2024-06-06","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0017","commission":192.5,"createdTime":"2024-06-06T09:59:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0014","affirmedBy":"ops.batch","affirmedDate":"2024-06-07","confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0018","commission":null,"createdTime":"2024-06-07T09:06:00.000000000+0000","avgPriceTrade":null}},{"confirmId":"CNF-0015","affirmedBy":null,"affirmedDate":null,"confirmMethod":"ELECTRONIC","trade":{"tradeId":"TRD-0019","commission":1960.0,"createdTime":"2024-06-07T09:13:00.000000000+0000","avgPriceTrade":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"eventId":"EVT-000001","cashFlow":null,"counterpartyRef":"HSBC-24-0315-A","effectiveDate":"2024-03-19","eventTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000002","cashFlow":666400.0,"counterpartyRef":null,"effectiveDate":"2024-06-19","eventTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000003","cashFlow":-84500.0,"counterpartyRef":"HSBC-24-0510-T","effectiveDate":"2024-05-14","eventTrade":{"otcId":"OTC-000001","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000004","cashFlow":null,"counterpartyRef":"DB-24-0402-AM","effectiveDate":"2024-04-02","eventTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"eventId":"EVT-000005","cashFlow":null,"counterpartyRef":null,"effectiveDate":"2024-06-11","eventTrade":{"otcId":"OTC-000007","assetClass":"CREDIT","clearingHouse":"ICE","optionTerms":null}},{"eventId":"EVT-000006","cashFlow":null,"counterpartyRef":"NOV-24-0522","effectiveDate":"2024-05-24","eventTrade":{"otcId":"OTC-000011","assetClass":"EQUITY","clearingHouse":null,"optionTerms":null}},{"eventId":"EVT-000007","cashFlow":null,"counterpartyRef":"TRIOPT-24-06","effectiveDate":"2024-06-17","eventTrade":{"otcId":"OTC-000002","assetClass":"RATES","clearingHouse":"LCH","optionTerms":null}},{"eventId":"EVT-000008","cashFlow":null,"counterpartyRef":null,"effectiveDate":"2024-06-27","eventTrade":{"otcId":"OTC-000005","assetClass":"RATES","clearingHouse":null,"optionTerms":{"otcId":"OTC-000005","barrierLevel":null}}},{"eventId":"EVT-000009","cashFlow":112000.0,"counterpartyRef":null,"effectiveDate":"2024-06-24","eventTrade":{"otcId":"OTC-000013","assetClass":"COMMODITY","clearingHouse":null,"optionTerms":null}},{"eventId":"EVT-000010","cashFlow":null,"counterpartyRef":"INC-24-0430","effectiveDate":"2024-05-02","eventTrade":{"otcId":"OTC-000008","assetClass":"CREDIT","clearingHouse":"ICE","optionTerms":null}},{"eventId":"EVT-000011","cashFlow":725812.5,"counterpartyRef":null,"effectiveDate":"2024-05-12","eventTrade":{"otcId":"OTC-000003","assetClass":"RATES","clearingHouse":"EUREX","optionTerms":null}},{"eventId":"EVT-000012","cashFlow":null,"counterpartyRef":null,"effectiveDate":"2024-06-05","eventTrade":{"otcId":"OTC-000009","assetClass":"FX","clearingHouse":null,"optionTerms":null}}]}';
                   }#;
               }#
           ]
@@ -13831,9 +14310,9 @@ Service stress::AA_BookCounts
   ]
 }
 
-Service stress::AA_InstrumentCounts
+Service stress::AA_ProductsInstrumentCounts
 {
-    pattern: '/stress/aa_instrument';
+    pattern: '/stress/aa_productsinstrument';
     documentation: 'Generated aggregate on products::Instrument: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
     execution: Single
     {
@@ -13848,7 +14327,7 @@ Service stress::AA_InstrumentCounts
     }
   testSuites:
   [
-    AA_InstrumentCounts_suite:
+    AA_ProductsInstrumentCounts_suite:
     {
       data:
       [
@@ -14106,9 +14585,9 @@ Service stress::AA_SettlementNettingCounts
   ]
 }
 
-Service stress::TM_CounterpartyEmpty
+Service stress::TM_CounterpartyCounterpartyEmpty
 {
-    pattern: '/stress/tm_counterparty';
+    pattern: '/stress/tm_counterpartycounterparty';
     documentation: 'Emptiness of 4 to-many association(s) on counterparty::Counterparty. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
     execution: Single
     {
@@ -14130,7 +14609,7 @@ Service stress::TM_CounterpartyEmpty
     }
   testSuites:
   [
-    TM_CounterpartyEmpty_suite:
+    TM_CounterpartyCounterpartyEmpty_suite:
     {
       data:
       [
@@ -14168,9 +14647,9 @@ Service stress::TM_CounterpartyEmpty
   ]
 }
 
-Service stress::TM_InstrumentEmpty
+Service stress::TM_ProductsInstrumentEmpty
 {
-    pattern: '/stress/tm_instrument';
+    pattern: '/stress/tm_productsinstrument';
     documentation: 'Emptiness of 4 to-many association(s) on products::Instrument. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
     execution: Single
     {
@@ -14192,7 +14671,7 @@ Service stress::TM_InstrumentEmpty
     }
   testSuites:
   [
-    TM_InstrumentEmpty_suite:
+    TM_ProductsInstrumentEmpty_suite:
     {
       data:
       [
@@ -14655,6 +15134,68 @@ Service stress::TM_PositionEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"positionId":"POS-0001","breaksEmpty":false,"breaksAny":true,"greeksEmpty":false,"greeksAny":true,"lotsEmpty":false,"lotsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"positionId":"POS-0002","breaksEmpty":false,"breaksAny":true,"greeksEmpty":false,"greeksAny":true,"lotsEmpty":false,"lotsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"positionId":"POS-0003","breaksEmpty":false,"breaksAny":true,"greeksEmpty":true,"greeksAny":false,"lotsEmpty":false,"lotsAny":true,"reconItemsEmpty":false,"reconItemsAny":true},{"positionId":"POS-0004","breaksEmpty":true,"breaksAny":false,"greeksEmpty":true,"greeksAny":false,"lotsEmpty":true,"lotsAny":false,"reconItemsEmpty":true,"reconItemsAny":false},{"positionId":"POS-0005","breaksEmpty":true,"breaksAny":false,"greeksEmpty":false,"greeksAny":true,"lotsEmpty":true,"lotsAny":false,"reconItemsEmpty":true,"reconItemsAny":false},{"positionId":"POS-0006","breaksEmpty":true,"breaksAny":false,"greeksEmpty":true,"greeksAny":false,"lotsEmpty":true,"lotsAny":false,"reconItemsEmpty":true,"reconItemsAny":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TM_OtcTradeEmpty
+{
+    pattern: '/stress/tm_otctrade';
+    documentation: 'Emptiness of 4 to-many association(s) on derivatives::OtcTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    execution: Single
+    {
+    query: |derivatives::OtcTrade.all()
+        ->project(~[
+            otcId:x|$x.otcId,
+            breaksEmpty:x|$x.breaks->isEmpty(),
+            breaksAny:x|$x.breaks->isNotEmpty(),
+            confirmationsEmpty:x|$x.confirmations->isEmpty(),
+            confirmationsAny:x|$x.confirmations->isNotEmpty(),
+            legsEmpty:x|$x.legs->isEmpty(),
+            legsAny:x|$x.legs->isNotEmpty(),
+            lifecycleEventsEmpty:x|$x.lifecycleEvents->isEmpty(),
+            lifecycleEventsAny:x|$x.lifecycleEvents->isNotEmpty()
+        ])
+        ->sort(~otcId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TM_OtcTradeEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 52 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000002","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000003","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000004","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000005","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000006","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000007","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000008","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000009","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000010","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000011","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true},{"otcId":"OTC-000012","breaksEmpty":true,"breaksAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"legsEmpty":true,"legsAny":false,"lifecycleEventsEmpty":true,"lifecycleEventsAny":false},{"otcId":"OTC-000013","breaksEmpty":false,"breaksAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"legsEmpty":false,"legsAny":true,"lifecycleEventsEmpty":false,"lifecycleEventsAny":true}]';
                   }#;
               }#
           ]
@@ -15386,64 +15927,6 @@ Service stress::TM_ClearingHouseEmpty
   ]
 }
 
-Service stress::TM_OtcTradeEmpty
-{
-    pattern: '/stress/tm_otctrade';
-    documentation: 'Emptiness of 2 to-many association(s) on derivatives::OtcTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
-    execution: Single
-    {
-    query: |derivatives::OtcTrade.all()
-        ->project(~[
-            otcId:x|$x.otcId,
-            legsEmpty:x|$x.legs->isEmpty(),
-            legsAny:x|$x.legs->isNotEmpty(),
-            tradeSensitivitiesEmpty:x|$x.tradeSensitivities->isEmpty(),
-            tradeSensitivitiesAny:x|$x.tradeSensitivities->isNotEmpty()
-        ])
-        ->sort(~otcId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    TM_OtcTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 13 rows; 26 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"otcId":"OTC-000001","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000002","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000003","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000004","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000005","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000006","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000007","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000008","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000009","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000010","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000011","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000012","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000013","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::TM_FundingRateEmpty
 {
     pattern: '/stress/tm_fundingrate';
@@ -15734,9 +16217,9 @@ Service stress::TM_CostCenterEmpty
   ]
 }
 
-Service stress::TM_LegalEntityEmpty
+Service stress::TM_OrgLegalEntityEmpty
 {
-    pattern: '/stress/tm_legalentity';
+    pattern: '/stress/tm_orglegalentity';
     documentation: 'Emptiness of 2 to-many association(s) on org::LegalEntity. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
     execution: Single
     {
@@ -15754,7 +16237,7 @@ Service stress::TM_LegalEntityEmpty
     }
   testSuites:
   [
-    TM_LegalEntityEmpty_suite:
+    TM_OrgLegalEntityEmpty_suite:
     {
       data:
       [
@@ -15908,9 +16391,9 @@ Service stress::TM_CurrencyEmpty
   ]
 }
 
-Service stress::TM_IssuerEmpty
+Service stress::TM_RefdataIssuerEmpty
 {
-    pattern: '/stress/tm_issuer';
+    pattern: '/stress/tm_refdataissuer';
     documentation: 'Emptiness of 2 to-many association(s) on refdata::Issuer. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
     execution: Single
     {
@@ -15928,7 +16411,7 @@ Service stress::TM_IssuerEmpty
     }
   testSuites:
   [
-    TM_IssuerEmpty_suite:
+    TM_RefdataIssuerEmpty_suite:
     {
       data:
       [

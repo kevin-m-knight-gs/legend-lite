@@ -329,6 +329,29 @@ def _finish(name: str, body: str) -> Spec:
     return s
 
 
+def short_name(c, cls: str) -> str:
+    """A service-name fragment for a class, unique across the corpus.
+
+    The generators name services after the SHORT class name, which was unique until two
+    packages both defined a Confirmation -- ops:: has one and middleoffice:: has one -- and
+    the dense generator emitted `D_ConfirmationDense` twice. The engine's complaint,
+    "Duplicated element", names the service rather than the two classes behind it.
+
+    Ambiguous short names get their package's last segment in front. Unambiguous ones do not,
+    so no existing service is renamed and no quarantine entry keyed on a name is repointed.
+    """
+    short = cls.split("::")[-1]
+    if not hasattr(c, "_short_counts"):
+        counts: dict[str, int] = {}
+        for k in c.classes:
+            counts[k.split("::")[-1]] = counts.get(k.split("::")[-1], 0) + 1
+        c._short_counts = counts
+    if c._short_counts.get(short, 0) > 1:
+        pkg = cls.split("::")[-2] if "::" in cls else ""
+        return pkg[:1].upper() + pkg[1:] + short
+    return short
+
+
 def apply_temporal(c, spec) -> None:
     """Give a temporal root the date(s) `all()` requires.
 

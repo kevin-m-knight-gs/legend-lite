@@ -651,6 +651,103 @@ def _risk_specs():
 RISK = _risk_specs()
 
 
+def _middle_office_specs():
+    """The middle office's own reports: the blotter, the outstanding confirmations, the
+    break ageing, and the resets that moved cash."""
+    out = []
+
+    blotter = Spec("stress::MO0_LifecycleBlotter", "/stress/mo0",
+                   "Every lifecycle event with its settlement lag and the trade it belongs "
+                   "to. Which columns are populated depends on the event type: a reset has "
+                   "a fixing and no notional change, a compression the reverse.",
+                   "middleoffice::LifecycleEvent")
+    blotter.projections = [Proj("eventId", ["eventId"]),
+                           Proj("eventType", ["eventType"]),
+                           Proj("status", ["status"]),
+                           Proj("notionalDelta", ["notionalDelta"]),
+                           Proj("fixingRate", ["fixingRate"]),
+                           Proj("cashFlow", ["cashFlow"]),
+                           Proj("settlementLagDays", ["settlementLagDays"]),
+                           Proj("productType", ["eventTrade", "productType"])]
+    blotter.sort = ("eventId", False)
+    out.append(blotter)
+
+    # The subtype query. Resets are the events that move cash without changing size, and
+    # asking for them by class is what the discriminator is for.
+    resets = Spec("stress::MO1_RateResets", "/stress/mo1",
+                  "Rate resets only: the events that produce a cash flow from a fixing "
+                  "without changing the notional. Two of twelve events.",
+                  "middleoffice::RateResetEvent")
+    resets.projections = [Proj("eventId", ["eventId"]),
+                          Proj("effectiveDate", ["effectiveDate"]),
+                          Proj("fixingRate", ["fixingRate"]),
+                          Proj("cashFlow", ["cashFlow"])]
+    resets.sort = ("eventId", False)
+    out.append(resets)
+
+    confs = Spec("stress::MO2_Confirmations", "/stress/mo2",
+                 "Confirmations with hours to match. The outstanding and disputed ones have "
+                 "no match time, so the duration is null rather than large -- which is the "
+                 "distinction an ageing report has to keep.",
+                 "middleoffice::Confirmation")
+    confs.projections = [Proj("confirmationId", ["confirmationId"]),
+                         Proj("method", ["method"]),
+                         Proj("platform", ["platform"]),
+                         Proj("status", ["status"]),
+                         Proj("chaseCount", ["chaseCount"]),
+                         Proj("hoursToMatch", ["hoursToMatch"]),
+                         Proj("counterpartyId", ["confirmedTrade", "counterpartyId"])]
+    confs.sort = ("confirmationId", False)
+    out.append(confs)
+
+    breaks = Spec("stress::MO3_BreakAgeing", "/stress/mo3",
+                  "Break ageing with the disputed field and both sides' values. A "
+                  "confirmation break has no single field in dispute, so those columns are "
+                  "null for it.",
+                  "middleoffice::TradeBreak")
+    breaks.projections = [Proj("breakId", ["breakId"]),
+                          Proj("breakType", ["breakType"]),
+                          Proj("severity", ["severity"]),
+                          Proj("status", ["status"]),
+                          Proj("ageDays", ["ageDays"]),
+                          Proj("resolvedDate", ["resolvedDate"]),
+                          Proj("fieldName", ["fieldName"]),
+                          Proj("ourValue", ["ourValue"]),
+                          Proj("theirValue", ["theirValue"])]
+    breaks.sort = ("breakId", False)
+    out.append(breaks)
+
+    # Break count by severity -- the slide the daily ops call opens with.
+    bysev = Spec("stress::MO4_BreaksBySeverity", "/stress/mo4",
+                 "Breaks by severity and status: the daily ops call's first slide.",
+                 "middleoffice::TradeBreak")
+    bysev.projections = [Proj("severity", ["severity"]),
+                         Proj("status", ["status"]),
+                         Proj("ageDays", ["ageDays"])]
+    bysev.group_by = ["severity", "status"]
+    bysev.aggs = [("breakCount", "ageDays", "count"),
+                  ("oldestDays", "ageDays", "max"),
+                  ("totalDays", "ageDays", "sum")]
+    bysev.sort = ("severity", False)
+    out.append(bysev)
+
+    # Trades with no break at all -- the clean book, which is the majority.
+    clean = Spec("stress::MO5_CleanTrades", "/stress/mo5",
+                 "Trades with no break against them. Emptiness over a to-many where the "
+                 "empty side is the good outcome and the common one.",
+                 "derivatives::OtcTrade")
+    clean.projections = [Proj("otcId", ["otcId"]),
+                         Proj("productType", ["productType"]),
+                         Proj("noBreaks", ["breaks"], agg="isEmpty"),
+                         Proj("noEvents", ["lifecycleEvents"], agg="isEmpty")]
+    clean.sort = ("otcId", False)
+    out.append(clean)
+    return out
+
+
+MIDDLE_OFFICE = _middle_office_specs()
+
+
 def _m2m_enum_probe():
     """The same chain plus the enum-mapped property. Quarantined: F12."""
     s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
@@ -1088,7 +1185,7 @@ DERIVED = [
 
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

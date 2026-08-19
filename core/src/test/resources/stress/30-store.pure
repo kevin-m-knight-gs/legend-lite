@@ -195,6 +195,27 @@ Database store::DB
     // fallback FK is a SEPARATE column.
     Table TRADE_FLAT_PARTIAL (TRADE_ID VARCHAR(200) PRIMARY KEY, NOTIONAL DOUBLE, STATUS VARCHAR(200), CPTY_FK VARCHAR(200), CPTY_ID_INLINE VARCHAR(200), CPTY_NAME_INLINE VARCHAR(200), CPTY_LEI_INLINE VARCHAR(200))
 
+    // ---- Middle office: what happens to a trade after it is booked ----
+    //
+    // The lifecycle event table is the spine. Every amendment, termination, novation, reset
+    // and credit event lands here with its own type, and the TYPE decides which columns mean
+    // anything: a rate reset carries a fixing and no notional change, a partial termination
+    // carries a notional change and no fixing. That is exactly the shape a discriminator
+    // models and a wide table does not.
+    Table LIFECYCLE_EVENT (EVENT_ID VARCHAR(16) PRIMARY KEY, OTC_ID VARCHAR(12),
+        EVENT_TYPE VARCHAR(24), EVENT_DATE DATE, EFFECTIVE_DATE DATE, STATUS VARCHAR(12),
+        INITIATED_BY VARCHAR(30), NOTIONAL_DELTA DECIMAL(18,2), FIXING_RATE DECIMAL(12,4),
+        CASH_FLOW DECIMAL(18,2), COUNTERPARTY_REF VARCHAR(24), NOTES VARCHAR(120))
+
+    Table CONFIRMATION_MO (CONFIRMATION_ID VARCHAR(16) PRIMARY KEY, OTC_ID VARCHAR(12),
+        METHOD VARCHAR(12), PLATFORM VARCHAR(20), SENT_AT TIMESTAMP, MATCHED_AT TIMESTAMP,
+        STATUS VARCHAR(14), CHASE_COUNT INTEGER, AFFIRMED_BY VARCHAR(30))
+
+    Table TRADE_BREAK (BREAK_ID VARCHAR(16) PRIMARY KEY, OTC_ID VARCHAR(12),
+        BREAK_TYPE VARCHAR(24), DETECTED_DATE DATE, SEVERITY VARCHAR(8),
+        STATUS VARCHAR(12), ASSIGNED_TO VARCHAR(30), RESOLVED_DATE DATE, AGE_DAYS INTEGER,
+        FIELD_NAME VARCHAR(24), OUR_VALUE VARCHAR(24), THEIR_VALUE VARCHAR(24))
+
     // ---- Market risk: a run, the factors it shocked, the numbers it produced ----
     //
     // The shape every market-risk stack has. One batch per day per scope, a factor hierarchy
@@ -677,6 +698,29 @@ Database store::DB
 
     // The coupon schedule. Security to period is one-to-sixty at the deep end; period to
     // payment is one-to-zero-or-one, and the zero half is every coupon not yet due.
+    Join OtcTrade_LifecycleEvent(OTC_TRADE.OTC_ID = LIFECYCLE_EVENT.OTC_ID)
+    Join OtcTrade_ConfirmationMo(OTC_TRADE.OTC_ID = CONFIRMATION_MO.OTC_ID)
+    Join OtcTrade_Break(OTC_TRADE.OTC_ID = TRADE_BREAK.OTC_ID)
+
+    // Lifecycle event and break discriminators.
+    Filter EvtNewTradeRows(LIFECYCLE_EVENT.EVENT_TYPE = 'NEW_TRADE')
+    Filter EvtAmendmentRows(LIFECYCLE_EVENT.EVENT_TYPE = 'AMENDMENT')
+    Filter EvtPartialTerminationRows(LIFECYCLE_EVENT.EVENT_TYPE = 'PARTIAL_TERMINATION')
+    Filter EvtFullTerminationRows(LIFECYCLE_EVENT.EVENT_TYPE = 'FULL_TERMINATION')
+    Filter EvtNovationRows(LIFECYCLE_EVENT.EVENT_TYPE = 'NOVATION')
+    Filter EvtCompressionRows(LIFECYCLE_EVENT.EVENT_TYPE = 'COMPRESSION')
+    Filter EvtIncreaseRows(LIFECYCLE_EVENT.EVENT_TYPE = 'INCREASE')
+    Filter EvtRateResetRows(LIFECYCLE_EVENT.EVENT_TYPE = 'RATE_RESET')
+    Filter EvtFixingRows(LIFECYCLE_EVENT.EVENT_TYPE = 'FIXING')
+    Filter EvtExerciseRows(LIFECYCLE_EVENT.EVENT_TYPE = 'EXERCISE')
+    Filter EvtCreditEventRows(LIFECYCLE_EVENT.EVENT_TYPE = 'CREDIT_EVENT')
+    Filter BrkEconomicBreakRows(TRADE_BREAK.BREAK_TYPE = 'ECONOMIC_BREAK')
+    Filter BrkConfirmationBreakRows(TRADE_BREAK.BREAK_TYPE = 'CONFIRMATION_BREAK')
+    Filter BrkSettlementBreakRows(TRADE_BREAK.BREAK_TYPE = 'SETTLEMENT_BREAK')
+    Filter BrkReferenceDataBreakRows(TRADE_BREAK.BREAK_TYPE = 'REFERENCE_DATA_BREAK')
+    Filter BrkValuationBreakRows(TRADE_BREAK.BREAK_TYPE = 'VALUATION_BREAK')
+    Filter BrkCollateralBreakRows(TRADE_BREAK.BREAK_TYPE = 'COLLATERAL_BREAK')
+
     Join RiskRun_Sensitivity(RISK_RUN.RUN_ID = SENSITIVITY.RUN_ID)
     Join RiskRun_Measure(RISK_RUN.RUN_ID = RISK_MEASURE.RUN_ID)
     Join RiskRun_ScenarioResult(RISK_RUN.RUN_ID = SCENARIO_RESULT.RUN_ID)

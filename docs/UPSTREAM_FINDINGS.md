@@ -1534,3 +1534,30 @@ it could not resolve and says `Void not supported!` instead. The schema part was
 the corpus now navigates schema-qualified tables in `CB_SchemaReach` without complaint.
 
 `repro/association-set-id-routing/`.
+
+## F48 — Three clock functions serialize as a structured object, not a date
+
+`firstDayOfThisMonth()`, `firstDayOfThisYear()` and `firstDayOfThisQuarter()` come back as a
+nested object rather than a value:
+
+    { "offset": { "totalSeconds": -14400, "id": "-04:00",
+                  "rules": { "fixedOffset": true, "transitions": [], "transitionRules": [] } },
+      "nano": 0, "year": 2026, "monthValue": 8, "dayOfMonth": 1,
+      "hour": 0, "minute": 0, "second": 0,
+      "month": "AUGUST", "dayOfWeek": "SATURDAY", "dayOfYear": 213 }
+
+That is a Java `ZonedDateTime` reflected into JSON, transition rules and all. The declared
+return type is a date.
+
+The inconsistency is what makes it a defect rather than a format choice: `today()`, in the
+same projection of the same service, returns `"2026-08-19T00:00:00.000000000+0000"` — a
+string. So two clock functions of the same shape serialize two different ways, and one of
+them exposes the engine's internal time representation to any caller parsing the result.
+
+A consumer reading `firstDayOfThisMonth()` gets an object whose shape depends on the JVM's
+timezone database rather than on the model.
+
+Found by `scripts/corpus/probe_functions.py`, which compares every registered function's
+result against an independently computed one. These three cannot agree with the oracle by
+construction — they read the clock — but the probe still runs them, and the SHAPE of the
+disagreement is what surfaced this.

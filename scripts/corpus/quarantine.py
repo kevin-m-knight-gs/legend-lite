@@ -95,13 +95,25 @@ ENGINE_QUARANTINE["stress::F35_DayOfYear"] = (
 ENGINE_QUARANTINE.update({
     f"stress::{name}": ("F24", "graph fetch omits the UTC offset TDS projection includes")
     for name in (
+        # Added with the middle-office and risk domains: both carry timestamps -- a
+        # confirmation is sent and matched at a time, a risk run starts and completes at one
+        # -- so their generated trees project a DateTime and meet F24 like every other.
+        # Both Confirmation classes now carry their package in the service name, because
+        # ops:: and middleoffice:: each define one and the generators name from the SHORT
+        # class name. Renaming a generated service repoints any quarantine entry keyed on it,
+        # which the build catches and did.
+        #
+        # Only ONE of the two generates a tree: graphs.py dedupes by tree SHAPE, and the two
+        # Confirmations have the same shape, so the middle-office one displaced the ops one
+        # that used to be here as GG_ConfirmationTree. Adding a class can therefore remove a
+        # service, which is worth knowing before reading the count.
+        "GG_MiddleofficeConfirmationTree",
         "GG_TradeTree",
         "GG_ClearedTradeTree",
         "GG_TradeExceptionTree",
         "GG_SalesCreditTree",
         "GG_CashSettlementTree",
         "GG_AllocationTree",
-        "GG_ConfirmationTree",
         "GG_SanctionsCheckTree",
     )
 })

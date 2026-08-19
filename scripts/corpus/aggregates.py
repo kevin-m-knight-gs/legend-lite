@@ -118,7 +118,7 @@ def build(c: model.Corpus, seeded: set[str],
             continue
         seen.add(signature)
 
-        short = root.split("::")[-1]
+        short = query.short_name(c, root)
         # Named from the CLASS, not from a loop index. An index renumbers every
         # service downstream of it the moment the ranking changes -- and the
         # ranking is derived from the seed, so a data change silently repoints

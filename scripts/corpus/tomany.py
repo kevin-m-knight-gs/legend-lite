@@ -91,7 +91,7 @@ def build(c: model.Corpus, seeded: set[str],
             continue
         seen.add(signature)
 
-        short = root.split("::")[-1]
+        short = query.short_name(c, root)
         spec = Spec(f"stress::TM_{short}Empty", f"/stress/tm_{short.lower()}",
                     f"Emptiness of {len(props)} to-many association(s) on {root}. Both "
                     f"`isEmpty` and `isNotEmpty` are projected for each end: asserting one "

@@ -220,7 +220,7 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
         # so a data change renumbers every service after the one that moved and silently
         # repoints any quarantine entry keyed on the name. The graph and aggregate
         # generators carried the same bug; this was the last one.
-        short = root.split("::")[-1]
+        short = query.short_name(c, root)
         spec = Spec(f"stress::D_{short}Dense", f"/stress/d_{short.lower()}",
                     f"Dense stack on {root}: several distinct navigation chains plus "
                     f"whatever the model offers along them, with a filter, a sort and a "
