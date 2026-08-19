@@ -1344,21 +1344,15 @@ public final class TestDataGenerator {
      * SQL doubles quotes, Pure backslash-escapes them.)
      * Package-private for the Tier-1 regression pin (PureReprTest). */
     static String pureRepr(@com.legend.Nullable Object v) {
-        return switch (v) {
-            case String s -> "'" + s.replace("\\", "\\\\")
-                    .replace("'", "\\'").replace("\n", "\\n") + "'";
-            case java.math.BigDecimal d -> d.toPlainString() + "D";
-            case Number n -> n.toString();
-            case Boolean b -> b.toString();
-            case java.sql.Date d -> "%" + d.toLocalDate();
-            case java.time.LocalDate d -> "%" + d;
-            case null -> throw new NotImplementedException(
+        // Phase 2a: toRepresentation has ONE owner (PureAsserts.repr —
+        // this port generalized there); only the row-identifier NULL
+        // contract stays local (a pk cell must have produced a value)
+        if (v == null) {
+            throw new NotImplementedException(
                     "testDataGen: NULL row-identifier cell — a primary"
                     + " key produced no value");
-            default -> throw new NotImplementedException(
-                    "testDataGen: row identifier toRepresentation for "
-                    + v.getClass().getName() + " pending");
-        };
+        }
+        return com.legend.exec.PureAsserts.repr(v);
     }
 
     /** The engine's generateSeedDataString: execute the demanded

@@ -109,7 +109,12 @@ class JavaEvalLedgerTest {
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
             // silently grows back into a recognizer)
-            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 248));
+            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 248),
+            // Phase 2: the comparison layer, size-pinned at its landing
+            // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
+            // harness arm (net move, not new evaluation)
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 221),
+            Map.entry("core/src/main/java/com/legend/exec/GridCompare.java", 295));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -214,6 +219,13 @@ class JavaEvalLedgerTest {
                     "Column.java", "CsvSeed.java",
                     "Ddl.java", "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
+                    // Phase 2 (One-Platform Plan): THE COMPARISON LAYER —
+                    // the platform assert family (spec = legend-pure's
+                    // essential/tests/*.pure) + the TDS-grid compare
+                    // policies. Verification CONSUMES two produced sides,
+                    // never produces a result (the permanent-allowed
+                    // decision rule); wireEquals' private copy DIED here.
+                    "PureAsserts.java", "GridCompare.java",
                     "H2Settings.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",

@@ -79,6 +79,13 @@ class JdbcSurfaceCensusTest {
             // (DbMetaData row RETIRED: moved to compiler/spec/CatalogGrids
             // — pure SQL-text composition.)
             "core/src/main/java/com/legend/exec/RawGridSchema.java",
+            // Phase 2: the platform assert family — java.sql VALUE KINDS
+            // only (Timestamp/Date arms of the ONE equality owner);
+            // no connection ever reaches it
+            "core/src/main/java/com/legend/exec/PureAsserts.java",
+            // Phase 2b: grid/tolerance compare — java.sql VALUE KINDS
+            // only (temporal epoch arms); no connection ever reaches it
+            "core/src/main/java/com/legend/exec/GridCompare.java",
             "core/src/main/java/com/legend/exec/Executor.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",

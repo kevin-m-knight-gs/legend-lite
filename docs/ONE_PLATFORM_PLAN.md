@@ -171,6 +171,31 @@ they compare compiler *output*, not data, and stay host-native.
 the eval ledger's harness rows shrink to orchestration. Size: **L** (the biggest phase —
 but perfectly incremental, one assert at a time).
 
+*Phase 2 LANDED (2026-08-19):* **`wireEquals` is DELETED** (no shim survives — all 11
+call sites repoint). The comparison layer has ONE production owner pair:
+`exec/PureAsserts` (spec core read from `essential/tests/*.pure` — `equal()`,
+`toRepresentation` [the testdatagen port generalized; `pureRepr` delegates],
+`assertEquals`/`assertSameElements`/`assertSize`/`assertEqWithinTolerance` with the
+spec's EXACT failure messages, pinned by the spec's own test cases incl.
+`sort([1,3,'2'])` number-before-string; PLUS the adjudicated wire policies clearly
+layered: TDSNull sentinel, 2-ULP, temporal Any-carrier bridge — each direction-aware)
+and `exec/GridCompare` (2b: header pins, row-cohesion tuple multiset, rendered-text
+CSV/TDS policy, `assertTdsEquivalent` cell tolerance, the `LL_ORD_COUNT`/`LL_TOL_COUNT`
+instruments riding their policies). Two latent bugs found by the spec pins and fixed:
+NaN through `BigDecimal` threw in the old `wireEquals`; `java.sql.Date` epoch used the
+default TZ where the `LocalDate` arm used UTC (mixed-kind wobble — now consistent).
+Charter C2.4 caught and killed a `default->` numeric bucket in the sort rank. NO new
+pipeline natives: real pure defines the family as FUNCTIONS over `assert`+`equal`
+(both already native) — corpus/PCT sources compile them; registering natives would
+have FOUGHT the spec. What remains harness-side, by adjudication: routing + Eval
+plumbing (Phase 5's kill list), the ORDER POLICY (retires via the divergence census,
+not migration), assertSameSQL/assertSqlEquals (compiler-output text — the plan's own
+"stays host-native"), and the JSON canon cluster (ledger-adjudicated exception).
+`assertEq`'s `eq()`-vs-`equal()` conflation in the harness noted (pre-existing;
+primitives only in corpus — Phase 4's diff will surface any real divergence). Perf
+gate: +2.7% referee wall-clock (limit 10%). Suite 4134/0; referee byte-identical;
+PCT channel A green.
+
 ### Phase 3 — The Result envelope becomes a platform model
 
 **What, plainly:** `execute(...)` returns the engine's `Result` envelope; tests read

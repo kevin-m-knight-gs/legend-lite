@@ -1013,7 +1013,7 @@ public final class EngineTestExecutor {
             return UNSUPPORTED_MARKER;
         }
         for (Object x : col.values()) {
-            if (wireEquals(x, val.values().get(0))) {
+            if (com.legend.exec.PureAsserts.equalScalar(x, val.values().get(0))) {
                 return null;
             }
         }
@@ -1968,7 +1968,7 @@ public final class EngineTestExecutor {
                             execChains, ctx, imports, runtimeFqn, conn);
                     List<Object> missing = need.values().stream()
                             .filter(n2 -> have.values().stream()
-                                    .noneMatch(h -> wireEquals(n2, h)))
+                                    .noneMatch(h -> com.legend.exec.PureAsserts.equalScalar(n2, h)))
                             .toList();
                     boolean holds = missing.isEmpty();
                     boolean want = simpleName(af.function()).equals("assert");   // F6.9: FQN-spelled asserts keep polarity
@@ -2108,10 +2108,9 @@ public final class EngineTestExecutor {
                             + ", " + tol + "/" + (tol == null ? "null" : tol.getClass().getSimpleName())
                             + ")";
                 }
-                return Math.abs(en.doubleValue() - an.doubleValue())
-                        <= tn.doubleValue() ? null
-                        : "assertEqWithinTolerance: expected " + e + " ± "
-                                + tol + ", got " + a;
+                // Phase 2: the math + spec message live with the owner
+                return com.legend.exec.PureAsserts
+                        .assertEqWithinTolerance(en, an, tn);
             }
             case "assertSize" -> {
                 if (args.size() != 2) {
@@ -2962,7 +2961,7 @@ public final class EngineTestExecutor {
                 && rsc.value() instanceof String atext
                 && expected.values().size() == 1
                 && expected.values().get(0) instanceof String etext) {
-            return renderedTextEquals(etext, atext,
+            return com.legend.exec.GridCompare.renderedText(etext, atext,
                     actual.joinSep().substring("RENDERED:".length()),
                     ordered && actual.sortedChain());
         }
@@ -2974,7 +2973,7 @@ public final class EngineTestExecutor {
                 && actual.values().size() == 1
                 && actual.values().get(0) instanceof String atext2) {
             // the mirrored spelling (rendered expected vs literal actual)
-            return renderedTextEquals(atext2, etext2,
+            return com.legend.exec.GridCompare.renderedText(atext2, etext2,
                     expected.joinSep().substring("RENDERED:".length()),
                     true);
         }
@@ -2986,7 +2985,7 @@ public final class EngineTestExecutor {
         if (expected.result() instanceof com.legend.exec.ExecutionResult.Tabular te
                 && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular ta
                 && !expected.flatCells() && !actual.flatCells()) {
-            return gridEquals(te, ta, ordered && actual.sortedChain());
+            return com.legend.exec.GridCompare.grids(te, ta, ordered && actual.sortedChain());
         }
 
         // MIXED flat-cells vs whole-TDS VALUE (audit 22b F2): pure equality
@@ -3010,7 +3009,7 @@ public final class EngineTestExecutor {
         // exactly then; a sorted chain compares exactly ordered.
         if (ordered && actual.sortedChain()) {
             for (int i = 0; i < e.size(); i++) {
-                if (!wireEquals(e.get(i), a.get(i))) {
+                if (!com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i))) {
                     return false;
                 }
             }
@@ -3020,7 +3019,7 @@ public final class EngineTestExecutor {
             // try ordered first — identical orders stay strongest evidence
             boolean ok = true;
             for (int i = 0; i < e.size() && ok; i++) {
-                ok = wireEquals(e.get(i), a.get(i));
+                ok = com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i));
             }
             if (ok) {
                 return true;
@@ -3060,44 +3059,15 @@ public final class EngineTestExecutor {
                         // let cross-row shuffles pass
                         || (expected.flatCells() && actual.flatCells()))
                 && e.size() == a.size() && a.size() % tab.columns().size() == 0) {
-            int w = tab.columns().size();
-            List<List<Object>> ep = chunk(e, w);
-            List<List<Object>> ap = chunk(a, w);
-            for (List<Object> row : ep) {
-                int hit = -1;
-                for (int i = 0; i < ap.size(); i++) {
-                    boolean all = true;
-                    for (int j = 0; j < w && all; j++) {
-                        all = wireEquals(row.get(j), ap.get(i).get(j));
-                    }
-                    if (all) {
-                        hit = i;
-                        break;
-                    }
-                }
-                if (hit < 0) {
-                    return false;
-                }
-                ap.remove(hit);
-            }
-            // F2.4: row-tuple multiset — one of the four previously
-            // UNINSTRUMENTED leniency paths (every LL_ORD_COUNT number
-            // was a floor)
-            ordLeniency(() -> {
-                for (int i = 0; i < e.size(); i++) {
-                    if (!wireEquals(e.get(i), a.get(i))) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-            return true;
+            // row cohesion + F2.4 instrument live with the policy owner
+            return com.legend.exec.GridCompare.rowTupleMultiset(
+                    e, a, tab.columns().size());
         }
         List<Object> pool = new ArrayList<>(a);
         for (Object x : e) {
             int hit = -1;
             for (int i = 0; i < pool.size(); i++) {
-                if (wireEquals(x, pool.get(i))) {
+                if (com.legend.exec.PureAsserts.equalScalar(x, pool.get(i))) {
                     hit = i;
                     break;
                 }
@@ -3115,386 +3085,18 @@ public final class EngineTestExecutor {
             pool.remove(hit);
         }
         // F2.4: loose-pool cell multiset — previously uninstrumented
-        ordLeniency(() -> {
+        com.legend.exec.GridCompare.ordLeniency(() -> {
             for (int i = 0; i < e.size(); i++) {
-                if (!wireEquals(e.get(i), a.get(i))) {
+                if (!com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i))) {
                     return false;
                 }
             }
             return true;
         });
         return true;
-    }
-
-    private static List<List<Object>> chunk(List<Object> flat, int w) {
-        List<List<Object>> out = new ArrayList<>(flat.size() / w);
-        for (int i = 0; i + w <= flat.size(); i += w) {
-            out.add(new ArrayList<>(flat.subList(i, i + w)));
-        }
-        return out;
     }
 
     /** Column-name + row-grid equality (rows ordered iff the chain sorts). */
-    private static boolean gridEquals(com.legend.exec.ExecutionResult.Tabular expected,
-            com.legend.exec.ExecutionResult.Tabular actual, boolean ordered) {
-        if (expected.columns().size() != actual.columns().size()) {
-            return false;
-        }
-        for (int i = 0; i < expected.columns().size(); i++) {
-            if (!expected.columns().get(i).name().equals(actual.columns().get(i).name())) {
-                return false;
-            }
-        }
-        List<List<Object>> e = new ArrayList<>();
-        expected.rows().forEach(r -> e.add(r.values()));
-        List<List<Object>> a = new ArrayList<>();
-        actual.rows().forEach(r -> a.add(r.values()));
-        if (e.size() != a.size()) {
-            return false;
-        }
-        if (ordered) {
-            return rowsPositional(e, a);
-        }
-        List<List<Object>> pool = new ArrayList<>(a);
-        for (List<Object> row : e) {
-            int hit = -1;
-            for (int i = 0; i < pool.size(); i++) {
-                if (rowEquals(row, pool.get(i))) {
-                    hit = i;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                return false;
-            }
-            pool.remove(hit);
-        }
-        // C0.4: a multiset pass the POSITIONAL compare would reject is a
-        // pass that depends on order leniency — countable per sweep
-        ordLeniency(() -> rowsPositional(e, a));
-        return true;
-    }
-
-    private static boolean rowsPositional(List<List<Object>> e,
-            List<List<Object>> a) {
-        for (int i = 0; i < e.size(); i++) {
-            if (!rowEquals(e.get(i), a.get(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** C0.4 (CORRECTNESS_REMEDIATION): under {@code LL_ORD_COUNT}, emit an
-     * {@code [ord]} line when a comparison passed ONLY because of multiset
-     * row leniency — {@code strictHolds} is the order-strict re-check.
-     * Attribution: pair each line with the preceding {@code [run] <fqn>}.
-     * Measurement only; never changes the verdict. */
-    private static void ordLeniency(java.util.function.BooleanSupplier strictHolds) {
-        if (System.getenv("LL_ORD_COUNT") != null && !strictHolds.getAsBoolean()) {
-            System.err.println("[ord] order-leniency-dependent pass");
-        }
-    }
-
-    private static boolean rowEquals(List<Object> e, List<Object> a) {
-        if (e.size() != a.size()) {
-            return false;
-        }
-        for (int i = 0; i < e.size(); i++) {
-            if (!wireEquals(e.get(i), a.get(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-
-
-
-
-
-    /** F4.3: RENDERED-TEXT comparison — the KEPT policies over the
-     *  platform's own text. {@code form}: CSVTEXT (header line + data
-     *  lines + trailing newline), TDSTEXT ('#TDS' frame), or
-     *  CSVJOIN:<sep> (the calendar family's one-line spelling). FRAME
-     *  and header lines pin EXACTLY (the platform emits them — a
-     *  divergence is a finding); data lines compare ordered or as a
-     *  multiset per the chain's sortedness; cells are string-equal or
-     *  BOUNDED-float-tolerant. */
-    private static boolean renderedTextEquals(String expected,
-            String actual, String form, boolean sorted) {
-        if (expected.equals(actual)) {
-            return true;
-        }
-        if (form.startsWith("CSVJOIN:")) {
-            String sep = form.substring("CSVJOIN:".length());
-            String[] et = expected.split(java.util.regex.Pattern.quote(sep), -1);
-            String[] at = actual.split(java.util.regex.Pattern.quote(sep), -1);
-            if (et.length != at.length) {
-                return false;
-            }
-            if (sorted) {
-                for (int i = 0; i < et.length; i++) {
-                    if (!cellEquals(et[i], at[i])) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-            // token multiset (the sep-join destroyed row boundaries;
-            // bounded by equal counts + per-cell policy)
-            List<String> pool = new ArrayList<>(java.util.List.of(at));
-            for (String e : et) {
-                int hit = -1;
-                for (int i = 0; i < pool.size(); i++) {
-                    if (cellEquals(e, pool.get(i))) {
-                        hit = i;
-                        break;
-                    }
-                }
-                if (hit < 0) {
-                    return false;
-                }
-                pool.remove(hit);
-            }
-            return true;
-        }
-        String[] el = expected.split("\n", -1);
-        String[] al = actual.split("\n", -1);
-        if (el.length != al.length) {
-            return false;
-        }
-        // pinned frame lines: CSVTEXT {first, trailing ''}; TDSTEXT
-        // {'#TDS', header, trailing '#'}
-        int dataFrom = form.equals("TDSTEXT") ? 2 : 1;
-        int dataTo = el.length - 1;   // last line: '' (CSV) or '#' (TDS)
-        for (int i = 0; i < el.length; i++) {
-            boolean pinned = i < dataFrom || i >= dataTo;
-            if (pinned && !el[i].equals(al[i])) {
-                return false;
-            }
-        }
-        if (sorted) {
-            for (int i = dataFrom; i < dataTo; i++) {
-                if (!lineEquals(el[i], al[i])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        List<String> pool = new ArrayList<>();
-        for (int i = dataFrom; i < dataTo; i++) {
-            pool.add(al[i]);
-        }
-        for (int i = dataFrom; i < dataTo; i++) {
-            String e = el[i];
-            int hit = -1;
-            for (int j = 0; j < pool.size(); j++) {
-                if (lineEquals(e, pool.get(j))) {
-                    hit = j;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                return false;
-            }
-            pool.remove(hit);
-        }
-        // F2.4 ord-leniency instrument carries over to the text policy
-        ordLeniency(() -> {
-            for (int i = dataFrom; i < dataTo; i++) {
-                if (!lineEquals(el[i], al[i])) {
-                    return false;
-                }
-            }
-            return true;
-        });
-        return true;
-    }
-
-    /** One text line: exact, else per-cell (comma-split both sides
-     *  IDENTICALLY — symmetric ambiguity for embedded commas). */
-    private static boolean lineEquals(String e, String a) {
-        if (e.equals(a)) {
-            return true;
-        }
-        String[] ec = e.split(",", -1);
-        String[] ac = a.split(",", -1);
-        if (ec.length != ac.length) {
-            return false;
-        }
-        for (int i = 0; i < ec.length; i++) {
-            if (!cellEquals(ec[i], ac[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** One cell — the KEPT float tolerance, bounded and counted
-     *  (LL_TOL_COUNT), applied ONLY when BOTH tokens are decimal-point
-     *  float prints. The cross-kind collapse ('007'=='7', '1e3'=='1000')
-     *  is DELETED: integers and scientific forms compare as strings. */
-    private static boolean cellEquals(String e, String a) {
-        if (e.equals(a)) {
-            return true;
-        }
-        if (e.indexOf('.') < 0 || a.indexOf('.') < 0) {
-            return false;
-        }
-        try {
-            double ev = Double.parseDouble(e);
-            double av = Double.parseDouble(a);
-            int dp = e.length() - e.indexOf('.') - 1;
-            int sig = 0;
-            boolean seenNonZero = false;
-            for (int ci = 0; ci < e.length(); ci++) {
-                char ch = e.charAt(ci);
-                if (ch >= '1' && ch <= '9') {
-                    seenNonZero = true;
-                }
-                if (Character.isDigit(ch) && (seenNonZero || ch != '0')) {
-                    sig++;
-                }
-            }
-            double tol = sig >= 10
-                    ? Math.max(0.5 * Math.pow(10, -dp), Math.abs(ev) * 1e-11)
-                    : Math.abs(ev) * 1e-11;
-            if (Math.abs(av - ev) > tol) {
-                return false;
-            }
-            if (av != ev && System.getenv("LL_TOL_COUNT") != null) {
-                System.err.println("[tol] csv " + e + " vs " + a);
-            }
-            return true;
-        } catch (NumberFormatException nfe) {
-            return false;
-        }
-    }
-
-
-    /** STRICT wire equality: integral kinds normalize; decimal by compareTo; no cross-kind. */
-    private static boolean isTemporal(Object v) {
-        return v instanceof java.sql.Timestamp || v instanceof java.sql.Date
-                || v instanceof java.time.LocalDate
-                || v instanceof java.time.LocalDateTime
-                || v instanceof java.time.OffsetDateTime;
-    }
-
-    private static boolean temporalEquals(String s, Object t) {
-        // wire temporals are NAIVE (UTC-normalized); strip a UTC-zero
-        // offset/zone suffix from the string form
-        String v = s.trim().replaceFirst("(Z|\\+00(:?00)?|\\+0000)$", "")
-                .replace('T', ' ').trim();
-        try {
-            if (t instanceof java.sql.Date d) {
-                return java.time.LocalDate.parse(v).equals(d.toLocalDate());
-            }
-            if (t instanceof java.time.LocalDate ld) {
-                return java.time.LocalDate.parse(v).equals(ld);
-            }
-            java.time.LocalDateTime other = t instanceof java.sql.Timestamp ts
-                    ? ts.toLocalDateTime()
-                    : t instanceof java.time.LocalDateTime ldt ? ldt
-                    : t instanceof java.time.OffsetDateTime odt
-                            ? odt.toLocalDateTime() : null;
-            if (other == null) {
-                return false;
-            }
-            String norm = v.contains(" ") ? v.replace(' ', 'T') : v + "T00:00";
-            return java.time.LocalDateTime.parse(norm).equals(other);
-        } catch (java.time.format.DateTimeParseException ex) {
-            return false;
-        }
-    }
-
-
-
-    private static boolean wireEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
-        // the null-cell wire sentinel: an expected ^TDSNull() (or a TDS-grid
-        // 'TDSNull' cell) equals an actual NULL cell — 'TDSNull' is never a
-        // genuine string payload (established: real pure parses it as the
-        // instance, our literals decode it to SQL NULL)
-        if ("TDSNull".equals(e) && a == null) {
-            return true;
-        }
-        // (the HostInstance structural-compare branch died with the
-        // interpreter — oracle-not-runtime: the debugPrint tree goldens
-        // are declined engine-internals tests, nothing produces host
-        // instances anymore)
-        // NO actual-side bridge (audit 16 F5): if a bug ever put the
-        // literal string 'TDSNull' on OUR wire where a NULL belongs, the
-        // symmetric grant would mask it — same refusal as the temporal
-        // bridge below (audit 9)
-        if (e == null || a == null) {
-            return e == a;
-        }
-        boolean eInt = e instanceof Long || e instanceof Integer
-                || e instanceof Short || e instanceof Byte
-                || e instanceof java.math.BigInteger;
-        boolean aInt = a instanceof Long || a instanceof Integer
-                || a instanceof Short || a instanceof Byte
-                || a instanceof java.math.BigInteger;
-        if (eInt || aInt) {
-            if (!(eInt && aInt)) {
-                return false;
-            }
-            return ((Number) e).longValue() == ((Number) a).longValue();
-        }
-        if (e instanceof java.math.BigDecimal be && a instanceof java.math.BigDecimal ba) {
-            return be.compareTo(ba) == 0;
-        }
-        boolean eFp = e instanceof Double || e instanceof Float || e instanceof java.math.BigDecimal;
-        boolean aFp = a instanceof Double || a instanceof Float || a instanceof java.math.BigDecimal;
-        if (eFp || aFp) {
-            if (!(eFp && aFp)) {
-                return false;
-            }
-            if (new java.math.BigDecimal(String.valueOf(e))
-                    .compareTo(new java.math.BigDecimal(String.valueOf(a))) == 0) {
-                return true;
-            }
-            // DIALECT-ARITHMETIC leniency (documented, the only float one):
-            // corpus expectations encode H2's libm (ln/asin/acos/atan...);
-            // DuckDB's differs in the LAST ULP on the same real number.
-            // Two DOUBLE wire values within 2 ULP compare equal. Exact-zero,
-            // kind and BigDecimal (pure Decimal) compares stay strict.
-            if (e instanceof Double de && a instanceof Double da
-                    && !de.isNaN() && !da.isNaN()) {
-                double ulp = Math.ulp(Math.max(Math.abs(de), Math.abs(da)));
-                boolean ok = Math.abs(de - da) <= 2 * ulp;
-                // audit 23 D2 instrumentation (measurement-only)
-                if (ok && de.doubleValue() != da.doubleValue()
-                        && System.getenv("LL_TOL_COUNT") != null) {
-                    System.err.println("[tol] ulp " + de + " vs " + da);
-                }
-                return ok;
-            }
-            return false;
-        }
-        // TEMPORAL through the Any-carrier: a mixed-collection LITERAL's
-        // date decodes as its JSON STRING (the variant carrier is untyped
-        // for temporals) — bridge by PARSING, value-exact, and ONLY in the
-        // expected-string vs actual-temporal direction: an ACTUAL that
-        // comes back as a string where the engine returns a Date is a
-        // TYPING BUG this compare must catch (audit 9), never bridge.
-        if (e instanceof String es && isTemporal(a)) {
-            return temporalEquals(es, a);
-        }
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            if (!em.keySet().equals(am.keySet())) {
-                return false;
-            }
-            for (Object k : em.keySet()) {
-                if (!wireEquals(em.get(k), am.get(k))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return e.equals(a);
-    }
-
     // ===== substitution: lets inline, handles splice =====
 
     private static boolean isExecuteCall(AppliedFunction af) {
