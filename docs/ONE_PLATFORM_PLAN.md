@@ -436,6 +436,34 @@ threads `-Dlegend.pure.root` into G6/G7. Essential re-verified untouched
 (290/286/14/0); referee byte-identical; ALLGATES GREEN. Remaining suites:
 Standard/Relation/Unclassified.
 
+*STANDARD SUITE LIVE (2026-08-19, the first MULTI-ROOT scope):* the standard
+functions live in legend-ENGINE (`core_functions_standard`, importing the
+legend-pure platform tree) — `ChannelB.run` grew a multi-root form (source names
+prefixed by root index; scopes resolve against their containing root). Discovery
+pinned exact at 204 (the tree carries 205 `PCT.test` spellings, one commented out
+in the engine's own source). All FIVE true wire bugs burned as GENERAL platform
+fixes: (1) the **PCT.function suppression rule** — the engine's own stereotype
+marks "the platform function under conformance"; where the registry owns a native
+at that FQN the NATIVE is the definition and the reference body never joins the
+overload set (fired 51x; witness testOr, whose inlined fold body produced broken
+SQL); a PCT.function with NO native keeps its body — the model IS the
+implementation. (2) **assertError catches deferred-body guards** — a lowering-time
+ModelException (timeBucket's unit validation) IS the eval-time error for the
+deferred lambda (witnesses testTimeBucketSeconds/Minutes/Hours); other exception
+kinds stay loud. (3) the **assertInstanceOf platform native** (the assertError
+pattern — the spec body needs elementToPath, unportable m3 reflection) + K-arm
+dispatch + the World-1 adjudicator judging the RUNTIME carrier kind up the m3
+value lattice (witness testHashCode). En route, two register catches: the
+error-shape guard flagged endsWith("::PCT") → exact profile FQNs; the bare-name
+resolution path bypassed the platform-owned gate → gated. Census **PASS=133/204**,
+diff **AGREE-PASS=133 AGREE-FAIL=0 WIRE-BUG=7 DECLINED=64** (the 64 = window/
+non-identity adapter shapes, the named future adapter arm), frontier
+**ENGINE-FRONTIER=7, TRUE-WIRE-BUG=0 — all three live suites pinned at zero**.
+Essential/grammar unchanged (one essential row's failure MODE improved: compile
+error → adjudicated verdict). Golden catalog +2 rows; PureAsserts 264→298 and
+AssertVerdicts 221→246 justified. Referee byte-identical; ALLGATES GREEN.
+Remaining scopes: Relation, Unclassified.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

@@ -128,6 +128,23 @@ final class AssertVerdicts {
                 boolean held = Boolean.TRUE.equals(c) == name.equals("assert");
                 return held ? ok() : fail("Assert failed");
             }
+            case "assertInstanceOf" -> {
+                if (args.size() < 2) {
+                    return null;
+                }
+                // the /3 message overload has no witness — fall through
+                if (args.size() != 2) {
+                    return null;
+                }
+                Object v = one(side(args.get(0), letPrefix, specs, env),
+                        "assertInstanceOf instance");
+                String type = typeRefName(args.get(1));
+                if (type == null) {
+                    return null;   // non-literal type arg — fall through
+                }
+                String d = PureAsserts.assertInstanceOf(v, type);
+                return d == null ? ok() : fail(d);
+            }
             case "assertEmpty", "assertNotEmpty" -> {
                 if (args.isEmpty()) {
                     return null;
@@ -266,6 +283,20 @@ final class AssertVerdicts {
                     + " got " + side.size());
         }
         return side.get(0);
+    }
+
+    /** The literal type argument's name: @Type annotation
+     * ({@code TypedTypeRef}) or a bare reference in value position
+     * ({@code TypedPackageableRef}); null = not literal (fall through,
+     * the body inlines and walls on its own terms). */
+    private static @com.legend.Nullable String typeRefName(TypedSpec t) {
+        return switch (t) {
+            case com.legend.compiler.spec.typed.TypedTypeRef tr ->
+                    tr.target().typeName();
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr ->
+                    pr.fullPath();
+            default -> null;
+        };
     }
 
     private static ExecutionResult ok() {

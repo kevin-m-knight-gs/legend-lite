@@ -130,13 +130,24 @@ class JavaEvalLedgerTest {
             // the temporal string-carrier bridge is SYMMETRIC (the
             // designed partial-precision carrier sits on either side),
             // OffsetDateTime joins repr. Adjudication-layer correctness.
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 264),
+            // 264→298 (2026-08-19 standard-suite burn): assertInstanceOf's
+            // World-1 adjudicator — the RUNTIME carrier kind against the
+            // named type up the m3 value lattice (carrierTypeName is the
+            // decode table). Spec witness testHashCode; the pure body is
+            // unportable m3 reflection (elementToPath). Adjudication over
+            // a DB-produced value, never evaluation.
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 298),
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
             // in the database (StatementExecutor.evalValue); this file
             // only routes members to PureAsserts and judges the quantified
             // boolean vector. Adjudication orchestration, never evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 221),
+            // 221→246 (2026-08-19 standard-suite burn): the assertInstanceOf
+            // arm — the RUNTIME carrier kind adjudicated against the named
+            // type (spec witness testHashCode; the spec body needs
+            // elementToPath, unportable m3 reflection). Verdict dispatch,
+            // never evaluation — the instance still computes in the DB.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 246),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -83,12 +83,16 @@ final class ChannelBDiff {
     private static Set<String> scan(Path file, String pattern, String emptyMsg)
             throws IOException {
         Set<String> names = new java.util.HashSet<>();
-        var m = java.util.regex.Pattern.compile(pattern)
-                .matcher(Files.readString(file));
+        String src = Files.readString(file);
+        var m = java.util.regex.Pattern.compile(pattern).matcher(src);
         while (m.find()) {
             names.add(m.group(1));
         }
-        if (names.isEmpty()) {
+        if (names.isEmpty()
+                && !src.contains("= Lists.mutable.empty()")) {
+            // a DECLARED-empty ledger (Standard: channel A expects zero
+            // failures) is legitimate; silence anywhere else means the
+            // file moved under the regex — loud
             throw new IllegalStateException(emptyMsg);
         }
         return names;

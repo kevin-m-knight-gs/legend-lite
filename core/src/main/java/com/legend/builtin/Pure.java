@@ -1976,6 +1976,16 @@ public final class Pure {
     public static final NativeFunctionDefinition ASSERT_ERROR__FN_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertError(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT_ERROR__FN_1__STRING_1__INTEGER_01__INTEGER_01 = signature("native function meta::pure::functions::asserts::assertError(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], message:meta::pure::metamodel::type::String[1], line:meta::pure::metamodel::type::Integer[0..1], column:meta::pure::metamodel::type::Integer[0..1]):meta::pure::metamodel::type::Boolean[1];");
 
+    // assertInstanceOf (REAL essential/tests/assertInstanceOf.pure:17/:22,
+    // signatures verbatim): PLATFORM natives on the assertError pattern —
+    // the parsed pure body needs elementToPath (m3 reflection, unportable),
+    // so the K-arm adjudicates the RUNTIME carrier kind against the named
+    // type host-side (PureAsserts.assertInstanceOf, the m3 value lattice).
+    // Platform-owned: the parsed bodies suppress; a value-position use
+    // walls loudly (no lowering — verdicts never compute in SQL).
+    public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
 
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS

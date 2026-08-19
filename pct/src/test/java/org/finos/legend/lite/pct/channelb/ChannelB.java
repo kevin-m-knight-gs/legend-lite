@@ -56,18 +56,33 @@ public final class ChannelB {
      * tests assume a fresh world). */
     public static List<Outcome> run(Path modelRoot, List<Path> scopeDirs)
             throws IOException {
-        return run(modelRoot, scopeDirs, new ArrayList<>());
+        return run(List.of(modelRoot), scopeDirs, new ArrayList<>());
     }
 
     public static List<Outcome> run(Path modelRoot, List<Path> scopeDirs,
             List<String> wallsOut) throws IOException {
+        return run(List.of(modelRoot), scopeDirs, wallsOut);
+    }
+
+    /** MULTI-ROOT form (the engine-scope suites): the MODEL is the union
+     * of every root's tree — the legend-pure platform plus an engine
+     * functions tree (core_functions_standard etc., which import the
+     * platform). Source names are prefixed {@code <rootIndex>:} so two
+     * roots can never collide; each scope dir must live under one of the
+     * roots and matches by the same prefixed name. */
+    public static List<Outcome> run(List<Path> modelRoots,
+            List<Path> scopeDirs, List<String> wallsOut) throws IOException {
         List<Compiler.ModelSource> sources = new ArrayList<>();
-        try (Stream<Path> walk = Files.walk(modelRoot)) {
-            for (Path f : walk.filter(p -> p.toString().endsWith(".pure"))
-                    .toList()) {
-                sources.add(new Compiler.ModelSource(
-                        modelRoot.relativize(f).toString(),
-                        Files.readString(f)));
+        for (int r = 0; r < modelRoots.size(); r++) {
+            Path root = modelRoots.get(r);
+            try (Stream<Path> walk = Files.walk(root)) {
+                for (Path f : walk
+                        .filter(p -> p.toString().endsWith(".pure"))
+                        .toList()) {
+                    sources.add(new Compiler.ModelSource(
+                            r + ":" + root.relativize(f),
+                            Files.readString(f)));
+                }
             }
         }
         List<String> parseWalls = wallsOut;
@@ -120,8 +135,24 @@ public final class ChannelB {
             throw new IllegalStateException(
                     "model did not converge after 200 wall rounds");
         }
-        List<String> scopePrefixes = scopeDirs.stream()
-                .map(d -> modelRoot.relativize(d).toString()).toList();
+        List<String> scopePrefixes = new ArrayList<>();
+        for (Path d : scopeDirs) {
+            String prefix = null;
+            for (int r = 0; r < modelRoots.size(); r++) {
+                if (d.toAbsolutePath().normalize().startsWith(
+                        modelRoots.get(r).toAbsolutePath().normalize())) {
+                    prefix = r + ":" + modelRoots.get(r).toAbsolutePath()
+                            .normalize().relativize(
+                                    d.toAbsolutePath().normalize());
+                    break;
+                }
+            }
+            if (prefix == null) {
+                throw new IllegalArgumentException("scope dir " + d
+                        + " is under none of the model roots " + modelRoots);
+            }
+            scopePrefixes.add(prefix);
+        }
         List<Outcome> out = new ArrayList<>();
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {

@@ -149,6 +149,51 @@ public final class PureAsserts {
                 || v instanceof Boolean || isTemporal(v));
     }
 
+    /** {@code assertInstanceOf(instance, type)} (assertInstanceOf.pure:
+     * {@code assert($instance->instanceOf($type), msg)}): the RUNTIME
+     * kind of the database-produced carrier against the named type, up
+     * the m3 value lattice (Integer/Float/Decimal {@code <:} Number;
+     * temporals {@code <:} Date; everything {@code <:} Any). Null =
+     * pass; a failure speaks the spec body's format (elementToPath of a
+     * top-level primitive is its name). */
+    public static @com.legend.Nullable String assertInstanceOf(
+            @com.legend.Nullable Object v, String rawType) {
+        // the m3 primitive path (meta::pure::metamodel::type::Integer)
+        // and the bare spelling name the same type — compare bare
+        String type = rawType.substring(rawType.lastIndexOf(':') + 1);
+        String actual = carrierTypeName(v);
+        boolean ok = switch (type) {
+            case "Any", "meta::pure::metamodel::type::Any" -> true;
+            case "Number" -> actual.equals("Integer")
+                    || actual.equals("Float") || actual.equals("Decimal");
+            case "Date" -> actual.equals("StrictDate")
+                    || actual.equals("DateTime") || actual.equals("Date");
+            default -> actual.equals(type);
+        };
+        return ok ? null : "expected " + repr(v) + " to be an instance of "
+                + type + ", actual: " + actual;
+    }
+
+    private static String carrierTypeName(@com.legend.Nullable Object v) {
+        return switch (v) {
+            case null -> "Nil";
+            case Byte ignored -> "Integer";
+            case Short ignored -> "Integer";
+            case Integer ignored -> "Integer";
+            case Long ignored -> "Integer";
+            case java.math.BigInteger ignored -> "Integer";
+            case Float ignored -> "Float";
+            case Double ignored -> "Float";
+            case java.math.BigDecimal ignored -> "Decimal";
+            case Boolean ignored -> "Boolean";
+            case String ignored -> "String";
+            case java.time.LocalDate ignored -> "StrictDate";
+            case java.time.LocalDateTime ignored -> "DateTime";
+            case java.time.OffsetDateTime ignored -> "DateTime";
+            default -> v.getClass().getSimpleName();
+        };
+    }
+
     // ================================================================
     // equal() — pure's equality over wire values (ONE owner)
     // ================================================================

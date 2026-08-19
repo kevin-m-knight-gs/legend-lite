@@ -228,6 +228,9 @@ public final class PlatformTypes {
      * bodies delegate to a PCT.platformOnly matcher native over a
      * SourceInformation value our model does not carry; the K-orchestrated
      * catch IS the definition). */
+    public static final String ASSERT_INSTANCE_OF =
+            "meta::pure::functions::asserts::assertInstanceOf";
+
     public static final String ASSERT_ERROR =
             "meta::pure::functions::asserts::assertError";
 
@@ -235,6 +238,7 @@ public final class PlatformTypes {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || TO_REPRESENTATION.equals(fqn)
                 || ASSERT_ERROR.equals(fqn)
+                || ASSERT_INSTANCE_OF.equals(fqn)
                 || TO_CSV.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)

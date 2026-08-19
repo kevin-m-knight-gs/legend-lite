@@ -67,6 +67,16 @@ final class AssertErrorNative {
                     new java.util.ArrayDeque<>(frames));
         } catch (java.sql.SQLException e) {
             caught = e;
+        } catch (com.legend.error.ModelException e) {
+            // A DEFERRED-BODY guard (the lowering's dynamic validations,
+            // e.g. timeBucket's duration-unit check): interpreted pure
+            // raises these lazily at EVAL, and for the assertError
+            // lambda our lowering IS the eval — the guard's message is
+            // the raised error (spec witness: standard-suite
+            // testTimeBucketSeconds/Minutes/Hours, which the engine's
+            // relational executor passes the same way). Every other
+            // exception kind stays LOUD — walls are never adjudicated.
+            caught = new java.sql.SQLException(e.getMessage());
         }
         if (caught == null) {
             // interpreted AssertError.java: PureAssertFail("No error was

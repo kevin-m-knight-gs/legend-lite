@@ -42,7 +42,13 @@ final class FunctionCompiler {
         // so user-model bare names never resolve accidentally.
         if (!fqn.contains("::")) {
             for (String pkg : CORE_FUNCTION_PACKAGES) {
-                all.addAll(model.findFunction(pkg + "::" + fqn));
+                // the SAME platform-owned gate as the FQN path below —
+                // the bare-name courtesy must not smuggle a suppressed
+                // definition back in (assertInstanceOf, 2026-08-19)
+                if (!com.legend.compiler.element.type.PlatformTypes
+                        .isPlatformOwnedFunction(pkg + "::" + fqn)) {
+                    addModelOverloads(all, model, pkg + "::" + fqn);
+                }
             }
         }
         // NATIVE-CATALOG classes' derived properties lift ON DEMAND —
@@ -63,7 +69,7 @@ final class FunctionCompiler {
         // a structured wall channel does not reach this layer yet).
         if (!com.legend.compiler.element.type.PlatformTypes
                 .isPlatformOwnedFunction(fqn)) {
-            all.addAll(model.findFunction(fqn));
+            addModelOverloads(all, model, fqn);
         } else if (!model.findFunction(fqn).isEmpty()
                 && SUPPRESSED_ONCE.add(fqn)) {
             System.err.println("[legend-lite] platform-owned function '" + fqn
@@ -71,6 +77,41 @@ final class FunctionCompiler {
                     + " user definition(s) suppressed (native is the definition)");
         }
         return all;
+    }
+
+    /** Model overloads join the set EXCEPT {@code <<PCT.function>>}
+     * redefinitions of natives the registry owns: that stereotype is the
+     * engine's own marker for "the platform function under conformance",
+     * and for those the NATIVE is the definition (tenet #2 — the
+     * reference pure body is the SPEC, never our implementation; witness:
+     * core_functions_standard redefines or/and/max... whose inlined fold
+     * bodies produced wrong SQL, chB-std testOr). A PCT.function with NO
+     * registered native keeps its body — the model IS the implementation
+     * (timeBucket, covarSample). Same stderr-once channel as the
+     * platform-owned rule. */
+    private static void addModelOverloads(
+            List<Function> all, ModelBuilder model, String fqn) {
+        String bare = fqn.substring(fqn.lastIndexOf(':') + 1);
+        for (Function def : model.findFunction(fqn)) {
+            boolean pctFunction = def
+                    instanceof com.legend.model.FunctionDefinition fd
+                    && fd.stereotypes() != null
+                    && fd.stereotypes().stream().anyMatch(st ->
+                            "function".equals(st.stereotypeName())
+                            && (st.profileName().equals("PCT")
+                                    || st.profileName().equals(
+                                            "meta::pure::test::pct::PCT")));
+            if (pctFunction
+                    && com.legend.builtin.Pure.nativeKeysAt(bare).stream()
+                            .anyMatch(k -> k.startsWith(fqn + "("))) {
+                if (SUPPRESSED_ONCE.add(fqn)) {
+                    System.err.println("[legend-lite] PCT.function '" + fqn
+                            + "' suppressed (native is the definition)");
+                }
+                continue;
+            }
+            all.add(def);
+        }
     }
 
     /** Real pure's implicit-import packages (m3 default imports) whose
