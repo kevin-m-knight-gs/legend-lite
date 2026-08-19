@@ -181,6 +181,371 @@ Association derivatives::TradeOptionTerms
    optionTerms: derivatives::OptionTerms[0..1];
 }
 
+// ---------------------------------------------------------------- the exotic book
+//
+// Fifty-eight further product types, all real, over the same base table. This is what a
+// derivatives taxonomy looks like at a firm that runs an exotics desk: the vanilla thirteen
+// above are the flow, and these are what the structuring desk actually sells.
+//
+// Each carries the measure its own desk quotes, because that is the honest difference
+// between them at this level of detail -- a Bermudan swaption is sized in exercise vega, a
+// tranche in correlation risk, an accumulator in gamma, a longevity swap in basis. None of
+// it is a pricing model.
+//
+// Most have no rows today, and that is realistic rather than a gap: a firm's product
+// taxonomy covers what it CAN book, not what it happens to hold this morning. The
+// discriminator still has to be right, and a service over an empty subtype still has to
+// return an empty result rather than the whole table -- which is precisely the thing that
+// breaks when a ~filter is wrong.
+
+// Pays a long-tenor swap rate rather than a short index, so it is exposed to the SHAPE of the curve and not just its level.
+Class derivatives::ConstantMaturitySwap extends derivatives::OtcTrade
+{
+   cmsDv01() { $this.notional * 0.00012 } : Float[1];
+}
+
+// Fixed against a realised inflation index. The floating leg is published monthly and revised.
+Class derivatives::InflationSwap extends derivatives::OtcTrade
+{
+   inflationDv01() { $this.notional * 0.00009 } : Float[1];
+}
+
+// Two floating legs in different currencies, with notional exchanged at both ends. Carries FX risk a single-currency swap does not.
+Class derivatives::CrossCurrencySwap extends derivatives::OtcTrade
+{
+   xccyBasisRisk() { $this.notional * 0.00015 } : Float[1];
+}
+
+// Notional steps down on a schedule, usually to match a loan being repaid.
+Class derivatives::AmortisingSwap extends derivatives::OtcTrade
+{
+   averageLifeDv01() { $this.notional * 0.00006 } : Float[1];
+}
+
+// Notional steps up, matching a facility being drawn.
+Class derivatives::AccretingSwap extends derivatives::OtcTrade
+{
+   averageLifeDv01() { $this.notional * 0.00007 } : Float[1];
+}
+
+// Notional both accretes and amortises across the life.
+Class derivatives::RollercoasterSwap extends derivatives::OtcTrade
+{
+   averageLifeDv01() { $this.notional * 0.00007 } : Float[1];
+}
+
+// One payment at maturity rather than a schedule, so all the cash flow risk sits at the end.
+Class derivatives::ZeroCouponSwap extends derivatives::OtcTrade
+{
+   terminalDv01() { $this.notional * 0.00018 } : Float[1];
+}
+
+// The floating leg fixes at the END of the period, which gives it convexity a vanilla swap has none of.
+Class derivatives::ArrearsSwap extends derivatives::OtcTrade
+{
+   convexityAdjustment() { $this.notional * 0.00002 } : Float[1];
+}
+
+// A swap the issuer can cancel. Equivalent to a swap plus a swaption.
+Class derivatives::CallableSwap extends derivatives::OtcTrade
+{
+   optionAdjustedDv01() { $this.notional * 0.00008 } : Float[1];
+}
+
+// Accrues a coupon only on days the index sits inside a corridor.
+Class derivatives::RangeAccrual extends derivatives::OtcTrade
+{
+   accrualRisk() { $this.notional * 0.00004 } : Float[1];
+}
+
+// An option on the difference between two swap rates, so it prices the curve slope directly.
+Class derivatives::CmsSpreadOption extends derivatives::OtcTrade
+{
+   slopeVega() { $this.notional * 0.00025 } : Float[1];
+}
+
+// Exercisable on several dates rather than one. The hardest vanilla-adjacent product to price.
+Class derivatives::BermudanSwaption extends derivatives::OtcTrade
+{
+   exerciseVega() { $this.notional * 0.00060 } : Float[1];
+}
+
+// A swaption whose underlying starts well after expiry.
+Class derivatives::MidcurveSwaption extends derivatives::OtcTrade
+{
+   forwardVega() { $this.notional * 0.00045 } : Float[1];
+}
+
+// A strip of floorlets. The mirror of a cap.
+Class derivatives::InterestRateFloor extends derivatives::OtcTrade
+{
+   floorVega() { $this.notional * 0.00030 } : Float[1];
+}
+
+// A cap bought and a floor sold, which fixes the cost at the price of giving up the upside.
+Class derivatives::InterestRateCollar extends derivatives::OtcTrade
+{
+   netVega() { $this.notional * 0.00012 } : Float[1];
+}
+
+// Pays a fixed amount rather than the excess, so the payoff is discontinuous at the strike.
+Class derivatives::DigitalCap extends derivatives::OtcTrade
+{
+   digitalRisk() { $this.notional * 0.00050 } : Float[1];
+}
+
+// Protection on a slice of an index's loss distribution. Correlation is the primary risk, not spread.
+Class derivatives::CdsTranche extends derivatives::OtcTrade
+{
+   correlationRisk() { $this.notional * 0.00080 } : Float[1];
+}
+
+// Pays on the first name in a basket to default. Long correlation.
+Class derivatives::FirstToDefaultBasket extends derivatives::OtcTrade
+{
+   basketCorrelation() { $this.notional * 0.00120 } : Float[1];
+}
+
+// Pays on the nth default. Higher n is longer correlation still.
+Class derivatives::NthToDefaultBasket extends derivatives::OtcTrade
+{
+   basketCorrelation() { $this.notional * 0.00100 } : Float[1];
+}
+
+// Trades the recovery rate itself, stripped of default timing.
+Class derivatives::RecoverySwap extends derivatives::OtcTrade
+{
+   recoveryRisk() { $this.notional * 0.00040 } : Float[1];
+}
+
+// A funded note whose principal is written down on a credit event.
+Class derivatives::CreditLinkedNote extends derivatives::OtcTrade
+{
+   fundedLgd() { $this.notional * 0.60 } : Float[1];
+}
+
+// A CDS whose spread resets to the prevailing market spread.
+Class derivatives::ConstantMaturityCds extends derivatives::OtcTrade
+{
+   spreadResetRisk() { $this.notional * 0.00035 } : Float[1];
+}
+
+// Protection referencing secured loans, so recovery assumptions are far higher.
+Class derivatives::LoanCds extends derivatives::OtcTrade
+{
+   securedLgd() { $this.notional * 0.30 } : Float[1];
+}
+
+// Protection on a sovereign. Restructuring is the usual trigger rather than bankruptcy.
+Class derivatives::SovereignCds extends derivatives::OtcTrade
+{
+   sovereignLgd() { $this.notional * 0.65 } : Float[1];
+}
+
+// A spot and a forward in one trade. Funding, not direction.
+Class derivatives::FxSwap extends derivatives::OtcTrade
+{
+   fundingBasis() { $this.notional * 0.00005 } : Float[1];
+}
+
+// Knocks in or out when spot touches a level, so the delta is discontinuous at the barrier.
+Class derivatives::FxBarrierOption extends derivatives::OtcTrade
+{
+   barrierGap() { $this.notional * 0.00090 } : Float[1];
+}
+
+// Pays a fixed amount if spot ends the right side of a strike.
+Class derivatives::FxDigital extends derivatives::OtcTrade
+{
+   digitalRisk() { $this.notional * 0.00070 } : Float[1];
+}
+
+// Settles against an AVERAGE of fixings, which damps the vega considerably.
+Class derivatives::FxAsianOption extends derivatives::OtcTrade
+{
+   averagingVega() { $this.notional * 0.00030 } : Float[1];
+}
+
+// Accumulates a position daily while spot stays in range, and doubles up below it.
+Class derivatives::FxAccumulator extends derivatives::OtcTrade
+{
+   accumulatorGamma() { $this.notional * 0.00150 } : Float[1];
+}
+
+// Redeems early once accumulated gains hit a target. The client is short the tail.
+Class derivatives::FxTargetRedemptionForward extends derivatives::OtcTrade
+{
+   tarfTailRisk() { $this.notional * 0.00200 } : Float[1];
+}
+
+// Pays a foreign asset's return in domestic currency at a fixed FX rate.
+Class derivatives::QuantoForward extends derivatives::OtcTrade
+{
+   quantoCorrelation() { $this.notional * 0.00045 } : Float[1];
+}
+
+// A cross-currency swap on a non-deliverable currency, cash settled throughout.
+Class derivatives::NonDeliverableSwap extends derivatives::OtcTrade
+{
+   ndsSettlementRisk() { $this.notional * 0.00025 } : Float[1];
+}
+
+// A bilateral equity option, struck off-exchange with bespoke terms.
+Class derivatives::OtcEquityOption extends derivatives::OtcTrade
+{
+   equityVega() { $this.notional * 0.00080 } : Float[1];
+}
+
+// Trades realised dividends against a fixed strike. No price exposure at all.
+Class derivatives::DividendSwap extends derivatives::OtcTrade
+{
+   dividendRisk() { $this.notional * 0.00060 } : Float[1];
+}
+
+// Total return of a single name against funding.
+Class derivatives::EquityTotalReturnSwap extends derivatives::OtcTrade
+{
+   equityDelta() { $this.notional } : Float[1];
+}
+
+// Redeems early if the underlying is above a trigger on an observation date. Short a down-and-in put.
+Class derivatives::Autocallable extends derivatives::OtcTrade
+{
+   autocallGamma() { $this.notional * 0.00180 } : Float[1];
+}
+
+// A high coupon paid for by a short put. The client is long yield and short the crash.
+Class derivatives::ReverseConvertible extends derivatives::OtcTrade
+{
+   shortPutDelta() { $this.notional * 0.40 } : Float[1];
+}
+
+// A series of forward-starting options, so the risk is to forward volatility rather than spot volatility.
+Class derivatives::Cliquet extends derivatives::OtcTrade
+{
+   forwardVolRisk() { $this.notional * 0.00110 } : Float[1];
+}
+
+// Strikes at the best level reached over the life. Expensive, and pure path dependency.
+Class derivatives::LookbackOption extends derivatives::OtcTrade
+{
+   pathRisk() { $this.notional * 0.00140 } : Float[1];
+}
+
+// An option on a weighted basket, so correlation between the members is priced directly.
+Class derivatives::BasketOption extends derivatives::OtcTrade
+{
+   basketCorrelation() { $this.notional * 0.00095 } : Float[1];
+}
+
+// Pays on the best or worst of several underlyings. Correlation again, and the wrong sign.
+Class derivatives::RainbowOption extends derivatives::OtcTrade
+{
+   worstOfRisk() { $this.notional * 0.00130 } : Float[1];
+}
+
+// Realised volatility against a strike, linear in vol where a variance swap is linear in variance.
+Class derivatives::VolatilitySwap extends derivatives::OtcTrade
+{
+   volNotional() { $this.notional / 2.0 } : Float[1];
+}
+
+// Accrues variance only while spot is inside a corridor.
+Class derivatives::CorridorVarianceSwap extends derivatives::OtcTrade
+{
+   corridorVega() { $this.notional * 0.00075 } : Float[1];
+}
+
+// Variance weighted by spot, so the exposure grows as the market rallies.
+Class derivatives::GammaSwap extends derivatives::OtcTrade
+{
+   spotWeightedGamma() { $this.notional * 0.00085 } : Float[1];
+}
+
+// Financing against equity collateral. The rate is the borrow, not the risk-free.
+Class derivatives::EquityRepo extends derivatives::OtcTrade
+{
+   borrowRisk() { $this.notional * 0.00020 } : Float[1];
+}
+
+// An option on a commodity future, usually with wide smile.
+Class derivatives::CommodityOption extends derivatives::OtcTrade
+{
+   commodityVega() { $this.notional * 0.00100 } : Float[1];
+}
+
+// An option on the spread between two commodities -- crack, spark, crush.
+Class derivatives::CommoditySpreadOption extends derivatives::OtcTrade
+{
+   spreadCorrelation() { $this.notional * 0.00090 } : Float[1];
+}
+
+// Settles against a monthly average, which is how physical commodity contracts price.
+Class derivatives::CommodityAsianOption extends derivatives::OtcTrade
+{
+   averagingVega() { $this.notional * 0.00050 } : Float[1];
+}
+
+// Pays on heating or cooling degree days. Uncorrelated with everything else in the book.
+Class derivatives::WeatherDerivative extends derivatives::OtcTrade
+{
+   weatherBasis() { $this.notional * 0.00300 } : Float[1];
+}
+
+// A forward on a shipping route's rate. Settles against a published index.
+Class derivatives::FreightForwardAgreement extends derivatives::OtcTrade
+{
+   freightBasis() { $this.notional * 0.00250 } : Float[1];
+}
+
+// A forward on carbon allowances, whose supply is set by policy rather than by producers.
+Class derivatives::EmissionsForward extends derivatives::OtcTrade
+{
+   policyRisk() { $this.notional * 0.00220 } : Float[1];
+}
+
+// A long-dated FX and rates hybrid, callable, and famously hard to hedge.
+Class derivatives::PowerReverseDualCurrency extends derivatives::OtcTrade
+{
+   hybridCorrelation() { $this.notional * 0.00280 } : Float[1];
+}
+
+// A range accrual the issuer can call, so it is short volatility twice over.
+Class derivatives::CallableRangeAccrual extends derivatives::OtcTrade
+{
+   callableAccrualRisk() { $this.notional * 0.00160 } : Float[1];
+}
+
+// Strips a convertible into its bond and its option, so each desk holds the part it wants.
+Class derivatives::ConvertibleAssetSwap extends derivatives::OtcTrade
+{
+   stripRisk() { $this.notional * 0.00070 } : Float[1];
+}
+
+// A funded note whose redemption tracks an equity payoff.
+Class derivatives::EquityLinkedNote extends derivatives::OtcTrade
+{
+   fundedEquityDelta() { $this.notional * 0.85 } : Float[1];
+}
+
+// Pays an inflation-linked coupon against nominal funding.
+Class derivatives::InflationLinkedSwap extends derivatives::OtcTrade
+{
+   realRateDv01() { $this.notional * 0.00011 } : Float[1];
+}
+
+// Transfers the risk that a pension scheme's members live longer than assumed.
+Class derivatives::LongevitySwap extends derivatives::OtcTrade
+{
+   longevityBasis() { $this.notional * 0.00400 } : Float[1];
+}
+
+// A forward on mortgage pools not yet specified. Prepayment is the risk that matters.
+Class derivatives::MortgageTba extends derivatives::OtcTrade
+{
+   prepaymentRisk() { $this.notional * 0.00130 } : Float[1];
+}
+
 ###Mapping
 Mapping derivatives::OtcMapping
 (
@@ -283,6 +648,296 @@ Mapping derivatives::OtcMapping
    derivatives::CommoditySwap[otcCommoditySwap] extends [otcBase]: Relational
    {
       ~filter [store::DB]OtcCommoditySwapRows
+   }
+
+   derivatives::ConstantMaturitySwap[otcConstantMaturitySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcConstantMaturitySwapRows
+   }
+
+   derivatives::InflationSwap[otcInflationSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcInflationSwapRows
+   }
+
+   derivatives::CrossCurrencySwap[otcCrossCurrencySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCrossCurrencySwapRows
+   }
+
+   derivatives::AmortisingSwap[otcAmortisingSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcAmortisingSwapRows
+   }
+
+   derivatives::AccretingSwap[otcAccretingSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcAccretingSwapRows
+   }
+
+   derivatives::RollercoasterSwap[otcRollercoasterSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcRollercoasterSwapRows
+   }
+
+   derivatives::ZeroCouponSwap[otcZeroCouponSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcZeroCouponSwapRows
+   }
+
+   derivatives::ArrearsSwap[otcArrearsSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcArrearsSwapRows
+   }
+
+   derivatives::CallableSwap[otcCallableSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCallableSwapRows
+   }
+
+   derivatives::RangeAccrual[otcRangeAccrual] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcRangeAccrualRows
+   }
+
+   derivatives::CmsSpreadOption[otcCmsSpreadOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCmsSpreadOptionRows
+   }
+
+   derivatives::BermudanSwaption[otcBermudanSwaption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcBermudanSwaptionRows
+   }
+
+   derivatives::MidcurveSwaption[otcMidcurveSwaption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcMidcurveSwaptionRows
+   }
+
+   derivatives::InterestRateFloor[otcFloor] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFloorRows
+   }
+
+   derivatives::InterestRateCollar[otcCollar] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCollarRows
+   }
+
+   derivatives::DigitalCap[otcDigitalCap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcDigitalCapRows
+   }
+
+   derivatives::CdsTranche[otcCdsTranche] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCdsTrancheRows
+   }
+
+   derivatives::FirstToDefaultBasket[otcFirstToDefault] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFirstToDefaultRows
+   }
+
+   derivatives::NthToDefaultBasket[otcNthToDefault] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcNthToDefaultRows
+   }
+
+   derivatives::RecoverySwap[otcRecoverySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcRecoverySwapRows
+   }
+
+   derivatives::CreditLinkedNote[otcCreditLinkedNote] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCreditLinkedNoteRows
+   }
+
+   derivatives::ConstantMaturityCds[otcConstantMaturityCds] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcConstantMaturityCdsRows
+   }
+
+   derivatives::LoanCds[otcLoanCds] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcLoanCdsRows
+   }
+
+   derivatives::SovereignCds[otcSovereignCds] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcSovereignCdsRows
+   }
+
+   derivatives::FxSwap[otcFxSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxSwapRows
+   }
+
+   derivatives::FxBarrierOption[otcFxBarrierOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxBarrierOptionRows
+   }
+
+   derivatives::FxDigital[otcFxDigital] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxDigitalRows
+   }
+
+   derivatives::FxAsianOption[otcFxAsianOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxAsianOptionRows
+   }
+
+   derivatives::FxAccumulator[otcFxAccumulator] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxAccumulatorRows
+   }
+
+   derivatives::FxTargetRedemptionForward[otcFxTarf] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFxTarfRows
+   }
+
+   derivatives::QuantoForward[otcQuantoForward] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcQuantoForwardRows
+   }
+
+   derivatives::NonDeliverableSwap[otcNds] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcNdsRows
+   }
+
+   derivatives::OtcEquityOption[otcEquityOptionOtc] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcEquityOptionOtcRows
+   }
+
+   derivatives::DividendSwap[otcDividendSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcDividendSwapRows
+   }
+
+   derivatives::EquityTotalReturnSwap[otcTotalReturnSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcTotalReturnSwapRows
+   }
+
+   derivatives::Autocallable[otcAutocallable] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcAutocallableRows
+   }
+
+   derivatives::ReverseConvertible[otcReverseConvertible] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcReverseConvertibleRows
+   }
+
+   derivatives::Cliquet[otcCliquet] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCliquetRows
+   }
+
+   derivatives::LookbackOption[otcLookbackOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcLookbackOptionRows
+   }
+
+   derivatives::BasketOption[otcBasketOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcBasketOptionRows
+   }
+
+   derivatives::RainbowOption[otcRainbowOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcRainbowOptionRows
+   }
+
+   derivatives::VolatilitySwap[otcVolatilitySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcVolatilitySwapRows
+   }
+
+   derivatives::CorridorVarianceSwap[otcCorridorVarianceSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCorridorVarianceSwapRows
+   }
+
+   derivatives::GammaSwap[otcGammaSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcGammaSwapRows
+   }
+
+   derivatives::EquityRepo[otcEquityRepo] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcEquityRepoRows
+   }
+
+   derivatives::CommodityOption[otcCommodityOption] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCommodityOptionRows
+   }
+
+   derivatives::CommoditySpreadOption[otcCommoditySpread] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCommoditySpreadRows
+   }
+
+   derivatives::CommodityAsianOption[otcCommodityAsian] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCommodityAsianRows
+   }
+
+   derivatives::WeatherDerivative[otcWeatherDerivative] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcWeatherDerivativeRows
+   }
+
+   derivatives::FreightForwardAgreement[otcFreightForward] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcFreightForwardRows
+   }
+
+   derivatives::EmissionsForward[otcEmissionsForward] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcEmissionsForwardRows
+   }
+
+   derivatives::PowerReverseDualCurrency[otcPrdc] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcPrdcRows
+   }
+
+   derivatives::CallableRangeAccrual[otcCallableRangeAccrual] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcCallableRangeAccrualRows
+   }
+
+   derivatives::ConvertibleAssetSwap[otcConvertibleAssetSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcConvertibleAssetSwapRows
+   }
+
+   derivatives::EquityLinkedNote[otcEquityLinkedNote] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcEquityLinkedNoteRows
+   }
+
+   derivatives::InflationLinkedSwap[otcInflationLinkedSwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcInflationLinkedSwapRows
+   }
+
+   derivatives::LongevitySwap[otcLongevitySwap] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcLongevitySwapRows
+   }
+
+   derivatives::MortgageTba[otcMortgageTba] extends [otcBase]: Relational
+   {
+      ~filter [store::DB]OtcMortgageTbaRows
    }
 
    derivatives::SwapLeg: Relational

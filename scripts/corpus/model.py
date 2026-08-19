@@ -1612,6 +1612,29 @@ def check(c: Corpus) -> list[str]:
             m = re.match(r"^\s*Table\s+(\w+)\s*[\(]?\s*$|^\s*Table\s+(\w+)\s*\(", line)
             if m and db:
                 seen_tables.setdefault((db, m.group(1) or m.group(2)), []).append(f.name)
+    # A seeded value too long for its declared column. Without this the failure arrives as
+    # an H2 insert error inside whichever service happens to load that table first -- for a
+    # 22-character product type in a VARCHAR(20), that was a graph-fetch service on an
+    # unrelated class, sixty-two errors deep and pointing nowhere near the seed.
+    try:
+        import flat
+        for tname, rows in flat.all_tables(c).items():
+            table = c.tables.get(tname)
+            if table is None or not rows:
+                continue
+            for col, spec in table.columns.items():
+                m = re.search(r"(?:VAR)?CHAR\s*\(\s*(\d+)", str(spec.type or ""), re.I)
+                if not m:
+                    continue
+                width = int(m.group(1))
+                worst = max((len(str(r[col])) for r in rows
+                             if r.get(col) is not None), default=0)
+                if worst > width:
+                    bad.append(f"{tname}.{col} is VARCHAR({width}) and the seed holds a "
+                               f"{worst}-character value")
+    except Exception:
+        pass
+
     for (db, name), where in sorted(seen_tables.items()):
         if len(where) > 1:
             bad.append(f"table {name} is declared {len(where)} times in {db} "

@@ -74,12 +74,25 @@ EXCLUDE = {
         "mjBook in mapping modeljoin::JoinMapping'",
     ("Otherwise", "Graph"):
         "graph fetch over a set with an Otherwise fallback errors during plan generation",
-    ("Issuer", "Filter"): "the hier region's test data does not survive this shape",
-    ("Issuer", "Graph"): "the hier region's test data does not survive this shape",
+    # Two hier entries remain, with the reason the engine actually gives:
+    #
+    #   No test data provided for connection type 'RelationalDatabaseConnection'
+    #
+    # The Filter shape reaches a connection the template's ###Data element does not cover.
+    # The IssuerProd GRAPH shape passes and is no longer excluded; the Issuer one does not,
+    # so the exclusion is per (mapping, shape) rather than per mapping.
+    ("Issuer", "Filter"): "the shape reaches a connection the template's data element does "
+                          "not seed: 'No test data provided for connection type'",
+    ("Issuer", "Graph"): "as Issuer/Filter -- the same uncovered connection",
     ("IssuerProd", "Filter"): "as Issuer",
-    ("IssuerProd", "Graph"):
-        "H2 rejects the seeded COUNTRY_CODE as too long for VARCHAR(8) when this shape "
-        "drives the insert",
+
+    # The other two entries that used to sit here are GONE, and their reason was wrong.
+    # "The hier region's test data does not survive this shape" was a description of the
+    # symptom; the cause was HIER_ISSUER.COUNTRY_CODE declared VARCHAR(8) while the seed's
+    # adversarial dangling-FK marker 'HC-0001-GONE' is twelve characters. Any shape that
+    # drove the insert hit it, and the shapes that did not simply never inserted that row.
+    # Widening the column fixed all four. model.check now catches this class of thing at the
+    # seed rather than as a JDBC error inside an unrelated service.
 }
 
 

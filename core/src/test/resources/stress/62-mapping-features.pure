@@ -82,7 +82,7 @@ Database hier::IssuerDB
       CONTACT_EMAIL VARCHAR(200),
       CONTACT_PHONE VARCHAR(64),
       PROFILE_JSON VARCHAR(1000),
-      COUNTRY_CODE VARCHAR(8)
+      COUNTRY_CODE VARCHAR(16)
    )
 
    // Cross-database join. `include` is NOT required for one -- [db] pointers resolve
@@ -93,7 +93,7 @@ Database hier::IssuerDB
    // produce a single-hop mapping, which is what the whole base model has.
    Table HIER_COUNTRY
    (
-      COUNTRY_CODE VARCHAR(8) PRIMARY KEY,
+      COUNTRY_CODE VARCHAR(16) PRIMARY KEY,
       COUNTRY_NAME VARCHAR(120)
    )
    // A REAL foreign key, so the seeder populates it from actual country rows. Joined on
@@ -118,7 +118,7 @@ Database hier::IssuerDBProd
       CONTACT_EMAIL VARCHAR(200),
       CONTACT_PHONE VARCHAR(64),
       PROFILE_JSON VARCHAR(1000),
-      COUNTRY_CODE VARCHAR(8)
+      COUNTRY_CODE VARCHAR(16)
    )
 )
 

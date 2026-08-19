@@ -35,6 +35,7 @@ import hier
 import quarantine
 import spread
 import stacks
+import taxonomy
 import tomany
 from model import STRESS
 
@@ -188,6 +189,9 @@ def generate() -> dict[Path, str]:
     # fails the whole service. isEmpty/isNotEmpty are correct there, so these reach the 105
     # ends that count() cannot -- and assert the empty case 299 times rather than avoiding it.
     generated += tomany.build(c, seeded_now, TABLES)
+    # One service per subtype of every discriminated taxonomy: the only way a wrong ~filter
+    # is visible, since it fails by returning the WHOLE table rather than by erroring.
+    generated += taxonomy.build(c, seeded_now, TABLES)
     # Coverage-directed services: chosen by which feature COMBINATIONS they close rather
     # than by walking the model, which is what every generator above does. Runs last
     # because it needs to know what the others already cover.

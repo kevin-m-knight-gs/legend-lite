@@ -367,6 +367,7 @@ def base_specs(c: model.Corpus):
     import hier
     import query
     import stacks
+    import taxonomy
     import tomany
 
     tables = flat.all_tables(c)
@@ -374,7 +375,8 @@ def base_specs(c: model.Corpus):
     return (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c)
-            + tomany.build(c, seeded, tables))
+            + tomany.build(c, seeded, tables)
+            + taxonomy.build(c, seeded, tables))
 
 
 def all_specs(c: model.Corpus):
