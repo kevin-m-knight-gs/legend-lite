@@ -933,6 +933,205 @@ OTC_OPTION_TERMS = [
 ]
 
 
+
+# ------------------------------------------------------------------ market risk
+#
+# A risk run, the factors it shocked, and the numbers it produced. This is the shape every
+# market-risk stack has: one batch per day per book, a factor hierarchy underneath it, and a
+# measure table that fans out to trades x factors x tenor buckets.
+#
+# The measures are the real vocabulary -- DV01 and CS01 and PV01 are different things, a
+# historical VaR and a parametric VaR are different models of the same question, and CVA is
+# not a sensitivity at all. Modelling them as one table with a MEASURE_TYPE discriminator is
+# what a risk warehouse actually does.
+RISK_RUN = [
+    dict(RUN_ID="RUN-20240628-EOD", COB_DATE=_iso(2024, 6, 28), RUN_TYPE="EOD",
+         SCOPE="FIRM", MODEL_VERSION="MR-2024.2", STATUS="COMPLETE",
+         STARTED_AT="2024-06-28 22:15:00", COMPLETED_AT="2024-06-28 23:48:00",
+         TRADE_COUNT=13, APPROVED_BY="risk.controller"),
+    dict(RUN_ID="RUN-20240628-INTRA", COB_DATE=_iso(2024, 6, 28), RUN_TYPE="INTRADAY",
+         SCOPE="RATES_DESK", MODEL_VERSION="MR-2024.2", STATUS="COMPLETE",
+         STARTED_AT="2024-06-28 12:00:00", COMPLETED_AT="2024-06-28 12:09:00",
+         TRADE_COUNT=6, APPROVED_BY=None),
+    dict(RUN_ID="RUN-20240627-EOD", COB_DATE=_iso(2024, 6, 27), RUN_TYPE="EOD",
+         SCOPE="FIRM", MODEL_VERSION="MR-2024.1", STATUS="COMPLETE",
+         STARTED_AT="2024-06-27 22:12:00", COMPLETED_AT="2024-06-27 23:39:00",
+         TRADE_COUNT=13, APPROVED_BY="risk.controller"),
+    # A run that failed part way. Its measures are absent, which is the case a report that
+    # assumes every run produced numbers gets wrong.
+    dict(RUN_ID="RUN-20240626-EOD", COB_DATE=_iso(2024, 6, 26), RUN_TYPE="EOD",
+         SCOPE="FIRM", MODEL_VERSION="MR-2024.1", STATUS="FAILED",
+         STARTED_AT="2024-06-26 22:14:00", COMPLETED_AT=None,
+         TRADE_COUNT=0, APPROVED_BY=None),
+]
+
+# The factor hierarchy. A curve has tenor points; an FX spot does not, so TENOR is null for
+# it -- absent rather than unknown.
+RISK_FACTOR = [
+    dict(FACTOR_ID="IR.USD.SOFR.2Y", FACTOR_TYPE="IR_CURVE", CURVE_NAME="USD-SOFR",
+         CURRENCY="USD", TENOR="2Y", TENOR_MONTHS=24, ASSET_CLASS="RATES"),
+    dict(FACTOR_ID="IR.USD.SOFR.5Y", FACTOR_TYPE="IR_CURVE", CURVE_NAME="USD-SOFR",
+         CURRENCY="USD", TENOR="5Y", TENOR_MONTHS=60, ASSET_CLASS="RATES"),
+    dict(FACTOR_ID="IR.USD.SOFR.10Y", FACTOR_TYPE="IR_CURVE", CURVE_NAME="USD-SOFR",
+         CURRENCY="USD", TENOR="10Y", TENOR_MONTHS=120, ASSET_CLASS="RATES"),
+    dict(FACTOR_ID="IR.EUR.ESTR.3Y", FACTOR_TYPE="IR_CURVE", CURVE_NAME="EUR-ESTR",
+         CURRENCY="EUR", TENOR="3Y", TENOR_MONTHS=36, ASSET_CLASS="RATES"),
+    dict(FACTOR_ID="CR.IG.5Y", FACTOR_TYPE="CREDIT_SPREAD", CURVE_NAME="CDX-IG",
+         CURRENCY="USD", TENOR="5Y", TENOR_MONTHS=60, ASSET_CLASS="CREDIT"),
+    dict(FACTOR_ID="FX.EURUSD", FACTOR_TYPE="FX_SPOT", CURVE_NAME=None,
+         CURRENCY="EUR", TENOR=None, TENOR_MONTHS=None, ASSET_CLASS="FX"),
+    dict(FACTOR_ID="EQ.SPX", FACTOR_TYPE="EQUITY_SPOT", CURVE_NAME=None,
+         CURRENCY="USD", TENOR=None, TENOR_MONTHS=None, ASSET_CLASS="EQUITY"),
+    dict(FACTOR_ID="VOL.SPX.1Y.ATM", FACTOR_TYPE="VOL_SURFACE", CURVE_NAME="SPX-VOL",
+         CURRENCY="USD", TENOR="1Y", TENOR_MONTHS=12, ASSET_CLASS="EQUITY"),
+    dict(FACTOR_ID="CM.WTI.FRONT", FACTOR_TYPE="COMMODITY_SPOT", CURVE_NAME="WTI",
+         CURRENCY="USD", TENOR=None, TENOR_MONTHS=None, ASSET_CLASS="COMMODITY"),
+]
+
+# Which factors each trade is sensitive to. A rates swap loads on its curve buckets, a CDS on
+# the credit curve, an FX option on spot AND vol. Written out because it is a modelling fact
+# about the product, not something to be generated.
+_EXPOSURE = {
+    "OTC-000001": ["IR.USD.SOFR.2Y", "IR.USD.SOFR.5Y", "IR.USD.SOFR.10Y"],
+    "OTC-000002": ["IR.USD.SOFR.2Y"],
+    "OTC-000003": ["IR.EUR.ESTR.3Y"],
+    "OTC-000004": ["IR.USD.SOFR.2Y"],
+    "OTC-000005": ["IR.USD.SOFR.5Y", "VOL.SPX.1Y.ATM"],
+    "OTC-000006": ["IR.USD.SOFR.2Y", "IR.USD.SOFR.5Y"],
+    "OTC-000007": ["CR.IG.5Y"],
+    "OTC-000008": ["CR.IG.5Y"],
+    "OTC-000009": ["FX.EURUSD"],
+    "OTC-000010": ["FX.EURUSD", "VOL.SPX.1Y.ATM"],
+    "OTC-000011": ["EQ.SPX", "IR.USD.SOFR.2Y"],
+    "OTC-000012": ["EQ.SPX", "VOL.SPX.1Y.ATM"],
+    "OTC-000013": ["CM.WTI.FRONT"],
+}
+
+# Which measure a factor type produces. A curve gives DV01, a credit spread CS01, a vol
+# surface vega -- the measure follows the factor, which is why this is a lookup and not a
+# column someone types.
+_MEASURE_FOR = {
+    "IR_CURVE": ("DV01", "USD"), "CREDIT_SPREAD": ("CS01", "USD"),
+    "FX_SPOT": ("FX_DELTA", "USD"), "EQUITY_SPOT": ("EQUITY_DELTA", "USD"),
+    "VOL_SURFACE": ("VEGA", "USD"), "COMMODITY_SPOT": ("COMMODITY_DELTA", "USD"),
+}
+
+
+def _sensitivities():
+    """One row per completed run, trade and factor it loads on.
+
+    Values are derived from the trade's notional and the factor's tenor, which is how a
+    sensitivity actually behaves -- a ten-year bucket carries more DV01 than a two-year one
+    on the same notional -- so the numbers are ordered the way a risk report expects rather
+    than random.
+    """
+    factors = {f["FACTOR_ID"]: f for f in RISK_FACTOR}
+    notional = {t["OTC_ID"]: t["NOTIONAL"] for t in OTC_TRADE}
+    out, n = [], 0
+    for run in RISK_RUN:
+        if run["STATUS"] != "COMPLETE":
+            continue
+        scope_rates = run["SCOPE"] == "RATES_DESK"
+        for otc_id in sorted(_EXPOSURE):
+            for fid in _EXPOSURE[otc_id]:
+                f = factors[fid]
+                if scope_rates and f["ASSET_CLASS"] != "RATES":
+                    continue
+                measure, ccy = _MEASURE_FOR[f["FACTOR_TYPE"]]
+                months = f["TENOR_MONTHS"] or 12
+                value = round(notional[otc_id] * (months / 120.0) * 0.0001, 2)
+                n += 1
+                out.append(dict(
+                    SENSITIVITY_ID=f"SENS-{n:05d}", RUN_ID=run["RUN_ID"], OTC_ID=otc_id,
+                    FACTOR_ID=fid, MEASURE_TYPE=measure, MEASURE_VALUE=value,
+                    MEASURE_CURRENCY=ccy, SHOCK_SIZE=1.0, SHOCK_UNIT="BP",
+                    COB_DATE=run["COB_DATE"]))
+    return out
+
+
+SENSITIVITY = _sensitivities()
+
+# Firm-level risk numbers: several models of the same question, which is why MEASURE_TYPE is
+# a discriminator and not a column name.
+RISK_MEASURE = [
+    dict(MEASURE_ID="MEAS-00001", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="HISTORICAL_VAR",
+         SCOPE="FIRM", CONFIDENCE=0.99, HORIZON_DAYS=1, MEASURE_VALUE=4185000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=520, MODEL_NAME="HS-520D"),
+    dict(MEASURE_ID="MEAS-00002", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="PARAMETRIC_VAR",
+         SCOPE="FIRM", CONFIDENCE=0.99, HORIZON_DAYS=1, MEASURE_VALUE=3920000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=260, MODEL_NAME="VCV-260D"),
+    dict(MEASURE_ID="MEAS-00003", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="MONTE_CARLO_VAR",
+         SCOPE="FIRM", CONFIDENCE=0.99, HORIZON_DAYS=1, MEASURE_VALUE=4310000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=None, MODEL_NAME="MC-10K"),
+    dict(MEASURE_ID="MEAS-00004", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="EXPECTED_SHORTFALL",
+         SCOPE="FIRM", CONFIDENCE=0.975, HORIZON_DAYS=1, MEASURE_VALUE=5240000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=520, MODEL_NAME="ES-520D"),
+    dict(MEASURE_ID="MEAS-00005", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="STRESSED_VAR",
+         SCOPE="FIRM", CONFIDENCE=0.99, HORIZON_DAYS=10, MEASURE_VALUE=11800000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=260, MODEL_NAME="SVAR-2008"),
+    dict(MEASURE_ID="MEAS-00006", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="CVA",
+         SCOPE="FIRM", CONFIDENCE=None, HORIZON_DAYS=None, MEASURE_VALUE=862000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=None, MODEL_NAME="XVA-2024.1"),
+    dict(MEASURE_ID="MEAS-00007", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="DVA",
+         SCOPE="FIRM", CONFIDENCE=None, HORIZON_DAYS=None, MEASURE_VALUE=415000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=None, MODEL_NAME="XVA-2024.1"),
+    dict(MEASURE_ID="MEAS-00008", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="FVA",
+         SCOPE="FIRM", CONFIDENCE=None, HORIZON_DAYS=None, MEASURE_VALUE=228000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=None, MODEL_NAME="XVA-2024.1"),
+    dict(MEASURE_ID="MEAS-00009", RUN_ID="RUN-20240628-EOD", MEASURE_TYPE="PFE",
+         SCOPE="FIRM", CONFIDENCE=0.95, HORIZON_DAYS=1825, MEASURE_VALUE=18400000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=None, MODEL_NAME="CCR-2024.1"),
+    dict(MEASURE_ID="MEAS-00010", RUN_ID="RUN-20240628-INTRA", MEASURE_TYPE="HISTORICAL_VAR",
+         SCOPE="RATES_DESK", CONFIDENCE=0.99, HORIZON_DAYS=1, MEASURE_VALUE=1320000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=520, MODEL_NAME="HS-520D"),
+    dict(MEASURE_ID="MEAS-00011", RUN_ID="RUN-20240627-EOD", MEASURE_TYPE="HISTORICAL_VAR",
+         SCOPE="FIRM", CONFIDENCE=0.99, HORIZON_DAYS=1, MEASURE_VALUE=4092000.00,
+         CURRENCY="USD", LOOKBACK_DAYS=520, MODEL_NAME="HS-520D"),
+]
+
+# Stress scenarios, and what each did to the book. The historical ones are the standard set
+# every regulator asks for.
+STRESS_SCENARIO = [
+    dict(SCENARIO_ID="SCN-LEHMAN", SCENARIO_NAME="Lehman default Sep 2008",
+         SCENARIO_TYPE="HISTORICAL", SEVERITY="SEVERE", HORIZON_DAYS=10,
+         AS_OF_EVENT=_iso(2008, 9, 15), IS_REGULATORY=True),
+    dict(SCENARIO_ID="SCN-COVID", SCENARIO_NAME="Covid crash Mar 2020",
+         SCENARIO_TYPE="HISTORICAL", SEVERITY="SEVERE", HORIZON_DAYS=10,
+         AS_OF_EVENT=_iso(2020, 3, 16), IS_REGULATORY=True),
+    dict(SCENARIO_ID="SCN-GILT", SCENARIO_NAME="UK gilt crisis Sep 2022",
+         SCENARIO_TYPE="HISTORICAL", SEVERITY="MODERATE", HORIZON_DAYS=5,
+         AS_OF_EVENT=_iso(2022, 9, 23), IS_REGULATORY=False),
+    dict(SCENARIO_ID="SCN-PAR-200BP", SCENARIO_NAME="Parallel +200bp",
+         SCENARIO_TYPE="HYPOTHETICAL", SEVERITY="MODERATE", HORIZON_DAYS=1,
+         AS_OF_EVENT=None, IS_REGULATORY=True),
+    dict(SCENARIO_ID="SCN-STEEP", SCENARIO_NAME="Curve steepener 100bp",
+         SCENARIO_TYPE="HYPOTHETICAL", SEVERITY="MILD", HORIZON_DAYS=1,
+         AS_OF_EVENT=None, IS_REGULATORY=False),
+]
+
+
+def _scenario_results():
+    """Each completed FIRM run against each scenario. The intraday rates-desk run is not
+    stressed, so it has no results -- a parent with no children, on purpose."""
+    out, n = [], 0
+    sev = {"SEVERE": 3.5, "MODERATE": 1.8, "MILD": 0.7}
+    for run in RISK_RUN:
+        if run["STATUS"] != "COMPLETE" or run["SCOPE"] != "FIRM":
+            continue
+        for scn in STRESS_SCENARIO:
+            n += 1
+            pnl = round(-4185000.00 * sev[scn["SEVERITY"]] * (scn["HORIZON_DAYS"] / 10.0), 2)
+            out.append(dict(RESULT_ID=f"SCNR-{n:05d}", RUN_ID=run["RUN_ID"],
+                            SCENARIO_ID=scn["SCENARIO_ID"], SCOPE=run["SCOPE"],
+                            STRESSED_PNL=pnl, BASE_PNL=0.00, CURRENCY="USD",
+                            COB_DATE=run["COB_DATE"],
+                            BREACHED_LIMIT=abs(pnl) > 10000000.00))
+    return out
+
+
+SCENARIO_RESULT = _scenario_results()
+
+
 TABLES: dict[str, list[dict]] = {
     "EXT_LEGAL_ENTITY": EXT_LEGAL_ENTITY,
     "CPTY_RATING_MS": CPTY_RATING_MS,
@@ -947,6 +1146,9 @@ TABLES: dict[str, list[dict]] = {
     "COUPON_PAYMENT": COUPON_PAYMENT,
     "OTC_TRADE": OTC_TRADE, "OTC_SWAP_LEG": OTC_SWAP_LEG,
     "OTC_OPTION_TERMS": OTC_OPTION_TERMS,
+    "RISK_RUN": RISK_RUN, "MR_RISK_FACTOR": RISK_FACTOR, "SENSITIVITY": SENSITIVITY,
+    "RISK_MEASURE": RISK_MEASURE, "MR_STRESS_SCENARIO": STRESS_SCENARIO,
+    "SCENARIO_RESULT": SCENARIO_RESULT,
 }
 
 

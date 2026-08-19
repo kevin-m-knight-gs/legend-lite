@@ -1,0 +1,452 @@
+###Pure
+// Market risk: a run, the factors it shocked, and the numbers it produced.
+//
+// Two grains, deliberately two tables. RISK_MEASURE holds firm-level numbers -- one VaR for
+// the book -- and SENSITIVITY holds per-trade, per-factor exposures. Putting both in one
+// table is the mistake every risk warehouse makes once, because a VaR has a confidence level
+// and no factor, and a DV01 has a factor and no confidence level.
+//
+// Both are taxonomies. A historical VaR and a parametric VaR answer the same question with
+// different models; a DV01 and a CS01 are different risks entirely. Fifteen measure classes
+// over two tables, discriminated by MEASURE_TYPE.
+Class risk::RiskRun
+{
+   runId: String[1];
+   cobDate: StrictDate[1];
+   runType: String[1];
+   scope: String[1];
+   modelVersion: String[1];
+   status: String[1];
+   startedAt: DateTime[1];
+   // Null while a run is still going, and for the one that failed.
+   completedAt: DateTime[0..1];
+   tradeCount: Integer[1];
+   // Null until a controller signs off. The intraday run never is.
+   approvedBy: String[0..1];
+
+   // Wall-clock minutes. A risk run that takes longer than its window is an operational
+   // incident, so this is a real number somebody watches.
+   durationMinutes() { dateDiff($this.startedAt, $this.completedAt, meta::pure::functions::date::DurationUnit.MINUTES) } : Integer[0..1];
+}
+
+Class risk::MarketRiskFactor
+{
+   factorId: String[1];
+   factorType: String[1];
+   // Null for a spot factor: there is no curve, rather than an unnamed one.
+   curveName: String[0..1];
+   currency: String[1];
+   // Null for a spot factor for the same reason -- a spot has no tenor.
+   tenor: String[0..1];
+   tenorMonths: Integer[0..1];
+   assetClass: String[1];
+}
+
+// Firm-level risk numbers. The base of a nine-way taxonomy.
+Class risk::RiskMeasure
+{
+   measureId: String[1];
+   runId: String[1];
+   measureType: String[1];
+   scope: String[1];
+   // Null for the XVA measures: a CVA has no confidence level.
+   confidence: Float[0..1];
+   horizonDays: Integer[0..1];
+   measureValue: Float[1];
+   currency: String[1];
+   lookbackDays: Integer[0..1];
+   modelName: String[1];
+
+   // The same number in another currency, at a rate the caller supplies.
+   valueIn(fxRate: Float[1]) { $this.measureValue * $fxRate } : Float[1];
+}
+
+// Value at risk from the empirical distribution of a
+// lookback window. The regulator's default.
+Class risk::HistoricalVar extends risk::RiskMeasure
+{
+}
+
+// Variance-covariance VaR. Cheap, and wrong in the tails
+// because it assumes normality.
+Class risk::ParametricVar extends risk::RiskMeasure
+{
+}
+
+// VaR by simulation. Slowest and the only one that copes
+// with optionality properly.
+Class risk::MonteCarloVar extends risk::RiskMeasure
+{
+}
+
+// The average loss BEYOND the VaR threshold, which is
+// what replaced VaR under FRTB.
+Class risk::ExpectedShortfall extends risk::RiskMeasure
+{
+}
+
+// VaR calibrated to a stressed period rather than the
+// recent window.
+Class risk::StressedVar extends risk::RiskMeasure
+{
+}
+
+// The price of the counterparty's default risk. Not a
+// sensitivity and not a VaR -- an adjustment to fair value.
+Class risk::CreditValuationAdjustment extends risk::RiskMeasure
+{
+}
+
+// The mirror image: the price of OUR own default risk,
+// which is why it moves the other way.
+Class risk::DebitValuationAdjustment extends risk::RiskMeasure
+{
+}
+
+// The cost of funding the uncollateralised part of a
+// position.
+Class risk::FundingValuationAdjustment extends risk::RiskMeasure
+{
+}
+
+// The exposure at a future percentile, which is what a
+// credit line is actually sized against.
+Class risk::PotentialFutureExposure extends risk::RiskMeasure
+{
+}
+
+// Per-trade, per-factor exposures. The base of a six-way taxonomy.
+Class risk::Sensitivity
+{
+   sensitivityId: String[1];
+   runId: String[1];
+   otcId: String[1];
+   factorId: String[1];
+   measureType: String[1];
+   measureValue: Float[1];
+   measureCurrency: String[1];
+   shockSize: Float[1];
+   shockUnit: String[1];
+   cobDate: StrictDate[1];
+
+   // Scaled to the shock a risk report quotes, which is rarely the shock the engine used.
+   scaledTo(shockBp: Float[1]) { $this.measureValue * $shockBp } : Float[1];
+}
+
+// Change in value for a one basis point move in a rates curve.
+Class risk::Dv01Sensitivity extends risk::Sensitivity
+{
+}
+
+// Change in value for a one basis point move in a credit spread.
+Class risk::Cs01Sensitivity extends risk::Sensitivity
+{
+}
+
+// Change in value for a one point move in implied volatility.
+Class risk::VegaSensitivity extends risk::Sensitivity
+{
+}
+
+// Change in value for a one percent move in an FX spot rate.
+Class risk::FxDeltaSensitivity extends risk::Sensitivity
+{
+}
+
+// Change in value for a one percent move in an equity
+// spot price.
+Class risk::EquityDeltaSensitivity extends risk::Sensitivity
+{
+}
+
+// Change in value for a one percent move in a
+// commodity spot price.
+Class risk::CommodityDeltaSensitivity extends risk::Sensitivity
+{
+}
+
+Class risk::MarketStressScenario
+{
+   scenarioId: String[1];
+   scenarioName: String[1];
+   scenarioType: String[1];
+   severity: String[1];
+   horizonDays: Integer[1];
+   // Null for a hypothetical scenario: there is no historical event behind it.
+   asOfEvent: StrictDate[0..1];
+   isRegulatory: Boolean[1];
+}
+
+Class risk::ScenarioResult
+{
+   resultId: String[1];
+   runId: String[1];
+   scenarioId: String[1];
+   scope: String[1];
+   stressedPnl: Float[1];
+   basePnl: Float[1];
+   currency: String[1];
+   cobDate: StrictDate[1];
+   breachedLimit: Boolean[1];
+}
+
+Association risk::RunSensitivities
+{
+   sensitivityRun: risk::RiskRun[0..1];
+   sensitivities: risk::Sensitivity[*];
+}
+
+Association risk::RunMeasures
+{
+   measureRun: risk::RiskRun[0..1];
+   measures: risk::RiskMeasure[*];
+}
+
+Association risk::RunScenarioResults
+{
+   scenarioRun: risk::RiskRun[0..1];
+   scenarioResults: risk::ScenarioResult[*];
+}
+
+Association risk::ScenarioResults
+{
+   scenario: risk::MarketStressScenario[0..1];
+   results: risk::ScenarioResult[*];
+}
+
+Association risk::SensitivityFactor
+{
+   factor: risk::MarketRiskFactor[0..1];
+   factorSensitivities: risk::Sensitivity[*];
+}
+
+Association risk::SensitivityTrade
+{
+   sensitivityTrade: derivatives::OtcTrade[0..1];
+   tradeSensitivities: risk::Sensitivity[*];
+}
+
+###Mapping
+Mapping risk::MarketRiskMapping
+(
+   risk::RiskRun: Relational
+   {
+      ~primaryKey ( [store::DB]RISK_RUN.RUN_ID )
+      ~mainTable [store::DB]RISK_RUN
+      runId: [store::DB]RISK_RUN.RUN_ID,
+      cobDate: [store::DB]RISK_RUN.COB_DATE,
+      runType: [store::DB]RISK_RUN.RUN_TYPE,
+      scope: [store::DB]RISK_RUN.SCOPE,
+      modelVersion: [store::DB]RISK_RUN.MODEL_VERSION,
+      status: [store::DB]RISK_RUN.STATUS,
+      startedAt: [store::DB]RISK_RUN.STARTED_AT,
+      completedAt: [store::DB]RISK_RUN.COMPLETED_AT,
+      tradeCount: [store::DB]RISK_RUN.TRADE_COUNT,
+      approvedBy: [store::DB]RISK_RUN.APPROVED_BY
+   }
+
+   risk::MarketRiskFactor: Relational
+   {
+      ~primaryKey ( [store::DB]MR_RISK_FACTOR.FACTOR_ID )
+      ~mainTable [store::DB]MR_RISK_FACTOR
+      factorId: [store::DB]MR_RISK_FACTOR.FACTOR_ID,
+      factorType: [store::DB]MR_RISK_FACTOR.FACTOR_TYPE,
+      curveName: [store::DB]MR_RISK_FACTOR.CURVE_NAME,
+      currency: [store::DB]MR_RISK_FACTOR.CURRENCY,
+      tenor: [store::DB]MR_RISK_FACTOR.TENOR,
+      tenorMonths: [store::DB]MR_RISK_FACTOR.TENOR_MONTHS,
+      assetClass: [store::DB]MR_RISK_FACTOR.ASSET_CLASS
+   }
+
+   *risk::RiskMeasure[riskMeasureBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RISK_MEASURE.MEASURE_ID )
+      ~mainTable [store::DB]RISK_MEASURE
+      measureId: [store::DB]RISK_MEASURE.MEASURE_ID,
+      runId: [store::DB]RISK_MEASURE.RUN_ID,
+      measureType: [store::DB]RISK_MEASURE.MEASURE_TYPE,
+      scope: [store::DB]RISK_MEASURE.SCOPE,
+      confidence: [store::DB]RISK_MEASURE.CONFIDENCE,
+      horizonDays: [store::DB]RISK_MEASURE.HORIZON_DAYS,
+      measureValue: [store::DB]RISK_MEASURE.MEASURE_VALUE,
+      currency: [store::DB]RISK_MEASURE.CURRENCY,
+      lookbackDays: [store::DB]RISK_MEASURE.LOOKBACK_DAYS,
+      modelName: [store::DB]RISK_MEASURE.MODEL_NAME
+   }
+
+   risk::HistoricalVar[rmHistoricalVar] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskHistoricalVarRows
+   }
+
+   risk::ParametricVar[rmParametricVar] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskParametricVarRows
+   }
+
+   risk::MonteCarloVar[rmMonteCarloVar] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskMonteCarloVarRows
+   }
+
+   risk::ExpectedShortfall[rmExpectedShortfall] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskExpectedShortfallRows
+   }
+
+   risk::StressedVar[rmStressedVar] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskStressedVarRows
+   }
+
+   risk::CreditValuationAdjustment[rmCva] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskCvaRows
+   }
+
+   risk::DebitValuationAdjustment[rmDva] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskDvaRows
+   }
+
+   risk::FundingValuationAdjustment[rmFva] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskFvaRows
+   }
+
+   risk::PotentialFutureExposure[rmPfe] extends [riskMeasureBase]: Relational
+   {
+      ~filter [store::DB]RiskPfeRows
+   }
+
+   *risk::Sensitivity[sensitivityBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SENSITIVITY.SENSITIVITY_ID )
+      ~mainTable [store::DB]SENSITIVITY
+      sensitivityId: [store::DB]SENSITIVITY.SENSITIVITY_ID,
+      runId: [store::DB]SENSITIVITY.RUN_ID,
+      otcId: [store::DB]SENSITIVITY.OTC_ID,
+      factorId: [store::DB]SENSITIVITY.FACTOR_ID,
+      measureType: [store::DB]SENSITIVITY.MEASURE_TYPE,
+      measureValue: [store::DB]SENSITIVITY.MEASURE_VALUE,
+      measureCurrency: [store::DB]SENSITIVITY.MEASURE_CURRENCY,
+      shockSize: [store::DB]SENSITIVITY.SHOCK_SIZE,
+      shockUnit: [store::DB]SENSITIVITY.SHOCK_UNIT,
+      cobDate: [store::DB]SENSITIVITY.COB_DATE
+   }
+
+   risk::Dv01Sensitivity[sensDv01] extends [sensitivityBase]: Relational
+   {
+      ~filter [store::DB]SensDv01Rows
+   }
+
+   risk::Cs01Sensitivity[sensCs01] extends [sensitivityBase]: Relational
+   {
+      ~filter [store::DB]SensCs01Rows
+   }
+
+   risk::VegaSensitivity[sensVega] extends [sensitivityBase]: Relational
+   {
+      ~filter [store::DB]SensVegaRows
+   }
+
+   risk::FxDeltaSensitivity[sensFxDelta] extends [sensitivityBase]: Relational
+   {
+      ~filter [store::DB]SensFxDeltaRows
+   }
+
+   risk::EquityDeltaSensitivity[sensEquityDelta] extends [sensitivityBase]: Relational
+   {
+      ~filter [store::DB]SensEquityDeltaRows
+   }
+
+   risk::CommodityDeltaSensitivity[sensCommodityDelta] extends [sensitivityBase]: Relational
+   {
+      ~filter [store::DB]SensCommodityDeltaRows
+   }
+
+   risk::MarketStressScenario: Relational
+   {
+      ~primaryKey ( [store::DB]MR_STRESS_SCENARIO.SCENARIO_ID )
+      ~mainTable [store::DB]MR_STRESS_SCENARIO
+      scenarioId: [store::DB]MR_STRESS_SCENARIO.SCENARIO_ID,
+      scenarioName: [store::DB]MR_STRESS_SCENARIO.SCENARIO_NAME,
+      scenarioType: [store::DB]MR_STRESS_SCENARIO.SCENARIO_TYPE,
+      severity: [store::DB]MR_STRESS_SCENARIO.SEVERITY,
+      horizonDays: [store::DB]MR_STRESS_SCENARIO.HORIZON_DAYS,
+      asOfEvent: [store::DB]MR_STRESS_SCENARIO.AS_OF_EVENT,
+      isRegulatory: [store::DB]MR_STRESS_SCENARIO.IS_REGULATORY
+   }
+
+   risk::ScenarioResult: Relational
+   {
+      ~primaryKey ( [store::DB]SCENARIO_RESULT.RESULT_ID )
+      ~mainTable [store::DB]SCENARIO_RESULT
+      resultId: [store::DB]SCENARIO_RESULT.RESULT_ID,
+      runId: [store::DB]SCENARIO_RESULT.RUN_ID,
+      scenarioId: [store::DB]SCENARIO_RESULT.SCENARIO_ID,
+      scope: [store::DB]SCENARIO_RESULT.SCOPE,
+      stressedPnl: [store::DB]SCENARIO_RESULT.STRESSED_PNL,
+      basePnl: [store::DB]SCENARIO_RESULT.BASE_PNL,
+      currency: [store::DB]SCENARIO_RESULT.CURRENCY,
+      cobDate: [store::DB]SCENARIO_RESULT.COB_DATE,
+      breachedLimit: [store::DB]SCENARIO_RESULT.BREACHED_LIMIT
+   }
+
+   // Every end that points at a class with an explicit set id names the set ids, because an
+   // unqualified one compiles and then fails at plan generation with "Void not supported!"
+   // (F47). RiskMeasure and Sensitivity both root taxonomies, so both need it.
+   risk::RunSensitivities: Relational
+   {
+      AssociationMapping
+      (
+         sensitivities[risk_RiskRun, sensitivityBase]: [store::DB]@RiskRun_Sensitivity,
+         sensitivityRun[sensitivityBase, risk_RiskRun]: [store::DB]@RiskRun_Sensitivity
+      )
+   }
+
+   risk::RunMeasures: Relational
+   {
+      AssociationMapping
+      (
+         measures[risk_RiskRun, riskMeasureBase]: [store::DB]@RiskRun_Measure,
+         measureRun[riskMeasureBase, risk_RiskRun]: [store::DB]@RiskRun_Measure
+      )
+   }
+
+   risk::RunScenarioResults: Relational
+   {
+      AssociationMapping
+      (
+         scenarioResults: [store::DB]@RiskRun_ScenarioResult,
+         scenarioRun: [store::DB]@RiskRun_ScenarioResult
+      )
+   }
+
+   risk::ScenarioResults: Relational
+   {
+      AssociationMapping
+      (
+         results: [store::DB]@Scenario_Result,
+         scenario: [store::DB]@Scenario_Result
+      )
+   }
+
+   risk::SensitivityFactor: Relational
+   {
+      AssociationMapping
+      (
+         factorSensitivities[risk_MarketRiskFactor, sensitivityBase]: [store::DB]@Sensitivity_Factor,
+         factor[sensitivityBase, risk_MarketRiskFactor]: [store::DB]@Sensitivity_Factor
+      )
+   }
+
+   risk::SensitivityTrade: Relational
+   {
+      AssociationMapping
+      (
+         tradeSensitivities[otcBase, sensitivityBase]: [store::DB]@Sensitivity_OtcTrade,
+         sensitivityTrade[sensitivityBase, otcBase]: [store::DB]@Sensitivity_OtcTrade
+      )
+   }
+)

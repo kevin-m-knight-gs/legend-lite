@@ -2141,6 +2141,366 @@ Service stress::OT5_UncollateralisedTrades
   ]
 }
 
+Service stress::MR0_RunSummary
+{
+    pattern: '/stress/mr0';
+    documentation: 'Risk runs with their wall-clock duration. The failed run has no completion time, so its duration is null rather than zero, and the intraday run has no approver.';
+    execution: Single
+    {
+    query: |risk::RiskRun.all()
+        ->project(~[
+            runId:x|$x.runId,
+            cobDate:x|$x.cobDate,
+            runType:x|$x.runType,
+            status:x|$x.status,
+            approvedBy:x|$x.approvedBy,
+            durationMinutes:x|$x.durationMinutes,
+            noMeasures:x|$x.measures->isEmpty()
+        ])
+        ->sort(~runId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MR0_RunSummary_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"runId":"RUN-20240626-EOD","cobDate":"2024-06-26","runType":"EOD","status":"FAILED","approvedBy":null,"durationMinutes":null,"noMeasures":true},{"runId":"RUN-20240627-EOD","cobDate":"2024-06-27","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":87,"noMeasures":false},{"runId":"RUN-20240628-EOD","cobDate":"2024-06-28","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":93,"noMeasures":false},{"runId":"RUN-20240628-INTRA","cobDate":"2024-06-28","runType":"INTRADAY","status":"COMPLETE","approvedBy":null,"durationMinutes":9,"noMeasures":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MR1_FirmVar
+{
+    pattern: '/stress/mr1';
+    documentation: 'Firm-level risk measures with the model that produced each. The XVA rows have no confidence level and no horizon -- a CVA is an adjustment, not a percentile.';
+    execution: Single
+    {
+    query: |risk::RiskMeasure.all()
+        ->project(~[
+            measureId:x|$x.measureId,
+            measureType:x|$x.measureType,
+            confidence:x|$x.confidence,
+            horizonDays:x|$x.horizonDays,
+            measureValue:x|$x.measureValue,
+            modelName:x|$x.modelName,
+            valueEur:x|$x.valueIn(0.92),
+            cobDate:x|$x.measureRun.cobDate
+        ])
+        ->sort(~measureId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MR1_FirmVar_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 11 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"measureId":"MEAS-00001","measureType":"HISTORICAL_VAR","confidence":0.99,"horizonDays":1,"measureValue":4185000.0,"modelName":"HS-520D","valueEur":3850200.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00002","measureType":"PARAMETRIC_VAR","confidence":0.99,"horizonDays":1,"measureValue":3920000.0,"modelName":"VCV-260D","valueEur":3606400.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00003","measureType":"MONTE_CARLO_VAR","confidence":0.99,"horizonDays":1,"measureValue":4310000.0,"modelName":"MC-10K","valueEur":3965200.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00004","measureType":"EXPECTED_SHORTFALL","confidence":0.975,"horizonDays":1,"measureValue":5240000.0,"modelName":"ES-520D","valueEur":4820800.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00005","measureType":"STRESSED_VAR","confidence":0.99,"horizonDays":10,"measureValue":11800000.0,"modelName":"SVAR-2008","valueEur":10856000.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00006","measureType":"CVA","confidence":null,"horizonDays":null,"measureValue":862000.0,"modelName":"XVA-2024.1","valueEur":793040.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00007","measureType":"DVA","confidence":null,"horizonDays":null,"measureValue":415000.0,"modelName":"XVA-2024.1","valueEur":381800.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00008","measureType":"FVA","confidence":null,"horizonDays":null,"measureValue":228000.0,"modelName":"XVA-2024.1","valueEur":209760.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00009","measureType":"PFE","confidence":0.95,"horizonDays":1825,"measureValue":18400000.0,"modelName":"CCR-2024.1","valueEur":16928000.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00010","measureType":"HISTORICAL_VAR","confidence":0.99,"horizonDays":1,"measureValue":1320000.0,"modelName":"HS-520D","valueEur":1214400.0,"cobDate":"2024-06-28"},{"measureId":"MEAS-00011","measureType":"HISTORICAL_VAR","confidence":0.99,"horizonDays":1,"measureValue":4092000.0,"modelName":"HS-520D","valueEur":3764640.0,"cobDate":"2024-06-27"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MR2_HistoricalVar
+{
+    pattern: '/stress/mr2';
+    documentation: 'Historical VaR only, across runs. The discriminator is the point: eleven measures in the table, three of them this type.';
+    execution: Single
+    {
+    query: |risk::HistoricalVar.all()
+        ->project(~[
+            measureId:x|$x.measureId,
+            scope:x|$x.scope,
+            measureValue:x|$x.measureValue,
+            lookbackDays:x|$x.lookbackDays
+        ])
+        ->sort(~measureId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MR2_HistoricalVar_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"measureId":"MEAS-00001","scope":"FIRM","measureValue":4185000.0,"lookbackDays":520},{"measureId":"MEAS-00010","scope":"RATES_DESK","measureValue":1320000.0,"lookbackDays":520},{"measureId":"MEAS-00011","scope":"FIRM","measureValue":4092000.0,"lookbackDays":520}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MR3_SensitivityLadder
+{
+    pattern: '/stress/mr3';
+    documentation: 'The sensitivity ladder: every exposure with the factor it loads on and the trade it came from. A spot factor has no tenor, so those rows carry a null where the curve rows carry a bucket.';
+    execution: Single
+    {
+    query: |risk::Sensitivity.all()
+        ->project(~[
+            sensitivityId:x|$x.sensitivityId,
+            measureType:x|$x.measureType,
+            measureValue:x|$x.measureValue,
+            curveName:x|$x.factor.curveName,
+            tenor:x|$x.factor.tenor,
+            assetClass:x|$x.factor.assetClass,
+            productType:x|$x.sensitivityTrade.productType,
+            notional:x|$x.sensitivityTrade.notional
+        ])
+        ->sort(~sensitivityId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MR3_SensitivityLadder_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 50 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"sensitivityId":"SENS-00001","measureType":"DV01","measureValue":1000.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00002","measureType":"DV01","measureValue":2500.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00003","measureType":"DV01","measureValue":5000.0,"curveName":"USD-SOFR","tenor":"10Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00004","measureType":"DV01","measureValue":500.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"OIS","notional":25000000.0},{"sensitivityId":"SENS-00005","measureType":"DV01","measureValue":2250.0,"curveName":"EUR-ESTR","tenor":"3Y","assetClass":"RATES","productType":"BASIS_SWAP","notional":75000000.0},{"sensitivityId":"SENS-00006","measureType":"DV01","measureValue":2000.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"FRA","notional":100000000.0},{"sensitivityId":"SENS-00007","measureType":"DV01","measureValue":2000.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"SWAPTION","notional":40000000.0},{"sensitivityId":"SENS-00008","measureType":"VEGA","measureValue":400.0,"curveName":"SPX-VOL","tenor":"1Y","assetClass":"EQUITY","productType":"SWAPTION","notional":40000000.0},{"sensitivityId":"SENS-00009","measureType":"DV01","measureValue":600.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"CAP","notional":30000000.0},{"sensitivityId":"SENS-00010","measureType":"DV01","measureValue":1500.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"CAP","notional":30000000.0},{"sensitivityId":"SENS-00011","measureType":"CS01","measureValue":500.0,"curveName":"CDX-IG","tenor":"5Y","assetClass":"CREDIT","productType":"CDS","notional":10000000.0},{"sensitivityId":"SENS-00012","measureType":"CS01","measureValue":12500.0,"curveName":"CDX-IG","tenor":"5Y","assetClass":"CREDIT","productType":"CDS_INDEX","notional":250000000.0},{"sensitivityId":"SENS-00013","measureType":"FX_DELTA","measureValue":200.0,"curveName":null,"tenor":null,"assetClass":"FX","productType":"NDF","notional":20000000.0},{"sensitivityId":"SENS-00014","measureType":"FX_DELTA","measureValue":150.0,"curveName":null,"tenor":null,"assetClass":"FX","productType":"FX_OPTION","notional":15000000.0},{"sensitivityId":"SENS-00015","measureType":"VEGA","measureValue":150.0,"curveName":"SPX-VOL","tenor":"1Y","assetClass":"EQUITY","productType":"FX_OPTION","notional":15000000.0},{"sensitivityId":"SENS-00016","measureType":"EQUITY_DELTA","measureValue":350.0,"curveName":null,"tenor":null,"assetClass":"EQUITY","productType":"EQUITY_SWAP","notional":35000000.0},{"sensitivityId":"SENS-00017","measureType":"DV01","measureValue":700.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"EQUITY_SWAP","notional":35000000.0},{"sensitivityId":"SENS-00018","measureType":"EQUITY_DELTA","measureValue":50.0,"curveName":null,"tenor":null,"assetClass":"EQUITY","productType":"VARIANCE_SWAP","notional":5000000.0},{"sensitivityId":"SENS-00019","measureType":"VEGA","measureValue":50.0,"curveName":"SPX-VOL","tenor":"1Y","assetClass":"EQUITY","productType":"VARIANCE_SWAP","notional":5000000.0},{"sensitivityId":"SENS-00020","measureType":"COMMODITY_DELTA","measureValue":80.0,"curveName":"WTI","tenor":null,"assetClass":"COMMODITY","productType":"COMMODITY_SWAP","notional":8000000.0},{"sensitivityId":"SENS-00021","measureType":"DV01","measureValue":1000.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00022","measureType":"DV01","measureValue":2500.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00023","measureType":"DV01","measureValue":5000.0,"curveName":"USD-SOFR","tenor":"10Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00024","measureType":"DV01","measureValue":500.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"OIS","notional":25000000.0},{"sensitivityId":"SENS-00025","measureType":"DV01","measureValue":2250.0,"curveName":"EUR-ESTR","tenor":"3Y","assetClass":"RATES","productType":"BASIS_SWAP","notional":75000000.0},{"sensitivityId":"SENS-00026","measureType":"DV01","measureValue":2000.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"FRA","notional":100000000.0},{"sensitivityId":"SENS-00027","measureType":"DV01","measureValue":2000.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"SWAPTION","notional":40000000.0},{"sensitivityId":"SENS-00028","measureType":"DV01","measureValue":600.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"CAP","notional":30000000.0},{"sensitivityId":"SENS-00029","measureType":"DV01","measureValue":1500.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"CAP","notional":30000000.0},{"sensitivityId":"SENS-00030","measureType":"DV01","measureValue":700.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"EQUITY_SWAP","notional":35000000.0},{"sensitivityId":"SENS-00031","measureType":"DV01","measureValue":1000.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00032","measureType":"DV01","measureValue":2500.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00033","measureType":"DV01","measureValue":5000.0,"curveName":"USD-SOFR","tenor":"10Y","assetClass":"RATES","productType":"IRS","notional":50000000.0},{"sensitivityId":"SENS-00034","measureType":"DV01","measureValue":500.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"OIS","notional":25000000.0},{"sensitivityId":"SENS-00035","measureType":"DV01","measureValue":2250.0,"curveName":"EUR-ESTR","tenor":"3Y","assetClass":"RATES","productType":"BASIS_SWAP","notional":75000000.0},{"sensitivityId":"SENS-00036","measureType":"DV01","measureValue":2000.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"FRA","notional":100000000.0},{"sensitivityId":"SENS-00037","measureType":"DV01","measureValue":2000.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"SWAPTION","notional":40000000.0},{"sensitivityId":"SENS-00038","measureType":"VEGA","measureValue":400.0,"curveName":"SPX-VOL","tenor":"1Y","assetClass":"EQUITY","productType":"SWAPTION","notional":40000000.0},{"sensitivityId":"SENS-00039","measureType":"DV01","measureValue":600.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"CAP","notional":30000000.0},{"sensitivityId":"SENS-00040","measureType":"DV01","measureValue":1500.0,"curveName":"USD-SOFR","tenor":"5Y","assetClass":"RATES","productType":"CAP","notional":30000000.0},{"sensitivityId":"SENS-00041","measureType":"CS01","measureValue":500.0,"curveName":"CDX-IG","tenor":"5Y","assetClass":"CREDIT","productType":"CDS","notional":10000000.0},{"sensitivityId":"SENS-00042","measureType":"CS01","measureValue":12500.0,"curveName":"CDX-IG","tenor":"5Y","assetClass":"CREDIT","productType":"CDS_INDEX","notional":250000000.0},{"sensitivityId":"SENS-00043","measureType":"FX_DELTA","measureValue":200.0,"curveName":null,"tenor":null,"assetClass":"FX","productType":"NDF","notional":20000000.0},{"sensitivityId":"SENS-00044","measureType":"FX_DELTA","measureValue":150.0,"curveName":null,"tenor":null,"assetClass":"FX","productType":"FX_OPTION","notional":15000000.0},{"sensitivityId":"SENS-00045","measureType":"VEGA","measureValue":150.0,"curveName":"SPX-VOL","tenor":"1Y","assetClass":"EQUITY","productType":"FX_OPTION","notional":15000000.0},{"sensitivityId":"SENS-00046","measureType":"EQUITY_DELTA","measureValue":350.0,"curveName":null,"tenor":null,"assetClass":"EQUITY","productType":"EQUITY_SWAP","notional":35000000.0},{"sensitivityId":"SENS-00047","measureType":"DV01","measureValue":700.0,"curveName":"USD-SOFR","tenor":"2Y","assetClass":"RATES","productType":"EQUITY_SWAP","notional":35000000.0},{"sensitivityId":"SENS-00048","measureType":"EQUITY_DELTA","measureValue":50.0,"curveName":null,"tenor":null,"assetClass":"EQUITY","productType":"VARIANCE_SWAP","notional":5000000.0},{"sensitivityId":"SENS-00049","measureType":"VEGA","measureValue":50.0,"curveName":"SPX-VOL","tenor":"1Y","assetClass":"EQUITY","productType":"VARIANCE_SWAP","notional":5000000.0},{"sensitivityId":"SENS-00050","measureType":"COMMODITY_DELTA","measureValue":80.0,"curveName":"WTI","tenor":null,"assetClass":"COMMODITY","productType":"COMMODITY_SWAP","notional":8000000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MR4_Dv01ByTenor
+{
+    pattern: '/stress/mr4';
+    documentation: 'DV01 aggregated by curve and tenor bucket. The subtype restricts to rates sensitivities, so credit and equity exposures do not contaminate the ladder.';
+    execution: Single
+    {
+    query: |risk::Dv01Sensitivity.all()
+        ->project(~[
+            factorId:x|$x.factorId,
+            measureValue:x|$x.measureValue
+        ])
+        ->groupBy(~[factorId], ~[
+            points: x|$x.measureValue : agg|$agg->count(),
+            totalDv01: x|$x.measureValue : agg|$agg->sum(),
+            largest: x|$x.measureValue : agg|$agg->max()
+        ])
+        ->sort(~factorId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MR4_Dv01ByTenor_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"factorId":"IR.EUR.ESTR.3Y","points":3,"totalDv01":6750.0,"largest":2250.0},{"factorId":"IR.USD.SOFR.10Y","points":3,"totalDv01":15000.0,"largest":5000.0},{"factorId":"IR.USD.SOFR.2Y","points":15,"totalDv01":14400.0,"largest":2000.0},{"factorId":"IR.USD.SOFR.5Y","points":9,"totalDv01":18000.0,"largest":2500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::MR5_StressResults
+{
+    pattern: '/stress/mr5';
+    documentation: 'Stress results with the scenario behind each. The hypothetical scenarios have no historical event date; the severe ones breach the limit.';
+    execution: Single
+    {
+    query: |risk::ScenarioResult.all()
+        ->project(~[
+            resultId:x|$x.resultId,
+            stressedPnl:x|$x.stressedPnl,
+            breachedLimit:x|$x.breachedLimit,
+            scenarioName:x|$x.scenario.scenarioName,
+            scenarioType:x|$x.scenario.scenarioType,
+            severity:x|$x.scenario.severity,
+            asOfEvent:x|$x.scenario.asOfEvent,
+            isRegulatory:x|$x.scenario.isRegulatory
+        ])
+        ->sort(~resultId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    MR5_StressResults_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 10 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"resultId":"SCNR-00001","stressedPnl":-14647500.0,"breachedLimit":true,"scenarioName":"Lehman default Sep 2008","scenarioType":"HISTORICAL","severity":"SEVERE","asOfEvent":"2008-09-15","isRegulatory":true},{"resultId":"SCNR-00002","stressedPnl":-14647500.0,"breachedLimit":true,"scenarioName":"Covid crash Mar 2020","scenarioType":"HISTORICAL","severity":"SEVERE","asOfEvent":"2020-03-16","isRegulatory":true},{"resultId":"SCNR-00003","stressedPnl":-3766500.0,"breachedLimit":false,"scenarioName":"UK gilt crisis Sep 2022","scenarioType":"HISTORICAL","severity":"MODERATE","asOfEvent":"2022-09-23","isRegulatory":false},{"resultId":"SCNR-00004","stressedPnl":-753300.0,"breachedLimit":false,"scenarioName":"Parallel +200bp","scenarioType":"HYPOTHETICAL","severity":"MODERATE","asOfEvent":null,"isRegulatory":true},{"resultId":"SCNR-00005","stressedPnl":-292950.0,"breachedLimit":false,"scenarioName":"Curve steepener 100bp","scenarioType":"HYPOTHETICAL","severity":"MILD","asOfEvent":null,"isRegulatory":false},{"resultId":"SCNR-00006","stressedPnl":-14647500.0,"breachedLimit":true,"scenarioName":"Lehman default Sep 2008","scenarioType":"HISTORICAL","severity":"SEVERE","asOfEvent":"2008-09-15","isRegulatory":true},{"resultId":"SCNR-00007","stressedPnl":-14647500.0,"breachedLimit":true,"scenarioName":"Covid crash Mar 2020","scenarioType":"HISTORICAL","severity":"SEVERE","asOfEvent":"2020-03-16","isRegulatory":true},{"resultId":"SCNR-00008","stressedPnl":-3766500.0,"breachedLimit":false,"scenarioName":"UK gilt crisis Sep 2022","scenarioType":"HISTORICAL","severity":"MODERATE","asOfEvent":"2022-09-23","isRegulatory":false},{"resultId":"SCNR-00009","stressedPnl":-753300.0,"breachedLimit":false,"scenarioName":"Parallel +200bp","scenarioType":"HYPOTHETICAL","severity":"MODERATE","asOfEvent":null,"isRegulatory":true},{"resultId":"SCNR-00010","stressedPnl":-292950.0,"breachedLimit":false,"scenarioName":"Curve steepener 100bp","scenarioType":"HYPOTHETICAL","severity":"MILD","asOfEvent":null,"isRegulatory":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -6473,6 +6833,67 @@ Service stress::D_TeamDense
   ]
 }
 
+Service stress::D_SensitivityDense
+{
+    pattern: '/stress/d_sensitivity';
+    documentation: 'Dense stack on risk::Sensitivity: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::Sensitivity.all()
+        ->filter({x|($x.factorId > ' ')})
+        ->project(~[
+            sensitivityId:x|$x.sensitivityId,
+            sensitivityTradeOptionTermsOptionTradeCurrency:x|$x.sensitivityTrade.optionTerms.optionTrade.currency,
+            sensitivityTradeOptionTermsBarrierType:x|$x.sensitivityTrade.optionTerms.barrierType,
+            sensitivityRunStatus:x|$x.sensitivityRun.status,
+            sensitivityTradeOptionTermsOptionTradeTenorYears:x|$x.sensitivityTrade.optionTerms.optionTrade.tenorYears,
+            scaledToQ:x|$x.scaledTo(0.5)
+        ])
+        ->sort(~sensitivityId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_SensitivityDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 25 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"sensitivityId":"SENS-00001","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":500.0},{"sensitivityId":"SENS-00002","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":1250.0},{"sensitivityId":"SENS-00003","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":2500.0},{"sensitivityId":"SENS-00004","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":250.0},{"sensitivityId":"SENS-00005","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":1125.0},{"sensitivityId":"SENS-00006","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":1000.0},{"sensitivityId":"SENS-00007","sensitivityTradeOptionTermsOptionTradeCurrency":"USD","sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":5.002739726027397,"scaledToQ":1000.0},{"sensitivityId":"SENS-00008","sensitivityTradeOptionTermsOptionTradeCurrency":"USD","sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":5.002739726027397,"scaledToQ":200.0},{"sensitivityId":"SENS-00009","sensitivityTradeOptionTermsOptionTradeCurrency":"USD","sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":3.0,"scaledToQ":300.0},{"sensitivityId":"SENS-00010","sensitivityTradeOptionTermsOptionTradeCurrency":"USD","sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":3.0,"scaledToQ":750.0},{"sensitivityId":"SENS-00011","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":250.0},{"sensitivityId":"SENS-00012","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":6250.0},{"sensitivityId":"SENS-00013","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":100.0},{"sensitivityId":"SENS-00014","sensitivityTradeOptionTermsOptionTradeCurrency":"EUR","sensitivityTradeOptionTermsBarrierType":"UP_AND_OUT","sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":1.0,"scaledToQ":75.0},{"sensitivityId":"SENS-00015","sensitivityTradeOptionTermsOptionTradeCurrency":"EUR","sensitivityTradeOptionTermsBarrierType":"UP_AND_OUT","sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":1.0,"scaledToQ":75.0},{"sensitivityId":"SENS-00016","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":175.0},{"sensitivityId":"SENS-00017","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":350.0},{"sensitivityId":"SENS-00018","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":25.0},{"sensitivityId":"SENS-00019","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":25.0},{"sensitivityId":"SENS-00020","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":40.0},{"sensitivityId":"SENS-00021","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":500.0},{"sensitivityId":"SENS-00022","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":1250.0},{"sensitivityId":"SENS-00023","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":2500.0},{"sensitivityId":"SENS-00024","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":250.0},{"sensitivityId":"SENS-00025","sensitivityTradeOptionTermsOptionTradeCurrency":null,"sensitivityTradeOptionTermsBarrierType":null,"sensitivityRunStatus":"COMPLETE","sensitivityTradeOptionTermsOptionTradeTenorYears":null,"scaledToQ":1125.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::D_CouponPeriodDense
 {
     pattern: '/stress/d_couponperiod';
@@ -7308,6 +7729,65 @@ Service stress::D_SwapLegDense
   ]
 }
 
+Service stress::D_ScenarioResultDense
+{
+    pattern: '/stress/d_scenarioresult';
+    documentation: 'Dense stack on risk::ScenarioResult: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |risk::ScenarioResult.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            resultId:x|$x.resultId,
+            scenarioRunStatus:x|$x.scenarioRun.status,
+            scenarioScenarioId:x|$x.scenario.scenarioId,
+            scenarioRunDurationMinutes:x|$x.scenarioRun.durationMinutes
+        ])
+        ->sort(~resultId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_ScenarioResultDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 10 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"resultId":"SCNR-00001","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-LEHMAN","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00002","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-COVID","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00003","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-GILT","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00004","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-PAR-200BP","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00005","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-STEEP","scenarioRunDurationMinutes":93},{"resultId":"SCNR-00006","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-LEHMAN","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00007","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-COVID","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00008","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-GILT","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00009","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-PAR-200BP","scenarioRunDurationMinutes":87},{"resultId":"SCNR-00010","scenarioRunStatus":"COMPLETE","scenarioScenarioId":"SCN-STEEP","scenarioRunDurationMinutes":87}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::GG_TradeTree
 {
     pattern: '/stress/gg_trade';
@@ -7723,6 +8203,97 @@ Service stress::GG_InstrumentTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","cusip":"037833100","exchange":{"mic":"XNAS","city":"New York","closeTime":"16:00","country":{"countryCode":"US","capitalCity":"Washington"}},"instrumentCurrency":{"code":"USD","centralBank":"Federal Reserve","fixingSource":"WMR","country":{"countryCode":"US","capitalCity":"Washington"}}},{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","cusip":"594918104","exchange":{"mic":"XNAS","city":"New York","closeTime":"16:00","country":{"countryCode":"US","capitalCity":"Washington"}},"instrumentCurrency":{"code":"USD","centralBank":"Federal Reserve","fixingSource":"WMR","country":{"countryCode":"US","capitalCity":"Washington"}}},{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","cusip":null,"exchange":{"mic":"XLON","city":"London","closeTime":"16:30","country":{"countryCode":"GB","capitalCity":"London"}},"instrumentCurrency":{"code":"GBP","centralBank":"Bank of England","fixingSource":"WMR","country":{"countryCode":"GB","capitalCity":"London"}}},{"instrumentId":"INST-SAP","assetClass":"EQUITY","currency":"EUR","cusip":null,"exchange":{"mic":"XETR","city":"Frankfurt","closeTime":"17:30","country":{"countryCode":"DE","capitalCity":"Berlin"}},"instrumentCurrency":{"code":"EUR","centralBank":"European Central Bank","fixingSource":"ECB","country":{"countryCode":"DE","capitalCity":"Berlin"}}},{"instrumentId":"INST-GILT30","assetClass":"RATES","currency":"GBP","cusip":null,"exchange":{"mic":"XLON","city":"London","closeTime":"16:30","country":{"countryCode":"GB","capitalCity":"London"}},"instrumentCurrency":{"code":"GBP","centralBank":"Bank of England","fixingSource":"WMR","country":{"countryCode":"GB","capitalCity":"London"}}},{"instrumentId":"INST-NESN","assetClass":"EQUITY","currency":"EUR","cusip":null,"exchange":{"mic":"XETR","city":"Frankfurt","closeTime":"17:30","country":{"countryCode":"DE","capitalCity":"Berlin"}},"instrumentCurrency":{"code":"EUR","centralBank":"European Central Bank","fixingSource":"ECB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_SensitivityTree
+{
+    pattern: '/stress/gg_sensitivity';
+    documentation: 'Generated graph fetch on risk::Sensitivity: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |risk::Sensitivity.all()
+        ->graphFetch(#{
+  risk::Sensitivity
+  {
+    sensitivityId,
+    cobDate,
+    factorId,
+    measureCurrency,
+    factor
+    {
+      factorId,
+      assetClass,
+      currency
+    },
+    sensitivityRun
+    {
+      runId,
+      approvedBy,
+      cobDate
+    }
+  }
+}#)
+        ->serialize(#{
+  risk::Sensitivity
+  {
+    sensitivityId,
+    cobDate,
+    factorId,
+    measureCurrency,
+    factor
+    {
+      factorId,
+      assetClass,
+      currency
+    },
+    sensitivityRun
+    {
+      runId,
+      approvedBy,
+      cobDate
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_SensitivityTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 50 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"sensitivityId":"SENS-00001","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00002","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00003","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.10Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.10Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00004","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00005","cobDate":"2024-06-28","factorId":"IR.EUR.ESTR.3Y","measureCurrency":"USD","factor":{"factorId":"IR.EUR.ESTR.3Y","assetClass":"RATES","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00006","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00007","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00008","cobDate":"2024-06-28","factorId":"VOL.SPX.1Y.ATM","measureCurrency":"USD","factor":{"factorId":"VOL.SPX.1Y.ATM","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00009","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00010","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00011","cobDate":"2024-06-28","factorId":"CR.IG.5Y","measureCurrency":"USD","factor":{"factorId":"CR.IG.5Y","assetClass":"CREDIT","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00012","cobDate":"2024-06-28","factorId":"CR.IG.5Y","measureCurrency":"USD","factor":{"factorId":"CR.IG.5Y","assetClass":"CREDIT","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00013","cobDate":"2024-06-28","factorId":"FX.EURUSD","measureCurrency":"USD","factor":{"factorId":"FX.EURUSD","assetClass":"FX","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00014","cobDate":"2024-06-28","factorId":"FX.EURUSD","measureCurrency":"USD","factor":{"factorId":"FX.EURUSD","assetClass":"FX","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00015","cobDate":"2024-06-28","factorId":"VOL.SPX.1Y.ATM","measureCurrency":"USD","factor":{"factorId":"VOL.SPX.1Y.ATM","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00016","cobDate":"2024-06-28","factorId":"EQ.SPX","measureCurrency":"USD","factor":{"factorId":"EQ.SPX","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00017","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00018","cobDate":"2024-06-28","factorId":"EQ.SPX","measureCurrency":"USD","factor":{"factorId":"EQ.SPX","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00019","cobDate":"2024-06-28","factorId":"VOL.SPX.1Y.ATM","measureCurrency":"USD","factor":{"factorId":"VOL.SPX.1Y.ATM","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00020","cobDate":"2024-06-28","factorId":"CM.WTI.FRONT","measureCurrency":"USD","factor":{"factorId":"CM.WTI.FRONT","assetClass":"COMMODITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00021","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00022","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00023","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.10Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.10Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00024","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00025","cobDate":"2024-06-28","factorId":"IR.EUR.ESTR.3Y","measureCurrency":"USD","factor":{"factorId":"IR.EUR.ESTR.3Y","assetClass":"RATES","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00026","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00027","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00028","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00029","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00030","cobDate":"2024-06-28","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240628-INTRA","approvedBy":null,"cobDate":"2024-06-28"}},{"sensitivityId":"SENS-00031","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00032","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00033","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.10Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.10Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00034","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00035","cobDate":"2024-06-27","factorId":"IR.EUR.ESTR.3Y","measureCurrency":"USD","factor":{"factorId":"IR.EUR.ESTR.3Y","assetClass":"RATES","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00036","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00037","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00038","cobDate":"2024-06-27","factorId":"VOL.SPX.1Y.ATM","measureCurrency":"USD","factor":{"factorId":"VOL.SPX.1Y.ATM","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00039","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00040","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.5Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.5Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00041","cobDate":"2024-06-27","factorId":"CR.IG.5Y","measureCurrency":"USD","factor":{"factorId":"CR.IG.5Y","assetClass":"CREDIT","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00042","cobDate":"2024-06-27","factorId":"CR.IG.5Y","measureCurrency":"USD","factor":{"factorId":"CR.IG.5Y","assetClass":"CREDIT","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00043","cobDate":"2024-06-27","factorId":"FX.EURUSD","measureCurrency":"USD","factor":{"factorId":"FX.EURUSD","assetClass":"FX","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00044","cobDate":"2024-06-27","factorId":"FX.EURUSD","measureCurrency":"USD","factor":{"factorId":"FX.EURUSD","assetClass":"FX","currency":"EUR"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00045","cobDate":"2024-06-27","factorId":"VOL.SPX.1Y.ATM","measureCurrency":"USD","factor":{"factorId":"VOL.SPX.1Y.ATM","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00046","cobDate":"2024-06-27","factorId":"EQ.SPX","measureCurrency":"USD","factor":{"factorId":"EQ.SPX","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00047","cobDate":"2024-06-27","factorId":"IR.USD.SOFR.2Y","measureCurrency":"USD","factor":{"factorId":"IR.USD.SOFR.2Y","assetClass":"RATES","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00048","cobDate":"2024-06-27","factorId":"EQ.SPX","measureCurrency":"USD","factor":{"factorId":"EQ.SPX","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00049","cobDate":"2024-06-27","factorId":"VOL.SPX.1Y.ATM","measureCurrency":"USD","factor":{"factorId":"VOL.SPX.1Y.ATM","assetClass":"EQUITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"sensitivityId":"SENS-00050","cobDate":"2024-06-27","factorId":"CM.WTI.FRONT","measureCurrency":"USD","factor":{"factorId":"CM.WTI.FRONT","assetClass":"COMMODITY","currency":"USD"},"sensitivityRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}}]}';
                   }#;
               }#
           ]
@@ -9296,6 +9867,97 @@ Service stress::GG_GreeksTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"greeksId":"GRK-0001","calcDate":"2024-06-07","charm":-0.002,"currency":"USD","instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","exchange":{"mic":"XNAS","city":"New York"}},"position":{"positionId":"POS-0001","accruedInterest":null,"averageCost":190.42,"book":{"bookId":"BK-CASH-US","bookType":"TRADING"}}},{"greeksId":"GRK-0002","calcDate":"2024-06-07","charm":-0.001,"currency":"USD","instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","exchange":{"mic":"XNAS","city":"New York"}},"position":{"positionId":"POS-0002","accruedInterest":null,"averageCost":415.81,"book":{"bookId":"BK-CASH-US","bookType":"TRADING"}}},{"greeksId":"GRK-0003","calcDate":"2024-06-07","charm":null,"currency":"GBP","instrument":{"instrumentId":"INST-GILT30","assetClass":"RATES","currency":"GBP","exchange":{"mic":"XLON","city":"London"}},"position":{"positionId":"POS-0005","accruedInterest":18402.75,"averageCost":0.9818,"book":{"bookId":"BK-VOL-01","bookType":"TRADING"}}},{"greeksId":"GRK-0004","calcDate":"2024-06-07","charm":0.0,"currency":"USD","instrument":null,"position":null}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_ScenarioResultTree
+{
+    pattern: '/stress/gg_scenarioresult';
+    documentation: 'Generated graph fetch on risk::ScenarioResult: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |risk::ScenarioResult.all()
+        ->graphFetch(#{
+  risk::ScenarioResult
+  {
+    resultId,
+    basePnl,
+    breachedLimit,
+    cobDate,
+    scenario
+    {
+      scenarioId,
+      asOfEvent,
+      horizonDays
+    },
+    scenarioRun
+    {
+      runId,
+      approvedBy,
+      cobDate
+    }
+  }
+}#)
+        ->serialize(#{
+  risk::ScenarioResult
+  {
+    resultId,
+    basePnl,
+    breachedLimit,
+    cobDate,
+    scenario
+    {
+      scenarioId,
+      asOfEvent,
+      horizonDays
+    },
+    scenarioRun
+    {
+      runId,
+      approvedBy,
+      cobDate
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_ScenarioResultTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 10 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"resultId":"SCNR-00001","basePnl":0.0,"breachedLimit":true,"cobDate":"2024-06-28","scenario":{"scenarioId":"SCN-LEHMAN","asOfEvent":"2008-09-15","horizonDays":10},"scenarioRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"resultId":"SCNR-00002","basePnl":0.0,"breachedLimit":true,"cobDate":"2024-06-28","scenario":{"scenarioId":"SCN-COVID","asOfEvent":"2020-03-16","horizonDays":10},"scenarioRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"resultId":"SCNR-00003","basePnl":0.0,"breachedLimit":false,"cobDate":"2024-06-28","scenario":{"scenarioId":"SCN-GILT","asOfEvent":"2022-09-23","horizonDays":5},"scenarioRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"resultId":"SCNR-00004","basePnl":0.0,"breachedLimit":false,"cobDate":"2024-06-28","scenario":{"scenarioId":"SCN-PAR-200BP","asOfEvent":null,"horizonDays":1},"scenarioRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"resultId":"SCNR-00005","basePnl":0.0,"breachedLimit":false,"cobDate":"2024-06-28","scenario":{"scenarioId":"SCN-STEEP","asOfEvent":null,"horizonDays":1},"scenarioRun":{"runId":"RUN-20240628-EOD","approvedBy":"risk.controller","cobDate":"2024-06-28"}},{"resultId":"SCNR-00006","basePnl":0.0,"breachedLimit":true,"cobDate":"2024-06-27","scenario":{"scenarioId":"SCN-LEHMAN","asOfEvent":"2008-09-15","horizonDays":10},"scenarioRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"resultId":"SCNR-00007","basePnl":0.0,"breachedLimit":true,"cobDate":"2024-06-27","scenario":{"scenarioId":"SCN-COVID","asOfEvent":"2020-03-16","horizonDays":10},"scenarioRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"resultId":"SCNR-00008","basePnl":0.0,"breachedLimit":false,"cobDate":"2024-06-27","scenario":{"scenarioId":"SCN-GILT","asOfEvent":"2022-09-23","horizonDays":5},"scenarioRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"resultId":"SCNR-00009","basePnl":0.0,"breachedLimit":false,"cobDate":"2024-06-27","scenario":{"scenarioId":"SCN-PAR-200BP","asOfEvent":null,"horizonDays":1},"scenarioRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}},{"resultId":"SCNR-00010","basePnl":0.0,"breachedLimit":false,"cobDate":"2024-06-27","scenario":{"scenarioId":"SCN-STEEP","asOfEvent":null,"horizonDays":1},"scenarioRun":{"runId":"RUN-20240627-EOD","approvedBy":"risk.controller","cobDate":"2024-06-27"}}]}';
                   }#;
               }#
           ]
@@ -12782,172 +13444,6 @@ Service stress::GG_ConfirmationTree
   ]
 }
 
-Service stress::GG_DataQualityIssueTree
-{
-    pattern: '/stress/gg_dataqualityissue';
-    documentation: 'Generated graph fetch on ops::DataQualityIssue: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |ops::DataQualityIssue.all()
-        ->graphFetch(#{
-  ops::DataQualityIssue
-  {
-    issueId,
-    actualValue,
-    assignedTo,
-    expectedValue,
-    reconciliationRun
-    {
-      runId,
-      durationSeconds
-    }
-  }
-}#)
-        ->serialize(#{
-  ops::DataQualityIssue
-  {
-    issueId,
-    actualValue,
-    assignedTo,
-    expectedValue,
-    reconciliationRun
-    {
-      runId,
-      durationSeconds
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_DataQualityIssueTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"issueId":"DQI-0001","actualValue":"ACTUAL-VALUE-001","assignedTo":null,"expectedValue":"EXPECTED-VALUE-001","reconciliationRun":null},{"issueId":"DQI-0002","actualValue":"ACTUAL-VALUE-002","assignedTo":"ASSIGNED-TO-002","expectedValue":"EXPECTED-VALUE-002","reconciliationRun":null},{"issueId":"DQI-0003","actualValue":"ACTUAL-VALUE-003","assignedTo":"ASSIGNED-TO-003","expectedValue":null,"reconciliationRun":{"runId":"RR-0001","durationSeconds":136}},{"issueId":"DQI-0004","actualValue":null,"assignedTo":"ASSIGNED-TO-004","expectedValue":"EXPECTED-VALUE-004","reconciliationRun":{"runId":"RR-0002","durationSeconds":null}},{"issueId":"DQI-0005","actualValue":"ACTUAL-VALUE-005","assignedTo":"ASSIGNED-TO-005","expectedValue":"EXPECTED-VALUE-005","reconciliationRun":{"runId":"RR-0003","durationSeconds":150}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_BusinessUnitTree
-{
-    pattern: '/stress/gg_businessunit';
-    documentation: 'Generated graph fetch on org::BusinessUnit: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |org::BusinessUnit.all()
-        ->graphFetch(#{
-  org::BusinessUnit
-  {
-    buId,
-    budget,
-    description,
-    establishedDate,
-    legalEntity
-    {
-      leId,
-      capitalBase,
-      incorporationDate,
-      region
-      {
-        regionId,
-        costTarget
-      }
-    }
-  }
-}#)
-        ->serialize(#{
-  org::BusinessUnit
-  {
-    buId,
-    budget,
-    description,
-    establishedDate,
-    legalEntity
-    {
-      leId,
-      capitalBase,
-      incorporationDate,
-      region
-      {
-        regionId,
-        costTarget
-      }
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_BusinessUnitTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"buId":"BU-EQ","budget":400.0,"description":"primary record","establishedDate":null,"legalEntity":null},{"buId":"BU-CR","budget":null,"description":null,"establishedDate":"2024-10-10","legalEntity":null}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::AA_TraderCounts
 {
     pattern: '/stress/aa_trader';
@@ -13051,6 +13547,61 @@ Service stress::AA_PortfolioCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"portfolioId":"PF-MAIN","positionsCount":6,"varResultsCount":3}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_OtcTradeCounts
+{
+    pattern: '/stress/aa_otctrade';
+    documentation: 'Generated aggregate on derivatives::OtcTrade: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |derivatives::OtcTrade.all()
+        ->project(~[
+            otcId:x|$x.otcId,
+            tradeSensitivitiesCount:x|$x.tradeSensitivities->count()
+        ])
+        ->sort(~otcId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_OtcTradeCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","tradeSensitivitiesCount":9},{"otcId":"OTC-000002","tradeSensitivitiesCount":3},{"otcId":"OTC-000003","tradeSensitivitiesCount":3},{"otcId":"OTC-000004","tradeSensitivitiesCount":3},{"otcId":"OTC-000005","tradeSensitivitiesCount":5},{"otcId":"OTC-000006","tradeSensitivitiesCount":6},{"otcId":"OTC-000007","tradeSensitivitiesCount":2},{"otcId":"OTC-000008","tradeSensitivitiesCount":2},{"otcId":"OTC-000009","tradeSensitivitiesCount":2},{"otcId":"OTC-000010","tradeSensitivitiesCount":4},{"otcId":"OTC-000011","tradeSensitivitiesCount":5},{"otcId":"OTC-000012","tradeSensitivitiesCount":4},{"otcId":"OTC-000013","tradeSensitivitiesCount":2}]';
                   }#;
               }#
           ]
@@ -13326,6 +13877,116 @@ Service stress::AA_InstrumentCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"instrumentId":"INST-AAPL","positionsCount":1},{"instrumentId":"INST-GILT30","positionsCount":1},{"instrumentId":"INST-HSBA","positionsCount":1},{"instrumentId":"INST-MSFT","positionsCount":1},{"instrumentId":"INST-NESN","positionsCount":1},{"instrumentId":"INST-SAP","positionsCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_MarketRiskFactorCounts
+{
+    pattern: '/stress/aa_marketriskfactor';
+    documentation: 'Generated aggregate on risk::MarketRiskFactor: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |risk::MarketRiskFactor.all()
+        ->project(~[
+            factorId:x|$x.factorId,
+            factorSensitivitiesCount:x|$x.factorSensitivities->count()
+        ])
+        ->sort(~factorId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_MarketRiskFactorCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"factorId":"CM.WTI.FRONT","factorSensitivitiesCount":2},{"factorId":"CR.IG.5Y","factorSensitivitiesCount":4},{"factorId":"EQ.SPX","factorSensitivitiesCount":4},{"factorId":"FX.EURUSD","factorSensitivitiesCount":4},{"factorId":"IR.EUR.ESTR.3Y","factorSensitivitiesCount":3},{"factorId":"IR.USD.SOFR.10Y","factorSensitivitiesCount":3},{"factorId":"IR.USD.SOFR.2Y","factorSensitivitiesCount":15},{"factorId":"IR.USD.SOFR.5Y","factorSensitivitiesCount":9},{"factorId":"VOL.SPX.1Y.ATM","factorSensitivitiesCount":6}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_MarketStressScenarioCounts
+{
+    pattern: '/stress/aa_marketstressscenario';
+    documentation: 'Generated aggregate on risk::MarketStressScenario: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |risk::MarketStressScenario.all()
+        ->project(~[
+            scenarioId:x|$x.scenarioId,
+            resultsCount:x|$x.results->count()
+        ])
+        ->sort(~scenarioId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_MarketStressScenarioCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"scenarioId":"SCN-COVID","resultsCount":2},{"scenarioId":"SCN-GILT","resultsCount":2},{"scenarioId":"SCN-LEHMAN","resultsCount":2},{"scenarioId":"SCN-PAR-200BP","resultsCount":2},{"scenarioId":"SCN-STEEP","resultsCount":2}]';
                   }#;
               }#
           ]
@@ -14431,6 +15092,66 @@ Service stress::TM_TraderEmpty
   ]
 }
 
+Service stress::TM_RiskRunEmpty
+{
+    pattern: '/stress/tm_riskrun';
+    documentation: 'Emptiness of 3 to-many association(s) on risk::RiskRun. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    execution: Single
+    {
+    query: |risk::RiskRun.all()
+        ->project(~[
+            runId:x|$x.runId,
+            measuresEmpty:x|$x.measures->isEmpty(),
+            measuresAny:x|$x.measures->isNotEmpty(),
+            scenarioResultsEmpty:x|$x.scenarioResults->isEmpty(),
+            scenarioResultsAny:x|$x.scenarioResults->isNotEmpty(),
+            sensitivitiesEmpty:x|$x.sensitivities->isEmpty(),
+            sensitivitiesAny:x|$x.sensitivities->isNotEmpty()
+        ])
+        ->sort(~runId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TM_RiskRunEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 12 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"runId":"RUN-20240626-EOD","measuresEmpty":true,"measuresAny":false,"scenarioResultsEmpty":true,"scenarioResultsAny":false,"sensitivitiesEmpty":true,"sensitivitiesAny":false},{"runId":"RUN-20240627-EOD","measuresEmpty":false,"measuresAny":true,"scenarioResultsEmpty":false,"scenarioResultsAny":true,"sensitivitiesEmpty":false,"sensitivitiesAny":true},{"runId":"RUN-20240628-EOD","measuresEmpty":false,"measuresAny":true,"scenarioResultsEmpty":false,"scenarioResultsAny":true,"sensitivitiesEmpty":false,"sensitivitiesAny":true},{"runId":"RUN-20240628-INTRA","measuresEmpty":false,"measuresAny":true,"scenarioResultsEmpty":true,"scenarioResultsAny":false,"sensitivitiesEmpty":false,"sensitivitiesAny":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TM_OrderEmpty
 {
     pattern: '/stress/tm_order';
@@ -14656,6 +15377,64 @@ Service stress::TM_ClearingHouseEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"clearingHouseId":"CH-0001","defaultFundsEmpty":false,"defaultFundsAny":true,"membersEmpty":false,"membersAny":true},{"clearingHouseId":"CH-0002","defaultFundsEmpty":false,"defaultFundsAny":true,"membersEmpty":false,"membersAny":true},{"clearingHouseId":"CH-0003","defaultFundsEmpty":false,"defaultFundsAny":true,"membersEmpty":false,"membersAny":true},{"clearingHouseId":"CH-0004","defaultFundsEmpty":true,"defaultFundsAny":false,"membersEmpty":true,"membersAny":false},{"clearingHouseId":"CH-0005","defaultFundsEmpty":true,"defaultFundsAny":false,"membersEmpty":true,"membersAny":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TM_OtcTradeEmpty
+{
+    pattern: '/stress/tm_otctrade';
+    documentation: 'Emptiness of 2 to-many association(s) on derivatives::OtcTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    execution: Single
+    {
+    query: |derivatives::OtcTrade.all()
+        ->project(~[
+            otcId:x|$x.otcId,
+            legsEmpty:x|$x.legs->isEmpty(),
+            legsAny:x|$x.legs->isNotEmpty(),
+            tradeSensitivitiesEmpty:x|$x.tradeSensitivities->isEmpty(),
+            tradeSensitivitiesAny:x|$x.tradeSensitivities->isNotEmpty()
+        ])
+        ->sort(~otcId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TM_OtcTradeEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 26 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000002","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000003","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000004","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000005","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000006","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000007","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000008","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000009","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000010","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000011","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000012","legsEmpty":true,"legsAny":false,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true},{"otcId":"OTC-000013","legsEmpty":false,"legsAny":true,"tradeSensitivitiesEmpty":false,"tradeSensitivitiesAny":true}]';
                   }#;
               }#
           ]
@@ -15647,62 +16426,6 @@ Service stress::TM_ClearedTradeEmpty
   ]
 }
 
-Service stress::TM_OtcTradeEmpty
-{
-    pattern: '/stress/tm_otctrade';
-    documentation: 'Emptiness of 1 to-many association(s) on derivatives::OtcTrade. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
-    execution: Single
-    {
-    query: |derivatives::OtcTrade.all()
-        ->project(~[
-            otcId:x|$x.otcId,
-            legsEmpty:x|$x.legs->isEmpty(),
-            legsAny:x|$x.legs->isNotEmpty()
-        ])
-        ->sort(~otcId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    TM_OtcTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 13 rows; 13 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"otcId":"OTC-000001","legsEmpty":false,"legsAny":true},{"otcId":"OTC-000002","legsEmpty":false,"legsAny":true},{"otcId":"OTC-000003","legsEmpty":false,"legsAny":true},{"otcId":"OTC-000004","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000005","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000006","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000007","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000008","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000009","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000010","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000011","legsEmpty":false,"legsAny":true},{"otcId":"OTC-000012","legsEmpty":true,"legsAny":false},{"otcId":"OTC-000013","legsEmpty":false,"legsAny":true}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::TM_DebtSecurityEmpty
 {
     pattern: '/stress/tm_debtsecurity';
@@ -15750,62 +16473,6 @@ Service stress::TM_DebtSecurityEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"securityId":"DE000A289N78","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"US037833DX90","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"US912810TM08","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"US912828YY08","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"XS1002801758","couponPeriodsEmpty":false,"couponPeriodsAny":true},{"securityId":"XS2056430215","couponPeriodsEmpty":false,"couponPeriodsAny":true}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::TM_CashFlowEmpty
-{
-    pattern: '/stress/tm_cashflow';
-    documentation: 'Emptiness of 1 to-many association(s) on funding::CashFlow. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
-    execution: Single
-    {
-    query: |funding::CashFlow.all()
-        ->project(~[
-            cashFlowId:x|$x.cashFlowId,
-            fundingCostsEmpty:x|$x.fundingCosts->isEmpty(),
-            fundingCostsAny:x|$x.fundingCosts->isNotEmpty()
-        ])
-        ->sort(~cashFlowId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    TM_CashFlowEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 5 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"cashFlowId":"CF-0001","fundingCostsEmpty":false,"fundingCostsAny":true},{"cashFlowId":"CF-0002","fundingCostsEmpty":false,"fundingCostsAny":true},{"cashFlowId":"CF-0003","fundingCostsEmpty":false,"fundingCostsAny":true},{"cashFlowId":"CF-0004","fundingCostsEmpty":true,"fundingCostsAny":false},{"cashFlowId":"CF-0005","fundingCostsEmpty":true,"fundingCostsAny":false}]';
                   }#;
               }#
           ]
@@ -16067,6 +16734,68 @@ Service stress::SP_InlineFlatTradeGroup
   ]
 }
 
+Service stress::SP_defOtcTradeCount
+{
+    pattern: '/stress/sp_defotctradecount';
+    documentation: 'Coverage-directed stack on derivatives::OtcTrade (Count), reusing the reach of D_OtcTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |derivatives::OtcTrade.all()
+        ->filter({x|($x.otcId > ' ')})
+        ->project(~[
+            otcId:x|$x.otcId,
+            optionTermsOptionTradeOptionTermsBarrierType:x|$x.optionTerms.optionTrade.optionTerms.barrierType,
+            optionTermsOptionTradeCurrency:x|$x.optionTerms.optionTrade.currency,
+            tenorYears:x|$x.tenorYears,
+            notionalInQ:x|$x.notionalIn(0.5),
+            optionTermsBarrierType:x|$x.optionTerms.barrierType,
+            tradeSensitivitiesCount:x|$x.tradeSensitivities->count()
+        ])
+        ->sort(~otcId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defOtcTradeCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":5.002739726027397,"notionalInQ":25000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":9},{"otcId":"OTC-000002","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":2.0,"notionalInQ":12500000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":3},{"otcId":"OTC-000003","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":3.0027397260273974,"notionalInQ":37500000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":3},{"otcId":"OTC-000004","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":0.25205479452054796,"notionalInQ":50000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":3},{"otcId":"OTC-000005","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":"USD","tenorYears":5.002739726027397,"notionalInQ":20000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":5},{"otcId":"OTC-000006","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":"USD","tenorYears":3.0,"notionalInQ":15000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":6},{"otcId":"OTC-000007","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":5.252054794520548,"notionalInQ":5000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":2},{"otcId":"OTC-000008","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":5.252054794520548,"notionalInQ":125000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":2},{"otcId":"OTC-000009","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":0.5013698630136987,"notionalInQ":10000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":2},{"otcId":"OTC-000010","optionTermsOptionTradeOptionTermsBarrierType":"UP_AND_OUT","optionTermsOptionTradeCurrency":"EUR","tenorYears":1.0,"notionalInQ":7500000.0,"optionTermsBarrierType":"UP_AND_OUT","tradeSensitivitiesCount":4},{"otcId":"OTC-000011","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":1.0027397260273974,"notionalInQ":17500000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":5},{"otcId":"OTC-000012","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":0.5013698630136987,"notionalInQ":2500000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":4},{"otcId":"OTC-000013","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":1.0,"notionalInQ":4000000.0,"optionTermsBarrierType":null,"tradeSensitivitiesCount":2}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_JoinTradeGroup
 {
     pattern: '/stress/sp_jointradegroup';
@@ -16120,70 +16849,6 @@ Service stress::SP_JoinTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defDebtSecurityCount
-{
-    pattern: '/stress/sp_defdebtsecuritycount';
-    documentation: 'Coverage-directed stack on fixedincome::DebtSecurity (Count), reusing the reach of FI0_SecurityTerms and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |fixedincome::DebtSecurity.all()
-        ->filter({x|($x.securityId > ' ')})
-        ->project(~[
-            securityId:x|$x.securityId,
-            description:x|$x.description,
-            issuerName:x|$x.issuerName,
-            currency:x|$x.currency,
-            couponRate:x|$x.couponRate,
-            maturityDate:x|$x.maturityDate,
-            annualCoupon:x|$x.annualCoupon,
-            annualCouponGbp:x|$x.annualCouponIn(0.79),
-            couponPeriodsCount:x|$x.couponPeriods->count()
-        ])
-        ->sort(~securityId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defDebtSecurityCount_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"securityId":"DE000A289N78","description":"Siemens 0.375% 2027","issuerName":"Siemens AG","currency":"EUR","couponRate":0.375,"maturityDate":"2027-06-05","annualCoupon":3.75,"annualCouponGbp":2.9625000000000004,"couponPeriodsCount":7},{"securityId":"US037833DX90","description":"Apple Inc 2.05% 2026","issuerName":"Apple Inc","currency":"USD","couponRate":2.05,"maturityDate":"2026-09-11","annualCoupon":20.5,"annualCouponGbp":16.195,"couponPeriodsCount":12},{"securityId":"US912810TM08","description":"US Treasury Bond 2.375% 2049","issuerName":"United States Treasury","currency":"USD","couponRate":2.375,"maturityDate":"2049-05-31","annualCoupon":23.75,"annualCouponGbp":18.7625,"couponPeriodsCount":60},{"securityId":"US912828YY08","description":"US Treasury Note 1.75% 2029","issuerName":"United States Treasury","currency":"USD","couponRate":1.75,"maturityDate":"2029-11-30","annualCoupon":17.5,"annualCouponGbp":13.825000000000001,"couponPeriodsCount":20},{"securityId":"XS1002801758","description":"Barclays 8.0% Perpetual AT1","issuerName":"Barclays plc","currency":"USD","couponRate":8.0,"maturityDate":null,"annualCoupon":80.0,"annualCouponGbp":63.2,"couponPeriodsCount":20},{"securityId":"XS2056430215","description":"HSBC Holdings 3.0% 2030","issuerName":"HSBC Holdings plc","currency":"GBP","couponRate":3.0,"maturityDate":"2030-09-20","annualCoupon":30.0,"annualCouponGbp":23.700000000000003,"couponPeriodsCount":11}]';
                   }#;
               }#
           ]
@@ -16322,68 +16987,6 @@ Service stress::SP_defHistTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defBookCount
-{
-    pattern: '/stress/sp_defbookcount';
-    documentation: 'Coverage-directed stack on positions::Book (Count), reusing the reach of D_BookDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |positions::Book.all()
-        ->filter({x|($x.bookId > ' ')})
-        ->project(~[
-            bookId:x|$x.bookId,
-            rollupBookRollupBookId:x|$x.rollup.book.rollup.bookId,
-            rollupBookDeskName:x|$x.rollup.book.desk.name,
-            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
-            rollupBookCurrency:x|$x.rollup.book.currency,
-            deskBusinessUnitName:x|$x.desk.businessUnit.name,
-            positionsCount:x|$x.positions->count()
-        ])
-        ->sort(~bookId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defBookCount_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"bookId":"BK-CASH-EU","rollupBookRollupBookId":"BK-CASH-EU","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"EUR","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-LEGACY","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":null,"deskBusinessUnitName":null,"positionsCount":1},{"bookId":"BK-VOL-01","rollupBookRollupBookId":"BK-VOL-01","rollupBookDeskName":"Equity Derivatives","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":1}]';
                   }#;
               }#
           ]
@@ -16535,6 +17138,71 @@ Service stress::SP_ComboSummaryGroup
   ]
 }
 
+Service stress::SP_defRiskMeasureGroup
+{
+    pattern: '/stress/sp_defriskmeasuregroup';
+    documentation: 'Coverage-directed stack on risk::RiskMeasure (Group), reusing the reach of MR1_FirmVar and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |risk::RiskMeasure.all()
+        ->filter({x|($x.measureId > ' ')})
+        ->project(~[
+            measureId:x|$x.measureId,
+            measureType:x|$x.measureType,
+            confidence:x|$x.confidence,
+            horizonDays:x|$x.horizonDays,
+            measureValue:x|$x.measureValue,
+            modelName:x|$x.modelName,
+            valueEur:x|$x.valueIn(0.92),
+            cobDate:x|$x.measureRun.cobDate
+        ])
+        ->groupBy(~[measureId], ~[
+            n: x|$x.confidence : agg|$agg->count(),
+            tot: x|$x.confidence : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defRiskMeasureGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 11 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"measureId":"MEAS-00001","n":1,"tot":0.99},{"measureId":"MEAS-00002","n":1,"tot":0.99},{"measureId":"MEAS-00003","n":1,"tot":0.99},{"measureId":"MEAS-00004","n":1,"tot":0.975},{"measureId":"MEAS-00005","n":1,"tot":0.99},{"measureId":"MEAS-00006","n":0,"tot":null},{"measureId":"MEAS-00007","n":0,"tot":null},{"measureId":"MEAS-00008","n":0,"tot":null},{"measureId":"MEAS-00009","n":1,"tot":0.95},{"measureId":"MEAS-00010","n":1,"tot":0.99},{"measureId":"MEAS-00011","n":1,"tot":0.99}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_defBookRollupGroup
 {
     pattern: '/stress/sp_defbookrollupgroup';
@@ -16589,6 +17257,68 @@ Service stress::SP_defBookRollupGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"bookId":"BK-CASH-US","n":1,"tot":10},{"bookId":"BK-VOL-01","n":1,"tot":5},{"bookId":"BK-CASH-EU","n":1,"tot":5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defBookCount
+{
+    pattern: '/stress/sp_defbookcount';
+    documentation: 'Coverage-directed stack on positions::Book (Count), reusing the reach of D_BookDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |positions::Book.all()
+        ->filter({x|($x.bookId > ' ')})
+        ->project(~[
+            bookId:x|$x.bookId,
+            rollupBookRollupBookId:x|$x.rollup.book.rollup.bookId,
+            rollupBookDeskName:x|$x.rollup.book.desk.name,
+            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
+            rollupBookCurrency:x|$x.rollup.book.currency,
+            deskBusinessUnitName:x|$x.desk.businessUnit.name,
+            positionsCount:x|$x.positions->count()
+        ])
+        ->sort(~bookId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defBookCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-EU","rollupBookRollupBookId":"BK-CASH-EU","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"EUR","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-LEGACY","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":null,"deskBusinessUnitName":null,"positionsCount":1},{"bookId":"BK-VOL-01","rollupBookRollupBookId":"BK-VOL-01","rollupBookDeskName":"Equity Derivatives","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":1}]';
                   }#;
               }#
           ]
@@ -16985,68 +17715,6 @@ Service stress::SP_ComboScopedGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"r_b_nl1":false,"r_b_nn1":false,"r_bi_nl1":31,"r_bi_nn1":31,"r_c_nl1":"R-C-NL1-001","r_c_nn1":"R-C-NN1-001","r_de_nl1":212.5,"r_de_nn1":212.5,"r_dt_nl1":"2024-04-04","r_dt_nn1":"2024-04-04","r_f_nl1":212.5,"r_f_nn1":212.5,"r_i_nl1":31,"r_i_nn1":31,"r_s_nl1":"R-S-NL1-001","r_s_nn1":"R-S-NN1-001","r_si_nl1":null,"r_si_nn1":31,"rootId":"CR-0001"},{"r_b_nl1":null,"r_b_nn1":true,"r_bi_nl1":38,"r_bi_nn1":38,"r_c_nl1":"R-C-NL1-002","r_c_nn1":"R-C-NN1-002","r_de_nl1":250.0,"r_de_nn1":250.0,"r_dt_nl1":"2024-05-05","r_dt_nn1":"2024-05-05","r_f_nl1":250.0,"r_f_nn1":250.0,"r_i_nl1":null,"r_i_nn1":38,"r_s_nl1":"R-S-NL1-002","r_s_nn1":"R-S-NN1-002","r_si_nl1":38,"r_si_nn1":38,"rootId":"CR-0002"},{"r_b_nl1":true,"r_b_nn1":true,"r_bi_nl1":45,"r_bi_nn1":45,"r_c_nl1":"R-C-NL1-003","r_c_nn1":"R-C-NN1-003","r_de_nl1":287.5,"r_de_nn1":287.5,"r_dt_nl1":"2024-06-06","r_dt_nn1":"2024-06-06","r_f_nl1":null,"r_f_nn1":287.5,"r_i_nl1":45,"r_i_nn1":45,"r_s_nl1":null,"r_s_nn1":"R-S-NN1-003","r_si_nl1":45,"r_si_nn1":45,"rootId":"CR-0003"},{"r_b_nl1":false,"r_b_nn1":false,"r_bi_nl1":null,"r_bi_nn1":52,"r_c_nl1":"R-C-NL1-004","r_c_nn1":"R-C-NN1-004","r_de_nl1":325.0,"r_de_nn1":325.0,"r_dt_nl1":null,"r_dt_nn1":"2024-07-07","r_f_nl1":325.0,"r_f_nn1":325.0,"r_i_nl1":52,"r_i_nn1":52,"r_s_nl1":"R-S-NL1-004","r_s_nn1":"R-S-NN1-004","r_si_nl1":52,"r_si_nn1":52,"rootId":"CR-0004"},{"r_b_nl1":true,"r_b_nn1":true,"r_bi_nl1":59,"r_bi_nn1":59,"r_c_nl1":null,"r_c_nn1":"R-C-NN1-005","r_de_nl1":null,"r_de_nn1":362.5,"r_dt_nl1":"2024-08-08","r_dt_nn1":"2024-08-08","r_f_nl1":362.5,"r_f_nn1":362.5,"r_i_nl1":59,"r_i_nn1":59,"r_s_nl1":"R-S-NL1-005","r_s_nn1":"R-S-NN1-005","r_si_nl1":59,"r_si_nn1":59,"rootId":"CR-0005"}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defOtcTradeEmpty
-{
-    pattern: '/stress/sp_defotctradeempty';
-    documentation: 'Coverage-directed stack on derivatives::OtcTrade (Empty), reusing the reach of D_OtcTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |derivatives::OtcTrade.all()
-        ->filter({x|($x.otcId > ' ')})
-        ->project(~[
-            otcId:x|$x.otcId,
-            optionTermsOptionTradeOptionTermsBarrierType:x|$x.optionTerms.optionTrade.optionTerms.barrierType,
-            optionTermsOptionTradeCurrency:x|$x.optionTerms.optionTrade.currency,
-            tenorYears:x|$x.tenorYears,
-            notionalInQ:x|$x.notionalIn(0.5),
-            optionTermsBarrierType:x|$x.optionTerms.barrierType,
-            hasNone:x|$x.legs->isEmpty()
-        ])
-        ->sort(~otcId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defOtcTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 13 rows; 5 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"otcId":"OTC-000001","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":5.002739726027397,"notionalInQ":25000000.0,"optionTermsBarrierType":null,"hasNone":false},{"otcId":"OTC-000002","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":2.0,"notionalInQ":12500000.0,"optionTermsBarrierType":null,"hasNone":false},{"otcId":"OTC-000003","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":3.0027397260273974,"notionalInQ":37500000.0,"optionTermsBarrierType":null,"hasNone":false},{"otcId":"OTC-000004","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":0.25205479452054796,"notionalInQ":50000000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000005","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":"USD","tenorYears":5.002739726027397,"notionalInQ":20000000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000006","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":"USD","tenorYears":3.0,"notionalInQ":15000000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000007","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":5.252054794520548,"notionalInQ":5000000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000008","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":5.252054794520548,"notionalInQ":125000000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000009","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":0.5013698630136987,"notionalInQ":10000000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000010","optionTermsOptionTradeOptionTermsBarrierType":"UP_AND_OUT","optionTermsOptionTradeCurrency":"EUR","tenorYears":1.0,"notionalInQ":7500000.0,"optionTermsBarrierType":"UP_AND_OUT","hasNone":true},{"otcId":"OTC-000011","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":1.0027397260273974,"notionalInQ":17500000.0,"optionTermsBarrierType":null,"hasNone":false},{"otcId":"OTC-000012","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":0.5013698630136987,"notionalInQ":2500000.0,"optionTermsBarrierType":null,"hasNone":true},{"otcId":"OTC-000013","optionTermsOptionTradeOptionTermsBarrierType":null,"optionTermsOptionTradeCurrency":null,"tenorYears":1.0,"notionalInQ":4000000.0,"optionTermsBarrierType":null,"hasNone":false}]';
                   }#;
               }#
           ]

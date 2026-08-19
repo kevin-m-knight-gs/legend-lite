@@ -542,6 +542,115 @@ def _otc_specs():
 OTC = _otc_specs()
 
 
+def _risk_specs():
+    """The reports a market-risk function actually produces.
+
+    The run summary, the firm VaR by model, the sensitivity ladder by tenor, the stress
+    results against limits, and the one query that matters operationally: which runs
+    produced nothing.
+    """
+    out = []
+
+    runs = Spec("stress::MR0_RunSummary", "/stress/mr0",
+                "Risk runs with their wall-clock duration. The failed run has no completion "
+                "time, so its duration is null rather than zero, and the intraday run has "
+                "no approver.",
+                "risk::RiskRun")
+    runs.projections = [Proj("runId", ["runId"]),
+                        Proj("cobDate", ["cobDate"]),
+                        Proj("runType", ["runType"]),
+                        Proj("status", ["status"]),
+                        Proj("approvedBy", ["approvedBy"]),
+                        Proj("durationMinutes", ["durationMinutes"]),
+                        Proj("noMeasures", ["measures"], agg="isEmpty")]
+    runs.sort = ("runId", False)
+    out.append(runs)
+
+    # Firm VaR across models. Three models of one question, which is exactly why measureType
+    # is a discriminator: the numbers are not comparable but they are all VaR.
+    var = Spec("stress::MR1_FirmVar", "/stress/mr1",
+               "Firm-level risk measures with the model that produced each. The XVA rows "
+               "have no confidence level and no horizon -- a CVA is an adjustment, not a "
+               "percentile.",
+               "risk::RiskMeasure")
+    var.projections = [Proj("measureId", ["measureId"]),
+                       Proj("measureType", ["measureType"]),
+                       Proj("confidence", ["confidence"]),
+                       Proj("horizonDays", ["horizonDays"]),
+                       Proj("measureValue", ["measureValue"]),
+                       Proj("modelName", ["modelName"]),
+                       Proj("valueEur", ["valueIn"], args=[0.92]),
+                       Proj("cobDate", ["measureRun", "cobDate"])]
+    var.sort = ("measureId", False)
+    out.append(var)
+
+    # The subtype query: historical VaR only. If the discriminator were wrong this would
+    # return all eleven measures instead of the three that are historical VaR.
+    hist = Spec("stress::MR2_HistoricalVar", "/stress/mr2",
+                "Historical VaR only, across runs. The discriminator is the point: eleven "
+                "measures in the table, three of them this type.",
+                "risk::HistoricalVar")
+    hist.projections = [Proj("measureId", ["measureId"]),
+                        Proj("scope", ["scope"]),
+                        Proj("measureValue", ["measureValue"]),
+                        Proj("lookbackDays", ["lookbackDays"])]
+    hist.sort = ("measureId", False)
+    out.append(hist)
+
+    # The sensitivity ladder: the report a rates desk reads every morning. Navigates from
+    # the sensitivity to its factor AND to its trade, so one row carries three tables.
+    ladder = Spec("stress::MR3_SensitivityLadder", "/stress/mr3",
+                  "The sensitivity ladder: every exposure with the factor it loads on and "
+                  "the trade it came from. A spot factor has no tenor, so those rows carry "
+                  "a null where the curve rows carry a bucket.",
+                  "risk::Sensitivity")
+    ladder.projections = [Proj("sensitivityId", ["sensitivityId"]),
+                          Proj("measureType", ["measureType"]),
+                          Proj("measureValue", ["measureValue"]),
+                          Proj("curveName", ["factor", "curveName"]),
+                          Proj("tenor", ["factor", "tenor"]),
+                          Proj("assetClass", ["factor", "assetClass"]),
+                          Proj("productType", ["sensitivityTrade", "productType"]),
+                          Proj("notional", ["sensitivityTrade", "notional"])]
+    ladder.sort = ("sensitivityId", False)
+    out.append(ladder)
+
+    # DV01 by curve and tenor -- the aggregation every rates report opens with.
+    dv01 = Spec("stress::MR4_Dv01ByTenor", "/stress/mr4",
+                "DV01 aggregated by curve and tenor bucket. The subtype restricts to rates "
+                "sensitivities, so credit and equity exposures do not contaminate the "
+                "ladder.",
+                "risk::Dv01Sensitivity")
+    dv01.projections = [Proj("factorId", ["factorId"]),
+                        Proj("measureValue", ["measureValue"])]
+    dv01.group_by = ["factorId"]
+    dv01.aggs = [("points", "measureValue", "count"),
+                 ("totalDv01", "measureValue", "sum"),
+                 ("largest", "measureValue", "max")]
+    dv01.sort = ("factorId", False)
+    out.append(dv01)
+
+    # Stress results against limits, navigating to the scenario definition.
+    stress = Spec("stress::MR5_StressResults", "/stress/mr5",
+                  "Stress results with the scenario behind each. The hypothetical scenarios "
+                  "have no historical event date; the severe ones breach the limit.",
+                  "risk::ScenarioResult")
+    stress.projections = [Proj("resultId", ["resultId"]),
+                          Proj("stressedPnl", ["stressedPnl"]),
+                          Proj("breachedLimit", ["breachedLimit"]),
+                          Proj("scenarioName", ["scenario", "scenarioName"]),
+                          Proj("scenarioType", ["scenario", "scenarioType"]),
+                          Proj("severity", ["scenario", "severity"]),
+                          Proj("asOfEvent", ["scenario", "asOfEvent"]),
+                          Proj("isRegulatory", ["scenario", "isRegulatory"])]
+    stress.sort = ("resultId", False)
+    out.append(stress)
+    return out
+
+
+RISK = _risk_specs()
+
+
 def _m2m_enum_probe():
     """The same chain plus the enum-mapped property. Quarantined: F12."""
     s = Spec("stress::M2_CanonicalWithEnum", "/stress/m2",
@@ -979,7 +1088,7 @@ DERIVED = [
 
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

@@ -1586,6 +1586,21 @@ def check(c: Corpus) -> list[str]:
     # "Unexpected token" naming no file, no line and no construct. Each file still parses
     # perfectly ALONE, so bisecting file-by-file reports every one of them healthy -- the
     # defect exists only in the ordering, which is exactly what this checks.
+    # A table declared TWICE. The reader keys tables globally by name, so the second
+    # declaration silently replaces the first and every property mapped to a column of the
+    # replaced one resolves against the wrong table -- or, if the column names differ,
+    # reports a column that plainly is in the file as missing. That is how a fresh
+    # market-risk store collided with the risk domain's own RISK_FACTOR and STRESS_SCENARIO,
+    # and the error pointed at the new file rather than at the duplication.
+    seen_tables: dict[str, str] = {}
+    for f in sorted(STRESS.glob("*.pure")):
+        for m in re.finditer(r"^\s*Table\s+(\w+)\s*[\(\n]", f.read_text(), re.M):
+            name = m.group(1)
+            if name in seen_tables and seen_tables[name] != f.name:
+                bad.append(f"table {name} is declared in BOTH {seen_tables[name]} and "
+                           f"{f.name}; the reader keeps one and silently drops the other")
+            seen_tables.setdefault(name, f.name)
+
     prev = "###Pure"
     for f in sorted(STRESS.glob("*.pure")):
         txt = f.read_text()

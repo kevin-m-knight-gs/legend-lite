@@ -195,6 +195,39 @@ Database store::DB
     // fallback FK is a SEPARATE column.
     Table TRADE_FLAT_PARTIAL (TRADE_ID VARCHAR(200) PRIMARY KEY, NOTIONAL DOUBLE, STATUS VARCHAR(200), CPTY_FK VARCHAR(200), CPTY_ID_INLINE VARCHAR(200), CPTY_NAME_INLINE VARCHAR(200), CPTY_LEI_INLINE VARCHAR(200))
 
+    // ---- Market risk: a run, the factors it shocked, the numbers it produced ----
+    //
+    // The shape every market-risk stack has. One batch per day per scope, a factor hierarchy
+    // underneath it, and a measure table that fans out to trades x factors x tenor buckets.
+    // Firm-level numbers and per-trade sensitivities are different tables because they are
+    // different grains, which is the thing a single wide "risk" table always gets wrong.
+    Table RISK_RUN (RUN_ID VARCHAR(24) PRIMARY KEY, COB_DATE DATE, RUN_TYPE VARCHAR(12),
+        SCOPE VARCHAR(20), MODEL_VERSION VARCHAR(16), STATUS VARCHAR(12),
+        STARTED_AT TIMESTAMP, COMPLETED_AT TIMESTAMP, TRADE_COUNT INTEGER,
+        APPROVED_BY VARCHAR(40))
+
+    Table MR_RISK_FACTOR (FACTOR_ID VARCHAR(32) PRIMARY KEY, FACTOR_TYPE VARCHAR(20),
+        CURVE_NAME VARCHAR(20), CURRENCY VARCHAR(3), TENOR VARCHAR(6),
+        TENOR_MONTHS INTEGER, ASSET_CLASS VARCHAR(12))
+
+    Table SENSITIVITY (SENSITIVITY_ID VARCHAR(16) PRIMARY KEY, RUN_ID VARCHAR(24),
+        OTC_ID VARCHAR(12), FACTOR_ID VARCHAR(32), MEASURE_TYPE VARCHAR(20),
+        MEASURE_VALUE DECIMAL(18,2), MEASURE_CURRENCY VARCHAR(3),
+        SHOCK_SIZE DECIMAL(9,4), SHOCK_UNIT VARCHAR(6), COB_DATE DATE)
+
+    Table RISK_MEASURE (MEASURE_ID VARCHAR(16) PRIMARY KEY, RUN_ID VARCHAR(24),
+        MEASURE_TYPE VARCHAR(24), SCOPE VARCHAR(20), CONFIDENCE DECIMAL(6,4),
+        HORIZON_DAYS INTEGER, MEASURE_VALUE DECIMAL(18,2), CURRENCY VARCHAR(3),
+        LOOKBACK_DAYS INTEGER, MODEL_NAME VARCHAR(20))
+
+    Table MR_STRESS_SCENARIO (SCENARIO_ID VARCHAR(20) PRIMARY KEY, SCENARIO_NAME VARCHAR(60),
+        SCENARIO_TYPE VARCHAR(16), SEVERITY VARCHAR(12), HORIZON_DAYS INTEGER,
+        AS_OF_EVENT DATE, IS_REGULATORY BIT)
+
+    Table SCENARIO_RESULT (RESULT_ID VARCHAR(16) PRIMARY KEY, RUN_ID VARCHAR(24),
+        SCENARIO_ID VARCHAR(20), SCOPE VARCHAR(20), STRESSED_PNL DECIMAL(18,2),
+        BASE_PNL DECIMAL(18,2), CURRENCY VARCHAR(3), COB_DATE DATE, BREACHED_LIMIT BIT)
+
     // ---- OTC derivatives: shared economics, per-family extensions ----
     //
     // One table of the terms every OTC trade has -- counterparty, notional, dates, clearing
@@ -644,6 +677,31 @@ Database store::DB
 
     // The coupon schedule. Security to period is one-to-sixty at the deep end; period to
     // payment is one-to-zero-or-one, and the zero half is every coupon not yet due.
+    Join RiskRun_Sensitivity(RISK_RUN.RUN_ID = SENSITIVITY.RUN_ID)
+    Join RiskRun_Measure(RISK_RUN.RUN_ID = RISK_MEASURE.RUN_ID)
+    Join RiskRun_ScenarioResult(RISK_RUN.RUN_ID = SCENARIO_RESULT.RUN_ID)
+    Join Scenario_Result(MR_STRESS_SCENARIO.SCENARIO_ID = SCENARIO_RESULT.SCENARIO_ID)
+    Join Sensitivity_Factor(SENSITIVITY.FACTOR_ID = MR_RISK_FACTOR.FACTOR_ID)
+    Join Sensitivity_OtcTrade(SENSITIVITY.OTC_ID = OTC_TRADE.OTC_ID)
+
+    // Discriminators for the risk-measure taxonomy. A historical VaR and a parametric VaR
+    // answer the same question with different models and belong to different classes.
+    Filter RiskHistoricalVarRows(RISK_MEASURE.MEASURE_TYPE = 'HISTORICAL_VAR')
+    Filter RiskParametricVarRows(RISK_MEASURE.MEASURE_TYPE = 'PARAMETRIC_VAR')
+    Filter RiskMonteCarloVarRows(RISK_MEASURE.MEASURE_TYPE = 'MONTE_CARLO_VAR')
+    Filter RiskExpectedShortfallRows(RISK_MEASURE.MEASURE_TYPE = 'EXPECTED_SHORTFALL')
+    Filter RiskStressedVarRows(RISK_MEASURE.MEASURE_TYPE = 'STRESSED_VAR')
+    Filter RiskCvaRows(RISK_MEASURE.MEASURE_TYPE = 'CVA')
+    Filter RiskDvaRows(RISK_MEASURE.MEASURE_TYPE = 'DVA')
+    Filter RiskFvaRows(RISK_MEASURE.MEASURE_TYPE = 'FVA')
+    Filter RiskPfeRows(RISK_MEASURE.MEASURE_TYPE = 'PFE')
+    Filter SensDv01Rows(SENSITIVITY.MEASURE_TYPE = 'DV01')
+    Filter SensCs01Rows(SENSITIVITY.MEASURE_TYPE = 'CS01')
+    Filter SensVegaRows(SENSITIVITY.MEASURE_TYPE = 'VEGA')
+    Filter SensFxDeltaRows(SENSITIVITY.MEASURE_TYPE = 'FX_DELTA')
+    Filter SensEquityDeltaRows(SENSITIVITY.MEASURE_TYPE = 'EQUITY_DELTA')
+    Filter SensCommodityDeltaRows(SENSITIVITY.MEASURE_TYPE = 'COMMODITY_DELTA')
+
     Join OtcTrade_Leg(OTC_TRADE.OTC_ID = OTC_SWAP_LEG.OTC_ID)
     Join OtcTrade_OptionTerms(OTC_TRADE.OTC_ID = OTC_OPTION_TERMS.OTC_ID)
     Join OtcTrade_Counterparty(OTC_TRADE.COUNTERPARTY_ID = COUNTERPARTY.COUNTERPARTY_ID)
