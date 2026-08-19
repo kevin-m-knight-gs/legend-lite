@@ -113,7 +113,18 @@ class JavaEvalLedgerTest {
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 221),
+            // 221→250 (2026-08-19 phase-2 deep audit): EXACT-arithmetic
+            // tolerance (P2-1 — the double round-trip silently widened
+            // it), temporal sort BY INSTANT (P2-2 — contract said
+            // instant, code said text), assertEq with LOUD non-primitive
+            // refusal (P2-5 — eq is identity, unobservable on a wire),
+            // tree arms delegate to JsonCompare (P2-4/P2-6).
+            // Adjudication-layer correctness, not new evaluation surface.
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 250),
+            // NEW (same audit): the structural tree walker — replaces the
+            // harness's private copy; verification CONSUMES two produced
+            // sides, never produces a result
+            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 70),
             Map.entry("core/src/main/java/com/legend/exec/GridCompare.java", 295));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
@@ -226,6 +237,12 @@ class JavaEvalLedgerTest {
                     // never produces a result (the permanent-allowed
                     // decision rule); wireEquals' private copy DIED here.
                     "PureAsserts.java", "GridCompare.java",
+                    // 2026-08-19 phase-2 deep audit: the ONE structural
+                    // tree walker (wire-value trees + parsed JSON
+                    // documents) — the harness's private jsonDeepEquals
+                    // copy DIED here (its claimed ledger exception had
+                    // never been registered)
+                    "JsonCompare.java",
                     "H2Settings.java",
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",

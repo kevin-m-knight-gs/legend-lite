@@ -2033,6 +2033,21 @@ public final class EngineTestExecutor {
                     return UNSUPPORTED_MARKER;
                 }
                 Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                // assertEq = assert(eq(e, a)) — eq is IDENTITY-or-
+                // primitive (P2-5, 2026-08-19 deep audit): the platform
+                // owner refuses non-primitives LOUDLY; the old conflation
+                // with equal risked a silent structural true where pure
+                // answers false by identity
+                if (simpleName(af.function()).equals("assertEq")) {
+                    if (e.size() != 1 || a.size() != 1) {
+                        return "assertEq: both sides must be [1] —"
+                                + " expected arity " + e.size()
+                                + ", actual arity " + a.size();
+                    }
+                    String d = com.legend.exec.PureAsserts.assertEq(
+                            e.values().get(0), a.values().get(0));
+                    return d == null ? null : "assertEq:" + d;
+                }
                 boolean equal = compare(e, a, /* ordered */ true);
                 if (simpleName(af.function()).equals("assertNotEquals")) {   // F6.9
                     return equal ? "assertNotEquals: both sides are " + e.render() : null;
@@ -2216,7 +2231,7 @@ public final class EngineTestExecutor {
                         && al.size() == 1) {
                     actual = al.get(0);
                 }
-                String diff = jsonDiffPath(expected, actual, "$");
+                String diff = com.legend.exec.JsonCompare.document(expected, actual);
                 return diff == null ? null
                         : "assertJsonStringsEqual: FIRST DIFF at " + diff
                                 + " | expected "
@@ -2514,85 +2529,7 @@ public final class EngineTestExecutor {
      * purpose — an integer-typed expectation against a decimal wire value
      * is a typing bug this compare must catch, same stance as wireEquals'
      * int/fp split. */
-    /** First diverging path between parsed JSON structures, or null when
-     * deep-equal — the SAME semantics as {@link #jsonDeepEquals} (objects
-     * key-order-insensitive, arrays order-sensitive), reported as a
-     * dotted/indexed path with the local expected/actual values. */
-    private static @com.legend.Nullable String jsonDiffPath(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a, String path) {
-        if (e instanceof java.math.BigDecimal be
-                && a instanceof java.math.BigDecimal ba) {
-            return be.compareTo(ba) == 0 ? null
-                    : path + " expected " + be + ", got " + ba;
-        }
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            for (Object k : em.keySet()) {
-                if (!am.containsKey(k)) {
-                    return path + " missing key '" + k + "'";
-                }
-            }
-            for (Object k : am.keySet()) {
-                if (!em.containsKey(k)) {
-                    return path + " unexpected key '" + k + "'";
-                }
-            }
-            for (Object k : em.keySet()) {
-                String d = jsonDiffPath(em.get(k), am.get(k),
-                        path + "." + k);
-                if (d != null) {
-                    return d;
-                }
-            }
-            return null;
-        }
-        if (e instanceof List<?> el && a instanceof List<?> al) {
-            if (el.size() != al.size()) {
-                return path + " expected " + el.size()
-                        + " element(s), got " + al.size();
-            }
-            for (int i = 0; i < el.size(); i++) {
-                String d = jsonDiffPath(el.get(i), al.get(i),
-                        path + "[" + i + "]");
-                if (d != null) {
-                    return d;
-                }
-            }
-            return null;
-        }
-        return java.util.Objects.equals(e, a) ? null
-                : path + " expected " + abbreviate(String.valueOf(e))
-                        + ", got " + abbreviate(String.valueOf(a));
-    }
 
-    private static boolean jsonDeepEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
-        if (e instanceof java.math.BigDecimal be
-                && a instanceof java.math.BigDecimal ba) {
-            return be.compareTo(ba) == 0;
-        }
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            if (!em.keySet().equals(am.keySet())) {
-                return false;
-            }
-            for (Object k : em.keySet()) {
-                if (!jsonDeepEquals(em.get(k), am.get(k))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        if (e instanceof List<?> el && a instanceof List<?> al) {
-            if (el.size() != al.size()) {
-                return false;
-            }
-            for (int i = 0; i < el.size(); i++) {
-                if (!jsonDeepEquals(el.get(i), al.get(i))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return java.util.Objects.equals(e, a);
-    }
 
     static String simpleName(String fn) {
         int cut = fn.lastIndexOf("::");

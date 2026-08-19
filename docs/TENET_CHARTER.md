@@ -75,6 +75,22 @@ having Java natives. What remains banned: data-derived values computed host-side
 SECOND implementations of semantics the platform already owns (the harness's private
 equality/envelope/decode copies are migration targets, not exemplars).
 
+## Clause 2c — Two worlds, one spec (ratified 2026-08-19, phase-2 deep audit)
+
+Equality (and every value semantic) necessarily exists in TWO worlds: **World 1 — the
+host adjudication layer** (`PureAsserts`/`GridCompare`/`JsonCompare`: comparing an
+EXPECTED value against a FETCHED result to produce a test verdict), and **World 2 — the
+compiler** (an in-query `x == y` must lower to SQL; the lowering rules ARE that world).
+World 2 cannot not exist — it is the compiler; World 1 is Clause 2b's adjudication
+grant. The doctrine: **verdicts are World 1's job, in-query computation is World 2's,
+and NEITHER world reimplements the other's job.** Compiling the assert library's pure
+bodies into SQL to produce verdicts violates this clause exactly as a harness-private
+comparator does (the Phase-4 seam arms were this violation's cost, witnessed). Both
+worlds cite the same legend-pure spec; their agreement on shared ground — and every
+DECLARED divergence (SQL null-vs-pure-true, dialect coercions) — is pinned by the
+`EqualityWorldsConformanceTest` fixture: drift in either world is a red test, never a
+discovery made three phases later.
+
 ## Clause 3 — Provenance, not arms (the host channel)
 
 **No `ResultSet`-derived value may be EVALUATED in Java on the host channel.** The

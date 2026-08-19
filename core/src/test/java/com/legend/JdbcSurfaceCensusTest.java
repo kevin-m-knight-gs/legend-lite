@@ -99,6 +99,9 @@ class JdbcSurfaceCensusTest {
 
     private static final Set<String> TEST_REGISTER = new TreeSet<>(List.of(
             "core/src/test/java/com/legend/ArchitectureTest.java",
+            // Charter Clause 2c fixture: World 2 IS a database execution
+            // — the two-worlds agreement is the thing under test
+            "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",
             // Phase 4: assertError spec tests — a DuckDB session + the
             // SQLException surface IS the feature under test
             "core/src/test/java/com/legend/AssertErrorNativeTest.java",

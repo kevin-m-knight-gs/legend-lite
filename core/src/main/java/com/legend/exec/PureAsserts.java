@@ -88,15 +88,65 @@ public final class PureAsserts {
 
     /** {@code assertEqWithinTolerance(expected, actual, delta)}
      * (assertEqWithinTolerance.pure): {@code abs(e - a) <= abs(delta)},
-     * message in the spec's {@code %r} form. */
+     * message in the spec's {@code %r} form. EXACT kinds (Integer,
+     * Decimal) compare in EXACT arithmetic — the spec's subtraction is
+     * pure number math (P2-1, 2026-08-19 deep audit: the double
+     * round-trip silently widened the tolerance for high-precision
+     * Decimals); a floating side keeps double arithmetic, its values
+     * carry no more precision than that. */
     public static @com.legend.Nullable String assertEqWithinTolerance(
             Number expected, Number actual, Number delta) {
-        if (Math.abs(expected.doubleValue() - actual.doubleValue())
-                <= Math.abs(delta.doubleValue())) {
+        boolean held;
+        if (isExact(expected) && isExact(actual) && isExact(delta)) {
+            held = toExact(expected).subtract(toExact(actual)).abs()
+                    .compareTo(toExact(delta).abs()) <= 0;
+        } else {
+            held = Math.abs(expected.doubleValue() - actual.doubleValue())
+                    <= Math.abs(delta.doubleValue());
+        }
+        if (held) {
             return null;
         }
         return "\nexpected: " + repr(expected)
                 + "\nactual:   " + repr(actual);
+    }
+
+    private static boolean isExact(Number n) {
+        return n instanceof BigDecimal || isIntegral(n);
+    }
+
+    private static BigDecimal toExact(Number n) {
+        return n instanceof BigDecimal d ? d
+                : BigDecimal.valueOf(n.longValue());
+    }
+
+    /** {@code assertEq(expected:Any[1], actual:Any[1])}
+     * (assertEq.pure:17): {@code assert(eq(e, a), msg)} — {@code eq} is
+     * IDENTITY-or-primitive equality (eq.pure doc). Primitives coincide
+     * with {@code equal} (the spec's own {@code eq(6, 3+3)}); for
+     * NON-primitives {@code eq} means SAME INSTANCE, which a value wire
+     * cannot observe — LOUD, never a quiet structural answer (P2-5,
+     * 2026-08-19 deep audit: the silent conflation risked answering
+     * true where pure answers false). */
+    public static @com.legend.Nullable String assertEq(
+            @com.legend.Nullable Object expected,
+            @com.legend.Nullable Object actual) {
+        if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
+            throw new com.legend.error.NotImplementedException(
+                    "assertEq over non-primitive values: eq is INSTANCE"
+                    + " identity, which is not observable on a value wire"
+                    + " (assertEquals is the structural compare)");
+        }
+        if (equalScalar(expected, actual)) {
+            return null;
+        }
+        return "\nexpected: " + repr(expected)
+                + "\nactual:   " + repr(actual);
+    }
+
+    private static boolean isNonPrimitive(@com.legend.Nullable Object v) {
+        return v != null && !(v instanceof Number || v instanceof String
+                || v instanceof Boolean || isTemporal(v));
     }
 
     // ================================================================
@@ -186,16 +236,15 @@ public final class PureAsserts {
         if (e instanceof String es && isTemporal(a)) {
             return temporalEquals(es, a);
         }
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            if (!em.keySet().equals(am.keySet())) {
-                return false;
-            }
-            for (Object k : em.keySet()) {
-                if (!equalScalar(em.get(k), am.get(k))) {
-                    return false;
-                }
-            }
-            return true;
+        // WIRE-VALUE TREES (struct cells decoded to maps at egress, and
+        // any lists nested inside them): the ONE walker owns the
+        // structure, THIS method stays the leaf rule (P2-4/P2-6,
+        // 2026-08-19 deep audit — the private Map arm was undocumented
+        // and nested lists fell through to raw Java equals with no pure
+        // numeric semantics)
+        if ((e instanceof Map<?, ?> && a instanceof Map<?, ?>)
+                || (e instanceof List<?> && a instanceof List<?>)) {
+            return JsonCompare.wireTree(e, a);
         }
         return e.equals(a);
     }
@@ -265,8 +314,7 @@ public final class PureAsserts {
             case Boolean b -> b.toString();
             case java.sql.Date d -> "%" + d.toLocalDate();
             case java.time.LocalDate d -> "%" + d;
-            case java.sql.Timestamp ts -> "%" + ts.toLocalDateTime()
-                    .toString().replace('T', 'T');
+            case java.sql.Timestamp ts -> "%" + ts.toLocalDateTime();
             case java.time.LocalDateTime ldt -> "%" + ldt;
             default -> throw new com.legend.error.NotImplementedException(
                     "toRepresentation for " + v.getClass().getName()
@@ -332,7 +380,15 @@ public final class PureAsserts {
             case Number n -> new BigDecimal(String.valueOf(n));
             case String s -> s;
             case Boolean b -> b;
-            default -> String.valueOf(v);   // temporals/maps: stable text order
+            // temporals BY INSTANT (P2-2, 2026-08-19 deep audit: the
+            // section contract said instant, the code said text — a
+            // date-only vs midnight-datetime mix text-sorted wrong;
+            // the reference native compares temporals by components)
+            case java.sql.Date d -> d.toLocalDate().atStartOfDay();
+            case java.time.LocalDate d -> d.atStartOfDay();
+            case java.sql.Timestamp t -> t.toLocalDateTime();
+            case java.time.LocalDateTime t -> t;
+            default -> String.valueOf(v);   // maps: stable text order
         };
     }
 }

@@ -196,6 +196,27 @@ primitives only in corpus — Phase 4's diff will surface any real divergence). 
 gate: +2.7% referee wall-clock (limit 10%). Suite 4134/0; referee byte-identical;
 PCT channel A green.
 
+*PHASE 2 DEEP AUDIT (2026-08-19, user-directed; the post-landing audit the phase
+lacked):* verdict SOUND-with-findings, all remediated in one batch. Verified: deletions
+real (zero wireEquals code refs), one owner with delegation, two-layer separation,
+spec-verbatim messages, all five deferrals recorded, perf gate honored. Findings fixed:
+**P2-1** tolerance now EXACT arithmetic for exact kinds (the double round-trip silently
+widened it); **P2-2** temporals sort BY INSTANT (contract said instant, code said text);
+**P2-3** no-op replace deleted; **P2-4/P2-6** ONE structural tree walker
+(`exec/JsonCompare`: wire-value trees with `equalScalar` leaves, parsed-document trees
+with strict content leaves) — the harness's private `jsonDeepEquals` DIED (its claimed
+ledger exception had never been registered), and the latent nested-list-in-struct gap
+(raw Java equals, no numeric normalization) is fixed and pinned; **P2-5** `assertEq` now
+means `eq` — primitives compare, non-primitives REFUSE LOUDLY (identity is unobservable
+on a value wire; the conflation risked silent structural true). **P2-7** ratified as
+Charter Clause 2c — TWO WORLDS, ONE SPEC: verdicts are the host layer's job, in-query
+computation is the compiler's, neither reimplements the other; the
+`EqualityWorldsConformanceTest` fixture pins both worlds' verdicts INCLUDING the two
+declared divergences (SQL numeric coercion 1==1.0, SQL NULL vs pure true). Follow-up
+noted, not yet done: a census guard over the 15 `@Disabled` GAP rows + 1
+assumption-gated skip (they predate this arc, 2026-08-16, each reason named — but no
+guard keeps the set tamper-evident).
+
 ### Phase 3 — The Result envelope becomes a platform model
 
 **What, plainly:** `execute(...)` returns the engine's `Result` envelope; tests read

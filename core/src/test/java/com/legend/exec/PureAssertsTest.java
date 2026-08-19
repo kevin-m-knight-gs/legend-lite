@@ -9,10 +9,13 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -147,6 +150,72 @@ class PureAssertsTest {
         assertEquals("3.14D", PureAsserts.repr(new BigDecimal("3.14")));
         assertEquals("1", PureAsserts.repr(1L));
         assertEquals("true", PureAsserts.repr(Boolean.TRUE));
+    }
+
+    // ===== 2026-08-19 phase-2 deep-audit remediation pins =====
+
+    @Test
+    @DisplayName("P2-1: tolerance is EXACT arithmetic for exact kinds")
+    void toleranceExactArithmetic() {
+        // 44-digit Decimals whose difference exceeds delta ONLY in exact
+        // arithmetic — the old double round-trip collapsed both to the
+        // same double and silently passed
+        BigDecimal e = new BigDecimal("1.00000000000000000000000000000000000000000001");
+        BigDecimal a = new BigDecimal("1.00000000000000000000000000000000000000000003");
+        assertNotNull(PureAsserts.assertEqWithinTolerance(e, a,
+                new BigDecimal("1E-50")), "exact kinds must compare exactly");
+        assertNull(PureAsserts.assertEqWithinTolerance(e, a,
+                new BigDecimal("1E-40")));
+        // floating sides keep double arithmetic
+        assertNull(PureAsserts.assertEqWithinTolerance(1.0d, 1.0d + 1e-16, 1e-13));
+    }
+
+    @Test
+    @DisplayName("P2-2: assertSameElements sorts temporals BY INSTANT")
+    void temporalSortByInstant() {
+        // date-only vs datetime mixes must order by instant, not text
+        Object d2 = java.time.LocalDate.parse("2014-01-02");
+        Object t1 = java.time.LocalDateTime.parse("2014-01-01T05:00:00");
+        // instant order: t1 (Jan 1 05:00) before d2 (Jan 2 00:00);
+        // TEXT order would put "2014-01-01 05:00:00" vs "2014-01-02" at
+        // the mercy of the space-vs-dash byte
+        assertNull(PureAsserts.assertSameElements(
+                Arrays.asList(t1, d2), Arrays.asList(d2, t1)));
+    }
+
+    @Test
+    @DisplayName("P2-5: assertEq — primitives compare, non-primitives are LOUD")
+    void assertEqSemantics() {
+        assertNull(PureAsserts.assertEq(1L, 1L));
+        assertNotNull(PureAsserts.assertEq(1L, 2L));
+        assertThrows(com.legend.error.NotImplementedException.class,
+                () -> PureAsserts.assertEq(Map.of("a", 1L), Map.of("a", 1L)),
+                "eq is INSTANCE identity — unobservable on a value wire");
+    }
+
+    @Test
+    @DisplayName("P2-4/P2-6: wire trees — nested lists get pure numeric leaves")
+    void wireTreeNestedLists() {
+        // a struct cell holding an array: Long-vs-Integer inside the
+        // nested list must compare by VALUE (the pre-audit Map arm fell
+        // through to raw Java equals — false)
+        Map<String, Object> e = Map.of("xs", List.of(1L, 2L));
+        Map<String, Object> a = Map.of("xs", List.of(1, 2));
+        assertTrue(PureAsserts.equalScalar(e, a));
+        assertFalse(PureAsserts.equalScalar(
+                Map.of("xs", List.of(1L, 2L)), Map.of("xs", List.of(2L, 1L))));
+    }
+
+    @Test
+    @DisplayName("P2-6: document compare — content equality, first-diff path")
+    void documentCompare() {
+        assertNull(JsonCompare.document(
+                Map.of("a", new BigDecimal("1.0")),
+                Map.of("a", new BigDecimal("1.00"))));
+        String d = JsonCompare.document(
+                Map.of("a", List.of("x", "y")),
+                Map.of("a", List.of("x", "z")));
+        assertTrue(d != null && d.startsWith("$.a[1] "), String.valueOf(d));
     }
 
     @Test
