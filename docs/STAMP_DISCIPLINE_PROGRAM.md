@@ -252,3 +252,55 @@ MASKING TRAP #2 (cost hours): never compute family regressions by
 diffing two RUN FILES — one may be from a mid-experiment jar. The
 committed docs/RELATIONAL_CORPUS.md rows are the only baseline.
 
+## C1 LANDED (2026-08-20, fix (i) — emission made stamp-honest)
+
+The in::H2Test defect, dissected fresh with LL_DUMP_RESOLVED +
+LL_TMP_SQL: the raw-grid values-reader's cell is a TypedCollection
+(one Any [0..1] property read) STAMPED [1..1], but the heterogeneous
+Any-LUB collection arm (Lowerer.scalar, fires BEFORE the generic C1
+singleton rule) kept the `[to_json(cell)]` list box unconditionally —
+so the two stamp-TRUSTING guards the flip added (root skip-UNNEST,
+values-reader re-box) read a list where the stamp promised a scalar,
+and at(0)'s list_extract returned `[json]` instead of the json scalar
+(the "String vs JsonNode" symptom; the earlier "egresses TABULAR"
+framing was the same desync seen from the egress side). Fix: the
+Any-LUB arm honors the C1 singleton rule too — a scalar-stamped
+singleton lowers to `to_json(element)` (the VARIANT carrier stays:
+an Any-position scalar is self-describing JSON, cell()'s anyRoot
+contract; only the box goes).
+
+CONSUMER AUDIT (gate 1, same session — the corpus alone was NOT the
+audit; the core suite caught 4 semantic consumers + 2 shape guards):
+- minus: real pure NEGATES a size-1 collection (interpreted Minus.java
+  case-1 seeds 0; compiled CompiledSupport.minus case-1 → unary; PCT
+  testSingleMinus pins minus(1) == -1 and auto-collection makes
+  minus(1) ≡ minus([1])). AuditRound3Test.singletonListReductions had
+  pinned a first-element-seed 1.5 NO reference runtime implements —
+  test corrected, rule untouched (the flip made it right).
+- TypedFilter/TypedFold value arms: scalar-stamped sources now conform
+  to the list contract BY EMISSION (ListShapes.asList reads the stamp).
+- indexOf: dispatch moved from the type+ArrayLit sniff to the RESOLVED
+  CALLEE's declared param mult ([*] set → list search, [1] str →
+  substring). Fallout ruled on: ['a'] is String[1], so resolution picks
+  string::indexOf (real pure same), whose platform convention is the
+  engine's 1-BASED locate() (ledgered divergence) — the old test's 0
+  rode the sniff (same callee: 0 for ['a'], 1 for 'a'); corrected to 1.
+- CodeShapeGuardrail file/method limits: paid with REAL splits, not
+  allowlist rows — MixedEncoding.java extracted from Scalars (the
+  MixedElems two-channel family, ~200 lines, zero external callers);
+  scalarRelationalArms split at an arm boundary into
+  scalarValueTailArms (the documented chain pattern).
+
+Landed state: full corpus GREEN (scoreboard rewritten byte-identical
+except the subAgg ERROR row's message text — the REDUCER trial-signal
+wording; status unchanged, pre-existing failure); census 1,021 → 191
+(190 ONE-STAMP/LIST-SHAPE + the 1 frame-conflation C5 event, which
+waits on the frame-aware flip); all five PCT suites unchanged; full
+gates chain green. Remaining program order (unchanged): union
+arm-factory (C2-union + C3) → frame-aware invariant flip
+(LL_STAMP_COUNT becomes a failing gate) → sniffer deletion.
+KNOWN RESIDUE (pre-existing, out of C1 scope): the minus LIST arm
+(LIST_REDUCE, first-element seed) is wrong for a RUNTIME size-1
+many-stamped list — real pure would negate; needs a len()-guarded
+CASE when the sniffer-deletion leg rebuilds these arms.
+

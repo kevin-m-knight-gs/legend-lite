@@ -260,7 +260,13 @@ public final class Lowerer {
                                     new Type.RelationType.Column("value",
                                             spec.info().type(), colMult))),
                             Multiplicity.Bounded.ONE)));
-            if (!collectionMapper) {
+            // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
+            // the explode is identity, and UNNEST(scalar) does not bind.
+            boolean scalarCells = ml.body().get(ml.body().size() - 1)
+                    .info().multiplicity()
+                            instanceof Multiplicity.Bounded cb
+                    && cb.upper() != null && cb.upper() <= 1;
+            if (!collectionMapper || scalarCells) {
                 return proj;
             }
             String sub = nextAlias();
@@ -2252,11 +2258,25 @@ public final class Lowerer {
             case TypedCollection c when c.info().type() instanceof Type.ClassType ct
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
-                    && classLayout.apply(ct).isEmpty() ->
-                    new SqlExpr.ArrayLit(c.elements().stream()
-                            .map(e -> (SqlExpr) SqlExpr.Call.of(
-                                    SqlFn.TO_VARIANT, scalar(e, columns)))
-                            .toList());
+                    && classLayout.apply(ct).isEmpty() -> {
+                // C1: a SCALAR-STAMPED singleton IS its element here too —
+                // this arm fired BEFORE the generic C1 rule and kept the
+                // list box the stamp-trusting consumers no longer expect
+                // (witness in::H2Test: at(0) extracted [json] not json).
+                // The VARIANT carrier stays (Any-position scalars are
+                // self-describing JSON — cell()'s anyRoot contract).
+                if (c.elements().size() == 1
+                        && c.info().multiplicity()
+                                instanceof Multiplicity.Bounded ab
+                        && ab.upper() != null && ab.upper() <= 1) {
+                    yield SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                            scalar(c.elements().get(0), columns));
+                }
+                yield new SqlExpr.ArrayLit(c.elements().stream()
+                        .map(e -> (SqlExpr) SqlExpr.Call.of(
+                                SqlFn.TO_VARIANT, scalar(e, columns)))
+                        .toList());
+            }
             // A NUMBER-LUB LITERAL mix ([25.0, 1]): a raw SQL array would
             // coerce every element to one numeric type (1 -> 1.0) — the
             // variant carrier keeps each element's own kind (pure
@@ -2292,6 +2312,15 @@ public final class Lowerer {
                                         e.info().type(), lubG))
                                 .toList());
                     }
+                }
+                // C1 (STAMP_DISCIPLINE_PROGRAM): a SCALAR-STAMPED singleton
+                // literal IS its element ([x] = x); the ArrayLit box was the
+                // census's biggest class. Consumers read stamps honestly.
+                if (c.elements().size() == 1
+                        && c.info().multiplicity()
+                                instanceof Multiplicity.Bounded cb
+                        && cb.upper() != null && cb.upper() <= 1) {
+                    yield scalar(c.elements().get(0), columns);
                 }
                 yield new SqlExpr.ArrayLit(
                         c.elements().stream().map(e -> scalar(e, columns)).toList());
@@ -2606,9 +2635,12 @@ public final class Lowerer {
             // COLLECTION-VALUED relation nodes in scalar position: the list
             // encodings ([1,2,3]->filter/slice/drop/take over a value, not a
             // table). Relation-typed sources take the relation() arms.
+            // C1: a scalar-stamped source conforms by EMISSION (asList).
             case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
                     SqlExpr.Call.of(SqlFn.LIST_FILTER,
-                            scalar(f.source(), columns), scalar(f.predicate(), columns));
+                            ListShapes.asList(scalar(f.source(), columns),
+                                    isMany(f.source())),
+                            scalar(f.predicate(), columns));
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
             case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) ->
@@ -2629,13 +2661,20 @@ public final class Lowerer {
                             scalar(t.source(), columns), new SqlExpr.IntLit(1),
                             ListEncodings.clamp0(scalar(t.count(), columns)));
             // A let in EXPRESSION position (a callee shape the statement
-            // folder didn't reach): bind and yield the value — the let IS
-            // its value.
+            // folder didn't reach): bind and yield — the let IS its value.
             case TypedLet l -> {
                 SqlExpr v = scalar(l.value(), columns);
                 letBindings.put(l.name(), v);
                 yield v;
             }
+            default -> scalarValueTailArms(spec, columns);
+        };
+    }
+
+    /** Scalar lowering, tail arm group (same chain — see
+     * {@link #scalarRelationalArms}; sequential order preserved). */
+    private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
+        return switch (spec) {
             // makeString/joinStrings over TDS ROW CELLS (the Typer's
             // row-var $r.values synthesis: per-column reads off ONE row
             // variable): stringify each element HERE — the engine's TDSRow
@@ -2737,14 +2776,30 @@ public final class Lowerer {
                 // collect was the census's shape lie; zero rows stay SQL
                 // NULL in both forms, and the scalar form carries the
                 // DB-native single-row semantics.
-                if (!collMapper && Fold.provablySingleRow(proj)) {
+                // ALSO requires the node's OWN stamp scalar: many-stamps
+                // keep the LIST-box carrier (loose [*] over one value).
+                if (!collMapper && Fold.provablySingleRow(proj)
+                        && m2.info().multiplicity()
+                                instanceof Multiplicity.Bounded mb2
+                        && mb2.upper() != null && mb2.upper() <= 1) {
                     yield new SqlExpr.ScalarSubquery(proj);
                 }
                 String sub = nextAlias();
+                // COLLECTION-MAPPER cells with scalar per-cell STAMPS lower
+                // as true scalars (C1); the flatten contract needs list-of-
+                // lists, so the collect re-boxes each cell BY STAMP.
+                SqlExpr cellRead = new SqlExpr.Column(sub, "value");
+                boolean scalarCells = collMapper
+                        && ml2.body().get(ml2.body().size() - 1).info()
+                                .multiplicity()
+                                instanceof Multiplicity.Bounded cellB
+                        && cellB.upper() != null && cellB.upper() <= 1;
+                SqlExpr collected = scalarCells
+                        ? new SqlExpr.ArrayLit(List.of(cellRead)) : cellRead;
                 SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                         .withProjections(List.of(new SqlSelect.Projection(
                                         new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                                new SqlExpr.Column(sub, "value")), false, java.util.List.of()),
+                                                collected), false, java.util.List.of()),
                                         null)),
                                 List.of(new OutputCol("value",
                                         SqlType.Scalar.VARCHAR, true)));
@@ -2825,10 +2880,6 @@ public final class Lowerer {
                     + spec.getClass().getSimpleName());
         };
     }
-
-
-
-
 
     /** Natural ascending order on the stream's one column. */
     private SqlSelect naturalSort(TypedNativeCall nc) {
@@ -3281,16 +3332,19 @@ public final class Lowerer {
         if (collect != null) {
             return scalar(collect, columns);
         }
-        SqlExpr source = scalar(f.source(), columns);
+        // C1: the source conforms to the fold machinery's list
+        // contract by EMISSION (asList reads the stamp).
+        SqlExpr source = ListShapes.asList(scalar(f.source(), columns),
+                isMany(f.source()));
         SqlExpr init = scalar(f.init(), columns);
         List<String> ps = f.reducer().parameters();
         return switch (f.strategy()) {
-            // TO-ONE sides concatenate as singleton lists; list-shaped
+            // TO-ONE init concatenates as a singleton list; list-shaped
             // values and NULL (=[] to DuckDB list_concat) pass through.
             case FoldStrategy.Concatenation c ->
                     new SqlExpr.Call(SqlFn.LIST_CONCAT,
                             List.of(ListShapes.asList(init, isMany(f.init())),
-                                    ListShapes.asList(source, isMany(f.source()))));
+                                    source));
             case FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,

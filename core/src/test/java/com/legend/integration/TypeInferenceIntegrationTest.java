@@ -1499,12 +1499,21 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testIndexOfOneElement() throws SQLException {
-                // PCT: |['a']->indexOf('a') => 0
+                // CORRECTED (stamp C1): ['a'] is String[1] — resolution
+                // picks string::indexOf over collection::indexOf<T[*]>
+                // (concrete beats generic; real pure resolves the same),
+                // and the platform's string indexOf follows the ENGINE's
+                // 1-based locate() convention (the ledgered relational
+                // divergence from pure's 0-based interpreted answer —
+                // "expected: 4 actual: 5" in the reference DuckDB PCT
+                // adapter). The old 0 expectation rode the ArrayLit shape
+                // sniff: the SAME resolved function answered 0 for ['a']
+                // and 1 for 'a'. One callee, one convention: 1.
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|['a']->indexOf('a')",
                                 "test::TestRuntime", connection);
-                assertEquals(0, ((Number) result.rows().get(0).get(0)).intValue());
+                assertEquals(1, ((Number) result.rows().get(0).get(0)).intValue());
         }
 
         // --- PCT: DateTime toString format ---

@@ -44,7 +44,12 @@ class CarrierPurityRatchetTest {
             // verdicts moved to World 1. 36→37 (slice 9): the static-
             // pivot IN-membership pre-filter — the ENGINE's own
             // row-restriction semantics, a semantic emission.
-            "new SqlExpr\\.ArrayLit\\(", 37,
+            // 37→38 (2026-08-21 stamp C1): the collection-mapper cell
+            // RE-BOX — scalar-STAMPED cells wrap [cell] so the flatten
+            // contract holds once singleton literals lower as their
+            // element (the box moved from the literal to the ONE
+            // consumer whose contract needs it; net honest).
+            "new SqlExpr\\.ArrayLit\\(", 38,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

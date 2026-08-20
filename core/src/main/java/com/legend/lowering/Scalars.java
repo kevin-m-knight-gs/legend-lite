@@ -750,8 +750,8 @@ final class Scalars {
                 // TIMESTAMP comparables — the partial-date STRING carrier
                 // orders '2001' > '10999' lexically. Value work is SQL
                 // (strptime pads; the compiler only names the format).
-                SqlExpr lhs = dateComparableOrSelf(n.args().get(0), args.get(0));
-                SqlExpr rhs = dateComparableOrSelf(n.args().get(1), args.get(1));
+                SqlExpr lhs = MixedEncoding.dateComparableOrSelf(n.args().get(0), args.get(0));
+                SqlExpr rhs = MixedEncoding.dateComparableOrSelf(n.args().get(1), args.get(1));
                 return new SqlExpr.Case(List.of(
                         new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.LESS,
                                 lhs, rhs), new SqlExpr.IntLit(-1)),
@@ -795,7 +795,12 @@ final class Scalars {
                 return SqlExpr.Call.of(SqlFn.DECODE_BASE64, in);
             });
         }
-        // size(NULL list) is pure's EMPTY collection: 0, never NULL
+        // size(NULL list) is pure's EMPTY collection: 0, never NULL.
+        // count stays OUT of these rules DELIBERATELY: the projection
+        // sub-aggregation machinery owns it (the engine's group-by
+        // subselect form) and dispatches via the absence — registering
+        // it here hijacked testSubAggregationWithDeepAndOverlap
+        // (measured 2026-08-21: 7 rows became 13).
         for (String f : Pure.nativeKeysAt("size")) {
             RULES.put(f, (n, args) -> {
                 // a TO-ONE value is a 0/1-element collection: 'abc'->size()
@@ -919,7 +924,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("sort")) {
             RULES.put(f, (n, args) -> {
                 if (n.args().size() == 1) {
-                    MixedElems mx = mixedElems(n.args().get(0), args.get(0));
+                    MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                     if (mx != null) {
                         // identity-preserving mixed sort: order the ids by
                         // their comparables (parallel select-list unnests)
@@ -1079,7 +1084,7 @@ final class Scalars {
         // the list encodings choke on scalars.
         for (String f : Pure.nativeKeysAt("min")) {
             RULES.put(f, (n, args) -> {
-                MixedElems mx = args.size() == 1 ? mixedElems(n.args().get(0), args.get(0)) : null;
+                MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
@@ -1093,7 +1098,7 @@ final class Scalars {
                             : Comparators.select(args.get(0), cmp, false);
                 }
                 if (args.size() > 1) {
-                    MixedElems ma = mixedArgs(n.args(), args);
+                    MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     return ma != null
                             ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
@@ -1106,7 +1111,7 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("max")) {
             RULES.put(f, (n, args) -> {
-                MixedElems mx = args.size() == 1 ? mixedElems(n.args().get(0), args.get(0)) : null;
+                MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
@@ -1118,7 +1123,7 @@ final class Scalars {
                             : Comparators.select(args.get(0), cmp, true);
                 }
                 if (args.size() > 1) {
-                    MixedElems ma = mixedArgs(n.args(), args);
+                    MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     return ma != null
                             ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
@@ -1155,7 +1160,7 @@ final class Scalars {
         // with the list encoding — SQL's variadic GREATEST/LEAST never applies.
         for (String f : Pure.nativeKeysAt("greatest")) {
             RULES.put(f, (n, args) -> {
-                MixedElems mx = mixedElems(n.args().get(0), args.get(0));
+                MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
@@ -1167,7 +1172,7 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("least")) {
             RULES.put(f, (n, args) -> {
-                MixedElems mx = mixedElems(n.args().get(0), args.get(0));
+                MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
@@ -1179,7 +1184,7 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("mode")) {
             RULES.put(f, (n, args) -> {
-                MixedElems mx = mixedElems(n.args().get(0), args.get(0));
+                MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
                     // real mode.pure SORTS then folds runs: the representative
                     // is the LAST-ENCOUNTERED equal element (stable sort keeps
@@ -1296,17 +1301,23 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("indexOf")) {
             RULES.put(f, (n, args) -> {
-                // A String[*] source is a LIST of strings — list search, not
-                // substring search (audit: the type-only gate sent
-                // ['a','b']->indexOf('b') to strpos).
-                if (n.args().get(0).info().type() != Type.Primitive.STRING
-                        || !isToOne(n.args().get(0))
-                        || args.get(0) instanceof SqlExpr.ArrayLit) {
-                    // LIST indexOf: 0-based, -1 on a miss.
+                // Dispatch on the RESOLVED CALLEE's declared param: a [*]
+                // set is the LIST search (collection::indexOf), a [1]
+                // string the SUBSTRING search — never the operand's SQL
+                // shape (C1: scalar-stamped singletons lower scalar; the
+                // old type+ArrayLit sniff sent ['a']->indexOf to strpos).
+                boolean listCallee = !(n.callee().parameters().get(0)
+                        .multiplicity() instanceof Multiplicity.Bounded pb
+                        && pb.upper() != null && pb.upper() <= 1);
+                if (listCallee || n.args().get(0).info().type() != Type.Primitive.STRING) {
+                    // LIST indexOf: 0-based, -1 on a miss; the operand
+                    // conforms to the list contract by stamp (asList).
                     return new SqlExpr.Call(SqlFn.MINUS, List.of(
                             new SqlExpr.Call(SqlFn.COALESCE, List.of(
                                     new SqlExpr.Call(SqlFn.LIST_POSITION,
-                                            List.of(args.get(0), args.get(1))),
+                                            List.of(ListShapes.asList(args.get(0),
+                                                    !isToOne(n.args().get(0))),
+                                                    args.get(1))),
                                     new SqlExpr.IntLit(0))),
                             new SqlExpr.IntLit(1)));
                 }
@@ -2243,7 +2254,7 @@ final class Scalars {
         RULES.put(Pure.keyIn(), (n, args) -> {
             // TYPE-aware membership: a kind-mismatched needle is never a
             // member — static FALSE, not a DB error.
-            if (kindMismatch(n.args().get(0).info().type(),
+            if (MixedEncoding.kindMismatch(n.args().get(0).info().type(),
                     n.args().get(1).info().type())) {
                 return new SqlExpr.BoolLit(false);
             }
@@ -2259,7 +2270,12 @@ final class Scalars {
                     && !(args.get(1) instanceof SqlExpr.ArrayLit al
                             && al.elements().stream().noneMatch(e ->
                                     e instanceof SqlExpr.Call c2
-                                            && c2.fn() == SqlFn.TO_VARIANT));
+                                            && c2.fn() == SqlFn.TO_VARIANT))
+                    // a PROVABLY-scalar RHS (C1: a singleton literal IS
+                    // its element) compares PLAIN — one plain element,
+                    // no variant harmonization (to_json(needle) IN
+                    // ('John') did not bind)
+                    && !ListShapes.definitelyScalar(args.get(1));
             SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
                     n.args().get(1));
             SqlExpr needle = collVariant
@@ -2384,6 +2400,20 @@ final class Scalars {
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs) {
         Rule rule = RULES.get(call.callee().signatureKey());
         if (rule == null) {
+            // A REDUCER reaching scalar rules always means WRONG CONTEXT —
+            // the aggregation machinery owns it (projection sub-agg
+            // synthesis, group-by). Signal the TRIAL boundary
+            // (Resolution.attempt) so its fallback claims the column;
+            // pre-C1 the trial failed earlier by accident (an
+            // UnfoldableRef from the boxed literal), C1's honest
+            // singletons let the trial reach the reducer — the contract
+            // belongs here, not to the accident (witness
+            // testSubAggregationWithDeepAndOverlap).
+            if (Aggregates.reducerOrNull(call.callee()) != null) {
+                throw new Resolvers.UnfoldableRef("aggregate '"
+                        + call.callee().qualifiedName()
+                        + "' in scalar position (aggregation machinery owns it)");
+            }
             throw new IllegalStateException("no scalar lowering registered for resolved overload '"
                     + call.callee().qualifiedName() + "' with " + call.callee().parameters().size()
                     + " parameter(s)");
@@ -2437,198 +2467,6 @@ final class Scalars {
                                 new SqlExpr.Column(null, "_ddi"))))));
     }
 
-    /** The MIXED-ELEMENT two-channel encoding — DATABASE-EXECUTED.
-     * Elements of DIFFERENT concrete kinds under the Number/Date LUB
-     * split into an IDENTITY channel (pure print form, computed BY SQL)
-     * and a COMPARABLE channel (CAST AS DOUBLE / strptime-padded
-     * TIMESTAMP); selections order by the comparable, return the
-     * identity. TENET: encodings chosen by STATIC type; every value
-     * computation runs in the database (elements may be arbitrary
-     * expressions). Null when not per-element encodable or not mixed. */
-    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals) {
-
-        SqlExpr idList() {
-            return new SqlExpr.ArrayLit(ids);
-        }
-
-        SqlExpr valList() {
-            return new SqlExpr.ArrayLit(vals);
-        }
-
-        /** {@code ids[list_position(vals, <winner>)]} — the selection recipe. */
-        SqlExpr select(SqlExpr winner) {
-            return SqlExpr.Call.of(SqlFn.LIST_GET, idList(),
-                    SqlExpr.Call.of(SqlFn.LIST_POSITION, valList(), winner));
-        }
-    }
-
-    /** Identity consumers of the NUMBER-LUB literal carrier rebuild
-     * element identity from the TYPED elements (encodeMixed), never from
-     * the carrier (the numeric UNWRAP is {@link Numerics#numList}).
-     * Non-carrier shapes pass through untouched. */
-    static @com.legend.Nullable MixedElems mixedElems(TypedSpec arg,
-                                 SqlExpr lowered) {
-        if (!(arg instanceof TypedCollection c)
-                || c.elements().size() < 2
-                || !(lowered instanceof SqlExpr.ArrayLit la)
-                || la.elements().size() != c.elements().size()) {
-            return null;
-        }
-        Type lub = c.info().type();
-        if (lub != Type.Primitive.NUMBER && lub != Type.Primitive.DATE) {
-            return null;   // uniform-kind collections keep their native carrier
-        }
-        return encodeAll(c.elements(), la.elements());
-    }
-
-    /** The n-ary form: max(2D, 1.23) — each ARG one element. */
-    static @com.legend.Nullable MixedElems mixedArgs(List<TypedSpec> args,
-                                List<SqlExpr> lowered) {
-        Set<Type> kinds = new HashSet<>();
-        for (var a : args) {
-            kinds.add(a.info().type());
-        }
-        return kinds.size() > 1 ? encodeAll(args, lowered) : null;
-    }
-
-    private static @com.legend.Nullable MixedElems encodeAll(
-            List<TypedSpec> elems,
-            List<SqlExpr> lowered) {
-        List<SqlExpr> ids = new ArrayList<>();
-        List<SqlExpr> vals = new ArrayList<>();
-        for (int i = 0; i < elems.size(); i++) {
-            if (!encodeMixed(elems.get(i), lowered.get(i), ids, vals)) {
-                return null;
-            }
-        }
-        return new MixedElems(ids, vals);
-    }
-
-    /**
-     * One element's (identity, comparable) SQL pair, dispatched on its
-     * STATIC type. All value work happens in SQL.
-     */
-    private static boolean encodeMixed(TypedSpec e,
-                                       SqlExpr x,
-                                       List<SqlExpr> ids,
-                                       List<SqlExpr> vals) {
-        // a carrier-wrapped element unwraps: identity/comparable both
-        // build from the RAW value (floatRepr over json cannot type)
-        if (x instanceof SqlExpr.Call cw && cw.fn() == SqlFn.TO_VARIANT) {
-            x = cw.args().get(0);
-        }
-        Type t = e.info().type();
-        if (t == Type.Primitive.INTEGER) {
-            ids.add(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
-            return true;
-        }
-        if (t == Type.Primitive.FLOAT) {
-            ids.add(floatRepr(x));   // pure float print, in SQL
-            vals.add(x);
-            return true;
-        }
-        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            ids.add(SqlExpr.Call.of(SqlFn.CONCAT,
-                    new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
-                    new SqlExpr.StringLit("D")));
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
-            return true;
-        }
-        if (t == Type.Primitive.STRICT_DATE) {
-            ids.add(SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE)));
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
-            return true;
-        }
-        if (t == Type.Primitive.DATE_TIME) {
-            ids.add(SqlExpr.Call.of(SqlFn.CONCAT,
-                    SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                            new SqlExpr.FormatLit(dateTimeFormatOf(e))),
-                    new SqlExpr.StringLit("+0000")));
-            vals.add(x);
-            return true;
-        }
-        if (t == Type.Primitive.DATE) {
-            // PARTIAL dates travel as STRINGS (master's pinned carrier): the
-            // string IS the print form; the comparable composes via
-            // make_timestamp from split components (strptime %Y rejects
-            // 5-digit years; make_timestamp reaches year 294246).
-            SqlExpr cmp = partialComparable(e, x);
-            if (cmp == null) {
-                return false;
-            }
-            ids.add(x);
-            vals.add(cmp);
-            return true;
-        }
-        return false;
-    }
-
-    /** A date operand's chronological comparable (strptime-padded partials); non-dates pass through. */
-    private static SqlExpr dateComparableOrSelf(TypedSpec e,
-                                                SqlExpr x) {
-        Type t = e.info().type();
-        if (t == Type.Primitive.DATE) {
-            SqlExpr cmp = partialComparable(e, x);
-            if (cmp != null) {
-                return cmp;
-            }
-        }
-        if (t == Type.Primitive.STRICT_DATE) {
-            return new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP);
-        }
-        return x;
-    }
-
-    /** DateTime print format — subsecond DIGIT COUNT is a static attribute of the literal. */
-    private static List<com.legend.sql.DateFmt> dateTimeFormatOf(TypedSpec e) {
-        if (e instanceof TypedCDate cd
-                && cd.value() instanceof PureDateLiteral.DateWithSubsecond) {
-            return com.legend.sql.DateFmt.ISO_MICRO;
-        }
-        return com.legend.sql.DateFmt.ISO_LOCAL;
-    }
-
-    /**
-     * A PARTIAL date string's chronological comparable, composed IN SQL:
-     * {@code make_timestamp(split_part(x,'-',i)...)} per the STATIC
-     * precision; null when the precision is not a known partial form.
-     */
-    private static @com.legend.Nullable SqlExpr partialComparable(TypedSpec e,
-                                             SqlExpr x) {
-        PureDateLiteral.Precision prec = datePrecision(e);
-        if (prec.atLeast(PureDateLiteral.Precision.HOUR)) {
-            return null;
-        }
-        SqlExpr one = new SqlExpr.IntLit(1);
-        SqlExpr zero = new SqlExpr.IntLit(0);
-        SqlExpr year = new SqlExpr.Cast(
-                SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"), one),
-                SqlType.Scalar.BIGINT);
-        SqlExpr month = prec.atLeast(PureDateLiteral.Precision.MONTH) ? new SqlExpr.Cast(
-                SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
-                        new SqlExpr.IntLit(2)),
-                SqlType.Scalar.BIGINT) : one;
-        SqlExpr day = prec.atLeast(PureDateLiteral.Precision.DAY) ? new SqlExpr.Cast(
-                SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
-                        new SqlExpr.IntLit(3)),
-                SqlType.Scalar.BIGINT) : one;
-        return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
-    }
-
-    /**
-     * A primitive needle against class-typed elements (or vice versa) can
-     * never be a member — the kinds are disjoint in pure's type system.
-     * Any/mixed stays undecided (falls through to the SQL comparison).
-     */
-    private static boolean kindMismatch(Type needle, Type elems) {
-        boolean np = needle instanceof Type.Primitive || needle instanceof Type.PrecisionDecimal;
-        boolean ep = elems instanceof Type.Primitive || elems instanceof Type.PrecisionDecimal;
-        boolean nc = isClassish(needle) && !PlatformTypes.isAny(needle);
-        boolean ec = isClassish(elems) && !PlatformTypes.isAny(elems);
-        return (np && ec) || (nc && ep);
-    }
 
     /**
      * Real removeDuplicates-with-comparator: walk the list accumulating the
@@ -3165,7 +3003,7 @@ final class Scalars {
      * dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the
      * exponent form.
      */
-    private static SqlExpr floatRepr(SqlExpr x) {
+    static SqlExpr floatRepr(SqlExpr x) {
         SqlExpr s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
         // FRACTION-FREE values render through HUGEINT — exact plain digits
         // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
@@ -3362,7 +3200,7 @@ final class Scalars {
         return null;
     }
 
-    private static boolean isClassish(Type t) {
+    static boolean isClassish(Type t) {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
                 || t instanceof Type.GenericType;
@@ -3444,7 +3282,7 @@ final class Scalars {
      * Pure type (StrictDate = day, DateTime = SQL TIMESTAMP = full); the
      * abstract Date is undecidable and refuses loudly.
      */
-    private static PureDateLiteral.Precision datePrecision(TypedSpec arg) {
+    static PureDateLiteral.Precision datePrecision(TypedSpec arg) {
         if (arg instanceof TypedCDate d) {
             return d.value().precision();
         }
