@@ -71,12 +71,12 @@ final class FoldChecker {
         }
         if (transform != null) {
             TypedSpec typedTransform = t.synth(transform,
-                    env.with(elemParam, new ExprType(elementType, Multiplicity.Bounded.ONE)));
+                    env.withRow(elemParam, new ExprType(elementType, Multiplicity.Bounded.ONE)));
             String op = ((AppliedFunction) body0).function();
             String freshParam = "__mr_x";
             TypedSpec typedReducer = t.synth(
                     new AppliedFunction(op, List.of(new Variable(accParam), new Variable(freshParam))),
-                    env.with(accParam, init).with(freshParam, init));
+                    env.withRow(accParam, init).withRow(freshParam, init));
             return new FoldStrategy.MapReduce(typedTransform, typedReducer, accParam, freshParam);
         }
         // 4. Not decomposable — the accumulator is built element-by-element.

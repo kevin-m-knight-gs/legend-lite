@@ -51,6 +51,33 @@ final class ListShapes {
                                 instanceof SqlExpr.OrderedListAgg);
     }
 
+    /** The toOne AGG-STRIP (STAMP_DISCIPLINE_PROGRAM, C2 key insight):
+     * dropping the LIST collect on a subquery operand yields SQL's
+     * NATIVE scalar-subquery semantics — which IS pure's checked toOne
+     * for subquery operands (&gt;1 row raises, 1 yields the value, 0
+     * rows NULL — the engine-noOp empty flow the corpus pins). Only
+     * the EXACT plain {@code (SELECT LIST(col) FROM ...)} single-
+     * projection non-distinct shape strips; anything else returns
+     * null and the ride-through stands. */
+    static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
+        if (!(e instanceof SqlExpr.ScalarSubquery sq
+                && sq.subquery() instanceof com.legend.sql.SqlSelect ss
+                && ss.projections().size() == 1
+                && ss.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer r
+                && r.fn() == SqlAgg.Fn.LIST
+                && !r.distinct()
+                && r.args().size() == 1
+                && ss.groupBy().isEmpty())) {
+            return null;
+        }
+        return new SqlExpr.ScalarSubquery(ss.withProjections(
+                List.of(new com.legend.sql.SqlSelect.Projection(
+                        r.args().get(0),
+                        ss.projections().get(0).alias())),
+                ss.outputs()));
+    }
+
     /** The value is DEFINITELY list-shaped at SQL level. */
     static boolean listShaped(SqlExpr e) {
         return e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit

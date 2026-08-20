@@ -115,7 +115,7 @@ final class EvalChecker {
             }
             names.add(p.name());
             paramTypes.add(new Type.Param(bound.type(), bound.multiplicity()));
-            scope = scope.with(p.name(), bound);
+            scope = scope.withRow(p.name(), bound);
         }
         TypedSpec body = t.synth(lam.body().get(0), scope);
         TypedLambda typed = new TypedLambda(names, List.of(body),

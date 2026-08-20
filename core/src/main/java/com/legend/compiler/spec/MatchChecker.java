@@ -94,7 +94,7 @@ final class MatchChecker {
             // is the point of match — at the branch's declared multiplicity (or the input's).
             Multiplicity bound = param.multiplicity() != null
                     ? Multiplicity.from(param.multiplicity()) : input.info().multiplicity();
-            Env scope = env.with(param.name(), new ExprType(branchType, bound));
+            Env scope = env.withRow(param.name(), new ExprType(branchType, bound));
             Optional<String> extraParam = Optional.empty();
             if (branch.parameters().size() == 2) {
                 Variable second = branch.parameters().get(1);
@@ -104,7 +104,7 @@ final class MatchChecker {
                                         ? Multiplicity.from(second.multiplicity())
                                         : extra.orElseThrow().info().multiplicity())
                         : extra.orElseThrow().info();
-                scope = scope.with(second.name(), extraBound);
+                scope = scope.withRow(second.name(), extraBound);
                 extraParam = Optional.of(second.name());
             }
             TypedSpec body = t.synth(branch.body().get(0), scope);
@@ -147,7 +147,7 @@ final class MatchChecker {
             Multiplicity bound = param.multiplicity() != null
                     ? Multiplicity.from(param.multiplicity())
                     : input.info().multiplicity();
-            Env scope = env.with(param.name(),
+            Env scope = env.withRow(param.name(),
                     new ExprType(branchType, bound));
             if (branch.parameters().size() == 2) {
                 if (extra.isEmpty()) {
@@ -155,7 +155,7 @@ final class MatchChecker {
                             "a two-parameter match branch needs an extra argument");
                 }
                 Variable second = branch.parameters().get(1);
-                scope = scope.with(second.name(), extra.get().info());
+                scope = scope.withRow(second.name(), extra.get().info());
                 extraParam = Optional.of(second.name());
             }
             if (branch.body().size() != 1) {
@@ -287,7 +287,7 @@ final class MatchChecker {
                 : param.multiplicity() != null
                         ? Multiplicity.from(param.multiplicity())
                         : input.info().multiplicity();
-        Env scope = env.with(param.name(), new ExprType(branchType, bound));
+        Env scope = env.withRow(param.name(), new ExprType(branchType, bound));
         TypedSpec body = t.synth(branch.body().get(0), scope);
         return new TypedMatch(input, param.name(), body, Optional.empty(),
                 Optional.empty(), body.info());

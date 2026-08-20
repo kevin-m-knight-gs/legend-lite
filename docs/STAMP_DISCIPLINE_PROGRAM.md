@@ -349,3 +349,36 @@ without touching UnionSynthesis: the shims' [1..1] alignment lies
 remain (invisible to the census; the arm-factory leg still owns them),
 but the C2c producer class is closed for union/milestoning families.
 
+## AGG-STRIP + ENV FRAME BIT (2026-08-20, census 92 → 64)
+
+**toOne agg-strip LANDED** (ListShapes.aggStrip, the C2 key insight):
+a toOne whose operand SQL is the EXACT plain `(SELECT LIST(col) FROM
+…)` single-projection non-distinct no-groupBy shape strips the collect
+— SQL's native scalar-subquery semantics IS pure's checked toOne (>1
+raises, 0→NULL engine-noOp flow). First full-corpus measurement
+regressed milestoning −4 ("More than one row returned") — NOT fake-
+conformance toOnes but the TYPED-getter cousins of C2c: `let data =
+$result.values.rows; $data.getInteger('id')` — a LET-BOUND relation
+variable, which rowRooted's variable arm misread as a row frame.
+
+**Env frame bit**: Env now records HOW a name was bound — withRow
+(lambda parameters: the per-element/per-row frame; Typer both lambda
+scopes + FoldChecker elem/acc + MatchChecker case vars + EvalChecker)
+vs with (lets, function params: value bindings). rowRooted consults it:
+a variable root is a row frame ONLY when lambda-bound. rowCellRead's
+collection-frame arm now decides SEMANTICALLY (relation-typed receiver
++ !rowRooted → auto-map the typed getter per row), replacing the
+syntactic .rows-marker spelling test. This bit is the frame-awareness
+the invariant flip needs — built early, at the binding site.
+
+Census 92→64: dataType 18 + groupBy 9 + qualifier 2 CLOSED by the
+strip; milestoning/union/dataType families at zero. Remainder 64 =
+resultSourcing 54 (synthesized conformance ride-throughs — the
+conformToOne partition leg, sized in C2's plan: TWO synthesis layers +
+89 recognizer sites to audit, a full slice) + tdsRestrictDistinct 8
+(relation-VALUE carrier, frame-designed — flip adjudicates) +
+boolean C5 1 + groupBy 1. PCT C3 dissection: TypedDistinct/Sort 24 =
+the same relation-value carrier; List<T> instance carrier 7 + struct
+ctor 10 + empty sort/reverse 4 = designed carriers for the flip's
+(stamp, carrier) table, NOT code lies.
+

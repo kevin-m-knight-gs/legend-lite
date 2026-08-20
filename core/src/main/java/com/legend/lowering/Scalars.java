@@ -397,7 +397,13 @@ final class Scalars {
         // by design; values-reader stamps fixed at their producer),
         // recorded in the program doc — not a blanket emission.
         for (String f : Pure.nativeKeysAt("toOne")) {
-            RULES.put(f, (n, args) -> args.get(0));
+            // AGG-STRIP (stamp C2): a LIST-collecting subquery operand
+            // becomes the NATIVE scalar subquery — SQL's own checked
+            // toOne. Everything else rides through (engine processNoOp).
+            RULES.put(f, (n, args) -> {
+                SqlExpr stripped = ListShapes.aggStrip(args.get(0));
+                return stripped != null ? stripped : args.get(0);
+            });
         }
         // toOneMany narrows [*] to [1..*] — the same value-wise no-op.
         for (String f : Pure.nativeKeysAt("toOneMany")) {

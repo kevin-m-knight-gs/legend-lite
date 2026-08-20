@@ -229,7 +229,7 @@ final class Typer {
                                 : Multiplicity.from(pv.multiplicity());
                         names.add(pv.name());
                         params.add(new Type.Param(pt, pm));
-                        scope = scope.with(pv.name(), new ExprType(pt, pm));
+                        scope = scope.withRow(pv.name(), new ExprType(pt, pm));
                     }
                     List<TypedSpec> stmts = new ArrayList<>();
                     for (int si = 0; si < lf.body().size() - 1; si++) {
@@ -2023,7 +2023,7 @@ final class Typer {
             }
             names.add(pv.name());
             scopeParams.add(new Type.Param(paramType, paramMult));
-            lambdaScope = lambdaScope.with(pv.name(),
+            lambdaScope = lambdaScope.withRow(pv.name(),
                     new ExprType(paramType, paramMult));
         }
 
@@ -2428,9 +2428,15 @@ final class Typer {
      * (map.pure grammarDoc): the column's values, one per row — never a
      * single-row read over many rows. */
     private TypedSpec rowCellRead(AppliedFunction af, Env env) {
-        if (af.parameters().get(0) instanceof AppliedProperty rowsP
-                && rowsP.property().equals(com.legend.compiler.element
-                        .type.PlatformTypes.ROWS_MARKER)) {
+        // COLLECTION frame — the receiver is the rows collection (the
+        // .rows marker, a let-bound relation variable, a raw relation
+        // value), decided SEMANTICALLY by the same frame line as column
+        // stamps (rowRooted), not by spelling: the typed getter
+        // AUTO-MAPS per row (map.pure's dot rule; the milestoning
+        // typed-getter witnesses bind `let data = $r.values.rows`).
+        TypedSpec grecv = synth(af.parameters().get(0), env);
+        if (grecv.info().type() instanceof Type.RelationType
+                && !rowRooted(grecv, env)) {
             return synth(new AppliedFunction("map", List.of(
                     af.parameters().get(0),
                     new LambdaFunction(List.of(new Variable("_amc")),
@@ -2761,7 +2767,7 @@ final class Typer {
                 // per-cell compose stamped [0..1] on reads that lower as
                 // whole-column LIST collects — the census's biggest
                 // surviving toOne class rode it.
-                yield new ExprType(col.type(), rowRooted(source)
+                yield new ExprType(col.type(), rowRooted(source, env)
                         ? col.multiplicity()
                         : Multiplicity.Bounded.ZERO_MANY);
             }
@@ -2789,7 +2795,7 @@ final class Typer {
      * Standalone relation VALUES root at literal/raw-sql/relation-op
      * nodes instead: their column reads are the auto-mapped cell
      * collection. */
-    private static boolean rowRooted(TypedSpec s) {
+    private static boolean rowRooted(TypedSpec s, Env env) {
         while (true) {
             if (s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
                 s = pa.source();
@@ -2798,7 +2804,13 @@ final class Typer {
             } else if (s instanceof TypedNativeCall nc) {
                 return nc.callee().returnType() instanceof Type.TypeVar;
             } else {
-                return s instanceof com.legend.compiler.spec.typed.TypedVariable;
+                // a VARIABLE root is a row frame only when it is a LAMBDA
+                // PARAMETER binding — a LET-bound relation variable holds
+                // the relation VALUE (let data = $r.values.rows; the
+                // typed-getter milestoning witnesses), and its column
+                // reads take the collection frame.
+                return s instanceof com.legend.compiler.spec.typed.TypedVariable v
+                        && env.isRowParam(v.name());
             }
         }
     }
