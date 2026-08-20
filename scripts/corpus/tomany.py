@@ -63,6 +63,16 @@ def usable_ends(c: model.Corpus, tables: dict[str, list[dict]],
             continue
         if not hops:
             continue
+        # Not over a join the planner cannot index on. F51: `isEmpty()` over a to-many whose
+        # join is anything other than a single key equality returns the source row once per
+        # joined row -- correct booleans, wrong number of rows. Every such end generated here
+        # would fail for the one reason, so they are excluded and CV6_PillarEmptiness pins it
+        # once.
+        #
+        # A general join records its columns as empty strings, which is exactly what "no key
+        # to index on" looks like in this reader.
+        if any(not fcol for _j, _ft, fcol, _tt, _tc in hops):
+            continue
         out.setdefault(owner, []).append(prop)
     return out
 

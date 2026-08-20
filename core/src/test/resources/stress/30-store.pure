@@ -249,6 +249,15 @@ Database store::DB
     // emitted by refdata for margincalls
     Table MGN_CALL (CALL_ID VARCHAR(60) PRIMARY KEY, CALL_TYPE VARCHAR(60), COUNTERPARTY_ID VARCHAR(60), CALL_AMOUNT DECIMAL(18,4), AGREED_AMOUNT DECIMAL(18,4), CURRENCY VARCHAR(60), CALLED_ON DATE, STATUS VARCHAR(60), IS_DISPUTED BIT, SETTLED_ON DATE)
 
+    // ---- Brokerage tiers and clearing routes ----
+    Table BROKERAGE_TIER (TIER_ID VARCHAR(20) PRIMARY KEY, TIER_NAME VARCHAR(30),
+                          MIN_NOTIONAL DECIMAL(18,2), MAX_NOTIONAL DECIMAL(18,2),
+                          BPS_RATE DECIMAL(18,4), MINIMUM_FEE DECIMAL(18,2))
+
+    Table CLEARING_ROUTE (ROUTE_ID VARCHAR(20) PRIMARY KEY, VENUE_CODE VARCHAR(10),
+                          PRODUCT_CODE VARCHAR(20), CLEARING_HOUSE VARCHAR(20),
+                          SETTLEMENT_CYCLE VARCHAR(6), IS_NETTED BIT)
+
     // ---- Market data: series, observations, revisions ----
     Table TIME_SERIES (SERIES_ID VARCHAR(20) PRIMARY KEY, SERIES_NAME VARCHAR(60),
                        SOURCE_CODE VARCHAR(20), FREQUENCY VARCHAR(12), UNIT VARCHAR(12),
@@ -1425,6 +1434,10 @@ Database store::DB
 
     Filter QuotedPillarRows(RATE_CURVE_POINT.IS_INTERPOLATED = 0)
 
+    // A RANGE join: which band the notional falls in. No key, and none possible.
+    Join Trade_BrokerageTier(TRADE.NOTIONAL >= BROKERAGE_TIER.MIN_NOTIONAL and TRADE.NOTIONAL < BROKERAGE_TIER.MAX_NOTIONAL)
+    // Matched on venue OR on product: a route rule carries one or the other.
+    Join Trade_ClearingRoute(TRADE.EXECUTION_VENUE = CLEARING_ROUTE.VENUE_CODE or TRADE.TRADE_TYPE = CLEARING_ROUTE.PRODUCT_CODE)
     Join Curve_Benchmark(RATE_CURVE.BENCHMARK_SERIES_ID = TIME_SERIES.SERIES_ID)
     Join Curve_Summary(RATE_CURVE.CURVE_ID = CURVE_SUMMARY.CURVE_ID)
     // Explicit override else default: the pillar's own series where it has

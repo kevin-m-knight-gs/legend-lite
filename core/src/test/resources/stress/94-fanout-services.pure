@@ -4356,6 +4356,244 @@ Service stress::CV10_PillarBenchmark
   ]
 }
 
+Service stress::BK0_TieredBrokerage
+{
+    pattern: '/stress/bk0';
+    documentation: 'Each trade with the brokerage tier its notional falls into, reached by a RANGE join -- `notional >= min and notional < max`, with no key to join on and none possible, because the band is a property of the amount. All four bands are occupied and the largest holds one trade, which is the band an open upper edge gets wrong first.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            tierId:x|$x.brokerageTier.tierId,
+            tierName:x|$x.brokerageTier.tierName,
+            bpsRate:x|$x.brokerageTier.bpsRate,
+            minimumFee:x|$x.brokerageTier.minimumFee
+        ])
+        ->sort(~tradeId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BK0_TieredBrokerage_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","notional":190500.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0002","notional":477500.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0003","notional":250000.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0004","notional":250000.0,"side":"SELL","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0005","notional":250000.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0006","notional":250000.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0007","notional":282000.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0008","notional":18975.0,"side":"BUY","tierId":"TIER-RETAIL","tierName":"Retail","bpsRate":12.5,"minimumFee":25.0},{"tradeId":"TRD-0009","notional":576750.0,"side":"BUY","tierId":"TIER-MID","tierName":"Mid Institutional","bpsRate":5.5,"minimumFee":150.0},{"tradeId":"TRD-0010","notional":498000.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0011","notional":167300.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0012","notional":369000.0,"side":null,"tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0013","notional":171250.0,"side":"SELL","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0014","notional":69000.0,"side":"BUY","tierId":"TIER-RETAIL","tierName":"Retail","bpsRate":12.5,"minimumFee":25.0},{"tradeId":"TRD-0015","notional":35000.0,"side":"BUY","tierId":"TIER-RETAIL","tierName":"Retail","bpsRate":12.5,"minimumFee":25.0},{"tradeId":"TRD-0016","notional":264600.0,"side":"BUY","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0017","notional":385000.0,"side":"SELL","tierId":"TIER-SMALL","tierName":"Small Institutional","bpsRate":8.0,"minimumFee":40.0},{"tradeId":"TRD-0018","notional":4912500.0,"side":"BUY","tierId":"TIER-LARGE","tierName":"Large Block","bpsRate":3.25,"minimumFee":500.0},{"tradeId":"TRD-0019","notional":1960000.0,"side":"BUY","tierId":"TIER-MID","tierName":"Mid Institutional","bpsRate":5.5,"minimumFee":150.0},{"tradeId":"TRD-0020","notional":975000.0,"side":"BUY","tierId":"TIER-MID","tierName":"Mid Institutional","bpsRate":5.5,"minimumFee":150.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BK1_BrokerageBands
+{
+    pattern: '/stress/bk1';
+    documentation: 'Each brokerage band, how many trades fall in it, the rate as a fraction rather than in basis points, and what the band would charge on a million. The count is over a RANGE join, so a band with no trades in it would be the F6 case -- all four are occupied, deliberately.';
+    execution: Single
+    {
+    query: |brokerage::BrokerageTier.all()
+        ->project(~[
+            tierId:x|$x.tierId,
+            tierName:x|$x.tierName,
+            minNotional:x|$x.minNotional,
+            maxNotional:x|$x.maxNotional,
+            rateFraction:x|$x.rateFraction,
+            feeOnMillion:x|$x.feeOn(1000000.0),
+            tradesInBand:x|$x.tieredTrades->count()
+        ])
+        ->sort(~tierId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BK1_BrokerageBands_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tierId":"TIER-LARGE","tierName":"Large Block","minNotional":2000000.0,"maxNotional":100000000.0,"rateFraction":0.000325,"feeOnMillion":325.0,"tradesInBand":1},{"tierId":"TIER-MID","tierName":"Mid Institutional","minNotional":500000.0,"maxNotional":2000000.0,"rateFraction":0.00055,"feeOnMillion":550.0,"tradesInBand":3},{"tierId":"TIER-RETAIL","tierName":"Retail","minNotional":0.0,"maxNotional":100000.0,"rateFraction":0.00125,"feeOnMillion":1250.0,"tradesInBand":3},{"tierId":"TIER-SMALL","tierName":"Small Institutional","minNotional":100000.0,"maxNotional":500000.0,"rateFraction":0.0008,"feeOnMillion":800.0,"tradesInBand":13}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BK2_ClearingRoutes
+{
+    pattern: '/stress/bk2';
+    documentation: 'How many clearing rules each trade matches, over a join that matches on venue OR on product. Most trades match two -- their venue\'s rule and their product\'s -- and the one executed on a lower-case venue code matches only its product\'s, the comparison being case sensitive. A routing table really does return every applicable rule; choosing between them is a precedence the join cannot express.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            venue:x|$x.executionVenue,
+            tradeType:x|$x.tradeType,
+            notional:x|$x.notional,
+            matchingRules:x|$x.clearingRoutes->count()
+        ])
+        ->sort(~tradeId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BK2_ClearingRoutes_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","venue":"XNAS","tradeType":"AGENCY","notional":190500.0,"matchingRules":2},{"tradeId":"TRD-0002","venue":"BATS","tradeType":"AGENCY","notional":477500.0,"matchingRules":2},{"tradeId":"TRD-0003","venue":"IEXG","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0004","venue":"XLON","tradeType":"PRINCIPAL","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0005","venue":"XNYS","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0006","venue":"XNAS","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0007","venue":"BATS","tradeType":"AGENCY","notional":282000.0,"matchingRules":2},{"tradeId":"TRD-0008","venue":"IEXG","tradeType":"AGENCY","notional":18975.0,"matchingRules":2},{"tradeId":"TRD-0009","venue":"XLON","tradeType":"AGENCY","notional":576750.0,"matchingRules":2},{"tradeId":"TRD-0010","venue":"XNYS","tradeType":"AGENCY","notional":498000.0,"matchingRules":2},{"tradeId":"TRD-0011","venue":"XNAS","tradeType":"AGENCY","notional":167300.0,"matchingRules":2},{"tradeId":"TRD-0012","venue":"BATS","tradeType":"AGENCY","notional":369000.0,"matchingRules":2},{"tradeId":"TRD-0013","venue":"IEXG","tradeType":"PRINCIPAL","notional":171250.0,"matchingRules":2},{"tradeId":"TRD-0014","venue":"xnas","tradeType":"AGENCY","notional":69000.0,"matchingRules":1},{"tradeId":"TRD-0015","venue":"XNYS","tradeType":"AGENCY","notional":35000.0,"matchingRules":2},{"tradeId":"TRD-0016","venue":"XNAS","tradeType":"AGENCY","notional":264600.0,"matchingRules":2},{"tradeId":"TRD-0017","venue":"BATS","tradeType":"PRINCIPAL","notional":385000.0,"matchingRules":2},{"tradeId":"TRD-0018","venue":"IEXG","tradeType":"AGENCY","notional":4912500.0,"matchingRules":2},{"tradeId":"TRD-0019","venue":"XLON","tradeType":"AGENCY","notional":1960000.0,"matchingRules":2},{"tradeId":"TRD-0020","venue":"XNYS","tradeType":"AGENCY","notional":975000.0,"matchingRules":2}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::BK3_RoutingRules
+{
+    pattern: '/stress/bk3';
+    documentation: 'The routing table itself. A venue rule carries no product and a product rule carries no venue, so exactly one of the two columns is null on every row -- which is what makes the `or` behind BK2 a real disjunction rather than two conditions that happen to agree.';
+    execution: Single
+    {
+    query: |brokerage::ClearingRoute.all()
+        ->project(~[
+            routeId:x|$x.routeId,
+            venueCode:x|$x.venueCode,
+            productCode:x|$x.productCode,
+            clearingHouse:x|$x.clearingHouse,
+            settlementCycle:x|$x.settlementCycle,
+            isNetted:x|$x.isNetted,
+            tradesRouted:x|$x.routedTrades->count()
+        ])
+        ->sort(~routeId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    BK3_RoutingRules_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"routeId":"RTE-AGENCY","venueCode":null,"productCode":"AGENCY","clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":17},{"routeId":"RTE-BATS","venueCode":"BATS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":false,"tradesRouted":4},{"routeId":"RTE-IEXG","venueCode":"IEXG","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-PRINCIPAL","venueCode":null,"productCode":"PRINCIPAL","clearingHouse":"OCC","settlementCycle":"T+2","isNetted":false,"tradesRouted":3},{"routeId":"RTE-XLON","venueCode":"XLON","productCode":null,"clearingHouse":"CREST","settlementCycle":"T+2","isNetted":true,"tradesRouted":3},{"routeId":"RTE-XNAS","venueCode":"XNAS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-XNYS","venueCode":"XNYS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -5755,8 +5993,8 @@ Service stress::D_SalesCreditDense
             tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
             tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~creditId->ascending())
         ->limit(25);
@@ -5793,7 +6031,7 @@ Service stress::D_SalesCreditDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"creditId":"SC-0001","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"creditId":"SC-0002","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"creditId":"SC-0003","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0004","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0005","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0006","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"creditId":"SC-0007","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"creditId":"SC-0008","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":18975.0,"tradeGrossAmountInQ":9487.5},{"creditId":"SC-0009","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"creditId":"SC-0010","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"creditId":"SC-0011","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"creditId":"SC-0012","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":null,"tradeGrossAmount":369000.0,"tradeGrossAmountInQ":184500.0}]';
+                    data: '[{"creditId":"SC-0001","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0002","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0003","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0004","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0005","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0006","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0007","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0008","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.00125,"tradeBrokerageTierFeeOnQ":0.000625},{"creditId":"SC-0009","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.00055,"tradeBrokerageTierFeeOnQ":0.000275},{"creditId":"SC-0010","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0011","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"creditId":"SC-0012","salesPersonDeskBusinessUnitName":null,"tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":null,"tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -5817,8 +6055,8 @@ Service stress::D_ClearedTradeDense
             tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
             tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~clearedTradeId->ascending())
         ->limit(25);
@@ -5855,7 +6093,7 @@ Service stress::D_ClearedTradeDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0}]';
+                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -5879,8 +6117,8 @@ Service stress::D_AllocationDense
             tradeTraderManagerBadge:x|$x.trade.trader.manager.badge,
             tradeCounterpartyCountryName:x|$x.trade.counterparty.country.name,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~allocationId->ascending())
         ->limit(25);
@@ -5917,7 +6155,7 @@ Service stress::D_AllocationDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"allocationId":"A-0001","tradeBookDeskName":null,"tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"allocationId":"A-0003","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"allocationId":"A-0004","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"allocationId":"A-0005","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0}]';
+                    data: '[{"allocationId":"A-0001","tradeBookDeskName":null,"tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null},{"allocationId":"A-0003","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"allocationId":"A-0004","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":null,"tradeCounterpartyCountryName":"United States","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"allocationId":"A-0005","tradeBookDeskName":"Cash Equities","tradeTraderManagerBadge":"B10041","tradeCounterpartyCountryName":"United Kingdom","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -5941,8 +6179,8 @@ Service stress::D_TradeExceptionDense
             tradeOrderStatus:x|$x.trade.order.status,
             tradeBlockCurrency:x|$x.trade.block.currency,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~exceptionId->ascending())
         ->limit(25);
@@ -5979,7 +6217,7 @@ Service stress::D_TradeExceptionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"exceptionId":"TE-0001","tradeTraderDeskName":null,"tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null},{"exceptionId":"TE-0003","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"exceptionId":"TE-0004","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"exceptionId":"TE-0005","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0}]';
+                    data: '[{"exceptionId":"TE-0001","tradeTraderDeskName":null,"tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null},{"exceptionId":"TE-0003","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"exceptionId":"TE-0004","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"exceptionId":"TE-0005","tradeTraderDeskName":"Cash Equities","tradeOrderStatus":null,"tradeBlockCurrency":null,"tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -6000,11 +6238,11 @@ Service stress::D_SettlementDense
         ->project(~[
             settlementId:x|$x.settlementId,
             tradeAvgPriceTradeCurrency:x|$x.trade.avgPriceTrade.currency,
+            tradeBrokerageTierTierId:x|$x.trade.brokerageTier.tierId,
             tradeInstrumentCurrency:x|$x.trade.instrument.currency,
-            tradeBookCurrency:x|$x.trade.book.currency,
             tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~settlementId->ascending())
         ->limit(25);
@@ -6041,7 +6279,7 @@ Service stress::D_SettlementDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"settlementId":"STL-0001","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"settlementId":"STL-0002","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"settlementId":"STL-0003","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0004","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0005","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0006","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"settlementId":"STL-0007","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"settlementId":"STL-0008","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"settlementId":"STL-0009","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"settlementId":"STL-0010","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"USD","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"settlementId":"STL-0011","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"settlementId":"STL-0012","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0},{"settlementId":"STL-0013","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":35000.0,"tradeGrossAmountInQ":17500.0},{"settlementId":"STL-0014","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeSide":"BUY","tradeGrossAmount":264600.0,"tradeGrossAmountInQ":132300.0},{"settlementId":"STL-0015","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"EUR","tradeBookCurrency":"EUR","tradeSide":"SELL","tradeGrossAmount":385000.0,"tradeGrossAmountInQ":192500.0},{"settlementId":"STL-0016","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":4912500.0,"tradeGrossAmountInQ":2456250.0},{"settlementId":"STL-0017","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":"GBP","tradeBookCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":1960000.0,"tradeGrossAmountInQ":980000.0},{"settlementId":"STL-9999","tradeAvgPriceTradeCurrency":null,"tradeInstrumentCurrency":null,"tradeBookCurrency":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null}]';
+                    data: '[{"settlementId":"STL-0001","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0002","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0003","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0004","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"SELL","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0005","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0006","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0007","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0008","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-MID","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.00055,"tradeBrokerageTierFeeOnQ":0.000275},{"settlementId":"STL-0009","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0010","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"USD","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0011","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"GBP","tradeSide":"SELL","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0012","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-RETAIL","tradeInstrumentCurrency":"GBP","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.00125,"tradeBrokerageTierFeeOnQ":0.000625},{"settlementId":"STL-0013","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-RETAIL","tradeInstrumentCurrency":"GBP","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.00125,"tradeBrokerageTierFeeOnQ":0.000625},{"settlementId":"STL-0014","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"EUR","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0015","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-SMALL","tradeInstrumentCurrency":"EUR","tradeSide":"SELL","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"settlementId":"STL-0016","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-LARGE","tradeInstrumentCurrency":"GBP","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.000325,"tradeBrokerageTierFeeOnQ":0.0001625},{"settlementId":"STL-0017","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":"TIER-MID","tradeInstrumentCurrency":"GBP","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.00055,"tradeBrokerageTierFeeOnQ":0.000275},{"settlementId":"STL-9999","tradeAvgPriceTradeCurrency":null,"tradeBrokerageTierTierId":null,"tradeInstrumentCurrency":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null}]';
                   }#;
               }#
           ]
@@ -6122,9 +6360,9 @@ Service stress::D_OpsConfirmationDense
         ->filter({x|($x.status > ' ')})
         ->project(~[
             confirmId:x|$x.confirmId,
+            tradeBookCurrency:x|$x.trade.book.currency,
             tradeTraderBadge:x|$x.trade.trader.badge,
             tradeCounterpartyLegalName:x|$x.trade.counterparty.legalName,
-            tradeCurrency:x|$x.trade.currency,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount,
             tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
@@ -6164,7 +6402,7 @@ Service stress::D_OpsConfirmationDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"confirmId":"CNF-0001","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"confirmId":"CNF-0002","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"confirmId":"CNF-0003","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0004","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0005","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0006","tradeTraderBadge":null,"tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0007","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":null,"tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"confirmId":"CNF-0008","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"confirmId":"CNF-0009","tradeTraderBadge":null,"tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"confirmId":"CNF-0010","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"confirmId":"CNF-0011","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0},{"confirmId":"CNF-0012","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":264600.0,"tradeGrossAmountInQ":132300.0},{"confirmId":"CNF-0013","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"SELL","tradeGrossAmount":385000.0,"tradeGrossAmountInQ":192500.0},{"confirmId":"CNF-0014","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":4912500.0,"tradeGrossAmountInQ":2456250.0},{"confirmId":"CNF-0015","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Meridian Asset Management","tradeCurrency":"USD","tradeSide":"BUY","tradeGrossAmount":1960000.0,"tradeGrossAmountInQ":980000.0}]';
+                    data: '[{"confirmId":"CNF-0001","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"confirmId":"CNF-0002","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":"Meridian Asset Management","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"confirmId":"CNF-0003","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0004","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Halberd Securities","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0005","tradeBookCurrency":"USD","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0006","tradeBookCurrency":"USD","tradeTraderBadge":null,"tradeCounterpartyLegalName":"Meridian Asset Management","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"confirmId":"CNF-0007","tradeBookCurrency":"USD","tradeTraderBadge":"B10041","tradeCounterpartyLegalName":null,"tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"confirmId":"CNF-0008","tradeBookCurrency":"USD","tradeTraderBadge":"B10077","tradeCounterpartyLegalName":"Meridian Asset Management","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"confirmId":"CNF-0009","tradeBookCurrency":"USD","tradeTraderBadge":null,"tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"confirmId":"CNF-0010","tradeBookCurrency":"EUR","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"confirmId":"CNF-0011","tradeBookCurrency":"EUR","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Halberd Securities","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0},{"confirmId":"CNF-0012","tradeBookCurrency":"EUR","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"O\'Neill Capital Partners","tradeSide":"BUY","tradeGrossAmount":264600.0,"tradeGrossAmountInQ":132300.0},{"confirmId":"CNF-0013","tradeBookCurrency":"EUR","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeSide":"SELL","tradeGrossAmount":385000.0,"tradeGrossAmountInQ":192500.0},{"confirmId":"CNF-0014","tradeBookCurrency":"USD","tradeTraderBadge":"B10102","tradeCounterpartyLegalName":"Halberd Securities","tradeSide":"BUY","tradeGrossAmount":4912500.0,"tradeGrossAmountInQ":2456250.0},{"confirmId":"CNF-0015","tradeBookCurrency":"USD","tradeTraderBadge":"B10188","tradeCounterpartyLegalName":"Meridian Asset Management","tradeSide":"BUY","tradeGrossAmount":1960000.0,"tradeGrossAmountInQ":980000.0}]';
                   }#;
               }#
           ]
@@ -6184,9 +6422,9 @@ Service stress::D_TradeReportDense
         ->filter({x|($x.status > ' ')})
         ->project(~[
             reportId:x|$x.reportId,
+            tradeCurrency:x|$x.trade.currency,
             tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
             tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
-            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
             tradeSide:x|$x.trade.side,
             tradeGrossAmount:x|$x.trade.grossAmount,
             tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5)
@@ -6226,7 +6464,69 @@ Service stress::D_TradeReportDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reportId":"RPT-0001","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"reportId":"RPT-0002","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"reportId":"RPT-0003","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0004","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0005","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0006","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0007","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"reportId":"RPT-0008","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":18975.0,"tradeGrossAmountInQ":9487.5},{"reportId":"RPT-0009","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"reportId":"RPT-0010","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"reportId":"RPT-0011","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"reportId":"RPT-0012","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":null,"tradeGrossAmount":369000.0,"tradeGrossAmountInQ":184500.0},{"reportId":"RPT-0013","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"reportId":"RPT-0014","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeInstrumentInstrumentCurrencyName":"Pound Sterling","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0}]';
+                    data: '[{"reportId":"RPT-0001","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0},{"reportId":"RPT-0002","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0},{"reportId":"RPT-0003","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0004","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"SELL","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0005","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0006","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0},{"reportId":"RPT-0007","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":282000.0,"tradeGrossAmountInQ":141000.0},{"reportId":"RPT-0008","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":18975.0,"tradeGrossAmountInQ":9487.5},{"reportId":"RPT-0009","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":576750.0,"tradeGrossAmountInQ":288375.0},{"reportId":"RPT-0010","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":498000.0,"tradeGrossAmountInQ":249000.0},{"reportId":"RPT-0011","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":"BUY","tradeGrossAmount":167300.0,"tradeGrossAmountInQ":83650.0},{"reportId":"RPT-0012","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeSide":null,"tradeGrossAmount":369000.0,"tradeGrossAmountInQ":184500.0},{"reportId":"RPT-0013","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeSide":"SELL","tradeGrossAmount":171250.0,"tradeGrossAmountInQ":85625.0},{"reportId":"RPT-0014","tradeCurrency":"USD","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Financials","tradeSide":"BUY","tradeGrossAmount":69000.0,"tradeGrossAmountInQ":34500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_TradeCorrectionDense
+{
+    pattern: '/stress/d_tradecorrection';
+    documentation: 'Dense stack on trading::TradeCorrection: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |trading::TradeCorrection.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            correctionId:x|$x.correctionId,
+            tradeOrderInstrumentCurrency:x|$x.trade.order.instrument.currency,
+            tradeInstrumentSectorName:x|$x.trade.instrument.sector.name,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
+            tradeSide:x|$x.trade.side,
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5)
+        ])
+        ->sort(~correctionId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_TradeCorrectionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"correctionId":"TC-0002","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":null,"tradeInstrumentInstrumentCurrencyName":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null},{"correctionId":"TC-0003","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"correctionId":"TC-0004","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004},{"correctionId":"TC-0005","tradeOrderInstrumentCurrency":null,"tradeInstrumentSectorName":"Information Technology","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -6250,8 +6550,8 @@ Service stress::D_CashSettlementDense
             settlementTradeBlockCurrency:x|$x.settlement.trade.block.currency,
             settlementTradeAvgPriceTradeCurrency:x|$x.settlement.trade.avgPriceTrade.currency,
             settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
-            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
+            settlementTradeBrokerageTierRateFraction:x|$x.settlement.trade.brokerageTier.rateFraction,
+            settlementTradeBrokerageTierFeeOnQ:x|$x.settlement.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~cashSettlementId->ascending())
         ->limit(25);
@@ -6288,7 +6588,7 @@ Service stress::D_CashSettlementDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"cashSettlementId":"CS-0001","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"cashSettlementId":"CS-0002","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"cashSettlementId":"CS-0003","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0,"settlementTradeGrossAmountInQ":95250.0},{"cashSettlementId":"CS-0004","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0}]';
+                    data: '[{"cashSettlementId":"CS-0001","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeBrokerageTierRateFraction":null,"settlementTradeBrokerageTierFeeOnQ":null},{"cashSettlementId":"CS-0002","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":null,"settlementTradeBrokerageTierRateFraction":null,"settlementTradeBrokerageTierFeeOnQ":null},{"cashSettlementId":"CS-0003","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeBrokerageTierRateFraction":0.0008,"settlementTradeBrokerageTierFeeOnQ":0.0004},{"cashSettlementId":"CS-0004","settlementTradeOrderStatus":null,"settlementTradeBlockCurrency":null,"settlementTradeAvgPriceTradeCurrency":null,"settlementTradeSide":"BUY","settlementTradeBrokerageTierRateFraction":0.0008,"settlementTradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -6312,8 +6612,8 @@ Service stress::D_NovationRequestDense
             clearedTradeTradeOrderStatus:x|$x.clearedTrade.trade.order.status,
             clearedTradeTradeBlockCurrency:x|$x.clearedTrade.trade.block.currency,
             clearedTradeTradeSide:x|$x.clearedTrade.trade.side,
-            clearedTradeTradeGrossAmount:x|$x.clearedTrade.trade.grossAmount,
-            clearedTradeTradeGrossAmountInQ:x|$x.clearedTrade.trade.grossAmountIn(0.5)
+            clearedTradeTradeBrokerageTierRateFraction:x|$x.clearedTrade.trade.brokerageTier.rateFraction,
+            clearedTradeTradeBrokerageTierFeeOnQ:x|$x.clearedTrade.trade.brokerageTier.feeOn(0.5)
         ])
         ->sort(~novationId->ascending())
         ->limit(25);
@@ -6350,7 +6650,255 @@ Service stress::D_NovationRequestDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"novationId":"NR-0001","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null},{"novationId":"NR-0002","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null},{"novationId":"NR-0003","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null},{"novationId":"NR-0004","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeGrossAmount":null,"clearedTradeTradeGrossAmountInQ":null}]';
+                    data: '[{"novationId":"NR-0001","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeBrokerageTierRateFraction":null,"clearedTradeTradeBrokerageTierFeeOnQ":null},{"novationId":"NR-0002","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeBrokerageTierRateFraction":null,"clearedTradeTradeBrokerageTierFeeOnQ":null},{"novationId":"NR-0003","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeBrokerageTierRateFraction":null,"clearedTradeTradeBrokerageTierFeeOnQ":null},{"novationId":"NR-0004","clearedTradeClearingMemberClearingHouseCurrency":null,"clearedTradeTradeOrderStatus":null,"clearedTradeTradeBlockCurrency":null,"clearedTradeTradeSide":null,"clearedTradeTradeBrokerageTierRateFraction":null,"clearedTradeTradeBrokerageTierFeeOnQ":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_SecuritiesSettlementDense
+{
+    pattern: '/stress/d_securitiessettlement';
+    documentation: 'Dense stack on settlement::SecuritiesSettlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::SecuritiesSettlement.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            secSettlementId:x|$x.secSettlementId,
+            settlementTradeBrokerageTierTierId:x|$x.settlement.trade.brokerageTier.tierId,
+            settlementTradeInstrumentCurrency:x|$x.settlement.trade.instrument.currency,
+            settlementTradeBookCurrency:x|$x.settlement.trade.book.currency,
+            settlementTradeSide:x|$x.settlement.trade.side,
+            settlementTradeBrokerageTierRateFraction:x|$x.settlement.trade.brokerageTier.rateFraction,
+            settlementTradeBrokerageTierFeeOnQ:x|$x.settlement.trade.brokerageTier.feeOn(0.5)
+        ])
+        ->sort(~secSettlementId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_SecuritiesSettlementDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"secSettlementId":"SS-0001","settlementTradeBrokerageTierTierId":null,"settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeSide":null,"settlementTradeBrokerageTierRateFraction":null,"settlementTradeBrokerageTierFeeOnQ":null},{"secSettlementId":"SS-0002","settlementTradeBrokerageTierTierId":null,"settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeSide":null,"settlementTradeBrokerageTierRateFraction":null,"settlementTradeBrokerageTierFeeOnQ":null},{"secSettlementId":"SS-0004","settlementTradeBrokerageTierTierId":"TIER-SMALL","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeSide":"BUY","settlementTradeBrokerageTierRateFraction":0.0008,"settlementTradeBrokerageTierFeeOnQ":0.0004},{"secSettlementId":"SS-0005","settlementTradeBrokerageTierTierId":"TIER-SMALL","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeSide":"BUY","settlementTradeBrokerageTierRateFraction":0.0008,"settlementTradeBrokerageTierFeeOnQ":0.0004}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_SettlementFailDense
+{
+    pattern: '/stress/d_settlementfail';
+    documentation: 'Dense stack on settlement::SettlementFail: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::SettlementFail.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            failId:x|$x.failId,
+            settlementTradeTraderBadge:x|$x.settlement.trade.trader.badge,
+            settlementTradeCounterpartyLegalName:x|$x.settlement.trade.counterparty.legalName,
+            settlementCounterpartyCountryName:x|$x.settlement.counterparty.country.name,
+            settlementTradeSide:x|$x.settlement.trade.side,
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
+            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
+        ])
+        ->sort(~failId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_SettlementFailDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"failId":"SF-0001","settlementTradeTraderBadge":null,"settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"failId":"SF-0002","settlementTradeTraderBadge":null,"settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"failId":"SF-0004","settlementTradeTraderBadge":"B10041","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"failId":"SF-0005","settlementTradeTraderBadge":"B10077","settlementTradeCounterpartyLegalName":"Halberd Securities","settlementCounterpartyCountryName":"United Kingdom","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_SettlementSettlementInstructionDense
+{
+    pattern: '/stress/d_settlementsettlementinstruction';
+    documentation: 'Dense stack on settlement::SettlementInstruction: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |settlement::SettlementInstruction.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            instructionId:x|$x.instructionId,
+            settlementNettingCurrency:x|$x.settlement.netting.currency,
+            settlementTradeCurrency:x|$x.settlement.trade.currency,
+            settlementCounterpartyLegalName:x|$x.settlement.counterparty.legalName,
+            settlementTradeSide:x|$x.settlement.trade.side,
+            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
+            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
+        ])
+        ->sort(~instructionId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_SettlementSettlementInstructionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instructionId":"SI-0002","settlementNettingCurrency":null,"settlementTradeCurrency":null,"settlementCounterpartyLegalName":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"instructionId":"SI-0003","settlementNettingCurrency":null,"settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0,"settlementTradeGrossAmountInQ":95250.0},{"instructionId":"SI-0004","settlementNettingCurrency":null,"settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"instructionId":"SI-0005","settlementNettingCurrency":"USD","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Halberd Securities","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_BreakResolutionDense
+{
+    pattern: '/stress/d_breakresolution';
+    documentation: 'Dense stack on ops::BreakResolution: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |ops::BreakResolution.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            resolutionId:x|$x.resolutionId,
+            tradeExceptionTradeOrderStatus:x|$x.tradeException.trade.order.status,
+            tradeExceptionTradeBlockCurrency:x|$x.tradeException.trade.block.currency,
+            tradeExceptionTradeAvgPriceTradeCurrency:x|$x.tradeException.trade.avgPriceTrade.currency,
+            tradeExceptionTradeSide:x|$x.tradeException.trade.side,
+            tradeExceptionTradeBrokerageTierRateFraction:x|$x.tradeException.trade.brokerageTier.rateFraction,
+            tradeExceptionTradeBrokerageTierFeeOnQ:x|$x.tradeException.trade.brokerageTier.feeOn(0.5)
+        ])
+        ->sort(~resolutionId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_BreakResolutionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"resolutionId":"BR-0001","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeBrokerageTierRateFraction":null,"tradeExceptionTradeBrokerageTierFeeOnQ":null},{"resolutionId":"BR-0003","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeBrokerageTierRateFraction":null,"tradeExceptionTradeBrokerageTierFeeOnQ":null},{"resolutionId":"BR-0004","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeBrokerageTierRateFraction":null,"tradeExceptionTradeBrokerageTierFeeOnQ":null},{"resolutionId":"BR-0005","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":"BUY","tradeExceptionTradeBrokerageTierRateFraction":0.0008,"tradeExceptionTradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -6420,192 +6968,6 @@ Service stress::D_GreeksDense
   ]
 }
 
-Service stress::D_SecuritiesSettlementDense
-{
-    pattern: '/stress/d_securitiessettlement';
-    documentation: 'Dense stack on settlement::SecuritiesSettlement: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |settlement::SecuritiesSettlement.all()
-        ->filter({x|($x.status > ' ')})
-        ->project(~[
-            secSettlementId:x|$x.secSettlementId,
-            settlementTradeInstrumentCurrency:x|$x.settlement.trade.instrument.currency,
-            settlementTradeBookCurrency:x|$x.settlement.trade.book.currency,
-            settlementTradeTraderBadge:x|$x.settlement.trade.trader.badge,
-            settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
-            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
-        ])
-        ->sort(~secSettlementId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D_SecuritiesSettlementDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"secSettlementId":"SS-0001","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"secSettlementId":"SS-0002","settlementTradeInstrumentCurrency":null,"settlementTradeBookCurrency":null,"settlementTradeTraderBadge":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"secSettlementId":"SS-0004","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10041","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"secSettlementId":"SS-0005","settlementTradeInstrumentCurrency":"USD","settlementTradeBookCurrency":"USD","settlementTradeTraderBadge":"B10077","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D_SettlementFailDense
-{
-    pattern: '/stress/d_settlementfail';
-    documentation: 'Dense stack on settlement::SettlementFail: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |settlement::SettlementFail.all()
-        ->filter({x|($x.currency > ' ')})
-        ->project(~[
-            failId:x|$x.failId,
-            settlementTradeCounterpartyLegalName:x|$x.settlement.trade.counterparty.legalName,
-            settlementCounterpartyCountryName:x|$x.settlement.counterparty.country.name,
-            settlementNettingCurrency:x|$x.settlement.netting.currency,
-            settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
-            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
-        ])
-        ->sort(~failId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D_SettlementFailDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"failId":"SF-0001","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementNettingCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"failId":"SF-0002","settlementTradeCounterpartyLegalName":null,"settlementCounterpartyCountryName":null,"settlementNettingCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"failId":"SF-0004","settlementTradeCounterpartyLegalName":"Meridian Asset Management","settlementCounterpartyCountryName":"United States","settlementNettingCurrency":null,"settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"failId":"SF-0005","settlementTradeCounterpartyLegalName":"Halberd Securities","settlementCounterpartyCountryName":"United Kingdom","settlementNettingCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D_SettlementSettlementInstructionDense
-{
-    pattern: '/stress/d_settlementsettlementinstruction';
-    documentation: 'Dense stack on settlement::SettlementInstruction: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |settlement::SettlementInstruction.all()
-        ->filter({x|($x.currency > ' ')})
-        ->project(~[
-            instructionId:x|$x.instructionId,
-            settlementTradeCurrency:x|$x.settlement.trade.currency,
-            settlementCounterpartyLegalName:x|$x.settlement.counterparty.legalName,
-            settlementCurrency:x|$x.settlement.currency,
-            settlementTradeSide:x|$x.settlement.trade.side,
-            settlementTradeGrossAmount:x|$x.settlement.trade.grossAmount,
-            settlementTradeGrossAmountInQ:x|$x.settlement.trade.grossAmountIn(0.5)
-        ])
-        ->sort(~instructionId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D_SettlementSettlementInstructionDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"instructionId":"SI-0002","settlementTradeCurrency":null,"settlementCounterpartyLegalName":null,"settlementCurrency":null,"settlementTradeSide":null,"settlementTradeGrossAmount":null,"settlementTradeGrossAmountInQ":null},{"instructionId":"SI-0003","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":190500.0,"settlementTradeGrossAmountInQ":95250.0},{"instructionId":"SI-0004","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Meridian Asset Management","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":477500.0,"settlementTradeGrossAmountInQ":238750.0},{"instructionId":"SI-0005","settlementTradeCurrency":"USD","settlementCounterpartyLegalName":"Halberd Securities","settlementCurrency":"USD","settlementTradeSide":"BUY","settlementTradeGrossAmount":250000.0,"settlementTradeGrossAmountInQ":125000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::D_PositionDense
 {
     pattern: '/stress/d_position';
@@ -6666,31 +7028,31 @@ Service stress::D_PositionDense
   ]
 }
 
-Service stress::D_BreakResolutionDense
+Service stress::D_TradeReportStatusDense
 {
-    pattern: '/stress/d_breakresolution';
-    documentation: 'Dense stack on ops::BreakResolution: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    pattern: '/stress/d_tradereportstatus';
+    documentation: 'Dense stack on regulatory::TradeReportStatus: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |ops::BreakResolution.all()
-        ->filter({x|($x.status > ' ')})
+    query: |regulatory::TradeReportStatus.all()
+        ->filter({x|($x.newStatus > ' ')})
         ->project(~[
-            resolutionId:x|$x.resolutionId,
-            tradeExceptionTradeOrderStatus:x|$x.tradeException.trade.order.status,
-            tradeExceptionTradeBlockCurrency:x|$x.tradeException.trade.block.currency,
-            tradeExceptionTradeAvgPriceTradeCurrency:x|$x.tradeException.trade.avgPriceTrade.currency,
-            tradeExceptionTradeSide:x|$x.tradeException.trade.side,
-            tradeExceptionTradeGrossAmount:x|$x.tradeException.trade.grossAmount,
-            tradeExceptionTradeGrossAmountInQ:x|$x.tradeException.trade.grossAmountIn(0.5)
+            statusId:x|$x.statusId,
+            tradeReportTradeOrderStatus:x|$x.tradeReport.trade.order.status,
+            tradeReportTradeBlockCurrency:x|$x.tradeReport.trade.block.currency,
+            tradeReportTradeAvgPriceTradeCurrency:x|$x.tradeReport.trade.avgPriceTrade.currency,
+            tradeReportTradeSide:x|$x.tradeReport.trade.side,
+            tradeReportTradeBrokerageTierRateFraction:x|$x.tradeReport.trade.brokerageTier.rateFraction,
+            tradeReportTradeBrokerageTierFeeOnQ:x|$x.tradeReport.trade.brokerageTier.feeOn(0.5)
         ])
-        ->sort(~resolutionId->ascending())
+        ->sort(~statusId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D_BreakResolutionDense_suite:
+    D_TradeReportStatusDense_suite:
     {
       data:
       [
@@ -6718,7 +7080,7 @@ Service stress::D_BreakResolutionDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"resolutionId":"BR-0001","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null,"tradeExceptionTradeGrossAmountInQ":null},{"resolutionId":"BR-0003","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null,"tradeExceptionTradeGrossAmountInQ":null},{"resolutionId":"BR-0004","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":null,"tradeExceptionTradeGrossAmount":null,"tradeExceptionTradeGrossAmountInQ":null},{"resolutionId":"BR-0005","tradeExceptionTradeOrderStatus":null,"tradeExceptionTradeBlockCurrency":null,"tradeExceptionTradeAvgPriceTradeCurrency":null,"tradeExceptionTradeSide":"BUY","tradeExceptionTradeGrossAmount":190500.0,"tradeExceptionTradeGrossAmountInQ":95250.0}]';
+                    data: '[{"statusId":"TRS-0001","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeBrokerageTierRateFraction":null,"tradeReportTradeBrokerageTierFeeOnQ":null},{"statusId":"TRS-0002","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeBrokerageTierRateFraction":null,"tradeReportTradeBrokerageTierFeeOnQ":null},{"statusId":"TRS-0003","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeBrokerageTierRateFraction":0.0008,"tradeReportTradeBrokerageTierFeeOnQ":0.0004},{"statusId":"TRS-0004","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeBrokerageTierRateFraction":0.0008,"tradeReportTradeBrokerageTierFeeOnQ":0.0004}]';
                   }#;
               }#
           ]
@@ -6899,68 +7261,6 @@ Service stress::D_PositionSnapshotDense
                   #{
                     contentType: 'application/json';
                     data: '[{"snapshotId":"PS-0001","positionCurrency":null,"positionBookRollupBookId":null,"positionBookDeskName":null,"positionValuedAtQ":null},{"snapshotId":"PS-0002","positionCurrency":null,"positionBookRollupBookId":null,"positionBookDeskName":null,"positionValuedAtQ":null},{"snapshotId":"PS-0003","positionCurrency":"USD","positionBookRollupBookId":"BK-CASH-US","positionBookDeskName":"Cash Equities","positionValuedAtQ":4575.0},{"snapshotId":"PS-0005","positionCurrency":"GBP","positionBookRollupBookId":"BK-CASH-EU","positionBookDeskName":"Cash Equities","positionValuedAtQ":-5000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::D_TradeReportStatusDense
-{
-    pattern: '/stress/d_tradereportstatus';
-    documentation: 'Dense stack on regulatory::TradeReportStatus: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
-    execution: Single
-    {
-    query: |regulatory::TradeReportStatus.all()
-        ->filter({x|($x.newStatus > ' ')})
-        ->project(~[
-            statusId:x|$x.statusId,
-            tradeReportTradeOrderStatus:x|$x.tradeReport.trade.order.status,
-            tradeReportTradeBlockCurrency:x|$x.tradeReport.trade.block.currency,
-            tradeReportTradeAvgPriceTradeCurrency:x|$x.tradeReport.trade.avgPriceTrade.currency,
-            tradeReportTradeSide:x|$x.tradeReport.trade.side,
-            tradeReportTradeGrossAmount:x|$x.tradeReport.trade.grossAmount,
-            tradeReportTradeGrossAmountInQ:x|$x.tradeReport.trade.grossAmountIn(0.5)
-        ])
-        ->sort(~statusId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    D_TradeReportStatusDense_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"statusId":"TRS-0001","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null,"tradeReportTradeGrossAmountInQ":null},{"statusId":"TRS-0002","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":null,"tradeReportTradeGrossAmount":null,"tradeReportTradeGrossAmountInQ":null},{"statusId":"TRS-0003","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":190500.0,"tradeReportTradeGrossAmountInQ":95250.0},{"statusId":"TRS-0004","tradeReportTradeOrderStatus":null,"tradeReportTradeBlockCurrency":null,"tradeReportTradeAvgPriceTradeCurrency":null,"tradeReportTradeSide":"BUY","tradeReportTradeGrossAmount":477500.0,"tradeReportTradeGrossAmountInQ":238750.0}]';
                   }#;
               }#
           ]
@@ -15282,6 +15582,116 @@ Service stress::AA_PortfolioCounts
   ]
 }
 
+Service stress::AA_BrokerageTierCounts
+{
+    pattern: '/stress/aa_brokeragetier';
+    documentation: 'Generated aggregate on brokerage::BrokerageTier: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |brokerage::BrokerageTier.all()
+        ->project(~[
+            tierId:x|$x.tierId,
+            tieredTradesCount:x|$x.tieredTrades->count()
+        ])
+        ->sort(~tierId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_BrokerageTierCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tierId":"TIER-LARGE","tieredTradesCount":1},{"tierId":"TIER-MID","tieredTradesCount":3},{"tierId":"TIER-RETAIL","tieredTradesCount":3},{"tierId":"TIER-SMALL","tieredTradesCount":13}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_ClearingRouteCounts
+{
+    pattern: '/stress/aa_clearingroute';
+    documentation: 'Generated aggregate on brokerage::ClearingRoute: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |brokerage::ClearingRoute.all()
+        ->project(~[
+            routeId:x|$x.routeId,
+            routedTradesCount:x|$x.routedTrades->count()
+        ])
+        ->sort(~routeId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_ClearingRouteCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"routeId":"RTE-AGENCY","routedTradesCount":17},{"routeId":"RTE-BATS","routedTradesCount":4},{"routeId":"RTE-IEXG","routedTradesCount":4},{"routeId":"RTE-PRINCIPAL","routedTradesCount":3},{"routeId":"RTE-XLON","routedTradesCount":3},{"routeId":"RTE-XNAS","routedTradesCount":4},{"routeId":"RTE-XNYS","routedTradesCount":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::AA_DebtSecurityCounts
 {
     pattern: '/stress/aa_debtsecurity';
@@ -15823,6 +16233,61 @@ Service stress::AA_TimeSeriesCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"seriesId":"BRENT.M1","observationsCount":14},{"seriesId":"CPI.US.YOY","observationsCount":3},{"seriesId":"DBR.10Y","observationsCount":14},{"seriesId":"EURIBOR.3M","observationsCount":14},{"seriesId":"EURUSD","observationsCount":14},{"seriesId":"GBPUSD","observationsCount":14},{"seriesId":"HICP.EA.YOY","observationsCount":3},{"seriesId":"LME.CU3M","observationsCount":14},{"seriesId":"SOFR.ON","observationsCount":14},{"seriesId":"SPX.CLOSE","observationsCount":14},{"seriesId":"UNRATE.US","observationsCount":3},{"seriesId":"USDJPY","observationsCount":14},{"seriesId":"UST.10Y","observationsCount":14},{"seriesId":"VIX","observationsCount":14},{"seriesId":"WTI.M1","observationsCount":14},{"seriesId":"XAU.PM","observationsCount":14}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_TradeCounts
+{
+    pattern: '/stress/aa_trade';
+    documentation: 'Generated aggregate on trading::Trade: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            clearingRoutesCount:x|$x.clearingRoutes->count()
+        ])
+        ->sort(~tradeId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_TradeCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","clearingRoutesCount":2},{"tradeId":"TRD-0002","clearingRoutesCount":2},{"tradeId":"TRD-0003","clearingRoutesCount":2},{"tradeId":"TRD-0004","clearingRoutesCount":2},{"tradeId":"TRD-0005","clearingRoutesCount":2},{"tradeId":"TRD-0006","clearingRoutesCount":2},{"tradeId":"TRD-0007","clearingRoutesCount":2},{"tradeId":"TRD-0008","clearingRoutesCount":2},{"tradeId":"TRD-0009","clearingRoutesCount":2},{"tradeId":"TRD-0010","clearingRoutesCount":2},{"tradeId":"TRD-0011","clearingRoutesCount":2},{"tradeId":"TRD-0012","clearingRoutesCount":2},{"tradeId":"TRD-0013","clearingRoutesCount":2},{"tradeId":"TRD-0014","clearingRoutesCount":1},{"tradeId":"TRD-0015","clearingRoutesCount":2},{"tradeId":"TRD-0016","clearingRoutesCount":2},{"tradeId":"TRD-0017","clearingRoutesCount":2},{"tradeId":"TRD-0018","clearingRoutesCount":2},{"tradeId":"TRD-0019","clearingRoutesCount":2},{"tradeId":"TRD-0020","clearingRoutesCount":2}]';
                   }#;
               }#
           ]
@@ -55665,31 +56130,33 @@ Service stress::SP_defCurveSummaryGroup
   ]
 }
 
-Service stress::SP_defDailyPnLEmpty
+Service stress::SP_defClearedTradeEmpty
 {
-    pattern: '/stress/sp_defdailypnlempty';
-    documentation: 'Coverage-directed stack on pnl::DailyPnL (Empty), reusing the reach of D_DailyPnLDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defclearedtradeempty';
+    documentation: 'Coverage-directed stack on clearing::ClearedTrade (Empty), reusing the reach of D_ClearedTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |pnl::DailyPnL.all()
-        ->filter({x|($x.pnlId > ' ')})
+    query: |clearing::ClearedTrade.all()
+        ->filter({x|($x.clearedTradeId > ' ')})
         ->project(~[
-            pnlId:x|$x.pnlId,
-            traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
-            traderManagerDeskName:x|$x.trader.manager.desk.name,
-            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
-            pnlInQ:x|$x.pnlIn(0.5),
-            bookRollupBookCurrency:x|$x.book.rollup.book.currency,
-            hasNone:x|$x.attributions->isEmpty()
+            clearedTradeId:x|$x.clearedTradeId,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
+            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
+            tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
+            tradeSide:x|$x.trade.side,
+            tradeBrokerageTierRateFraction:x|$x.trade.brokerageTier.rateFraction,
+            tradeBrokerageTierFeeOnQ:x|$x.trade.brokerageTier.feeOn(0.5),
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            hasNone:x|$x.novationRequests->isEmpty()
         ])
-        ->sort(~pnlId->ascending())
+        ->sort(~clearedTradeId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defDailyPnLEmpty_suite:
+    SP_defClearedTradeEmpty_suite:
     {
       data:
       [
@@ -55704,7 +56171,7 @@ Service stress::SP_defDailyPnLEmpty
       ]
       tests:
       [
-        // 7 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 5 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -55717,7 +56184,79 @@ Service stress::SP_defDailyPnLEmpty
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":64200.125,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-20600.25,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":9375.0,"bookRollupBookCurrency":"EUR","hasNone":false},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":0.0,"bookRollupBookCurrency":"EUR","hasNone":true},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":201050.375,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":7950.0,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-1250.0,"bookRollupBookCurrency":null,"hasNone":true}]';
+                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null,"tradeGrossAmount":null,"hasNone":false},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeBrokerageTierRateFraction":null,"tradeBrokerageTierFeeOnQ":null,"tradeGrossAmount":null,"hasNone":false},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004,"tradeGrossAmount":190500.0,"hasNone":false},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004,"tradeGrossAmount":477500.0,"hasNone":true},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeBrokerageTierRateFraction":0.0008,"tradeBrokerageTierFeeOnQ":0.0004,"tradeGrossAmount":250000.0,"hasNone":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defTradeCount
+{
+    pattern: '/stress/sp_deftradecount';
+    documentation: 'Coverage-directed stack on trading::Trade (Count), reusing the reach of F30_TradeEverything and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.tradeId > ' ')})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            side:x|$x.side,
+            status:x|$x.status,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            sectorName:x|$x.instrument.sector.name,
+            sectorGics:x|$x.instrument.sector.gicsCode,
+            deskName:x|$x.book.desk.name,
+            deskRegion:x|$x.book.desk.region,
+            cptyCountry:x|$x.counterparty.country.name,
+            cptyRegion:x|$x.counterparty.country.region,
+            traderDesk:x|$x.trader.desk.name,
+            grossAmount:x|$x.grossAmount,
+            grossGbp:x|$x.grossAmountIn(0.79),
+            grossEur:x|$x.grossAmountIn(0.92),
+            isLarge:x|$x->stress::rules::isLargeTrade(),
+            clearingRoutesCount:x|$x.clearingRoutes->count()
+        ])
+        ->sort(~tradeId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defTradeCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","side":"BUY","status":"EXECUTED","quantity":1000.0,"price":190.5,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":190500.0,"grossGbp":150495.0,"grossEur":175260.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0002","side":"BUY","status":"EXECUTED","quantity":2500.0,"price":191.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":477500.0,"grossGbp":377225.0,"grossEur":439300.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0003","side":"BUY","status":"EXECUTED","quantity":500.0,"price":500.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Cash Equities","grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0004","side":"SELL","status":"EXECUTED","quantity":1250.0,"price":200.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Cash Equities","grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0005","side":"BUY","status":"EXECUTED","quantity":2000.0,"price":125.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0006","side":"BUY","status":"EXECUTED","quantity":800.0,"price":312.5,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":null,"grossAmount":250000.0,"grossGbp":197500.0,"grossEur":230000.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0007","side":"BUY","status":"EXECUTED","quantity":1500.0,"price":188.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":null,"cptyRegion":null,"traderDesk":"Cash Equities","grossAmount":282000.0,"grossGbp":222780.0,"grossEur":259440.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0008","side":"BUY","status":"CANCELLED","quantity":100.0,"price":189.75,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":18975.0,"grossGbp":14990.25,"grossEur":17457.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0009","side":"BUY","status":"EXECUTE","quantity":3000.0,"price":192.25,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Cash Equities","grossAmount":576750.0,"grossGbp":455632.5,"grossEur":530610.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0010","side":"BUY","status":"EXECUTED","quantity":1200.0,"price":415.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Cash Equities","grossAmount":498000.0,"grossGbp":393420.0,"grossEur":458160.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0011","side":"BUY","status":"EXECUTED","quantity":400.0,"price":418.25,"sectorName":"Information Technology","sectorGics":"45","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":null,"grossAmount":167300.0,"grossGbp":132167.0,"grossEur":153916.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0012","side":null,"status":"PENDING","quantity":900.0,"price":410.0,"sectorName":"Information Technology","sectorGics":"45","deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":369000.0,"grossGbp":291510.0,"grossEur":339480.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0013","side":"SELL","status":"EXECUTED","quantity":25000.0,"price":6.85,"sectorName":"Financials","sectorGics":"40","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":171250.0,"grossGbp":135287.5,"grossEur":157550.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0014","side":"BUY","status":"EXECUTED","quantity":10000.0,"price":6.9,"sectorName":"Financials","sectorGics":"40","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Japan","cptyRegion":"APAC","traderDesk":"Equity Derivatives","grossAmount":69000.0,"grossGbp":54510.0,"grossEur":63480.0,"isLarge":false,"clearingRoutesCount":1},{"tradeId":"TRD-0015","side":"BUY","status":"SETTLED","quantity":5000.0,"price":7.0,"sectorName":"Financials","sectorGics":"40","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":35000.0,"grossGbp":27650.0,"grossEur":32200.0,"isLarge":false,"clearingRoutesCount":2},{"tradeId":"TRD-0016","side":"BUY","status":"EXECUTED","quantity":1500.0,"price":176.4,"sectorName":"Health Care","sectorGics":"35","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Germany","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":264600.0,"grossGbp":209034.0,"grossEur":243432.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0017","side":"SELL","status":"EXECUTED","quantity":2200.0,"price":175.0,"sectorName":"Health Care","sectorGics":"35","deskName":"Cash Equities","deskRegion":"Americas","cptyCountry":"Japan","cptyRegion":"APAC","traderDesk":"Equity Derivatives","grossAmount":385000.0,"grossGbp":304150.0,"grossEur":354200.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0018","side":"BUY","status":"EXECUTED","quantity":5000000.0,"price":0.9825,"sectorName":null,"sectorGics":null,"deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":4912500.0,"grossGbp":3880875.0,"grossEur":4519500.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0019","side":"BUY","status":"EXECUTED","quantity":2000000.0,"price":0.98,"sectorName":null,"sectorGics":null,"deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United States","cptyRegion":"Americas","traderDesk":"Equity Derivatives","grossAmount":1960000.0,"grossGbp":1548400.0,"grossEur":1803200.0,"isLarge":true,"clearingRoutesCount":2},{"tradeId":"TRD-0020","side":"BUY","status":"REJECTED","quantity":1000000.0,"price":0.975,"sectorName":null,"sectorGics":null,"deskName":"Equity Derivatives","deskRegion":"EMEA","cptyCountry":"United Kingdom","cptyRegion":"EMEA","traderDesk":"Equity Derivatives","grossAmount":975000.0,"grossGbp":770250.0,"grossEur":897000.0,"isLarge":true,"clearingRoutesCount":2}]';
                   }#;
               }#
           ]
@@ -55777,6 +56316,68 @@ Service stress::SP_defYieldCurveEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"curveId":"EUR.DBR.GOVT","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"EUR.ESTR.OIS","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"EUR.EURIBOR.6M","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"GBP.SONIA.OIS","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"hasNone":false},{"curveId":"JPY.TONA.OIS","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"hasNone":false},{"curveId":"USD.LIBOR.3M","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"hasNone":false},{"curveId":"USD.SOFR.OIS","benchmarkSeriesCurrency":"USD","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"USD.UST.GOVT","benchmarkSeriesCurrency":"USD","benchmarkSeriesIsDaily":true,"hasNone":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defDailyPnLEmpty
+{
+    pattern: '/stress/sp_defdailypnlempty';
+    documentation: 'Coverage-directed stack on pnl::DailyPnL (Empty), reusing the reach of D_DailyPnLDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |pnl::DailyPnL.all()
+        ->filter({x|($x.pnlId > ' ')})
+        ->project(~[
+            pnlId:x|$x.pnlId,
+            traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
+            traderManagerDeskName:x|$x.trader.manager.desk.name,
+            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
+            pnlInQ:x|$x.pnlIn(0.5),
+            bookRollupBookCurrency:x|$x.book.rollup.book.currency,
+            hasNone:x|$x.attributions->isEmpty()
+        ])
+        ->sort(~pnlId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defDailyPnLEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":64200.125,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-20600.25,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":9375.0,"bookRollupBookCurrency":"EUR","hasNone":false},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":0.0,"bookRollupBookCurrency":"EUR","hasNone":true},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":201050.375,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":7950.0,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-1250.0,"bookRollupBookCurrency":null,"hasNone":true}]';
                   }#;
               }#
           ]
@@ -55915,70 +56516,6 @@ Service stress::SP_defHistTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defDebtSecurityCount
-{
-    pattern: '/stress/sp_defdebtsecuritycount';
-    documentation: 'Coverage-directed stack on fixedincome::DebtSecurity (Count), reusing the reach of FI0_SecurityTerms and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |fixedincome::DebtSecurity.all()
-        ->filter({x|($x.securityId > ' ')})
-        ->project(~[
-            securityId:x|$x.securityId,
-            description:x|$x.description,
-            issuerName:x|$x.issuerName,
-            currency:x|$x.currency,
-            couponRate:x|$x.couponRate,
-            maturityDate:x|$x.maturityDate,
-            annualCoupon:x|$x.annualCoupon,
-            annualCouponGbp:x|$x.annualCouponIn(0.79),
-            couponPeriodsCount:x|$x.couponPeriods->count()
-        ])
-        ->sort(~securityId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defDebtSecurityCount_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"securityId":"DE000A289N78","description":"Siemens 0.375% 2027","issuerName":"Siemens AG","currency":"EUR","couponRate":0.375,"maturityDate":"2027-06-05","annualCoupon":3.75,"annualCouponGbp":2.9625000000000004,"couponPeriodsCount":7},{"securityId":"US037833DX90","description":"Apple Inc 2.05% 2026","issuerName":"Apple Inc","currency":"USD","couponRate":2.05,"maturityDate":"2026-09-11","annualCoupon":20.5,"annualCouponGbp":16.195,"couponPeriodsCount":12},{"securityId":"US912810TM08","description":"US Treasury Bond 2.375% 2049","issuerName":"United States Treasury","currency":"USD","couponRate":2.375,"maturityDate":"2049-05-31","annualCoupon":23.75,"annualCouponGbp":18.7625,"couponPeriodsCount":60},{"securityId":"US912828YY08","description":"US Treasury Note 1.75% 2029","issuerName":"United States Treasury","currency":"USD","couponRate":1.75,"maturityDate":"2029-11-30","annualCoupon":17.5,"annualCouponGbp":13.825000000000001,"couponPeriodsCount":20},{"securityId":"XS1002801758","description":"Barclays 8.0% Perpetual AT1","issuerName":"Barclays plc","currency":"USD","couponRate":8.0,"maturityDate":null,"annualCoupon":80.0,"annualCouponGbp":63.2,"couponPeriodsCount":20},{"securityId":"XS2056430215","description":"HSBC Holdings 3.0% 2030","issuerName":"HSBC Holdings plc","currency":"GBP","couponRate":3.0,"maturityDate":"2030-09-20","annualCoupon":30.0,"annualCouponGbp":23.700000000000003,"couponPeriodsCount":11}]';
                   }#;
               }#
           ]
@@ -56383,68 +56920,6 @@ Service stress::SP_defTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defBookCount
-{
-    pattern: '/stress/sp_defbookcount';
-    documentation: 'Coverage-directed stack on positions::Book (Count), reusing the reach of D_BookDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |positions::Book.all()
-        ->filter({x|($x.bookId > ' ')})
-        ->project(~[
-            bookId:x|$x.bookId,
-            rollupBookRollupBookId:x|$x.rollup.book.rollup.bookId,
-            rollupBookDeskName:x|$x.rollup.book.desk.name,
-            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
-            rollupBookCurrency:x|$x.rollup.book.currency,
-            deskBusinessUnitName:x|$x.desk.businessUnit.name,
-            positionsCount:x|$x.positions->count()
-        ])
-        ->sort(~bookId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defBookCount_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"bookId":"BK-CASH-EU","rollupBookRollupBookId":"BK-CASH-EU","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"EUR","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-LEGACY","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":null,"deskBusinessUnitName":null,"positionsCount":1},{"bookId":"BK-VOL-01","rollupBookRollupBookId":"BK-VOL-01","rollupBookDeskName":"Equity Derivatives","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":1}]';
                   }#;
               }#
           ]
@@ -56912,69 +57387,6 @@ Service stress::SP_defCurveSummaryGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.34,"lowestRate":3.96,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.34,"lowestRate":3.98,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.6,"lowestRate":4.21,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.59,"lowestRate":4.23,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.66,"lowestRate":2.5,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.65,"lowestRate":2.47,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.79,"lowestRate":2.73,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.78,"lowestRate":2.7,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.19,"lowestRate":3.55,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.19,"lowestRate":3.58,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":1.87,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":1.96,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.42,"lowestRate":4.29,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.43,"lowestRate":4.26,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.61,"lowestRate":2.51,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.6,"lowestRate":2.46,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defClearedTradeEmpty
-{
-    pattern: '/stress/sp_defclearedtradeempty';
-    documentation: 'Coverage-directed stack on clearing::ClearedTrade (Empty), reusing the reach of D_ClearedTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |clearing::ClearedTrade.all()
-        ->filter({x|($x.clearedTradeId > ' ')})
-        ->project(~[
-            clearedTradeId:x|$x.clearedTradeId,
-            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
-            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
-            tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
-            tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5),
-            hasNone:x|$x.novationRequests->isEmpty()
-        ])
-        ->sort(~clearedTradeId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defClearedTradeEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0,"hasNone":false},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0,"hasNone":true},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0,"hasNone":true}]';
                   }#;
               }#
           ]

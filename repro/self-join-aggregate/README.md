@@ -1,4 +1,4 @@
-# Two defects in aggregates over a `{target}` self-join
+# Two defects in aggregates over joins that are not key lookups
 
 A self-join relates a table to itself through a condition rather than a foreign key:
 
@@ -7,7 +7,7 @@ A self-join relates a table to itself through a condition rather than a foreign 
 It is how you express "the next pillar out the curve", "this trader's reports", "orders ahead
 of this one in the book". Six rows in three groups are enough to show both problems.
 
-## F51 — `isEmpty()` duplicates the source row
+## F51 — `isEmpty()` duplicates the source row over any non-key join
 
     ->project(~[id: x|$x.id, noneAbove: x|$x.above->isEmpty()])
 
@@ -19,14 +19,23 @@ Every boolean is correct. That is what makes it hard to see: the failure present
 duplicate rows, so it reads like a data problem rather than a query one, and on a fan-out of
 one it does not present at all.
 
-Two controls narrow it:
+Four cases place the boundary:
 
-* `->count()` over the identical end returns **six** rows. So it is `isEmpty`, not aggregates.
-* `->isEmpty()` over a to-many to a **different** table returns **six** rows. So it is the
-  self-join, not `isEmpty`.
+| join | `isEmpty()` |
+| --- | --- |
+| `T.ID = K.PARENT_ID` — key equality, different tables | **correct** |
+| `T.GRP = {target}.GRP and T.ID <> {target}.ID` — self, equality | duplicates |
+| `T.GRP = {target}.GRP and T.RNK < {target}.RNK` — self, inequality | duplicates |
+| `T.ID = TAG.FOR_ID or T.GRP = TAG.FOR_GRP` — different tables, disjunction | duplicates |
 
-It is not the inequality either: the same duplication happens over
-`T.GRP = {target}.GRP and T.ID <> {target}.ID`, which is an equality self-join.
+It is any join whose condition is not a single key equality. Not self-ness, and not the
+inequality — this was first written up as a self-join defect on the strength of the first
+three rows, and the fourth arrived from the corpus afterwards: a generated emptiness service
+over `trading::Trade` picked up a routing association matched on venue *or* product and
+returned every trade twice.
+
+`->count()` over the identical end returns **six** rows, so it is `isEmpty` specifically
+rather than aggregates in general.
 
 ## F52 — both ends of the association return the same set
 
@@ -61,7 +70,8 @@ is why `CV3_PillarNeighbours` filters out the longest pillar rather than asking 
       FAIL    IneqIsEmpty          6 rows expected, 7 returned
       FAIL    IneqCount            6 rows expected, 6 returned     (F6: values, not rows)
       FAIL    EqIsEmpty                                            (F51 without an inequality)
-      PASS    ChildIsEmpty                                         (the control)
+      PASS    ChildIsEmpty                                         (the control: a key equality)
+      FAIL    OrJoinIsEmpty        6 rows expected, 7 returned     (F51 without a self-join)
       FAIL    TwoIneqIsEmpty                                       (F52)
 
 In the corpus proper: `stress::CV3_PillarNeighbours` covers the construct in the form that

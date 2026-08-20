@@ -1666,9 +1666,101 @@ def _curve_specs():
 CURVES = _curve_specs()
 
 
+def _brokerage_specs():
+    """The two joins that are not key lookups, next to everything a trade carries.
+
+    A range join and a disjunction were the corpus's two most isolated constructs -- 20 and 21
+    uncovered pairs apiece -- because both lived only on curve pillars, a class with a
+    composite key and little else. From a trade they meet the enum transformer, the join
+    chains, the qualified properties and the cross-domain navigations that make trading::Trade
+    the densest class in the model.
+    """
+    out = []
+
+    # The range join, with the tier's own derived and qualified properties, and the trade's
+    # enum-mapped side beside them so the two constructs share a row.
+    tiered = Spec("stress::BK0_TieredBrokerage", "/stress/bk0",
+                  "Each trade with the brokerage tier its notional falls into, reached by a "
+                  "RANGE join -- `notional >= min and notional < max`, with no key to join "
+                  "on and none possible, because the band is a property of the amount. All "
+                  "four bands are occupied and the largest holds one trade, which is the "
+                  "band an open upper edge gets wrong first.",
+                  "trading::Trade")
+    tiered.projections = [Proj("tradeId", ["tradeId"]),
+                          Proj("notional", ["notional"]),
+                          Proj("side", ["side"]),
+                          Proj("tierId", ["brokerageTier", "tierId"]),
+                          Proj("tierName", ["brokerageTier", "tierName"]),
+                          Proj("bpsRate", ["brokerageTier", "bpsRate"]),
+                          Proj("minimumFee", ["brokerageTier", "minimumFee"])]
+    tiered.sort = ("tradeId", False)
+    out.append(tiered)
+
+    # The same range join reached the other way -- from the tier down to its trades -- with
+    # the tier's derived rate and its qualified fee. A to-many count over a range join, which
+    # nothing had asked for.
+    bands = Spec("stress::BK1_BrokerageBands", "/stress/bk1",
+                 "Each brokerage band, how many trades fall in it, the rate as a fraction "
+                 "rather than in basis points, and what the band would charge on a million. "
+                 "The count is over a RANGE join, so a band with no trades in it would be "
+                 "the F6 case -- all four are occupied, deliberately.",
+                 "brokerage::BrokerageTier")
+    bands.projections = [Proj("tierId", ["tierId"]),
+                         Proj("tierName", ["tierName"]),
+                         Proj("minNotional", ["minNotional"]),
+                         Proj("maxNotional", ["maxNotional"]),
+                         Proj("rateFraction", ["rateFraction"]),
+                         Proj("feeOnMillion", ["feeOn"], args=[1000000.0]),
+                         Proj("tradesInBand", ["tieredTrades"], agg="count")]
+    bands.sort = ("tierId", False)
+    out.append(bands)
+
+    # The disjunction. Asked as a count because it is genuinely to-many -- an unqualified
+    # `or` says "every rule that applies", not "the venue rule if there is one" -- and every
+    # trade matches at least one rule, so the F6 empty case does not arise.
+    routed = Spec("stress::BK2_ClearingRoutes", "/stress/bk2",
+                  "How many clearing rules each trade matches, over a join that matches on "
+                  "venue OR on product. Most trades match two -- their venue's rule and "
+                  "their product's -- and the one executed on a lower-case venue code "
+                  "matches only its product's, the comparison being case sensitive. A "
+                  "routing table really does return every applicable rule; choosing between "
+                  "them is a precedence the join cannot express.",
+                  "trading::Trade")
+    routed.projections = [Proj("tradeId", ["tradeId"]),
+                          Proj("venue", ["executionVenue"]),
+                          Proj("tradeType", ["tradeType"]),
+                          Proj("notional", ["notional"]),
+                          Proj("matchingRules", ["clearingRoutes"], agg="count")]
+    routed.sort = ("tradeId", False)
+    out.append(routed)
+
+    # The route table from the other side: which trades each rule catches, and the two kinds
+    # of rule side by side with their null halves visible.
+    rules = Spec("stress::BK3_RoutingRules", "/stress/bk3",
+                 "The routing table itself. A venue rule carries no product and a product "
+                 "rule carries no venue, so exactly one of the two columns is null on every "
+                 "row -- which is what makes the `or` behind BK2 a real disjunction rather "
+                 "than two conditions that happen to agree.",
+                 "brokerage::ClearingRoute")
+    rules.projections = [Proj("routeId", ["routeId"]),
+                         Proj("venueCode", ["venueCode"]),
+                         Proj("productCode", ["productCode"]),
+                         Proj("clearingHouse", ["clearingHouse"]),
+                         Proj("settlementCycle", ["settlementCycle"]),
+                         Proj("isNetted", ["isNetted"]),
+                         Proj("tradesRouted", ["routedTrades"], agg="count")]
+    rules.sort = ("routeId", False)
+    out.append(rules)
+
+    return out
+
+
+BROKERAGE = _brokerage_specs()
+
+
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

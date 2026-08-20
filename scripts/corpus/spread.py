@@ -295,9 +295,15 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
     # the MODEL, and a narrow mapping need not map it. Taking it from c.ends and handing it to
     # InlineFlatMapping is the third time this exact mistake has failed the suite, so the
     # guard now sits on every place that reaches past the template.
+    # And not over a join the planner cannot index on. F51: `isEmpty()` over a to-many whose
+    # join is anything other than a single key equality returns the source row once per joined
+    # row. tomany.py excludes the same shape; this generator reached the REVERSE end of the
+    # same `or` join and produced the identical failure one commit later, which is why the
+    # guard belongs on both rather than on whichever one failed first.
     default_map = getattr(t, "mapping", None) in (None, executed.DEFAULT_MAPPING)
     tm_end = next((prop for (cls_, prop), end in c.ends.items()
-                   if cls_ == root and end.to_many), None) if default_map else None
+                   if cls_ == root and end.to_many and _key_joined(c, root, prop)),
+                  None) if default_map else None
     if tm_end:
         add("Empty", projections=enriched() + [Proj("hasNone", [tm_end], agg="isEmpty")],
             filters=filt, sort=(ident, False), limit=25)
@@ -349,6 +355,20 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
         if len(tree) > 1 and all(isinstance(v, (dict, type(None))) for v in tree.values()):
             add("Graph", graph=tree)
     return out
+
+
+def _key_joined(c, root: str, prop: str) -> bool:
+    """True if every hop to `prop` is a single key equality the planner can index on.
+
+    A general condition -- an inequality, a disjunction, a multi-column predicate, a {target}
+    self-join -- records its columns as empty strings in this reader, which is exactly what
+    "no key" looks like here.
+    """
+    try:
+        hops, _t = c.resolve_assoc(root, [prop])
+    except Exception:
+        return False
+    return bool(hops) and all(fcol for _j, _ft, fcol, _tt, _tc in hops)
 
 
 def _score(feats: set[str], pairs: set, triples: set) -> float:

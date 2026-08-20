@@ -1,5 +1,5 @@
 """
-An aggregate over a to-many end reached by a NON-EQUALITY join.
+An aggregate over a to-many end reached by a join that is not a key lookup.
 
 `CV3_PillarNeighbours` asks, for each curve pillar, whether anything on the same curve and
 date sits further out. The association behind it is a `{target}` self-join with three
@@ -21,7 +21,12 @@ are three different defects:
   * one count, over the same
   * one isEmpty, over an EQUALITY self-join on the same table
   * two isEmpty, over the two directions of the inequality join
-  * one isEmpty, over an inequality join to a DIFFERENT table
+  * one isEmpty, over a KEY EQUALITY to a different table -- the control
+  * one isEmpty, over a DISJUNCTION between two different tables
+
+That last case is what places the boundary, and it was added after the first write-up called
+this a self-join defect on the strength of the cases above it. It is not: it is any join
+whose condition is not a single key equality.
 
 Expectations are computed from the six seeded rows below and never read back from the engine.
 """
@@ -64,6 +69,15 @@ def _kids(i):
     return [k for k in KIDS if k[1] == i]
 
 
+# Matched on the row's own id OR on its group: the same disjunction shape a routing table
+# has, between two different tables.
+TAGS = [("T1", "R1", "z"), ("T2", "zz", "a"), ("T3", "zzz", "b")]
+
+
+def _tags(i, g):
+    return [t for t in TAGS if t[1] == i or t[2] == g]
+
+
 def cases() -> list[tuple[str, str, list]]:
     ident = [{"id": i} for i, _g, _r in ROWS]
 
@@ -86,6 +100,13 @@ def cases() -> list[tuple[str, str, list]]:
         ("ChildIsEmpty",
          "->project(~[id: x|$x.id, noKids: x|$x.kids->isEmpty()])",
          rows(lambda i, g, r: {"noKids": not _kids(i)})),
+        # A to-many to a DIFFERENT table, but reached by a general condition rather than a
+        # key equality. This is the case that decides whether the defect is about SELF-joins
+        # or about non-key join conditions -- and it arrived from the corpus, where an `or`
+        # join between two different tables duplicated exactly like the self-joins do.
+        ("OrJoinIsEmpty",
+         "->project(~[id: x|$x.id, noTags: x|$x.tags->isEmpty()])",
+         rows(lambda i, g, r: {"noTags": not _tags(i, g)})),
         ("TwoIneqIsEmpty",
          "->project(~[id: x|$x.id, noneAbove: x|$x.above->isEmpty(), "
          "noneBelow: x|$x.below->isEmpty()])",
@@ -126,13 +147,29 @@ Association ineq::Kids
    kids: ineq::K[*];
 }
 
+Class ineq::Tag
+{
+   tag: String[1];
+   forId: String[1];
+   forGrp: String[1];
+}
+
+Association ineq::Tags
+{
+   tagged: ineq::P[*];
+   tags: ineq::Tag[*];
+}
+
 ###Relational
 Database ineq::DB
 (
    Table T ( ID VARCHAR(10) PRIMARY KEY, GRP VARCHAR(10), RNK INTEGER )
    Table K ( KID VARCHAR(10) PRIMARY KEY, PARENT_ID VARCHAR(10) )
+   Table TAG ( TAG VARCHAR(10) PRIMARY KEY, FOR_ID VARCHAR(10), FOR_GRP VARCHAR(10) )
 
    Join T_Kids(T.ID = K.PARENT_ID)
+   // Two DIFFERENT tables, matched on either axis. Not a self-join, and not a key.
+   Join T_Tags(T.ID = TAG.FOR_ID or T.GRP = TAG.FOR_GRP)
 
    // Same group, higher rank. An INEQUALITY over a {target} self-join.
    Join T_Above(T.GRP = {target}.GRP and T.RNK < {target}.RNK)
@@ -178,6 +215,24 @@ Mapping ineq::M
       )
    }
 
+   ineq::Tag[tag]: Relational
+   {
+      ~primaryKey ( [ineq::DB]TAG.TAG )
+      ~mainTable [ineq::DB]TAG
+      tag: [ineq::DB]TAG.TAG,
+      forId: [ineq::DB]TAG.FOR_ID,
+      forGrp: [ineq::DB]TAG.FOR_GRP
+   }
+
+   ineq::Tags: Relational
+   {
+      AssociationMapping
+      (
+         tags[p, tag]: [ineq::DB]@T_Tags,
+         tagged[tag, p]: [ineq::DB]@T_Tags
+      )
+   }
+
    ineq::Peers: Relational
    {
       AssociationMapping
@@ -214,6 +269,11 @@ Data ineq::Seed
       'K1,R1\\n' +
       'K2,R1\\n' +
       'K3,R2\\n';
+    default.TAG:
+      'TAG,FOR_ID,FOR_GRP\\n' +
+      'T1,R1,z\\n' +
+      'T2,zz,a\\n' +
+      'T3,zzz,b\\n';
   }#
 }
 

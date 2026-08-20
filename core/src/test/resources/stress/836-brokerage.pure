@@ -1,0 +1,112 @@
+###Pure
+// Brokerage tiers and clearing routes: two joins that are not key lookups.
+//
+// A brokerage schedule is TIERED. Which rate a trade pays depends on which notional band it
+// falls in, and there is no key to join on -- the band is a property of the amount. The join
+// is `notional >= min and notional < max`, and a range join is the shape every fee, margin,
+// haircut and capital schedule in a bank actually has.
+//
+// A clearing route is matched on EITHER axis. Some products clear the same way wherever they
+// trade and some venues clear everything the same way, so a routing table holds both kinds of
+// rule and a trade matches on venue OR on product. The disjunction is the table's purpose.
+//
+// Both hang off trading::Trade deliberately. The two constructs previously existed only on
+// curve pillars, which carry a composite key and little else; from a trade they combine with
+// the enum transformer, the Otherwise and Inline mappings, the embedded mapping, the
+// cross-store link and the deepest join chains in the corpus.
+Class brokerage::BrokerageTier
+{
+   tierId: String[1];
+   tierName: String[1];
+   minNotional: Float[1];
+   maxNotional: Float[1];
+   bpsRate: Float[1];
+   minimumFee: Float[1];
+
+   // The rate as a decimal fraction rather than in basis points, which is the form a fee
+   // calculation multiplies by.
+   rateFraction() { $this.bpsRate / 10000.0 } : Float[1];
+   // A qualified property: what this tier charges on a notional the caller supplies, before
+   // the minimum is applied.
+   feeOn(notional: Float[1]) { $notional * $this.bpsRate / 10000.0 } : Float[1];
+}
+
+Class brokerage::ClearingRoute
+{
+   routeId: String[1];
+   // Exactly one of these two is set. A venue rule has no product and a product rule has no
+   // venue, which is what makes the join a real disjunction.
+   venueCode: String[0..1];
+   productCode: String[0..1];
+   clearingHouse: String[1];
+   settlementCycle: String[1];
+   isNetted: Boolean[1];
+}
+
+// The tier a trade's notional falls in. A RANGE join: no key, and the association is to-one
+// because the bands do not overlap.
+Association brokerage::TradeBrokerage
+{
+   tieredTrades: trading::Trade[*];
+   brokerageTier: brokerage::BrokerageTier[0..1];
+}
+
+// The routes a trade clears through, matched on its venue OR on its product.
+//
+// TO-MANY, and that is the honest reading rather than a concession. An unqualified `or`
+// cannot say "the venue rule if there is one, otherwise the product rule" -- it says "every
+// rule that applies", so a trade on a venue with a rule AND a product with a rule matches
+// both. Real routing tables behave exactly this way and resolve the ambiguity with a
+// precedence rule the join cannot express. The trade executed on 'xnas' matches no venue
+// rule at all, the codes being case sensitive, and reaches a route through its product.
+Association brokerage::TradeClearing
+{
+   routedTrades: trading::Trade[*];
+   clearingRoutes: brokerage::ClearingRoute[*];
+}
+
+###Mapping
+Mapping brokerage::BrokerageMapping
+(
+   brokerage::BrokerageTier: Relational
+   {
+      ~primaryKey ( [store::DB]BROKERAGE_TIER.TIER_ID )
+      ~mainTable [store::DB]BROKERAGE_TIER
+      tierId: [store::DB]BROKERAGE_TIER.TIER_ID,
+      tierName: [store::DB]BROKERAGE_TIER.TIER_NAME,
+      minNotional: [store::DB]BROKERAGE_TIER.MIN_NOTIONAL,
+      maxNotional: [store::DB]BROKERAGE_TIER.MAX_NOTIONAL,
+      bpsRate: [store::DB]BROKERAGE_TIER.BPS_RATE,
+      minimumFee: [store::DB]BROKERAGE_TIER.MINIMUM_FEE
+   }
+
+   brokerage::ClearingRoute: Relational
+   {
+      ~primaryKey ( [store::DB]CLEARING_ROUTE.ROUTE_ID )
+      ~mainTable [store::DB]CLEARING_ROUTE
+      routeId: [store::DB]CLEARING_ROUTE.ROUTE_ID,
+      venueCode: [store::DB]CLEARING_ROUTE.VENUE_CODE,
+      productCode: [store::DB]CLEARING_ROUTE.PRODUCT_CODE,
+      clearingHouse: [store::DB]CLEARING_ROUTE.CLEARING_HOUSE,
+      settlementCycle: [store::DB]CLEARING_ROUTE.SETTLEMENT_CYCLE,
+      isNetted: [store::DB]CLEARING_ROUTE.IS_NETTED
+   }
+
+   brokerage::TradeBrokerage: Relational
+   {
+      AssociationMapping
+      (
+         brokerageTier: [store::DB]@Trade_BrokerageTier,
+         tieredTrades: [store::DB]@Trade_BrokerageTier
+      )
+   }
+
+   brokerage::TradeClearing: Relational
+   {
+      AssociationMapping
+      (
+         clearingRoutes: [store::DB]@Trade_ClearingRoute,
+         routedTrades: [store::DB]@Trade_ClearingRoute
+      )
+   }
+)

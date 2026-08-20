@@ -1629,7 +1629,7 @@ one, and it is the case that fails.
 
 Repro: `repro/derived-boolean-equals-literal/`, `scripts/corpus/probe_derived_filter.py`.
 
-## F51 — `isEmpty()` over a to-many SELF-join returns one row per joined row
+## F51 — `isEmpty()` over a to-many reached by a NON-KEY join returns one row per joined row
 
     Join T_Above(T.GRP = {target}.GRP and T.RNK < {target}.RNK)
 
@@ -1643,14 +1643,30 @@ Every boolean is correct, which is what makes this expensive to find. It present
 duplicate rows rather than as a wrong answer, so it reads like a data-quality problem; and on
 a fan-out of one it does not present at all.
 
-Two controls narrow it to the self-join specifically:
+**Corrected.** This was first reported as a defect in SELF-joins, on the evidence of two
+self-joins that showed it and one plain foreign-key association that did not. That was the
+wrong boundary drawn from the wrong controls. An `or` join between two DIFFERENT tables --
 
-* `->count()` over the identical end returns six rows. Not aggregates in general.
-* `->isEmpty()` over a to-many to a DIFFERENT table returns six rows. Not `isEmpty` in
-  general.
+    Join T_Tags(T.ID = TAG.FOR_ID or T.GRP = TAG.FOR_GRP)
 
-Nor is it the inequality: an equality self-join (`T.GRP = {target}.GRP and T.ID <>
-{target}.ID`) duplicates identically.
+-- duplicates identically. The corpus found this itself, three commits later: a generated
+emptiness service over `trading::Trade` picked up a routing association matched on venue or
+product and returned every trade twice.
+
+The line is between a join the planner can index on and one it must evaluate row by row:
+
+| join | `isEmpty()` |
+| --- | --- |
+| `T.ID = K.PARENT_ID` (key equality, different tables) | correct |
+| `T.GRP = {target}.GRP and T.ID <> {target}.ID` (self, equality) | duplicates |
+| `T.GRP = {target}.GRP and T.RNK < {target}.RNK` (self, inequality) | duplicates |
+| `T.ID = TAG.FOR_ID or T.GRP = TAG.FOR_GRP` (different tables, disjunction) | duplicates |
+
+So it is any join whose condition is not a single key equality. Neither self-ness nor
+inequality is the discriminator.
+
+`->count()` over the identical end returns six rows, so it is `isEmpty` specifically rather
+than aggregates in general.
 
 Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
 

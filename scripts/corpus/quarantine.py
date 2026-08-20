@@ -43,13 +43,15 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 ENGINE_QUARANTINE["stress::MD7_UnrevisedPrintsEq"] = (
     "F50", "derived Boolean == boolean literal in a filter generates invalid SQL")
 
-# F51: `isEmpty()` over a to-many end reached by a SELF-join returns the source row once per
-# joined row. The booleans are all correct, so the failure looks like a duplicate-row problem
-# rather than an aggregation one. `count()` over the identical end does NOT duplicate, and
-# `isEmpty()` over a to-many to a DIFFERENT table does not either -- the probe separates all
-# three.
+# F51: `isEmpty()` over a to-many end whose join is not a single key equality returns the
+# source row once per joined row. The booleans are all correct, so it looks like a
+# duplicate-row problem rather than an aggregation one. `count()` over the identical end does
+# NOT duplicate, and `isEmpty()` over a plain foreign-key association does not either.
+#
+# First scoped to SELF-joins, which was too narrow: an `or` join between two different tables
+# duplicates the same way. The probe carries the case that showed it.
 ENGINE_QUARANTINE["stress::CV6_PillarEmptiness"] = (
-    "F51", "isEmpty() over a to-many self-join returns one row per joined row")
+    "F51", "isEmpty() over a to-many reached by a non-key join returns one row per joined row")
 
 # F52: both ends of a {target} self-join return the same set. `shorterPillars` and
 # `longerPillars` are opposite directions of one inequality and the engine answers the
