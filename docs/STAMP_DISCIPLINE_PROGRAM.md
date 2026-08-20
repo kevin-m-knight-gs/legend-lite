@@ -189,3 +189,29 @@ operands were column reads — unknowable, never counted); the win is
 architectural: one type-lie helper gone, the C2 provenance channel now
 EXISTS and is exercised, and Substitution's pre-existing CORRELATION
 mints now get verbatim equality (engine @join semantics) uniformly.
+
+## C5 ADJUDICATED (2026-08-21): instrument frame-conflation, not a code lie
+
+The one MANY-STAMP/SCALAR-SHAPE event ($result.values.active →
+u_map__active, testGet): the [0..*] stamp describes the pure COLLECTION
+value; the scalar Cast is the PER-ROW lowering frame of the same read
+inside a projection. Both are correct in their own frame — the census
+fires because it compares across frames. Refinement queued: the
+invariant flip must carry frame awareness (per-row lambda contexts
+compare the ELEMENT stamp, not the collection stamp) before census-zero
+is meaningful. No code change.
+
+## Union leg decomposition (2026-08-21, from reading the 7 UnionSynthesis sites)
+
+The protocol-level toOnes are NOT carry-and-merge: their own comments
+say "toOne types both threads identically (real read vs NULL cast);
+lowering is erasure" — they are TYPE-ALIGNMENT shims making union-arm
+projection columns unify at [1]. The honest form is [0..1] alignment via
+multiplicity SUBSUMPTION ([1] ⊆ [0..1] — the checker's LUB), deleting
+the shims; separately, the C2 census's union events (toOne(x_pk) over
+list-collecting reads) live in the RESOLVER's union navigation reads,
+where the honest form is [*]-stamped reads + the explicit merge-by-join-
+name operation. Both pieces = the union arm-factory redesign leg
+(RELATIONAL_FEATURE_MAP), now census-guided. Remaining program order:
+arm-factory (C2-union + C3 ride along) → C1 literals → frame-aware
+invariant flip → sniffer deletion.
