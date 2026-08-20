@@ -385,9 +385,30 @@ public sealed interface Type permits
          * guessed. Null = no static/template match (each caller owns
          * its fallback: the egress decodes the SQL type, the deferred
          * resolver walls). */
-        public @com.legend.Nullable Type pivotColumnType(String name) {
+        /** ENGINE-VERBATIM presentation (pureToSQLQuery.pure:2985
+         * mayQuotePivotColNames): a column name containing the pivot
+         * separator that is not already quote-wrapped presents WITH
+         * literal single quotes as part of the NAME — the physical SQL
+         * column stays bare (Fold.pivotIdentity is the reference-side
+         * inverse). */
+        public static String presentPivotName(String physical) {
+            return physical.contains(PIVOT_SEPARATOR)
+                    && !(physical.startsWith("'") && physical.endsWith("'"))
+                    ? "'" + physical + "'"
+                    : physical;
+        }
+
+        public @com.legend.Nullable Type pivotColumnType(String rawName) {
+            // quote-tolerant: the PRESENTED name carries literal quotes
+            // (presentPivotName); matching runs on the bare spelling
+            String name = rawName.length() >= 2 && rawName.startsWith("'")
+                    && rawName.endsWith("'")
+                    && rawName.contains(PIVOT_SEPARATOR)
+                    ? rawName.substring(1, rawName.length() - 1)
+                    : rawName;
             var byName = columns().stream()
-                    .filter(c -> c.name().equals(name)).findFirst();
+                    .filter(c -> c.name().equals(name)
+                            || c.name().equals(rawName)).findFirst();
             if (byName.isPresent()) {
                 return byName.get().type();
             }

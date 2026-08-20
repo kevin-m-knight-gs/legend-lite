@@ -243,15 +243,58 @@ public final class ChannelB {
                             instanceof com.legend.protocol.spec.CString ln
                     && lf.parameters().get(1) instanceof LambdaFunction lam
                     && lam.parameters().isEmpty()
-                    && lam.body().size() == 1) {
+                    && !lam.body().isEmpty()) {
                 lets.put(ln.value(), lam);
             }
         }
+        // MULTI-STATEMENT named lambdas ({| let t1=...; expr}): the
+        // identity application HOISTS the leading statements into the
+        // enclosing body before the first statement that evals the
+        // lambda, and the eval site splices the LAST statement (the
+        // relation suite's dominant shape — 51 rows). Hoist once per
+        // lambda; a name collision with an enclosing let would be a
+        // source bug the compile then reports.
+        java.util.Set<String> hoisted = new java.util.HashSet<>();
         List<ValueSpecification> out = new ArrayList<>(body.size());
         for (ValueSpecification stmt : body) {
+            for (String var : evalledVars(stmt, fParam, lets)) {
+                LambdaFunction lam = lets.get(var);
+                if (lam.body().size() > 1 && hoisted.add(var)) {
+                    for (int i = 0; i < lam.body().size() - 1; i++) {
+                        out.add(rewrite(lam.body().get(i), fParam, lets));
+                    }
+                }
+            }
             out.add(rewrite(stmt, fParam, lets));
         }
         return out;
+    }
+
+    /** The let-bound zero-param lambda names this statement applies the
+     * adapter to ({@code $f->eval($var)}), in first-use order. */
+    private static List<String> evalledVars(ValueSpecification n,
+            String fParam, java.util.Map<String, LambdaFunction> lets) {
+        List<String> found = new ArrayList<>();
+        collectEvalledVars(n, fParam, lets, found);
+        return found;
+    }
+
+    private static void collectEvalledVars(ValueSpecification n,
+            String fParam, java.util.Map<String, LambdaFunction> lets,
+            List<String> found) {
+        if (n instanceof AppliedFunction af
+                && simpleName(af.function()).equals("eval")
+                && af.parameters().size() == 2
+                && af.parameters().get(0) instanceof Variable v
+                && v.name().equals(fParam)
+                && af.parameters().get(1) instanceof Variable ev
+                && lets.containsKey(ev.name())
+                && !found.contains(ev.name())) {
+            found.add(ev.name());
+        }
+        for (ValueSpecification k : n.children()) {
+            collectEvalledVars(k, fParam, lets, found);
+        }
     }
 
     private static ValueSpecification rewrite(ValueSpecification n,
@@ -273,7 +316,11 @@ public final class ChannelB {
                 && v.name().equals(fParam)
                 && af2.parameters().get(1) instanceof Variable ev
                 && lets.containsKey(ev.name())) {
-            return rewrite(lets.get(ev.name()).body().get(0), fParam, lets);
+            // single-statement: the body IS the value; multi-statement:
+            // the leading lets were HOISTED (eliminateAdapter) — splice
+            // the last statement
+            List<ValueSpecification> lb = lets.get(ev.name()).body();
+            return rewrite(lb.get(lb.size() - 1), fParam, lets);
         }
         // any surviving reference to the adapter param is a shape we
         // do not run — decline WITH the offending call's spelling, so

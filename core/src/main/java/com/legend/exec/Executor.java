@@ -591,7 +591,11 @@ public final class Executor {
             // only for schemas rebuilt downstream of the pivot, where the
             // templates no longer ride.
             for (int i = 1; i <= n; i++) {
-                String name = rs.getMetaData().getColumnName(i);
+                // ENGINE presentation: a separator-bearing pivot name
+                // presents quote-wrapped (Type.RelationType
+                // .presentPivotName — the physical SQL column stays bare)
+                String name = Type.RelationType.presentPivotName(
+                        rs.getMetaData().getColumnName(i));
                 String sqlType = rs.getMetaData().getColumnTypeName(i);
                 columns.add(new Column(name, pivotColumnType(schema, name, sqlType)));
             }

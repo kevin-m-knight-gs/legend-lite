@@ -2017,38 +2017,10 @@ public final class Lowerer {
                     k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
                             : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
-        return new Over(parts, keys, over.frame().map(Lowerer::sqlFrame).orElse(null));
+        return new Over(parts, keys, over.frame().map(Windows::sqlFrame).orElse(null));
     }
 
-    /** The checker-classified frame, mapped 1:1 to the SQL IR shape. */
-    private static SqlExpr.WindowCall.Frame sqlFrame(
-            com.legend.compiler.spec.typed.WindowFrame f) {
-        return new SqlExpr.WindowCall.Frame(
-                f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS
-                        ? SqlExpr.WindowCall.Frame.Kind.ROWS
-                        : SqlExpr.WindowCall.Frame.Kind.RANGE,
-                sqlBound(f.from()), sqlBound(f.to()));
-    }
 
-    private static SqlExpr.WindowCall.Frame.Bound sqlBound(
-            com.legend.compiler.spec.typed.WindowFrame.Bound b) {
-        return switch (b) {
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
-                    new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
-                    new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
-                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
-                    new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->
-                    new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(ip.n(), ip.unit());
-            case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalFollowing ifo ->
-                    new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(ifo.n(), ifo.unit());
-        };
-    }
 
     /**
      * Whether a write destination reaches a PHYSICAL store table. A

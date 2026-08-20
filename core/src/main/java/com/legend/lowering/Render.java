@@ -424,17 +424,24 @@ public final class Render {
         String wrapAlias = d.alias() + "_c";
         List<SqlSelect.Projection> projs = new ArrayList<>();
         List<Type.Column> relCols = new ArrayList<>();
+        List<OutputCol> presentedOuts = new ArrayList<>();
         for (OutputCol oc : probed) {
+            // ENGINE presentation: quote-wrap separator-bearing pivot
+            // names (the REFERENCE stays physical — the projection
+            // reads the bare SQL column, labeled with the presented name)
+            String presented = Type.RelationType.presentPivotName(oc.name());
             projs.add(new SqlSelect.Projection(
-                    new SqlExpr.Column(wrapAlias, oc.name()), oc.name()));
-            Type t = colType.apply(oc.name());
-            relCols.add(new Type.Column(oc.name(), t,
+                    new SqlExpr.Column(wrapAlias, oc.name()), presented));
+            Type t = colType.apply(presented);
+            relCols.add(new Type.Column(presented, t,
                     com.legend.compiler.element.type.Multiplicity
                             .Bounded.ZERO_ONE));
+            presentedOuts.add(new OutputCol(presented, oc.type(),
+                    oc.nullable()));
         }
         SqlSelect concrete = SqlSelect.starOf(
                         new SqlSource.Subselect(d.inner(), wrapAlias, null))
-                .withProjections(projs, probed);
+                .withProjections(projs, presentedOuts);
         // ROW ORDER: an ordered inner keeps plain-column keys on the
         // wrapper so tdsString's hoist sees them; anything else stays
         // loud in the hoist itself.

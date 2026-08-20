@@ -730,10 +730,14 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                 .anyMatch(c -> c.name().contains("__|__" + suffix));
     }
 
-    /** Finds column index by exact name. */
+    /** Finds column index by exact name (the engine PRESENTATION of a
+     * pivot name — quotes as part of the name — matches too). */
     private int columnIndex(ExecutionResult result, String name) {
+        String presented = com.legend.compiler.element.type.Type
+                .RelationType.presentPivotName(name);
         for (int i = 0; i < result.columns().size(); i++) {
-            if (name.equals(result.columns().get(i).name())) return i;
+            String c = result.columns().get(i).name();
+            if (name.equals(c) || presented.equals(c)) return i;
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());
@@ -753,7 +757,11 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
      */
     private void assertPivotValue(ExecutionResult result, Row row,
                                    String pivotValue, String aggAlias, int expected) {
-        String colName = pivotValue + "__|__" + aggAlias;
+        // ENGINE presentation (pureToSQLQuery.pure:2985, re-pinned
+        // 2026-08-19): separator-bearing pivot names carry literal
+        // quotes as part of the NAME
+        String colName = com.legend.compiler.element.type.Type.RelationType
+                .presentPivotName(pivotValue + "__|__" + aggAlias);
         int idx = -1;
         for (int i = 0; i < result.columns().size(); i++) {
             if (result.columns().get(i).name().equals(colName)) {

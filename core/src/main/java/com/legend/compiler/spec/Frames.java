@@ -57,18 +57,13 @@ final class Frames {
             return new WindowFrame(WindowFrame.Kind.RANGE, from, to);
         }
         boolean rows = Pure.nativeNamed("rows", call.callee().signatureKey());
-        // LITERAL bounds validate here: a start beyond the end (2 FOLLOWING
-        // .. 1 FOLLOWING; 1 FOLLOWING .. 1 PRECEDING) is a COMPILE error,
-        // never bad SQL (PCT: invalid window frame boundary).
-        Number from = numericBound(call.args().get(0));
-        Number to = numericBound(call.args().get(1));
-        if (from != null && to != null && from.doubleValue() > to.doubleValue()) {
-            // Real rows()/_range() assert text verbatim (PCT message parity).
-            throw new ModelException(
-                    LegendCompileException.Phase.TYPE,
-                    "Invalid window frame boundary - lower bound of window frame"
-                            + " cannot be greater than the upper bound!");
-        }
+        // Bound VALIDATION moved to the LOWERING (Lowerer.sqlFrame):
+        // interpreted pure and the engine's relational executor both
+        // raise the invalid-boundary error LAZILY at eval (spec witness
+        // testRows/Range_InvalidWindowFrameBoundary passes through
+        // assertError) — lowering-time keeps "never bad SQL" (a bad
+        // frame still never renders) while staying observable to the
+        // deferred-body catch (the timeBucket precedent).
         return new WindowFrame(
                 rows ? WindowFrame.Kind.ROWS : WindowFrame.Kind.RANGE,
                 bound(call.args().get(0), true), bound(call.args().get(1), false));

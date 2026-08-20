@@ -113,7 +113,9 @@ class ExecutorTest {
         // their NAMES come from the result set, their TYPES from the schema's
         // aggregate template (never SQL-type sniffing).
         List<String> names = t.columns().stream().map(Column::name).toList();
-        assertEquals(List.of("YR", "NYC__|__total", "SF__|__total"), names);
+        // engine presentation: pivot names carry their quotes
+        assertEquals(List.of("YR", "'NYC__|__total'", "'SF__|__total'"),
+                names);
         assertEquals(Type.Primitive.INTEGER, t.columns().get(0).pureType());
         assertEquals(Type.Primitive.INTEGER, t.columns().get(1).pureType(),
                 "the sum template's Pure type rides the dynamic column");

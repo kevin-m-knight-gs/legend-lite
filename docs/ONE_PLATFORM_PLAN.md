@@ -566,6 +566,26 @@ too-strict wall on downstream-rebuilt schemas before it landed). Relation
 **PASS=217/287, TRUE 22→19**. StatementExecutor 2695→2724 justified (probe
 plumbing, not evaluation). Referee byte-identical; core 4166; ALLGATES GREEN.
 
+*BURN QUEUE SLICE 7 (2026-08-19 — the three-front slice):* (1) the window-frame
+guard moved TYPE→LOWERING (the timeBucket precedent: both reference channels
+observe the invalid-boundary error LAZILY at eval; "never bad SQL" holds since
+lowering precedes rendering) — the frame cluster extracted to Windows when the
+shape guard flagged Lowerer at 3,521 lines; frame pair burned. (2) the
+MULTI-STATEMENT lambda hoist ({| let t1=...; expr}): the identity application
+hoists the leading statements into the enclosing body and splices the last —
+ALL 51 relation declines eliminated (46 passed immediately; declines hide,
+measurements name). (3) the ENGINE-VERBATIM pivot-name presentation rule
+(pureToSQLQuery.pure:2985 mayQuotePivotColNames): a separator-bearing pivot
+name carries its literal quotes AS PART OF THE NAME — applied at the egress,
+the deferred-TDS resolver, and the TDS-literal header parse (Fold.pivotIdentity
+was already the reference-side inverse); five unit pins consciously re-pinned
+to the engine convention. Relation **PASS=278/287 (TRUE 9)**. Channel-B totals:
+**988/1,050, TRUE census 49→10, ZERO relation declines**. A mid-flight lesson
+recorded: a killed gates SCRIPT leaves its mvn child running — one concurrent-
+G4 artifact read as an 18-test regression until the scoped re-run proved
+23/23 (never pkill broad patterns; stop tasks by id). Referee byte-identical;
+core 4166; ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

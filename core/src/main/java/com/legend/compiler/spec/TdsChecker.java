@@ -58,6 +58,14 @@ final class TdsChecker {
             String c = cell.strip();
             int colon = c.indexOf(':');
             String name = colon > 0 ? c.substring(0, colon).strip() : c;
+            // ENGINE presentation (pureToSQLQuery.pure:2985): a
+            // separator-bearing pivot-shaped header presents with its
+            // literal quotes as part of the NAME — splitCells stripped
+            // the source quotes; re-present so a TDS-literal expectation
+            // names pivot columns exactly like the pivot output does
+            // (witness testPivot_MultipleSingle's assertTdsEquivalent)
+            name = com.legend.compiler.element.type.Type.RelationType
+                    .presentPivotName(name);
             if (names.contains(name)) {
                 throw new SchemaInvariantException("duplicate column '" + name + "' in TDS header");
             }
