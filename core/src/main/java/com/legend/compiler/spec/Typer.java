@@ -1940,7 +1940,17 @@ final class Typer {
         List<Type.Param> scopeParams = new ArrayList<>();
         for (int i = 0; i < lam.parameters().size(); i++) {
             Type paramType = kernel.resolve(ftype.params().get(i).type(), b);   // T -> the solved element type
+            // C4 (STAMP_DISCIPLINE_PROGRAM): the TYPE resolves through
+            // the binding but the MULTIPLICITY was taken RAW from the
+            // signature — a Var("m") flowed into the lambda scope and
+            // survived to lowering (37 census events: sort comparators'
+            // y, fold accumulators). Resolve when bound; a var still
+            // OPEN here (bound only by the body's result) stays, and the
+            // census keeps counting it.
             Multiplicity paramMult = ftype.params().get(i).multiplicity();
+            if (paramMult instanceof Multiplicity.Var mv) {
+                paramMult = b.mult(mv.name()).orElse(paramMult);
+            }
             Variable pv = lam.parameters().get(i);
             // a SOURCE annotation refines a signature-side Any (real pure:
             // the declared annotation is authoritative for the lambda's

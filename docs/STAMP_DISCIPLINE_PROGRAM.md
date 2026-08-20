@@ -48,9 +48,14 @@ Unique patterns: ~13 corpus + ~13 PCT — the worklist is FINITE and small.
 
 ## Fix order (each slice: fix cause-class → census shrinks → gates → pin)
 
-1. **C4 first** (cleanest, smallest, purest compiler bug): concretize
-   multiplicity variables at instantiation/substitution — a `Var` stamp
-   reaching lowering becomes a LOUD error once fixed.
+1. **C4 — CLOSED (2026-08-20, one line)**: the lambda-parameter seam
+   resolved the TYPE through the kernel binding but took the
+   MULTIPLICITY raw from the signature (Typer lambda-scope build) —
+   `Var("m")` flowed into scope for sort comparators and fold
+   accumulators. Fix: resolve through the binding when bound (a var
+   still OPEN there stays, and the census keeps counting it). Census
+   37 → 0; core 4166/0; all five PCT suites unchanged. PCT census
+   304 → 267 (all remaining = C1/C3).
 2. **C2/C3** (one seam): `toOne`/value-collection lowerings emit the
    explicit unwrap (or re-stamp) at the count-change point instead of
    passing the list through under a scalar stamp.
