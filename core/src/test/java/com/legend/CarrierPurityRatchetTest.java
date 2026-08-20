@@ -63,7 +63,16 @@ class CarrierPurityRatchetTest {
             // conformance markers whose list downstream consumes;
             // STAMP_DISCIPLINE_PROGRAM records the provenance-split
             // design that replaces the blanket emission.)
-            "SqlFn\\.LIST_", 137,
+            // 137→139 (2026-08-20 stamp endgame): ListShapes.
+            // checkedExtract — the CHECKED toOne over a definite
+            // list-producing CALL (LIST_LENGTH guard + LIST_GET), the
+            // agg-strip's semantics spelled directly. UNLIKE the
+            // reverted blanket unwrap this landed corpus-green with the
+            // ledger byte-identical (the synthesized-conformance
+            // operands it would have broken were healed first — C2c +
+            // frame-honest stamps); the checked-narrowing SEMANTIC NODE
+            // (guard-emission design) re-absorbs both sites when built.
+            "SqlFn\\.LIST_", 139,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

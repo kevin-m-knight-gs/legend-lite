@@ -382,3 +382,48 @@ the same relation-value carrier; List<T> instance carrier 7 + struct
 ctor 10 + empty sort/reverse 4 = designed carriers for the flip's
 (stamp, carrier) table, NOT code lies.
 
+## CENSUS ZERO + INVARIANT FLIPPED (2026-08-20 — the program's goal state)
+
+The resultSourcing 54 dissected with a one-shot funnel stack trace:
+NOT synthesized conformance — USER-written `Firm.all()->toOne()` in
+query LETS (the AlloyOnly resultSourcing family), lowered at the
+query-let seam. C2 class (a): the CHECKED EXTRACT
+(ListShapes.checkedExtract — len>1 raises pure's "Cannot cast a
+collection of size N to multiplicity [1]", 1 extracts, 0/NULL flows
+NULL) — the agg-strip's exact semantics for definite LIST-PRODUCING
+CALL operands. UNLIKE the reverted blanket unwrap this landed
+corpus-green ledger-byte-identical: the synthesized operands the
+blanket broke were healed FIRST (C2c + frames). The conformToOne
+partition leg is thereby RETIRED UNBUILT — after the producer fixes,
+zero synthesized ride-throughs remained countable. Carrier ratchet
+LIST_ 137→139 (justified in-file; the checked-narrowing semantic node
+re-absorbs both sites when built).
+
+Last code lie: sort/reverse over <=1-stamped operands minted list
+carriers ("stamps are unreliable here" — the rule's own comment);
+stamp-read identity arms replace the sniff ([0..0] included: the
+isToOne helper is upper==1 EXACTLY and missed empties).
+
+**DESIGNED (stamp, carrier) TABLE** encoded in the instrument (each
+row an adjudication, not a suppression): (1) RELATION-typed nodes —
+the scalar stamp describes the relation VALUE, the collect SQL its
+row-collection carrier; (2) TypedNewInstance + ArrayLit — the
+struct/canonical-layout carrier; (3) platform List<T> — one OBJECT
+carried as the SQL array; (4) many-stamped property reads with scalar
+SQL — the per-row frame (C5). With the table: corpus census 0, PCT
+census 0.
+
+**FLIPPED**: StampCensus.check now THROWS on any provable lie —
+always on, no env gate (LL_STAMP_COUNT=1 downgrades to the print
+census for measurement sweeps). Full gates chain GREEN with the
+throwing invariant live (core 4166 exercises lowerings no corpus test
+reaches). The type system can no longer lie silently.
+
+**NEXT (the deletion leg)**: the compensation the invariant obsoletes —
+ListShapes' runtime shape-sniffing arms, the ~29 isToOne consumer
+guards, the ArrayLit-escape hatches in the reduction rules (fix the
+minus runtime-size-1 residue at rebuild), each deletion gated by the
+live invariant + full chain. Then canonical-render byte-compare
+verdicts (parked-until-zero: UNPARKED), then the burn-downs (corpus
+243 rows, PCT ~25 reducible).
+

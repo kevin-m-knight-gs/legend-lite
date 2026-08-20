@@ -78,6 +78,28 @@ final class ListShapes {
                 ss.outputs()));
     }
 
+    /** The CHECKED toOne extract over a definite list value — the
+     * agg-strip's semantics spelled directly (>1 raises with pure's
+     * message, 1 yields the element, 0/NULL flows NULL — the
+     * engine-noOp empty the corpus pins). */
+    static SqlExpr checkedExtract(SqlExpr list) {
+        SqlExpr len = SqlExpr.Call.of(SqlFn.LIST_LENGTH, list);
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER, len,
+                                new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.ERROR,
+                                SqlExpr.Call.of(SqlFn.CONCAT,
+                                        new SqlExpr.StringLit(
+                                                "Cannot cast a collection of size "),
+                                        new SqlExpr.Cast(len,
+                                                com.legend.sql.SqlType.Scalar.VARCHAR),
+                                        new SqlExpr.StringLit(
+                                                " to multiplicity [1]"))))),
+                SqlExpr.Call.of(SqlFn.LIST_GET, list,
+                        new SqlExpr.IntLit(1)));
+    }
+
     /** The value is DEFINITELY list-shaped at SQL level. */
     static boolean listShaped(SqlExpr e) {
         return e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit

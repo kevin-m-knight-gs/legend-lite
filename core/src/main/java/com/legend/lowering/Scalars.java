@@ -399,10 +399,21 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toOne")) {
             // AGG-STRIP (stamp C2): a LIST-collecting subquery operand
             // becomes the NATIVE scalar subquery — SQL's own checked
-            // toOne. Everything else rides through (engine processNoOp).
+            // toOne (>1 raises, 0 -> NULL). A definite LIST-PRODUCING
+            // CALL operand (list_filter over a json extent — the USER
+            // toOne witnesses, resultSourcing) takes the SAME semantics
+            // spelled directly: checked extract. Everything else rides
+            // through (engine processNoOp).
             RULES.put(f, (n, args) -> {
                 SqlExpr stripped = ListShapes.aggStrip(args.get(0));
-                return stripped != null ? stripped : args.get(0);
+                if (stripped != null) {
+                    return stripped;
+                }
+                if (args.get(0) instanceof SqlExpr.Call lc
+                        && ListShapes.LIST_PRODUCERS.contains(lc.fn())) {
+                    return ListShapes.checkedExtract(args.get(0));
+                }
+                return args.get(0);
             });
         }
         // toOneMany narrows [*] to [1..*] — the same value-wise no-op.
@@ -929,6 +940,16 @@ final class Scalars {
         // index second, so equal keys stay stable — then unwraps.
         for (String f : Pure.nativeKeysAt("sort")) {
             RULES.put(f, (n, args) -> {
+                // STAMP-READ identity (stamp program): sort over a
+                // scalar-stamped operand (<=1 values, [0..0] INCLUDED —
+                // sort([]) is []) IS the operand, whatever the
+                // comparator — no list carrier minted.
+                if (n.args().get(0).info().multiplicity()
+                                instanceof Multiplicity.Bounded sb
+                        && sb.upper() != null && sb.upper() <= 1
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                    return args.get(0);
+                }
                 if (n.args().size() == 1) {
                     MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                     if (mx != null) {
@@ -1763,7 +1784,12 @@ final class Scalars {
         }
         // reverse(T[*]): the list reversed; a to-one value is its own reverse.
         for (String f : Pure.nativeKeysAt("reverse")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+            // <=1 values ([0..0] included) reverse to themselves.
+            RULES.put(f, (n, args) -> n.args().get(0).info().multiplicity()
+                            instanceof Multiplicity.Bounded rb
+                            && rb.upper() != null && rb.upper() <= 1
+                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
+                    ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_REVERSE, args));
         }
         // type(x): real pure returns THE Type instance ('Integer', not

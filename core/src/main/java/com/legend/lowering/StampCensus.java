@@ -19,22 +19,27 @@ import com.legend.sql.SqlType;
  * definite mismatch. The census this produces is the worklist for the
  * stamp-discipline fix ({@code ListShapes}' own header documents the
  * defect this measures: "pure multiplicity stamps are unreliable after
- * substitution"); once stamps are enforced-true, this instrument becomes
- * the permanent post-lowering INVARIANT and the shape-sniffing dies.
+ * substitution").
  *
- * <p>MEASUREMENT ONLY — never changes behavior; env-gated
- * ({@code LL_STAMP_COUNT=1}); conservative by construction: only
- * PROVABLE shapes count (a definite list value under a to-one stamp; a
- * definite scalar literal under a many stamp). Unknowable shapes
- * (column reads, opaque calls) are never reported — absence of a line
- * is not proof of health, presence IS proof of a lie.
+ * <p>FLIPPED TO THE INVARIANT (2026-08-20, census zero on the full
+ * corpus AND all five PCT suites): a provable stamp/shape lie now
+ * THROWS at the funnel — always on, build-breaking. {@code
+ * LL_STAMP_COUNT=1} downgrades to the original print-and-continue
+ * census mode for measurement sweeps. Conservative by construction:
+ * only PROVABLE shapes fire (a definite list value under a to-one
+ * stamp; a definite scalar literal under a many stamp) and the
+ * DESIGNED (stamp, carrier) table below names every adjudicated
+ * convention. Unknowable shapes (column reads, opaque calls) never
+ * fire — absence is not proof of health, but firing IS proof of a lie.
  */
 public final class StampCensus {
 
     private StampCensus() {
     }
 
-    private static final boolean ON =
+    /** Census mode: print-and-continue (measurement sweeps). Without
+     * it the invariant THROWS — the permanent build-breaking check. */
+    private static final boolean COUNT_MODE =
             System.getenv("LL_STAMP_COUNT") != null;
 
     /** The test/query currently compiling — set by harness runners so a
@@ -47,15 +52,12 @@ public final class StampCensus {
     /** The scalar-funnel hook: spec's stamp vs the lowered expression's
      * provable shape. */
     static void check(TypedSpec spec, SqlExpr e) {
-        if (!ON) {
-            return;
-        }
         Multiplicity m = spec.info().multiplicity();
         if (!(m instanceof Multiplicity.Bounded b)) {
             // a VARIABLE stamp surviving to lowering is its own finding —
             // lowering should only ever see concrete bounds
-            System.err.println("[stamp] VAR-STAMP-AT-LOWERING "
-                    + digest(spec) + " test=" + CONTEXT.get());
+            fire("VAR-STAMP-AT-LOWERING " + digest(spec)
+                    + " test=" + CONTEXT.get());
             return;
         }
         boolean scalarStamp = b.upper() != null && b.upper() <= 1;
@@ -66,19 +68,59 @@ public final class StampCensus {
         if (e instanceof SqlExpr.NullLit) {
             return;
         }
+        // DESIGNED (stamp, carrier) pairs — the FRAME-AWARE table (the
+        // invariant flip's contract; each row is an ADJUDICATED carrier
+        // convention, never a lie):
+        // 1. A RELATION-typed node's scalar stamp describes the relation
+        //    VALUE (one relation); the LIST/collect SQL is its designed
+        //    row-collection carrier (TDS distinct/sort heads).
+        // 2. An INSTANCE ctor's scalar stamp describes one instance; the
+        //    ArrayLit is the struct/canonical-layout carrier
+        //    (STRUCT_VALUES design).
+        // 3. A platform List<T> object is ONE value carried as the SQL
+        //    array (list() — engine List semantics).
+        // 4. A MANY-stamped property read with scalar SQL is the PER-ROW
+        //    frame of the same read (C5 adjudication: the collection
+        //    stamp describes the pure value, the scalar Cast the row
+        //    frame — both true in their own frame).
+        if (spec.info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType) {
+            return;
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                && e instanceof SqlExpr.ArrayLit) {
+            return;
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(spec.info().type())) {
+            return;
+        }
+        if (!scalarStamp && spec instanceof TypedPropertyAccess) {
+            return;
+        }
         if (scalarStamp && ListShapes.listShaped(e)) {
-            System.err.println("[stamp] ONE-STAMP/LIST-SHAPE mult=["
-                    + b.lower() + ".." + b.upper() + "] sql="
-                    + e.getClass().getSimpleName() + " " + digest(spec)
-                    + " test=" + CONTEXT.get());
+            fire("ONE-STAMP/LIST-SHAPE mult=[" + b.lower() + ".."
+                    + b.upper() + "] sql=" + e.getClass().getSimpleName()
+                    + " " + digest(spec) + " test=" + CONTEXT.get());
             return;
         }
         if (!scalarStamp && definitelyScalar(e)) {
-            System.err.println("[stamp] MANY-STAMP/SCALAR-SHAPE mult=["
-                    + b.lower() + ".." + (b.upper() == null ? "*" : b.upper())
-                    + "] sql=" + e.getClass().getSimpleName() + " "
-                    + digest(spec) + " test=" + CONTEXT.get());
+            fire("MANY-STAMP/SCALAR-SHAPE mult=[" + b.lower() + ".."
+                    + (b.upper() == null ? "*" : b.upper()) + "] sql="
+                    + e.getClass().getSimpleName() + " " + digest(spec)
+                    + " test=" + CONTEXT.get());
         }
+    }
+
+    /** Count mode prints; invariant mode THROWS — a provable stamp lie
+     * is a compiler bug, never a value to compute with. */
+    private static void fire(String line) {
+        if (COUNT_MODE) {
+            System.err.println("[stamp] " + line);
+            return;
+        }
+        throw new IllegalStateException(
+                "MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program,"
+                + " docs/STAMP_DISCIPLINE_PROGRAM.md): " + line);
     }
 
     /** PROVABLY a single scalar value — literals and scalar-typed casts
