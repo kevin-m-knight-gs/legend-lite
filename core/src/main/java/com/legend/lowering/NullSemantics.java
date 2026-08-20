@@ -124,6 +124,12 @@ final class NullSemantics {
         return () -> VERBATIM_EQ.set(prev);
     }
 
+    /** The no-op scope (a conditional try-with-resources' other arm). */
+    static Scope keep() {
+        return () -> {
+        };
+    }
+
     static SqlExpr equalNullArms(
             com.legend.compiler.spec.typed.TypedNativeCall n,
             java.util.List<SqlExpr> ops) {

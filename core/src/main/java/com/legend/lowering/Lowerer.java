@@ -1262,8 +1262,17 @@ public final class Lowerer {
         // the PREDICATE lowers in filter position (NullSemantics
         // null-safe equal arm — engine callingFromFilter); the SOURCE
         // above lowered OUTSIDE the boundary (its join conditions keep
-        // bare equality — a null-safe join key would match null rows)
-        try (var ignored = NullSemantics.enterFilter()) {
+        // bare equality — a null-safe join key would match null rows).
+        // A CORRELATION-stamped filter is the resolver's mapping-join
+        // condition: its equalities lower VERBATIM '=' (engine @join
+        // semantics — NULL keys never match), via the same scope the
+        // synthesized-join channel uses; the ThreadLocal covers nested
+        // lambdas (the two-join exists construct). Replaces the deleted
+        // toOneJoinEquals fake-[1] wraps (C2, STAMP_DISCIPLINE_PROGRAM).
+        try (var ignored = NullSemantics.enterFilter();
+                var ignoredV = f.stamp() == TypedFilter.Stamp.CORRELATION
+                        ? NullSemantics.enterVerbatimEquality()
+                        : NullSemantics.keep()) {
         if (tryPredicate(src, f.predicate()) instanceof Resolution.Resolved r) {
             predicate = r.expr();
         } else if (src.groupBy().isEmpty()) {

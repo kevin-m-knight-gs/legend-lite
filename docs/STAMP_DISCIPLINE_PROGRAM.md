@@ -163,3 +163,29 @@ upstream interpreted-vs-relational family, same as index-base.
   data-single filters, not provably-single; they wait on the
   synthesis/producer legs), but the SHAPES the provable rule touches
   are now honest and 11 more SQL texts byte-match engine goldens.
+
+## toOneJoinEquals DELETED (2026-08-20 night — the type-lie side-channel replaced by honest provenance)
+
+The fake-[1] toOne wraps on correlation-equality operands (8 call sites,
+not 3 — the first grep truncated) existed only to defeat the null-safe
+equality arm. Replaced wholesale:
+- The correlation mints stamp their filters `TypedFilter.Stamp.CORRELATION`
+  (the enum already existed for WHERE-conjunct order — provenance and
+  ordering now share one honest channel).
+- `Lowerer.filter` enters the verbatim-equality scope on that stamp; the
+  ThreadLocal covers nested lambdas, so the two-join EXISTS construct
+  inherits it without restructuring the exists-chooser.
+- The two-join midRel MIXED user + correlation conjuncts in one filter —
+  split into LAYERED filters (user layer NONE under a CORRELATION layer;
+  the Substitution membership idiom), preserving the per-conjunct
+  precision the old wraps had.
+- toOneJoinEquals, isOptional, toOneFn deleted. (One deletion mishap —
+  a slice swallowed two adjacent methods — was caught by the compiler
+  and restored from git surgically.)
+
+Full corpus exit 0 first measurement; h2 320/632/0-diverged identical;
+core 4166/0; PCT five suites unchanged. Census unchanged (the wraps'
+operands were column reads — unknowable, never counted); the win is
+architectural: one type-lie helper gone, the C2 provenance channel now
+EXISTS and is exercised, and Substitution's pre-existing CORRELATION
+mints now get verbatim equality (engine @join semantics) uniformly.
