@@ -267,23 +267,43 @@ DERIVED = ("   // Notional per unit of risk score -- the crude size-versus-dange
            "   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];")
 
 
+# Three rows per seeded type, not one.
+#
+# One row per type made every subtype service a single-row query: the ~filter was still
+# tested -- a broken one returns the whole table and the projected discriminator says so --
+# but nothing about counting, ordering, grouping or fan-out was. 75% of the classes in this
+# corpus that returned anything returned exactly one row.
+#
+# Three is the smallest number that makes a sort observable (a middle element can be
+# misplaced), an aggregate non-trivial, and a partial filter distinguishable from a total
+# one. The three differ in book, notional, currency, date, status and risk score, so a
+# group-by has something to group and a max something to choose between.
+PER_TYPE = 3
+
+
 def rows(items, prefix):
-    """Two rows in three. The third of the subtypes with no rows is the point."""
+    """Two types in three are seeded; each of those gets PER_TYPE rows.
+
+    The third of the subtypes with no rows at all is deliberate and stays: an empty result
+    is only correct if the filter works, and it is the sharpest test of one.
+    """
+    BOOKS = ["BK-EQ", "BK-RATES", "BK-CREDIT", "BK-FX", "BK-COMMOD"]
+    CCY = ["USD", "EUR", "GBP", "JPY", "CHF"]
+    STATUS = ["LIVE", "MATURED", "TERMINATED", "PENDING"]
     out = []
     for i, (code, _n, _d) in enumerate(items):
         if i % 3 == 2:
             continue
-        out.append(
-            f'    dict(RECORD_ID="{prefix}-{i + 1:05d}", RECORD_TYPE="{code}",\n'
-            f'         BOOK_ID="BK-{["EQ", "RATES", "CREDIT"][i % 3]}", '
-            f'NOTIONAL={(1 + i) * 1250000.00},\n'
-            f'         CURRENCY="{["USD", "EUR", "GBP", "JPY"][i % 4]}", '
-            f'TRADE_DATE=_iso(2024, 6, {3 + i % 18}),\n'
-            f'         MATURITY_DATE='
-            f'{f"_iso(202{5 + i % 4}, {1 + i % 12}, {1 + i % 27})" if i % 4 else None},\n'
-            f'         STATUS="{["LIVE", "LIVE", "MATURED", "TERMINATED"][i % 4]}", '
-            f'IS_ACTIVE={i % 4 < 2},\n'
-            f'         RISK_SCORE={round(1.25 + i * 0.75, 2)}),')
+        for j in range(PER_TYPE):
+            n = i * PER_TYPE + j
+            out.append(
+                f'    dict(RECORD_ID="{prefix}-{n + 1:05d}", RECORD_TYPE="{code}",\n'
+                f'         BOOK_ID="{BOOKS[n % 5]}", NOTIONAL={(1 + n) * 1250000.00},\n'
+                f'         CURRENCY="{CCY[n % 5]}", TRADE_DATE=_iso(2024, {1 + n % 6}, {1 + n % 27}),\n'
+                f'         MATURITY_DATE='
+                f'{f"_iso(202{5 + n % 4}, {1 + n % 12}, {1 + n % 27})" if n % 4 else None},\n'
+                f'         STATUS="{STATUS[n % 4]}", IS_ACTIVE={n % 4 < 2},\n'
+                f'         RISK_SCORE={round(1.25 + n * 0.25, 2)}),')
     return "\n".join(out)
 
 
