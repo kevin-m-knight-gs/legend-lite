@@ -427,3 +427,37 @@ live invariant + full chain. Then canonical-render byte-compare
 verdicts (parked-until-zero: UNPARKED), then the burn-downs (corpus
 243 rows, PCT ~25 reducible).
 
+## DELETION LEG slices 1–4 (2026-08-20, invariant-gated)
+
+- Slice 1 (4a627f81): the reduction rules' !(ArrayLit) escapes —
+  and/or/plus/times/minus dead by type argument (to-one Number/Boolean
+  carries no designed ArrayLit; anything else throws at the funnel);
+  sort/reverse escapes deleted for the STRONGER reason: for the one
+  carrier that can arrive (a to-one List<T> OBJECT), the identity arm
+  IS pure semantics and the escape picked the wrong arm.
+- Slice 2 (f6305c7a): 15 more identity-arm guards family-wide —
+  sum/average/median/mode, first/head/last/at/list/removeDuplicates/
+  tail/init, corr/covar side-wraps. Scalars ArrayLit sites 24→8; every
+  survivor is a STRUCTURAL literal pattern-match, not stamp
+  compensation.
+- Slice 3 (bd1e9ab1): listArg/concatSide/asList wrap BY STAMP — the
+  ArrayLit passthrough flattened designed to-one carriers into
+  enclosing lists (wrong pure semantics), NULL-as-empty stays.
+- Slice 4: makeString wrap-by-stamp RE-MEASURED under the live
+  invariant — the h2 floor caught it again (320→301) but for a NEW
+  reason: stamps are true now, and the stamped wrap emits list forms
+  the H2 DIALECT cannot render ("LIST_SUM reached a dialect without a
+  list encoding"). Reverted with the finding recorded in-code: the
+  blocker is DIALECT CAPABILITY (h2 list encodings — the
+  single-compiler/dialect-strategies leg), not stamp distrust.
+
+**ListShapes end state ruled**: the file DISSOLVES — its founding
+thesis is dead (header rewritten). The shape provers
+(listShaped/definitelyScalar/listValuedSubquery) become StampCensus's
+private evidence procedures; aggStrip/checkedExtract fold into the
+checked-narrowing semantic node when built; the stamp-read wrap
+helpers move to their consumers. THREE surviving frame dispatches
+(ScalarStats reducer-vs-list, sort's per-row-frame wrap, the IN
+variant harmonization) are designed-pair-#4 residue — they delete when
+lowering carries explicit frame context, not before.
+

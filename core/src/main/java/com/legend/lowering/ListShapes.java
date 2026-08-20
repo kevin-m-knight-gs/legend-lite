@@ -11,12 +11,20 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * List-position ENCODING policy (one owner): pure multiplicity stamps are
- * unreliable after substitution (many-stamped reads stay scalar; values
- * readers return lists from to-one-stamped subqueries), so list-position
- * consumers decide by the SQL VALUE SHAPE — and scalar encodings wrap as
- * singletons, with SQL NULL carrying pure's EMPTY ({@code []}, never
- * {@code [NULL]}).
+ * List-position ENCODING policy (one owner). HISTORY: this file's
+ * founding thesis — "stamps are unreliable after substitution, so
+ * consumers decide by SQL value shape" — is DEAD (stamp program,
+ * 2026-08-20): stamps are enforced-true by the always-on StampCensus
+ * invariant, the wrap policies read STAMPS, and the consumer-side
+ * shape sniffs are deleted. What remains here: the shape PROVERS
+ * (listShaped/definitelyScalar/listValuedSubquery — the invariant's
+ * own evidence procedures, plus the two measured wrap-by-proof
+ * holdouts whose blocker is H2 dialect capability, not stamp
+ * distrust), the checked-toOne emissions (aggStrip/checkedExtract),
+ * and the stamp-read wrap helpers. END STATE: provers fold into
+ * StampCensus, emissions into the checked-narrowing semantic node,
+ * and this file dissolves. SQL NULL carries pure's EMPTY ({@code []},
+ * never {@code [NULL]}) throughout.
  */
 final class ListShapes {
 

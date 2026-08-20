@@ -846,10 +846,16 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 SqlExpr sep = args.size() == 2 ? args.get(1)
                         : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
-                // LIST position: wrap ONLY the provably-scalar value
-                // (C2-i's plain scalar subquery included) — unknowable
-                // shapes stay unwrapped (the unconditional asList wrap
-                // collapsed 129 tests out of the h2 compare; measured)
+                // LIST position: wrap-by-PROOF — MEASURED twice. The
+                // wrap-by-stamp conversion was RE-TRIED under the live
+                // invariant (deletion leg, 2026-08-20) and the h2 floor
+                // caught it again (320→301) — but for a DIFFERENT
+                // reason than the original 129-test collapse: the
+                // stamps are true now, and the stamped wrap emits list
+                // forms the H2 dialect cannot yet render ("LIST_SUM
+                // reached a dialect without a list encoding"). The
+                // blocker is DIALECT CAPABILITY, not stamp distrust —
+                // this converts when the h2 list encodings land.
                 SqlExpr coll = ListShapes.asList(args.get(0),
                         !ListShapes.definitelyScalar(args.get(0)));
                 SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
@@ -974,8 +980,11 @@ final class Scalars {
                                 null, null, List.of());
                         return new SqlExpr.ScalarSubquery(outer);
                     }
-                    // wrap scalar-ENCODED args as singletons — stamps
-                    // are unreliable here: decide by SQL shape
+                    // FRAME dispatch (not stamp distrust): a many-
+                    // stamped operand in a PER-ROW frame lowers scalar
+                    // (designed pair #4) — the wrap restores the row's
+                    // singleton; value-frame lists pass. Dies when
+                    // lowering carries explicit frame context.
                     SqlExpr sa = args.get(0);
                     return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(
                             ListShapes.listShaped(sa) ? sa
