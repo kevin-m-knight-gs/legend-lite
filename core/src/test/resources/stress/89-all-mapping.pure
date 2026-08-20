@@ -34,6 +34,18 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include surveillance::SurveillanceMapping
+    include settlementfails::SettlementfailsMapping
+    include paymenttypes::PaymenttypesMapping
+    include capitalinstruments::CapitalinstrumentsMapping
+    include fundtypes::FundtypesMapping
+    include repotypes::RepotypesMapping
+    include structurednotes::StructurednotesMapping
+    include securitisation::SecuritisationMapping
+    include creditstructures::CreditstructuresMapping
+    include ratesexotics::RatesexoticsMapping
+    include fxexotics::FxexoticsMapping
+    include eqexotics::EqexoticsMapping
     include brokerage::BrokerageMapping
     include schedule::ScheduleMapping
     include curves::CurvesMapping

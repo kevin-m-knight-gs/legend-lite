@@ -1,0 +1,211 @@
+###Pure
+// Repo: the same economics under a dozen names, and the collateral rules that differ.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class repotypes::RepoArrangement
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Sale and repurchase, with coupons passed back as manufactured payments.
+Class repotypes::ClassicRepo extends repotypes::RepoArrangement
+{
+}
+
+// The same trade from the cash lender's side.
+Class repotypes::ReverseRepo extends repotypes::RepoArrangement
+{
+}
+
+// An agent holds and substitutes collateral against an eligibility schedule.
+Class repotypes::TripartyRepo extends repotypes::RepoArrangement
+{
+}
+
+// Any collateral from a basket; the trade is about cash, not the bond.
+Class repotypes::GeneralCollateralRepo extends repotypes::RepoArrangement
+{
+}
+
+// A specific bond in short supply, so the rate goes negative.
+Class repotypes::SpecialsRepo extends repotypes::RepoArrangement
+{
+}
+
+// No fixed maturity; either side can close it daily.
+Class repotypes::OpenRepo extends repotypes::RepoArrangement
+{
+}
+
+// Rolls automatically until notice, which is how it gets liquidity treatment.
+Class repotypes::EvergreenRepo extends repotypes::RepoArrangement
+{
+}
+
+// One side can extend the term at a pre-agreed rate.
+Class repotypes::ExtendibleRepo extends repotypes::RepoArrangement
+{
+}
+
+// The repo rate resets against an index.
+Class repotypes::FloatingRateRepo extends repotypes::RepoArrangement
+{
+}
+
+// Cash in one currency against collateral in another.
+Class repotypes::CrossCurrencyRepo extends repotypes::RepoArrangement
+{
+}
+
+// Economically a repo, documented as two outright trades.
+Class repotypes::SellBuyBack extends repotypes::RepoArrangement
+{
+}
+
+// The other side of it.
+Class repotypes::BuySellBack extends repotypes::RepoArrangement
+{
+}
+
+// Collateral pledged rather than transferred, so title does not move.
+Class repotypes::PledgeStructureRepo extends repotypes::RepoArrangement
+{
+}
+
+// Novated to a CCP, which nets it and changes the capital.
+Class repotypes::ClearedRepo extends repotypes::RepoArrangement
+{
+}
+
+// Term matching the bond's maturity, which removes the roll risk and hides the rest.
+Class repotypes::RepoToMaturity extends repotypes::RepoArrangement
+{
+}
+
+// What is owed when the bond does not arrive.
+Class repotypes::RepoFailCharge extends repotypes::RepoArrangement
+{
+}
+
+###Mapping
+Mapping repotypes::RepotypesMapping
+(
+   *repotypes::RepoArrangement[repotypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]REPO_ARRANGEMENT.RECORD_ID )
+      ~mainTable [store::DB]REPO_ARRANGEMENT
+      recordId: [store::DB]REPO_ARRANGEMENT.RECORD_ID,
+      recordType: [store::DB]REPO_ARRANGEMENT.RECORD_TYPE,
+      bookId: [store::DB]REPO_ARRANGEMENT.BOOK_ID,
+      notional: [store::DB]REPO_ARRANGEMENT.NOTIONAL,
+      currency: [store::DB]REPO_ARRANGEMENT.CURRENCY,
+      tradeDate: [store::DB]REPO_ARRANGEMENT.TRADE_DATE,
+      maturityDate: [store::DB]REPO_ARRANGEMENT.MATURITY_DATE,
+      status: [store::DB]REPO_ARRANGEMENT.STATUS,
+      isActive: [store::DB]REPO_ARRANGEMENT.IS_ACTIVE,
+      riskScore: [store::DB]REPO_ARRANGEMENT.RISK_SCORE
+   }
+
+   repotypes::ClassicRepo[repClassicRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepClassicRepoRows
+   }
+
+   repotypes::ReverseRepo[repReverseRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepReverseRepoRows
+   }
+
+   repotypes::TripartyRepo[repTripartyRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepTripartyRepoRows
+   }
+
+   repotypes::GeneralCollateralRepo[repGcRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepGcRepoRows
+   }
+
+   repotypes::SpecialsRepo[repSpecialRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepSpecialRepoRows
+   }
+
+   repotypes::OpenRepo[repOpenRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepOpenRepoRows
+   }
+
+   repotypes::EvergreenRepo[repEvergreenRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepEvergreenRepoRows
+   }
+
+   repotypes::ExtendibleRepo[repExtendibleRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepExtendibleRepoRows
+   }
+
+   repotypes::FloatingRateRepo[repFloatingRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepFloatingRepoRows
+   }
+
+   repotypes::CrossCurrencyRepo[repCrossCurrencyRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepCrossCurrencyRepoRows
+   }
+
+   repotypes::SellBuyBack[repSellBuyBack] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepSellBuyBackRows
+   }
+
+   repotypes::BuySellBack[repBuySellBack] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepBuySellBackRows
+   }
+
+   repotypes::PledgeStructureRepo[repPledgeRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepPledgeRepoRows
+   }
+
+   repotypes::ClearedRepo[repCentralClearedRepo] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepCentralClearedRepoRows
+   }
+
+   repotypes::RepoToMaturity[repRepoToMaturity] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepRepoToMaturityRows
+   }
+
+   repotypes::RepoFailCharge[repFailCharge] extends [repotypesBase]: Relational
+   {
+      ~filter [store::DB]RepFailChargeRows
+   }
+)

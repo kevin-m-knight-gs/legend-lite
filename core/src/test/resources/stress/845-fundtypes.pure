@@ -1,0 +1,211 @@
+###Pure
+// Fund vehicles: what the client actually holds, and under whose rules.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class fundtypes::FundVehicle
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// European retail, with hard limits on concentration and leverage.
+Class fundtypes::UcitsFund extends fundtypes::FundVehicle
+{
+}
+
+// Everything that is not UCITS, reported under AIFMD.
+Class fundtypes::AlternativeInvestmentFund extends fundtypes::FundVehicle
+{
+}
+
+// The US retail equivalent, under the 1940 Act.
+Class fundtypes::RegisteredInvestmentCompany extends fundtypes::FundVehicle
+{
+}
+
+// Creation and redemption in kind, which is what keeps the price on NAV.
+Class fundtypes::ExchangeTradedFund extends fundtypes::FundVehicle
+{
+}
+
+// Short, liquid, and subject to its own gating rules.
+Class fundtypes::MoneyMarketFund extends fundtypes::FundVehicle
+{
+}
+
+// Private, performance-fee bearing, and lightly constrained.
+Class fundtypes::HedgeFundVehicle extends fundtypes::FundVehicle
+{
+}
+
+// Drawn down over years and valued by the manager.
+Class fundtypes::PrivateEquityFund extends fundtypes::FundVehicle
+{
+}
+
+// Where the redemption terms and the asset liquidity rarely match.
+Class fundtypes::RealEstateFund extends fundtypes::FundVehicle
+{
+}
+
+// Longer still, and usually with an inflation link.
+Class fundtypes::InfrastructureFund extends fundtypes::FundVehicle
+{
+}
+
+// Two layers of fees and two layers of lookthrough.
+Class fundtypes::FundOfFunds extends fundtypes::FundVehicle
+{
+}
+
+// Feeds into a master so several investor bases share one book.
+Class fundtypes::FeederFund extends fundtypes::FundVehicle
+{
+}
+
+// Not a fund at all: the client owns the assets directly.
+Class fundtypes::SegregatedMandate extends fundtypes::FundVehicle
+{
+}
+
+// Illiquid holdings ring-fenced from redeeming investors.
+Class fundtypes::SidePocketItem extends fundtypes::FundVehicle
+{
+}
+
+// Fixed shares, so it trades at a discount or a premium to NAV.
+Class fundtypes::ClosedEndFund extends fundtypes::FundVehicle
+{
+}
+
+// Redeems on a schedule rather than on demand.
+Class fundtypes::IntervalFund extends fundtypes::FundVehicle
+{
+}
+
+// Bank-sponsored, pension-only, and cheaper for it.
+Class fundtypes::CollectiveInvestmentTrust extends fundtypes::FundVehicle
+{
+}
+
+###Mapping
+Mapping fundtypes::FundtypesMapping
+(
+   *fundtypes::FundVehicle[fundtypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]FUND_VEHICLE.RECORD_ID )
+      ~mainTable [store::DB]FUND_VEHICLE
+      recordId: [store::DB]FUND_VEHICLE.RECORD_ID,
+      recordType: [store::DB]FUND_VEHICLE.RECORD_TYPE,
+      bookId: [store::DB]FUND_VEHICLE.BOOK_ID,
+      notional: [store::DB]FUND_VEHICLE.NOTIONAL,
+      currency: [store::DB]FUND_VEHICLE.CURRENCY,
+      tradeDate: [store::DB]FUND_VEHICLE.TRADE_DATE,
+      maturityDate: [store::DB]FUND_VEHICLE.MATURITY_DATE,
+      status: [store::DB]FUND_VEHICLE.STATUS,
+      isActive: [store::DB]FUND_VEHICLE.IS_ACTIVE,
+      riskScore: [store::DB]FUND_VEHICLE.RISK_SCORE
+   }
+
+   fundtypes::UcitsFund[fndUcits] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndUcitsRows
+   }
+
+   fundtypes::AlternativeInvestmentFund[fndAif] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndAifRows
+   }
+
+   fundtypes::RegisteredInvestmentCompany[fndUs40Act] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndUs40ActRows
+   }
+
+   fundtypes::ExchangeTradedFund[fndExchangeTraded] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndExchangeTradedRows
+   }
+
+   fundtypes::MoneyMarketFund[fndMoneyMarket] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndMoneyMarketRows
+   }
+
+   fundtypes::HedgeFundVehicle[fndHedgeFund] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndHedgeFundRows
+   }
+
+   fundtypes::PrivateEquityFund[fndPrivateEquity] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndPrivateEquityRows
+   }
+
+   fundtypes::RealEstateFund[fndRealEstate] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndRealEstateRows
+   }
+
+   fundtypes::InfrastructureFund[fndInfrastructure] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndInfrastructureRows
+   }
+
+   fundtypes::FundOfFunds[fndFundOfFunds] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndFundOfFundsRows
+   }
+
+   fundtypes::FeederFund[fndMasterFeeder] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndMasterFeederRows
+   }
+
+   fundtypes::SegregatedMandate[fndSegregatedMandate] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndSegregatedMandateRows
+   }
+
+   fundtypes::SidePocketItem[fndSidePocket] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndSidePocketRows
+   }
+
+   fundtypes::ClosedEndFund[fndClosedEnd] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndClosedEndRows
+   }
+
+   fundtypes::IntervalFund[fndIntervalFund] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndIntervalFundRows
+   }
+
+   fundtypes::CollectiveInvestmentTrust[fndCollectiveTrust] extends [fundtypesBase]: Relational
+   {
+      ~filter [store::DB]FndCollectiveTrustRows
+   }
+)

@@ -1,0 +1,211 @@
+###Pure
+// The wrapper a structured payoff is sold in, which decides the tax and the recourse.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class structurednotes::StructuredNoteWrapper
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Off a programme, which is why it can be issued in a day.
+Class structurednotes::EuroMediumTermNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// The domestic equivalent, with its own disclosure regime.
+Class structurednotes::UsMediumTermNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Listed, retail, and usually small denomination.
+Class structurednotes::StructuredCertificate extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Exchange traded and issued by the bank rather than the company.
+Class structurednotes::CoveredWarrant extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// An SPV holding collateral and a swap, so the buyer takes neither alone.
+Class structurednotes::RepackagingVehicle extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Referencing a fund's NAV, with all the valuation lag that implies.
+Class structurednotes::FundLinkedNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Deposit-protected, which changes who the creditor is.
+Class structurednotes::StructuredDeposit extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Held inside a policy for tax reasons.
+Class structurednotes::InsuranceWrappedNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// The same idea in a retirement account.
+Class structurednotes::PensionWrappedNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// The underlying basket changes at a manager's discretion.
+Class structurednotes::ActivelyManagedCertificate extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Linear exposure in note form, for accounts that cannot trade swaps.
+Class structurednotes::DeltaOneNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Daily-reset leverage, and the decay that follows.
+Class structurednotes::LeveragedExchangeTradedNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Protected by the issuer's promise, not by anything else.
+Class structurednotes::PrincipalProtectedNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Protected down to a level and not below it.
+Class structurednotes::PartiallyProtectedNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// A high coupon funded by a short put the buyer may not notice.
+Class structurednotes::ReverseConvertibleNote extends structurednotes::StructuredNoteWrapper
+{
+}
+
+// Pays a bonus unless a barrier is breached, when it becomes the underlying.
+Class structurednotes::BonusCertificate extends structurednotes::StructuredNoteWrapper
+{
+}
+
+###Mapping
+Mapping structurednotes::StructurednotesMapping
+(
+   *structurednotes::StructuredNoteWrapper[structurednotesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]STRUCTURED_NOTE_WRAPPER.RECORD_ID )
+      ~mainTable [store::DB]STRUCTURED_NOTE_WRAPPER
+      recordId: [store::DB]STRUCTURED_NOTE_WRAPPER.RECORD_ID,
+      recordType: [store::DB]STRUCTURED_NOTE_WRAPPER.RECORD_TYPE,
+      bookId: [store::DB]STRUCTURED_NOTE_WRAPPER.BOOK_ID,
+      notional: [store::DB]STRUCTURED_NOTE_WRAPPER.NOTIONAL,
+      currency: [store::DB]STRUCTURED_NOTE_WRAPPER.CURRENCY,
+      tradeDate: [store::DB]STRUCTURED_NOTE_WRAPPER.TRADE_DATE,
+      maturityDate: [store::DB]STRUCTURED_NOTE_WRAPPER.MATURITY_DATE,
+      status: [store::DB]STRUCTURED_NOTE_WRAPPER.STATUS,
+      isActive: [store::DB]STRUCTURED_NOTE_WRAPPER.IS_ACTIVE,
+      riskScore: [store::DB]STRUCTURED_NOTE_WRAPPER.RISK_SCORE
+   }
+
+   structurednotes::EuroMediumTermNote[snwEmtn] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwEmtnRows
+   }
+
+   structurednotes::UsMediumTermNote[snwUsMtn] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwUsMtnRows
+   }
+
+   structurednotes::StructuredCertificate[snwCertificate] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwCertificateRows
+   }
+
+   structurednotes::CoveredWarrant[snwWarrant] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwWarrantRows
+   }
+
+   structurednotes::RepackagingVehicle[snwRepackSpv] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwRepackSpvRows
+   }
+
+   structurednotes::FundLinkedNote[snwFundLinked] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwFundLinkedRows
+   }
+
+   structurednotes::StructuredDeposit[snwDepositLinked] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwDepositLinkedRows
+   }
+
+   structurednotes::InsuranceWrappedNote[snwInsuranceWrapper] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwInsuranceWrapperRows
+   }
+
+   structurednotes::PensionWrappedNote[snwPensionWrapper] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwPensionWrapperRows
+   }
+
+   structurednotes::ActivelyManagedCertificate[snwActivelyManaged] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwActivelyManagedRows
+   }
+
+   structurednotes::DeltaOneNote[snwDeltaOneNote] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwDeltaOneNoteRows
+   }
+
+   structurednotes::LeveragedExchangeTradedNote[snwLeveragedEtn] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwLeveragedEtnRows
+   }
+
+   structurednotes::PrincipalProtectedNote[snwPrincipalProtected] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwPrincipalProtectedRows
+   }
+
+   structurednotes::PartiallyProtectedNote[snwPartialProtection] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwPartialProtectionRows
+   }
+
+   structurednotes::ReverseConvertibleNote[snwReverseConvertible] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwReverseConvertibleRows
+   }
+
+   structurednotes::BonusCertificate[snwBonusCertificate] extends [structurednotesBase]: Relational
+   {
+      ~filter [store::DB]SnwBonusCertificateRows
+   }
+)

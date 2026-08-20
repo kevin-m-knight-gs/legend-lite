@@ -1,0 +1,211 @@
+###Pure
+// Exotic equity payoffs: what the note actually pays, and on what.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class eqexotics::EquityExoticPayoff
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Redeems early if the underlying is above a barrier on an observation date.
+Class eqexotics::AutocallableNote extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Pays on the weakest name in the basket, which is why it is cheap.
+Class eqexotics::WorstOfBasketOption extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Pays on the strongest name, and costs accordingly.
+Class eqexotics::BestOfBasketOption extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Ranked payoff across several underlyings at once.
+Class eqexotics::RainbowOption extends eqexotics::EquityExoticPayoff
+{
+}
+
+// A series of forward-starting options, each struck at the last reset.
+Class eqexotics::CliquetOption extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Locks in the best performer at each observation and removes it from the basket.
+Class eqexotics::HimalayaOption extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Pays against the best price reached over the life.
+Class eqexotics::FixedStrikeLookback extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Struck at the best price reached, so it always finishes in the money.
+Class eqexotics::FloatingStrikeLookback extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Averages the underlying, which kills the gamma and the price with it.
+Class eqexotics::ArithmeticAsianOption extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Dies if the underlying trades above the barrier.
+Class eqexotics::UpAndOutBarrier extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Does not exist until the underlying trades below the barrier.
+Class eqexotics::DownAndInBarrier extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Pays a fixed amount or nothing, with a discontinuity at the strike.
+Class eqexotics::CashOrNothingDigital extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Pays realised variance against a strike, with no directional exposure at all.
+Class eqexotics::VarianceSwap extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Variance, but only accrued while the underlying is inside a range.
+Class eqexotics::CorridorVarianceSwap extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Index variance against the sum of its constituents' variance.
+Class eqexotics::DispersionTrade extends eqexotics::EquityExoticPayoff
+{
+}
+
+// Rebalances between risky and riskless to protect a floor.
+Class eqexotics::CppiStructure extends eqexotics::EquityExoticPayoff
+{
+}
+
+###Mapping
+Mapping eqexotics::EqexoticsMapping
+(
+   *eqexotics::EquityExoticPayoff[eqexoticsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]EQ_EXOTIC_PAYOFF.RECORD_ID )
+      ~mainTable [store::DB]EQ_EXOTIC_PAYOFF
+      recordId: [store::DB]EQ_EXOTIC_PAYOFF.RECORD_ID,
+      recordType: [store::DB]EQ_EXOTIC_PAYOFF.RECORD_TYPE,
+      bookId: [store::DB]EQ_EXOTIC_PAYOFF.BOOK_ID,
+      notional: [store::DB]EQ_EXOTIC_PAYOFF.NOTIONAL,
+      currency: [store::DB]EQ_EXOTIC_PAYOFF.CURRENCY,
+      tradeDate: [store::DB]EQ_EXOTIC_PAYOFF.TRADE_DATE,
+      maturityDate: [store::DB]EQ_EXOTIC_PAYOFF.MATURITY_DATE,
+      status: [store::DB]EQ_EXOTIC_PAYOFF.STATUS,
+      isActive: [store::DB]EQ_EXOTIC_PAYOFF.IS_ACTIVE,
+      riskScore: [store::DB]EQ_EXOTIC_PAYOFF.RISK_SCORE
+   }
+
+   eqexotics::AutocallableNote[eqxAutocallable] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxAutocallableRows
+   }
+
+   eqexotics::WorstOfBasketOption[eqxWorstOfBasket] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxWorstOfBasketRows
+   }
+
+   eqexotics::BestOfBasketOption[eqxBestOfBasket] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxBestOfBasketRows
+   }
+
+   eqexotics::RainbowOption[eqxRainbow] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxRainbowRows
+   }
+
+   eqexotics::CliquetOption[eqxCliquet] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxCliquetRows
+   }
+
+   eqexotics::HimalayaOption[eqxHimalaya] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxHimalayaRows
+   }
+
+   eqexotics::FixedStrikeLookback[eqxLookbackFixed] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxLookbackFixedRows
+   }
+
+   eqexotics::FloatingStrikeLookback[eqxLookbackFloat] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxLookbackFloatRows
+   }
+
+   eqexotics::ArithmeticAsianOption[eqxAsianArithmetic] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxAsianArithmeticRows
+   }
+
+   eqexotics::UpAndOutBarrier[eqxBarrierUpOut] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxBarrierUpOutRows
+   }
+
+   eqexotics::DownAndInBarrier[eqxBarrierDownIn] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxBarrierDownInRows
+   }
+
+   eqexotics::CashOrNothingDigital[eqxDigitalCash] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxDigitalCashRows
+   }
+
+   eqexotics::VarianceSwap[eqxVarianceSwap] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxVarianceSwapRows
+   }
+
+   eqexotics::CorridorVarianceSwap[eqxCorridorVariance] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxCorridorVarianceRows
+   }
+
+   eqexotics::DispersionTrade[eqxDispersion] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxDispersionRows
+   }
+
+   eqexotics::CppiStructure[eqxCppi] extends [eqexoticsBase]: Relational
+   {
+      ~filter [store::DB]EqxCppiRows
+   }
+)

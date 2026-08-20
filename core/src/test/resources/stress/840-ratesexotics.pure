@@ -1,0 +1,211 @@
+###Pure
+// Interest rate exotics: the callable, the capped and the convexity-adjusted.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class ratesexotics::RatesExoticTrade
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Callable on a schedule of dates rather than one.
+Class ratesexotics::BermudanSwaption extends ratesexotics::RatesExoticTrade
+{
+}
+
+// A swap with an embedded option to terminate.
+Class ratesexotics::CancellableSwap extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Pays a swap rate rather than a Libor-style fixing, and needs a convexity adjustment.
+Class ratesexotics::ConstantMaturitySwap extends ratesexotics::RatesExoticTrade
+{
+}
+
+// The slope of the curve as a payoff, and the correlation trade behind it.
+Class ratesexotics::CmsSpreadOption extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Accrues only on days the index is inside a corridor.
+Class ratesexotics::RangeAccrualNote extends ratesexotics::RatesExoticTrade
+{
+}
+
+// A range accrual the issuer can call, which is most of them.
+Class ratesexotics::CallableRangeAccrual extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Pays a fixed rate less the index, so it rallies when rates fall.
+Class ratesexotics::InverseFloater extends ratesexotics::RatesExoticTrade
+{
+}
+
+// The same, geared.
+Class ratesexotics::LeveragedFloater extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Each coupon is the last one plus a spread less the index.
+Class ratesexotics::SnowballNote extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Redeems once coupons paid reach a target.
+Class ratesexotics::TargetRedemptionNote extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Pays on the long end less the short end, with a floor at zero.
+Class ratesexotics::SteepenerNote extends ratesexotics::RatesExoticTrade
+{
+}
+
+// The opposite view, and rarely retail.
+Class ratesexotics::FlattenerNote extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Pays a fixed amount for each fixing above the strike.
+Class ratesexotics::DigitalCap extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Each strike is set from the previous fixing.
+Class ratesexotics::RatchetCap extends ratesexotics::RatesExoticTrade
+{
+}
+
+// Locks a swap spread over a government benchmark.
+Class ratesexotics::SpreadLockAgreement extends ratesexotics::RatesExoticTrade
+{
+}
+
+// One payment at maturity against a stream, so the whole exposure is at the end.
+Class ratesexotics::ZeroCouponSwap extends ratesexotics::RatesExoticTrade
+{
+}
+
+###Mapping
+Mapping ratesexotics::RatesexoticsMapping
+(
+   *ratesexotics::RatesExoticTrade[ratesexoticsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RATES_EXOTIC.RECORD_ID )
+      ~mainTable [store::DB]RATES_EXOTIC
+      recordId: [store::DB]RATES_EXOTIC.RECORD_ID,
+      recordType: [store::DB]RATES_EXOTIC.RECORD_TYPE,
+      bookId: [store::DB]RATES_EXOTIC.BOOK_ID,
+      notional: [store::DB]RATES_EXOTIC.NOTIONAL,
+      currency: [store::DB]RATES_EXOTIC.CURRENCY,
+      tradeDate: [store::DB]RATES_EXOTIC.TRADE_DATE,
+      maturityDate: [store::DB]RATES_EXOTIC.MATURITY_DATE,
+      status: [store::DB]RATES_EXOTIC.STATUS,
+      isActive: [store::DB]RATES_EXOTIC.IS_ACTIVE,
+      riskScore: [store::DB]RATES_EXOTIC.RISK_SCORE
+   }
+
+   ratesexotics::BermudanSwaption[rtxBermudanSwaption] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxBermudanSwaptionRows
+   }
+
+   ratesexotics::CancellableSwap[rtxCancellableSwap] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxCancellableSwapRows
+   }
+
+   ratesexotics::ConstantMaturitySwap[rtxCmsSwap] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxCmsSwapRows
+   }
+
+   ratesexotics::CmsSpreadOption[rtxCmsSpread] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxCmsSpreadRows
+   }
+
+   ratesexotics::RangeAccrualNote[rtxRangeAccrual] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxRangeAccrualRows
+   }
+
+   ratesexotics::CallableRangeAccrual[rtxCallableRange] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxCallableRangeRows
+   }
+
+   ratesexotics::InverseFloater[rtxInverseFloater] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxInverseFloaterRows
+   }
+
+   ratesexotics::LeveragedFloater[rtxLeveragedFloater] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxLeveragedFloaterRows
+   }
+
+   ratesexotics::SnowballNote[rtxSnowball] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxSnowballRows
+   }
+
+   ratesexotics::TargetRedemptionNote[rtxTarnRates] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxTarnRatesRows
+   }
+
+   ratesexotics::SteepenerNote[rtxSteepener] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxSteepenerRows
+   }
+
+   ratesexotics::FlattenerNote[rtxFlattener] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxFlattenerRows
+   }
+
+   ratesexotics::DigitalCap[rtxCapDigital] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxCapDigitalRows
+   }
+
+   ratesexotics::RatchetCap[rtxRatchetCap] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxRatchetCapRows
+   }
+
+   ratesexotics::SpreadLockAgreement[rtxSpreadLock] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxSpreadLockRows
+   }
+
+   ratesexotics::ZeroCouponSwap[rtxZeroCouponSwap] extends [ratesexoticsBase]: Relational
+   {
+      ~filter [store::DB]RtxZeroCouponSwapRows
+   }
+)

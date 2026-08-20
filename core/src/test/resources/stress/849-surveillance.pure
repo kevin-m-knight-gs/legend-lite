@@ -1,0 +1,211 @@
+###Pure
+// Market-abuse surveillance: what the model flagged, and what it usually turns out to be.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class surveillance::SurveillanceAlert
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Orders placed with no intention of executing, to move the book.
+Class surveillance::SpoofingAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// The same thing at several price levels.
+Class surveillance::LayeringAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Both sides the same beneficial owner, so no risk changed hands.
+Class surveillance::WashTradeAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Trading into the auction to set a favourable closing price.
+Class surveillance::MarkingTheCloseAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Provoking a move and then trading against the reaction.
+Class surveillance::MomentumIgnitionAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Message volume as a weapon rather than as an intention.
+Class surveillance::QuoteStuffingAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Dealing ahead of a client order.
+Class surveillance::FrontRunningAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Trading on information the market does not have.
+Class surveillance::InsiderDealingAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// A return the model cannot explain, which is a lead rather than a finding.
+Class surveillance::UnusualProfitAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Executed far from the prevailing market.
+Class surveillance::PriceOutlierAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// The abuse is in one venue and the profit in another.
+Class surveillance::CrossMarketAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Trading to influence a fixing rather than to take a position.
+Class surveillance::BenchmarkManipulationAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Value moved between accounts at a price nobody would agree to.
+Class surveillance::OffMarketTransferAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// An employee's own account, undisclosed.
+Class surveillance::PersonalAccountDealingAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Dealing in a name the firm has restricted.
+Class surveillance::RestrictedListBreachAlert extends surveillance::SurveillanceAlert
+{
+}
+
+// Language a model found interesting, which is almost always nothing.
+Class surveillance::CommunicationFlagAlert extends surveillance::SurveillanceAlert
+{
+}
+
+###Mapping
+Mapping surveillance::SurveillanceMapping
+(
+   *surveillance::SurveillanceAlert[surveillanceBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SURVEILLANCE_ALERT.RECORD_ID )
+      ~mainTable [store::DB]SURVEILLANCE_ALERT
+      recordId: [store::DB]SURVEILLANCE_ALERT.RECORD_ID,
+      recordType: [store::DB]SURVEILLANCE_ALERT.RECORD_TYPE,
+      bookId: [store::DB]SURVEILLANCE_ALERT.BOOK_ID,
+      notional: [store::DB]SURVEILLANCE_ALERT.NOTIONAL,
+      currency: [store::DB]SURVEILLANCE_ALERT.CURRENCY,
+      tradeDate: [store::DB]SURVEILLANCE_ALERT.TRADE_DATE,
+      maturityDate: [store::DB]SURVEILLANCE_ALERT.MATURITY_DATE,
+      status: [store::DB]SURVEILLANCE_ALERT.STATUS,
+      isActive: [store::DB]SURVEILLANCE_ALERT.IS_ACTIVE,
+      riskScore: [store::DB]SURVEILLANCE_ALERT.RISK_SCORE
+   }
+
+   surveillance::SpoofingAlert[srvSpoofing] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvSpoofingRows
+   }
+
+   surveillance::LayeringAlert[srvLayering] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvLayeringRows
+   }
+
+   surveillance::WashTradeAlert[srvWashTrade] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvWashTradeRows
+   }
+
+   surveillance::MarkingTheCloseAlert[srvMarkingTheClose] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvMarkingTheCloseRows
+   }
+
+   surveillance::MomentumIgnitionAlert[srvMomentumIgnition] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvMomentumIgnitionRows
+   }
+
+   surveillance::QuoteStuffingAlert[srvQuoteStuffing] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvQuoteStuffingRows
+   }
+
+   surveillance::FrontRunningAlert[srvFrontRunning] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvFrontRunningRows
+   }
+
+   surveillance::InsiderDealingAlert[srvInsiderDealing] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvInsiderDealingRows
+   }
+
+   surveillance::UnusualProfitAlert[srvUnusualProfit] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvUnusualProfitRows
+   }
+
+   surveillance::PriceOutlierAlert[srvPriceOutlier] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvPriceOutlierRows
+   }
+
+   surveillance::CrossMarketAlert[srvCrossMarket] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvCrossMarketRows
+   }
+
+   surveillance::BenchmarkManipulationAlert[srvReferenceRate] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvReferenceRateRows
+   }
+
+   surveillance::OffMarketTransferAlert[srvOffMarketTransfer] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvOffMarketTransferRows
+   }
+
+   surveillance::PersonalAccountDealingAlert[srvPersonalAccount] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvPersonalAccountRows
+   }
+
+   surveillance::RestrictedListBreachAlert[srvRestrictedList] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvRestrictedListRows
+   }
+
+   surveillance::CommunicationFlagAlert[srvCommunicationFlag] extends [surveillanceBase]: Relational
+   {
+      ~filter [store::DB]SrvCommunicationFlagRows
+   }
+)

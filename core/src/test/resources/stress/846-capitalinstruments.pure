@@ -1,0 +1,211 @@
+###Pure
+// Regulatory capital: what counts, where it sits, and what happens when it does not.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class capitalinstruments::CapitalInstrument
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The purest loss-absorbing capital there is.
+Class capitalinstruments::OrdinaryShareCapital extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Profit not paid out, which counts the same way.
+Class capitalinstruments::RetainedEarningsItem extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Perpetual, discretionary coupon, and converts or writes down at a trigger.
+Class capitalinstruments::AdditionalTier1Perpetual extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Written down at the trigger and written back up if things recover.
+Class capitalinstruments::TemporaryWriteDownAt1 extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Subordinated with a maturity, amortising out of capital in its last five years.
+Class capitalinstruments::DatedTier2 extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Subordinated with no maturity, and no amortisation.
+Class capitalinstruments::PerpetualTier2 extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Ranking below ordinary senior specifically so it can be bailed in.
+Class capitalinstruments::SeniorNonPreferred extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Structurally subordinated by being issued a level up.
+Class capitalinstruments::HoldcoSenior extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Meeting the global standard for the largest banks.
+Class capitalinstruments::TlacEligibleInstrument extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Converts to equity at a capital trigger.
+Class capitalinstruments::ContingentConvertible extends capitalinstruments::CapitalInstrument
+{
+}
+
+// No longer eligible on today's rules, phased out on the old ones.
+Class capitalinstruments::GrandfatheredInstrument extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Capital in a subsidiary, only partly recognised at group.
+Class capitalinstruments::MinorityInterestItem extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Removed from capital entirely, having no loss-absorbing value.
+Class capitalinstruments::GoodwillDeduction extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Deferred tax assets that only pay off if the bank is profitable.
+Class capitalinstruments::DeferredTaxDeduction extends capitalinstruments::CapitalInstrument
+{
+}
+
+// An accounting result the capital rules decline to recognise.
+Class capitalinstruments::PrudentialFilterItem extends capitalinstruments::CapitalInstrument
+{
+}
+
+// Held above the minimum, and the thing that restricts distributions.
+Class capitalinstruments::CapitalBufferRequirement extends capitalinstruments::CapitalInstrument
+{
+}
+
+###Mapping
+Mapping capitalinstruments::CapitalinstrumentsMapping
+(
+   *capitalinstruments::CapitalInstrument[capitalinstrumentsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CAPITAL_INSTRUMENT.RECORD_ID )
+      ~mainTable [store::DB]CAPITAL_INSTRUMENT
+      recordId: [store::DB]CAPITAL_INSTRUMENT.RECORD_ID,
+      recordType: [store::DB]CAPITAL_INSTRUMENT.RECORD_TYPE,
+      bookId: [store::DB]CAPITAL_INSTRUMENT.BOOK_ID,
+      notional: [store::DB]CAPITAL_INSTRUMENT.NOTIONAL,
+      currency: [store::DB]CAPITAL_INSTRUMENT.CURRENCY,
+      tradeDate: [store::DB]CAPITAL_INSTRUMENT.TRADE_DATE,
+      maturityDate: [store::DB]CAPITAL_INSTRUMENT.MATURITY_DATE,
+      status: [store::DB]CAPITAL_INSTRUMENT.STATUS,
+      isActive: [store::DB]CAPITAL_INSTRUMENT.IS_ACTIVE,
+      riskScore: [store::DB]CAPITAL_INSTRUMENT.RISK_SCORE
+   }
+
+   capitalinstruments::OrdinaryShareCapital[capCet1Ordinary] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapCet1OrdinaryRows
+   }
+
+   capitalinstruments::RetainedEarningsItem[capCet1Reserves] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapCet1ReservesRows
+   }
+
+   capitalinstruments::AdditionalTier1Perpetual[capAt1Perpetual] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapAt1PerpetualRows
+   }
+
+   capitalinstruments::TemporaryWriteDownAt1[capAt1TemporaryWd] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapAt1TemporaryWdRows
+   }
+
+   capitalinstruments::DatedTier2[capTier2Dated] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapTier2DatedRows
+   }
+
+   capitalinstruments::PerpetualTier2[capTier2Perpetual] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapTier2PerpetualRows
+   }
+
+   capitalinstruments::SeniorNonPreferred[capMrelSeniorNp] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapMrelSeniorNpRows
+   }
+
+   capitalinstruments::HoldcoSenior[capMrelHoldco] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapMrelHoldcoRows
+   }
+
+   capitalinstruments::TlacEligibleInstrument[capTlacEligible] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapTlacEligibleRows
+   }
+
+   capitalinstruments::ContingentConvertible[capContingentConvertible] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapContingentConvertibleRows
+   }
+
+   capitalinstruments::GrandfatheredInstrument[capGrandfathered] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapGrandfatheredRows
+   }
+
+   capitalinstruments::MinorityInterestItem[capMinorityInterest] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapMinorityInterestRows
+   }
+
+   capitalinstruments::GoodwillDeduction[capDeductionGoodwill] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapDeductionGoodwillRows
+   }
+
+   capitalinstruments::DeferredTaxDeduction[capDeductionDta] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapDeductionDtaRows
+   }
+
+   capitalinstruments::PrudentialFilterItem[capPrudentialFilter] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapPrudentialFilterRows
+   }
+
+   capitalinstruments::CapitalBufferRequirement[capCapitalBuffer] extends [capitalinstrumentsBase]: Relational
+   {
+      ~filter [store::DB]CapCapitalBufferRows
+   }
+)

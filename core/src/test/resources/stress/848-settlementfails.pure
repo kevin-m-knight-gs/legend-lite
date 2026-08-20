@@ -1,0 +1,211 @@
+###Pure
+// Why a settlement failed, which decides who pays the penalty.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class settlementfails::SettlementFail
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The seller does not have the stock, which is most fails.
+Class settlementfails::InsufficientSecurities extends settlementfails::SettlementFail
+{
+}
+
+// The buyer does not have the money.
+Class settlementfails::InsufficientCash extends settlementfails::SettlementFail
+{
+}
+
+// The two sides are instructing to different places.
+Class settlementfails::SsiMismatchFail extends settlementfails::SettlementFail
+{
+}
+
+// Matched after the cut-off, so it settles the next day.
+Class settlementfails::LateMatchingFail extends settlementfails::SettlementFail
+{
+}
+
+// Never matched at all, which is a different problem.
+Class settlementfails::UnmatchedInstruction extends settlementfails::SettlementFail
+{
+}
+
+// Too large for the market's settlement limit and not split.
+Class settlementfails::ShapingRequiredFail extends settlementfails::SettlementFail
+{
+}
+
+// Some of it settled, which is better than none and worse than all.
+Class settlementfails::PartialSettlementItem extends settlementfails::SettlementFail
+{
+}
+
+// The buyer went to the market and the seller pays the difference.
+Class settlementfails::BuyInTriggered extends settlementfails::SettlementFail
+{
+}
+
+// The daily charge the settlement discipline regime imposes.
+Class settlementfails::CsdrPenaltyItem extends settlementfails::SettlementFail
+{
+}
+
+// An entitlement that went to the wrong side because the trade was late.
+Class settlementfails::MarketClaimItem extends settlementfails::SettlementFail
+{
+}
+
+// A pending instruction rewritten by a corporate action.
+Class settlementfails::TransformationItem extends settlementfails::SettlementFail
+{
+}
+
+// Both sides agreed to withdraw it.
+Class settlementfails::BilateralCancellation extends settlementfails::SettlementFail
+{
+}
+
+// The other side cannot settle anything today.
+Class settlementfails::CounterpartySuspended extends settlementfails::SettlementFail
+{
+}
+
+// Stopped by screening, and not restartable by operations.
+Class settlementfails::SanctionsHold extends settlementfails::SettlementFail
+{
+}
+
+// Instructed at the wrong depository, which fails silently until it does not.
+Class settlementfails::WrongPlaceOfSettlement extends settlementfails::SettlementFail
+{
+}
+
+// Nobody's fault, and still a fail.
+Class settlementfails::SystemOutageFail extends settlementfails::SettlementFail
+{
+}
+
+###Mapping
+Mapping settlementfails::SettlementfailsMapping
+(
+   *settlementfails::SettlementFail[settlementfailsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SETL_FAIL_REASON.RECORD_ID )
+      ~mainTable [store::DB]SETL_FAIL_REASON
+      recordId: [store::DB]SETL_FAIL_REASON.RECORD_ID,
+      recordType: [store::DB]SETL_FAIL_REASON.RECORD_TYPE,
+      bookId: [store::DB]SETL_FAIL_REASON.BOOK_ID,
+      notional: [store::DB]SETL_FAIL_REASON.NOTIONAL,
+      currency: [store::DB]SETL_FAIL_REASON.CURRENCY,
+      tradeDate: [store::DB]SETL_FAIL_REASON.TRADE_DATE,
+      maturityDate: [store::DB]SETL_FAIL_REASON.MATURITY_DATE,
+      status: [store::DB]SETL_FAIL_REASON.STATUS,
+      isActive: [store::DB]SETL_FAIL_REASON.IS_ACTIVE,
+      riskScore: [store::DB]SETL_FAIL_REASON.RISK_SCORE
+   }
+
+   settlementfails::InsufficientSecurities[faiInsufficientSecurities] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiInsufficientSecuritiesRows
+   }
+
+   settlementfails::InsufficientCash[faiInsufficientCash] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiInsufficientCashRows
+   }
+
+   settlementfails::SsiMismatchFail[faiSsiMismatch] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiSsiMismatchRows
+   }
+
+   settlementfails::LateMatchingFail[faiLateMatching] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiLateMatchingRows
+   }
+
+   settlementfails::UnmatchedInstruction[faiUnmatched] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiUnmatchedRows
+   }
+
+   settlementfails::ShapingRequiredFail[faiShapingRequired] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiShapingRequiredRows
+   }
+
+   settlementfails::PartialSettlementItem[faiPartialSettlement] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiPartialSettlementRows
+   }
+
+   settlementfails::BuyInTriggered[faiBuyInTriggered] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiBuyInTriggeredRows
+   }
+
+   settlementfails::CsdrPenaltyItem[faiCsdrPenalty] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiCsdrPenaltyRows
+   }
+
+   settlementfails::MarketClaimItem[faiMarketClaim] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiMarketClaimRows
+   }
+
+   settlementfails::TransformationItem[faiTransformation] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiTransformationRows
+   }
+
+   settlementfails::BilateralCancellation[faiCancelledBilateral] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiCancelledBilateralRows
+   }
+
+   settlementfails::CounterpartySuspended[faiCounterpartySuspended] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiCounterpartySuspendedRows
+   }
+
+   settlementfails::SanctionsHold[faiSanctionsHold] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiSanctionsHoldRows
+   }
+
+   settlementfails::WrongPlaceOfSettlement[faiPlaceOfSettlement] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiPlaceOfSettlementRows
+   }
+
+   settlementfails::SystemOutageFail[faiSystemOutage] extends [settlementfailsBase]: Relational
+   {
+      ~filter [store::DB]FaiSystemOutageRows
+   }
+)

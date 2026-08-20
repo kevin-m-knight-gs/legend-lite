@@ -1,0 +1,211 @@
+###Pure
+// Securitisation: how a pool is cut up, and who takes the first loss.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class securitisation::SecuritisationTranche
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Last to take losses and first to be paid.
+Class securitisation::SeniorAaaTranche extends securitisation::SecuritisationTranche
+{
+}
+
+// Above the junior mezzanine and below the senior.
+Class securitisation::MezzanineAaTranche extends securitisation::SecuritisationTranche
+{
+}
+
+// The thin slice that repriced hardest in 2007.
+Class securitisation::MezzanineBbbTranche extends securitisation::SecuritisationTranche
+{
+}
+
+// Below investment grade and priced like it.
+Class securitisation::JuniorBbTranche extends securitisation::SecuritisationTranche
+{
+}
+
+// First loss, usually retained, and the reason the rest can be sold.
+Class securitisation::EquityTranche extends securitisation::SecuritisationTranche
+{
+}
+
+// The 5% the originator must keep under the risk-retention rules.
+Class securitisation::RetainedRiskStrip extends securitisation::SecuritisationTranche
+{
+}
+
+// Interest with no principal, and negative duration when prepayments rise.
+Class securitisation::InterestOnlyStrip extends securitisation::SecuritisationTranche
+{
+}
+
+// Principal with no interest, and the mirror exposure.
+Class securitisation::PrincipalOnlyStrip extends securitisation::SecuritisationTranche
+{
+}
+
+// Paid down in strict order rather than pro rata.
+Class securitisation::SequentialPayClass extends securitisation::SecuritisationTranche
+{
+}
+
+// Paid down alongside the others until a trigger says otherwise.
+Class securitisation::ProRataClass extends securitisation::SecuritisationTranche
+{
+}
+
+// A schedule protected by companion classes absorbing prepayment risk.
+Class securitisation::PlannedAmortisationClass extends securitisation::SecuritisationTranche
+{
+}
+
+// The companion that absorbs it.
+Class securitisation::SupportClass extends securitisation::SecuritisationTranche
+{
+}
+
+// While new receivables are still being bought into the pool.
+Class securitisation::RevolvingPeriodItem extends securitisation::SecuritisationTranche
+{
+}
+
+// The test that ends the revolving period early.
+Class securitisation::AmortisationTriggerItem extends securitisation::SecuritisationTranche
+{
+}
+
+// A bank line covering timing mismatches, not credit losses.
+Class securitisation::LiquidityFacilityItem extends securitisation::SecuritisationTranche
+{
+}
+
+// The servicer fronting missed payments it expects to recover.
+Class securitisation::ServicerAdvanceItem extends securitisation::SecuritisationTranche
+{
+}
+
+###Mapping
+Mapping securitisation::SecuritisationMapping
+(
+   *securitisation::SecuritisationTranche[securitisationBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SECURITISATION_TRANCHE.RECORD_ID )
+      ~mainTable [store::DB]SECURITISATION_TRANCHE
+      recordId: [store::DB]SECURITISATION_TRANCHE.RECORD_ID,
+      recordType: [store::DB]SECURITISATION_TRANCHE.RECORD_TYPE,
+      bookId: [store::DB]SECURITISATION_TRANCHE.BOOK_ID,
+      notional: [store::DB]SECURITISATION_TRANCHE.NOTIONAL,
+      currency: [store::DB]SECURITISATION_TRANCHE.CURRENCY,
+      tradeDate: [store::DB]SECURITISATION_TRANCHE.TRADE_DATE,
+      maturityDate: [store::DB]SECURITISATION_TRANCHE.MATURITY_DATE,
+      status: [store::DB]SECURITISATION_TRANCHE.STATUS,
+      isActive: [store::DB]SECURITISATION_TRANCHE.IS_ACTIVE,
+      riskScore: [store::DB]SECURITISATION_TRANCHE.RISK_SCORE
+   }
+
+   securitisation::SeniorAaaTranche[secSeniorAaa] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecSeniorAaaRows
+   }
+
+   securitisation::MezzanineAaTranche[secMezzanineAa] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecMezzanineAaRows
+   }
+
+   securitisation::MezzanineBbbTranche[secMezzanineBbb] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecMezzanineBbbRows
+   }
+
+   securitisation::JuniorBbTranche[secJuniorBb] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecJuniorBbRows
+   }
+
+   securitisation::EquityTranche[secEquityTranche] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecEquityTrancheRows
+   }
+
+   securitisation::RetainedRiskStrip[secRetainedStrip] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecRetainedStripRows
+   }
+
+   securitisation::InterestOnlyStrip[secIoStrip] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecIoStripRows
+   }
+
+   securitisation::PrincipalOnlyStrip[secPoStrip] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecPoStripRows
+   }
+
+   securitisation::SequentialPayClass[secSequentialPay] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecSequentialPayRows
+   }
+
+   securitisation::ProRataClass[secProRata] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecProRataRows
+   }
+
+   securitisation::PlannedAmortisationClass[secPacClass] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecPacClassRows
+   }
+
+   securitisation::SupportClass[secSupportClass] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecSupportClassRows
+   }
+
+   securitisation::RevolvingPeriodItem[secRevolvingPeriod] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecRevolvingPeriodRows
+   }
+
+   securitisation::AmortisationTriggerItem[secAmortisationTrigger] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecAmortisationTriggerRows
+   }
+
+   securitisation::LiquidityFacilityItem[secLiquidityFacility] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecLiquidityFacilityRows
+   }
+
+   securitisation::ServicerAdvanceItem[secServicerAdvance] extends [securitisationBase]: Relational
+   {
+      ~filter [store::DB]SecServicerAdvanceRows
+   }
+)

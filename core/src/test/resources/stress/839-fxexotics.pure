@@ -1,0 +1,211 @@
+###Pure
+// FX exotics: barriers, baskets and the accumulators that keep ending up in court.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class fxexotics::FxExoticStructure
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Pays if the barrier is touched at any point before expiry.
+Class fxexotics::OneTouchOption extends fxexotics::FxExoticStructure
+{
+}
+
+// Pays if the barrier is never touched, which is the same bet the other way.
+Class fxexotics::NoTouchOption extends fxexotics::FxExoticStructure
+{
+}
+
+// Two barriers, neither touched. A pure range bet.
+Class fxexotics::DoubleNoTouchOption extends fxexotics::FxExoticStructure
+{
+}
+
+// Knocks in on a move that takes it further into the money.
+Class fxexotics::ReverseKnockIn extends fxexotics::FxExoticStructure
+{
+}
+
+// The barrier is only live between two dates.
+Class fxexotics::WindowBarrierOption extends fxexotics::FxExoticStructure
+{
+}
+
+// Monitored on a subset of the life rather than continuously.
+Class fxexotics::PartialBarrierOption extends fxexotics::FxExoticStructure
+{
+}
+
+// Redeems once accumulated profit reaches a target, and not before.
+Class fxexotics::TargetRedemptionForward extends fxexotics::FxExoticStructure
+{
+}
+
+// A TARF with a second strike beyond a pivot level.
+Class fxexotics::PivotTargetRedemption extends fxexotics::FxExoticStructure
+{
+}
+
+// Accumulates daily at a discount and doubles up against you below the barrier.
+Class fxexotics::AccumulatorForward extends fxexotics::FxExoticStructure
+{
+}
+
+// The seller's side of the same structure.
+Class fxexotics::DecumulatorForward extends fxexotics::FxExoticStructure
+{
+}
+
+// A collar funded by selling a further out-of-the-money option.
+Class fxexotics::SeagullStructure extends fxexotics::FxExoticStructure
+{
+}
+
+// A forward that keeps some upside, paid for with a worse rate.
+Class fxexotics::ParticipatingForward extends fxexotics::FxExoticStructure
+{
+}
+
+// Pays in a currency other than the underlying's, at a fixed rate.
+Class fxexotics::QuantoOption extends fxexotics::FxExoticStructure
+{
+}
+
+// An option on an option, and two volatilities to get wrong.
+Class fxexotics::CompoundOption extends fxexotics::FxExoticStructure
+{
+}
+
+// One option over a weighted basket of pairs.
+Class fxexotics::FxBasketOption extends fxexotics::FxExoticStructure
+{
+}
+
+// Realised volatility against a strike, linear where a variance swap is not.
+Class fxexotics::FxVolatilitySwap extends fxexotics::FxExoticStructure
+{
+}
+
+###Mapping
+Mapping fxexotics::FxexoticsMapping
+(
+   *fxexotics::FxExoticStructure[fxexoticsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]FX_EXOTIC_STRUCTURE.RECORD_ID )
+      ~mainTable [store::DB]FX_EXOTIC_STRUCTURE
+      recordId: [store::DB]FX_EXOTIC_STRUCTURE.RECORD_ID,
+      recordType: [store::DB]FX_EXOTIC_STRUCTURE.RECORD_TYPE,
+      bookId: [store::DB]FX_EXOTIC_STRUCTURE.BOOK_ID,
+      notional: [store::DB]FX_EXOTIC_STRUCTURE.NOTIONAL,
+      currency: [store::DB]FX_EXOTIC_STRUCTURE.CURRENCY,
+      tradeDate: [store::DB]FX_EXOTIC_STRUCTURE.TRADE_DATE,
+      maturityDate: [store::DB]FX_EXOTIC_STRUCTURE.MATURITY_DATE,
+      status: [store::DB]FX_EXOTIC_STRUCTURE.STATUS,
+      isActive: [store::DB]FX_EXOTIC_STRUCTURE.IS_ACTIVE,
+      riskScore: [store::DB]FX_EXOTIC_STRUCTURE.RISK_SCORE
+   }
+
+   fxexotics::OneTouchOption[fxxOneTouch] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxOneTouchRows
+   }
+
+   fxexotics::NoTouchOption[fxxNoTouch] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxNoTouchRows
+   }
+
+   fxexotics::DoubleNoTouchOption[fxxDoubleNoTouch] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxDoubleNoTouchRows
+   }
+
+   fxexotics::ReverseKnockIn[fxxKnockInReverse] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxKnockInReverseRows
+   }
+
+   fxexotics::WindowBarrierOption[fxxWindowBarrier] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxWindowBarrierRows
+   }
+
+   fxexotics::PartialBarrierOption[fxxPartialBarrier] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxPartialBarrierRows
+   }
+
+   fxexotics::TargetRedemptionForward[fxxTargetRedemption] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxTargetRedemptionRows
+   }
+
+   fxexotics::PivotTargetRedemption[fxxPivotTarf] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxPivotTarfRows
+   }
+
+   fxexotics::AccumulatorForward[fxxAccumulator] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxAccumulatorRows
+   }
+
+   fxexotics::DecumulatorForward[fxxDecumulator] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxDecumulatorRows
+   }
+
+   fxexotics::SeagullStructure[fxxSeagull] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxSeagullRows
+   }
+
+   fxexotics::ParticipatingForward[fxxParticipatingFwd] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxParticipatingFwdRows
+   }
+
+   fxexotics::QuantoOption[fxxQuantoOption] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxQuantoOptionRows
+   }
+
+   fxexotics::CompoundOption[fxxCompoundOption] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxCompoundOptionRows
+   }
+
+   fxexotics::FxBasketOption[fxxBasketFx] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxBasketFxRows
+   }
+
+   fxexotics::FxVolatilitySwap[fxxVolatilitySwap] extends [fxexoticsBase]: Relational
+   {
+      ~filter [store::DB]FxxVolatilitySwapRows
+   }
+)

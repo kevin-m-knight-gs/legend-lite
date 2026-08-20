@@ -1,0 +1,211 @@
+###Pure
+// Payments: the rails, and what each one guarantees.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class paymenttypes::PaymentInstruction
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Settled one by one in central bank money, and final on settlement.
+Class paymenttypes::RtgsPayment extends paymenttypes::PaymentInstruction
+{
+}
+
+// Batched, cheap, and revocable for longer than people expect.
+Class paymenttypes::AchCreditTransfer extends paymenttypes::PaymentInstruction
+{
+}
+
+// Pulled by the payee, which is why the mandate matters.
+Class paymenttypes::AchDirectDebit extends paymenttypes::PaymentInstruction
+{
+}
+
+// Euro area, IBAN-addressed, next day.
+Class paymenttypes::SepaCreditTransfer extends paymenttypes::PaymentInstruction
+{
+}
+
+// Ten seconds, any hour, with a value cap.
+Class paymenttypes::SepaInstantPayment extends paymenttypes::PaymentInstruction
+{
+}
+
+// The UK equivalent, and the one most fraud travels on.
+Class paymenttypes::FasterPayment extends paymenttypes::PaymentInstruction
+{
+}
+
+// Through one or more intermediaries, each taking a fee and a day.
+Class paymenttypes::CorrespondentWire extends paymenttypes::PaymentInstruction
+{
+}
+
+// Both accounts at the same bank, so nothing leaves.
+Class paymenttypes::BookTransfer extends paymenttypes::PaymentInstruction
+{
+}
+
+// Still material, still slow, still occasionally returned.
+Class paymenttypes::CheckClearingItem extends paymenttypes::PaymentInstruction
+{
+}
+
+// Net of the scheme's interchange and its chargebacks.
+Class paymenttypes::CardSettlementItem extends paymenttypes::PaymentInstruction
+{
+}
+
+// Both currency legs or neither, which is what CLS exists for.
+Class paymenttypes::PaymentVersusPayment extends paymenttypes::PaymentInstruction
+{
+}
+
+// Cash against securities, simultaneously.
+Class paymenttypes::DeliveryVersusPayment extends paymenttypes::PaymentInstruction
+{
+}
+
+// The same amount on the same day until cancelled.
+Class paymenttypes::StandingOrderItem extends paymenttypes::PaymentInstruction
+{
+}
+
+// Asking for a payment back, which the beneficiary may refuse.
+Class paymenttypes::PaymentRecallRequest extends paymenttypes::PaymentInstruction
+{
+}
+
+// Rejected downstream and sent back with a reason code.
+Class paymenttypes::ReturnedPayment extends paymenttypes::PaymentInstruction
+{
+}
+
+// Where a payment goes when nobody can find it.
+Class paymenttypes::PaymentInvestigation extends paymenttypes::PaymentInstruction
+{
+}
+
+###Mapping
+Mapping paymenttypes::PaymenttypesMapping
+(
+   *paymenttypes::PaymentInstruction[paymenttypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PAYMENT_INSTRUCTION.RECORD_ID )
+      ~mainTable [store::DB]PAYMENT_INSTRUCTION
+      recordId: [store::DB]PAYMENT_INSTRUCTION.RECORD_ID,
+      recordType: [store::DB]PAYMENT_INSTRUCTION.RECORD_TYPE,
+      bookId: [store::DB]PAYMENT_INSTRUCTION.BOOK_ID,
+      notional: [store::DB]PAYMENT_INSTRUCTION.NOTIONAL,
+      currency: [store::DB]PAYMENT_INSTRUCTION.CURRENCY,
+      tradeDate: [store::DB]PAYMENT_INSTRUCTION.TRADE_DATE,
+      maturityDate: [store::DB]PAYMENT_INSTRUCTION.MATURITY_DATE,
+      status: [store::DB]PAYMENT_INSTRUCTION.STATUS,
+      isActive: [store::DB]PAYMENT_INSTRUCTION.IS_ACTIVE,
+      riskScore: [store::DB]PAYMENT_INSTRUCTION.RISK_SCORE
+   }
+
+   paymenttypes::RtgsPayment[pmtRtgsHighValue] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtRtgsHighValueRows
+   }
+
+   paymenttypes::AchCreditTransfer[pmtAchCredit] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtAchCreditRows
+   }
+
+   paymenttypes::AchDirectDebit[pmtAchDebit] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtAchDebitRows
+   }
+
+   paymenttypes::SepaCreditTransfer[pmtSepaCredit] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtSepaCreditRows
+   }
+
+   paymenttypes::SepaInstantPayment[pmtSepaInstant] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtSepaInstantRows
+   }
+
+   paymenttypes::FasterPayment[pmtFasterPayment] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtFasterPaymentRows
+   }
+
+   paymenttypes::CorrespondentWire[pmtWireCorrespondent] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtWireCorrespondentRows
+   }
+
+   paymenttypes::BookTransfer[pmtBookTransfer] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtBookTransferRows
+   }
+
+   paymenttypes::CheckClearingItem[pmtCheckClearing] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtCheckClearingRows
+   }
+
+   paymenttypes::CardSettlementItem[pmtCardSettlement] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtCardSettlementRows
+   }
+
+   paymenttypes::PaymentVersusPayment[pmtPvpSettlement] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtPvpSettlementRows
+   }
+
+   paymenttypes::DeliveryVersusPayment[pmtDvpSettlement] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtDvpSettlementRows
+   }
+
+   paymenttypes::StandingOrderItem[pmtStandingOrder] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtStandingOrderRows
+   }
+
+   paymenttypes::PaymentRecallRequest[pmtRecallRequest] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtRecallRequestRows
+   }
+
+   paymenttypes::ReturnedPayment[pmtReturnPayment] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtReturnPaymentRows
+   }
+
+   paymenttypes::PaymentInvestigation[pmtInvestigation] extends [paymenttypesBase]: Relational
+   {
+      ~filter [store::DB]PmtInvestigationRows
+   }
+)

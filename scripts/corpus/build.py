@@ -249,6 +249,7 @@ def generate() -> dict[Path, str]:
     # reached by nothing.
     import executed
     problems += _unreachable_roots(c, generated)
+    problems += _id_collisions()
     quarantined = set(quarantine.ENGINE_QUARANTINE) | set(quarantine.HANGS)
     problems += [f"feature no longer executed: {n}" for n in executed.regressions(
         executed.report(c, executed.all_specs(c), quarantined))]
@@ -267,6 +268,50 @@ def generate() -> dict[Path, str]:
             FUNCTEST_FILE: functest.render(c, TABLES),
             EXTERNAL_DATA_FILE: external, HIER_FILE: hier_text,
             COMBO_FILE: combo_text}
+
+
+def _id_collisions() -> list[str]:
+    """Set-implementation ids that collide inside one mapping closure, and filter names that
+    collide at all.
+
+    Both are GLOBAL namespaces and both fail the whole corpus rather than one service:
+
+        Duplicated class mappings found with ID 'payBookTransfer' in mapping
+        'stress::AllMapping'
+
+    which is a compile error, so nothing runs and no test reports. It cost a full suite run
+    to discover that a new taxonomy had reused another's three-letter tag -- refdata builds
+    both the set id and the filter name from it, so one collision produces two.
+
+    Set ids are checked per closure because two FIXTURE mappings legitimately share `base`;
+    they are never included together. Filter names are checked globally because every filter
+    in this corpus is declared in the one store.
+    """
+    import collections
+    import re
+
+    import executed
+
+    src = "".join(p.read_text() for p in sorted(STRESS.glob("*.pure")))
+    out = []
+
+    counts = collections.Counter(re.findall(r"Filter (\w+)\(", src))
+    out += [f"filter name {n!r} is declared {k} times; the store keeps one"
+            for n, k in sorted(counts.items()) if k > 1]
+
+    # mapping -> the set ids it declares
+    by_mapping: dict[str, list[str]] = {}
+    heads = list(re.finditer(r"^Mapping\s+([\w:]+)", src, re.M))
+    for i, h in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+        by_mapping[h.group(1)] = re.findall(
+            r"^\s*\*?[\w:]+\[(\w+)\]", src[h.start():end], re.M)
+    for name, included in sorted(executed.include_closure().items()):
+        seen = collections.Counter(
+            sid for m in included for sid in by_mapping.get(m, ()))
+        out += [f"set id {sid!r} is declared {k} times within {name}"
+                for sid, k in sorted(seen.items()) if k > 1]
+    return out
 
 
 def _unreachable_roots(c, specs) -> list[str]:

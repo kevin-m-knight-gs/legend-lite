@@ -1,0 +1,211 @@
+###Pure
+// Credit derivatives beyond the single name: indices, tranches and the recovery trade.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class creditstructures::CreditStructure
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// A standardised basket traded as one instrument.
+Class creditstructures::CdsIndexTrade extends creditstructures::CreditStructure
+{
+}
+
+// A slice of an index's loss distribution, priced off correlation.
+Class creditstructures::IndexTranche extends creditstructures::CreditStructure
+{
+}
+
+// The same idea over a portfolio the client chose, which is where 2007 started.
+Class creditstructures::BespokeTranche extends creditstructures::CreditStructure
+{
+}
+
+// Pays on whichever name defaults first, and then stops.
+Class creditstructures::FirstToDefaultBasket extends creditstructures::CreditStructure
+{
+}
+
+// The same, further up the queue.
+Class creditstructures::NthToDefaultBasket extends creditstructures::CreditStructure
+{
+}
+
+// Trades the recovery rate itself, with no default view.
+Class creditstructures::RecoverySwap extends creditstructures::CreditStructure
+{
+}
+
+// Fixes recovery for a name, usually alongside a CDS.
+Class creditstructures::RecoveryLock extends creditstructures::CreditStructure
+{
+}
+
+// An option to enter a CDS, knocked out by default.
+Class creditstructures::CreditDefaultSwaption extends creditstructures::CreditStructure
+{
+}
+
+// Resets to a rolling tenor rather than amortising down the curve.
+Class creditstructures::ConstantMaturityCds extends creditstructures::CreditStructure
+{
+}
+
+// A funded CDS in note form, so the buyer takes issuer risk too.
+Class creditstructures::CreditLinkedNote extends creditstructures::CreditStructure
+{
+}
+
+// The bond's whole return against a funding leg.
+Class creditstructures::CreditTotalReturnSwap extends creditstructures::CreditStructure
+{
+}
+
+// Referencing secured loans, which changes the deliverable set entirely.
+Class creditstructures::LoanCds extends creditstructures::CreditStructure
+{
+}
+
+// Where the credit event definitions do most of the work.
+Class creditstructures::SovereignCds extends creditstructures::CreditStructure
+{
+}
+
+// Protection in a currency other than the reference obligation's.
+Class creditstructures::QuantoCds extends creditstructures::CreditStructure
+{
+}
+
+// What happens to protection when the reference entity is reorganised.
+Class creditstructures::SuccessionEventItem extends creditstructures::CreditStructure
+{
+}
+
+// The industry auction that sets the recovery everyone settles at.
+Class creditstructures::AuctionSettlementItem extends creditstructures::CreditStructure
+{
+}
+
+###Mapping
+Mapping creditstructures::CreditstructuresMapping
+(
+   *creditstructures::CreditStructure[creditstructuresBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CREDIT_STRUCTURE.RECORD_ID )
+      ~mainTable [store::DB]CREDIT_STRUCTURE
+      recordId: [store::DB]CREDIT_STRUCTURE.RECORD_ID,
+      recordType: [store::DB]CREDIT_STRUCTURE.RECORD_TYPE,
+      bookId: [store::DB]CREDIT_STRUCTURE.BOOK_ID,
+      notional: [store::DB]CREDIT_STRUCTURE.NOTIONAL,
+      currency: [store::DB]CREDIT_STRUCTURE.CURRENCY,
+      tradeDate: [store::DB]CREDIT_STRUCTURE.TRADE_DATE,
+      maturityDate: [store::DB]CREDIT_STRUCTURE.MATURITY_DATE,
+      status: [store::DB]CREDIT_STRUCTURE.STATUS,
+      isActive: [store::DB]CREDIT_STRUCTURE.IS_ACTIVE,
+      riskScore: [store::DB]CREDIT_STRUCTURE.RISK_SCORE
+   }
+
+   creditstructures::CdsIndexTrade[crxCdsIndex] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxCdsIndexRows
+   }
+
+   creditstructures::IndexTranche[crxIndexTranche] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxIndexTrancheRows
+   }
+
+   creditstructures::BespokeTranche[crxBespokeTranche] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxBespokeTrancheRows
+   }
+
+   creditstructures::FirstToDefaultBasket[crxFirstToDefault] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxFirstToDefaultRows
+   }
+
+   creditstructures::NthToDefaultBasket[crxNthToDefault] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxNthToDefaultRows
+   }
+
+   creditstructures::RecoverySwap[crxRecoverySwap] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxRecoverySwapRows
+   }
+
+   creditstructures::RecoveryLock[crxRecoveryLock] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxRecoveryLockRows
+   }
+
+   creditstructures::CreditDefaultSwaption[crxCdsOption] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxCdsOptionRows
+   }
+
+   creditstructures::ConstantMaturityCds[crxConstantMaturityCds] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxConstantMaturityCdsRows
+   }
+
+   creditstructures::CreditLinkedNote[crxCreditLinkedNote] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxCreditLinkedNoteRows
+   }
+
+   creditstructures::CreditTotalReturnSwap[crxTotalReturnSwap] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxTotalReturnSwapRows
+   }
+
+   creditstructures::LoanCds[crxLoanCds] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxLoanCdsRows
+   }
+
+   creditstructures::SovereignCds[crxSovereignCds] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxSovereignCdsRows
+   }
+
+   creditstructures::QuantoCds[crxQuantoCds] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxQuantoCdsRows
+   }
+
+   creditstructures::SuccessionEventItem[crxSuccessionEvent] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxSuccessionEventRows
+   }
+
+   creditstructures::AuctionSettlementItem[crxAuctionSettlement] extends [creditstructuresBase]: Relational
+   {
+      ~filter [store::DB]CrxAuctionSettlementRows
+   }
+)

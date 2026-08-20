@@ -37,6 +37,21 @@ def emit(*, table: str, pkg: str, base: str, discriminator: str, tag: str,
     """
     ident = fields[0][0]
 
+    # 0. A table name already in use is an ERROR, and is checked BEFORE anything is written.
+    # This lived between the seed edit and the store edit, so a colliding taxonomy wrote its
+    # SEED and then raised -- leaving rows under a table name it does not own, with the wrong
+    # columns, which surfaced two steps later as `KeyError: 'FAIL_ID'` from a primary-key
+    # check on an unrelated table. Refusing before the first write is the only version of
+    # this guard that leaves nothing behind.
+    if f"Table {table} (" in (STRESS / "30-store.pure").read_text() or any(
+            f"Table {table} (" in o.read_text() or f"Table {table}\n" in o.read_text()
+            for o in STRESS.glob("*.pure")):
+        if f"// emitted by refdata for {pkg}" not in (STRESS / "30-store.pure").read_text():
+            raise SystemExit(
+                f"table {table} is already declared in the corpus. refdata will not "
+                f"reuse a name: pick another, or the reader keeps one declaration and "
+                f"silently drops the other.")
+
     # 1. the seed
     p = SCRIPTS / "seed.py"
     t = p.read_text()
@@ -48,21 +63,6 @@ def emit(*, table: str, pkg: str, base: str, discriminator: str, tag: str,
                       f'TABLES: dict[str, list[dict]] = {{\n    "{table}": {table},', 1)
         p.write_text(t)
 
-    # 2. the store: one table and one filter per type
-    p = STRESS / "30-store.pure"
-    t = p.read_text()
-    # A table name already in use is an ERROR, not a reason to skip. The first version
-    # treated "already present" as "already emitted" and silently did nothing -- so when
-    # MARGIN_CALL turned out to belong to the collateral domain, the table and its sixteen
-    # filters were quietly not written, and the failure surfaced as sixteen "undeclared
-    # store filter" messages naming the new classes rather than the collision.
-    for other in STRESS.glob("*.pure"):
-        if f"Table {table} (" in other.read_text() and other.name == "30-store.pure":
-            if f"// emitted by refdata for {pkg}" not in t:
-                raise SystemExit(
-                    f"table {table} is already declared in the corpus. refdata will not "
-                    f"reuse a name: pick another, or the reader keeps one declaration and "
-                    f"silently drops the other.")
     if f"Table {table} (" not in t:
         cols = ", ".join(f"{c} {SQL[ty]}" + (" PRIMARY KEY" if i == 0 else "")
                          for i, (_p, c, ty, _m) in enumerate(fields))
