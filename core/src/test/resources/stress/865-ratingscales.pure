@@ -1,0 +1,211 @@
+###Pure
+// Credit ratings: who assigned it, on what scale, and what it is used for.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class ratingscales::RatingAssignment
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The agency's view over the cycle.
+Class ratingscales::ExternalLongTermRating extends ratingscales::RatingAssignment
+{
+}
+
+// Under a year, and mapped from the long-term scale.
+Class ratingscales::ExternalShortTermRating extends ratingscales::RatingAssignment
+{
+}
+
+// For the instrument, reflecting its seniority and security.
+Class ratingscales::IssueRating extends ratingscales::RatingAssignment
+{
+}
+
+// For the entity, ignoring both.
+Class ratingscales::IssuerRating extends ratingscales::RatingAssignment
+{
+}
+
+// The bank's own scale, calibrated to a default rate.
+Class ratingscales::InternalProbabilityOfDefaultGrade extends ratingscales::RatingAssignment
+{
+}
+
+// What is lost when it does default.
+Class ratingscales::InternalLossGivenDefaultGrade extends ratingscales::RatingAssignment
+{
+}
+
+// Prescribed categories where a model is not permitted.
+Class ratingscales::SupervisorySlottingCategory extends ratingscales::RatingAssignment
+{
+}
+
+// The cap a corporate cannot rate above without good reason.
+Class ratingscales::SovereignCeilingRating extends ratingscales::RatingAssignment
+{
+}
+
+// A direction rather than a change.
+Class ratingscales::PositiveOutlook extends ratingscales::RatingAssignment
+{
+}
+
+// A shorter fuse than an outlook.
+Class ratingscales::NegativeWatch extends ratingscales::RatingAssignment
+{
+}
+
+// Assigned without being asked or paid.
+Class ratingscales::UnsolicitedRating extends ratingscales::RatingAssignment
+{
+}
+
+// No longer maintained, and still on somebody's system.
+Class ratingscales::WithdrawnRating extends ratingscales::RatingAssignment
+{
+}
+
+// The event, recorded on the scale.
+Class ratingscales::DefaultRating extends ratingscales::RatingAssignment
+{
+}
+
+// A separate scale, for what is left afterwards.
+Class ratingscales::RecoveryRating extends ratingscales::RatingAssignment
+{
+}
+
+// The bank's estimate of what an agency would say.
+Class ratingscales::ShadowRating extends ratingscales::RatingAssignment
+{
+}
+
+// The regulator's translation from agency scale to risk weight.
+Class ratingscales::EcaiMappingItem extends ratingscales::RatingAssignment
+{
+}
+
+###Mapping
+Mapping ratingscales::RatingscalesMapping
+(
+   *ratingscales::RatingAssignment[ratingscalesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RATING_ASSIGNMENT.RECORD_ID )
+      ~mainTable [store::DB]RATING_ASSIGNMENT
+      recordId: [store::DB]RATING_ASSIGNMENT.RECORD_ID,
+      recordType: [store::DB]RATING_ASSIGNMENT.RECORD_TYPE,
+      bookId: [store::DB]RATING_ASSIGNMENT.BOOK_ID,
+      notional: [store::DB]RATING_ASSIGNMENT.NOTIONAL,
+      currency: [store::DB]RATING_ASSIGNMENT.CURRENCY,
+      tradeDate: [store::DB]RATING_ASSIGNMENT.TRADE_DATE,
+      maturityDate: [store::DB]RATING_ASSIGNMENT.MATURITY_DATE,
+      status: [store::DB]RATING_ASSIGNMENT.STATUS,
+      isActive: [store::DB]RATING_ASSIGNMENT.IS_ACTIVE,
+      riskScore: [store::DB]RATING_ASSIGNMENT.RISK_SCORE
+   }
+
+   ratingscales::ExternalLongTermRating[ratExternalLongTerm] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatExternalLongTermRows
+   }
+
+   ratingscales::ExternalShortTermRating[ratExternalShortTerm] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatExternalShortTermRows
+   }
+
+   ratingscales::IssueRating[ratIssueRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatIssueRatingRows
+   }
+
+   ratingscales::IssuerRating[ratIssuerRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatIssuerRatingRows
+   }
+
+   ratingscales::InternalProbabilityOfDefaultGrade[ratInternalPdGrade] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatInternalPdGradeRows
+   }
+
+   ratingscales::InternalLossGivenDefaultGrade[ratInternalLgdGrade] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatInternalLgdGradeRows
+   }
+
+   ratingscales::SupervisorySlottingCategory[ratSlottingCategory] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatSlottingCategoryRows
+   }
+
+   ratingscales::SovereignCeilingRating[ratSovereignCeiling] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatSovereignCeilingRows
+   }
+
+   ratingscales::PositiveOutlook[ratOutlookPositive] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatOutlookPositiveRows
+   }
+
+   ratingscales::NegativeWatch[ratWatchNegative] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatWatchNegativeRows
+   }
+
+   ratingscales::UnsolicitedRating[ratUnsolicitedRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatUnsolicitedRatingRows
+   }
+
+   ratingscales::WithdrawnRating[ratWithdrawnRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatWithdrawnRatingRows
+   }
+
+   ratingscales::DefaultRating[ratDefaultRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatDefaultRatingRows
+   }
+
+   ratingscales::RecoveryRating[ratRecoveryRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatRecoveryRatingRows
+   }
+
+   ratingscales::ShadowRating[ratShadowRating] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatShadowRatingRows
+   }
+
+   ratingscales::EcaiMappingItem[ratEcaiMapping] extends [ratingscalesBase]: Relational
+   {
+      ~filter [store::DB]RatEcaiMappingRows
+   }
+)

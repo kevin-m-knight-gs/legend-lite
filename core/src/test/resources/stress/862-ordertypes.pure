@@ -1,0 +1,211 @@
+###Pure
+// How an order is worked, which is most of what a client is paying for.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class ordertypes::OrderHandlingType
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Immediate, at whatever the book offers.
+Class ordertypes::MarketOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// At a price or better, and possibly never.
+Class ordertypes::LimitOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Becomes a market order once triggered, which is when liquidity is worst.
+Class ordertypes::StopMarketOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Becomes a limit order instead, and may miss entirely.
+Class ordertypes::StopLimitOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Only part of the size is displayed.
+Class ordertypes::IcebergOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Repriced to the midpoint as the book moves.
+Class ordertypes::MidpointPegOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Pegged to the near touch instead.
+Class ordertypes::PrimaryPegOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Worked against the volume profile over a window.
+Class ordertypes::VwapAlgorithmOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Evenly over time, which is simpler and more predictable.
+Class ordertypes::TwapAlgorithmOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Traded against the arrival price rather than the average.
+Class ordertypes::ImplementationShortfallOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// A fixed share of market volume until done.
+Class ordertypes::ParticipationRateOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Held for the auction, where a third of the day's volume is.
+Class ordertypes::ClosingAuctionOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// All of it now or none of it.
+Class ordertypes::FillOrKillOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// As much as is available now, and cancel the rest.
+Class ordertypes::ImmediateOrCancelOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Rests until filled or pulled, which can be months.
+Class ordertypes::GoodTillCancelledOrder extends ordertypes::OrderHandlingType
+{
+}
+
+// Advertised in a dark pool and firmed up only when matched.
+Class ordertypes::ConditionalOrder extends ordertypes::OrderHandlingType
+{
+}
+
+###Mapping
+Mapping ordertypes::OrdertypesMapping
+(
+   *ordertypes::OrderHandlingType[ordertypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]ORDER_HANDLING_TYPE.RECORD_ID )
+      ~mainTable [store::DB]ORDER_HANDLING_TYPE
+      recordId: [store::DB]ORDER_HANDLING_TYPE.RECORD_ID,
+      recordType: [store::DB]ORDER_HANDLING_TYPE.RECORD_TYPE,
+      bookId: [store::DB]ORDER_HANDLING_TYPE.BOOK_ID,
+      notional: [store::DB]ORDER_HANDLING_TYPE.NOTIONAL,
+      currency: [store::DB]ORDER_HANDLING_TYPE.CURRENCY,
+      tradeDate: [store::DB]ORDER_HANDLING_TYPE.TRADE_DATE,
+      maturityDate: [store::DB]ORDER_HANDLING_TYPE.MATURITY_DATE,
+      status: [store::DB]ORDER_HANDLING_TYPE.STATUS,
+      isActive: [store::DB]ORDER_HANDLING_TYPE.IS_ACTIVE,
+      riskScore: [store::DB]ORDER_HANDLING_TYPE.RISK_SCORE
+   }
+
+   ordertypes::MarketOrder[ohtMarketOrder] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtMarketOrderRows
+   }
+
+   ordertypes::LimitOrder[ohtLimitOrder] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtLimitOrderRows
+   }
+
+   ordertypes::StopMarketOrder[ohtStopMarket] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtStopMarketRows
+   }
+
+   ordertypes::StopLimitOrder[ohtStopLimit] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtStopLimitRows
+   }
+
+   ordertypes::IcebergOrder[ohtIceberg] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtIcebergRows
+   }
+
+   ordertypes::MidpointPegOrder[ohtPegMidpoint] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtPegMidpointRows
+   }
+
+   ordertypes::PrimaryPegOrder[ohtPegPrimary] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtPegPrimaryRows
+   }
+
+   ordertypes::VwapAlgorithmOrder[ohtVwapAlgo] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtVwapAlgoRows
+   }
+
+   ordertypes::TwapAlgorithmOrder[ohtTwapAlgo] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtTwapAlgoRows
+   }
+
+   ordertypes::ImplementationShortfallOrder[ohtImplementationShortfall] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtImplementationShortfallRows
+   }
+
+   ordertypes::ParticipationRateOrder[ohtParticipationRate] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtParticipationRateRows
+   }
+
+   ordertypes::ClosingAuctionOrder[ohtCloseAuction] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtCloseAuctionRows
+   }
+
+   ordertypes::FillOrKillOrder[ohtFillOrKill] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtFillOrKillRows
+   }
+
+   ordertypes::ImmediateOrCancelOrder[ohtImmediateOrCancel] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtImmediateOrCancelRows
+   }
+
+   ordertypes::GoodTillCancelledOrder[ohtGoodTillCancelled] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtGoodTillCancelledRows
+   }
+
+   ordertypes::ConditionalOrder[ohtConditionalOrder] extends [ordertypesBase]: Relational
+   {
+      ~filter [store::DB]OhtConditionalOrderRows
+   }
+)

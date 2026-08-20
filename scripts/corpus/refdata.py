@@ -52,6 +52,19 @@ def emit(*, table: str, pkg: str, base: str, discriminator: str, tag: str,
                 f"reuse a name: pick another, or the reader keeps one declaration and "
                 f"silently drops the other.")
 
+    # 0b. And a TAG already in use. refdata builds both the set id (`{tag.lower()}{Code}`)
+    # and the filter name (`{tag}{Code}Rows`) from it, and both are global namespaces -- so
+    # one reused tag is two collisions and a corpus that does not compile. Three batches in a
+    # row lost a build to this before the check moved here from the far end of the pipeline.
+    for other in sorted(STRESS.glob("*.pure")):
+        if other.name == f"8{file_index}-{pkg}.pure":
+            continue
+        if re.search(rf"^\s*\*?[\w:]+\[{tag.lower()}[A-Z]\w*\]", other.read_text(), re.M):
+            raise SystemExit(
+                f"tag {tag!r} is already in use ({other.name}). Pick another: the tag "
+                f"produces both the set ids and the filter names, and a clash in either "
+                f"fails the whole corpus at compile rather than one service at run.")
+
     # 1. the seed
     p = SCRIPTS / "seed.py"
     t = p.read_text()

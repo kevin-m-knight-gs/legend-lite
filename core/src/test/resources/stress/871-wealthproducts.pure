@@ -1,0 +1,211 @@
+###Pure
+// Private banking products, and what the client is really being sold.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class wealthproducts::WealthProduct
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The bank decides, within a policy the client signed.
+Class wealthproducts::DiscretionaryMandate extends wealthproducts::WealthProduct
+{
+}
+
+// The client decides, and the suitability record matters more.
+Class wealthproducts::AdvisoryMandate extends wealthproducts::WealthProduct
+{
+}
+
+// No advice, and a much shorter file.
+Class wealthproducts::ExecutionOnlyRelationship extends wealthproducts::WealthProduct
+{
+}
+
+// Lending against the portfolio, and the margin call that follows a drawdown.
+Class wealthproducts::LombardLoan extends wealthproducts::WealthProduct
+{
+}
+
+// Underwritten on the whole relationship rather than on income.
+Class wealthproducts::PrivateClientMortgage extends wealthproducts::WealthProduct
+{
+}
+
+// A payoff built for one client, and priced without a screen.
+Class wealthproducts::StructuredSolution extends wealthproducts::WealthProduct
+{
+}
+
+// Access to a fund the client could not reach alone.
+Class wealthproducts::PrivateMarketsFeeder extends wealthproducts::WealthProduct
+{
+}
+
+// A foundation or a donor-advised fund.
+Class wealthproducts::PhilanthropyVehicle extends wealthproducts::WealthProduct
+{
+}
+
+// Where the beneficial ownership question starts.
+Class wealthproducts::TrustStructure extends wealthproducts::WealthProduct
+{
+}
+
+// The civil-law equivalent, with no trustee.
+Class wealthproducts::FoundationStructure extends wealthproducts::WealthProduct
+{
+}
+
+// A policy holding a portfolio, for tax and succession.
+Class wealthproducts::LifeInsuranceWrapper extends wealthproducts::WealthProduct
+{
+}
+
+// Lending against something with no daily price.
+Class wealthproducts::ArtFinanceFacility extends wealthproducts::WealthProduct
+{
+}
+
+// Or against something that moves between jurisdictions.
+Class wealthproducts::AviationFinanceFacility extends wealthproducts::WealthProduct
+{
+}
+
+// Hedging a founder's holding without selling it.
+Class wealthproducts::ConcentratedStockSolution extends wealthproducts::WealthProduct
+{
+}
+
+// Cash now against shares that cannot yet be sold.
+Class wealthproducts::PreIpoLiquidityFacility extends wealthproducts::WealthProduct
+{
+}
+
+// The reason most of the above exist.
+Class wealthproducts::SuccessionPlanItem extends wealthproducts::WealthProduct
+{
+}
+
+###Mapping
+Mapping wealthproducts::WealthproductsMapping
+(
+   *wealthproducts::WealthProduct[wealthproductsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]WEALTH_PRODUCT.RECORD_ID )
+      ~mainTable [store::DB]WEALTH_PRODUCT
+      recordId: [store::DB]WEALTH_PRODUCT.RECORD_ID,
+      recordType: [store::DB]WEALTH_PRODUCT.RECORD_TYPE,
+      bookId: [store::DB]WEALTH_PRODUCT.BOOK_ID,
+      notional: [store::DB]WEALTH_PRODUCT.NOTIONAL,
+      currency: [store::DB]WEALTH_PRODUCT.CURRENCY,
+      tradeDate: [store::DB]WEALTH_PRODUCT.TRADE_DATE,
+      maturityDate: [store::DB]WEALTH_PRODUCT.MATURITY_DATE,
+      status: [store::DB]WEALTH_PRODUCT.STATUS,
+      isActive: [store::DB]WEALTH_PRODUCT.IS_ACTIVE,
+      riskScore: [store::DB]WEALTH_PRODUCT.RISK_SCORE
+   }
+
+   wealthproducts::DiscretionaryMandate[wltDiscretionaryMandate] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltDiscretionaryMandateRows
+   }
+
+   wealthproducts::AdvisoryMandate[wltAdvisoryMandate] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltAdvisoryMandateRows
+   }
+
+   wealthproducts::ExecutionOnlyRelationship[wltExecutionOnly] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltExecutionOnlyRows
+   }
+
+   wealthproducts::LombardLoan[wltLombardLoan] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltLombardLoanRows
+   }
+
+   wealthproducts::PrivateClientMortgage[wltMortgagePrivate] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltMortgagePrivateRows
+   }
+
+   wealthproducts::StructuredSolution[wltStructuredSolution] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltStructuredSolutionRows
+   }
+
+   wealthproducts::PrivateMarketsFeeder[wltPrivateMarketsFeeder] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltPrivateMarketsFeederRows
+   }
+
+   wealthproducts::PhilanthropyVehicle[wltPhilanthropyVehicle] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltPhilanthropyVehicleRows
+   }
+
+   wealthproducts::TrustStructure[wltTrustStructure] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltTrustStructureRows
+   }
+
+   wealthproducts::FoundationStructure[wltFoundationStructure] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltFoundationStructureRows
+   }
+
+   wealthproducts::LifeInsuranceWrapper[wltLifeInsuranceWrapper] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltLifeInsuranceWrapperRows
+   }
+
+   wealthproducts::ArtFinanceFacility[wltArtFinance] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltArtFinanceRows
+   }
+
+   wealthproducts::AviationFinanceFacility[wltAviationFinance] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltAviationFinanceRows
+   }
+
+   wealthproducts::ConcentratedStockSolution[wltConcentratedStock] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltConcentratedStockRows
+   }
+
+   wealthproducts::PreIpoLiquidityFacility[wltPreIpoLiquidity] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltPreIpoLiquidityRows
+   }
+
+   wealthproducts::SuccessionPlanItem[wltSuccessionPlan] extends [wealthproductsBase]: Relational
+   {
+      ~filter [store::DB]WltSuccessionPlanRows
+   }
+)

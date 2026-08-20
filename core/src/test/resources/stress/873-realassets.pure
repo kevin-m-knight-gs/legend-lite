@@ -1,0 +1,211 @@
+###Pure
+// Real assets: valued by appraisal, and traded rarely enough for that to matter.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class realassets::RealAssetHolding
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Prime, let, and repriced hard by remote working.
+Class realassets::CoreOfficeProperty extends realassets::RealAssetHolding
+{
+}
+
+// The other side of the same shift.
+Class realassets::LogisticsWarehouse extends realassets::RealAssetHolding
+{
+}
+
+// Written down first and recovered quietly.
+Class realassets::RetailParkProperty extends realassets::RealAssetHolding
+{
+}
+
+// Regulated rents, and a different risk entirely.
+Class realassets::ResidentialBlock extends realassets::RealAssetHolding
+{
+}
+
+// Priced on power availability more than on floor area.
+Class realassets::DataCentreAsset extends realassets::RealAssetHolding
+{
+}
+
+// Short leases and long capital commitments.
+Class realassets::StudentHousing extends realassets::RealAssetHolding
+{
+}
+
+// A concession with an inflation-linked tariff.
+Class realassets::TollRoadConcession extends realassets::RealAssetHolding
+{
+}
+
+// Regulated, and correlated with everything in a pandemic.
+Class realassets::AirportConcession extends realassets::RealAssetHolding
+{
+}
+
+// Merchant power risk after the subsidy ends.
+Class realassets::WindFarmAsset extends realassets::RealAssetHolding
+{
+}
+
+// Predictable output and unpredictable capture prices.
+Class realassets::SolarFarmAsset extends realassets::RealAssetHolding
+{
+}
+
+// A government tenant on a thirty-year lease.
+Class realassets::SocialInfrastructureAsset extends realassets::RealAssetHolding
+{
+}
+
+// Where the crop can wait for a better price.
+Class realassets::TimberlandAsset extends realassets::RealAssetHolding
+{
+}
+
+// Valued on yield and on what else it could become.
+Class realassets::FarmlandAsset extends realassets::RealAssetHolding
+{
+}
+
+// The land under a building, and the safest claim on it.
+Class realassets::GroundLeaseInterest extends realassets::RealAssetHolding
+{
+}
+
+// No income, planning risk, and the highest return in the fund.
+Class realassets::DevelopmentSite extends realassets::RealAssetHolding
+{
+}
+
+// The reason a real estate index looks smoother than the market.
+Class realassets::AppraisalLagItem extends realassets::RealAssetHolding
+{
+}
+
+###Mapping
+Mapping realassets::RealassetsMapping
+(
+   *realassets::RealAssetHolding[realassetsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]REAL_ASSET_HOLDING.RECORD_ID )
+      ~mainTable [store::DB]REAL_ASSET_HOLDING
+      recordId: [store::DB]REAL_ASSET_HOLDING.RECORD_ID,
+      recordType: [store::DB]REAL_ASSET_HOLDING.RECORD_TYPE,
+      bookId: [store::DB]REAL_ASSET_HOLDING.BOOK_ID,
+      notional: [store::DB]REAL_ASSET_HOLDING.NOTIONAL,
+      currency: [store::DB]REAL_ASSET_HOLDING.CURRENCY,
+      tradeDate: [store::DB]REAL_ASSET_HOLDING.TRADE_DATE,
+      maturityDate: [store::DB]REAL_ASSET_HOLDING.MATURITY_DATE,
+      status: [store::DB]REAL_ASSET_HOLDING.STATUS,
+      isActive: [store::DB]REAL_ASSET_HOLDING.IS_ACTIVE,
+      riskScore: [store::DB]REAL_ASSET_HOLDING.RISK_SCORE
+   }
+
+   realassets::CoreOfficeProperty[reaCoreOffice] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaCoreOfficeRows
+   }
+
+   realassets::LogisticsWarehouse[reaLogisticsWarehouse] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaLogisticsWarehouseRows
+   }
+
+   realassets::RetailParkProperty[reaRetailPark] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaRetailParkRows
+   }
+
+   realassets::ResidentialBlock[reaResidentialBlock] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaResidentialBlockRows
+   }
+
+   realassets::DataCentreAsset[reaDataCentre] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaDataCentreRows
+   }
+
+   realassets::StudentHousing[reaStudentHousing] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaStudentHousingRows
+   }
+
+   realassets::TollRoadConcession[reaTollRoad] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaTollRoadRows
+   }
+
+   realassets::AirportConcession[reaAirportConcession] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaAirportConcessionRows
+   }
+
+   realassets::WindFarmAsset[reaRenewableWind] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaRenewableWindRows
+   }
+
+   realassets::SolarFarmAsset[reaRenewableSolar] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaRenewableSolarRows
+   }
+
+   realassets::SocialInfrastructureAsset[reaSocialInfrastructure] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaSocialInfrastructureRows
+   }
+
+   realassets::TimberlandAsset[reaTimberland] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaTimberlandRows
+   }
+
+   realassets::FarmlandAsset[reaFarmland] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaFarmlandRows
+   }
+
+   realassets::GroundLeaseInterest[reaGroundLease] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaGroundLeaseRows
+   }
+
+   realassets::DevelopmentSite[reaDevelopmentSite] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaDevelopmentSiteRows
+   }
+
+   realassets::AppraisalLagItem[reaAppraisalLag] extends [realassetsBase]: Relational
+   {
+      ~filter [store::DB]ReaAppraisalLagRows
+   }
+)

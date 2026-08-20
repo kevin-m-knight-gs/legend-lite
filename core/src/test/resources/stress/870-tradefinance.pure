@@ -1,0 +1,211 @@
+###Pure
+// Trade finance: documents, and what a bank promises against them.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class tradefinance::TradeFinanceItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Paid on presentation of conforming documents.
+Class tradefinance::SightLetterOfCredit extends tradefinance::TradeFinanceItem
+{
+}
+
+// Paid at a tenor, which is where the financing is.
+Class tradefinance::UsanceLetterOfCredit extends tradefinance::TradeFinanceItem
+{
+}
+
+// A guarantee wearing a letter of credit's clothes.
+Class tradefinance::StandbyLetterOfCredit extends tradefinance::TradeFinanceItem
+{
+}
+
+// A second bank adds its own undertaking.
+Class tradefinance::ConfirmedLetterOfCredit extends tradefinance::TradeFinanceItem
+{
+}
+
+// The beneficiary can pass it to a supplier.
+Class tradefinance::TransferableLetterOfCredit extends tradefinance::TradeFinanceItem
+{
+}
+
+// Two credits, one shipment, and a broker in between.
+Class tradefinance::BackToBackLetterOfCredit extends tradefinance::TradeFinanceItem
+{
+}
+
+// The bank handles documents and promises nothing.
+Class tradefinance::DocumentaryCollection extends tradefinance::TradeFinanceItem
+{
+}
+
+// Payable on demand, and independent of the underlying dispute.
+Class tradefinance::BankGuarantee extends tradefinance::TradeFinanceItem
+{
+}
+
+// For non-delivery rather than for non-payment.
+Class tradefinance::PerformanceBond extends tradefinance::TradeFinanceItem
+{
+}
+
+// A bill with a bank's endorsement, and therefore discountable.
+Class tradefinance::AvalisedDraft extends tradefinance::TradeFinanceItem
+{
+}
+
+// The buyer's credit, applied to the supplier's receivable.
+Class tradefinance::SupplyChainFinanceItem extends tradefinance::TradeFinanceItem
+{
+}
+
+// Bought outright, with or without recourse.
+Class tradefinance::ReceivablesPurchase extends tradefinance::TradeFinanceItem
+{
+}
+
+// Without recourse, at a discount, for the long term.
+Class tradefinance::ForfaitingItem extends tradefinance::TradeFinanceItem
+{
+}
+
+// Lent against a contract before the goods exist.
+Class tradefinance::PreExportFinance extends tradefinance::TradeFinanceItem
+{
+}
+
+// Documents that do not conform, which is most of them first time.
+Class tradefinance::DiscrepantPresentation extends tradefinance::TradeFinanceItem
+{
+}
+
+// A government agency taking the country risk.
+Class tradefinance::ExportCreditAgencyCover extends tradefinance::TradeFinanceItem
+{
+}
+
+###Mapping
+Mapping tradefinance::TradefinanceMapping
+(
+   *tradefinance::TradeFinanceItem[tradefinanceBase]: Relational
+   {
+      ~primaryKey ( [store::DB]TRADE_FINANCE_ITEM.RECORD_ID )
+      ~mainTable [store::DB]TRADE_FINANCE_ITEM
+      recordId: [store::DB]TRADE_FINANCE_ITEM.RECORD_ID,
+      recordType: [store::DB]TRADE_FINANCE_ITEM.RECORD_TYPE,
+      bookId: [store::DB]TRADE_FINANCE_ITEM.BOOK_ID,
+      notional: [store::DB]TRADE_FINANCE_ITEM.NOTIONAL,
+      currency: [store::DB]TRADE_FINANCE_ITEM.CURRENCY,
+      tradeDate: [store::DB]TRADE_FINANCE_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]TRADE_FINANCE_ITEM.MATURITY_DATE,
+      status: [store::DB]TRADE_FINANCE_ITEM.STATUS,
+      isActive: [store::DB]TRADE_FINANCE_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]TRADE_FINANCE_ITEM.RISK_SCORE
+   }
+
+   tradefinance::SightLetterOfCredit[tfiLetterOfCreditSight] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiLetterOfCreditSightRows
+   }
+
+   tradefinance::UsanceLetterOfCredit[tfiLetterOfCreditUsance] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiLetterOfCreditUsanceRows
+   }
+
+   tradefinance::StandbyLetterOfCredit[tfiStandbyLc] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiStandbyLcRows
+   }
+
+   tradefinance::ConfirmedLetterOfCredit[tfiConfirmedLc] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiConfirmedLcRows
+   }
+
+   tradefinance::TransferableLetterOfCredit[tfiTransferableLc] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiTransferableLcRows
+   }
+
+   tradefinance::BackToBackLetterOfCredit[tfiBackToBackLc] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiBackToBackLcRows
+   }
+
+   tradefinance::DocumentaryCollection[tfiDocumentaryCollection] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiDocumentaryCollectionRows
+   }
+
+   tradefinance::BankGuarantee[tfiBankGuarantee] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiBankGuaranteeRows
+   }
+
+   tradefinance::PerformanceBond[tfiPerformanceBond] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiPerformanceBondRows
+   }
+
+   tradefinance::AvalisedDraft[tfiAvalisedDraft] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiAvalisedDraftRows
+   }
+
+   tradefinance::SupplyChainFinanceItem[tfiSupplyChainFinance] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiSupplyChainFinanceRows
+   }
+
+   tradefinance::ReceivablesPurchase[tfiReceivablesPurchase] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiReceivablesPurchaseRows
+   }
+
+   tradefinance::ForfaitingItem[tfiForfaiting] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiForfaitingRows
+   }
+
+   tradefinance::PreExportFinance[tfiPreExportFinance] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiPreExportFinanceRows
+   }
+
+   tradefinance::DiscrepantPresentation[tfiDiscrepantPresentation] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiDiscrepantPresentationRows
+   }
+
+   tradefinance::ExportCreditAgencyCover[tfiEcaCover] extends [tradefinanceBase]: Relational
+   {
+      ~filter [store::DB]TfiEcaCoverRows
+   }
+)

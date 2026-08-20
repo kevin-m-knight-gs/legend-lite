@@ -1,0 +1,211 @@
+###Pure
+// How an index is built, which decides who has to trade at the rebalance.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class indexrules::IndexMethodology
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Weighted by what is actually tradable, not by what is issued.
+Class indexrules::FreeFloatMarketCapIndex extends indexrules::IndexMethodology
+{
+}
+
+// Including the stakes nobody can buy.
+Class indexrules::FullMarketCapIndex extends indexrules::IndexMethodology
+{
+}
+
+// Weighted by share price, which is an accident of history.
+Class indexrules::PriceWeightedIndex extends indexrules::IndexMethodology
+{
+}
+
+// Rebalanced constantly, and a systematic small-cap tilt.
+Class indexrules::EqualWeightedIndex extends indexrules::IndexMethodology
+{
+}
+
+// Weighted by sales or book value rather than by price.
+Class indexrules::FundamentalWeightedIndex extends indexrules::IndexMethodology
+{
+}
+
+// Optimised, and dependent on a covariance estimate.
+Class indexrules::MinimumVarianceIndex extends indexrules::IndexMethodology
+{
+}
+
+// Equal risk contribution, which usually means leveraged bonds.
+Class indexrules::RiskParityIndex extends indexrules::IndexMethodology
+{
+}
+
+// High turnover by construction.
+Class indexrules::MomentumFactorIndex extends indexrules::IndexMethodology
+{
+}
+
+// Where the definition does all the work.
+Class indexrules::QualityFactorIndex extends indexrules::IndexMethodology
+{
+}
+
+// Yield-ranked, and a value tilt in disguise.
+Class indexrules::DividendYieldIndex extends indexrules::IndexMethodology
+{
+}
+
+// Exclusions applied to a parent index.
+Class indexrules::EsgScreenedIndex extends indexrules::IndexMethodology
+{
+}
+
+// Reweighted to a score subject to a tracking-error budget.
+Class indexrules::EsgOptimisedIndex extends indexrules::IndexMethodology
+{
+}
+
+// Single-name caps, because a fund cannot hold 30% of anything.
+Class indexrules::CappedWeightIndex extends indexrules::IndexMethodology
+{
+}
+
+// Dividends reinvested, which is the only comparable version.
+Class indexrules::TotalReturnIndex extends indexrules::IndexMethodology
+{
+}
+
+// Net of a funding cost, which is how commodity indices quote.
+Class indexrules::ExcessReturnIndex extends indexrules::IndexMethodology
+{
+}
+
+// One client's rules, calculated by an administrator for a fee.
+Class indexrules::CustomBasketIndex extends indexrules::IndexMethodology
+{
+}
+
+###Mapping
+Mapping indexrules::IndexrulesMapping
+(
+   *indexrules::IndexMethodology[indexrulesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]INDEX_METHODOLOGY.RECORD_ID )
+      ~mainTable [store::DB]INDEX_METHODOLOGY
+      recordId: [store::DB]INDEX_METHODOLOGY.RECORD_ID,
+      recordType: [store::DB]INDEX_METHODOLOGY.RECORD_TYPE,
+      bookId: [store::DB]INDEX_METHODOLOGY.BOOK_ID,
+      notional: [store::DB]INDEX_METHODOLOGY.NOTIONAL,
+      currency: [store::DB]INDEX_METHODOLOGY.CURRENCY,
+      tradeDate: [store::DB]INDEX_METHODOLOGY.TRADE_DATE,
+      maturityDate: [store::DB]INDEX_METHODOLOGY.MATURITY_DATE,
+      status: [store::DB]INDEX_METHODOLOGY.STATUS,
+      isActive: [store::DB]INDEX_METHODOLOGY.IS_ACTIVE,
+      riskScore: [store::DB]INDEX_METHODOLOGY.RISK_SCORE
+   }
+
+   indexrules::FreeFloatMarketCapIndex[idxMarketCapFreeFloat] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxMarketCapFreeFloatRows
+   }
+
+   indexrules::FullMarketCapIndex[idxFullMarketCap] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxFullMarketCapRows
+   }
+
+   indexrules::PriceWeightedIndex[idxPriceWeighted] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxPriceWeightedRows
+   }
+
+   indexrules::EqualWeightedIndex[idxEqualWeighted] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxEqualWeightedRows
+   }
+
+   indexrules::FundamentalWeightedIndex[idxFundamentalWeighted] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxFundamentalWeightedRows
+   }
+
+   indexrules::MinimumVarianceIndex[idxMinVariance] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxMinVarianceRows
+   }
+
+   indexrules::RiskParityIndex[idxRiskParity] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxRiskParityRows
+   }
+
+   indexrules::MomentumFactorIndex[idxMomentumFactor] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxMomentumFactorRows
+   }
+
+   indexrules::QualityFactorIndex[idxQualityFactor] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxQualityFactorRows
+   }
+
+   indexrules::DividendYieldIndex[idxDividendYield] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxDividendYieldRows
+   }
+
+   indexrules::EsgScreenedIndex[idxEsgScreened] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxEsgScreenedRows
+   }
+
+   indexrules::EsgOptimisedIndex[idxEsgOptimised] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxEsgOptimisedRows
+   }
+
+   indexrules::CappedWeightIndex[idxCappedIndex] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxCappedIndexRows
+   }
+
+   indexrules::TotalReturnIndex[idxTotalReturn] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxTotalReturnRows
+   }
+
+   indexrules::ExcessReturnIndex[idxExcessReturn] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxExcessReturnRows
+   }
+
+   indexrules::CustomBasketIndex[idxCustomBasket] extends [indexrulesBase]: Relational
+   {
+      ~filter [store::DB]IdxCustomBasketRows
+   }
+)

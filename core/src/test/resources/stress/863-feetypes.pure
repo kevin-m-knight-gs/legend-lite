@@ -1,0 +1,211 @@
+###Pure
+// What a client is charged for, and who ultimately keeps it.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class feetypes::FeeChargeType
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The headline rate, and the smallest part of the total cost.
+Class feetypes::ExecutionCommission extends feetypes::FeeChargeType
+{
+}
+
+// Unbundled from execution, and budgeted separately.
+Class feetypes::ResearchPayment extends feetypes::FeeChargeType
+{
+}
+
+// Passed through, and rebated to liquidity providers.
+Class feetypes::ExchangeFee extends feetypes::FeeChargeType
+{
+}
+
+// The CCP's, per side and per lot.
+Class feetypes::ClearingFee extends feetypes::FeeChargeType
+{
+}
+
+// The depository's, per instruction.
+Class feetypes::SettlementFee extends feetypes::FeeChargeType
+{
+}
+
+// Basis points on assets held, billed monthly.
+Class feetypes::CustodyFee extends feetypes::FeeChargeType
+{
+}
+
+// The sub-custodian's share of the same thing.
+Class feetypes::SafekeepingFee extends feetypes::FeeChargeType
+{
+}
+
+// Charged on assets whether they perform or not.
+Class feetypes::ManagementFee extends feetypes::FeeChargeType
+{
+}
+
+// Above a hurdle, and subject to a high-water mark.
+Class feetypes::PerformanceFee extends feetypes::FeeChargeType
+{
+}
+
+// The margin on the funding leg, which nobody puts on a fee schedule.
+Class feetypes::FinancingSpread extends feetypes::FeeChargeType
+{
+}
+
+// What a short costs, and the number that moves in a squeeze.
+Class feetypes::StockBorrowFee extends feetypes::FeeChargeType
+{
+}
+
+// For the relationship rather than for any one trade.
+Class feetypes::PrimeBrokerageFee extends feetypes::FeeChargeType
+{
+}
+
+// The venue's subscription, unrelated to volume.
+Class feetypes::PlatformFee extends feetypes::FeeChargeType
+{
+}
+
+// Per user, per screen, and enforced by audit.
+Class feetypes::MarketDataFee extends feetypes::FeeChargeType
+{
+}
+
+// A negative fee, for adding liquidity.
+Class feetypes::RebateCredit extends feetypes::FeeChargeType
+{
+}
+
+// Charged, reversed, and still worth recording.
+Class feetypes::WaivedFee extends feetypes::FeeChargeType
+{
+}
+
+###Mapping
+Mapping feetypes::FeetypesMapping
+(
+   *feetypes::FeeChargeType[feetypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]FEE_CHARGE_TYPE.RECORD_ID )
+      ~mainTable [store::DB]FEE_CHARGE_TYPE
+      recordId: [store::DB]FEE_CHARGE_TYPE.RECORD_ID,
+      recordType: [store::DB]FEE_CHARGE_TYPE.RECORD_TYPE,
+      bookId: [store::DB]FEE_CHARGE_TYPE.BOOK_ID,
+      notional: [store::DB]FEE_CHARGE_TYPE.NOTIONAL,
+      currency: [store::DB]FEE_CHARGE_TYPE.CURRENCY,
+      tradeDate: [store::DB]FEE_CHARGE_TYPE.TRADE_DATE,
+      maturityDate: [store::DB]FEE_CHARGE_TYPE.MATURITY_DATE,
+      status: [store::DB]FEE_CHARGE_TYPE.STATUS,
+      isActive: [store::DB]FEE_CHARGE_TYPE.IS_ACTIVE,
+      riskScore: [store::DB]FEE_CHARGE_TYPE.RISK_SCORE
+   }
+
+   feetypes::ExecutionCommission[chgExecutionCommission] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgExecutionCommissionRows
+   }
+
+   feetypes::ResearchPayment[chgResearchPayment] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgResearchPaymentRows
+   }
+
+   feetypes::ExchangeFee[chgExchangeFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgExchangeFeeRows
+   }
+
+   feetypes::ClearingFee[chgClearingFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgClearingFeeRows
+   }
+
+   feetypes::SettlementFee[chgSettlementFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgSettlementFeeRows
+   }
+
+   feetypes::CustodyFee[chgCustodyFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgCustodyFeeRows
+   }
+
+   feetypes::SafekeepingFee[chgSafekeepingFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgSafekeepingFeeRows
+   }
+
+   feetypes::ManagementFee[chgManagementFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgManagementFeeRows
+   }
+
+   feetypes::PerformanceFee[chgPerformanceFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgPerformanceFeeRows
+   }
+
+   feetypes::FinancingSpread[chgFinancingSpread] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgFinancingSpreadRows
+   }
+
+   feetypes::StockBorrowFee[chgBorrowFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgBorrowFeeRows
+   }
+
+   feetypes::PrimeBrokerageFee[chgPrimeBrokerFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgPrimeBrokerFeeRows
+   }
+
+   feetypes::PlatformFee[chgPlatformFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgPlatformFeeRows
+   }
+
+   feetypes::MarketDataFee[chgMarketDataFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgMarketDataFeeRows
+   }
+
+   feetypes::RebateCredit[chgRebateCredit] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgRebateCreditRows
+   }
+
+   feetypes::WaivedFee[chgWaivedFee] extends [feetypesBase]: Relational
+   {
+      ~filter [store::DB]ChgWaivedFeeRows
+   }
+)

@@ -34,6 +34,18 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include realassets::RealassetsMapping
+    include pensionsitems::PensionsitemsMapping
+    include wealthproducts::WealthproductsMapping
+    include tradefinance::TradefinanceMapping
+    include islamicfinance::IslamicfinanceMapping
+    include digitalassets::DigitalassetsMapping
+    include insurancelinked::InsurancelinkedMapping
+    include commodities::CommoditiesMapping
+    include ratingscales::RatingscalesMapping
+    include indexrules::IndexrulesMapping
+    include feetypes::FeetypesMapping
+    include ordertypes::OrdertypesMapping
     include hedgeaccounting::HedgeaccountingMapping
     include incidents::IncidentsMapping
     include clientaccess::ClientaccessMapping

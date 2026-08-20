@@ -1,0 +1,211 @@
+###Pure
+// Islamic finance: the same economics reached without interest.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class islamicfinance::ShariahStructure
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Cost-plus sale, and the workhorse of the market.
+Class islamicfinance::MurabahaContract extends islamicfinance::ShariahStructure
+{
+}
+
+// The same, using metal, to create a deposit.
+Class islamicfinance::CommodityMurabaha extends islamicfinance::ShariahStructure
+{
+}
+
+// A lease, where the owner keeps the ownership risk.
+Class islamicfinance::IjaraLease extends islamicfinance::ShariahStructure
+{
+}
+
+// A lease ending in transfer of ownership.
+Class islamicfinance::IjaraMuntahiaBittamleek extends islamicfinance::ShariahStructure
+{
+}
+
+// A partnership sharing profit and loss.
+Class islamicfinance::MusharakaPartnership extends islamicfinance::ShariahStructure
+{
+}
+
+// The bank's share is bought out over time -- a mortgage, structurally.
+Class islamicfinance::DiminishingMusharaka extends islamicfinance::ShariahStructure
+{
+}
+
+// One party provides capital, the other expertise.
+Class islamicfinance::MudarabaContract extends islamicfinance::ShariahStructure
+{
+}
+
+// Certificates backed by leased assets.
+Class islamicfinance::IjaraSukuk extends islamicfinance::ShariahStructure
+{
+}
+
+// Backed by receivables, and debated for exactly that reason.
+Class islamicfinance::MurabahaSukuk extends islamicfinance::ShariahStructure
+{
+}
+
+// Backed by a managed pool of assets.
+Class islamicfinance::WakalaSukuk extends islamicfinance::ShariahStructure
+{
+}
+
+// Paid now for delivery later, which conventional finance calls a prepaid forward.
+Class islamicfinance::SalamContract extends islamicfinance::ShariahStructure
+{
+}
+
+// For something not yet built.
+Class islamicfinance::IstisnaContract extends islamicfinance::ShariahStructure
+{
+}
+
+// An agency arrangement with an expected rather than promised return.
+Class islamicfinance::WakalaDeposit extends islamicfinance::ShariahStructure
+{
+}
+
+// Mutual insurance, with a surplus that belongs to participants.
+Class islamicfinance::TakafulArrangement extends islamicfinance::ShariahStructure
+{
+}
+
+// An interest-free loan, used to make other structures work.
+Class islamicfinance::QardHasan extends islamicfinance::ShariahStructure
+{
+}
+
+// Income given away because it should not have been earned.
+Class islamicfinance::PurificationAmount extends islamicfinance::ShariahStructure
+{
+}
+
+###Mapping
+Mapping islamicfinance::IslamicfinanceMapping
+(
+   *islamicfinance::ShariahStructure[islamicfinanceBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SHARIAH_STRUCTURE.RECORD_ID )
+      ~mainTable [store::DB]SHARIAH_STRUCTURE
+      recordId: [store::DB]SHARIAH_STRUCTURE.RECORD_ID,
+      recordType: [store::DB]SHARIAH_STRUCTURE.RECORD_TYPE,
+      bookId: [store::DB]SHARIAH_STRUCTURE.BOOK_ID,
+      notional: [store::DB]SHARIAH_STRUCTURE.NOTIONAL,
+      currency: [store::DB]SHARIAH_STRUCTURE.CURRENCY,
+      tradeDate: [store::DB]SHARIAH_STRUCTURE.TRADE_DATE,
+      maturityDate: [store::DB]SHARIAH_STRUCTURE.MATURITY_DATE,
+      status: [store::DB]SHARIAH_STRUCTURE.STATUS,
+      isActive: [store::DB]SHARIAH_STRUCTURE.IS_ACTIVE,
+      riskScore: [store::DB]SHARIAH_STRUCTURE.RISK_SCORE
+   }
+
+   islamicfinance::MurabahaContract[islMurabaha] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslMurabahaRows
+   }
+
+   islamicfinance::CommodityMurabaha[islCommodityMurabaha] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslCommodityMurabahaRows
+   }
+
+   islamicfinance::IjaraLease[islIjara] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslIjaraRows
+   }
+
+   islamicfinance::IjaraMuntahiaBittamleek[islIjaraMuntahia] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslIjaraMuntahiaRows
+   }
+
+   islamicfinance::MusharakaPartnership[islMusharaka] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslMusharakaRows
+   }
+
+   islamicfinance::DiminishingMusharaka[islDiminishingMusharaka] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslDiminishingMusharakaRows
+   }
+
+   islamicfinance::MudarabaContract[islMudaraba] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslMudarabaRows
+   }
+
+   islamicfinance::IjaraSukuk[islSukukIjara] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslSukukIjaraRows
+   }
+
+   islamicfinance::MurabahaSukuk[islSukukMurabaha] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslSukukMurabahaRows
+   }
+
+   islamicfinance::WakalaSukuk[islSukukWakala] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslSukukWakalaRows
+   }
+
+   islamicfinance::SalamContract[islSalam] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslSalamRows
+   }
+
+   islamicfinance::IstisnaContract[islIstisna] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslIstisnaRows
+   }
+
+   islamicfinance::WakalaDeposit[islWakalaDeposit] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslWakalaDepositRows
+   }
+
+   islamicfinance::TakafulArrangement[islTakaful] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslTakafulRows
+   }
+
+   islamicfinance::QardHasan[islQardHasan] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslQardHasanRows
+   }
+
+   islamicfinance::PurificationAmount[islPurification] extends [islamicfinanceBase]: Relational
+   {
+      ~filter [store::DB]IslPurificationRows
+   }
+)

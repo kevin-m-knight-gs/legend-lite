@@ -1,0 +1,211 @@
+###Pure
+// Digital assets, and the custody question underneath all of them.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class digitalassets::DigitalAssetPosition
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Held directly, with a key somebody controls.
+Class digitalassets::SpotCryptoHolding extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Held by a qualified custodian, which is a different legal claim.
+Class digitalassets::CustodiedCryptoHolding extends digitalassets::DigitalAssetPosition
+{
+}
+
+// An unsecured claim on the exchange, whatever the screen says.
+Class digitalassets::ExchangeBalance extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Locked, earning, and not immediately available.
+Class digitalassets::StakedPosition extends digitalassets::DigitalAssetPosition
+{
+}
+
+// A claim on a staked position that trades at a basis.
+Class digitalassets::LiquidStakingToken extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Backed by reserves, and only as good as the attestation.
+Class digitalassets::FiatBackedStablecoin extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Backed by a mechanism, which is the category that failed.
+Class digitalassets::AlgorithmicStablecoin extends digitalassets::DigitalAssetPosition
+{
+}
+
+// A real security with a distributed register.
+Class digitalassets::TokenisedSecurity extends digitalassets::DigitalAssetPosition
+{
+}
+
+// The same idea applied to a money market fund.
+Class digitalassets::TokenisedFundUnit extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Central bank money, on a different rail.
+Class digitalassets::WholesaleCentralBankDigitalCurrency extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Unique, illiquid, and hard to value on any basis.
+Class digitalassets::NonFungibleTokenHolding extends digitalassets::DigitalAssetPosition
+{
+}
+
+// A pool share, with impermanent loss against holding outright.
+Class digitalassets::LiquidityProviderPosition extends digitalassets::DigitalAssetPosition
+{
+}
+
+// No expiry, and a funding rate instead of a basis.
+Class digitalassets::PerpetualSwapPosition extends digitalassets::DigitalAssetPosition
+{
+}
+
+// On a regulated venue, and cash settled.
+Class digitalassets::RegulatedCryptoFuture extends digitalassets::DigitalAssetPosition
+{
+}
+
+// A claim on a bridge, and the bridge is the risk.
+Class digitalassets::WrappedAsset extends digitalassets::DigitalAssetPosition
+{
+}
+
+// Stake lost to a validator penalty, which is an operational loss.
+Class digitalassets::SlashedStakeItem extends digitalassets::DigitalAssetPosition
+{
+}
+
+###Mapping
+Mapping digitalassets::DigitalassetsMapping
+(
+   *digitalassets::DigitalAssetPosition[digitalassetsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]DIGITAL_ASSET_POSITION.RECORD_ID )
+      ~mainTable [store::DB]DIGITAL_ASSET_POSITION
+      recordId: [store::DB]DIGITAL_ASSET_POSITION.RECORD_ID,
+      recordType: [store::DB]DIGITAL_ASSET_POSITION.RECORD_TYPE,
+      bookId: [store::DB]DIGITAL_ASSET_POSITION.BOOK_ID,
+      notional: [store::DB]DIGITAL_ASSET_POSITION.NOTIONAL,
+      currency: [store::DB]DIGITAL_ASSET_POSITION.CURRENCY,
+      tradeDate: [store::DB]DIGITAL_ASSET_POSITION.TRADE_DATE,
+      maturityDate: [store::DB]DIGITAL_ASSET_POSITION.MATURITY_DATE,
+      status: [store::DB]DIGITAL_ASSET_POSITION.STATUS,
+      isActive: [store::DB]DIGITAL_ASSET_POSITION.IS_ACTIVE,
+      riskScore: [store::DB]DIGITAL_ASSET_POSITION.RISK_SCORE
+   }
+
+   digitalassets::SpotCryptoHolding[digSpotCrypto] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigSpotCryptoRows
+   }
+
+   digitalassets::CustodiedCryptoHolding[digCustodiedCrypto] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigCustodiedCryptoRows
+   }
+
+   digitalassets::ExchangeBalance[digExchangeBalance] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigExchangeBalanceRows
+   }
+
+   digitalassets::StakedPosition[digStakedPosition] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigStakedPositionRows
+   }
+
+   digitalassets::LiquidStakingToken[digLiquidStakingToken] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigLiquidStakingTokenRows
+   }
+
+   digitalassets::FiatBackedStablecoin[digStablecoinFiat] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigStablecoinFiatRows
+   }
+
+   digitalassets::AlgorithmicStablecoin[digStablecoinAlgorithmic] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigStablecoinAlgorithmicRows
+   }
+
+   digitalassets::TokenisedSecurity[digTokenisedSecurity] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigTokenisedSecurityRows
+   }
+
+   digitalassets::TokenisedFundUnit[digTokenisedFund] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigTokenisedFundRows
+   }
+
+   digitalassets::WholesaleCentralBankDigitalCurrency[digCbdcWholesale] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigCbdcWholesaleRows
+   }
+
+   digitalassets::NonFungibleTokenHolding[digNftHolding] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigNftHoldingRows
+   }
+
+   digitalassets::LiquidityProviderPosition[digDefiLpPosition] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigDefiLpPositionRows
+   }
+
+   digitalassets::PerpetualSwapPosition[digPerpetualSwap] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigPerpetualSwapRows
+   }
+
+   digitalassets::RegulatedCryptoFuture[digCryptoFuture] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigCryptoFutureRows
+   }
+
+   digitalassets::WrappedAsset[digWrappedAsset] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigWrappedAssetRows
+   }
+
+   digitalassets::SlashedStakeItem[digSlashedStake] extends [digitalassetsBase]: Relational
+   {
+      ~filter [store::DB]DigSlashedStakeRows
+   }
+)

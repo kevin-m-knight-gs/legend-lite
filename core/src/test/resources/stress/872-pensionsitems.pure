@@ -1,0 +1,211 @@
+###Pure
+// Pension schemes: the liability, and the assets bought to match it.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class pensionsitems::PensionSchemeItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// A promise indexed to something, and a duration nobody wants.
+Class pensionsitems::DefinedBenefitLiability extends pensionsitems::PensionSchemeItem
+{
+}
+
+// The member's risk rather than the sponsor's.
+Class pensionsitems::DefinedContributionPot extends pensionsitems::PensionSchemeItem
+{
+}
+
+// Duration bought with repo, and the 2022 collateral spiral.
+Class pensionsitems::LeveragedGiltPosition extends pensionsitems::PensionSchemeItem
+{
+}
+
+// The same duration through swaps, and the same margin calls.
+Class pensionsitems::SwapOverlayPosition extends pensionsitems::PensionSchemeItem
+{
+}
+
+// Matching a liability that rises with prices.
+Class pensionsitems::InflationHedgePosition extends pensionsitems::PensionSchemeItem
+{
+}
+
+// An insurance asset matching the liabilities, still on the scheme's books.
+Class pensionsitems::BuyInPolicy extends pensionsitems::PensionSchemeItem
+{
+}
+
+// The liabilities transferred out entirely.
+Class pensionsitems::BuyOutPolicy extends pensionsitems::PensionSchemeItem
+{
+}
+
+// For members living longer than the table says.
+Class pensionsitems::LongevityHedgeItem extends pensionsitems::PensionSchemeItem
+{
+}
+
+// The employer's ability to fill the gap, assessed and rated.
+Class pensionsitems::SponsorCovenantItem extends pensionsitems::PensionSchemeItem
+{
+}
+
+// Cash on a schedule to close the gap.
+Class pensionsitems::DeficitRepairContribution extends pensionsitems::PensionSchemeItem
+{
+}
+
+// The funding measure, which is not the accounting one.
+Class pensionsitems::TechnicalProvisionsItem extends pensionsitems::PensionSchemeItem
+{
+}
+
+// The accounting measure, discounted at a corporate bond yield.
+Class pensionsitems::AccountingLiabilityItem extends pensionsitems::PensionSchemeItem
+{
+}
+
+// Funded well enough not to need the sponsor again.
+Class pensionsitems::SelfSufficiencyTarget extends pensionsitems::PensionSchemeItem
+{
+}
+
+// What a member is offered to leave.
+Class pensionsitems::CashEquivalentTransferValue extends pensionsitems::PensionSchemeItem
+{
+}
+
+// Paid to the lifeboat, and priced off the covenant.
+Class pensionsitems::ProtectionFundLevy extends pensionsitems::PensionSchemeItem
+{
+}
+
+// Higher returns, and the thing that cannot be sold for collateral.
+Class pensionsitems::IlliquidAssetAllocation extends pensionsitems::PensionSchemeItem
+{
+}
+
+###Mapping
+Mapping pensionsitems::PensionsitemsMapping
+(
+   *pensionsitems::PensionSchemeItem[pensionsitemsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PENSION_SCHEME_ITEM.RECORD_ID )
+      ~mainTable [store::DB]PENSION_SCHEME_ITEM
+      recordId: [store::DB]PENSION_SCHEME_ITEM.RECORD_ID,
+      recordType: [store::DB]PENSION_SCHEME_ITEM.RECORD_TYPE,
+      bookId: [store::DB]PENSION_SCHEME_ITEM.BOOK_ID,
+      notional: [store::DB]PENSION_SCHEME_ITEM.NOTIONAL,
+      currency: [store::DB]PENSION_SCHEME_ITEM.CURRENCY,
+      tradeDate: [store::DB]PENSION_SCHEME_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]PENSION_SCHEME_ITEM.MATURITY_DATE,
+      status: [store::DB]PENSION_SCHEME_ITEM.STATUS,
+      isActive: [store::DB]PENSION_SCHEME_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]PENSION_SCHEME_ITEM.RISK_SCORE
+   }
+
+   pensionsitems::DefinedBenefitLiability[penDefinedBenefit] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenDefinedBenefitRows
+   }
+
+   pensionsitems::DefinedContributionPot[penDefinedContribution] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenDefinedContributionRows
+   }
+
+   pensionsitems::LeveragedGiltPosition[penLdiLeveragedGilt] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenLdiLeveragedGiltRows
+   }
+
+   pensionsitems::SwapOverlayPosition[penLdiSwapOverlay] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenLdiSwapOverlayRows
+   }
+
+   pensionsitems::InflationHedgePosition[penInflationHedge] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenInflationHedgeRows
+   }
+
+   pensionsitems::BuyInPolicy[penBuyInPolicy] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenBuyInPolicyRows
+   }
+
+   pensionsitems::BuyOutPolicy[penBuyOutPolicy] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenBuyOutPolicyRows
+   }
+
+   pensionsitems::LongevityHedgeItem[penLongevityHedge] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenLongevityHedgeRows
+   }
+
+   pensionsitems::SponsorCovenantItem[penSponsorCovenant] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenSponsorCovenantRows
+   }
+
+   pensionsitems::DeficitRepairContribution[penDeficitContribution] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenDeficitContributionRows
+   }
+
+   pensionsitems::TechnicalProvisionsItem[penTechnicalProvisions] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenTechnicalProvisionsRows
+   }
+
+   pensionsitems::AccountingLiabilityItem[penIas19Liability] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenIas19LiabilityRows
+   }
+
+   pensionsitems::SelfSufficiencyTarget[penSelfSufficiency] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenSelfSufficiencyRows
+   }
+
+   pensionsitems::CashEquivalentTransferValue[penTransferValue] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenTransferValueRows
+   }
+
+   pensionsitems::ProtectionFundLevy[penPpfLevy] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenPpfLevyRows
+   }
+
+   pensionsitems::IlliquidAssetAllocation[penIlliquidAllocation] extends [pensionsitemsBase]: Relational
+   {
+      ~filter [store::DB]PenIlliquidAllocationRows
+   }
+)

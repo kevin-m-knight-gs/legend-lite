@@ -1,0 +1,211 @@
+###Pure
+// Insurance-linked securities: risk that is uncorrelated until it is not.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class insurancelinked::InsuranceLinkedItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Triggered by the sponsor's actual losses.
+Class insurancelinked::IndemnityCatastropheBond extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// Triggered by a measured event, with basis risk instead of moral hazard.
+Class insurancelinked::ParametricCatastropheBond extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// Triggered by market-wide losses rather than the sponsor's.
+Class insurancelinked::IndustryLossWarranty extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// Pays out on excess deaths, which is a short pandemic position.
+Class insurancelinked::MortalityBond extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// The opposite exposure, held by pension schemes.
+Class insurancelinked::LongevitySwap extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// A vehicle taking a quota share of a reinsurer's book.
+Class insurancelinked::ReinsuranceSidecar extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// Fully funded, so no reinsurer credit risk.
+Class insurancelinked::CollateralisedReinsurance extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// A fixed proportion of every risk.
+Class insurancelinked::QuotaShareTreaty extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// A layer, attaching above a retention.
+Class insurancelinked::ExcessOfLossTreaty extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// On the year's total rather than on each event.
+Class insurancelinked::AggregateExcessOfLoss extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// What it costs to buy the layer back after it is used.
+Class insurancelinked::ReinstatementPremium extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// An estimate that develops for a decade.
+Class insurancelinked::LossReserveItem extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// Losses that have happened and not been told to anyone.
+Class insurancelinked::IncurredButNotReported extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// The part of the premium the period has actually used up.
+Class insurancelinked::EarnedPremiumItem extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// The rest, and a liability.
+Class insurancelinked::UnearnedPremiumItem extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+// The definition everyone argues about after the hurricane.
+Class insurancelinked::EventTriggerItem extends insurancelinked::InsuranceLinkedItem
+{
+}
+
+###Mapping
+Mapping insurancelinked::InsurancelinkedMapping
+(
+   *insurancelinked::InsuranceLinkedItem[insurancelinkedBase]: Relational
+   {
+      ~primaryKey ( [store::DB]INSURANCE_LINKED_ITEM.RECORD_ID )
+      ~mainTable [store::DB]INSURANCE_LINKED_ITEM
+      recordId: [store::DB]INSURANCE_LINKED_ITEM.RECORD_ID,
+      recordType: [store::DB]INSURANCE_LINKED_ITEM.RECORD_TYPE,
+      bookId: [store::DB]INSURANCE_LINKED_ITEM.BOOK_ID,
+      notional: [store::DB]INSURANCE_LINKED_ITEM.NOTIONAL,
+      currency: [store::DB]INSURANCE_LINKED_ITEM.CURRENCY,
+      tradeDate: [store::DB]INSURANCE_LINKED_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]INSURANCE_LINKED_ITEM.MATURITY_DATE,
+      status: [store::DB]INSURANCE_LINKED_ITEM.STATUS,
+      isActive: [store::DB]INSURANCE_LINKED_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]INSURANCE_LINKED_ITEM.RISK_SCORE
+   }
+
+   insurancelinked::IndemnityCatastropheBond[insCatBondIndemnity] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsCatBondIndemnityRows
+   }
+
+   insurancelinked::ParametricCatastropheBond[insCatBondParametric] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsCatBondParametricRows
+   }
+
+   insurancelinked::IndustryLossWarranty[insCatBondIndustryLoss] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsCatBondIndustryLossRows
+   }
+
+   insurancelinked::MortalityBond[insMortalityBond] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsMortalityBondRows
+   }
+
+   insurancelinked::LongevitySwap[insLongevitySwap] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsLongevitySwapRows
+   }
+
+   insurancelinked::ReinsuranceSidecar[insSidecar] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsSidecarRows
+   }
+
+   insurancelinked::CollateralisedReinsurance[insCollateralisedRe] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsCollateralisedReRows
+   }
+
+   insurancelinked::QuotaShareTreaty[insQuotaShare] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsQuotaShareRows
+   }
+
+   insurancelinked::ExcessOfLossTreaty[insExcessOfLoss] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsExcessOfLossRows
+   }
+
+   insurancelinked::AggregateExcessOfLoss[insAggregateXl] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsAggregateXlRows
+   }
+
+   insurancelinked::ReinstatementPremium[insReinstatement] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsReinstatementRows
+   }
+
+   insurancelinked::LossReserveItem[insLossReserve] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsLossReserveRows
+   }
+
+   insurancelinked::IncurredButNotReported[insIbnr] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsIbnrRows
+   }
+
+   insurancelinked::EarnedPremiumItem[insPremiumEarned] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsPremiumEarnedRows
+   }
+
+   insurancelinked::UnearnedPremiumItem[insUnearnedPremium] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsUnearnedPremiumRows
+   }
+
+   insurancelinked::EventTriggerItem[insEventTrigger] extends [insurancelinkedBase]: Relational
+   {
+      ~filter [store::DB]InsEventTriggerRows
+   }
+)

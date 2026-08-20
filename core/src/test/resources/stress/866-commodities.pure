@@ -1,0 +1,211 @@
+###Pure
+// Commodities: where the physical and the financial stop agreeing.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class commodities::CommodityContract
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Physically settled at Cushing, which mattered a great deal in April 2020.
+Class commodities::WtiCrudeFuture extends commodities::CommodityContract
+{
+}
+
+// Cash settled against an index, which is why it did not go negative.
+Class commodities::BrentCrudeFuture extends commodities::CommodityContract
+{
+}
+
+// Where storage and weather set the curve.
+Class commodities::NaturalGasFuture extends commodities::CommodityContract
+{
+}
+
+// Every hour of the delivery period, equally.
+Class commodities::BaseloadPowerContract extends commodities::CommodityContract
+{
+}
+
+// Working hours only, and priced accordingly.
+Class commodities::PeakPowerContract extends commodities::CommodityContract
+{
+}
+
+// A permit to emit, and a political price.
+Class commodities::EmissionsAllowance extends commodities::CommodityContract
+{
+}
+
+// Unallocated, and a credit exposure to the bank.
+Class commodities::GoldLocoLondon extends commodities::CommodityContract
+{
+}
+
+// Specific bars, and not the bank's to lend.
+Class commodities::AllocatedGold extends commodities::CommodityContract
+{
+}
+
+// Title to metal in a named warehouse.
+Class commodities::MetalWarrant extends commodities::CommodityContract
+{
+}
+
+// With a delivery grade and a discount schedule.
+Class commodities::AgriculturalFuture extends commodities::CommodityContract
+{
+}
+
+// A route and a vessel class, settled against an index.
+Class commodities::FreightForwardAgreement extends commodities::CommodityContract
+{
+}
+
+// Degree days, and no underlying to hedge with.
+Class commodities::WeatherDerivative extends commodities::CommodityContract
+{
+}
+
+// An option on the spread between two dates.
+Class commodities::StorageContract extends commodities::CommodityContract
+{
+}
+
+// An option on the spread between two places.
+Class commodities::TransportCapacityContract extends commodities::CommodityContract
+{
+}
+
+// Where a trading book meets a logistics problem.
+Class commodities::PhysicalDeliveryObligation extends commodities::CommodityContract
+{
+}
+
+// The premium or discount for what actually turned up.
+Class commodities::QualityAdjustmentItem extends commodities::CommodityContract
+{
+}
+
+###Mapping
+Mapping commodities::CommoditiesMapping
+(
+   *commodities::CommodityContract[commoditiesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]COMMODITY_CONTRACT.RECORD_ID )
+      ~mainTable [store::DB]COMMODITY_CONTRACT
+      recordId: [store::DB]COMMODITY_CONTRACT.RECORD_ID,
+      recordType: [store::DB]COMMODITY_CONTRACT.RECORD_TYPE,
+      bookId: [store::DB]COMMODITY_CONTRACT.BOOK_ID,
+      notional: [store::DB]COMMODITY_CONTRACT.NOTIONAL,
+      currency: [store::DB]COMMODITY_CONTRACT.CURRENCY,
+      tradeDate: [store::DB]COMMODITY_CONTRACT.TRADE_DATE,
+      maturityDate: [store::DB]COMMODITY_CONTRACT.MATURITY_DATE,
+      status: [store::DB]COMMODITY_CONTRACT.STATUS,
+      isActive: [store::DB]COMMODITY_CONTRACT.IS_ACTIVE,
+      riskScore: [store::DB]COMMODITY_CONTRACT.RISK_SCORE
+   }
+
+   commodities::WtiCrudeFuture[cmdWtiFuture] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdWtiFutureRows
+   }
+
+   commodities::BrentCrudeFuture[cmdBrentFuture] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdBrentFutureRows
+   }
+
+   commodities::NaturalGasFuture[cmdNatgasFuture] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdNatgasFutureRows
+   }
+
+   commodities::BaseloadPowerContract[cmdPowerBaseload] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdPowerBaseloadRows
+   }
+
+   commodities::PeakPowerContract[cmdPowerPeak] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdPowerPeakRows
+   }
+
+   commodities::EmissionsAllowance[cmdEmissionsAllowance] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdEmissionsAllowanceRows
+   }
+
+   commodities::GoldLocoLondon[cmdGoldLocoLondon] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdGoldLocoLondonRows
+   }
+
+   commodities::AllocatedGold[cmdGoldAllocated] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdGoldAllocatedRows
+   }
+
+   commodities::MetalWarrant[cmdBaseMetalWarrant] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdBaseMetalWarrantRows
+   }
+
+   commodities::AgriculturalFuture[cmdAgriculturalFuture] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdAgriculturalFutureRows
+   }
+
+   commodities::FreightForwardAgreement[cmdFreightForward] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdFreightForwardRows
+   }
+
+   commodities::WeatherDerivative[cmdWeatherDerivative] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdWeatherDerivativeRows
+   }
+
+   commodities::StorageContract[cmdStorageContract] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdStorageContractRows
+   }
+
+   commodities::TransportCapacityContract[cmdTransportCapacity] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdTransportCapacityRows
+   }
+
+   commodities::PhysicalDeliveryObligation[cmdPhysicalDelivery] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdPhysicalDeliveryRows
+   }
+
+   commodities::QualityAdjustmentItem[cmdQualityAdjustment] extends [commoditiesBase]: Relational
+   {
+      ~filter [store::DB]CmdQualityAdjustmentRows
+   }
+)
