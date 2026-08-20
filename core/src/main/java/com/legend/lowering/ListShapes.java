@@ -111,19 +111,23 @@ final class ListShapes {
                         && LIST_PRODUCERS.contains(c.fn()));
     }
 
-    /** LIST position: singleton-wrap a TO-ONE unless already a list (or
-     * NULL = empty, which DuckDB list fns treat as []) — asList policy. */
+    /** LIST position: singleton-wrap a TO-ONE value (NULL = empty
+     * passes — DuckDB list fns treat it as []). DELETION LEG: the
+     * ArrayLit passthrough is gone — the STAMP decides; a designed
+     * to-one ArrayLit (List object / struct instance) in list position
+     * IS one element, so the wrap is pure semantics. */
     static SqlExpr listArg(TypedSpec pureArg, SqlExpr e) {
-        return !isToOne(pureArg) || e instanceof SqlExpr.ArrayLit
-                || e instanceof SqlExpr.NullLit
+        return !isToOne(pureArg) || e instanceof SqlExpr.NullLit
                 ? e : new SqlExpr.ArrayLit(List.of(e));
     }
 
     /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-stamped
      * CASE optionals) wrap null-guarded — SQL NULL is pure's EMPTY, so
-     * the side contributes [], never [NULL]. Lists pass. */
+     * the side contributes [], never [NULL]. Many-stamped lists pass;
+     * the STAMP decides (deletion leg — the ArrayLit passthrough let a
+     * to-one designed carrier flatten into the concatenation). */
     static SqlExpr concatSide(TypedSpec pureArg, SqlExpr e) {
-        if (e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
+        if (e instanceof SqlExpr.NullLit
                 || !(isToOne(pureArg) || e instanceof SqlExpr.Case)) {
             return e;
         }
@@ -162,11 +166,11 @@ final class ListShapes {
         };
     }
 
-    /** A value in LIST position: singleton-wrap unless it is already a
-     * list (or NULL = empty). */
+    /** A value in LIST position: the STAMP decides the wrap (deletion
+     * leg — a non-many ArrayLit is a designed one-value carrier and
+     * wraps as one element; NULL = empty passes). */
     static SqlExpr asList(SqlExpr e, boolean many) {
-        return many || e instanceof SqlExpr.ArrayLit
-                || e instanceof SqlExpr.NullLit
+        return many || e instanceof SqlExpr.NullLit
                 ? e : new SqlExpr.ArrayLit(java.util.List.of(e));
     }
     /** An if-branch is a 0-param SINGLE-expression thunk; its body is the value. */
