@@ -526,3 +526,37 @@ Measure every slice by the verdict-channel register + full chain; the
 canonical-serialization spelling table is COMPILER metadata (the
 audit's isVerdict ruling), never host formatting.
 
+
+## SLICE 8 — ListShapes DELETED; the carrier table becomes EXPECTATIONS
+
+Pair #4 fell first (slice 7, a596dc85): its ONE producer was
+scalarMapAsProject copying the collection multiplicity onto the
+synthetic u_map__ COLUMN while each row holds one cell — the column now
+declares the per-cell mult, the invariant's property-read skip is
+deleted, ScalarStats and sort's fallback dispatch on STAMPS, and
+group-agg lambdas were verified to route around the Scalars rules
+entirely (Aggregates.reducerFor owns them).
+
+Then the dissolution:
+- **ListShapes.java DELETED.** Its founding thesis ("stamps are
+  unreliable, decide by shape") died at the flip; now the file follows.
+- LIST_PRODUCERS → SqlFn.producesList() (function METADATA on the
+  enum, outside the pre-dialect ban zone); listShaped +
+  listValuedSubquery → StampCensus private (the invariant's own
+  evidence); aggStrip/checkedExtract/concatSide → Scalars private;
+  asList/thunkBody → PureSql; definitelyScalar + listArg were DEAD
+  (the invariant carries its own stricter prover) and are gone.
+- **The three designed-carrier rows converted from SKIPS to ONE-ARM
+  EXPECTATIONS** (user: "why does it have exemptions?"): each row now
+  states how ONE value of a composite type is represented (relation →
+  row-collect or cell collapse; ctor → canonical-layout ArrayLit;
+  List<T> → the SQL array) and satisfies ONLY the scalar-stamp/
+  list-shape arm — a MANY-stamped composite with provably-scalar SQL
+  fires like any other lie. No node class is ever unexamined.
+- Carrier ratchet pins TIGHTENED same-commit per its charter:
+  ArrayLit 38→34, SqlFn.LIST_ 141→129.
+
+END STATE REACHED: zero shape-decision consumers in production, zero
+invariant skips, one positive carrier table the enforcer CHECKS, and
+no mechanism left to abuse. Shape classification exists only as the
+throwing invariant's private evidence.

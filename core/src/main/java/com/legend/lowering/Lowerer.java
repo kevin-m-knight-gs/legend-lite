@@ -2186,8 +2186,8 @@ public final class Lowerer {
                 return new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(
                                 windowScalar(i.condition(), base, over),
-                                windowScalar(ListShapes.thunkBody(i.thenBranch()), base, over))),
-                        i.elseBranch().map(e -> windowScalar(ListShapes.thunkBody(e), base, over))
+                                windowScalar(PureSql.thunkBody(i.thenBranch()), base, over))),
+                        i.elseBranch().map(e -> windowScalar(PureSql.thunkBody(e), base, over))
                                 .orElse(new SqlExpr.NullLit()));
             }
             default -> {
@@ -2440,7 +2440,7 @@ public final class Lowerer {
                                 PlatformTypes.LIST)) {
                     TypedSpec ov = cp.overrides().get("values");
                     yield ov == null ? scalar(cp.source(), columns)
-                            : ListShapes.asList(scalar(ov, columns), isMany(ov));
+                            : PureSql.asList(scalar(ov, columns), isMany(ov));
                 }
                 if (PlatformTypes
                         .isMapCarrier(cp.info().type())) {
@@ -2458,7 +2458,7 @@ public final class Lowerer {
                     if (ov != null && c.multiplicity() instanceof
                             Multiplicity.Bounded b
                             && b.isMany()) {
-                        v = ListShapes.asList(v, isMany(ov));
+                        v = PureSql.asList(v, isMany(ov));
                     }
                     return new SqlExpr.StructLit.Field(c.name(), v);
                 }).toList());
@@ -2471,7 +2471,7 @@ public final class Lowerer {
                     TypedSpec values = n.properties().get("values");
                     yield values == null
                             ? new SqlExpr.ArrayLit(List.of())
-                            : ListShapes.asList(scalar(values, columns), isMany(values));
+                            : PureSql.asList(scalar(values, columns), isMany(values));
                 }
                 // ^Pair(first=..., second=...): the Pair STRUCT carrier —
                 // its layout IS first/second (the platform declaration)
@@ -2504,7 +2504,7 @@ public final class Lowerer {
                     if (c.multiplicity() instanceof
                             Multiplicity.Bounded b
                             && b.isMany()) {
-                        v = ListShapes.asList(v, value != null && isMany(value));
+                        v = PureSql.asList(v, value != null && isMany(value));
                     }
                     return new SqlExpr.StructLit.Field(c.name(), v);
                 }).toList());
@@ -2581,9 +2581,9 @@ public final class Lowerer {
             // CASE expressions in the otherwise slot — correct; single-CASE
             // flattening is a cosmetic peephole if ever demanded.
             case TypedIf i -> {
-                TypedSpec thenB = ListShapes.thunkBody(i.thenBranch());
+                TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
                 TypedSpec elseB = i.elseBranch()
-                        .map(ListShapes::thunkBody).orElse(null);
+                        .map(PureSql::thunkBody).orElse(null);
                 // Any-LUB branch alignment (variant carrier) lives in
                 // MixedEncoding.lubCase — the mixed-kind discipline.
                 yield MixedEncoding.lubCase(i.info().type(), thenB, elseB,
@@ -2639,7 +2639,7 @@ public final class Lowerer {
             // C1: a scalar-stamped source conforms by EMISSION (asList).
             case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
                     SqlExpr.Call.of(SqlFn.LIST_FILTER,
-                            ListShapes.asList(scalar(f.source(), columns),
+                            PureSql.asList(scalar(f.source(), columns),
                                     isMany(f.source())),
                             scalar(f.predicate(), columns));
             // slice(start, stop) — ListEncodings.slice owns the bounds
@@ -3334,7 +3334,7 @@ public final class Lowerer {
             return scalar(collect, columns);
         }
         // C1: the source conforms by EMISSION (asList, stamp-read).
-        SqlExpr source = ListShapes.asList(scalar(f.source(), columns),
+        SqlExpr source = PureSql.asList(scalar(f.source(), columns),
                 isMany(f.source()));
         SqlExpr init = scalar(f.init(), columns);
         List<String> ps = f.reducer().parameters();
@@ -3343,7 +3343,7 @@ public final class Lowerer {
             // values and NULL (=[] to DuckDB list_concat) pass through.
             case FoldStrategy.Concatenation c ->
                     new SqlExpr.Call(SqlFn.LIST_CONCAT,
-                            List.of(ListShapes.asList(init, isMany(f.init())),
+                            List.of(PureSql.asList(init, isMany(f.init())),
                                     source));
             case FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,

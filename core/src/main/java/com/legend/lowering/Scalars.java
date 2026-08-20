@@ -419,13 +419,13 @@ final class Scalars {
             // spelled directly: checked extract. Everything else rides
             // through (engine processNoOp).
             RULES.put(f, (n, args) -> {
-                SqlExpr stripped = ListShapes.aggStrip(args.get(0));
+                SqlExpr stripped = aggStrip(args.get(0));
                 if (stripped != null) {
                     return stripped;
                 }
                 if (args.get(0) instanceof SqlExpr.Call lc
-                        && ListShapes.LIST_PRODUCERS.contains(lc.fn())) {
-                    return ListShapes.checkedExtract(args.get(0));
+                        && lc.fn().producesList()) {
+                    return checkedExtract(args.get(0));
                 }
                 return args.get(0);
             });
@@ -864,7 +864,7 @@ final class Scalars {
                 // are enforced-true; the h2 side is carried by the
                 // CarrierStrategies list encodings (the 320 floor is
                 // the referee).
-                SqlExpr coll = ListShapes.asList(args.get(0),
+                SqlExpr coll = PureSql.asList(args.get(0),
                         !isToOne(n.args().get(0)));
                 SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
                         new SqlExpr.Lambda(List.of("x"),
@@ -1346,7 +1346,7 @@ final class Scalars {
                     return new SqlExpr.Call(SqlFn.MINUS, List.of(
                             new SqlExpr.Call(SqlFn.COALESCE, List.of(
                                     new SqlExpr.Call(SqlFn.LIST_POSITION,
-                                            List.of(ListShapes.asList(args.get(0),
+                                            List.of(PureSql.asList(args.get(0),
                                                     !isToOne(n.args().get(0))),
                                                     args.get(1))),
                                     new SqlExpr.IntLit(0))),
@@ -1748,7 +1748,7 @@ final class Scalars {
                 // scalar-encoded sides wrap null-guarded (concatSide)
                 List<SqlExpr> args2 = new ArrayList<>(args.size());
                 for (int i = 0; i < args.size(); i++) {
-                    args2.add(ListShapes.concatSide(n.args().get(i), args.get(i)));
+                    args2.add(concatSide(n.args().get(i), args.get(i)));
                 }
                 args = args2;
                 if (!PlatformTypes.isAny(n.info().type())) {
@@ -3269,6 +3269,71 @@ final class Scalars {
     private static boolean isFullPrecisionDate(Type t) {
         return t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE;
+    }
+
+    /** The toOne AGG-STRIP (STAMP_DISCIPLINE_PROGRAM, C2 key insight):
+     * dropping the LIST collect on a subquery operand yields SQL's
+     * NATIVE scalar-subquery semantics — pure's checked toOne (>1 rows
+     * raises, 1 yields the value, 0 rows NULL, the engine-noOp empty
+     * the corpus pins). Only the EXACT plain single-projection
+     * non-distinct no-groupBy shape strips. Moved from the dissolved
+     * ListShapes. */
+    private static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
+        if (!(e instanceof SqlExpr.ScalarSubquery sq
+                && sq.subquery() instanceof SqlSelect ss
+                && ss.projections().size() == 1
+                && ss.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer r
+                && r.fn() == SqlAgg.Fn.LIST
+                && !r.distinct()
+                && r.args().size() == 1
+                && ss.groupBy().isEmpty())) {
+            return null;
+        }
+        return new SqlExpr.ScalarSubquery(ss.withProjections(
+                List.of(new SqlSelect.Projection(
+                        r.args().get(0),
+                        ss.projections().get(0).alias())),
+                ss.outputs()));
+    }
+
+    /** The CHECKED toOne extract over a definite list value — the
+     * agg-strip's semantics spelled directly. Moved from the dissolved
+     * ListShapes; re-absorbs into the checked-narrowing semantic node
+     * when built. */
+    private static SqlExpr checkedExtract(SqlExpr list) {
+        SqlExpr len = SqlExpr.Call.of(SqlFn.LIST_LENGTH, list);
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.GREATER, len,
+                                new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.ERROR,
+                                SqlExpr.Call.of(SqlFn.CONCAT,
+                                        new SqlExpr.StringLit(
+                                                "Cannot cast a collection of size "),
+                                        new SqlExpr.Cast(len,
+                                                SqlType.Scalar.VARCHAR),
+                                        new SqlExpr.StringLit(
+                                                " to multiplicity [1]"))))),
+                SqlExpr.Call.of(SqlFn.LIST_GET, list,
+                        new SqlExpr.IntLit(1)));
+    }
+
+    /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-
+     * stamped CASE optionals) wrap null-guarded — SQL NULL is pure's
+     * EMPTY, so the side contributes [], never [NULL]. Many-stamped
+     * lists pass; the STAMP decides. Moved from the dissolved
+     * ListShapes. */
+    private static SqlExpr concatSide(TypedSpec pureArg, SqlExpr e) {
+        if (e instanceof SqlExpr.NullLit
+                || !(isToOne(pureArg) || e instanceof SqlExpr.Case)) {
+            return e;
+        }
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                        new SqlExpr.ArrayLit(List.of()))),
+                new SqlExpr.ArrayLit(List.of(e)));
     }
 
     /** Whether an argument's Pure multiplicity is at most one. */

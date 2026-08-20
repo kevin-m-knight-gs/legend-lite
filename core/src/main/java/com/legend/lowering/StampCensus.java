@@ -68,35 +68,34 @@ public final class StampCensus {
         if (e instanceof SqlExpr.NullLit) {
             return;
         }
-        // DESIGNED (stamp, carrier) pairs — the FRAME-AWARE table (the
-        // invariant flip's contract; each row is an ADJUDICATED carrier
-        // convention, never a lie):
-        // 1. A RELATION-typed node's scalar stamp describes the relation
-        //    VALUE (one relation); the LIST/collect SQL is its designed
-        //    row-collection carrier (TDS distinct/sort heads).
-        // 2. An INSTANCE ctor's scalar stamp describes one instance; the
-        //    ArrayLit is the struct/canonical-layout carrier
-        //    (STRUCT_VALUES design).
-        // 3. A platform List<T> object is ONE value carried as the SQL
-        //    array (list() — engine List semantics).
+        // DESIGNED CARRIER TABLE — positive one-arm EXPECTATIONS, never
+        // blanket skips (user ruling: "no way to abuse"; each row states
+        // how ONE value of a COMPOSITE type is physically represented —
+        // the same kind of sentence as "one String is a VARCHAR"):
+        // 1. ONE relation value: the row-collect list OR the
+        //    single-column cell collapse — BOTH designed, so only the
+        //    scalar-stamp/list-shape arm is satisfied by type; a
+        //    MANY-stamped relation node with provably-scalar SQL still
+        //    fires below.
+        // 2. ONE instance (ctor): the struct/canonical-layout ArrayLit
+        //    (STRUCT_VALUES design) — satisfied only for the exact
+        //    (ctor node, ArrayLit) pair.
+        // 3. ONE platform List<T> object: the SQL array (engine List
+        //    semantics) — satisfied only on the scalar-stamp arm; a
+        //    many-stamped List node with provably-scalar SQL fires.
         // (A former row 4 — many-stamped property reads with scalar
-        // SQL, "the per-row frame of the same read" — is DELETED: the
-        // one producer of that pair was scalarMapAsProject copying the
-        // collection mult onto the u_map__ COLUMN; the column now
-        // declares the per-cell mult and property reads are checked in
-        // BOTH arms like every other node.)
-        if (spec.info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType) {
-            return;
-        }
-        if (spec instanceof com.legend.compiler.spec.typed.TypedNewInstance
-                && e instanceof SqlExpr.ArrayLit) {
-            return;
-        }
-        if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(spec.info().type())) {
-            return;
-        }
-        if (scalarStamp && ListShapes.listShaped(e)) {
+        // SQL — is DELETED: its one producer was scalarMapAsProject
+        // copying the collection mult onto the u_map__ COLUMN; the
+        // column now declares the per-cell mult and property reads are
+        // checked in BOTH arms like every other node.)
+        boolean designedListCarrier =
+                spec.info().type() instanceof
+                        com.legend.compiler.element.type.Type.RelationType
+                || (spec instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                        && e instanceof SqlExpr.ArrayLit)
+                || com.legend.compiler.element.type.PlatformTypes
+                        .isListCarrier(spec.info().type());
+        if (scalarStamp && !designedListCarrier && listShaped(e)) {
             fire("ONE-STAMP/LIST-SHAPE mult=[" + b.lower() + ".."
                     + b.upper() + "] sql=" + e.getClass().getSimpleName()
                     + " " + digest(spec) + " test=" + CONTEXT.get());
@@ -120,6 +119,30 @@ public final class StampCensus {
         throw new IllegalStateException(
                 "MULTIPLICITY-STAMP INVARIANT VIOLATED (stamp program,"
                 + " docs/STAMP_DISCIPLINE_PROGRAM.md): " + line);
+    }
+
+    /** The value is DEFINITELY list-shaped at SQL level — the
+     * invariant's own evidence procedure (absorbed from the dissolved
+     * ListShapes; production code never consults shape). */
+    private static boolean listShaped(SqlExpr e) {
+        return e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
+                || (e instanceof SqlExpr.ScalarSubquery sq
+                        && listValuedSubquery(sq))
+                || (e instanceof SqlExpr.Cast ct
+                        && ct.target() instanceof com.legend.sql.SqlType.Array)
+                || (e instanceof SqlExpr.Call c && c.fn().producesList());
+    }
+
+    /** A scalar subquery whose single projection is a LIST-building
+     * aggregate (the values-collection reader) — its VALUE is a list. */
+    static boolean listValuedSubquery(SqlExpr.ScalarSubquery sq) {
+        return sq.subquery() instanceof com.legend.sql.SqlSelect ss
+                && ss.projections().size() == 1
+                && (ss.projections().get(0).expr()
+                                instanceof com.legend.sql.SqlAgg.Reducer r
+                            && r.fn() == com.legend.sql.SqlAgg.Fn.LIST
+                        || ss.projections().get(0).expr()
+                                instanceof SqlExpr.OrderedListAgg);
     }
 
     /** PROVABLY a single scalar value — literals and scalar-typed casts

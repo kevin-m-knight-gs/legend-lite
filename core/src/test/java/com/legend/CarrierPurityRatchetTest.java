@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * §4 definition. LIST_* / UNNEST SqlFn references upstream are counted
  * because those functions presuppose the list carrier itself.
  */
-class CarrierPurityRatchetTest {
+class   CarrierPurityRatchetTest {
 
     /** Pattern -> R0 census pin (2026-08-01, main @ 85ff6c8a; raw
      * occurrences, comment mentions included — the instrument's own
@@ -49,7 +49,10 @@ class CarrierPurityRatchetTest {
             // contract holds once singleton literals lower as their
             // element (the box moved from the literal to the ONE
             // consumer whose contract needs it; net honest).
-            "new SqlExpr\\.ArrayLit\\(", 38,
+            // 38→34 (burn slice 8, ListShapes dissolution): the dead
+            // listArg/definitelyScalar wraps and the shape-decided
+            // ArrayLit escapes are GONE; wrap helpers are stamp-read.
+            "new SqlExpr\\.ArrayLit\\(", 34,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
@@ -63,7 +66,7 @@ class CarrierPurityRatchetTest {
             // conformance markers whose list downstream consumes;
             // STAMP_DISCIPLINE_PROGRAM records the provenance-split
             // design that replaces the blanket emission.)
-            // 137→139 (2026-08-20 stamp endgame): ListShapes.
+            // 137→139 (2026-08-20 stamp endgame): Scalars.
             // checkedExtract — the CHECKED toOne over a definite
             // list-producing CALL (LIST_LENGTH guard + LIST_GET), the
             // agg-strip's semantics spelled directly. UNLIKE the
@@ -76,7 +79,11 @@ class CarrierPurityRatchetTest {
             // runtime-size-1 negate guard (LIST_LENGTH + LIST_GET) —
             // real pure negates a size-1 collection; the first-element
             // seed returned +x (residue recorded at the C1 landing).
-            "SqlFn\\.LIST_", 141,
+            // 141→129 (burn slice 8): LIST_PRODUCERS became SqlFn
+            // metadata (function facts live on the enum, outside the
+            // pre-dialect ban zone) and the dissolved ListShapes' dead
+            // arms took their references with them.
+            "SqlFn\\.LIST_", 129,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

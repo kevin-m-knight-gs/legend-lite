@@ -139,6 +139,32 @@ final class PureSql {
         };
     }
 
+    /** A value in LIST position: the STAMP decides the wrap (a
+     * non-many value — designed one-value carriers included — wraps as
+     * one element; NULL = empty passes). Moved from the dissolved
+     * ListShapes. */
+    static com.legend.sql.SqlExpr asList(com.legend.sql.SqlExpr e,
+            boolean many) {
+        return many || e instanceof com.legend.sql.SqlExpr.NullLit
+                ? e : new com.legend.sql.SqlExpr.ArrayLit(
+                        java.util.List.of(e));
+    }
+
+    /** An if-branch is a 0-param SINGLE-expression thunk; its body is
+     * the value. Moved from the dissolved ListShapes. */
+    static com.legend.compiler.spec.typed.TypedSpec thunkBody(
+            com.legend.compiler.spec.typed.TypedSpec branch) {
+        if (branch instanceof com.legend.compiler.spec.typed.TypedLambda l) {
+            if (l.body().size() != 1) {
+                throw new IllegalStateException("if-branch thunk has "
+                        + l.body().size() + " statements; a last-statement"
+                        + " pick would silently drop the rest");
+            }
+            return l.body().get(0);
+        }
+        return branch;
+    }
+
     static boolean nullable(Multiplicity m) {
         return !(m instanceof Multiplicity.Bounded b) || b.lower() == 0;
     }
