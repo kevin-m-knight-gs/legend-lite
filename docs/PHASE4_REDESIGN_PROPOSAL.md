@@ -195,3 +195,29 @@ Promise-vs-reality sweep over every phase's contract:
   witness appears. Z2 (wire-policy scope: equalScalar applies TDSNull/2-ULP/
   temporal-bridge unconditionally — should a product caller get test-path
   tolerances?) remains the most consequential open ruling.
+
+## F. The UPSTREAM-DEFECT category (ratified 2026-08-19)
+
+The line-by-line adjudication of channel A's ~36 expected failures surfaced a
+THIRD category beside fixable and irreducible: **upstream language defects** —
+places where legend-pure's two executors (interpreted vs relational) give
+DIFFERENT answers for the same expression, and upstream documents the split
+only by excluding those tests from its relational-DuckDB manifest. The
+witnessed family: indexOf/substring base offsets (interpreted 0-based/-1-miss;
+relational translates to locate()/substring verbatim, 1-based/0-miss — the
+engine's own corpus goldens pin the 1-based answers its PCT tests contradict).
+
+A 0-based emission was BUILT AND MEASURED (essential 290→297, B-FIXES-A 4→11,
+functions referee byte-identical) then REVERTED by ruling: with one executor we
+must pick a side, either side breaks parity with half of upstream, and the
+product surface (drop-in/corpus, engine-relational parity) wins. These rows
+live OUT of the burn queue permanently, named as the defect they are.
+**The ENGINE-FRONTIER diff category IS this defect class** — every frontier row
+is upstream disagreeing with itself; the census (Essential 14, Grammar 5,
+Standard 1) is our standing inventory of the language's own ambiguities.
+
+The irreducible set proper, after the full 36-row adjudication:
+**object identity (eq/equalNonPrimitive ×2 — a wire cannot carry reference
+identity) and expression-tree reflection (testMatchWithMixedReturnType ×1).**
+Everything else is fixable, upstream-defect, or already B-FIXES-A (8 rows,
+including the null-vs-empty joinStrings wire case).
