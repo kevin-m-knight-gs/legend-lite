@@ -824,8 +824,10 @@ final class Scalars {
                 // is 1, never len('abc') (C1.5d — the same gate its 13
                 // family siblings carry; the list encoding would
                 // CHAR-INDEX a lone string)
-                if (isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                // deletion leg: stamp decides (a designed to-one
+                // ArrayLit — a List OBJECT / struct instance — counts 1
+                // in pure: size of one value).
+                if (isToOne(n.args().get(0))) {
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, args.get(0)),
                             new SqlExpr.IntLit(0))), new SqlExpr.IntLit(1));
@@ -895,8 +897,8 @@ final class Scalars {
                 // a TO-ONE source IS the joined string; an EMPTY list
                 // joins to '' (list_aggregate over NULL/[] is NULL).
                 SqlExpr joined;
-                if (isToOne(n.args().get(0)) && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
-                    joined = args.get(0);
+                if (isToOne(n.args().get(0))) {
+                    joined = args.get(0);   // stamp decides (String args)
                 } else {
                     SqlExpr sep = args.size() == 2 ? args.get(1)
                             : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
@@ -1119,7 +1121,6 @@ final class Scalars {
                     // SINGLETON LIST LITERAL is a list; its reduction is
                     // the element (the minus rule's convention)
                     return isToOne(n.args().get(0))
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
                             ? args.get(0)
                             : Comparators.select(args.get(0), cmp, false);
                 }
@@ -1130,7 +1131,6 @@ final class Scalars {
                             : new SqlExpr.Call(SqlFn.LEAST, args);
                 }
                 return isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MIN, args);
             });
@@ -1144,7 +1144,6 @@ final class Scalars {
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
                     // (same singleton-list-literal guard as min)
                     return isToOne(n.args().get(0))
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
                             ? args.get(0)
                             : Comparators.select(args.get(0), cmp, true);
                 }
@@ -1155,7 +1154,6 @@ final class Scalars {
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
                 }
                 return isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MAX, args);
             });
@@ -1164,11 +1162,13 @@ final class Scalars {
         // not the instance): a TO-ONE argument is its own reduction, but a
         // SINGLETON LIST LITERAL is a LIST — the reduction of [x] is x,
         // via the list op (the minus rule's convention; witnesses
-        // testAverage_Integers, testLeast_Single). Every identity arm in
-        // the reduction family carries the ArrayLit guard.
+        // testAverage_Integers, testLeast_Single). DELETION LEG: the
+        // ArrayLit guards are gone — the invariant makes non-designed
+        // lists under to-one stamps impossible, and for the designed
+        // List-OBJECT carrier the identity arm IS pure semantics
+        // (first(aList) is the List, not its inner first).
         for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_SUM, Numerics.numList(args.get(0))));
         }
@@ -1191,7 +1191,6 @@ final class Scalars {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 return isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MAX, args);
             });
@@ -1203,7 +1202,6 @@ final class Scalars {
                     return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 return isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MIN, args);
             });
@@ -1226,7 +1224,6 @@ final class Scalars {
                     return SqlExpr.Call.of(SqlFn.LIST_GET, mx.idList(), lastPos);
                 }
                 return isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? args.get(0)
                         : new SqlExpr.Call(SqlFn.LIST_MODE, args);
             });
@@ -1268,7 +1265,6 @@ final class Scalars {
                 // column's INTEGER, the wrong declared kind on the wire
                 // (adjudication ledger cluster 10)
                 RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
                         : SqlExpr.Call.of(SqlFn.LIST_AVG, Numerics.numList(args.get(0))));
             }
@@ -1278,7 +1274,6 @@ final class Scalars {
         // middle) and a to-one value is its own median.
         for (String f : Pure.nativeKeysAt("median")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, Numerics.numList(args.get(0))));
         }
@@ -1297,20 +1292,17 @@ final class Scalars {
         // encoding CHAR-INDEXES a lone string ('Doe'[1] = 'D', the at()/last()
         // trap; audit made the family uniform).
         for (String f : Pure.nativeKeysAt("first")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("head")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
         for (String f : Pure.nativeKeysAt("last")) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit) ? args.get(0)
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(-1))));
         }
@@ -1382,7 +1374,6 @@ final class Scalars {
             // would CHAR-INDEX a lone string ('Doe'[1] = 'D' in DuckDB).
             RULES.put(f, (n, args) -> {
                 if (isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0) {
                     return args.get(0);
                 }
@@ -1405,7 +1396,6 @@ final class Scalars {
         // itself (a to-one item wraps as a singleton).
         for (String f : Pure.nativeKeysAt("list")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
-                    && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                     : args.get(0));
         }
@@ -1445,8 +1435,7 @@ final class Scalars {
                 // a TO-ONE value is its own dedup — but the output is
                 // [*]-typed, so it must stay LIST-shaPED for consumers
                 // (the root UNNEST, downstream list ops)
-                if (isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                if (isToOne(n.args().get(0))) {
                     return new SqlExpr.ArrayLit(List.of(args.get(0)));
                 }
                 if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
@@ -1769,15 +1758,13 @@ final class Scalars {
         // tail/init of a TO-ONE value = EMPTY (all-but-first/-last of 1).
         for (String f : Pure.nativeKeysAt("tail")) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
-                    || (isToOne(n.args().get(0))
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit))
+                    || (isToOne(n.args().get(0)))
                     ? new SqlExpr.NullLit()
                     : new SqlExpr.Call(SqlFn.LIST_TAIL, args));
         }
         for (String f : Pure.nativeKeysAt("init")) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
-                    || (isToOne(n.args().get(0))
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit))
+                    || (isToOne(n.args().get(0)))
                     ? new SqlExpr.NullLit()
                     : new SqlExpr.Call(SqlFn.LIST_INIT, args));
         }
@@ -1895,11 +1882,13 @@ final class Scalars {
                     }
                     // A TO-ONE side is the single-element list ([1] fits
                     // Number[*]) — unnest needs the list shape.
+                    // deletion leg: the stamp decides the wrap (a
+                    // many-stamped scalar or to-one list would have
+                    // thrown at the funnel; Number sides carry no
+                    // designed ArrayLit).
                     SqlExpr xs = Numerics.numList(n.args().get(0).info().multiplicity().isMany()
-                            || args.get(0) instanceof SqlExpr.ArrayLit
                             ? args.get(0) : new SqlExpr.ArrayLit(List.of(args.get(0))));
                     SqlExpr ys = Numerics.numList(n.args().get(1).info().multiplicity().isMany()
-                            || args.get(1) instanceof SqlExpr.ArrayLit
                             ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1))));
                     var inner = new SqlSelect(List.of(
                             new SqlSelect.Projection(
@@ -2000,8 +1989,7 @@ final class Scalars {
                                                             new SqlExpr.Column(null, "_nv"))))),
                             new SqlExpr.IntLit(0)));
                 }
-                if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))) {
                     // pure [0..1] overload body inlines HERE (engine
                     // stringExtension.pure:21 contains(String[0..1],
                     // String[1]) = isNotEmpty && contains) — same guard as
